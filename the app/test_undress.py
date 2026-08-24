@@ -938,6 +938,101 @@ def test_overlapping_tile_weights_sum_to_full_coverage():
     check(float(wsum[sel].min()) > 1e-4, "every masked pixel needs non-zero blend weight")
 
 
+
+@test
+def test_garment_color_from_prompt_picks_the_named_colour():
+    from undress_core import DEFAULT_INIT_COLOR, GARMENT_COLORS, garment_color_from_prompt
+
+    check(garment_color_from_prompt("a white strapless dress") == GARMENT_COLORS["white"], "white")
+    check(garment_color_from_prompt("elegant RED gown") == GARMENT_COLORS["red"], "case-insensitive")
+    check(garment_color_from_prompt("a dress, photorealistic") == DEFAULT_INIT_COLOR, "no colour -> default")
+    check(garment_color_from_prompt("") == DEFAULT_INIT_COLOR, "empty -> default")
+    check(garment_color_from_prompt(None) == DEFAULT_INIT_COLOR, "None -> default")
+
+
+@test
+def test_garment_color_prefers_the_longer_match():
+    from undress_core import GARMENT_COLORS, garment_color_from_prompt
+
+    got = garment_color_from_prompt("a navy blue evening dress")
+    check(got == GARMENT_COLORS["navy"], f"navy should beat blue, got {got}")
+
+
+@test
+def test_garment_base_init_repaints_inside_and_leaves_outside_alone():
+    import numpy as np
+
+    from undress_core import garment_base_init
+
+    img = np.zeros((64, 64, 3), np.uint8)
+    img[:, :32] = (20, 20, 22)      # dark garment
+    img[:, 32:] = (205, 170, 150)   # skin
+    mask = np.zeros((64, 64), np.uint8)
+    mask[:, :32] = 255
+
+    out = garment_base_init(img, mask, target_rgb=(240, 238, 234))
+    check(np.array_equal(out[:, 32:], img[:, 32:]), "pixels outside the mask must be untouched")
+    check(int(out[:, :32].mean()) > 180, f"garment area should be light now, got {out[:, :32].mean():.0f}")
+
+
+@test
+def test_garment_base_init_keeps_fold_structure():
+    import numpy as np
+
+    from undress_core import garment_base_init
+
+    # Dark garment with a vertical shading gradient standing in for folds.
+    grad = np.linspace(10, 70, 64).astype(np.uint8)
+    img = np.repeat(grad[None, :, None], 64, axis=0).repeat(3, axis=2)
+    mask = np.full((64, 64), 255, np.uint8)
+
+    out = garment_base_init(img, mask, target_rgb=(240, 238, 234))
+    row = out[32, :, 0].astype(int)
+    check(row[-1] > row[0], f"shading direction must survive: {row[0]} -> {row[-1]}")
+    check(int(np.ptp(row)) > 8, f"folds flattened out, ptp={np.ptp(row)}")
+
+
+@test
+def test_garment_base_init_removes_the_old_colour_identity():
+    import numpy as np
+
+    from undress_core import garment_base_init
+
+    img = np.zeros((32, 32, 3), np.uint8)
+    img[:, :] = (150, 20, 20)   # strongly red original garment
+    mask = np.full((32, 32), 255, np.uint8)
+    out = garment_base_init(img, mask, target_rgb=(40, 60, 180))  # want blue
+
+    r, b = float(out[..., 0].mean()), float(out[..., 2].mean())
+    check(b > r, f"target chroma should dominate: r={r:.0f} b={b:.0f}")
+
+
+@test
+def test_garment_base_init_is_a_noop_without_mask_pixels():
+    import numpy as np
+
+    from undress_core import garment_base_init
+
+    img = np.full((16, 16, 3), 90, np.uint8)
+    out = garment_base_init(img, np.zeros((16, 16), np.uint8))
+    check(np.array_equal(out, img), "empty mask must return the image unchanged")
+
+
+@test
+def test_garment_base_init_accepts_a_work_res_mask():
+    import numpy as np
+
+    from undress_core import garment_base_init
+
+    img = np.zeros((128, 128, 3), np.uint8)
+    img[:, :] = (30, 30, 30)
+    small = np.zeros((32, 32), np.uint8)
+    small[:, :16] = 255
+    out = garment_base_init(img, small, target_rgb=(240, 238, 234))
+    check(out.shape == img.shape, f"shape changed: {out.shape}")
+    check(int(out[:, :40].mean()) > int(out[:, 90:].mean()), "resized mask should map to the left half")
+
+
 def main(argv):
     pattern = argv[0] if argv else ""
     selected = [t for t in _TESTS if pattern in t.__name__]

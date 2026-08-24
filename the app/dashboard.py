@@ -146,9 +146,12 @@ UNDRESS_HELP = {
         "the quality default. This is not the same as strength."
     ),
     "strength": (
-        "How hard the masked clothes are rewritten, 0.5–1.0. At 1.0 the garment starts from "
-        "pure noise (needed for a real restyle). Lower values (0.5–0.7) keep more of the "
-        "original outfit. Unmasked pixels stay from the source regardless."
+        "How hard the masked clothes are rewritten, 0.3–1.0. Below 1.0 the garment area "
+        "starts from a base repainted in the prompt’s colour that keeps the original folds "
+        "and neckline, so the model refines fabric already in the right place. Around 0.6 is "
+        "the sweet spot. At 1.0 it starts from pure noise instead — more freedom, but with "
+        "skin all around it often paints skin where the garment should be. Unmasked pixels "
+        "stay from the source regardless."
     ),
     "guidance": (
         "How literally the model follows the prompt, 3–12. Around 6 gives natural fabric; "
@@ -2594,7 +2597,8 @@ elif page == "✨ Magic Undress":
         )
         steps = st.slider("Steps", 15, 50, 26, key="undress_steps_v3", help=UNDRESS_HELP["steps"])
         strength = st.slider(
-            "Inpaint strength", 0.5, 1.0, 1.0, key="undress_strength_v2", help=UNDRESS_HELP["strength"]
+            "Inpaint strength", 0.3, 1.0, 0.6, step=0.05, key="undress_strength_v3",
+            help=UNDRESS_HELP["strength"],
         )
         guidance = st.slider(
             "Guidance", 3.0, 12.0, 6.0, step=0.5, key="undress_guidance",

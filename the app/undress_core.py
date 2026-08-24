@@ -61,6 +61,9 @@ REFINE_OVERLAP = 128
 DEFAULT_REFINE_STRENGTH = 0.28
 DEFAULT_REFINE_STEPS = 28
 
+# Below 1.0 the garment region starts from a colour-matched base instead of noise.
+DEFAULT_STRENGTH = 0.6
+
 
 def hf_cache_snapshot(repo_id: str, marker: str) -> Optional[Path]:
     """Return a complete-enough local snapshot folder, or None."""
@@ -923,6 +926,96 @@ def subtract_keep_soft(inpaint_mask, keep_mask, feather_px: int = 3) -> np.ndarr
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
+GARMENT_COLORS = {
+    "white": (240, 238, 234),
+    "ivory": (243, 238, 226),
+    "cream": (243, 236, 219),
+    "beige": (226, 211, 187),
+    "black": (28, 28, 30),
+    "grey": (140, 140, 142),
+    "gray": (140, 140, 142),
+    "silver": (196, 198, 201),
+    "gold": (198, 163, 90),
+    "red": (176, 42, 46),
+    "burgundy": (110, 32, 44),
+    "pink": (226, 160, 176),
+    "blue": (54, 84, 158),
+    "navy": (32, 44, 84),
+    "teal": (34, 118, 124),
+    "green": (54, 118, 68),
+    "emerald": (28, 122, 88),
+    "yellow": (226, 200, 84),
+    "orange": (216, 128, 52),
+    "purple": (104, 60, 146),
+    "lavender": (188, 174, 216),
+    "brown": (108, 78, 54),
+}
+DEFAULT_INIT_COLOR = (238, 236, 232)
+
+
+def garment_color_from_prompt(prompt: str, default=DEFAULT_INIT_COLOR):
+    """First colour word in the prompt, so the init base matches the target garment.
+
+    Longest match wins, so "navy" beats "blue" in "navy blue dress".
+    """
+    if not prompt:
+        return default
+    text = str(prompt).lower()
+    hits = [(len(name), name) for name in GARMENT_COLORS if name in text]
+    if not hits:
+        return default
+    return GARMENT_COLORS[max(hits)[1]]
+
+
+def garment_base_init(
+    image_rgb,
+    garment_mask,
+    target_rgb=DEFAULT_INIT_COLOR,
+    target_contrast: float = 26.0,
+):
+    """Repaint the garment region in a flat target colour, keeping its shading.
+
+    At strength 1.0 the masked area starts from pure noise, and with skin all around
+    it the model often resolves the garment as bare skin. Handing it a garment-coloured
+    base that still carries the original folds means it only has to refine fabric that
+    is already in the right place, at the right neckline.
+
+    Luminance keeps the original relative shape (rescaled for contrast); chroma is
+    replaced outright so the old garment's colour identity does not survive.
+    """
+    rgb = np.asarray(image_rgb).astype(np.uint8)
+    h, w = rgb.shape[:2]
+    alpha = _mask_at_hw(garment_mask, h, w).astype(np.float32) / 255.0
+    sel = alpha > 0.02
+    if int(sel.sum()) < 16:
+        return rgb.copy()
+
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32)
+    target = cv2.cvtColor(
+        np.asarray(target_rgb, np.uint8).reshape(1, 1, 3), cv2.COLOR_RGB2LAB
+    )[0, 0].astype(np.float32)
+
+    lum = lab[:, :, 0]
+    sd = float(max(lum[sel].std(), 1.0))
+    gain = float(np.clip(target_contrast / sd, 0.25, 1.6))
+    # Anchor the target colour to the garment's HIGHLIGHT, not its mean. Fabric folds
+    # read as shadow, so they need headroom below the base; centring on the mean pushes
+    # half the range past pure white and clips the folds flat.
+    hi = float(np.percentile(lum[sel], 85.0))
+    lo_clip = max(4.0, target[0] - 3.5 * target_contrast)
+    hi_clip = min(251.0, target[0] + 0.6 * target_contrast)
+
+    out_lab = lab.copy()
+    out_lab[:, :, 0] = np.clip(target[0] + (lum - hi) * gain, lo_clip, hi_clip)
+    out_lab[:, :, 1] = target[1]
+    out_lab[:, :, 2] = target[2]
+    recolored = cv2.cvtColor(out_lab.astype(np.uint8), cv2.COLOR_LAB2RGB)
+
+    a3 = alpha[:, :, None]
+    blended = recolored.astype(np.float32) * a3 + rgb.astype(np.float32) * (1.0 - a3)
+    return np.clip(blended, 0, 255).astype(np.uint8)
+
+
 def _tile_positions(start: int, end: int, tile: int, step: int, limit: int) -> List[int]:
     """Evenly spaced tile origins across [start, end), each fully inside [0, limit).
 
@@ -1225,7 +1318,8 @@ def run_undress_job(job, manager) -> bool:
                 "seed": params.get("seed", -1),
                 "steps": params.get("steps", 26),
                 "guidance_scale": params.get("guidance_scale", 6.0),
-                "strength": params.get("strength", 1.0),
+                "strength": params.get("strength", DEFAULT_STRENGTH),
+                "init_color": params.get("init_color"),
                 "controlnet_scale": params.get("controlnet_scale", 0.0),
                 "ref_images": params.get("ref_images") or [],
                 "ref_scale": params.get("ref_scale", DEFAULT_REF_SCALE),

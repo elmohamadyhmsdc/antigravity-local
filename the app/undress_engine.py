@@ -5,8 +5,13 @@ Runs in venv_ai (Python 3.10) as a subprocess. Called by undress_core.UndressCli
 from the main venv / job worker.
 
 Pipeline: parse clothes at <=768 -> build masks -> lift them to native resolution
-with an edge-aware filter -> inpaint a native-res crop around the garment ->
-optional tiled refine pass at full resolution -> skin-match and composite.
+with an edge-aware filter -> repaint the garment region into a colour-matched base
+that keeps the original folds and neckline -> inpaint a native-res crop at strength
+~0.6 -> optional tiled refine pass at full resolution -> skin-match and composite.
+
+The init base matters: at strength 1.0 the garment area starts from pure noise, and
+with skin on every side the model frequently resolves it as bare skin rather than
+fabric. Starting from a garment-shaped base removes that ambiguity.
 
 ControlNet is deliberately absent: on a 6 GB laptop card it does not fit alongside
 the inpaint UNet and the CLIP image encoder. Reference images are handled by
@@ -52,8 +57,11 @@ from undress_core import (
     ensure_ip_adapter,
     ensure_local_model,
     exposed_skin_mask,
+    DEFAULT_STRENGTH,
     fit_work_size,
     format_result_line,
+    garment_base_init,
+    garment_color_from_prompt,
     garment_inpaint_mask,
     hair_keep_mask,
     hands_keep_mask,
@@ -453,7 +461,7 @@ def generate(payload: dict, pipe, device: str, parser_proc, parser, ip_loaded: b
 
     steps = int(payload.get("steps", 26))
     guidance = float(payload.get("guidance_scale", 6.0))
-    strength = float(payload.get("strength", 1.0))
+    strength = float(payload.get("strength", DEFAULT_STRENGTH))
 
     # Generate on a crop taken from the ORIGINAL, so the garment gets the whole
     # 768 budget instead of sharing it with backdrop.
@@ -468,7 +476,14 @@ def generate(payload: dict, pipe, device: str, parser_proc, parser, ip_loaded: b
         f"crop={cw}x{ch} -> {gw}x{gh}...",
         file=sys.stderr,
     )
-    gen_in = Image.fromarray(cv2.resize(crop_rgb, (gw, gh), interpolation=cv2.INTER_LANCZOS4))
+    if strength < 0.999:
+        init_color = payload.get("init_color") or garment_color_from_prompt(payload["prompt"])
+        init_np = garment_base_init(crop_rgb, crop_mask, target_rgb=tuple(init_color))
+        print(f"Garment init base colour {tuple(init_color)} (strength {strength})", file=sys.stderr)
+    else:
+        # At strength 1.0 the init is fully destroyed, so building a base is wasted work.
+        init_np = crop_rgb
+    gen_in = Image.fromarray(cv2.resize(init_np, (gw, gh), interpolation=cv2.INTER_LANCZOS4))
     gen_mask = _blurred_mask_pil(
         cv2.resize(crop_mask, (gw, gh), interpolation=cv2.INTER_LINEAR), blur_px=11
     )
