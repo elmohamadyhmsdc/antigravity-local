@@ -1,0 +1,28 @@
+# Antigravity Local - Biometric Gallery & Dataset Curation Tool
+# Requirements for PostgreSQL pgvector + InsightFace + Streamlit
+
+# Database
+
+python-dotenv>=1.0.0
+
+# Face Detection & Embeddings
+insightface>=0.7.3
+onnxruntime-gpu>=1.16.3
+
+# Image/Video Processing
+opencv-python>=4.8.1.78
+numpy>=1.24.0
+pillow>=10.1.0
+
+# Machine Learning
+scikit-learn>=1.3.2
+
+# Dashboard
+streamlit>=1.30.0
+plotly>=5.18.0
+pandas>=2.0.0
+
+# Optional: pycuda for Advanced Optimus/MUX switch GPU activation
+# pip install pycuda  # Only if you have CUDA Toolkit installed
+
+# Magic Undress (Stable Diffusion) lives in venv_ai — see requirements_ai.txt

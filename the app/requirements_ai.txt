@@ -1,0 +1,15 @@
+# Magic Undress / venv_ai (Python 3.10 + CUDA torch)
+# Install AFTER creating venv_ai and installing torch:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#   pip install -r requirements_ai.txt
+
+diffusers>=0.25.0
+transformers>=4.36.0
+accelerate>=0.25.0
+scipy>=1.11.0
+safetensors>=0.4.1
+controlnet_aux>=0.0.7
+mediapipe>=0.10.9
+opencv-python>=4.8.1.78
+numpy>=1.24.0
+pillow>=10.1.0

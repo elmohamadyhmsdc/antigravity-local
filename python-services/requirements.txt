@@ -1,0 +1,15 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+insightface==0.7.3
+opencv-python==4.8.1.78
+numpy>=1.24.0,<2.0.0
+scikit-learn==1.3.2
+pillow>=10.1.0
+onnxruntime-gpu==1.16.3
+# Optional: pycuda helps force GPU activation on Advanced Optimus/MUX switch systems
+# NOTE: pycuda requires CUDA Toolkit to be installed (not just drivers)
+# If installation fails, you can skip it - the code works fine without it
+# pip install pycuda  # Only if you have CUDA Toolkit installed
+

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dashboard",
+      "runtimeExecutable": "D:\\AndroidScan\\gallary\\the app\\venv\\Scripts\\streamlit.exe",
+      "runtimeArgs": ["run", "D:\\AndroidScan\\gallary\\the app\\dashboard.py"],
+      "port": 8501
+    }
+  ]
+}

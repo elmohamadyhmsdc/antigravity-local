@@ -1,0 +1,10 @@
+[server]
+maxUploadSize = 2000
+maxMessageSize = 2000
+# File uploads over a non-localhost address (LAN/phone access, like the
+# 192.168.x.x Network URL) are a known case where Streamlit's XSRF
+# protection silently rejects the upload POST before it ever reaches the
+# app's Python code - matches the symptom seen here (zero app-level log
+# lines despite repeated upload attempts). Safe to disable for this
+# single-user local tool.
+enableXsrfProtection = false
