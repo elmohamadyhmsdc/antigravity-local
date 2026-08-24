@@ -255,16 +255,18 @@ def load_models():
     if device == "cuda":
         # 6 GB cards: keep offload. Only the active submodule sits in VRAM.
         pipe.enable_model_cpu_offload()
-        try:
-            pipe.enable_xformers_memory_efficient_attention()
-        except Exception:
-            pass
+        # Do NOT touch attention processors while IP-Adapter is attached. xformers and
+        # attention-slicing both call set_attn_processor, which replaces IP-Adapter's
+        # IPAdapterAttnProcessor. The plain processor then hits encoder_hidden_states
+        # as a (text, image) tuple and dies with "tuple has no attribute shape".
+        # torch 2.x already defaults to SDPA, so there is nothing to gain here anyway.
+        if not ip_loaded:
+            try:
+                pipe.enable_xformers_memory_efficient_attention()
+            except Exception:
+                pass
         try:
             pipe.enable_vae_slicing()
-        except Exception:
-            pass
-        try:
-            pipe.enable_attention_slicing()
         except Exception:
             pass
     else:

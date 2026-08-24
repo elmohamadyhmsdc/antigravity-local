@@ -923,6 +923,23 @@ def subtract_keep_soft(inpaint_mask, keep_mask, feather_px: int = 3) -> np.ndarr
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
+def _tile_positions(start: int, end: int, tile: int, step: int, limit: int) -> List[int]:
+    """Evenly spaced tile origins across [start, end), each fully inside [0, limit).
+
+    Stepping by a fixed amount and clamping the last origin squashes the final row
+    against the previous one, so you pay for a tile that adds almost no new pixels.
+    Spreading the same count evenly keeps overlap >= the requested amount.
+    """
+    lo = max(0, min(int(start), max(0, limit - tile)))
+    hi = max(0, min(int(end) - tile, limit - tile))
+    if hi <= lo:
+        return [lo]
+    n = int(np.ceil((hi - lo) / float(max(1, step)))) + 1
+    if n <= 1:
+        return [lo]
+    return sorted({int(round(lo + (hi - lo) * i / (n - 1))) for i in range(n)})
+
+
 def plan_refine_tiles(
     mask,
     tile: int = REFINE_TILE,
@@ -951,26 +968,18 @@ def plan_refine_tiles(
     x1b, y1b = min(w, x1b + pad), min(h, y1b + pad)
     step_x = max(multiple, tw - int(overlap))
     step_y = max(multiple, th - int(overlap))
+    xs_pos = _tile_positions(x0b, x1b, tw, step_x, w)
+    ys_pos = _tile_positions(y0b, y1b, th, step_y, h)
     boxes: List[Tuple[int, int, int, int]] = []
     seen = set()
-    y = y0b
-    while True:
-        yy0 = min(max(0, y), max(0, h - th))
-        yy1 = min(h, yy0 + th)
-        x = x0b
-        while True:
-            xx0 = min(max(0, x), max(0, w - tw))
-            xx1 = min(w, xx0 + tw)
-            box = (xx0, yy0, xx1, yy1)
-            if box not in seen and int(m[yy0:yy1, xx0:xx1].max()) > 8:
+    for yy0 in ys_pos:
+        for xx0 in xs_pos:
+            box = (xx0, yy0, xx0 + tw, yy0 + th)
+            if box in seen:
+                continue
+            if int(m[yy0:yy0 + th, xx0:xx0 + tw].max()) > 8:
                 seen.add(box)
                 boxes.append(box)
-            if xx1 >= x1b or xx0 >= w - tw:
-                break
-            x += step_x
-        if yy1 >= y1b or yy0 >= h - th:
-            break
-        y += step_y
     return boxes
 
 
@@ -1226,7 +1235,10 @@ def run_undress_job(job, manager) -> bool:
             },
             timeout=timeout,
         )
+        engine_tb = result.get("traceback") if isinstance(result, dict) else None
         if not result.get("success"):
+            if engine_tb:
+                print(f"[JOB {job.id}] engine traceback:\n{engine_tb}", file=sys.stderr)
             raise RuntimeError(result.get("error") or "undress engine failed")
 
         png = base64.b64decode(result["output_image"])
@@ -1251,7 +1263,10 @@ def run_undress_job(job, manager) -> bool:
         job.status = JobStatus.FAILED
         job.progress = 0.0
         job.message = f"Error: {e}"
-        job.error = traceback.format_exc()
+        local_tb = traceback.format_exc()
+        engine_tb = locals().get("engine_tb")
+        # The worker runs in venv_ai, so its traceback is the only useful one here.
+        job.error = f"{engine_tb}\n--- job worker ---\n{local_tb}" if engine_tb else local_tb
         job.completed_at = datetime.now().isoformat()
         manager.save_job(job)
         print(f"[JOB {job.id}] ERROR: {e}", file=sys.stderr)
