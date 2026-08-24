@@ -807,6 +807,137 @@ def test_write_undress_output_persists_png():
         check(Path(path).name == "abc123.png", Path(path).name)
 
 
+
+@test
+def test_refine_mask_edges_snaps_a_blocky_mask_to_the_real_edge():
+    import numpy as np
+
+    from undress_core import refine_mask_edges
+
+    # Image edge at x=128; mask edge deliberately offset to x=100.
+    img = np.zeros((256, 256, 3), np.uint8)
+    img[:, 128:] = 230
+    mask = np.zeros((256, 256), np.uint8)
+    mask[:, 100:] = 255
+
+    out = refine_mask_edges(mask, img, radius=16, eps=1e-3)
+    stray = int(out[128, 110])       # inside old mask, dark side of the real edge
+    inside = int(out[128, 200])      # well inside the bright region
+    outside = int(out[128, 40])      # far outside the mask
+
+    check(inside > 200, f"real garment area should stay masked, got {inside}")
+    check(outside < 60, f"background should stay unmasked, got {outside}")
+    check(stray < inside - 40, f"overhang should be pulled back: stray={stray} inside={inside}")
+
+
+@test
+def test_subtract_keep_soft_leaves_a_gradient_not_a_cliff():
+    import numpy as np
+
+    from undress_core import subtract_keep_soft
+
+    mask = np.full((64, 64), 255, np.uint8)
+    keep = np.zeros((64, 64), np.uint8)
+    keep[:, :32] = 255
+
+    out = subtract_keep_soft(mask, keep, feather_px=4)
+    check(int(out[32, 5]) == 0, f"keep core must be fully removed, got {out[32, 5]}")
+    check(int(out[32, 60]) > 240, f"far side must stay inpaint, got {out[32, 60]}")
+
+    band = out[32, 28:37].astype(int)
+    check(len(set(band.tolist())) > 2, f"expected a ramp across the seam, got {band.tolist()}")
+    check(all(band[i] <= band[i + 1] for i in range(len(band) - 1)), f"ramp not monotonic: {band.tolist()}")
+
+
+@test
+def test_subtract_keep_soft_with_zero_feather_matches_a_binary_punch():
+    import numpy as np
+
+    from undress_core import subtract_keep_soft
+
+    mask = np.full((32, 32), 255, np.uint8)
+    keep = np.zeros((32, 32), np.uint8)
+    keep[:, :16] = 255
+    out = subtract_keep_soft(mask, keep, feather_px=0)
+    check(int(out[:, :16].max()) == 0, "keep side should be zero")
+    check(int(out[:, 16:].min()) == 255, "other side should be untouched")
+
+
+@test
+def test_plan_refine_tiles_covers_the_mask_and_skips_empty_areas():
+    import numpy as np
+
+    from undress_core import plan_refine_tiles
+
+    mask = np.zeros((1500, 2000), np.uint8)
+    mask[400:1200, 300:900] = 255
+
+    boxes = plan_refine_tiles(mask, tile=768, overlap=128)
+    check(len(boxes) > 0, "expected at least one tile")
+    for x0, y0, x1, y1 in boxes:
+        check(0 <= x0 < x1 <= 2000, f"x out of bounds: {(x0, y0, x1, y1)}")
+        check(0 <= y0 < y1 <= 1500, f"y out of bounds: {(x0, y0, x1, y1)}")
+        check((x1 - x0) % 8 == 0 and (y1 - y0) % 8 == 0, f"tile not VAE-aligned: {(x0, y0, x1, y1)}")
+        check(int(mask[y0:y1, x0:x1].max()) > 8, f"tile has no mask content: {(x0, y0, x1, y1)}")
+
+    covered = np.zeros_like(mask)
+    for x0, y0, x1, y1 in boxes:
+        covered[y0:y1, x0:x1] = 255
+    missed = int(((mask > 127) & (covered == 0)).sum())
+    check(missed == 0, f"{missed} masked pixels left uncovered by the tile plan")
+
+
+@test
+def test_plan_refine_tiles_is_empty_for_a_blank_mask():
+    import numpy as np
+
+    from undress_core import plan_refine_tiles
+
+    check(plan_refine_tiles(np.zeros((512, 512), np.uint8)) == [], "blank mask should yield no tiles")
+
+
+@test
+def test_plan_refine_tiles_handles_a_mask_smaller_than_one_tile():
+    import numpy as np
+
+    from undress_core import plan_refine_tiles
+
+    mask = np.zeros((300, 300), np.uint8)
+    mask[100:150, 100:150] = 255
+    boxes = plan_refine_tiles(mask, tile=768, overlap=128)
+    check(len(boxes) == 1, f"expected a single clipped tile, got {boxes}")
+    x0, y0, x1, y1 = boxes[0]
+    check(x1 - x0 <= 300 and y1 - y0 <= 300, f"tile larger than the image: {boxes[0]}")
+
+
+@test
+def test_tile_blend_weights_taper_to_zero_and_peak_in_the_middle():
+    from undress_core import tile_blend_weights
+
+    w = tile_blend_weights(256, 256, feather_px=32)
+    check(w.shape == (256, 256), f"bad shape {w.shape}")
+    check(float(w[128, 128]) > 0.99, f"centre should be ~1, got {w[128, 128]}")
+    check(float(w[128, 0]) < 0.1, f"edge should taper, got {w[128, 0]}")
+    check(float(w[0, 128]) < 0.1, f"edge should taper, got {w[0, 128]}")
+    check(float(w.min()) > 0.0, "weights must stay positive so the accumulator never divides by zero")
+
+
+@test
+def test_overlapping_tile_weights_sum_to_full_coverage():
+    import numpy as np
+
+    from undress_core import plan_refine_tiles, tile_blend_weights
+
+    mask = np.zeros((1200, 900), np.uint8)
+    mask[100:1100, 100:800] = 255
+    boxes = plan_refine_tiles(mask, tile=768, overlap=128)
+    wsum = np.zeros(mask.shape, np.float32)
+    for x0, y0, x1, y1 in boxes:
+        wsum[y0:y1, x0:x1] += tile_blend_weights(y1 - y0, x1 - x0, 64)
+    sel = mask > 127
+    check(float(wsum[sel].min()) > 1e-4, "every masked pixel needs non-zero blend weight")
+
+
 def main(argv):
     pattern = argv[0] if argv else ""
     selected = [t for t in _TESTS if pattern in t.__name__]

@@ -944,6 +944,11 @@ def plan_refine_tiles(
     th = max(multiple, min(tile, (h // multiple) * multiple))
     x0b, x1b = int(xs.min()), int(xs.max()) + 1
     y0b, y1b = int(ys.min()), int(ys.max()) + 1
+    # Grow the planning box by one overlap so each tile's blend taper falls OUTSIDE
+    # the mask. Starting flush with the mask edge leaves that border near zero weight.
+    pad = int(overlap)
+    x0b, y0b = max(0, x0b - pad), max(0, y0b - pad)
+    x1b, y1b = min(w, x1b + pad), min(h, y1b + pad)
     step_x = max(multiple, tw - int(overlap))
     step_y = max(multiple, th - int(overlap))
     boxes: List[Tuple[int, int, int, int]] = []

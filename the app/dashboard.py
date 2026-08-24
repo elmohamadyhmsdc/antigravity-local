@@ -150,6 +150,31 @@ UNDRESS_HELP = {
         "pure noise (needed for a real restyle). Lower values (0.5–0.7) keep more of the "
         "original outfit. Unmasked pixels stay from the source regardless."
     ),
+    "guidance": (
+        "How literally the model follows the prompt, 3–12. Around 6 gives natural fabric; "
+        "above ~8 realisticVision turns waxy and plastic-looking. Raise it only if the "
+        "garment ignores the prompt."
+    ),
+    "refs": (
+        "Optional photos of the garment or style you want. They steer the generated clothes "
+        "via IP-Adapter, so you get that specific dress instead of a generic one. Several "
+        "images are combined. Leave empty to rely on the prompt alone."
+    ),
+    "ref_scale": (
+        "How strongly the reference images pull the result, 0–1. Around 0.6 balances the "
+        "reference against the prompt; near 1.0 the references dominate and can fight the "
+        "pose; 0 disables them."
+    ),
+    "refine": (
+        "Second pass that re-denoises the finished garment at the photo’s native resolution "
+        "in overlapping tiles. This is what brings back fabric weave and shadow detail that "
+        "the 768px first pass cannot hold. Costs roughly a minute per few tiles."
+    ),
+    "refine_strength": (
+        "How much the refine pass may change the garment, 0.1–0.6. Around 0.28 adds texture "
+        "while keeping the shape from the first pass. Above ~0.45 it starts redesigning the "
+        "garment and can undo the fit."
+    ),
 }
 
 

@@ -4,7 +4,7 @@
 A **local, single-user biometric gallery and dataset curation tool** built in Python.
 It mines faces from videos/photos, deduplicates them, groups them by person, and supports:
 - Face swapping ("Reface") in images and videos
-- AI clothes transformation ("Magic Undress") via Stable Diffusion + ControlNet
+- AI clothes transformation ("Magic Undress") via Stable Diffusion inpainting
 - LoRA dataset export (Kohya_ss-compatible image + caption zips)
 
 ## Working With This Repo
@@ -14,7 +14,7 @@ It mines faces from videos/photos, deduplicates them, groups them by person, and
 | Env | Python | Purpose |
 |-----|--------|---------|
 | `venv/` | 3.13 | Main app — Streamlit, InsightFace, OpenCV |
-| `venv_ai/` | 3.10 | Magic Undress only — PyTorch CUDA 12.1, diffusers, ControlNet |
+| `venv_ai/` | 3.10 | Magic Undress only — PyTorch CUDA 12.1, diffusers, IP-Adapter |
 
 **Run the dashboard:** `run_dashboard.bat` → `http://localhost:8501`
 Manual: `venv\Scripts\activate && streamlit run dashboard.py`
@@ -43,8 +43,8 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 | `face_restore.py` | ONNX face restoration (CodeFormer / GFPGAN / GPEN) on the face crop |
 | `face_masking.py` | ONNX face parser + occluder paste masks |
 | `download_models.py` | Fetch reface ONNX models into `models/` (run once) |
-| `undress_core.py` | Shared Magic Undress helpers (mask, IPC, venv_ai worker client) |
-| `undress_engine.py` | SD 1.5 ControlNet inpaint worker (runs inside venv_ai) |
+| `undress_core.py` | Shared Magic Undress helpers (mask matting, tile planning, IPC, venv_ai worker client) |
+| `undress_engine.py` | SD 1.5 inpaint worker (runs inside venv_ai). Native-res crop + tiled refine pass + optional IP-Adapter references. No ControlNet — it does not fit in 6 GB alongside the UNet and CLIP image encoder |
 | `job_manager.py` | Background job queue (file-based persistence, sequential execution) |
 | `dashboard.py` | Streamlit UI (~3750 lines), all 9 pages |
 | `dfm_engine.py` | DeepFaceLab model support — scans `../DeepFaceLab_NVIDIA_RTX3000_series/workspace` (hardcoded, one level above this folder) for trained `.dfm` files |
@@ -79,7 +79,8 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 ## GPU Setup Notes
 - ONNX Runtime GPU: requires CUDA DLLs on PATH — `face_miner.py` and `dashboard.py` auto-add nvidia package bin dirs
 - `NvOptimusEnablement=1` env var set for Advanced Optimus/MUX laptops
-- Magic Undress downloads ~5 GB of models on first run
+- Magic Undress downloads ~5 GB of models on first run, plus ~1 GB for the optional IP-Adapter + CLIP image encoder
+- Undress pipeline targets a 6 GB card: `enable_model_cpu_offload()` stays ON, generation caps at 768, and the high-res refine pass is tiled so VRAM stays flat regardless of photo size
 
 ## Data Directories (gitignored)
 - `data/` — persons.json, faces.json
