@@ -559,8 +559,23 @@ def grow_straps_into_garment(parse_map, image_rgb, person_mask=None) -> np.ndarr
     return out
 
 
-def identity_keep_mask(parse_map, face_bbox=None, extra_keep=None, watermark=None) -> np.ndarray:
-    """Hair/hat/bag, the real face ellipse, arms (except a watermark bar), hands."""
+def identity_keep_mask(
+    parse_map,
+    face_bbox=None,
+    extra_keep=None,
+    watermark=None,
+    image_rgb=None,
+    arm_erode_px: int = 3,
+) -> np.ndarray:
+    """Hair/hat/bag, the real face ellipse, arms (except a watermark bar), hands.
+
+    Arms are the tricky part. The parser is imprecise where an arm rests against the
+    body, so keeping label 14/15 verbatim punches a notch out of the garment and the
+    original arm-toned pixels show through as a tear. Near clothing we therefore drop
+    arm pixels that are not skin-toned (those are misparsed garment) and erode the
+    remaining border so the arm/garment transition gets redrawn rather than preserved.
+    Away from clothing the arm mask is left alone, so a shadowed arm is never eaten.
+    """
     labels = np.asarray(parse_map)
     if labels.ndim == 3:
         labels = labels[:, :, 0]
@@ -577,6 +592,42 @@ def identity_keep_mask(parse_map, face_bbox=None, extra_keep=None, watermark=Non
         if wm.shape[:2] != (h, w):
             wm = cv2.resize(wm, (w, h), interpolation=cv2.INTER_NEAREST)
         arms[wm > 127] = 0
+
+    clothes = (np.isin(labels, PARSE_CLOTHES_IDS).astype(np.uint8)) * 255
+    if int(arms.max()) > 0 and int(clothes.max()) > 0:
+        arm_area = int((arms > 0).sum())
+        if image_rgb is not None:
+            rgb = np.asarray(image_rgb)
+            if rgb.shape[:2] != (h, w):
+                rgb = cv2.resize(rgb, (w, h), interpolation=cv2.INTER_LINEAR)
+            not_skin = ~_ycrcb_skin_gate(cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32))
+            suspect = ((arms > 0) & not_skin).astype(np.uint8)
+            if int(suspect.max()) > 0:
+                # Misparsed garment forms a strip CONTIGUOUS with the dress, while a
+                # genuinely shadowed arm is its own island. Connectivity tells them
+                # apart at any strip width; a distance threshold only catches strips
+                # narrower than its own radius.
+                touch = cv2.dilate(
+                    clothes, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+                ) > 0
+                _, cc = cv2.connectedComponents(suspect)
+                drop = np.zeros(suspect.shape, bool)
+                for i in np.unique(cc[touch & (suspect > 0)]):
+                    if i == 0:
+                        continue
+                    comp = cc == i
+                    # Never swallow the whole arm - that is a shadow, not a misparse.
+                    if int(comp.sum()) <= 0.45 * arm_area:
+                        drop |= comp
+                arms[drop] = 0
+        if arm_erode_px > 0:
+            reach = int(max(9, arm_erode_px * 3)) | 1
+            near_clothes = cv2.dilate(
+                clothes, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (reach, reach))
+            ) > 0
+            ksz = int(arm_erode_px) * 2 + 1
+            eroded = cv2.erode(arms, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksz, ksz)))
+            arms = np.where(near_clothes, eroded, arms).astype(np.uint8)
     keep = np.maximum(keep, arms)
     if extra_keep is not None:
         extra = _as_gray_u8(extra_keep)
@@ -628,7 +679,9 @@ def garment_inpaint_mask(
         on_fabric = (wm > 127) & (near_garment > 127) & (~skin)
         out = np.maximum(out, (on_fabric.astype(np.uint8)) * 255)
 
-    keep = identity_keep_mask(labels, face_bbox=face_bbox, extra_keep=extra_keep)
+    keep = identity_keep_mask(
+        labels, face_bbox=face_bbox, extra_keep=extra_keep, image_rgb=rgb
+    )
     out[keep > 127] = 0
     return out
 

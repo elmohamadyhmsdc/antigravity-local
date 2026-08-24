@@ -423,7 +423,7 @@ def generate(payload: dict, pipe, device: str, parser_proc, parser, ip_loaded: b
 
     if parse_map is not None:
         hard_keep = identity_keep_mask(
-            parse_map, face_bbox=face_bbox, extra_keep=hands_np
+            parse_map, face_bbox=face_bbox, extra_keep=hands_np, image_rgb=work_np
         )
     else:
         hair_np = (

@@ -1033,6 +1033,87 @@ def test_garment_base_init_accepts_a_work_res_mask():
     check(int(out[:, :40].mean()) > int(out[:, 90:].mean()), "resized mask should map to the left half")
 
 
+
+def _arm_scene():
+    """Left half garment (label 7), right half arm (label 14), on a 120x120 map."""
+    import numpy as np
+
+    labels = np.zeros((120, 120), np.uint8)
+    labels[:, :60] = 7          # dress
+    labels[:, 60:] = 14         # left arm
+    rgb = np.zeros((120, 120, 3), np.uint8)
+    rgb[:, :60] = (24, 22, 26)      # black fabric
+    rgb[:, 60:] = (208, 172, 150)   # skin
+    return labels, rgb
+
+
+@test
+def test_arm_keep_drops_misparsed_garment_next_to_clothes():
+    import numpy as np
+
+    from undress_core import identity_keep_mask
+
+    labels, rgb = _arm_scene()
+    # A band the parser wrongly called "arm" but which is actually black fabric.
+    rgb[:, 60:72] = (24, 22, 26)
+
+    keep = identity_keep_mask(labels, image_rgb=rgb, arm_erode_px=0)
+    check(int(keep[60, 65]) == 0, "non-skin pixels labelled arm must not be kept")
+    check(int(keep[60, 100]) == 255, "genuine skin arm must still be kept")
+
+
+@test
+def test_arm_keep_is_unchanged_without_an_image():
+    import numpy as np
+
+    from undress_core import identity_keep_mask
+
+    labels, _ = _arm_scene()
+    keep = identity_keep_mask(labels, arm_erode_px=0)
+    check(int(keep[60, 100]) == 255, "arm kept when no image is supplied")
+    check(int(keep[60, 30]) == 0, "dress is never a keep")
+
+
+@test
+def test_arm_keep_erodes_only_at_the_garment_border():
+    import numpy as np
+
+    from undress_core import identity_keep_mask
+
+    labels, rgb = _arm_scene()
+    keep = identity_keep_mask(labels, image_rgb=rgb, arm_erode_px=3)
+    check(int(keep[60, 61]) == 0, "arm edge touching the dress should be redrawn, not kept")
+    check(int(keep[60, 110]) == 255, "arm far from the dress must stay kept")
+
+
+@test
+def test_shadowed_arm_far_from_clothes_is_not_eaten():
+    import numpy as np
+
+    from undress_core import identity_keep_mask
+
+    labels, rgb = _arm_scene()
+    # Arm in deep shadow: fails the skin gate, but it is nowhere near the garment.
+    labels[:, :] = 14
+    labels[:, :20] = 7
+    rgb[:, :] = (38, 30, 28)
+
+    keep = identity_keep_mask(labels, image_rgb=rgb, arm_erode_px=0)
+    check(int(keep[60, 110]) == 255, "a dark arm away from clothing must survive the skin gate")
+
+
+@test
+def test_arm_keep_without_any_clothes_label_is_untouched():
+    import numpy as np
+
+    from undress_core import identity_keep_mask
+
+    labels = np.full((64, 64), 14, np.uint8)
+    rgb = np.zeros((64, 64, 3), np.uint8)   # black everywhere, fails the skin gate
+    keep = identity_keep_mask(labels, image_rgb=rgb, arm_erode_px=3)
+    check(int(keep.min()) == 255, "with no garment present the arm gating must not run")
+
+
 def main(argv):
     pattern = argv[0] if argv else ""
     selected = [t for t in _TESTS if pattern in t.__name__]
