@@ -1114,6 +1114,34 @@ def test_arm_keep_without_any_clothes_label_is_untouched():
     check(int(keep.min()) == 255, "with no garment present the arm gating must not run")
 
 
+
+@test
+def test_garment_base_init_suppresses_lace_scale_texture():
+    import numpy as np
+    import cv2
+
+    from undress_core import garment_base_init
+
+    # Fold-scale shading (slow ramp) plus lace-scale texture (fine checker).
+    y, x = np.mgrid[0:360, 0:360]
+    drape = (np.linspace(20, 90, 360)[None, :] * np.ones((360, 1))).astype(np.float32)
+    lace = (((x // 6 + y // 6) % 2) * 45).astype(np.float32)
+    g = np.clip(drape + lace, 0, 255).astype(np.uint8)
+    img = np.dstack([g, g, g])
+    mask = np.full((360, 360), 255, np.uint8)
+
+    def split(a):
+        L = cv2.cvtColor(a, cv2.COLOR_RGB2LAB)[:, :, 0].astype(np.float32)
+        lo = cv2.GaussianBlur(L, (0, 0), 30.0)
+        return float(np.std(L - lo)), float(np.std(lo))
+
+    src_hi, src_lo = split(img)
+    out_hi, out_lo = split(garment_base_init(img, mask, target_rgb=(240, 238, 234)))
+
+    check(out_hi < src_hi * 0.4, f"lace-scale texture must be suppressed: {src_hi:.1f} -> {out_hi:.1f}")
+    check(out_lo > 3.0, f"fold-scale drape must survive, got {out_lo:.1f}")
+
+
 def main(argv):
     pattern = argv[0] if argv else ""
     selected = [t for t in _TESTS if pattern in t.__name__]

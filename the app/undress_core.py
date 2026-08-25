@@ -1025,6 +1025,7 @@ def garment_base_init(
     garment_mask,
     target_rgb=DEFAULT_INIT_COLOR,
     target_contrast: float = 26.0,
+    smooth_px: int = 0,
 ):
     """Repaint the garment region in a flat target colour, keeping its shading.
 
@@ -1058,8 +1059,22 @@ def garment_base_init(
     lo_clip = max(4.0, target[0] - 3.5 * target_contrast)
     hi_clip = min(251.0, target[0] + 0.6 * target_contrast)
 
+    out_l = np.clip(target[0] + (lum - hi) * gain, lo_clip, hi_clip)
+
+    # Low-pass the retargeted luminance. Fold-scale structure (tens of pixels) is what
+    # we want the model to follow; lace weave and watermark glyphs (a few pixels) are
+    # not. Left in, the model reads them as design intent and renders a contrast panel
+    # or rebuilds the banner text into a hallucinated stock watermark.
+    if smooth_px is None or smooth_px <= 0:
+        smooth_px = max(4, int(min(h, w) // 90))
+    k = int(smooth_px) * 2 + 1
+    # Flatten outside the region first, so the blur pulls toward the base colour at the
+    # boundary rather than dragging in skin.
+    filled = np.where(sel, out_l, float(target[0])).astype(np.float32)
+    out_l = cv2.GaussianBlur(filled, (k, k), smooth_px / 2.0)
+
     out_lab = lab.copy()
-    out_lab[:, :, 0] = np.clip(target[0] + (lum - hi) * gain, lo_clip, hi_clip)
+    out_lab[:, :, 0] = out_l
     out_lab[:, :, 1] = target[1]
     out_lab[:, :, 2] = target[2]
     recolored = cv2.cvtColor(out_lab.astype(np.uint8), cv2.COLOR_LAB2RGB)
