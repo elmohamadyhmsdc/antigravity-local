@@ -165,6 +165,15 @@ class JsonDatabase:
             self.persons[person_id]["updated_at"] = datetime.utcnow().isoformat()
             self.save_db()
 
+    def update_person(self, person_id: int, updates: Dict):
+        """Update person fields (e.g. name, updated_at)."""
+        if person_id in self.persons:
+            for key, val in updates.items():
+                self.persons[person_id][key] = val
+            if "updated_at" not in updates:
+                self.persons[person_id]["updated_at"] = datetime.utcnow().isoformat()
+            self.save_db()
+
     def set_person_lora_info(self, person_id: int, trigger_word: Optional[str] = None, lora_path: Optional[str] = None):
         """Attach LoRA training metadata to a person record."""
         if person_id not in self.persons:
@@ -356,25 +365,43 @@ class JsonDatabase:
             
         self.save_db()
 
-    def merge_persons(self, source_person_id: int, target_person_id: int):
+    def merge_persons(self, source_person_id: int, target_person_id: int) -> bool:
         """Move all faces from source to target, then delete source."""
-        if source_person_id not in self.persons or target_person_id not in self.persons:
-            return
-            
+        try:
+            source_person_id = int(source_person_id)
+            target_person_id = int(target_person_id)
+        except (ValueError, TypeError):
+            logger.error(f"Invalid person IDs for merge: {source_person_id}, {target_person_id}")
+            return False
+
+        if source_person_id == target_person_id:
+            logger.warning(f"Cannot merge person into itself: {source_person_id}")
+            return False
+
+        if source_person_id not in self.persons:
+            logger.warning(f"Source person {source_person_id} not found in database")
+            return False
+
+        if target_person_id not in self.persons:
+            logger.warning(f"Target person {target_person_id} not found in database")
+            return False
+
         # Move faces
         source_faces_count = 0
         for fid, face in self.faces.items():
             if face.get("person_id") == source_person_id:
                 face["person_id"] = target_person_id
                 source_faces_count += 1
-        
+
         # Update counts
-        self.persons[target_person_id]["face_count"] += source_faces_count
+        self.persons[target_person_id]["face_count"] = self.persons[target_person_id].get("face_count", 0) + source_faces_count
         self.persons[target_person_id]["updated_at"] = datetime.utcnow().isoformat()
-        
+
         # Delete source
         del self.persons[source_person_id]
         self.save_db()
+        logger.info(f"Successfully merged person {source_person_id} into {target_person_id} ({source_faces_count} faces moved)")
+        return True
         
     def get_stats(self) -> Dict[str, int]:
         unassigned_count = sum(1 for face in self.faces.values() if face.get("person_id") is None)
@@ -513,8 +540,25 @@ def auto_assign_to_person(session=None, face_id=None, embedding=None, similarity
     if face_id is None or embedding is None: return None
     return db_instance.auto_assign_to_person(face_id, embedding, similarity_threshold)
     
-def merge_persons(session=None, source_person_id=None, target_person_id=None):
-    db_instance.merge_persons(source_person_id, target_person_id)
+def merge_persons(*args, **kwargs):
+    """
+    Merge source_person into target_person.
+    Supports both:
+      merge_persons(source_id, target_id)
+      merge_persons(session, source_id, target_id)
+      merge_persons(source_person_id=..., target_person_id=...)
+    """
+    if len(args) == 2:
+        src, tgt = args[0], args[1]
+    elif len(args) >= 3:
+        src, tgt = args[1], args[2]
+    else:
+        src = kwargs.get("source_person_id", kwargs.get("source_id"))
+        tgt = kwargs.get("target_person_id", kwargs.get("target_id"))
+
+    if src is not None and tgt is not None:
+        return db_instance.merge_persons(src, tgt)
+    return False
 
 def delete_person(person_id):
     db_instance.delete_person(person_id)

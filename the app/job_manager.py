@@ -13,9 +13,12 @@ import multiprocessing
 import threading
 from pathlib import Path
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Optional, List, Dict, Any
 from enum import Enum
+import subprocess
+
+from ffmpeg_utils import _ffmpeg_exe, build_concat_command, mux_audio
 
 
 class JobStatus(Enum):
@@ -42,6 +45,8 @@ class Job:
     error: Optional[str] = None
     params: Dict[str, Any] = None
     last_frame: int = 0  # For video resume - last processed frame
+    frames_done: int = 0  # cumulative across parts
+    part_files: List[str] = field(default_factory=list)  # rendered segments, in order
     
     def to_dict(self):
         d = asdict(self)
@@ -50,8 +55,11 @@ class Job:
     
     @staticmethod
     def from_dict(d):
-        d['status'] = JobStatus(d['status'])
-        return Job(**d)
+        d_copy = dict(d)
+        d_copy['status'] = JobStatus(d_copy['status'])
+        valid_fields = set(Job.__dataclass_fields__.keys())
+        filtered = {k: v for k, v in d_copy.items() if k in valid_fields}
+        return Job(**filtered)
 
 
 class JobManager:
@@ -236,16 +244,22 @@ class JobManager:
         if signal_file.exists():
             signal_file.unlink()
     
-    def pause_job(self, job_id: str, current_frame: int = 0):
+    def pause_job(self, job_id: str, current_frame: int = 0, part_file: Optional[str] = None):
         """Pause a running job and save its state."""
         job = self.load_job(job_id)
         if job and job.status == JobStatus.RUNNING:
             job.status = JobStatus.PAUSED
-            job.last_frame = current_frame
-            job.message = f"⏸️ Paused at frame {current_frame}" if current_frame > 0 else "⏸️ Paused"
+            job.frames_done += current_frame
+            job.last_frame = job.frames_done
+            if part_file and current_frame > 0:
+                p = Path(part_file)
+                if p.exists() and p.stat().st_size > 0:
+                    if str(p) not in job.part_files:
+                        job.part_files.append(str(p))
+            job.message = f"⏸️ Paused at frame {job.frames_done}" if job.frames_done > 0 else "⏸️ Paused"
             self.save_job(job)
             self.clear_stop_signal(job_id)
-            print(f"[INFO] Job {job_id} paused at frame {current_frame}")
+            print(f"[INFO] Job {job_id} paused at frame {job.frames_done} (this segment: {current_frame})")
             return True
         return False
     
@@ -255,9 +269,9 @@ class JobManager:
         if job and job.status == JobStatus.PAUSED:
             job.status = JobStatus.QUEUED
             job.queue_position = 0  # Put at front
-            job.message = "▶️ Resuming..."
+            job.message = f"▶️ Resuming from frame {job.frames_done}..."
             self.save_job(job)
-            print(f"[INFO] Job {job_id} queued for resume from frame {job.last_frame}")
+            print(f"[INFO] Job {job_id} queued for resume from frame {job.frames_done}")
             return True
         return False
     
@@ -416,12 +430,14 @@ def run_single_job(job_id: str, jobs_dir: str):
                 print(f"[JOB {job_id}] Stop signal received at frame {current}")
                 return False  # Signal to stop processing
             
-            pct = 0.3 + (current / total * 0.7)
-            job.progress = pct
-            job.last_frame = current
-            job.message = f"Processing frame {current}/{total} ({int(pct*100)}%)" if is_video else f"Swapping faces... ({int(pct*100)}%)"
+            done = job.frames_done + current
+            total_frames = job.frames_done + total
+            pct = 0.3 + ((done / total_frames) * 0.7) if total_frames > 0 else 0.3
+            job.progress = min(1.0, max(0.0, pct))
+            job.last_frame = done
+            job.message = f"Processing frame {done}/{total_frames} ({int(pct*100)}%)" if is_video else f"Swapping faces... ({int(pct*100)}%)"
             manager.save_job(job)
-            print(f"[JOB {job_id}] {int(pct*100)}% - Frame {current}/{total}")
+            print(f"[JOB {job_id}] {int(pct*100)}% - Frame {done}/{total_frames}")
             return True  # Continue processing
         
         if is_video:
@@ -443,7 +459,11 @@ def run_single_job(job_id: str, jobs_dir: str):
                     target_path,
                     faceset,
                     target_face_indices=target_face_indices,
+                    use_angle_matching=use_angle_matching,
                     apply_occlusion=params.get('occlusion_config', {}).get('enabled', True),
+                    enhancement_mode=params.get('enhancement_mode', 'auto'),
+                    resume_from_frame=job.frames_done,
+                    finalize=False,
                     progress_callback=swap_progress,
                     start_time=video_start_time,
                     end_time=video_end_time,
@@ -470,6 +490,7 @@ def run_single_job(job_id: str, jobs_dir: str):
                     target_path,
                     faceset,
                     target_face_indices=target_face_indices,
+                    use_angle_matching=use_angle_matching,
                     apply_occlusion=params.get('occlusion_config', {}).get('enabled', True),
                 )
             else:
@@ -483,9 +504,72 @@ def run_single_job(job_id: str, jobs_dir: str):
         
         # Check if stopped
         if stop_requested[0]:
-            manager.pause_job(job_id, current_frame[0])
-            print(f"\n[JOB {job_id}] ⏸️ PAUSED at frame {current_frame[0]}")
+            part_path = result.output_path if (is_v2 and is_video and result and result.success) else None
+            manager.pause_job(job_id, current_frame[0], part_file=part_path)
+            print(f"\n[JOB {job_id}] ⏸️ PAUSED at frame {job.frames_done}")
             return False  # Not complete, paused
+
+        # For V2 video: stitch parts if needed, convert to mp4, mux audio, clean up parts
+        if is_v2 and is_video:
+            if not result or not result.success:
+                raise Exception(result.message if result else "V2 video processing failed")
+
+            last_part = result.output_path
+            if last_part and current_frame[0] > 0:
+                p = Path(last_part)
+                if p.exists() and p.stat().st_size > 0 and str(p) not in job.part_files:
+                    job.part_files.append(str(p))
+            job.frames_done += current_frame[0]
+
+            if not job.part_files:
+                raise Exception("No video parts were rendered")
+
+            parent_dir = Path(job.part_files[0]).parent
+            stitched_avi = parent_dir / f"stitched_{job_id}.avi"
+            list_file = parent_dir / f"concat_{job_id}.txt"
+
+            if len(job.part_files) > 1:
+                print(f"[JOB {job_id}] Stitching {len(job.part_files)} video segments...")
+                concat_cmd = build_concat_command([Path(p) for p in job.part_files], list_file, stitched_avi)
+                concat_res = subprocess.run(concat_cmd, capture_output=True)
+                if concat_res.returncode != 0 or not stitched_avi.exists():
+                    err = concat_res.stderr.decode('utf-8', errors='ignore')
+                    raise Exception(f"Video segment concatenation failed: {err}. Parts preserved at: {job.part_files}")
+
+                list_file.unlink(missing_ok=True)
+                for pf in job.part_files:
+                    try:
+                        Path(pf).unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                source_avi = stitched_avi
+            else:
+                source_avi = Path(job.part_files[0])
+
+            final_mp4 = parent_dir / f"refaced_v2_{job_id}.mp4"
+            ffmpeg_exe = _ffmpeg_exe()
+            mp4_cmd = [
+                ffmpeg_exe, '-y',
+                '-i', str(source_avi),
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '16',
+                '-pix_fmt', 'yuv420p',
+                str(final_mp4)
+            ]
+            conv_res = subprocess.run(mp4_cmd, capture_output=True)
+            if conv_res.returncode != 0 or not final_mp4.exists():
+                err = conv_res.stderr.decode('utf-8', errors='ignore')
+                raise Exception(f"FFmpeg MP4 conversion failed: {err}")
+
+            source_avi.unlink(missing_ok=True)
+
+            if mux_audio(final_mp4, target_path, video_start_time, video_end_time):
+                print(f"[JOB {job_id}] V2 video: original audio preserved")
+
+            result.output_path = str(final_mp4)
+            job.result_path = str(final_mp4)
+            job.part_files = []
         
         # Complete
         job.status = JobStatus.COMPLETED

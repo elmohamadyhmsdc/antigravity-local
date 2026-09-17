@@ -19,6 +19,10 @@ It mines faces from videos/photos, deduplicates them, groups them by person, and
 **Run the dashboard:** `run_dashboard.bat` → `http://localhost:8501`
 Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 
+**Run tests (CPU-only, no models or GPU required):**
+- `python test_reface_v2.py`
+- `python test_compositor.py`
+
 ## Architecture
 
 ### Storage (NO PostgreSQL — fully local JSON)
@@ -33,6 +37,7 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 | File | Role |
 |------|------|
 | `database.py` | JsonDatabase singleton, all CRUD + vector search |
+| `ffmpeg_utils.py` | Shared FFmpeg discovery, audio muxing, and segment concat commands |
 | `face_miner.py` | Extract faces from video/images using InsightFace |
 | `reface_engine.py` | Face swap engine V1 |
 | `reface_engine_v2.py` | Face swap engine V2 (legacy fallback) |
@@ -68,6 +73,7 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 - Sequential queue — one job runs at a time
 - Statuses: `pending → queued → running → completed/failed/paused`
 - Supports video resume via `last_frame` field
+- `train_lora` jobs train into `models/loras/runs/{job_id}/` (per-epoch LoRA snapshots + sd-scripts `--save_state` folders). The LoRA Train tab's Resume button re-queues a failed/interrupted job; `lora_trainer.run_training` continues from the newest fully saved epoch state (via `--resume` + `--initial_epoch`), then moves the finished LoRA up to `models/loras/` and deletes the states
 - `job_type` picks the engine in `run_single_job`: base `reface_image`/`reface_video` (V1), plus `_v2`, `_v3`, `_dfm` suffixed variants (`_dfm` also implies V3), plus `train_lora` and `undress_image`
 
 ## Key Constants / Thresholds

@@ -50,29 +50,7 @@ FFHQ_512 = np.array(
     dtype=np.float32,
 )
 
-_BUNDLED_FFMPEG = Path("d:/AndroidScan/gallary/DeepFaceLab_NVIDIA_RTX3000_series/_internal/ffmpeg/ffmpeg.exe")
-
-
-def _ffmpeg_exe() -> str:
-    return str(_BUNDLED_FFMPEG) if _BUNDLED_FFMPEG.exists() else "ffmpeg"
-
-
-def build_mux_command(video_path, source_path, out_path,
-                      start_time: float = 0.0, end_time: Optional[float] = None) -> list:
-    """ffmpeg args to copy the source's audio onto the rendered video.
-
-    -ss/-to sit before the source input so they trim that input, matching the
-    clip range the video was rendered from.
-    """
-    cmd = [_ffmpeg_exe(), "-y", "-loglevel", "error", "-i", str(video_path)]
-    if start_time and start_time > 0:
-        cmd += ["-ss", str(start_time)]
-    if end_time and end_time > 0:
-        cmd += ["-to", str(end_time)]
-    cmd += ["-i", str(source_path),
-            "-c", "copy", "-map", "0:v:0", "-map", "1:a:0",
-            "-shortest", str(out_path)]
-    return cmd
+from ffmpeg_utils import _ffmpeg_exe, build_mux_command
 
 
 def unpack_swap_result(got):

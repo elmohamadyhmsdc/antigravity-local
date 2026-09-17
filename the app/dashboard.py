@@ -65,7 +65,6 @@ from database import (
     get_all_faces,
     add_person,
     merge_persons,
-    delete_person,
     assign_face_to_person,
     find_similar_faces,
     JsonDatabase
@@ -78,6 +77,15 @@ from undress_core import (
     SETUP_INSTRUCTIONS,
     VENV_AI_PYTHON,
     annotate_face_preview,
+)
+from nav_routes import (
+    NAV_PAGES,
+    PAGE_TO_PRIMARY_SLUG,
+    resolve_route,
+    get_primary_slug,
+    get_url_route,
+    set_url_route,
+    resolve_gallery_view,
 )
 
 # Load environment variables
@@ -199,44 +207,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better gallery display
-st.markdown("""
-<style>
-    .face-card {
-        border: 2px solid #333;
-        border-radius: 10px;
-        padding: 10px;
-        margin: 5px;
-        background: #1e1e1e;
-    }
-    .face-card:hover {
-        border-color: #4CAF50;
-    }
-    .selected {
-        border-color: #2196F3 !important;
-        box-shadow: 0 0 10px #2196F3;
-    }
-    .stats-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 15px;
-        padding: 20px;
-        color: white;
-        text-align: center;
-    }
-    .person-header {
-        background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%);
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 10px;
-    }
-    .source-card {
-        background: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
-        border-radius: 10px;
-        padding: 15px;
-        margin: 10px 0;
-    }
-</style>
-""", unsafe_allow_html=True)
+def load_css(file_path):
+    with open(file_path) as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+try:
+    load_css(Path(__file__).parent / "assets" / "styles.css")
+except Exception as e:
+    st.warning(f"Could not load custom CSS: {e}")
 
 # Session state for data sources
 if 'data_sources' not in st.session_state:
@@ -342,13 +320,13 @@ def assign_faces_to_person(face_ids: List[int], person_id: int):
 
 def rename_person(person_id: int, new_name: str):
     """Rename a person"""
-    db.update_person(person_id, {"name": new_name, "updated_at": datetime.now().isoformat()})
+    db.update_person_name(person_id, new_name)
 
 
 def delete_person(person_id: int, delete_faces: bool = False):
     """Delete a person"""
     # The JsonDatabase.delete_person function handles face unassignment/deletion internally
-    delete_person(person_id, delete_faces=delete_faces)
+    db.delete_person(person_id)
 
 
 def export_person_for_lora(person_id: int, person_name: str, output_dir: Path) -> Path:
@@ -484,7 +462,7 @@ def merge_similar_persons(similarity_threshold: float = 0.65):
                 # (Keep the one with lower ID or maybe higher face count? Let's keep lower ID for stability)
                 try:
                     faces_to_move = get_faces_by_person(id2)
-                    merge_persons(id1, id2) # Target, Source (keeps Target, deletes Source)
+                    merge_persons(id2, id1) # source=id2 (deleted), target=id1 (keeps Target)
 
                     stats["persons_merged"] += 1
                     stats["faces_moved"] += len(faces_to_move)
@@ -525,28 +503,74 @@ if 'sources_loaded' not in st.session_state:
     st.session_state.sources_loaded = True
 
 
+# --- URL Routing Sync ---
+url_route = get_url_route(st)
+resolved_page_from_url = resolve_route(url_route)
+
+# Initialize or synchronize session state with URL route
+if 'active_nav_page' not in st.session_state:
+    if resolved_page_from_url:
+        st.session_state.active_nav_page = resolved_page_from_url
+        st.session_state._last_url_slug = get_primary_slug(resolved_page_from_url)
+    else:
+        st.session_state.active_nav_page = NAV_PAGES[0]
+        st.session_state._last_url_slug = get_primary_slug(NAV_PAGES[0])
+    set_url_route(st, st.session_state._last_url_slug)
+else:
+    # URL changed externally (e.g., browser Back/Forward or manual URL change)
+    if url_route and url_route.strip().lower() != st.session_state.get('_last_url_slug', '').strip().lower():
+        if resolved_page_from_url and resolved_page_from_url != st.session_state.active_nav_page:
+            st.session_state.active_nav_page = resolved_page_from_url
+            st.session_state._last_url_slug = get_primary_slug(resolved_page_from_url)
+            set_url_route(st, st.session_state._last_url_slug)
+
+def on_nav_page_change():
+    """Update URL query parameter when user selects a menu tab."""
+    selected_page = st.session_state.get("active_nav_page", NAV_PAGES[0])
+    slug = get_primary_slug(selected_page)
+    st.session_state._last_url_slug = slug
+    set_url_route(st, slug)
+
+def navigate_to(page_or_route: str):
+    """Programmatically navigate to any page and update the URL."""
+    resolved = resolve_route(page_or_route)
+    if resolved:
+        st.session_state.active_nav_page = resolved
+        slug = get_primary_slug(resolved)
+        st.session_state._last_url_slug = slug
+        set_url_route(st, slug)
+        st.rerun()
+
 # Sidebar
 with st.sidebar:
-    st.title("🔬 Antigravity Local")
+    st.markdown("<h2 style='text-align: center; color: #8a2be2;'>🔬 Antigravity</h2>", unsafe_allow_html=True)
     st.markdown("---")
     
-    # Navigation
+    # Navigation with URL routing
     page = st.radio(
         "Navigation",
-        ["📊 Dashboard", "📁 Data Sources", "👥 Gallery", "🎭 Reface", "🎭 Reface V2", "✨ Magic Undress", "🔀 Merge People", "🧬 Character LoRA", "⚙️ Settings"]
+        NAV_PAGES,
+        key="active_nav_page",
+        on_change=on_nav_page_change,
+        label_visibility="collapsed"
     )
     
     st.markdown("---")
     
     # Quick stats
-    stats = get_database_stats()
-    if stats.get("db_offline"):
-        st.warning("⚠️ Database Offline")
-        st.caption("Reface still works!")
-    else:
-        st.metric("Total Faces", stats["total_faces"])
-        st.metric("Total Persons", stats["total_persons"])
-        st.metric("Unassigned", stats["unassigned_faces"])
+    with st.container(border=True):
+        st.markdown("##### 📈 Quick Stats")
+        stats = get_database_stats()
+        if stats.get("db_offline"):
+            st.warning("⚠️ Database Offline")
+            st.caption("Reface still works!")
+        else:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Faces", stats["total_faces"])
+            with col2:
+                st.metric("Persons", stats["total_persons"])
+            st.metric("Unassigned", stats["unassigned_faces"])
 
 
 # Main content based on page selection
@@ -884,8 +908,24 @@ elif page == "📁 Data Sources":
 elif page == "👥 Gallery":
     st.title("👥 Gallery")
     
-    # View mode selector
-    view_mode = st.radio("View Mode", ["📷 All Media", "By Person", "Unassigned Faces"], horizontal=True)
+    # View mode selector (supports ?view=all / ?view=person / ?view=unassigned)
+    gallery_view_options = ["📷 All Media", "By Person", "Unassigned Faces"]
+    default_view_idx = 0
+    view_param = None
+    try:
+        if hasattr(st, "query_params"):
+            view_param = st.query_params.get("view") or st.query_params.get("mode")
+        elif hasattr(st, "experimental_get_query_params"):
+            _qp = st.experimental_get_query_params()
+            view_param = (_qp.get("view") or _qp.get("mode") or [None])[0]
+    except Exception:
+        pass
+    
+    resolved_view = resolve_gallery_view(view_param)
+    if resolved_view and resolved_view in gallery_view_options:
+        default_view_idx = gallery_view_options.index(resolved_view)
+
+    view_mode = st.radio("View Mode", gallery_view_options, index=default_view_idx, horizontal=True)
     
     if view_mode == "📷 All Media":
         st.markdown("View all photos and videos from your data sources")
@@ -1001,6 +1041,45 @@ elif page == "👥 Gallery":
                     with col2:
                         st.subheader(f"🧑 {selected_person['name']} ({selected_person['face_count']} faces)")
                     
+                    # Manage person: Rename, Merge, Delete
+                    with st.expander("⚙️ Manage Person (Rename / Merge / Delete)", expanded=False):
+                        m_col1, m_col2 = st.columns(2)
+                        with m_col1:
+                            st.markdown("##### ✏️ Rename Person")
+                            new_name_val = st.text_input("New Name", value=selected_person["name"], key=f"rename_input_{selected_person['id']}")
+                            if st.button("💾 Save Name", key=f"save_name_{selected_person['id']}"):
+                                if new_name_val.strip():
+                                    rename_person(selected_person["id"], new_name_val.strip())
+                                    st.success(f"Renamed to {new_name_val.strip()}!")
+                                    st.rerun()
+
+                        with m_col2:
+                            st.markdown("##### 🔀 Merge into Another Person")
+                            other_persons = [p for p in persons if p["id"] != selected_person["id"]]
+                            if other_persons:
+                                target_p_id = st.selectbox(
+                                    "Target person",
+                                    options=[p["id"] for p in other_persons],
+                                    format_func=lambda x: next(f"{p['name']} ({p['face_count']} faces)" for p in other_persons if p["id"] == x),
+                                    key=f"merge_target_{selected_person['id']}"
+                                )
+                                if st.button("🔀 Merge This Person Into Target", type="primary", key=f"merge_btn_{selected_person['id']}"):
+                                    merge_persons(selected_person["id"], target_p_id)
+                                    st.session_state.selected_person_id = target_p_id
+                                    st.success("Persons merged successfully!")
+                                    st.rerun()
+                            else:
+                                st.caption("No other persons available to merge with.")
+
+                        st.markdown("---")
+                        del_col1, del_col2 = st.columns([3, 1])
+                        with del_col2:
+                            if st.button("🗑️ Delete Person", key=f"delete_btn_{selected_person['id']}", type="secondary"):
+                                delete_person(selected_person["id"])
+                                st.session_state.selected_person_id = None
+                                st.success("Person deleted (faces unassigned).")
+                                st.rerun()
+
                     st.markdown("---")
                     
                     # Get all faces for this person to find source files
@@ -1080,6 +1159,30 @@ elif page == "👥 Gallery":
                 with col3:
                     st.caption("Automatically finds and merges person clusters that appear to be the same individual")
                 
+                # Manual Merge Expander
+                with st.expander("🔀 Manual Merge People (Choose 2 Persons)", expanded=False):
+                    if len(persons) >= 2:
+                        mc1, mc2, mc3 = st.columns([2, 2, 1])
+                        with mc1:
+                            src_options = {f"{p['name']} ({p['face_count']} faces)": p['id'] for p in persons}
+                            src_name = st.selectbox("Source (will be deleted)", options=list(src_options.keys()), key="gallery_mrg_src")
+                            src_id = src_options[src_name] if src_name else None
+                        with mc2:
+                            tgt_candidates = [p for p in persons if p['id'] != src_id]
+                            tgt_options = {f"{p['name']} ({p['face_count']} faces)": p['id'] for p in tgt_candidates}
+                            tgt_name = st.selectbox("Target (receives faces)", options=list(tgt_options.keys()), key="gallery_mrg_tgt")
+                            tgt_id = tgt_options[tgt_name] if tgt_name else None
+                        with mc3:
+                            st.write("")
+                            st.write("")
+                            if st.button("🔀 Merge", key="gallery_btn_manual_merge", type="primary"):
+                                if src_id and tgt_id and src_id != tgt_id:
+                                    merge_persons(src_id, tgt_id)
+                                    st.success("Merged successfully!")
+                                    st.rerun()
+                    else:
+                        st.info("Need at least 2 persons to merge manually.")
+
                 st.markdown("---")
                 
                 # Display persons in a grid
@@ -1232,12 +1335,10 @@ elif page == "🎭 Reface":
                                         with st.spinner("Converting..."):
                                             try:
                                                 import subprocess
+                                                from ffmpeg_utils import _ffmpeg_exe
                                                 
                                                 # Locate FFmpeg
-                                                ffmpeg_exe = "ffmpeg"
-                                                bundled_ffmpeg = Path("d:/AndroidScan/gallary/DeepFaceLab_NVIDIA_RTX3000_series/_internal/ffmpeg/ffmpeg.exe")
-                                                if bundled_ffmpeg.exists():
-                                                    ffmpeg_exe = str(bundled_ffmpeg)
+                                                ffmpeg_exe = _ffmpeg_exe()
                                                 
                                                 mp4_path = file_path.with_suffix('.mp4')
                                                 subprocess.run([
@@ -2533,102 +2634,100 @@ elif page == "✨ Magic Undress":
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.subheader("Input")
-        source_mode = st.radio(
-            "Source",
-            ["Upload", "Gallery"],
-            horizontal=True,
-            key="undress_source_mode",
-            help=UNDRESS_HELP["source"],
-        )
-
-        if source_mode == "Upload":
-            uploaded_file = st.file_uploader(
-                "Upload Image",
-                type=["png", "jpg", "jpeg", "webp"],
-                key="undress_upload",
-                help=UNDRESS_HELP["upload"],
+        with st.container(border=True):
+            st.markdown("##### 1. Source Image")
+            source_mode = st.radio(
+                "Source",
+                ["Upload", "Gallery"],
+                horizontal=True,
+                key="undress_source_mode",
+                help=UNDRESS_HELP["source"],
             )
-            if uploaded_file is not None and st.session_state.undress_upload_name != uploaded_file.name:
-                st.session_state.undress_upload_name = uploaded_file.name
-                st.session_state.undress_image = Image.open(uploaded_file).convert("RGB")
-                st.session_state.undress_bbox = None
-                st.session_state.undress_detected = False
-        else:
-            persons = get_all_persons()
-            if not persons:
-                st.info("No people in the gallery yet.")
-            else:
-                person_id = st.selectbox(
-                    "Person",
-                    options=[p["id"] for p in persons],
-                    format_func=lambda x: next(p["name"] for p in persons if p["id"] == x),
-                    key="undress_gallery_person",
+
+            if source_mode == "Upload":
+                uploaded_file = st.file_uploader(
+                    "Upload Image",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    key="undress_upload",
+                    help=UNDRESS_HELP["upload"],
                 )
-                faces = [f for f in get_faces_by_person(person_id) if f.get("image_path")]
-                if not faces:
-                    st.info("No saved faces for this person.")
+                if uploaded_file is not None and st.session_state.undress_upload_name != uploaded_file.name:
+                    st.session_state.undress_upload_name = uploaded_file.name
+                    st.session_state.undress_image = Image.open(uploaded_file).convert("RGB")
+                    st.session_state.undress_bbox = None
+                    st.session_state.undress_detected = False
+            else:
+                persons = get_all_persons()
+                if not persons:
+                    st.info("No people in the gallery yet.")
                 else:
-                    thumb_cols = st.columns(min(4, len(faces)))
-                    for i, face in enumerate(faces[:8]):
-                        with thumb_cols[i % len(thumb_cols)]:
-                            if os.path.exists(face["image_path"]):
-                                st.image(face["image_path"], width='stretch')
-                            if st.button("Use", key=f"undress_face_{face.get('id', i)}"):
-                                src = face.get("source_path") or ""
-                                ext = Path(src).suffix.lower()
-                                if ext in _IMAGE_EXTS and os.path.exists(src):
-                                    st.session_state.undress_image = Image.open(src).convert("RGB")
-                                    st.session_state.undress_upload_name = None
-                                    st.session_state.undress_bbox = None
-                                    st.session_state.undress_detected = False
-                                    st.rerun()
-                                else:
-                                    st.warning(
-                                        "This face was mined from a video or a missing file. Upload a still photo."
-                                    )
+                    person_id = st.selectbox(
+                        "Person",
+                        options=[p["id"] for p in persons],
+                        format_func=lambda x: next(p["name"] for p in persons if p["id"] == x),
+                        key="undress_gallery_person",
+                    )
+                    faces = [f for f in get_faces_by_person(person_id) if f.get("image_path")]
+                    if not faces:
+                        st.info("No saved faces for this person.")
+                    else:
+                        thumb_cols = st.columns(min(4, len(faces)))
+                        for i, face in enumerate(faces[:8]):
+                            with thumb_cols[i % len(thumb_cols)]:
+                                if os.path.exists(face["image_path"]):
+                                    st.image(face["image_path"], width='stretch')
+                                if st.button("Use", key=f"undress_face_{face.get('id', i)}"):
+                                    src = face.get("source_path") or ""
+                                    ext = Path(src).suffix.lower()
+                                    if ext in _IMAGE_EXTS and os.path.exists(src):
+                                        st.session_state.undress_image = Image.open(src).convert("RGB")
+                                        st.session_state.undress_upload_name = None
+                                        st.session_state.undress_bbox = None
+                                        st.session_state.undress_detected = False
+                                        st.rerun()
+                                    else:
+                                        st.warning("This face was mined from a video or a missing file. Upload a still photo.")
 
-        prompt = st.text_area("Prompt", DEFAULT_PROMPT, key="undress_prompt", help=UNDRESS_HELP["prompt"])
-        neg_prompt = st.text_area(
-            "Negative Prompt", DEFAULT_NEGATIVE_PROMPT, key="undress_neg_v5", help=UNDRESS_HELP["neg"]
-        )
-        seed = st.number_input(
-            "Seed (-1 for random)", value=-1, step=1, key="undress_seed", help=UNDRESS_HELP["seed"]
-        )
-        steps = st.slider("Steps", 15, 50, 26, key="undress_steps_v3", help=UNDRESS_HELP["steps"])
-        strength = st.slider(
-            "Inpaint strength", 0.3, 1.0, 0.6, step=0.05, key="undress_strength_v3",
-            help=UNDRESS_HELP["strength"],
-        )
-        guidance = st.slider(
-            "Guidance", 3.0, 12.0, 6.0, step=0.5, key="undress_guidance",
-            help=UNDRESS_HELP["guidance"],
-        )
-
-        with st.expander("Reference images (optional)"):
-            ref_files = st.file_uploader(
-                "Garment / style references",
-                type=["png", "jpg", "jpeg", "webp"],
-                accept_multiple_files=True,
-                key="undress_refs",
-                help=UNDRESS_HELP["refs"],
-            )
-            ref_scale = st.slider(
-                "Reference strength", 0.0, 1.0, 0.6, step=0.05, key="undress_ref_scale",
-                help=UNDRESS_HELP["ref_scale"],
+        with st.container(border=True):
+            st.markdown("##### 2. Generation Prompt")
+            prompt = st.text_area("Prompt", DEFAULT_PROMPT, key="undress_prompt", help=UNDRESS_HELP["prompt"], height=100)
+            neg_prompt = st.text_area(
+                "Negative Prompt", DEFAULT_NEGATIVE_PROMPT, key="undress_neg_v5", help=UNDRESS_HELP["neg"], height=100
             )
 
-        with st.expander("High-res refine"):
-            refine = st.checkbox(
-                "Refine at native resolution", value=True, key="undress_refine",
-                help=UNDRESS_HELP["refine"],
-            )
-            refine_strength = st.slider(
-                "Refine strength", 0.1, 0.6, 0.28, step=0.02, key="undress_refine_strength",
-                help=UNDRESS_HELP["refine_strength"],
-            )
+        with st.container(border=True):
+            st.markdown("##### 3. Generation Settings")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                steps = st.slider("Steps", 15, 50, 35, key="undress_steps_v3", help=UNDRESS_HELP["steps"])
+                strength = st.slider("Inpaint strength", 0.3, 1.0, 0.95, step=0.05, key="undress_strength_v3", help=UNDRESS_HELP["strength"])
+            with col_b:
+                guidance = st.slider("Guidance", 3.0, 12.0, 7.5, step=0.5, key="undress_guidance", help=UNDRESS_HELP["guidance"])
+                seed = st.number_input("Seed (-1 for random)", value=-1, step=1, key="undress_seed", help=UNDRESS_HELP["seed"])
 
-        generate_btn = st.button("Queue restyle", type="primary", width='stretch')
+        with st.container(border=True):
+            st.markdown("##### 4. Advanced (Optional)")
+            with st.expander("Reference Images & IP-Adapter"):
+                ref_files = st.file_uploader(
+                    "Garment / style references",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    accept_multiple_files=True,
+                    key="undress_refs",
+                    help=UNDRESS_HELP["refs"],
+                )
+                ref_scale = st.slider(
+                    "Reference strength", 0.0, 1.0, 0.6, step=0.05, key="undress_ref_scale", help=UNDRESS_HELP["ref_scale"],
+                )
+
+            with st.expander("High-Res Refine Pass"):
+                refine = st.checkbox(
+                    "Refine at native resolution", value=True, key="undress_refine", help=UNDRESS_HELP["refine"],
+                )
+                refine_strength = st.slider(
+                    "Refine strength", 0.1, 0.6, 0.40, step=0.02, key="undress_refine_strength", help=UNDRESS_HELP["refine_strength"],
+                )
+
+        generate_btn = st.button("✨ Restyle Garment", type="primary", use_container_width=True)
 
     with col2:
         st.subheader("Preview / Result")
@@ -2676,7 +2775,7 @@ elif page == "✨ Magic Undress":
                     "ref_scale": float(ref_scale),
                     "refine": bool(refine),
                     "refine_strength": float(refine_strength),
-                    "timeout": 2700,
+                    "timeout": 7200,
                 },
             )
             st.session_state.undress_last_job_id = job.id
@@ -2943,7 +3042,8 @@ elif page == "🧬 Character LoRA":
             train_person = next(p for p in persons if p["id"] == train_person_id)
 
             from lora_dataset import _slugify, DEFAULT_REPEATS
-            from lora_trainer import DEFAULT_EPOCHS, DEFAULT_NETWORK_DIM, DEFAULT_NETWORK_ALPHA, DEFAULT_LEARNING_RATE, DEFAULT_BATCH_SIZE, DEFAULT_MAX_RESOLUTION, VENV_LORA_PYTHON
+            from lora_trainer import (DEFAULT_EPOCHS, DEFAULT_NETWORK_DIM, DEFAULT_NETWORK_ALPHA, DEFAULT_LEARNING_RATE, DEFAULT_BATCH_SIZE,
+                                      DEFAULT_MAX_RESOLUTION, RESOLUTION_OPTIONS, TARGET_TOTAL_STEPS, VENV_LORA_PYTHON, samples_per_epoch)
 
             slug = _slugify(train_person["name"])
             dataset_root = Path(__file__).parent / "lora_datasets" / slug
@@ -2958,11 +3058,27 @@ elif page == "🧬 Character LoRA":
                 if not base_checkpoint_path.exists():
                     st.warning(f"Base checkpoint not found at {base_checkpoint_path}. Run: python download_models.py sd15_realistic_base")
 
-                epochs = st.number_input("Epochs", min_value=1, max_value=50, value=DEFAULT_EPOCHS)
+                import math
+
+                # train_data_dir is dataset_root, so sd-scripts trains every "{repeats}_..." folder in it.
+                epoch_samples = samples_per_epoch(dataset_root)
+                suggested_epochs = max(1, min(DEFAULT_EPOCHS, round(TARGET_TOTAL_STEPS / max(epoch_samples, 1))))
+
+                epochs = st.number_input("Epochs", min_value=1, max_value=50, value=suggested_epochs)
                 network_dim = st.number_input("Network Dim (rank)", min_value=4, max_value=128, value=DEFAULT_NETWORK_DIM)
                 network_alpha = st.number_input("Network Alpha", min_value=1, max_value=128, value=DEFAULT_NETWORK_ALPHA)
                 learning_rate = st.number_input("Learning Rate", min_value=0.00001, max_value=0.01, value=DEFAULT_LEARNING_RATE, format="%.5f")
                 batch_size = st.number_input("Batch Size", min_value=1, max_value=4, value=DEFAULT_BATCH_SIZE)
+                max_resolution = st.selectbox(
+                    "Resolution", RESOLUTION_OPTIONS, index=RESOLUTION_OPTIONS.index(DEFAULT_MAX_RESOLUTION),
+                    help="512 is SD1.5's native size. 768 has 2.25x the pixels per image, so every step is much slower.",
+                )
+
+                steps_per_epoch = math.ceil(epoch_samples / batch_size)
+                st.caption(f"≈ {steps_per_epoch * epochs:,} training steps ({steps_per_epoch:,} per epoch × {epochs} epochs)")
+                if epoch_samples * epochs > 2 * TARGET_TOTAL_STEPS:
+                    st.warning(f"That's a very long run: a person LoRA is usually done within about {TARGET_TOTAL_STEPS:,} steps. "
+                               "Consider fewer epochs.")
 
                 if st.button("🚀 Start Training", type="primary"):
                     from job_manager import add_job_to_queue
@@ -2975,14 +3091,28 @@ elif page == "🧬 Character LoRA":
                         "base_checkpoint": str(base_checkpoint_path),
                         "epochs": int(epochs), "network_dim": int(network_dim), "network_alpha": int(network_alpha),
                         "learning_rate": float(learning_rate), "batch_size": int(batch_size),
+                        "max_resolution": int(max_resolution),
                     }, jobs_dir=str(Path(__file__).parent / "jobs"))
                     st.success(f"Training job queued: {job.id}")
 
             st.markdown("**Recent training jobs:**")
-            from job_manager import JobManager as _JM
-            recent = [j for j in _JM(str(Path(__file__).parent / "jobs")).list_jobs(limit=20) if j.job_type == "train_lora"]
+            from job_manager import JobManager as _JM, start_queue_worker
+            from lora_trainer import can_resume_training, latest_resume_state, resume_training_job, training_run_dir
+
+            train_jobs_dir = str(Path(__file__).parent / "jobs")
+            train_jobs = _JM(train_jobs_dir)
+            recent = [j for j in train_jobs.list_jobs(limit=20) if j.job_type == "train_lora"]
             for j in recent:
                 st.write(f"`{j.id}` — {j.status.value} — {j.message} ({int(j.progress*100)}%)")
+                if not can_resume_training(j, train_jobs):
+                    continue
+                saved = latest_resume_state(training_run_dir(j), j.params["output_name"])
+                if saved is None:
+                    st.caption("No finished epoch was saved for this run, so there's nothing to resume — start a new training instead.")
+                elif st.button(f"▶️ Resume from epoch {saved[0] + 1}", key=f"resume_lora_{j.id}"):
+                    resume_training_job(j, train_jobs)
+                    start_queue_worker(train_jobs_dir)
+                    st.rerun()
 
     with tab_generate:
         from database import get_person_lora_info
@@ -3058,7 +3188,7 @@ elif page == "🎭 Reface V2":
     
     # Initialize V2 engine
     try:
-        from reface_engine_v2 import RefaceEngineV2, EnhancementConfig, OcclusionConfig, VideoConfig, QUALITY_PRESETS, create_engine_from_preset
+        from reface_engine_v2 import RefaceEngineV2, EnhancementConfig, OcclusionConfig, VideoConfig
         from reface_engine_v3 import RefaceEngineV3
         from reface_engine import Faceset
         reface_v2_error = None
@@ -3422,22 +3552,51 @@ elif page == "🎭 Reface V2":
 
             col1, col2, col3 = st.columns(3)
             
+            # The preset seeds every control below it. Keeping the values in one
+            # place is what stops the dropdown from drifting back into a label
+            # that changes two checkboxes and nothing else.
+            _PRESET_DEFAULTS = {
+                "fast":         {"enhancer_index": 0, "upscale_index": 0, "smoothing_window": 3,
+                                 "occlusion": False, "temporal": False, "strength": 0.7},
+                "standard":     {"enhancer_index": 1, "upscale_index": 1, "smoothing_window": 3,
+                                 "occlusion": True,  "temporal": True,  "strength": 0.7},
+                "professional": {"enhancer_index": 2, "upscale_index": 1, "smoothing_window": 5,
+                                 "occlusion": True,  "temporal": True,  "strength": 0.8},
+            }
+
             with col1:
                 quality_preset = st.selectbox(
                     "Quality Preset",
                     ["fast", "standard", "professional"],
                     index=1,
                     format_func=lambda x: f"{x.title()} {'⚡' if x=='fast' else '🔧' if x=='standard' else '🌟'}",
-                    help="Fast: No enhancement. Standard: OpenCV + occlusion. Professional: GFPGAN + full features."
+                    help="Seeds every option below. Change the preset first, then adjust "
+                         "individual controls — they keep whatever you set."
                 )
-            
+
+            is_video_target = st.session_state.get('v2_is_video', False)
             with col2:
-                enhancer_type = st.selectbox(
-                    "Face Enhancer",
-                    ["none", "opencv", "gfpgan"],
-                    index=1 if quality_preset == "standard" else (2 if quality_preset == "professional" else 0),
-                    format_func=lambda x: {"none": "None (Raw)", "opencv": "OpenCV (Basic)", "gfpgan": "GFPGAN (Neural)"}[x]
-                )
+                if is_video_target:
+                    enhancement_mode = st.selectbox(
+                        "Video Enhancement Mode",
+                        ["auto", "always", "off"],
+                        index=0,
+                        format_func=lambda x: {
+                            "auto": "Auto (Quality Gate)",
+                            "always": "Always (Force)",
+                            "off": "Off (None)"
+                        }[x],
+                        help="Auto enhances only sharp faces in 540p+ videos to avoid inventing clashing detail on low-res sources."
+                    )
+                    enhancer_type = "gfpgan" if enhancement_mode != "off" else "none"
+                else:
+                    enhancement_mode = "auto"
+                    enhancer_type = st.selectbox(
+                        "Face Enhancer",
+                        ["none", "opencv", "gfpgan"],
+                        index=_PRESET_DEFAULTS[quality_preset]["enhancer_index"],
+                        format_func=lambda x: {"none": "None (Raw)", "opencv": "OpenCV (Basic)", "gfpgan": "GFPGAN (Neural)"}[x]
+                    )
             
             with col3:
                 use_angle_match = st.checkbox("🔄 Angle Matching", value=True, help="Match source face angle to target")
@@ -3445,25 +3604,38 @@ elif page == "🎭 Reface V2":
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                enable_occlusion = st.checkbox("🎭 Occlusion Protection", value=quality_preset != "fast",
+                enable_occlusion = st.checkbox("🎭 Occlusion Protection",
+                                              value=_PRESET_DEFAULTS[quality_preset]["occlusion"],
                                               help="Protect glasses, hands, hair from being overwritten")
             
             with col2:
-                temporal_smooth = st.checkbox("🎬 Temporal Smoothing", value=quality_preset != "fast",
+                temporal_smooth = st.checkbox("🎬 Temporal Smoothing",
+                                             value=_PRESET_DEFAULTS[quality_preset]["temporal"],
                                              help="Reduce video jitter (videos only)")
             
             with col3:
-                enhancement_strength = st.slider("Enhancement Strength", 0.0, 1.0, 0.7, 0.1,
+                enhancement_strength = st.slider("Enhancement Strength", 0.0, 1.0,
+                                                _PRESET_DEFAULTS[quality_preset]["strength"], 0.1,
                                                 help="How strongly to apply face enhancement")
             
             # Advanced options
             with st.expander("🔧 Advanced Engineering Options"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    upscale_factor = st.selectbox("Upscale Factor", [1, 2, 4], index=1)
+                    if is_video_target:
+                        st.caption("ℹ️ Upscale Factor applies to still images only. Video frames stay at source resolution.")
+                        upscale_factor = 1
+                    else:
+                        upscale_factor = st.selectbox(
+                            "Upscale Factor", [1, 2, 4],
+                            index=_PRESET_DEFAULTS[quality_preset]["upscale_index"]
+                        )
                     protect_glasses = st.checkbox("Protect Glasses", value=True)
                 with col2:
-                    smoothing_window = st.slider("Smoothing Window (frames)", 1, 7, 3)
+                    smoothing_window = st.slider(
+                        "Smoothing Window (frames)", 1, 7,
+                        _PRESET_DEFAULTS[quality_preset]["smoothing_window"]
+                    )
                     protect_hair = st.checkbox("Protect Hair Region", value=True)
                 
                 # Video specific time clipping options
@@ -3519,6 +3691,7 @@ elif page == "🎭 Reface V2":
                                 'is_video': is_video,
                                 'target_face_indices': target_face_indices,
                                 'use_angle_matching': use_angle_match, # Added this parameter
+                                'enhancement_mode': enhancement_mode,
                                 'enhancement_config': enhancement_config.__dict__,
                                 'occlusion_config': occlusion_config.__dict__,
                                 'video_config': video_config.__dict__
@@ -3607,8 +3780,12 @@ elif page == "🎭 Reface V2":
                                     st.session_state.eta_v2_swap_total = total
                                     
                                 eta_str = st.session_state.eta_v2_swap.get_eta_string(current)
-                                progress_pct = int((current / total) * 100) if total > 0 else 0
-                                swap_progress.progress(current / total)
+                                # st.progress rejects anything outside [0, 1], and an
+                                # engine working from an unknown frame count can report
+                                # a ratio above 1. Clamp rather than crash the page.
+                                ratio = min(1.0, max(0.0, current / total)) if total > 0 else 0.0
+                                progress_pct = int(ratio * 100)
+                                swap_progress.progress(ratio)
                                 status_v2_swap.text(f"Swapping frames: {current}/{total} ({progress_pct}%) ({eta_str} remaining)...")
                             
                             if is_video:
@@ -3631,6 +3808,7 @@ elif page == "🎭 Reface V2":
                                         target_face_indices=target_face_indices,
                                         use_angle_matching=use_angle_match,
                                         apply_occlusion=enable_occlusion,
+                                        enhancement_mode=enhancement_mode,
                                         progress_callback=update_swap,
                                         start_time=start_time_sec,
                                         end_time=final_end_time
@@ -3922,10 +4100,11 @@ After building a faceset, you'll see:
             if st.button("🔄 Refresh List", key="v2_refresh_history"):
                 st.rerun()
             
-            # List files
-            files = sorted(list(output_dir.glob("*.jpg")) + list(output_dir.glob("*.jpeg")) + \
-                          list(output_dir.glob("*.png")) + list(output_dir.glob("*.mp4")) + \
-                          list(output_dir.glob("*.avi")), key=os.path.getmtime, reverse=True)
+            # List files filtered by V2 prefix
+            all_files = list(output_dir.glob("*.jpg")) + list(output_dir.glob("*.jpeg")) + \
+                        list(output_dir.glob("*.png")) + list(output_dir.glob("*.mp4")) + \
+                        list(output_dir.glob("*.avi"))
+            files = sorted([f for f in all_files if f.name.startswith("refaced_v2")], key=os.path.getmtime, reverse=True)
             
             if not files:
                 st.info("No reface results found yet.")
@@ -3960,16 +4139,14 @@ After building a faceset, you'll see:
                                         st.warning(f"No preview for {file_path.suffix}")
                                     
                                     # Add "Convert to MP4" button
-                                    if st.button("🔄 Convert to Playable MP4", key=f"v2_conv_{i}"):
+                                    if st.button("🔄 Convert to Playable MP4", key=f"v2_conv_{file_path.name}"):
                                         with st.spinner("Converting..."):
                                             try:
                                                 import subprocess
                                                 
+                                                from ffmpeg_utils import _ffmpeg_exe
                                                 # Locate FFmpeg
-                                                ffmpeg_exe = "ffmpeg"
-                                                bundled_ffmpeg = Path("d:/AndroidScan/gallary/DeepFaceLab_NVIDIA_RTX3000_series/_internal/ffmpeg/ffmpeg.exe")
-                                                if bundled_ffmpeg.exists():
-                                                    ffmpeg_exe = str(bundled_ffmpeg)
+                                                ffmpeg_exe = _ffmpeg_exe()
                                                 
                                                 mp4_path = file_path.with_suffix('.mp4')
                                                 subprocess.run([
@@ -3994,16 +4171,28 @@ After building a faceset, you'll see:
                         # Actions
                         c1, c2 = st.columns(2)
                         with c1:
-                            with open(file_path, "rb") as f:
-                                st.download_button(
-                                    "⬇️",
-                                    data=f.read(),
-                                    file_name=file_path.name,
-                                    mime="video/mp4" if is_video else "image/jpeg",
-                                    key=f"v2_dl_{i}_{file_path.name}"
-                                )
+                            # Two steps so a page with many large videos does not
+                            # read every one of them into memory on every rerun.
+                            # The "prepared" flag lives in session_state: a plain
+                            # nested button would disappear on the rerun that the
+                            # download itself triggers.
+                            prep_key = f"v2_prep_dl_{file_path.name}"
+                            if not st.session_state.get(prep_key):
+                                if st.button("⬇️ Download", key=f"v2_btn_dl_{file_path.name}",
+                                             help="Prepare download"):
+                                    st.session_state[prep_key] = True
+                                    st.rerun()
+                            else:
+                                with open(file_path, "rb") as f:
+                                    st.download_button(
+                                        "💾 Save",
+                                        data=f.read(),
+                                        file_name=file_path.name,
+                                        mime="video/mp4" if is_video else "image/jpeg",
+                                        key=f"v2_dl_{file_path.name}"
+                                    )
                         with c2:
-                            if st.button("🗑️", key=f"v2_del_{i}_{file_path.name}", help="Delete file"):
+                            if st.button("🗑️", key=f"v2_del_{file_path.name}", help="Delete file"):
                                 try:
                                     file_path.unlink()
                                     st.success("Deleted!")

@@ -24,32 +24,54 @@ Modes:
 from __future__ import annotations
 
 import base64
+import gc
 import json
+import os
+import socket
 import sys
 import traceback
 from io import BytesIO
 from pathlib import Path
 
+# Prevent downloads from hanging indefinitely on flaky connections
+socket.setdefaulttimeout(15)
+
 import cv2
+import diffusers
 import mediapipe as mp
 import numpy as np
 import torch
 import torch.nn.functional as F
 from PIL import Image
-from diffusers import StableDiffusionInpaintPipeline, UniPCMultistepScheduler
+from diffusers import (
+    StableDiffusionInpaintPipeline,
+    StableDiffusionControlNetInpaintPipeline,
+    StableDiffusionXLInpaintPipeline,
+    ControlNetModel,
+    UniPCMultistepScheduler,
+)
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import ImageSegmenter, ImageSegmenterOptions
 from transformers import AutoModelForSemanticSegmentation, SegformerImageProcessor
 
+diffusers.utils.logging.disable_progress_bar()
+
 from undress_core import (
     APP_DIR,
     CLOTHES_PARSER_ID,
+    CONTROLNET_MODEL_ID,
+    OPENPOSE_CONTROLNET_ID,
+    OPENPOSE_DETECTOR_ID,
+    SDXL_WORK_MAX_DIM,
     DEFAULT_REF_SCALE,
     DEFAULT_REFINE_STEPS,
     DEFAULT_REFINE_STRENGTH,
     INPAINT_MODEL_ID,
+    SDXL_INPAINT_MODEL_ID,
     IP_ADAPTER_SUBFOLDER,
     IP_ADAPTER_WEIGHT_NAME,
+    SDXL_IP_ADAPTER_SUBFOLDER,
+    SDXL_IP_ADAPTER_WEIGHT_NAME,
     REFINE_OVERLAP,
     REFINE_TILE,
     build_inpaint_mask,
@@ -227,16 +249,16 @@ def parse_clothes(image_pil: Image.Image, processor, model) -> np.ndarray:
     return up.argmax(dim=1)[0].cpu().numpy().astype(np.uint8)
 
 
-def load_models():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    dtype = torch.float16 if device == "cuda" else torch.float32
-    if device != "cuda":
-        print("WARNING: CUDA not available, running on CPU (will be very slow)", file=sys.stderr)
-
+def get_sd15_pipeline(device: str, dtype):
     inpaint_src = ensure_local_model(INPAINT_MODEL_ID, "model_index.json")
-    print(f"Loading native inpaint checkpoint from {inpaint_src}...", file=sys.stderr)
-    pipe = StableDiffusionInpaintPipeline.from_pretrained(
+    print(f"Loading SD1.5 Inpaint + ControlNet from {inpaint_src}...", file=sys.stderr)
+    
+    cnet_src = ensure_local_model(OPENPOSE_CONTROLNET_ID, "config.json")
+    controlnet = ControlNetModel.from_pretrained(cnet_src, torch_dtype=dtype, local_files_only=True)
+    
+    pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
         inpaint_src,
+        controlnet=controlnet,
         torch_dtype=dtype,
         safety_checker=None,
         requires_safety_checker=False,
@@ -244,7 +266,6 @@ def load_models():
     )
     pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
 
-    # IP-Adapter must be attached BEFORE offload, or its hooks miss the image encoder.
     ip_loaded = False
     ip_src = ensure_ip_adapter()
     if ip_src is not None:
@@ -256,9 +277,8 @@ def load_models():
             )
             pipe.set_ip_adapter_scale(0.0)
             ip_loaded = True
-            print("IP-Adapter loaded (reference images enabled)", file=sys.stderr)
         except Exception as e:
-            print(f"IP-Adapter unavailable, continuing without it: {e}", file=sys.stderr)
+            print(f"IP-Adapter unavailable: {e}", file=sys.stderr)
 
     if device == "cuda":
         # 6 GB cards: keep offload. Only the active submodule sits in VRAM.
@@ -279,13 +299,49 @@ def load_models():
             pass
     else:
         pipe.to(device)
+        
+    pipe.set_progress_bar_config(disable=True)
+    return pipe, ip_loaded
+
+
+def get_sdxl_pipeline(device: str, dtype):
+    inpaint_src = ensure_local_model(SDXL_INPAINT_MODEL_ID, "model_index.json")
+    print(f"Loading SDXL Inpaint from {inpaint_src}...", file=sys.stderr)
+    pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
+        inpaint_src,
+        torch_dtype=dtype,
+        variant="fp16",
+        local_files_only=True,
+    )
+
+    ip_loaded = False
+    # No IP-adapter loaded for SDXL in this multi-stage setup because it's only for the refiner step.
+    
+    if device == "cuda":
+        pipe.to(device)
+        try: pipe.enable_xformers_memory_efficient_attention()
+        except Exception: pass
+        try: pipe.enable_vae_slicing()
+        except Exception: pass
+    else:
+        pipe.to(device)
+        
+    pipe.set_progress_bar_config(disable=True)
+    return pipe
+
+
+def load_global_models():
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    dtype = torch.float16 if device == "cuda" else torch.float32
+    if device != "cuda":
+        print("WARNING: CUDA not available, running on CPU (will be very slow)", file=sys.stderr)
 
     parser_src = ensure_local_model(CLOTHES_PARSER_ID, "config.json")
     print(f"Loading clothes parser from {parser_src}...", file=sys.stderr)
     parser_proc = SegformerImageProcessor.from_pretrained(parser_src, local_files_only=True)
     parser = AutoModelForSemanticSegmentation.from_pretrained(parser_src, local_files_only=True)
-    parser.eval()  # stays on CPU on purpose - it must not hold VRAM
-    return pipe, device, parser_proc, parser, ip_loaded
+    parser.eval()
+    return device, dtype, parser_proc, parser
 
 
 def _blurred_mask_pil(mask_u8: np.ndarray, blur_px: int = 11) -> Image.Image:
@@ -322,9 +378,10 @@ def build_ip_kwargs(pipe, payload: dict, ip_loaded: bool) -> dict:
     refs = load_reference_images(payload)
     if refs:
         pipe.set_ip_adapter_scale(float(payload.get("ref_scale", DEFAULT_REF_SCALE)))
-        return {"ip_adapter_image": refs}
+        # diffusers requires a list of lists when passing multiple images to a single adapter
+        return {"ip_adapter_image": [refs]}
     pipe.set_ip_adapter_scale(0.0)
-    return {"ip_adapter_image": [Image.new("RGB", (224, 224), (0, 0, 0))]}
+    return {"ip_adapter_image": [[Image.new("RGB", (224, 224), (0, 0, 0))]]}
 
 
 def refine_tiles(pipe, image_np, mask_np, payload: dict, ip_kwargs: dict):
@@ -362,7 +419,7 @@ def refine_tiles(pipe, image_np, mask_np, payload: dict, ip_kwargs: dict):
                 prompt=payload["prompt"],
                 negative_prompt=payload["negative_prompt"],
                 image=Image.fromarray(tile_rgb),
-                mask_image=_blurred_mask_pil(tile_mask, blur_px=7),
+                mask_image=_blurred_mask_pil(tile_mask, blur_px=0),
                 num_inference_steps=steps,
                 guidance_scale=guidance,
                 strength=strength,
@@ -387,7 +444,7 @@ def refine_tiles(pipe, image_np, mask_np, payload: dict, ip_kwargs: dict):
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
-def generate(payload: dict, pipe, device: str, parser_proc, parser, ip_loaded: bool = False) -> dict:
+def generate(payload: dict, device: str, dtype, parser_proc, parser) -> dict:
     original, work, face_bbox = prepare_image(payload)
     print(
         f"Processing work {work.size[0]}x{work.size[1]} from original "
@@ -433,26 +490,20 @@ def generate(payload: dict, pipe, device: str, parser_proc, parser, ip_loaded: b
         )
         hard_keep = np.maximum(hands_np, hair_np)
 
-    # Feathered subtraction, not `mask[keep > 127] = 0` - a binary punch upscales
-    # into the sawtooth seen along hair and arm boundaries.
     composite_mask = subtract_keep_soft(composite_mask, hard_keep, feather_px=3)
     composite_mask = clean_binary_mask(composite_mask)
     composite_mask = subtract_keep_soft(composite_mask, hard_keep, feather_px=3)
-    model_mask = harden_inpaint_mask(composite_mask, hard_keep=hard_keep, dilate_px=5)
+    model_mask = harden_inpaint_mask(composite_mask, hard_keep=hard_keep, dilate_px=2)
     model_mask = clean_binary_mask(model_mask)
     model_mask = subtract_keep_soft(model_mask, hard_keep, feather_px=2)
     if int(model_mask.max()) == 0:
         raise RuntimeError("Inpaint mask is empty (no clothing pixels). Try a fuller-body photo.")
 
-    # Lift both masks to native resolution with an edge-aware filter rather than a
-    # blind resize, so the boundary follows real hair strands and fabric folds.
     print("Refining masks at native resolution...", file=sys.stderr)
-    full_model_mask = refine_mask_edges(model_mask, orig_np, radius=8, eps=1e-3)
+    full_model_mask = refine_mask_edges(model_mask, orig_np, radius=12, eps=1e-3, hard=True)
     paste_mask_work = harden_inpaint_mask(composite_mask, hard_keep=hard_keep, dilate_px=2)
     paste_mask_work = subtract_keep_soft(paste_mask_work, hard_keep, feather_px=2)
-    full_paste_mask = refine_mask_edges(paste_mask_work, orig_np, radius=6, eps=1e-3)
-
-    ip_kwargs = build_ip_kwargs(pipe, payload, ip_loaded)
+    full_paste_mask = refine_mask_edges(paste_mask_work, orig_np, radius=15, eps=1e-3, hard=False)
 
     seed = int(payload.get("seed", -1))
     generator = None
@@ -463,19 +514,42 @@ def generate(payload: dict, pipe, device: str, parser_proc, parser, ip_loaded: b
     guidance = float(payload.get("guidance_scale", 6.0))
     strength = float(payload.get("strength", DEFAULT_STRENGTH))
 
-    # Generate on a crop taken from the ORIGINAL, so the garment gets the whole
-    # 768 budget instead of sharing it with backdrop.
     box = mask_crop_box(full_model_mask, pad_frac=0.18)
     bx0, by0, bx1, by1 = box
     crop_rgb = orig_np[by0:by1, bx0:bx1]
     crop_mask = full_model_mask[by0:by1, bx0:bx1]
     ch, cw = crop_rgb.shape[:2]
-    gw, gh = fit_work_size(cw, ch)
-    print(
-        f"Native inpaint on {device} steps={steps} strength={strength} "
-        f"crop={cw}x{ch} -> {gw}x{gh}...",
-        file=sys.stderr,
-    )
+    
+    # ---------------- STAGE 1: SD 1.5 + ControlNet ----------------
+    print(f"--- STAGE 1: SD 1.5 Structural Generation ---", file=sys.stderr)
+    
+    # Generate pose control image first to save memory
+    from controlnet_aux import OpenposeDetector
+    
+    old_offline = os.environ.get("HF_HUB_OFFLINE")
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    try:
+        pose_model = OpenposeDetector.from_pretrained("lllyasviel/Annotators", local_files_only=True).to(device)
+    finally:
+        if old_offline is not None:
+            os.environ["HF_HUB_OFFLINE"] = old_offline
+        else:
+            del os.environ["HF_HUB_OFFLINE"]
+            
+    control_image_full = pose_model(Image.fromarray(orig_np))
+    control_image_crop = np.array(control_image_full)[by0:by1, bx0:bx1]
+    
+    del pose_model
+    gc.collect()
+    if device == "cuda":
+        torch.cuda.empty_cache()
+        
+    pipe_sd15, ip_loaded = get_sd15_pipeline(device, dtype)
+    ip_kwargs = build_ip_kwargs(pipe_sd15, payload, ip_loaded)
+    
+    gw_15, gh_15 = fit_work_size(cw, ch, 768)
+    control_image_15 = Image.fromarray(control_image_crop).resize((gw_15, gh_15), Image.LANCZOS)
+    
     if strength < 0.999:
         init_color = payload.get("init_color") or garment_color_from_prompt(payload["prompt"])
         init_np = garment_base_init(crop_rgb, crop_mask, target_rgb=tuple(init_color))
@@ -483,30 +557,69 @@ def generate(payload: dict, pipe, device: str, parser_proc, parser, ip_loaded: b
     else:
         # At strength 1.0 the init is fully destroyed, so building a base is wasted work.
         init_np = crop_rgb
-    gen_in = Image.fromarray(cv2.resize(init_np, (gw, gh), interpolation=cv2.INTER_LANCZOS4))
-    gen_mask = _blurred_mask_pil(
-        cv2.resize(crop_mask, (gw, gh), interpolation=cv2.INTER_LINEAR), blur_px=11
+    gen_in_15 = Image.fromarray(cv2.resize(init_np, (gw_15, gh_15), interpolation=cv2.INTER_LANCZOS4))
+    gen_mask_15 = _blurred_mask_pil(
+        cv2.resize(crop_mask, (gw_15, gh_15), interpolation=cv2.INTER_LINEAR), blur_px=3
     )
-    result = pipe(
+    result_15 = pipe_sd15(
         prompt=payload["prompt"],
         negative_prompt=payload["negative_prompt"],
-        image=gen_in,
-        mask_image=gen_mask,
-        num_inference_steps=steps,
+        image=gen_in_15,
+        mask_image=gen_mask_15,
+        control_image=control_image_15,
+        num_inference_steps=20, # Fast base gen
         generator=generator,
         guidance_scale=guidance,
-        strength=strength,
-        height=gh,
-        width=gw,
+        strength=1.0,
+        height=gh_15,
+        width=gw_15,
         **ip_kwargs,
     )
-    gen_crop = np.array(result.images[0].convert("RGB"))
-    if gen_crop.shape[:2] != (ch, cw):
-        gen_crop = cv2.resize(gen_crop, (cw, ch), interpolation=cv2.INTER_LANCZOS4)
-    gen_full = paste_crop_into(orig_np, gen_crop, box)
+    base_gen = np.array(result_15.images[0].convert("RGB"))
+    
+    del pipe_sd15
+    gc.collect()
+    if device == "cuda":
+        torch.cuda.empty_cache()
 
-    if bool(payload.get("refine", True)):
-        gen_full = refine_tiles(pipe, gen_full, full_model_mask, payload, ip_kwargs)
+    if str(payload.get("refine", True)).lower() in ("true", "1", "yes"):
+        # ---------------- STAGE 2: SDXL High-Res Refinement ----------------
+        print(f"--- STAGE 2: SDXL High-Res Refinement ---", file=sys.stderr)
+        pipe_sdxl = get_sdxl_pipeline(device, dtype)
+        
+        gw_xl, gh_xl = fit_work_size(cw, ch, SDXL_WORK_MAX_DIM)
+        gen_in_xl = Image.fromarray(base_gen).resize((gw_xl, gh_xl), Image.LANCZOS)
+        gen_mask_xl = _blurred_mask_pil(
+            cv2.resize(crop_mask, (gw_xl, gh_xl), interpolation=cv2.INTER_LINEAR), blur_px=3
+        )
+        
+        result_xl = pipe_sdxl(
+            prompt=payload["prompt"],
+            negative_prompt=payload["negative_prompt"],
+            image=gen_in_xl,
+            mask_image=gen_mask_xl,
+            num_inference_steps=steps,
+            generator=generator,
+            guidance_scale=guidance,
+            strength=strength,
+            height=gh_xl,
+            width=gw_xl,
+        )
+        gen_crop = np.array(result_xl.images[0].convert("RGB"))
+        
+        del pipe_sdxl
+        gc.collect()
+        if device == "cuda":
+            torch.cuda.empty_cache()
+            
+        if gen_crop.shape[:2] != (ch, cw):
+            gen_crop = cv2.resize(gen_crop, (cw, ch), interpolation=cv2.INTER_LANCZOS4)
+    else:
+        print("Skipping SDXL refinement pass for speed.", file=sys.stderr)
+        gen_crop = base_gen
+        if gen_crop.shape[:2] != (ch, cw):
+            gen_crop = cv2.resize(gen_crop, (cw, ch), interpolation=cv2.INTER_LANCZOS4)
+    gen_full = paste_crop_into(orig_np, gen_crop, box)
 
     if parse_map is not None:
         skin_np = (np.isin(parse_map, (12, 13, 14, 15)).astype(np.uint8)) * 255
@@ -523,15 +636,16 @@ def generate(payload: dict, pipe, device: str, parser_proc, parser, ip_loaded: b
         "output_image": _img_to_b64(output),
         "mask_image": _img_to_b64(Image.fromarray(full_model_mask).convert("L")),
     }
+
+
 def run_oneshot() -> None:
     payload = json.loads(sys.stdin.read())
-    pipe, device, parser_proc, parser, ip_loaded = load_models()
-    _emit(generate(payload, pipe, device, parser_proc, parser, ip_loaded))
+    device, dtype, parser_proc, parser = load_global_models()
+    _emit(generate(payload, device, dtype, parser_proc, parser))
 
 
 def run_worker() -> None:
-    pipe = device = parser_proc = parser = None
-    ip_loaded = False
+    device = dtype = parser_proc = parser = None
     print("Undress worker ready", file=sys.stderr)
     for raw in sys.stdin:
         line = raw.strip()
@@ -542,9 +656,9 @@ def run_worker() -> None:
             break
         try:
             payload = json.loads(line)
-            if pipe is None:
-                pipe, device, parser_proc, parser, ip_loaded = load_models()
-            _emit(generate(payload, pipe, device, parser_proc, parser, ip_loaded))
+            if device is None:
+                device, dtype, parser_proc, parser = load_global_models()
+            _emit(generate(payload, device, dtype, parser_proc, parser))
         except Exception as e:
             _emit({
                 "success": False,
@@ -555,7 +669,7 @@ def run_worker() -> None:
 
 if __name__ == "__main__":
     try:
-        if "--worker" in sys.argv or "--worker" in sys.argv:
+        if "--worker" in sys.argv:
             run_worker()
         else:
             run_oneshot()

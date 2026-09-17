@@ -1,0 +1,106 @@
+/* Global Typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Hide Streamlit Cruft */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #0e1117;
+}
+::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Sidebar Overrides */
+[data-testid="stSidebar"] {
+    background-color: #12141a !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Make radio buttons in sidebar look like navigation pills */
+[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] {
+    gap: 0.5rem;
+}
+[data-testid="stSidebar"] .stRadio label {
+    padding: 10px 15px;
+    border-radius: 8px;
+    background: transparent;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    width: 100%;
+}
+[data-testid="stSidebar"] .stRadio label:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+/* Selected radio item (Streamlit injects a specific class, but we can target the checked state generally) */
+[data-testid="stSidebar"] .stRadio label[data-baseweb="radio"] > div:first-child {
+    display: none; /* Hide the actual radio circle */
+}
+[data-testid="stSidebar"] .stRadio label div {
+    font-weight: 500;
+}
+
+/* Cards & Containers (targeting st.container(border=True)) */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background: #1a1c23;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:hover {
+    border-color: rgba(138, 43, 226, 0.4) !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Inputs & Buttons */
+.stButton > button {
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    font-weight: 600;
+}
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(138, 43, 226, 0.3);
+}
+
+.stTextInput > div > div > input, 
+.stTextArea > div > div > textarea, 
+.stSelectbox > div > div > div {
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.stTextInput > div > div > input:focus, 
+.stTextArea > div > div > textarea:focus, 
+.stSelectbox > div > div > div:focus {
+    border-color: #8a2be2;
+    box-shadow: 0 0 0 2px rgba(138, 43, 226, 0.2);
+}
+
+/* Metrics */
+[data-testid="stMetricValue"] {
+    font-weight: 700;
+    color: #8a2be2;
+}
+
+/* Expanders */
+.streamlit-expanderHeader {
+    font-weight: 600;
+    border-radius: 8px;
+}

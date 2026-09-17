@@ -28,24 +28,32 @@ OUTPUT_DIR = APP_DIR / "outputs" / "undress"
 INPUT_DIR = APP_DIR / "outputs" / "undress_input"
 
 DEFAULT_PROMPT = (
-    "raw photo of the same woman, brand new white strapless summer dress, "
-    "smooth fabric, natural red-carpet lighting, matching her real skin tone, "
-    "photorealistic, sharp details, film grain"
+    "raw photo of the same woman, elegant white strapless cotton summer dress, "
+    "structured bodice with natural wrinkles and fabric creases, form-fitting silhouette, "
+    "subtle fabric texture and weave visible, soft shadows between folds, "
+    "natural red-carpet lighting, matching her real skin tone, "
+    "professional fashion photography, photorealistic, 8k, sharp details, film grain"
 )
 DEFAULT_NEGATIVE_PROMPT = (
     "black dress, lace overlay, ruffles, spaghetti straps, original clothes, "
-    "brown melted fabric, leftover garment, mixed two dresses, "
-    "watermark, text, logo, getty, stock photo banner, "
+    "brown melted fabric, leftover garment, mixed two dresses, cutout, keyhole, "
+    "watermark, text, logo, getty, stock photo banner, numbers, "
     "deformed hands, extra fingers, fused fingers, "
+    "flat shading, plastic, smooth, no wrinkles, cgi, "
     "anime, cartoon, painting, blurry, low quality, bad anatomy, 3d render"
 )
 
 INPAINT_MODEL_ID = "Uminosachi/realisticVisionV51_v51VAE-inpainting"
+SDXL_INPAINT_MODEL_ID = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+
 CONTROLNET_MODEL_ID = "lllyasviel/control_v11p_sd15_inpaint"
 OPENPOSE_CONTROLNET_ID = "lllyasviel/control_v11p_sd15_openpose"
 OPENPOSE_DETECTOR_ID = "lllyasviel/ControlNet"
 CLOTHES_PARSER_ID = "mattmdjaga/segformer_b2_clothes"
+
 WORK_MAX_DIM = 768
+SDXL_WORK_MAX_DIM = 1024
+
 UNDRESS_MODELS_DIR = APP_DIR / "models" / "undress"
 _HF_IGNORE = ("*.bin", "*.msgpack", "*.h5", "*.ot", "*.md", ".gitattributes")
 
@@ -53,13 +61,16 @@ _HF_IGNORE = ("*.bin", "*.msgpack", "*.h5", "*.ot", "*.md", ".gitattributes")
 IP_ADAPTER_REPO_ID = "h94/IP-Adapter"
 IP_ADAPTER_SUBFOLDER = "models"
 IP_ADAPTER_WEIGHT_NAME = "ip-adapter-plus_sd15.bin"
-DEFAULT_REF_SCALE = 0.6
+
+SDXL_IP_ADAPTER_SUBFOLDER = "sdxl_models"
+SDXL_IP_ADAPTER_WEIGHT_NAME = "ip-adapter_sdxl.bin"
+DEFAULT_REF_SCALE = 0.85
 
 # Tiled high-res refine pass: flat VRAM cost regardless of image size.
 REFINE_TILE = 768
 REFINE_OVERLAP = 128
-DEFAULT_REFINE_STRENGTH = 0.28
-DEFAULT_REFINE_STEPS = 28
+DEFAULT_REFINE_STRENGTH = 0.40
+DEFAULT_REFINE_STEPS = 35
 
 # Below 1.0 the garment region starts from a colour-matched base instead of noise.
 DEFAULT_STRENGTH = 0.6
@@ -194,7 +205,6 @@ def fit_work_size(
     max_dim: int = WORK_MAX_DIM,
     multiple: int = 64,
 ) -> Tuple[int, int]:
-    """Scale a crop up or down so the long side uses max_dim, aligned to multiple."""
     width, height = max(1, int(width)), max(1, int(height))
     scale = min(max_dim / width, max_dim / height)
     nw = int(round(width * scale / multiple)) * multiple
@@ -537,7 +547,9 @@ def grow_straps_into_garment(parse_map, image_rgb, person_mask=None) -> np.ndarr
     ycc = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32)
     y, cr, cb = ycc[:, :, 0], ycc[:, :, 1], ycc[:, :, 2]
     chroma = np.abs(cr - 128.0) + np.abs(cb - 128.0)
-    dark = (y < 95) & (chroma < 28) & (~_ycrcb_skin_gate(ycc))
+    # Catch thin dark straps: relaxed luminance threshold so spaghetti straps
+    # on lighter backgrounds (e.g. blue backdrop) are also detected.
+    dark = (y < 120) & (chroma < 35) & (~_ycrcb_skin_gate(ycc))
     ksz = max(31, (min(h, w) // 8) | 1)
     if ksz % 2 == 0:
         ksz += 1
@@ -548,7 +560,10 @@ def grow_straps_into_garment(parse_map, image_rgb, person_mask=None) -> np.ndarr
         pm = _as_gray_u8(person_mask)
         if pm.shape[:2] != (h, w):
             pm = cv2.resize(pm, (w, h), interpolation=cv2.INTER_NEAREST)
-        extra &= pm > 127
+        # Dilate the person mask slightly to catch straps/ruffles sticking out,
+        # but don't let it run infinitely into dark backgrounds.
+        pm_wide = cv2.dilate(pm, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
+        extra &= pm_wide > 127
     extra_u8 = (extra.astype(np.uint8)) * 255
     if int(extra_u8.max()) > 0:
         dist = cv2.distanceTransform(extra_u8, cv2.DIST_L2, 3)
@@ -565,7 +580,7 @@ def identity_keep_mask(
     extra_keep=None,
     watermark=None,
     image_rgb=None,
-    arm_erode_px: int = 3,
+    arm_erode_px: int = 21,
 ) -> np.ndarray:
     """Hair/hat/bag, the real face ellipse, arms (except a watermark bar), hands.
 
@@ -594,13 +609,18 @@ def identity_keep_mask(
         arms[wm > 127] = 0
 
     clothes = (np.isin(labels, PARSE_CLOTHES_IDS).astype(np.uint8)) * 255
+    # Calculate skin mask once for all skin-based filtering
+    is_skin = None
+    if image_rgb is not None:
+        rgb = np.asarray(image_rgb)
+        if rgb.shape[:2] != (h, w):
+            rgb = cv2.resize(rgb, (w, h), interpolation=cv2.INTER_LINEAR)
+        is_skin = _ycrcb_skin_gate(cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32))
+
     if int(arms.max()) > 0 and int(clothes.max()) > 0:
         arm_area = int((arms > 0).sum())
-        if image_rgb is not None:
-            rgb = np.asarray(image_rgb)
-            if rgb.shape[:2] != (h, w):
-                rgb = cv2.resize(rgb, (w, h), interpolation=cv2.INTER_LINEAR)
-            not_skin = ~_ycrcb_skin_gate(cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32))
+        if is_skin is not None:
+            not_skin = ~is_skin
             suspect = ((arms > 0) & not_skin).astype(np.uint8)
             if int(suspect.max()) > 0:
                 # Misparsed garment forms a strip CONTIGUOUS with the dress, while a
@@ -633,8 +653,37 @@ def identity_keep_mask(
         extra = _as_gray_u8(extra_keep)
         if extra.shape[:2] != (h, w):
             extra = cv2.resize(extra, (w, h), interpolation=cv2.INTER_NEAREST)
+        
+        # VERY IMPORTANT: The extra hand geometry (from MediaPipe) is thick and blocky.
+        # It covers the gaps between fingers, which protects the original dress.
+        # By intersecting it with the skin mask, we carve out a pixel-perfect mask of the fingers!
+        if is_skin is not None:
+            # We dilate the skin gate slightly to catch finger edges lost to harsh shadows
+            skin_wide = cv2.dilate((is_skin.astype(np.uint8)), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+            extra[skin_wide == 0] = 0
+            
         keep = np.maximum(keep, extra)
     return keep
+
+
+def _fill_garment_holes(mask_u8: np.ndarray) -> np.ndarray:
+    """Fill cutouts / keyholes inside the garment silhouette with a convex hull.
+
+    Without this, side cutouts and keyhole necklines are classified as background,
+    so the AI sees the original skin through the gap and reproduces it.
+    """
+    m = np.where(_as_gray_u8(mask_u8) > 127, 255, 0).astype(np.uint8)
+    if int(m.max()) == 0:
+        return m
+    contours, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return m
+    # Take the largest contour (the main garment) and fill its convex hull
+    biggest = max(contours, key=cv2.contourArea)
+    hull = cv2.convexHull(biggest)
+    filled = m.copy()
+    cv2.fillConvexPoly(filled, hull, 255)
+    return filled
 
 
 def garment_inpaint_mask(
@@ -656,6 +705,9 @@ def garment_inpaint_mask(
         if person.shape[:2] != (h, w):
             person = cv2.resize(person, (w, h), interpolation=cv2.INTER_NEAREST)
     clothes = grow_straps_into_garment(parse_map, image_rgb, person_mask=person)
+    # Fill cutouts, keyholes, and gaps inside the garment silhouette so the AI
+    # does not see original skin through them and reproduce the original design.
+    clothes = _fill_garment_holes(clothes)
     torso = torso_garment_mask(person, face_bbox)
     ksz = max(21, (min(h, w) // 16) | 1)
     if ksz % 2 == 0:
@@ -670,19 +722,48 @@ def garment_inpaint_mask(
     chroma = np.abs(cr - 128.0) + np.abs(cb - 128.0)
     skin = _ycrcb_skin_gate(ycc)
     dark = (y < 110) & (chroma < 40) & (~skin)
-    ruffles = (torso_wide > 0) & (person > 127) & dark
-    out = np.maximum(clothes, (ruffles.astype(np.uint8)) * 255)
+    
+    # Catch underwear/swimwear that SegFormer often misclassifies as legs/background.
+    # The torso mask covers the central body; any non-skin pixels here should be inpainted.
+    torso_non_skin = (torso > 0) & (~skin)
+    clothes = np.maximum(clothes, (torso_non_skin.astype(np.uint8)) * 255)
+    
+    # To prevent "scars" and fake skin-toned straps, we must give the AI a generous 
+    # buffer of skin/pixels around the dress to repaint and blend smoothly.
+    # We expand the mask by ~20 pixels in all directions, restricted to the person's body.
+    # (identity_keep_mask will still protect the face, hair, and the bulk of the arms).
+    ksz_dilate = max(41, (min(h, w) // 20) | 1)
+    if ksz_dilate % 2 == 0:
+        ksz_dilate += 1
+        
+    out = cv2.dilate(clothes, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksz_dilate, ksz_dilate)))
+    
+    # Ruffles sticking out into the background
+    person_wide = cv2.dilate(person, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
+    ruffles = (torso_wide > 0) & (person_wide > 127) & dark
+    out = np.maximum(out, (ruffles.astype(np.uint8)) * 255)
 
     wm = watermark_banner_mask(rgb, person_mask=person)
     if int(wm.max()) > 0:
-        near_garment = cv2.dilate(out, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
-        on_fabric = (wm > 127) & (near_garment > 127) & (~skin)
-        out = np.maximum(out, (on_fabric.astype(np.uint8)) * 255)
+        # Inpaint watermark on the garment AND on nearby skin (arms near the
+        # dress often have the translucent overlay smudge).
+        near_garment = cv2.dilate(out, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25)))
+        on_body = (wm > 127) & (person > 127) & (near_garment > 127)
+        out = np.maximum(out, (on_body.astype(np.uint8)) * 255)
 
+    # Erode the arm mask heavily (e.g. 21px) near clothes so the AI can blend armpits and straps!
+    arm_erode = max(11, ksz_dilate // 2)
     keep = identity_keep_mask(
-        labels, face_bbox=face_bbox, extra_keep=extra_keep, image_rgb=rgb
+        labels, face_bbox=face_bbox, extra_keep=extra_keep, image_rgb=rgb, arm_erode_px=arm_erode
     )
-    out[keep > 127] = 0
+    # Watermark on arms should still be inpainted even if arms are "keep".
+    # Only protect keep areas that are NOT watermark-covered.
+    if int(wm.max()) > 0:
+        keep_clean = keep.copy()
+        keep_clean[wm > 127] = 0
+        out[keep_clean > 127] = 0
+    else:
+        out[keep > 127] = 0
     return out
 
 
@@ -746,7 +827,7 @@ def watermark_banner_mask(image_rgb, person_mask=None) -> np.ndarray:
     ycc = cv2.cvtColor(rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32)
     y, cr, cb = ycc[:, :, 0], ycc[:, :, 1], ycc[:, :, 2]
     chroma = np.abs(cr - 128.0) + np.abs(cb - 128.0)
-    grayish = (chroma < 42) & (y > 55) & (y < 220)
+    grayish = (chroma < 42) & (y > 55) & (y <= 255)
     m = (grayish.astype(np.uint8)) * 255
     kx = max(9, w // 18)
     m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (kx, 5)))
@@ -761,7 +842,7 @@ def watermark_banner_mask(image_rgb, person_mask=None) -> np.ndarray:
         if bh > 0 and (bw / float(bh)) < 2.5:
             continue
         cy = y0 + bh * 0.5
-        if cy < 0.16 * h or cy > 0.88 * h:
+        if cy < 0.08 * h or cy > 0.96 * h:
             continue
         out[labels == i] = 255
     if int(out.max()) > 0:
@@ -872,6 +953,8 @@ def composite_inpaint(original_rgb, generated_rgb, inpaint_mask) -> np.ndarray:
     alpha = _as_gray_u8(inpaint_mask).astype(np.float32) / 255.0
     if alpha.shape != orig.shape[:2]:
         alpha = cv2.resize(alpha, (orig.shape[1], orig.shape[0]), interpolation=cv2.INTER_LINEAR)
+    # A tight feathering (7x7) to hide sharp pixel seams without causing massive auras
+    alpha = cv2.GaussianBlur(alpha, (7, 7), 0)
     a3 = alpha[:, :, None]
     out = gen * a3 + orig * (1.0 - a3)
     return np.clip(out, 0, 255).astype(np.uint8)
@@ -890,39 +973,18 @@ def harmonize_generated_region(
     inpaint_mask,
     skin_mask,
 ) -> np.ndarray:
-    """Keep hair/skin pixels exact, then match newly generated skin to original skin tone."""
+    """Seamlessly composite the generated region using a tight alpha blend.
+    
+    Poisson cloning (seamlessClone) causes massive color bleeding (auras) 
+    around complex keep-masks like fingers. A tight alpha feathering is safer.
+    """
     orig = np.asarray(original_rgb)
     gen = np.asarray(generated_rgb)
     h, w = orig.shape[:2]
-    inpaint_mask = _mask_at_hw(inpaint_mask, h, w)
-    skin_mask = _mask_at_hw(skin_mask, h, w)
-    out = composite_inpaint(orig, gen, inpaint_mask)
-    sel = inpaint_mask > 127
-    ref = skin_mask > 127
-    if int(sel.sum()) < 16 or int(ref.sum()) < 16:
-        return out
-
-    gen_ycc = cv2.cvtColor(out, cv2.COLOR_RGB2YCrCb).astype(np.float32)
-    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
-    near = cv2.dilate((ref.astype(np.uint8)) * 255, k) > 127
-    near_white = (out[:, :, 0] > 230) & (out[:, :, 1] > 228) & (out[:, :, 2] > 220)
-    target = sel & _ycrcb_skin_gate(gen_ycc) & near & (~near_white)
-    if int(target.sum()) < 16:
-        return out
-
-    orig_lab = cv2.cvtColor(orig, cv2.COLOR_RGB2LAB).astype(np.float32)
-    out_lab = cv2.cvtColor(out, cv2.COLOR_RGB2LAB).astype(np.float32)
-    ref_pix = orig_lab[ref]
-    sel_pix = out_lab[target]
-    mu_r = ref_pix.mean(axis=0)
-    sd_r = np.maximum(ref_pix.std(axis=0), 1.0)
-    mu_s = sel_pix.mean(axis=0)
-    sd_s = np.maximum(sel_pix.std(axis=0), 1.0)
-    transferred = (sel_pix - mu_s) * (sd_r / sd_s) + mu_r
-    out_lab[target] = np.clip(transferred, 0, 255)
-    matched = cv2.cvtColor(out_lab.astype(np.uint8), cv2.COLOR_LAB2RGB)
-    matched[~target] = out[~target]
-    return matched
+    mask = _mask_at_hw(inpaint_mask, h, w)
+    
+    # Just do a clean alpha composite with tight feathering
+    return composite_inpaint(orig, gen, mask)
 
 
 
@@ -941,27 +1003,31 @@ def _guided_filter_gray(guide_f32, src_f32, radius: int, eps: float) -> np.ndarr
     return cv2.blur(a, ksz) * guide_f32 + cv2.blur(b, ksz)
 
 
-def refine_mask_edges(mask, guide_rgb, radius: int = 8, eps: float = 1e-3) -> np.ndarray:
-    """Lift a work-res mask to the guide's resolution, snapping its edges to real ones.
-
-    A plain resize turns a 768px mask boundary into a staircase at 2048px — that is the
-    sawtooth seam along hair and arms. The guided filter re-fits the mask to local image
-    structure instead, so the paste edge follows hair strands and fabric folds.
+def refine_mask_edges(mask, guide_rgb, radius: int = 8, eps: float = 1e-3, hard: bool = False) -> np.ndarray:
+    """Lift a work-res mask to the guide's resolution.
+    
+    The guided filter was removed because on dark backgrounds it aggressively 
+    snapped the mask to shadows on the wall, causing massive imprecise blooming.
+    Now we simply upscale with CUBIC interpolation for smooth edges, followed by
+    a gentle blur to remove aliasing staircases.
     """
     guide = np.asarray(guide_rgb)
-    if guide.ndim == 3:
-        guide_gray = cv2.cvtColor(guide.astype(np.uint8), cv2.COLOR_RGB2GRAY)
-    else:
-        guide_gray = _as_gray_u8(guide)
-    h, w = guide_gray.shape[:2]
-    m = _mask_at_hw(mask, h, w)
-    out = _guided_filter_gray(
-        guide_gray.astype(np.float32) / 255.0,
-        m.astype(np.float32) / 255.0,
-        radius,
-        eps,
-    )
-    return np.clip(out * 255.0, 0, 255).astype(np.uint8)
+    h, w = guide.shape[:2]
+    
+    m = _as_gray_u8(mask)
+    if m.shape[:2] != (h, w):
+        m = cv2.resize(m, (w, h), interpolation=cv2.INTER_CUBIC)
+    
+    # A tiny blur removes any remaining CUBIC aliasing without bloat
+    k = max(3, (radius // 2) | 1)
+    if k % 2 == 0:
+        k += 1
+    m = cv2.GaussianBlur(m, (k, k), 0)
+    
+    if hard:
+        m = np.where(m > 127, 255, 0).astype(np.uint8)
+        
+    return m
 
 
 def subtract_keep_soft(inpaint_mask, keep_mask, feather_px: int = 3) -> np.ndarray:
@@ -1197,16 +1263,28 @@ def protection_preview_masks(image_rgb, face_bbox) -> Tuple[np.ndarray, np.ndarr
 
 
 def annotate_face_preview(image_pil: Image.Image, bbox: Sequence[int]) -> Image.Image:
-    """Green overlay on protected pixels, red on clothes that will be restyled."""
+    """Green overlay on protected pixels (face/skin).
+    
+    We no longer draw the red 'restyle' block here because this UI preview runs
+    without the SegFormer neural network. The red block was just a crude rectangle
+    that confused users into thinking the AI was going to paint over the background.
+    """
     rgb = np.array(image_pil.convert("RGB"))
-    keep, restyle = protection_preview_masks(rgb, bbox)
+    keep, _ = protection_preview_masks(rgb, bbox)
     out = rgb.astype(np.float32)
     green = np.array([36.0, 220.0, 72.0], np.float32)
-    red = np.array([230.0, 48.0, 40.0], np.float32)
-    k = keep > 127
-    r = restyle > 127
+    
+    # In the absence of a real person mask, everything outside the fake torso 
+    # block was marked as 'keep'. To avoid a weird un-green block in the middle 
+    # of the screen, we'll just highlight the face and skin for the preview.
+    skin = exposed_skin_mask(rgb, np.full(rgb.shape[:2], 255, np.uint8), bbox)
+    head = _filled_ellipse(
+        rgb.shape[:2],
+        expand_head_bbox(bbox, rgb.shape[1], rgb.shape[0], pad_x=0.22, pad_up=0.80, pad_down=0.08),
+    )
+    k = np.maximum(skin, head) > 127
+    
     out[k] = out[k] * 0.58 + green * 0.42
-    out[r] = out[r] * 0.58 + red * 0.42
     annotated = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
     draw = ImageDraw.Draw(annotated)
     ex1, ey1, ex2, ey2 = expand_head_bbox(
@@ -1291,13 +1369,14 @@ class UndressClient:
         for line in proc.stderr:
             self._err_chunks.append(line)
 
-    def generate(self, payload: Dict[str, Any], timeout: float = 1800) -> Dict[str, Any]:
+    def generate(self, payload: Dict[str, Any], timeout: float = 1800, status_callback=None) -> Dict[str, Any]:
         self._ensure()
         assert self.proc is not None and self.proc.stdin is not None
         self.proc.stdin.write(json.dumps(payload) + "\n")
         self.proc.stdin.flush()
         deadline = time.time() + timeout
         collected: List[str] = []
+        last_err_len = len(self._err_chunks)
         while time.time() < deadline:
             if self.proc.poll() is not None:
                 # Drain anything already queued so a fast worker still parses.
@@ -1312,8 +1391,15 @@ class UndressClient:
                     err = "".join(self._err_chunks[-20:])
                     raise RuntimeError(f"undress worker exited: {e}\n{err}") from e
             try:
-                line = self._out_q.get(timeout=0.1)
+                line = self._out_q.get(timeout=0.5)
             except Empty:
+                if status_callback and len(self._err_chunks) > last_err_len:
+                    new_chunks = self._err_chunks[last_err_len:]
+                    last_err_len = len(self._err_chunks)
+                    for chunk in new_chunks:
+                        msg = chunk.strip()
+                        if msg and not msg.startswith("Traceback") and "warnings.warn" not in msg and "site-packages" not in msg:
+                            status_callback(msg)
                 continue
             collected.append(line)
             if RESULT_MARKER in line:
@@ -1375,8 +1461,14 @@ def run_undress_job(job, manager) -> bool:
         job.progress = 0.15
         manager.save_job(job)
 
-        timeout = float(params.get("timeout", 1800))
+        timeout = float(params.get("timeout", 7200))
         client = get_shared_client()
+        
+        def update_status(msg: str):
+            if msg:
+                job.message = msg
+                manager.save_job(job)
+                
         result = client.generate(
             {
                 "image_path": params["image_path"],
@@ -1396,6 +1488,7 @@ def run_undress_job(job, manager) -> bool:
                 "refine_steps": params.get("refine_steps", DEFAULT_REFINE_STEPS),
             },
             timeout=timeout,
+            status_callback=update_status,
         )
         engine_tb = result.get("traceback") if isinstance(result, dict) else None
         if not result.get("success"):
