@@ -7,6 +7,12 @@ Loads the base SD1.5 checkpoint + a trained per-person LoRA and produces
 "master reference" portraits per the idea.txt recipe: front-facing, neutral
 expression, flat studio lighting, ready for Character Creator 4 / KeenTools.
 
+An optional `reference_image` steers the result while the face still comes from
+the LoRA: "composition" starts img2img from it (pose, framing, lighting),
+"style" feeds it to IP-Adapter (look, clothes, colours, without copying the
+layout), "both" does both. The IP-Adapter weights are the ones Magic Undress
+already keeps in models/undress.
+
 Images are generated one at a time and written to `output_dir` as soon as each
 is done, so a stopped or crashed run keeps what it finished. Progress goes to
 stdout as one JSON object per line behind EVENT_PREFIX; anything else printed
@@ -33,17 +39,63 @@ DEFAULT_NEGATIVE_PROMPT = (
 DEFAULT_STEPS = 30
 DEFAULT_GUIDANCE = 7.5
 
+REFERENCE_COMPOSITION = "composition"
+REFERENCE_STYLE = "style"
+REFERENCE_BOTH = "both"
+REFERENCE_MODES = {
+    REFERENCE_COMPOSITION: "Pose & composition",
+    REFERENCE_STYLE: "Style & look",
+    REFERENCE_BOTH: "Both",
+}
+DEFAULT_REFERENCE_STRENGTH = 0.6  # img2img: how far each image moves away from the reference
+DEFAULT_REFERENCE_SCALE = 0.5     # IP-Adapter: much higher and the reference's face overrides the LoRA's
+
 EVENT_PREFIX = "@@lora_generate "
 
 STAGE_LOADING_TORCH = "Starting torch / CUDA"
 STAGE_LOADING_CHECKPOINT = "Loading the base checkpoint"
 STAGE_LOADING_LORA = "Applying the person's LoRA"
+STAGE_LOADING_IP_ADAPTER = "Loading IP-Adapter for the reference image"
 STAGE_PREPARING_GPU = "Preparing the GPU (CPU offload + attention)"
 STAGE_GENERATING = "Generating"
 
 
 def emit(event: str, **fields):
     print(EVENT_PREFIX + json.dumps({"event": event, **fields}), flush=True)
+
+
+def reference_mode(request: dict):
+    """How the request follows its reference image, or None when it has none."""
+    if not request.get("reference_image"):
+        return None
+    return request.get("reference_mode") or REFERENCE_COMPOSITION
+
+
+def uses_img2img(request: dict) -> bool:
+    return reference_mode(request) in (REFERENCE_COMPOSITION, REFERENCE_BOTH)
+
+
+def uses_ip_adapter(request: dict) -> bool:
+    return reference_mode(request) in (REFERENCE_STYLE, REFERENCE_BOTH)
+
+
+def denoising_steps(request: dict) -> int:
+    """Denoising steps each image actually runs. img2img skips the start of the schedule, and this
+    is the same int(steps * strength) diffusers uses, so progress and ETA line up with its callback."""
+    steps = int(request.get("steps", DEFAULT_STEPS))
+    if not uses_img2img(request):
+        return steps
+    strength = float(request.get("reference_strength", DEFAULT_REFERENCE_STRENGTH))
+    return min(int(steps * strength), steps)
+
+
+def reference_size(width: int, height: int, base: int = 512, max_side: int = 768) -> tuple:
+    """SD1.5 working size that keeps the reference's aspect ratio: short side at `base` unless that
+    pushes the long side past `max_side`, both rounded down to the multiple of 8 the VAE needs."""
+    scale = base / min(width, height)
+    if max(width, height) * scale > max_side:
+        scale = max_side / max(width, height)
+    return max(8, round(width * scale) // 8 * 8), max(8, round(height * scale) // 8 * 8)
 
 
 def load_person_lora(pipe, lora_path):
@@ -78,9 +130,18 @@ def main():
     file_prefix = request.get("file_prefix", "reference")
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    use_img2img, use_ip_adapter = uses_img2img(request), uses_ip_adapter(request)
+    run_steps = denoising_steps(request)
+    reference = size = None
+    if reference_mode(request):
+        # Opened before torch loads, so a missing or broken file fails in seconds rather than minutes.
+        from PIL import Image, ImageOps
+        reference = ImageOps.exif_transpose(Image.open(request["reference_image"])).convert("RGB")
+        size = reference_size(*reference.size)
+
     emit("stage", stage=STAGE_LOADING_TORCH)
     import torch
-    from diffusers import StableDiffusionPipeline, UniPCMultistepScheduler
+    from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, UniPCMultistepScheduler
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
@@ -91,24 +152,45 @@ def main():
     emit("device", **device_info)
 
     emit("stage", stage=STAGE_LOADING_CHECKPOINT)
-    pipe = StableDiffusionPipeline.from_single_file(request["base_checkpoint"], torch_dtype=dtype, safety_checker=None)
+    pipeline_class = StableDiffusionImg2ImgPipeline if use_img2img else StableDiffusionPipeline
+    pipe = pipeline_class.from_single_file(request["base_checkpoint"], torch_dtype=dtype, safety_checker=None)
     pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
     pipe.set_progress_bar_config(disable=True)  # per-step progress is reported as events instead
 
     emit("stage", stage=STAGE_LOADING_LORA)
     load_person_lora(pipe, request["lora_path"])
 
+    if use_ip_adapter:
+        emit("stage", stage=STAGE_LOADING_IP_ADAPTER)
+        from undress_core import IP_ADAPTER_SUBFOLDER, IP_ADAPTER_WEIGHT_NAME, ensure_ip_adapter
+        ip_src = ensure_ip_adapter()
+        if ip_src is None:
+            raise RuntimeError("IP-Adapter weights are missing and could not be downloaded (see the log). "
+                               "Use the 'Pose & composition' reference mode, which doesn't need them.")
+        pipe.load_ip_adapter(str(ip_src), subfolder=IP_ADAPTER_SUBFOLDER, weight_name=IP_ADAPTER_WEIGHT_NAME)
+        pipe.set_ip_adapter_scale(float(request.get("reference_scale", DEFAULT_REFERENCE_SCALE)))
+
     emit("stage", stage=STAGE_PREPARING_GPU)
     if device == "cuda":
         pipe.enable_model_cpu_offload()
-        try:
-            pipe.enable_xformers_memory_efficient_attention()
-        except Exception:
-            pass  # torch 2 already uses SDPA attention when xformers isn't installed
+        if not use_ip_adapter:  # swapping attention processors would drop IP-Adapter's (see undress_engine.py)
+            try:
+                pipe.enable_xformers_memory_efficient_attention()
+            except Exception:
+                pass  # torch 2 already uses SDPA attention when xformers isn't installed
+
+    reference_kwargs = {}
+    if use_img2img:
+        reference_kwargs.update(image=reference.resize(size, Image.LANCZOS),
+                                strength=float(request.get("reference_strength", DEFAULT_REFERENCE_STRENGTH)))
+    elif reference is not None:
+        reference_kwargs.update(width=size[0], height=size[1])  # img2img takes its size from the image
+    if use_ip_adapter:
+        reference_kwargs["ip_adapter_image"] = reference
 
     # One seed per image (base + index) so any single result can be regenerated on its own.
     base_seed = seed if seed != -1 else random.randint(0, 2**31 - 1 - num_images)
-    emit("stage", stage=STAGE_GENERATING, total_images=num_images, steps=steps, base_seed=base_seed)
+    emit("stage", stage=STAGE_GENERATING, total_images=num_images, steps=run_steps, base_seed=base_seed)
 
     for index in range(num_images):
         image_seed = base_seed + index
@@ -117,12 +199,13 @@ def main():
             torch.cuda.reset_peak_memory_stats()
 
         def on_step_end(_pipe, step, _timestep, callback_kwargs, index=index, started=started):
-            emit("step", image=index + 1, step=step + 1, steps=steps, seconds=round(time.monotonic() - started, 2))
+            emit("step", image=index + 1, step=step + 1, steps=run_steps, seconds=round(time.monotonic() - started, 2))
             return callback_kwargs
 
         image = pipe(
             prompt, negative_prompt=negative_prompt, num_inference_steps=steps, guidance_scale=DEFAULT_GUIDANCE,
             generator=torch.Generator(device).manual_seed(image_seed), callback_on_step_end=on_step_end,
+            **reference_kwargs,
         ).images[0]
 
         path = output_dir / f"{file_prefix}_{index + 1:02d}_seed{image_seed}.png"

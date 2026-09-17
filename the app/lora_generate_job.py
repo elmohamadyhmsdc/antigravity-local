@@ -7,6 +7,7 @@ events into the job's `details` (which the Character LoRA page's Generate tab
 polls), keeps a log in jobs/{job_id}.log, and honours the job's stop signal.
 """
 
+import hashlib
 import json
 import os
 import subprocess
@@ -19,18 +20,41 @@ from queue import Empty, Queue
 from typing import Optional
 
 from job_manager import JobStatus
-from lora_generate import DEFAULT_STEPS, EVENT_PREFIX, STAGE_GENERATING
+from lora_generate import DEFAULT_STEPS, EVENT_PREFIX, STAGE_GENERATING, denoising_steps
 
 APP_DIR = Path(__file__).parent
 VENV_AI_PYTHON = APP_DIR / "venv_ai" / "Scripts" / "python.exe"
 GENERATE_SCRIPT = APP_DIR / "lora_generate.py"
 OUTPUT_ROOT = APP_DIR / "lora_output"
+# Leading underscore: lora_dataset._slugify strips it, so no character's upload folder can land here.
+REFERENCE_DIR = APP_DIR / "lora_uploads" / "_generate_references"
+
+REQUEST_KEYS = ("base_checkpoint", "lora_path", "trigger_word", "prompt", "negative_prompt", "num_images", "seed",
+                "reference_image", "reference_mode", "reference_strength", "reference_scale")
 
 STAGE_LAUNCHING = "Launching venv_ai (Python 3.10)"
 
 
 def generation_output_dir(person_name: str) -> Path:
     return OUTPUT_ROOT / person_name.replace(" ", "_")
+
+
+def save_reference_image(data: bytes, filename: str, folder: Path = REFERENCE_DIR) -> Path:
+    """Keeps an uploaded reference on disk for the background job. Named by content hash, so
+    queueing the same upload again reuses the file instead of piling up copies."""
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{hashlib.sha1(data).hexdigest()[:16]}{Path(filename).suffix.lower() or '.png'}"
+    if not path.exists():
+        path.write_bytes(data)
+    return path
+
+
+def generation_request(job, output_dir: Path) -> dict:
+    """The JSON request lora_generate.py reads on stdin for this job."""
+    request = {key: job.params[key] for key in REQUEST_KEYS if job.params.get(key) is not None}
+    request.update(steps=job.params.get("steps", DEFAULT_STEPS), output_dir=str(output_dir),
+                   file_prefix=f"reference_{job.id}")
+    return request
 
 
 def generation_log_path(job, manager) -> Path:
@@ -143,7 +167,7 @@ def run_generation(job, manager) -> bool:
     job.error = None
     job.progress = 0.0
     job.details = {"stage": STAGE_LAUNCHING, "stage_started_at": job.started_at, "images": [],
-                   "total_images": params["num_images"], "steps": params.get("steps", DEFAULT_STEPS)}
+                   "total_images": params["num_images"], "steps": denoising_steps(params)}
     job.message = describe_generation_state(job.details)
     manager.save_job(job)
 
@@ -168,10 +192,7 @@ def run_generation(job, manager) -> bool:
     except Exception:
         pass
 
-    request = {key: params[key] for key in ("base_checkpoint", "lora_path", "trigger_word", "prompt",
-                                             "negative_prompt", "num_images", "seed") if key in params}
-    request.update(steps=params.get("steps", DEFAULT_STEPS), output_dir=str(output_dir),
-                   file_prefix=f"reference_{job.id}")
+    request = generation_request(job, output_dir)
 
     cmd = [str(VENV_AI_PYTHON), str(GENERATE_SCRIPT)]
     print(f"[JOB {job.id}] Launching: {' '.join(cmd)}")

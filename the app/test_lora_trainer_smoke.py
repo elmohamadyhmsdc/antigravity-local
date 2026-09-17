@@ -208,6 +208,60 @@ try:
         exit(1)
 
     print("lora_generate.py verification successful! Prompt templates are well-formed.")
+
+    # --- lora_generate.py / lora_generate_job.py: reference image ---
+    import tempfile
+    from types import SimpleNamespace
+    from lora_generate import denoising_steps, reference_mode, reference_size, uses_img2img, uses_ip_adapter
+    from lora_generate_job import generation_request, save_reference_image
+
+    checks = [
+        # (request, mode, img2img, ip_adapter, denoising steps)
+        ({"steps": 30}, None, False, False, 30),
+        ({"steps": 30, "reference_mode": "both"}, None, False, False, 30),  # a mode without an image is ignored
+        ({"steps": 30, "reference_image": "r.png"}, "composition", True, False, 18),  # default strength 0.6
+        ({"steps": 30, "reference_image": "r.png", "reference_mode": "composition", "reference_strength": 0.45}, "composition", True, False, 13),
+        ({"steps": 30, "reference_image": "r.png", "reference_mode": "style", "reference_strength": 0.3}, "style", False, True, 30),
+        ({"steps": 30, "reference_image": "r.png", "reference_mode": "both", "reference_strength": 0.9}, "both", True, True, 27),
+    ]
+    for request, mode, img2img, ip_adapter, steps in checks:
+        got = (reference_mode(request), uses_img2img(request), uses_ip_adapter(request), denoising_steps(request))
+        if got != (mode, img2img, ip_adapter, steps):
+            print(f"Reference plan for {request} should be {(mode, img2img, ip_adapter, steps)}, got {got}")
+            exit(1)
+
+    for (w, h), expected in {(1024, 1024): (512, 512), (600, 800): (512, 680), (1080, 1920): (432, 768),
+                             (4000, 3000): (680, 512), (300, 300): (512, 512), (2000, 500): (768, 192)}.items():
+        if reference_size(w, h) != expected:
+            print(f"reference_size({w}, {h}) should be {expected}, got {reference_size(w, h)}")
+            exit(1)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        first = save_reference_image(b"fake image bytes", "Pose.JPG", Path(tmp))
+        again = save_reference_image(b"fake image bytes", "renamed.jpg", Path(tmp))
+        other = save_reference_image(b"other bytes", "pose.png", Path(tmp))
+        if first != again or first.suffix != ".jpg" or first.read_bytes() != b"fake image bytes":
+            print(f"The same upload should map to one .jpg file: {first} vs {again}")
+            exit(1)
+        if other == first or len(list(Path(tmp).iterdir())) != 2:
+            print(f"Different uploads should get different files: {list(Path(tmp).iterdir())}")
+            exit(1)
+
+    job = SimpleNamespace(id="abc123", params={
+        "person_name": "x", "base_checkpoint": "base.safetensors", "lora_path": "x.safetensors", "trigger_word": "sks",
+        "prompt": "p", "negative_prompt": "n", "num_images": 2, "seed": -1, "steps": 30, "output_dir": "out",
+        "reference_image": "ref.png", "reference_mode": "both", "reference_strength": 0.5, "reference_scale": 0.4})
+    request = generation_request(job, Path("out"))
+    for key in ("reference_image", "reference_mode", "reference_strength", "reference_scale", "steps", "file_prefix"):
+        if key not in request:
+            print(f"generation_request should pass {key} to lora_generate.py: {request}")
+            exit(1)
+    if "person_name" in request or generation_request(SimpleNamespace(id="a", params={"num_images": 1, "reference_image": None}),
+                                                      Path("out")).get("reference_image", "absent") != "absent":
+        print(f"generation_request should only pass generator keys that are set: {request}")
+        exit(1)
+
+    print("Reference image verification successful! Modes, step counts, sizes, saving and the job request line up.")
 except ImportError as e:
     print(f"Import failed: {e}")
     exit(1)

@@ -4057,8 +4057,11 @@ elif page == "🧬 Character LoRA":
             st.info("No trained LoRAs yet. Train one in the previous tab first.")
         else:
             from job_manager import JobManager as _JM, JobStatus as _JS, add_job_to_queue, start_queue_worker
-            from lora_generate import DEFAULT_PROMPT_TEMPLATE, DEFAULT_NEGATIVE_PROMPT, DEFAULT_STEPS, STAGE_GENERATING
-            from lora_generate_job import VENV_AI_PYTHON, generation_log_path, generation_output_dir, generation_view
+            from lora_generate import (DEFAULT_PROMPT_TEMPLATE, DEFAULT_NEGATIVE_PROMPT, DEFAULT_REFERENCE_SCALE,
+                                       DEFAULT_REFERENCE_STRENGTH, DEFAULT_STEPS, REFERENCE_MODES, STAGE_GENERATING,
+                                       denoising_steps, reference_mode, uses_img2img, uses_ip_adapter)
+            from lora_generate_job import (VENV_AI_PYTHON, generation_log_path, generation_output_dir, generation_view,
+                                           save_reference_image)
             from lora_trainer import read_log_tail
 
             gen_person_id = st.selectbox(
@@ -4074,6 +4077,38 @@ elif page == "🧬 Character LoRA":
             negative_prompt = st.text_area("Negative Prompt", DEFAULT_NEGATIVE_PROMPT, key="lora_gen_negative")
             num_images = st.slider("Number of images", 1, 8, 4)
             seed = st.number_input("Seed (-1 for random)", value=-1, step=1, key="lora_gen_seed")
+
+            gen_reference = st.file_uploader(
+                "Reference image (optional)", type=["png", "jpg", "jpeg", "webp"], key="lora_gen_reference",
+                help="A photo for the images to follow. The face still comes from the person's LoRA.")
+            # Just the choices here; the file itself is saved when the job is queued.
+            gen_reference_params = {}
+            if gen_reference is not None:
+                ref_preview, ref_options = st.columns([1, 2])
+                ref_preview.image(gen_reference, width='stretch')
+                with ref_options:
+                    ref_mode = st.radio(
+                        "Follow the reference's", options=list(REFERENCE_MODES), format_func=REFERENCE_MODES.get,
+                        horizontal=True, key="lora_gen_reference_mode",
+                        help="**Pose & composition** starts each image from the reference (head angle, framing, "
+                             "lighting, colours). **Style & look** borrows its look — hair, clothes, mood — without "
+                             "copying the layout. **Both** does both.")
+                    gen_reference_params = {"reference_image": gen_reference.name, "reference_mode": ref_mode}
+                    if uses_img2img(gen_reference_params):
+                        gen_reference_params["reference_strength"] = st.slider(
+                            "Change from the reference", 0.3, 0.9, DEFAULT_REFERENCE_STRENGTH, 0.05,
+                            key="lora_gen_reference_strength",
+                            help="Lower stays closer to the reference's pose and colours; higher lets the prompt and "
+                                 "the LoRA's face take over. Also fewer steps run at lower values.")
+                    if uses_ip_adapter(gen_reference_params):
+                        gen_reference_params["reference_scale"] = st.slider(
+                            "Reference influence", 0.1, 1.0, DEFAULT_REFERENCE_SCALE, 0.05,
+                            key="lora_gen_reference_scale",
+                            help="How strongly IP-Adapter copies the reference's look. It copies the reference's "
+                                 "face too, so above ~0.6 the person can stop looking like the LoRA.")
+                        from undress_core import IP_ADAPTER_REPO_ID, IP_ADAPTER_SUBFOLDER, IP_ADAPTER_WEIGHT_NAME, hf_cache_snapshot
+                        if hf_cache_snapshot(IP_ADAPTER_REPO_ID, f"{IP_ADAPTER_SUBFOLDER}/{IP_ADAPTER_WEIGHT_NAME}") is None:
+                            st.caption("⬇️ The first run downloads the IP-Adapter and its image encoder (several GB).")
 
             gen_jobs_dir = str(Path(__file__).parent / "jobs")
             gen_jobs = _JM(gen_jobs_dir)
@@ -4092,15 +4127,18 @@ elif page == "🧬 Character LoRA":
                 st.error(problem)
             if gen_lora_file.exists():
                 st.caption(f"LoRA `{gen_lora_file.name}` ({gen_lora_file.stat().st_size / 2**20:.0f} MB) · trigger "
-                           f"`{lora_info['trigger_word']}` · {DEFAULT_STEPS} steps per image · saves to `{gen_out_dir}`")
+                           f"`{lora_info['trigger_word']}` · {denoising_steps(gen_reference_params)} steps per image · "
+                           f"saves to `{gen_out_dir}`")
 
             if st.button("🎨 Generate Reference Images", type="primary", disabled=bool(gen_problems)):
+                if gen_reference is not None:
+                    gen_reference_params["reference_image"] = str(save_reference_image(gen_reference.getvalue(), gen_reference.name))
                 add_job_to_queue("generate_lora_images", {
                     "person_id": gen_person_id, "person_name": gen_person["name"],
                     "base_checkpoint": str(gen_checkpoint), "lora_path": str(gen_lora_file),
                     "trigger_word": lora_info["trigger_word"], "prompt": prompt, "negative_prompt": negative_prompt,
                     "num_images": int(num_images), "seed": int(seed), "steps": DEFAULT_STEPS,
-                    "output_dir": str(gen_out_dir),
+                    "output_dir": str(gen_out_dir), **gen_reference_params,
                 }, jobs_dir=gen_jobs_dir)
                 st.rerun()
 
@@ -4132,7 +4170,18 @@ elif page == "🧬 Character LoRA":
                 p = j.params or {}
                 seed_text = f"seeds from {view['base_seed']}" if view.get("base_seed") is not None else (
                     "random seed" if p.get("seed", -1) == -1 else f"seeds from {p['seed']}")
-                return f"{p.get('num_images')} image(s) · {p.get('steps', DEFAULT_STEPS)} steps · {seed_text}"
+                line = f"{p.get('num_images')} image(s) · {denoising_steps(p)} steps · {seed_text}"
+                mode = reference_mode(p)
+                if mode:
+                    knobs = [f"change {p['reference_strength']:.2f}" if "reference_strength" in p else None,
+                             f"influence {p['reference_scale']:.2f}" if "reference_scale" in p else None]
+                    line += f" · follows reference ({REFERENCE_MODES.get(mode, mode).lower()}"
+                    line += "".join(f", {k}" for k in knobs if k) + ")"
+                return line
+
+            def _gen_reference_thumb(p):
+                if reference_mode(p) and Path(p["reference_image"]).exists():
+                    st.image(p["reference_image"], width=96, caption="Reference")
 
             def _gen_startup_line(view):
                 history = view.get("stage_history") or []
@@ -4182,6 +4231,7 @@ elif page == "🧬 Character LoRA":
                         gen_jobs.request_stop(j.id)
                         st.rerun(scope="fragment")
 
+                    _gen_reference_thumb(p)
                     _gen_images(view["images"])
                     with st.expander("📜 Log (last 40 lines)"):
                         tail = read_log_tail(generation_log_path(j, gen_jobs))
@@ -4245,6 +4295,7 @@ elif page == "🧬 Character LoRA":
                     if view.get("device", {}).get("gpu"):
                         st.caption(f"Ran on {view['device']['gpu']} ({view['device']['vram_gb']:.0f} GB) · torch {view['device']['torch']}")
                     st.caption(f"Prompt: {p.get('prompt', '')}")
+                    _gen_reference_thumb(p)
                     _gen_images(view["images"])
                     if view["images"]:
                         st.caption(f"Saved in `{p.get('output_dir')}`")
