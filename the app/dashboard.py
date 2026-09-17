@@ -329,8 +329,11 @@ def rename_person(person_id: int, new_name: str):
 
 
 def delete_person(person_id: int, delete_faces: bool = False):
-    """Delete a person"""
-    # The JsonDatabase.delete_person function handles face unassignment/deletion internally
+    """Delete a person. If delete_faces is True, delete face images from disk too; otherwise unassign them."""
+    if delete_faces:
+        p_faces = get_faces_by_person(person_id)
+        for f in p_faces:
+            delete_face(f["id"], delete_file=True)
     db.delete_person(person_id)
 
 
@@ -968,6 +971,8 @@ elif page == "👥 Gallery":
     # Initialize gallery state
     if "selected_person_id" not in st.session_state:
         st.session_state.selected_person_id = None
+    if "directory_selected_persons" not in st.session_state:
+        st.session_state.directory_selected_persons = set()
     if "triage_selected_faces" not in st.session_state:
         st.session_state.triage_selected_faces = set()
     if "curation_selected_faces" not in st.session_state:
@@ -1006,6 +1011,27 @@ elif page == "👥 Gallery":
             pass
 
     st.markdown("---")
+
+    # Check for unprocessed media sources and offer 1-click extraction
+    unprocessed_sources = [
+        (idx, s) for idx, s in enumerate(st.session_state.get("data_sources", []))
+        if not s.get("processed", False)
+    ]
+    if unprocessed_sources:
+        tot_unproc_img = sum(s.get("images", 0) for _, s in unprocessed_sources)
+        tot_unproc_vid = sum(s.get("videos", 0) for _, s in unprocessed_sources)
+        with st.container(border=True):
+            b_col1, b_col2 = st.columns([3, 1])
+            with b_col1:
+                st.markdown(f"""
+                **⚡ يوجد {tot_unproc_img} صورة و {tot_unproc_vid} فيديو بانتظار استخراج الوجوه والتجميع**  
+                لم يتم تشغيل فاحص الوجوه (Face Miner) على هذه الملفات بعد. اضغط للبدء وسيقوم الذكاء الاصطناعي باستخراج كافة الوجوه وتكوين الشخصيات وتصنيفها تلقائياً.
+                """)
+            with b_col2:
+                st.write("")
+                if st.button("🚀 استخراج وتجميع الوجوه الآن", key="btn_mine_all_unprocessed", type="primary", use_container_width=True):
+                    st.session_state.processing_source = unprocessed_sources[0][0]
+                    navigate_to("sources")
 
     # Helper for rendering semantic quality badge
     def render_q_badge(score: float) -> str:
@@ -1386,6 +1412,151 @@ elif page == "👥 Gallery":
                     return av.get("quality_score", 0.0) if av else 0.0
                 display_persons.sort(key=get_av_score, reverse=True)
 
+            # Prune invalid selected IDs and synchronize state from widgets
+            valid_pids = {p["id"] for p in all_persons}
+            st.session_state.directory_selected_persons = {
+                pid for pid in st.session_state.directory_selected_persons if pid in valid_pids
+            }
+            for p in all_persons:
+                chk_key = f"sel_p_chk_{p['id']}"
+                if chk_key in st.session_state:
+                    if st.session_state[chk_key]:
+                        st.session_state.directory_selected_persons.add(p["id"])
+                    else:
+                        st.session_state.directory_selected_persons.discard(p["id"])
+
+            sel_pids = list(st.session_state.directory_selected_persons)
+            num_selected = len(sel_pids)
+
+            # Batch Selection & Group Operations Toolbar
+            with st.container(border=True):
+                col_sel1, col_sel2, col_sel3, col_sel4 = st.columns([1.3, 1.3, 1.8, 3.2])
+                with col_sel1:
+                    if st.button(f"☑️ Select All ({len(display_persons)})", key="btn_sel_all_chars", use_container_width=True):
+                        for p in display_persons:
+                            st.session_state[f"sel_p_chk_{p['id']}"] = True
+                            st.session_state.directory_selected_persons.add(p["id"])
+                        st.rerun()
+                with col_sel2:
+                    if st.button("✖️ Clear Selection", key="btn_clear_sel_chars", use_container_width=True, disabled=(num_selected == 0)):
+                        for pid in list(st.session_state.directory_selected_persons):
+                            st.session_state[f"sel_p_chk_{pid}"] = False
+                        st.session_state.directory_selected_persons.clear()
+                        st.rerun()
+                with col_sel3:
+                    if num_selected > 0:
+                        st.markdown(
+                            f"<div style='padding-top: 6px;'>"
+                            f"<span class='meta-chip' style='background: rgba(99, 102, 241, 0.25); color: #818cf8; font-weight: 600; font-size: 13px;'>"
+                            f"Selected: {num_selected} character{'s' if num_selected > 1 else ''}"
+                            f"</span></div>", 
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown("<div style='padding-top: 6px; color: #888; font-size: 13px;'>No characters selected</div>", unsafe_allow_html=True)
+                with col_sel4:
+                    st.markdown("<div style='padding-top: 6px; color: #9aa0a6; font-size: 12px;'>💡 Select 2+ characters to <b>Group Merge</b>, or 1+ to <b>Group Delete</b> directly from outside.</div>", unsafe_allow_html=True)
+
+                # Active Group Operations Drawer / Panel when items are selected
+                if num_selected > 0:
+                    st.markdown("---")
+                    op_col1, op_col2 = st.columns([1, 1])
+
+                    # -----------------------------
+                    # 1. GROUP MERGE
+                    # -----------------------------
+                    with op_col1:
+                        with st.container(border=True):
+                            st.markdown("##### 🔀 Group Merge (دمج الشخصيات المحددة)")
+                            if num_selected < 2:
+                                st.info("ℹ️ Select at least 2 characters below to perform a Group Merge.")
+                            else:
+                                st.caption(f"Combine all {num_selected} selected characters into one primary character.")
+                                selected_records = [p for p in all_persons if p["id"] in st.session_state.directory_selected_persons]
+                                selected_records.sort(key=lambda x: x.get("face_count", 0), reverse=True)
+                                
+                                target_pid = st.selectbox(
+                                    "🎯 Merge into Target Character (الشخصية الأساسية):",
+                                    options=[p["id"] for p in selected_records],
+                                    format_func=lambda pid: next(
+                                        f"{p['name']} (ID: {p['id']}, {p.get('face_count', 0)} faces)" 
+                                        for p in selected_records if p["id"] == pid
+                                    ),
+                                    key="group_merge_target_select"
+                                )
+
+                                target_person = next((p for p in selected_records if p["id"] == target_pid), None)
+                                other_persons = [p for p in selected_records if p["id"] != target_pid]
+                                tot_moved_faces = sum(p.get("face_count", 0) for p in other_persons)
+
+                                st.markdown(
+                                    f"<div style='font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
+                                    f"Will merge <b>{len(other_persons)}</b> character(s) into <b>{target_person['name']}</b>.<br>"
+                                    f"• <b>{tot_moved_faces}</b> faces will be moved to {target_person['name']}.<br>"
+                                    f"• The other {len(other_persons)} duplicate character profiles will be removed."
+                                    f"</div>", 
+                                    unsafe_allow_html=True
+                                )
+
+                                if st.button("🔀 Execute Group Merge", key="btn_exec_group_merge", type="primary", use_container_width=True):
+                                    with st.spinner(f"Merging {len(other_persons)} characters into {target_person['name']}..."):
+                                        merged_count = 0
+                                        moved_faces = 0
+                                        for src_p in other_persons:
+                                            faces_before = src_p.get("face_count", 0)
+                                            ok = merge_persons(src_p["id"], target_pid)
+                                            if ok:
+                                                merged_count += 1
+                                                moved_faces += faces_before
+                                        
+                                        for p in selected_records:
+                                            st.session_state[f"sel_p_chk_{p['id']}"] = False
+                                        st.session_state.directory_selected_persons.clear()
+                                        st.success(f"Successfully merged {merged_count} characters into {target_person['name']} ({moved_faces} faces relocated)!")
+                                        st.rerun()
+
+                    # -----------------------------
+                    # 2. GROUP DELETE
+                    # -----------------------------
+                    with op_col2:
+                        with st.container(border=True):
+                            st.markdown("##### 🗑️ Group Delete (حذف الشخصيات المحددة)")
+                            st.caption(f"Delete {num_selected} selected character{'s' if num_selected > 1 else ''} directly from outside.")
+                            
+                            del_face_files = st.checkbox(
+                                "🔥 Also permanently delete face crop images from disk",
+                                value=False,
+                                key="chk_group_del_face_files",
+                                help="If unchecked, face crops are NOT lost — they are safely returned to Smart Triage inbox for re-assignment. If checked, face image files are deleted permanently."
+                            )
+                            
+                            confirm_del = st.checkbox(
+                                f"⚠️ Confirm deletion of {num_selected} character{'s' if num_selected > 1 else ''}",
+                                value=False,
+                                key="chk_confirm_group_delete"
+                            )
+
+                            if st.button(
+                                f"🗑️ Delete {num_selected} Character{'s' if num_selected > 1 else ''}",
+                                key="btn_exec_group_delete",
+                                type="primary" if confirm_del else "secondary",
+                                disabled=not confirm_del,
+                                use_container_width=True
+                            ):
+                                with st.spinner(f"Deleting {num_selected} character(s)..."):
+                                    deleted_count = 0
+                                    for pid in list(st.session_state.directory_selected_persons):
+                                        delete_person(pid, delete_faces=del_face_files)
+                                        st.session_state[f"sel_p_chk_{pid}"] = False
+                                        deleted_count += 1
+                                    
+                                    st.session_state.directory_selected_persons.clear()
+                                    if del_face_files:
+                                        st.success(f"Deleted {deleted_count} characters and their face crop files.")
+                                    else:
+                                        st.success(f"Deleted {deleted_count} characters. Their faces were safely returned to Smart Triage.")
+                                    st.rerun()
+
             # Auto-Merge Drawer
             with st.expander("🔀 Automatic Duplicate Detector & Merger", expanded=False):
                 col_am1, col_am2 = st.columns([3, 1])
@@ -1417,9 +1588,25 @@ elif page == "👥 Gallery":
             else:
                 p_cols = st.columns(4)
                 for i, person in enumerate(display_persons):
+                    pid = person["id"]
+                    is_sel = pid in st.session_state.directory_selected_persons
+
                     with p_cols[i % 4]:
                         with st.container(border=True):
-                            avatar = get_person_avatar_face(person["id"])
+                            # Top row: Checkbox + Selection indicator / Person ID
+                            top_c1, top_c2 = st.columns([1, 4])
+                            with top_c1:
+                                chk_key = f"sel_p_chk_{pid}"
+                                if chk_key not in st.session_state:
+                                    st.session_state[chk_key] = is_sel
+                                st.checkbox("Select", key=chk_key, label_visibility="collapsed")
+                            with top_c2:
+                                if is_sel:
+                                    st.markdown("<span class='char-badge-selected'>✓ SELECTED</span>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"<span style='font-size: 11px; color: #64748b; line-height: 24px;'>ID #{pid}</span>", unsafe_allow_html=True)
+
+                            avatar = get_person_avatar_face(pid)
                             if avatar and avatar.get("image_path") and os.path.exists(avatar["image_path"]):
                                 st.image(avatar["image_path"], width='stretch')
                             else:
@@ -1439,25 +1626,25 @@ elif page == "👥 Gallery":
                             if avatar and "quality_score" in avatar:
                                 chips_html += render_q_badge(avatar["quality_score"])
                             
-                            p_lora = db.get_person_lora_info(person["id"])
+                            p_lora = db.get_person_lora_info(pid)
                             if p_lora.get("lora_path") and os.path.exists(p_lora["lora_path"]):
                                 chips_html += '<span class="meta-chip meta-chip-lora">🧬 LoRA</span>'
                             chips_html += "</div>"
                             st.markdown(chips_html, unsafe_allow_html=True)
 
                             # Card Buttons
-                            if st.button("🔍 Open Studio", key=f"open_char_{person['id']}", type="primary", use_container_width=True):
-                                st.session_state.selected_person_id = person["id"]
+                            if st.button("🔍 Open Studio", key=f"open_char_{pid}", type="primary", use_container_width=True):
+                                st.session_state.selected_person_id = pid
                                 st.rerun()
 
                             act_r1, act_r2 = st.columns(2)
                             with act_r1:
-                                if st.button("🧬 LoRA", key=f"quick_lora_{person['id']}", use_container_width=True):
-                                    st.session_state["lora_dataset_person"] = person["id"]
+                                if st.button("🧬 LoRA", key=f"quick_lora_{pid}", use_container_width=True):
+                                    st.session_state["lora_dataset_person"] = pid
                                     st.session_state["lora_dataset_source_mode"] = "👥 Use Gallery Person"
                                     navigate_to("lora")
                             with act_r2:
-                                if st.button("🎭 Reface", key=f"quick_reface_{person['id']}", use_container_width=True):
+                                if st.button("🎭 Reface", key=f"quick_reface_{pid}", use_container_width=True):
                                     navigate_to("reface_v2")
 
     # =========================================================================
@@ -1624,8 +1811,18 @@ elif page == "👥 Gallery":
         st.markdown("##### 📁 Ingested Photos & Videos")
         st.caption("Inspect media files from your data sources, examine detected faces, and send files directly to Reface or Magic Undress.")
 
+        # Media toolbar actions
+        ref_c1, ref_c2 = st.columns([1, 1])
+        with ref_c1:
+            do_refresh = st.button("🔄 Refresh Media Scan", key="btn_refresh_media_cache")
+        with ref_c2:
+            if unprocessed_sources:
+                if st.button("⚡ Process All Media & Mine Faces", key="btn_process_from_media_tab", type="primary"):
+                    st.session_state.processing_source = unprocessed_sources[0][0]
+                    navigate_to("sources")
+
         # Cache media scanning to ensure ultra-fast rendering without disk thrashing
-        if "cached_media_files" not in st.session_state or st.button("🔄 Refresh Media Scan", key="btn_refresh_media_cache"):
+        if "cached_media_files" not in st.session_state or do_refresh:
             all_media = []
             img_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif'}
             vid_exts = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'}

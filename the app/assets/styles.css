@@ -232,3 +232,25 @@ header {visibility: hidden;}
     margin-bottom: 8px;
 }
 
+/* Selected Character Card & Batch Operations */
+.char-card-selected {
+    border-color: #818cf8 !important;
+    background: rgba(99, 102, 241, 0.05) !important;
+    box-shadow: 0 0 14px rgba(129, 140, 248, 0.2) !important;
+}
+.char-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+.char-badge-selected {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(129, 140, 248, 0.4);
+}
+
