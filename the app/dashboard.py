@@ -4105,10 +4105,10 @@ elif page == "🧬 Character LoRA":
         else:
             from job_manager import JobManager as _JM, JobStatus as _JS, add_job_to_queue, start_queue_worker
             from lora_generate import (DEFAULT_PROMPT_TEMPLATE, DEFAULT_NEGATIVE_PROMPT, DEFAULT_REFERENCE_SCALE,
-                                       DEFAULT_REFERENCE_STRENGTH, DEFAULT_STEPS, REFERENCE_MODES, STAGE_GENERATING,
+                                       DEFAULT_REFERENCE_STRENGTH, REFERENCE_MODES, STAGE_GENERATING,
                                        denoising_steps, reference_mode, uses_img2img, uses_ip_adapter)
-            from lora_generate_job import (VENV_AI_PYTHON, generation_log_path, generation_output_dir, generation_view,
-                                           save_reference_image)
+            from lora_generate_job import (build_generation_params, generation_log_path, generation_output_dir,
+                                           generation_problems, generation_view, save_reference_image)
             from lora_trainer import read_log_tail
 
             gen_person_id = st.selectbox(
@@ -4159,17 +4159,10 @@ elif page == "🧬 Character LoRA":
 
             gen_jobs_dir = str(Path(__file__).parent / "jobs")
             gen_jobs = _JM(gen_jobs_dir)
-            gen_checkpoint = Path(__file__).parent / "models" / "sd15_realistic_base.safetensors"
             gen_lora_file = Path(lora_info["lora_path"])
             gen_out_dir = generation_output_dir(gen_person["name"])
 
-            gen_problems = []
-            if not VENV_AI_PYTHON.exists():
-                gen_problems.append("venv_ai not found. See the Magic Undress page for setup instructions.")
-            if not gen_lora_file.exists():
-                gen_problems.append(f"The LoRA file for {gen_person['name']} is missing: {gen_lora_file}")
-            if not gen_checkpoint.exists():
-                gen_problems.append(f"Base checkpoint not found at {gen_checkpoint}. Run: python download_models.py sd15_realistic_base")
+            gen_problems = generation_problems(lora_info, gen_person["name"])
             for problem in gen_problems:
                 st.error(problem)
             if gen_lora_file.exists():
@@ -4180,13 +4173,11 @@ elif page == "🧬 Character LoRA":
             if st.button("🎨 Generate Reference Images", type="primary", disabled=bool(gen_problems)):
                 if gen_reference is not None:
                     gen_reference_params["reference_image"] = str(save_reference_image(gen_reference.getvalue(), gen_reference.name))
-                add_job_to_queue("generate_lora_images", {
-                    "person_id": gen_person_id, "person_name": gen_person["name"],
-                    "base_checkpoint": str(gen_checkpoint), "lora_path": str(gen_lora_file),
-                    "trigger_word": lora_info["trigger_word"], "prompt": prompt, "negative_prompt": negative_prompt,
-                    "num_images": int(num_images), "seed": int(seed), "steps": DEFAULT_STEPS,
-                    "output_dir": str(gen_out_dir), **gen_reference_params,
-                }, jobs_dir=gen_jobs_dir)
+                add_job_to_queue("generate_lora_images",
+                                 build_generation_params(gen_person, lora_info, num_images, seed=seed, prompt=prompt,
+                                                         negative_prompt=negative_prompt,
+                                                         reference_params=gen_reference_params),
+                                 jobs_dir=gen_jobs_dir)
                 st.rerun()
 
             st.markdown("**Generation jobs** — these run in the background, so you can switch pages or close the tab.")
@@ -4414,10 +4405,17 @@ elif page == "🎭 Reface V2":
             """)
         
         st.markdown("---")
-        
+
+        from job_manager import JobManager as _V2JM, JobStatus as _V2JS, gpu_heavy_job_running
+        _v2_jobs = _V2JM(str(Path(__file__).parent / "jobs"))
+        _v2_gpu_job = gpu_heavy_job_running(_v2_jobs)
+        if _v2_gpu_job:
+            st.warning(f"⏳ `{_v2_gpu_job.job_type}` job `{_v2_gpu_job.id}` is using the GPU — foreground swaps "
+                       "and identity builds are disabled until it finishes (background swaps will queue behind it).")
+
         tab_v2_swap, tab_v2_build, tab_v2_history, tab_v2_jobs = st.tabs([
-            "🔄 Quick Swap (V2)", 
-            "📦 Build Faceset (Advanced)", 
+            "🔄 Quick Swap (V2)",
+            "📦 Build Faceset (Advanced)",
             "📜 History / Results",
             "⚙️ Background Jobs"
         ])
@@ -4432,8 +4430,9 @@ elif page == "🎭 Reface V2":
                 st.caption("Upload the person's face you want to insert")
                 
                 # Source mode selection
-                source_mode = st.radio("Source Mode", ["📤 Upload New", "📦 Use Faceset"], horizontal=True, key="v2_source_mode")
-                
+                source_mode = st.radio("Source Mode", ["📤 Upload New", "📦 Use Faceset", "🧬 Trained LoRA"],
+                                       horizontal=True, key="v2_source_mode")
+
                 if source_mode == "📤 Upload New":
                     source_files = st.file_uploader(
                         "Upload source images/videos",
@@ -4472,7 +4471,7 @@ elif page == "🎭 Reface V2":
                         
                         st.success(f"✅ {len(source_files)} source file(s) ready")
                 
-                else:  # Use Faceset
+                elif source_mode == "📦 Use Faceset":
                     faceset_dir = Path(__file__).parent / "facesets"
                     if faceset_dir.exists():
                         facesets = sorted([f.stem for f in faceset_dir.glob("*.pkl")])
@@ -4510,7 +4509,128 @@ elif page == "🎭 Reface V2":
                             st.success(f"Using faceset: {selected_fs}")
                     else:
                         st.info("No facesets found. Create one in the original Reface tab.")
-        
+
+                else:  # 🧬 Trained LoRA
+                    from database import get_person_lora_info as _v2_get_lora_info
+                    from lora_generate_job import build_generation_params, generation_problems
+                    from lora_identity import (MODE_LABELS, MODE_LORA, MODE_MIXED, MODE_REAL, build_lora_faceset,
+                                               clean_generated_images, real_photo_embeddings)
+
+                    lora_persons = [p for p in get_all_persons() if _v2_get_lora_info(p["id"]).get("lora_path")]
+                    if not lora_persons:
+                        st.info("No persons with a trained LoRA yet.")
+                        if st.button("🧬 Open Character LoRA", key="v2_lora_goto_train"):
+                            navigate_to("🧬 Character LoRA")
+                    else:
+                        lora_person_id = st.selectbox(
+                            "Person", options=[p["id"] for p in lora_persons],
+                            format_func=lambda x: next(p["name"] for p in lora_persons if p["id"] == x),
+                            key="v2_lora_person",
+                        )
+                        lora_v2_person = next(p for p in lora_persons if p["id"] == lora_person_id)
+                        lora_v2_info = _v2_get_lora_info(lora_person_id)
+                        lora_v2_file = Path(lora_v2_info["lora_path"])
+
+                        if not lora_v2_file.exists():
+                            st.warning(f"The LoRA file for {lora_v2_person['name']} is missing: {lora_v2_file}")
+                            if st.button("🧬 Open Character LoRA", key="v2_lora_goto_missing"):
+                                navigate_to("🧬 Character LoRA")
+
+                        face_app_v2 = get_face_analyzer()
+                        real_faces_preview, real_source_preview = real_photo_embeddings(
+                            lora_person_id, lora_v2_person["name"], face_app_v2)
+
+                        if not real_faces_preview:
+                            st.error("No real photos found for this person, so generated faces can't be checked "
+                                     "against them. Add photos to the gallery or build a training dataset first.")
+                        else:
+                            st.caption(f"{len(real_faces_preview)} real photo(s) available ({real_source_preview}).")
+
+                            identity_from = st.radio(
+                                "Identity from", [MODE_REAL, MODE_LORA, MODE_MIXED], format_func=MODE_LABELS.get,
+                                horizontal=True, key="v2_lora_identity_from",
+                                help="Real photos is the safe default until Phase 0 (see the LoRA-identity design "
+                                     "doc) confirms whether LoRA portraits or a mix builds a stronger identity.",
+                            )
+
+                            selected_portrait_paths = []
+                            if identity_from in (MODE_LORA, MODE_MIXED):
+                                portrait_paths, excluded_portraits = clean_generated_images(
+                                    lora_v2_person["name"], _v2_jobs)
+
+                                st.markdown("##### 🖼️ Portraits")
+                                if portrait_paths:
+                                    port_cols = st.columns(4)
+                                    for i, p in enumerate(portrait_paths):
+                                        with port_cols[i % 4]:
+                                            st.image(str(p), use_container_width=True)
+                                            if st.checkbox("Use", value=True,
+                                                          key=f"v2_lora_portrait_{lora_person_id}_{p.name}"):
+                                                selected_portrait_paths.append(str(p))
+                                else:
+                                    st.caption("No clean generated portraits yet.")
+                                if excluded_portraits:
+                                    with st.expander(f"Excluded ({len(excluded_portraits)})"):
+                                        for p, reason in excluded_portraits:
+                                            st.caption(f"{p.name}: {reason}")
+
+                                gen_problems_v2 = generation_problems(lora_v2_info, lora_v2_person["name"])
+                                if st.button("🎨 Generate 8 portraits", key="v2_lora_generate_btn",
+                                            disabled=bool(gen_problems_v2) or bool(_v2_gpu_job)):
+                                    from job_manager import add_job_to_queue as _v2_add_job_to_queue
+                                    _v2_add_job_to_queue(
+                                        "generate_lora_images",
+                                        build_generation_params(lora_v2_person, lora_v2_info, 8),
+                                        jobs_dir=str(Path(__file__).parent / "jobs"))
+                                    st.rerun()
+                                for problem in gen_problems_v2:
+                                    st.caption(f"⚠️ {problem}")
+
+                                def _v2_lora_gen_jobs():
+                                    return [j for j in _v2_jobs.list_jobs(limit=50)
+                                           if j.job_type == "generate_lora_images"
+                                           and (j.params or {}).get("person_id") == lora_person_id
+                                           and j.status in (_V2JS.PENDING, _V2JS.QUEUED, _V2JS.RUNNING)]
+
+                                _lora_polling = _v2_jobs.is_worker_running() and bool(_v2_lora_gen_jobs())
+
+                                @st.fragment(run_every=2 if _lora_polling else None)
+                                def _v2_lora_generation_status():
+                                    pending = _v2_lora_gen_jobs()
+                                    if pending:
+                                        j = pending[0]
+                                        running = _v2_jobs.get_running_job()
+                                        if running is not None and running.id != j.id:
+                                            st.caption(f"Waiting for job `{running.id}` ({running.job_type}) to finish")
+                                        else:
+                                            st.caption(j.message)
+                                    if _lora_polling and not pending:
+                                        st.rerun()  # the run just ended: refresh the portrait grid
+
+                                _v2_lora_generation_status()
+
+                            if st.button("✅ Use This LoRA Identity", key="v2_use_lora_identity",
+                                        use_container_width=True, disabled=bool(_v2_gpu_job)):
+                                built_faceset, build_report = build_lora_faceset(
+                                    lora_v2_person, identity_from, selected_portrait_paths, face_app_v2, _v2_jobs)
+                                if built_faceset is None:
+                                    st.error(build_report.get("reason", "Could not build an identity."))
+                                else:
+                                    faceset_save_dir = Path(__file__).parent / "facesets"
+                                    faceset_save_dir.mkdir(parents=True, exist_ok=True)
+                                    built_faceset.save(faceset_save_dir / f"{built_faceset.name}.pkl")
+                                    st.session_state['v2_selected_faceset'] = built_faceset.name
+                                    st.session_state['v2_data_source_mode'] = 'faceset'
+                                    message = f"`{built_faceset.name}` — {build_report.get('message', '')}"
+                                    if len(built_faceset.faces) <= 2:
+                                        st.warning(f"⚠️ Only {len(built_faceset.faces)} face(s) went into this "
+                                                  f"identity. Using {message}")
+                                    else:
+                                        st.success(f"✅ Using {message}")
+                            if _v2_gpu_job:
+                                st.caption(f"Disabled while `{_v2_gpu_job.job_type}` job `{_v2_gpu_job.id}` "
+                                          "is using the GPU.")
+
         with col2:
             with st.container(border=True):
                 st.markdown("#### 🎯 Step 2: Target Media")
@@ -4841,14 +4961,18 @@ elif page == "🎭 Reface V2":
         
         st.markdown("---")
         run_in_background = st.checkbox("🔄 Run in Background", value=False, help="Process in the background. Good for long videos.")
+        if _v2_gpu_job and not run_in_background:
+            st.caption(f"⏳ `{_v2_gpu_job.job_type}` job `{_v2_gpu_job.id}` is using the GPU — tick "
+                      "'Run in Background' to queue behind it, or wait.")
         st.markdown("---")
-        
+
         # Execute
         has_source = (st.session_state.get('v2_data_source_mode') == 'faceset' and st.session_state.get('v2_selected_faceset')) or \
                      (st.session_state.get('v2_data_source_mode') == 'upload' and st.session_state.get('v2_source_paths'))
-        
+
         if has_source and st.session_state.get('v2_target_path'):
-            if st.button("🚀 Process with V2 Engine", type="primary", use_container_width=True):
+            if st.button("🚀 Process with V2 Engine", type="primary", use_container_width=True,
+                        disabled=bool(_v2_gpu_job) and not run_in_background):
                 with st.spinner("Processing with Reface V2..."):
                     try:
                         # Build configuration

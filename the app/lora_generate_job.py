@@ -26,6 +26,7 @@ APP_DIR = Path(__file__).parent
 VENV_AI_PYTHON = APP_DIR / "venv_ai" / "Scripts" / "python.exe"
 GENERATE_SCRIPT = APP_DIR / "lora_generate.py"
 OUTPUT_ROOT = APP_DIR / "lora_output"
+BASE_CHECKPOINT = APP_DIR / "models" / "sd15_realistic_base.safetensors"
 # Leading underscore: lora_dataset._slugify strips it, so no character's upload folder can land here.
 REFERENCE_DIR = APP_DIR / "lora_uploads" / "_generate_references"
 
@@ -59,6 +60,43 @@ def generation_request(job, output_dir: Path) -> dict:
 
 def generation_log_path(job, manager) -> Path:
     return manager.jobs_dir / f"{job.id}.log"
+
+
+def generation_problems(lora_info: dict, person_name: Optional[str] = None) -> list:
+    """venv_ai / LoRA file / base checkpoint checks shared by every caller that queues a
+    generate_lora_images job, so the Generate tab and Reface V2's Trained LoRA source mode
+    disable their buttons on the same conditions."""
+    problems = []
+    if not VENV_AI_PYTHON.exists():
+        problems.append("venv_ai not found. See the Magic Undress page for setup instructions.")
+    lora_path = lora_info.get("lora_path")
+    if not lora_path or not Path(lora_path).exists():
+        who = f" for {person_name}" if person_name else ""
+        problems.append(f"The LoRA file{who} is missing: {lora_path or '(none)'}")
+    if not BASE_CHECKPOINT.exists():
+        problems.append(f"Base checkpoint not found at {BASE_CHECKPOINT}. "
+                        "Run: python download_models.py sd15_realistic_base")
+    return problems
+
+
+def build_generation_params(person: dict, lora_info: dict, num_images: int, seed: int = -1,
+                            prompt: Optional[str] = None, negative_prompt: Optional[str] = None,
+                            reference_params: Optional[dict] = None) -> dict:
+    """The generate_lora_images job params for one person - shared by the Generate tab and Reface
+    V2's Trained LoRA source mode so a queued job always looks the same either way."""
+    from lora_generate import DEFAULT_NEGATIVE_PROMPT, DEFAULT_PROMPT_TEMPLATE, DEFAULT_STEPS
+
+    params = {
+        "person_id": person["id"], "person_name": person["name"],
+        "base_checkpoint": str(BASE_CHECKPOINT), "lora_path": lora_info["lora_path"],
+        "trigger_word": lora_info["trigger_word"],
+        "prompt": prompt or DEFAULT_PROMPT_TEMPLATE.format(trigger=lora_info["trigger_word"]),
+        "negative_prompt": negative_prompt or DEFAULT_NEGATIVE_PROMPT,
+        "num_images": int(num_images), "seed": int(seed), "steps": DEFAULT_STEPS,
+        "output_dir": str(generation_output_dir(person["name"])),
+    }
+    params.update(reference_params or {})
+    return params
 
 
 def update_generation_state(state: dict, event: dict) -> Optional[str]:

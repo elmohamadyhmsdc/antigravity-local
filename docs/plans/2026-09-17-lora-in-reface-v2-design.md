@@ -1,9 +1,9 @@
 # LoRA Identity Source for Reface V2 (Design Document)
 
 **Date**: 2026-09-17
-**Status**: Draft — blocked on the Phase 0 go/no-go (§2)
+**Status**: §3–§10 implemented. Phase 0 (§2) has not been run yet — "Identity from" ships defaulted to Real photos (the no-go fallback) until it is. Run `compare_lora_identity.py`, paste the numbers into §2, and flip the default (one line in `lora_identity.py`'s `MIN_ANCHOR_SIMILARITY` plus the radio default in `dashboard.py`) if LoRA or Mixed wins.
 **Target surface**: `the app/dashboard.py` (Reface V2 → Quick Swap → Step 1, and the Character LoRA Generate tab), new `the app/lora_identity.py`, `the app/lora_generate_job.py`
-**Deliberately unchanged**: `identity.py`, `reface_engine.py`, `reface_engine_v2.py`, `reface_engine_v3.py`, `job_manager.py`
+**Deliberately unchanged**: `identity.py`, `reface_engine.py`, `reface_engine_v2.py`, `reface_engine_v3.py`. `job_manager.py` gained one small addition (`gpu_heavy_job_running` / `GPU_HEAVY_JOB_TYPES`, §7) — its existing job dispatch and swap logic is untouched.
 
 ---
 

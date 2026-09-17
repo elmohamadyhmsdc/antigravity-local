@@ -718,6 +718,20 @@ def start_background_job(job_id: str, jobs_dir: str):
     start_queue_worker(jobs_dir)
 
 
+# A generation/training/undress job and a foreground swap can both reach for the GPU at once;
+# nothing serializes that today. Reface V2 uses this to disable foreground/identity-build actions
+# while one of these is running (see docs/plans/2026-09-17-lora-in-reface-v2-design.md section 7).
+GPU_HEAVY_JOB_TYPES = {"generate_lora_images", "train_lora", "undress_image"}
+
+
+def gpu_heavy_job_running(manager: JobManager) -> Optional[Job]:
+    """The running GPU-heavy job, if the worker is alive and one is running; otherwise None."""
+    if not manager.is_worker_running():
+        return None
+    running = manager.get_running_job()
+    return running if running and running.job_type in GPU_HEAVY_JOB_TYPES else None
+
+
 if __name__ == "__main__":
     manager = JobManager()
     print(f"Jobs directory: {manager.jobs_dir}")
