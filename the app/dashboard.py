@@ -554,7 +554,14 @@ def navigate_to(page_or_route: str):
 
 # Sidebar
 with st.sidebar:
-    st.markdown("<h2 style='text-align: center; color: #8a2be2;'>🔬 Antigravity</h2>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="sidebar-brand-box">
+        <div class="sidebar-brand-title">🔬 Antigravity</div>
+        <div style="display: flex; justify-content: center; gap: 8px; margin-top: 4px;">
+            <span class="sidebar-status-pill">● Studio v1.2</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown("---")
     
     # Navigation with URL routing
@@ -584,6 +591,19 @@ with st.sidebar:
             st.metric("Unassigned", stats["unassigned_faces"])
 
 
+# Mobile App Bar (displayed on small screens)
+st.markdown(f"""
+<div class="mobile-app-bar">
+    <div class="mobile-app-brand">
+        <span class="mobile-brand-icon">🔬</span>
+        <span class="mobile-brand-name">Antigravity</span>
+    </div>
+    <div class="mobile-page-badge">
+        <span>{page}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 # Main content based on page selection
 if page == "📊 Dashboard":
     st.title("📊 Dashboard")
@@ -597,38 +617,46 @@ if page == "📊 Dashboard":
         
         with col1:
             st.markdown("""
-            <div class="stats-card">
-                <h2>👤</h2>
-                <h3>{}</h3>
-                <p>Total Faces</p>
+            <div class="stats-card stats-card-violet">
+                <div class="stats-card-header">
+                    <div class="stats-card-icon">👤</div>
+                </div>
+                <div class="stats-card-value">{}</div>
+                <div class="stats-card-label">Total Faces</div>
             </div>
             """.format(stats["total_faces"]), unsafe_allow_html=True)
         
         with col2:
             st.markdown("""
-            <div class="stats-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                <h2>👥</h2>
-                <h3>{}</h3>
-                <p>People</p>
+            <div class="stats-card stats-card-indigo">
+                <div class="stats-card-header">
+                    <div class="stats-card-icon">👥</div>
+                </div>
+                <div class="stats-card-value">{}</div>
+                <div class="stats-card-label">People</div>
             </div>
             """.format(stats["total_persons"]), unsafe_allow_html=True)
         
         with col3:
             st.markdown("""
-            <div class="stats-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                <h2>❓</h2>
-                <h3>{}</h3>
-                <p>Unassigned</p>
+            <div class="stats-card stats-card-amber">
+                <div class="stats-card-header">
+                    <div class="stats-card-icon">❓</div>
+                </div>
+                <div class="stats-card-value">{}</div>
+                <div class="stats-card-label">Unassigned Faces</div>
             </div>
             """.format(stats["unassigned_faces"]), unsafe_allow_html=True)
         
         with col4:
             avg_per_person = stats["total_faces"] / max(stats["total_persons"], 1)
             st.markdown("""
-            <div class="stats-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-                <h2>📈</h2>
-                <h3>{:.1f}</h3>
-                <p>Avg Faces/Person</p>
+            <div class="stats-card stats-card-emerald">
+                <div class="stats-card-header">
+                    <div class="stats-card-icon">📈</div>
+                </div>
+                <div class="stats-card-value">{:.1f}</div>
+                <div class="stats-card-label">Avg Faces / Person</div>
             </div>
             """.format(avg_per_person), unsafe_allow_html=True)
         
@@ -651,7 +679,7 @@ if page == "📊 Dashboard":
                 with cols[i % 6]:
                     image_path = face.get("image_path")
                     if image_path and os.path.exists(image_path):
-                        st.image(image_path, caption=f"Q: {face.get('quality_score', 0):.2f}")
+                        st.image(image_path, caption=f"Q: {face.get('quality_score', 0):.2f}", use_container_width=True)
                     else:
                         st.write("Image not found")
         else:
@@ -3649,7 +3677,7 @@ elif page == "🔀 Merge People":
         st.markdown("---")
         
         if source_id and target_id and source_id != target_id:
-            if st.button("🔀 Merge Persons", type="primary"):
+            if st.button("🔀 Merge Persons", type="primary", use_container_width=True):
                 merge_persons(source_id, target_id)
                 st.success("Persons merged successfully!")
                 st.rerun()
@@ -4028,65 +4056,223 @@ elif page == "🧬 Character LoRA":
         if not trained_persons:
             st.info("No trained LoRAs yet. Train one in the previous tab first.")
         else:
+            from job_manager import JobManager as _JM, JobStatus as _JS, add_job_to_queue, start_queue_worker
+            from lora_generate import DEFAULT_PROMPT_TEMPLATE, DEFAULT_NEGATIVE_PROMPT, DEFAULT_STEPS, STAGE_GENERATING
+            from lora_generate_job import VENV_AI_PYTHON, generation_log_path, generation_output_dir, generation_view
+            from lora_trainer import read_log_tail
+
             gen_person_id = st.selectbox(
                 "Person", options=[p["id"] for p in trained_persons],
                 format_func=lambda x: next(p["name"] for p in trained_persons if p["id"] == x),
                 key="lora_generate_person",
             )
+            gen_person = next(p for p in trained_persons if p["id"] == gen_person_id)
             lora_info = get_person_lora_info(gen_person_id)
 
-            from lora_generate import DEFAULT_PROMPT_TEMPLATE, DEFAULT_NEGATIVE_PROMPT
             default_prompt = DEFAULT_PROMPT_TEMPLATE.format(trigger=lora_info["trigger_word"])
             prompt = st.text_area("Prompt", default_prompt, key="lora_gen_prompt")
             negative_prompt = st.text_area("Negative Prompt", DEFAULT_NEGATIVE_PROMPT, key="lora_gen_negative")
             num_images = st.slider("Number of images", 1, 8, 4)
             seed = st.number_input("Seed (-1 for random)", value=-1, step=1, key="lora_gen_seed")
 
-            if st.button("🎨 Generate Reference Images", type="primary"):
-                import subprocess
-                import base64
+            gen_jobs_dir = str(Path(__file__).parent / "jobs")
+            gen_jobs = _JM(gen_jobs_dir)
+            gen_checkpoint = Path(__file__).parent / "models" / "sd15_realistic_base.safetensors"
+            gen_lora_file = Path(lora_info["lora_path"])
+            gen_out_dir = generation_output_dir(gen_person["name"])
 
-                venv_ai_python = Path(__file__).parent / "venv_ai" / "Scripts" / "python.exe"
-                gen_script = Path(__file__).parent / "lora_generate.py"
-                if not venv_ai_python.exists():
-                    st.error("venv_ai not found. See the Magic Undress page for setup instructions.")
-                else:
-                    input_data = {
-                        "base_checkpoint": str(Path(__file__).parent / "models" / "sd15_realistic_base.safetensors"),
-                        "lora_path": lora_info["lora_path"],
-                        "trigger_word": lora_info["trigger_word"],
-                        "prompt": prompt, "negative_prompt": negative_prompt,
-                        "num_images": num_images, "seed": seed,
-                    }
-                    with st.spinner("Generating..."):
-                        process = subprocess.Popen(
-                            [str(venv_ai_python), str(gen_script)],
-                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                        )
-                        stdout, stderr = process.communicate(input=json.dumps(input_data), timeout=1800)
+            gen_problems = []
+            if not VENV_AI_PYTHON.exists():
+                gen_problems.append("venv_ai not found. See the Magic Undress page for setup instructions.")
+            if not gen_lora_file.exists():
+                gen_problems.append(f"The LoRA file for {gen_person['name']} is missing: {gen_lora_file}")
+            if not gen_checkpoint.exists():
+                gen_problems.append(f"Base checkpoint not found at {gen_checkpoint}. Run: python download_models.py sd15_realistic_base")
+            for problem in gen_problems:
+                st.error(problem)
+            if gen_lora_file.exists():
+                st.caption(f"LoRA `{gen_lora_file.name}` ({gen_lora_file.stat().st_size / 2**20:.0f} MB) · trigger "
+                           f"`{lora_info['trigger_word']}` · {DEFAULT_STEPS} steps per image · saves to `{gen_out_dir}`")
 
-                    if stderr:
-                        st.caption(f"Model logs: {stderr[:500]}...")
+            if st.button("🎨 Generate Reference Images", type="primary", disabled=bool(gen_problems)):
+                add_job_to_queue("generate_lora_images", {
+                    "person_id": gen_person_id, "person_name": gen_person["name"],
+                    "base_checkpoint": str(gen_checkpoint), "lora_path": str(gen_lora_file),
+                    "trigger_word": lora_info["trigger_word"], "prompt": prompt, "negative_prompt": negative_prompt,
+                    "num_images": int(num_images), "seed": int(seed), "steps": DEFAULT_STEPS,
+                    "output_dir": str(gen_out_dir),
+                }, jobs_dir=gen_jobs_dir)
+                st.rerun()
 
-                    if stdout:
-                        result = json.loads(stdout)
-                        if result.get("success"):
-                            person_name = next(p["name"] for p in trained_persons if p["id"] == gen_person_id)
-                            out_dir = Path(__file__).parent / "lora_output" / person_name.replace(" ", "_")
-                            out_dir.mkdir(parents=True, exist_ok=True)
+            st.markdown("**Generation jobs** — these run in the background, so you can switch pages or close the tab.")
 
-                            cols = st.columns(min(4, len(result["images"])))
-                            for i, img_b64 in enumerate(result["images"]):
-                                img_bytes = base64.b64decode(img_b64)
-                                out_path = out_dir / f"reference_{i:02d}.png"
-                                out_path.write_bytes(img_bytes)
-                                with cols[i % len(cols)]:
-                                    st.image(img_bytes, caption=out_path.name, width='stretch')
-                            st.success(f"Saved {len(result['images'])} image(s) to {out_dir}")
+            def _gen_active():
+                # Same rule as the training panel: only poll while a live worker can move a job forward.
+                return gen_jobs.is_worker_running() and any(
+                    j.job_type == "generate_lora_images" and j.status in (_JS.PENDING, _JS.QUEUED, _JS.RUNNING)
+                    for j in gen_jobs.list_jobs(limit=100))
+
+            def _gen_speed(sec_per_step):
+                return f"{1 / sec_per_step:.2f} it/s" if sec_per_step < 1 else f"{sec_per_step:.2f} s/step"
+
+            def _gen_images(images):
+                if not images:
+                    return
+                cols = st.columns(4)
+                for i, img in enumerate(images):
+                    with cols[i % 4]:
+                        if Path(img["path"]).exists():
+                            st.image(img["path"], width='stretch')
                         else:
-                            st.error(f"Generation failed: {result.get('error')}")
-                            with st.expander("Traceback"):
-                                st.code(result.get("traceback", "No traceback"))
+                            st.caption("(file was moved or deleted)")
+                        vram = f" · {img['peak_vram_gb']:.1f} GB VRAM" if img.get("peak_vram_gb") else ""
+                        st.caption(f"seed {img['seed']} · {img['seconds']:.0f}s{vram}")
+
+            def _gen_settings_line(j, view):
+                p = j.params or {}
+                seed_text = f"seeds from {view['base_seed']}" if view.get("base_seed") is not None else (
+                    "random seed" if p.get("seed", -1) == -1 else f"seeds from {p['seed']}")
+                return f"{p.get('num_images')} image(s) · {p.get('steps', DEFAULT_STEPS)} steps · {seed_text}"
+
+            def _gen_startup_line(view):
+                history = view.get("stage_history") or []
+                return " · ".join(f"{stage} {_fmt_duration(seconds)}" for stage, seconds in history)
+
+            def _gen_render_running(j, view):
+                p = j.params or {}
+                with st.container(border=True):
+                    st.markdown(f"🟢 **Generating `{j.id}` — {p.get('person_name', '?')}**")
+                    stage_for = f" · for {_fmt_duration(view['stage_seconds'])}" if view.get("stage_seconds") is not None else ""
+                    st.markdown(f"**Now:** {view.get('stage')}{stage_for}")
+                    total_images = view.get("total_images") or p.get("num_images") or 1
+                    if view.get("stage") == STAGE_GENERATING and view.get("image", 0) > len(view["images"]):
+                        st.progress(min(view["step"] / max(view["steps"], 1), 1.0),
+                                    text=f"Image {view['image']}/{total_images} — step {view['step']}/{view['steps']}")
+                    st.progress(min(view["steps_done"] / max(view["steps_total"], 1), 1.0),
+                                text=f"Overall {int(view['steps_done'] / max(view['steps_total'], 1) * 100)}% — "
+                                     f"{len(view['images'])}/{total_images} image(s) saved")
+
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Images", f"{len(view['images'])}/{total_images}")
+                    c2.metric("Speed", _gen_speed(view["sec_per_step"]) if view.get("sec_per_step") else "—")
+                    c3.metric("Time left", _fmt_duration(view["eta_seconds"]) if view["eta_seconds"] is not None else "—")
+                    c4, c5, c6 = st.columns(3)
+                    c4.metric("Elapsed", _fmt_duration(view["elapsed_seconds"]))
+                    device = view.get("device") or {}
+                    c5.metric("GPU", f"{device['vram_gb']:.0f} GB" if device.get("vram_gb") else (device.get("device", "—").upper()),
+                              help=device.get("gpu"))
+                    c6.metric("Seed", view["base_seed"] if view.get("base_seed") is not None else "—")
+
+                    idle = view["idle_seconds"]
+                    if idle is not None and idle > 240:
+                        st.warning(f"No sign of life from the generator for {_fmt_duration(idle)}. The first load of the "
+                                   "checkpoint can take a minute or two, but this long usually means it's stuck — check the "
+                                   "log below and the terminal running Streamlit.")
+                    elif idle is not None:
+                        st.caption(f"Last update {_fmt_duration(idle)} ago · refreshes every 2 s")
+                    if device.get("device") == "cpu":
+                        st.warning("venv_ai's torch can't see the GPU, so this runs on the CPU and will be very slow.")
+                    if view.get("stage_history"):
+                        st.caption(f"Startup: {_gen_startup_line(view)}")
+                    st.caption(f"Started {j.started_at[:19].replace('T', ' ')} · {_gen_settings_line(j, view)}")
+
+                    if gen_jobs.is_stop_requested(j.id):
+                        st.caption("⏹️ Stopping — finished images are kept...")
+                    elif st.button("⏹️ Stop", key=f"stop_gen_{j.id}"):
+                        gen_jobs.request_stop(j.id)
+                        st.rerun(scope="fragment")
+
+                    _gen_images(view["images"])
+                    with st.expander("📜 Log (last 40 lines)"):
+                        tail = read_log_tail(generation_log_path(j, gen_jobs))
+                        st.code(tail or "(nothing yet)", language=None)
+
+            def _gen_render_queued(j, view, worker_alive):
+                p = j.params or {}
+                with st.container(border=True):
+                    st.markdown(f"🕒 **Queued `{j.id}` — {p.get('person_name', '?')}**")
+                    if not worker_alive:
+                        st.error("The background worker isn't running, so this job won't start by itself "
+                                 "(the dashboard or PC was probably restarted).")
+                        if st.button("▶️ Start worker", key=f"start_gen_worker_{j.id}"):
+                            start_queue_worker(gen_jobs_dir)
+                            st.rerun()
+                    else:
+                        running = gen_jobs.get_running_job()
+                        if running is not None:
+                            st.markdown(f"Waiting for job `{running.id}` ({running.job_type}) to finish first:")
+                            st.progress(min(running.progress, 1.0), text=running.message)
+                        else:
+                            st.caption("The worker is picking this job up...")
+                    st.caption(f"Queued {_fmt_duration(view['queued_seconds'])} ago · {_gen_settings_line(j, view)}")
+                    if st.button("✖️ Cancel", key=f"cancel_gen_{j.id}"):
+                        fresh = gen_jobs.load_job(j.id)
+                        if fresh and fresh.status in (_JS.PENDING, _JS.QUEUED):
+                            fresh.status = _JS.FAILED
+                            fresh.message = "✖️ Cancelled before it started"
+                            fresh.completed_at = datetime.now().isoformat()
+                            gen_jobs.save_job(fresh)
+                        st.rerun()
+
+            def _gen_render_finished(j, view, expanded):
+                p = j.params or {}
+                interrupted = j.status == _JS.RUNNING
+                if interrupted:
+                    icon, label = "⚠️", "interrupted"
+                elif j.status == _JS.COMPLETED:
+                    icon, label = "✅", "completed"
+                elif (j.message or "")[:1] in ("⏹", "✖"):
+                    icon, label = "⏹️", "stopped"
+                else:
+                    icon, label = "❌", "failed"
+                total_images = p.get("num_images", "?")
+                created = (j.created_at or "")[:16].replace("T", " ")
+                with st.expander(f"{icon} `{j.id}` — {p.get('person_name', '?')} — {len(view['images'])}/{total_images} "
+                                 f"image(s) — {label} — {created}", expanded=expanded):
+                    st.write(j.message)
+                    if interrupted:
+                        st.warning("Still marked running, but no worker process is alive — the run was cut off "
+                                   f"(dashboard or PC restarted?). Last sign of life {_fmt_duration(view['idle_seconds'])} ago. "
+                                   "Images finished before that are kept.")
+                    elif view["elapsed_seconds"] is not None:
+                        st.caption(f"Ran for {_fmt_duration(view['elapsed_seconds'])} · started "
+                                   f"{(j.started_at or '')[:19].replace('T', ' ')}")
+                    if j.status != _JS.COMPLETED and view.get("stage"):
+                        st.caption(f"Stopped during: {view['stage']}")
+                    st.caption(_gen_settings_line(j, view))
+                    if view.get("stage_history"):
+                        st.caption(f"Startup: {_gen_startup_line(view)}")
+                    if view.get("device", {}).get("gpu"):
+                        st.caption(f"Ran on {view['device']['gpu']} ({view['device']['vram_gb']:.0f} GB) · torch {view['device']['torch']}")
+                    st.caption(f"Prompt: {p.get('prompt', '')}")
+                    _gen_images(view["images"])
+                    if view["images"]:
+                        st.caption(f"Saved in `{p.get('output_dir')}`")
+                    if j.error:
+                        st.code(j.error, language=None)
+                    elif j.status != _JS.COMPLETED and generation_log_path(j, gen_jobs).exists():
+                        st.code(read_log_tail(generation_log_path(j, gen_jobs), max_lines=25), language=None)
+
+            gen_polling = _gen_active()
+
+            @st.fragment(run_every=2 if gen_polling else None)
+            def _generation_jobs_panel():
+                recent = [j for j in gen_jobs.list_jobs(limit=100) if j.job_type == "generate_lora_images"][:6]
+                if not recent:
+                    st.caption("No generation jobs yet.")
+                worker_alive = gen_jobs.is_worker_running()
+                for i, j in enumerate(recent):
+                    view = generation_view(j, gen_jobs)
+                    if j.status == _JS.RUNNING and worker_alive:
+                        _gen_render_running(j, view)
+                    elif j.status in (_JS.PENDING, _JS.QUEUED):
+                        _gen_render_queued(j, view, worker_alive)
+                    else:
+                        _gen_render_finished(j, view, expanded=(i == 0))
+                if gen_polling and not _gen_active():
+                    st.rerun()  # the run just ended: stop polling
+
+            _generation_jobs_panel()
 
 
 elif page == "🎭 Reface V2":
@@ -5274,8 +5460,8 @@ DUPLICATE_THRESHOLD = {os.getenv('DUPLICATE_THRESHOLD', '0.05')}
 # Footer
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: center; color: #666;'>"
-    "Antigravity Local v1.1 | Biometric Gallery & Dataset Curation Tool"
+    "<div style='text-align: center; color: var(--text-muted); font-size: 12px; padding: 12px 0 24px; font-weight: 500;'>"
+    "🔬 Antigravity Local Studio v1.2 • Biometric Gallery & Creative AI Suite"
     "</div>",
     unsafe_allow_html=True
 )

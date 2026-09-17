@@ -5,6 +5,7 @@
       "name": "dashboard",
       "runtimeExecutable": "D:\\AndroidScan\\gallary\\the app\\venv\\Scripts\\streamlit.exe",
       "runtimeArgs": ["run", "D:\\AndroidScan\\gallary\\the app\\dashboard.py"],
+      "cwd": "D:\\AndroidScan\\gallary\\the app",
       "port": 8501
     }
   ]

@@ -294,7 +294,7 @@ class JobManager:
 
 
 def run_single_job(job_id: str, jobs_dir: str):
-    """Execute a single reface, LoRA-training, or undress job."""
+    """Execute a single reface, LoRA-training, LoRA-image-generation, or undress job."""
     manager = JobManager(jobs_dir)
     job = manager.load_job(job_id)
 
@@ -306,6 +306,25 @@ def run_single_job(job_id: str, jobs_dir: str):
         from lora_trainer import run_training
         try:
             return run_training(job, manager)
+        except Exception as e:
+            import traceback
+            error_msg = str(e)
+            job.status = JobStatus.FAILED
+            job.progress = 0.0
+            job.message = f"❌ Error: {error_msg}"
+            job.error = traceback.format_exc()
+            job.completed_at = datetime.now().isoformat()
+            manager.save_job(job)
+            print(f"\n[JOB {job_id}] ❌ ERROR: {error_msg}")
+            print(traceback.format_exc())
+            return False
+
+    if job.job_type == "generate_lora_images":
+        if job.status not in (JobStatus.PENDING, JobStatus.QUEUED):
+            return False  # cancelled from the dashboard after the worker had already listed the queue
+        from lora_generate_job import run_generation
+        try:
+            return run_generation(job, manager)
         except Exception as e:
             import traceback
             error_msg = str(e)

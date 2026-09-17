@@ -6,6 +6,8 @@
 diffusers>=0.25.0
 transformers>=4.36.0
 accelerate>=0.25.0
+# diffusers' load_lora_weights (Character LoRA -> Generate) raises "PEFT backend is required" without it
+peft>=0.13.1
 scipy>=1.11.0
 safetensors>=0.4.1
 controlnet_aux>=0.0.7

@@ -1,6 +1,7 @@
 [theme]
 primaryColor = "#8a2be2" # Electric Violet
-backgroundColor = "#0e1117" # Deep Charcoal
-secondaryBackgroundColor = "#1a1c23" # Slightly lighter for cards
-textColor = "#e0e0e0" # Soft White/Grey
+backgroundColor = "#090a0f" # Deep Canvas OLED
+secondaryBackgroundColor = "#12141c" # Surface / Card backdrop
+textColor = "#f8fafc" # Crisp White
 font = "sans serif"
+
