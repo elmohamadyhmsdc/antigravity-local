@@ -205,6 +205,29 @@ class JsonDatabase:
             
             self.save_db()
 
+    def set_person_avatar(self, person_id: int, face_id: int) -> bool:
+        """Set a specific face as the primary avatar for a person."""
+        if person_id not in self.persons or face_id not in self.faces:
+            return False
+        self.persons[person_id]["avatar_face_id"] = face_id
+        self.persons[person_id]["updated_at"] = datetime.utcnow().isoformat()
+        self.save_db()
+        return True
+
+    def get_person_avatar_face(self, person_id: int) -> Optional[Dict]:
+        """Get the primary avatar face for a person, falling back to the highest quality face."""
+        if person_id not in self.persons:
+            return None
+        person = self.persons[person_id]
+        avatar_fid = person.get("avatar_face_id")
+        if avatar_fid and avatar_fid in self.faces:
+            return self.faces[avatar_fid]
+        # Fallback to highest quality face for this person
+        p_faces = self.get_faces_by_person(person_id)
+        if not p_faces:
+            return None
+        return max(p_faces, key=lambda f: f.get("quality_score", 0.0))
+
     # --- Face Management ---
 
     def add_face(self, 
@@ -346,24 +369,80 @@ class JsonDatabase:
             
         return results
 
-    def assign_face_to_person(self, face_id: int, person_id: int):
+    def assign_face_to_person(self, face_id: int, person_id: Optional[int]):
+        """Assign a face to a person, or unassign by passing person_id=None."""
         if face_id not in self.faces:
             return
         
         old_pid = self.faces[face_id].get("person_id")
-        
+        if old_pid == person_id:
+            return
+            
         # If moving from another person, decrement their count
         if old_pid and old_pid in self.persons:
             self.persons[old_pid]["face_count"] = max(0, self.persons[old_pid]["face_count"] - 1)
+            if self.persons[old_pid].get("avatar_face_id") == face_id:
+                self.persons[old_pid]["avatar_face_id"] = None
             self.persons[old_pid]["updated_at"] = datetime.utcnow().isoformat()
             
         self.faces[face_id]["person_id"] = person_id
         
-        if person_id in self.persons:
-            self.persons[person_id]["face_count"] += 1
+        if person_id and person_id in self.persons:
+            self.persons[person_id]["face_count"] = self.persons[person_id].get("face_count", 0) + 1
             self.persons[person_id]["updated_at"] = datetime.utcnow().isoformat()
             
         self.save_db()
+
+    def batch_assign_faces(self, face_ids: List[int], person_id: Optional[int]):
+        """Batch assign multiple faces to a person (or unassign them if person_id=None)."""
+        now = datetime.utcnow().isoformat()
+        affected_pids = set()
+        if person_id and person_id in self.persons:
+            affected_pids.add(person_id)
+
+        for fid in face_ids:
+            if fid not in self.faces:
+                continue
+            old_pid = self.faces[fid].get("person_id")
+            if old_pid == person_id:
+                continue
+            if old_pid and old_pid in self.persons:
+                self.persons[old_pid]["face_count"] = max(0, self.persons[old_pid].get("face_count", 0) - 1)
+                if self.persons[old_pid].get("avatar_face_id") == fid:
+                    self.persons[old_pid]["avatar_face_id"] = None
+                affected_pids.add(old_pid)
+            self.faces[fid]["person_id"] = person_id
+            if person_id and person_id in self.persons:
+                self.persons[person_id]["face_count"] = self.persons[person_id].get("face_count", 0) + 1
+
+        for pid in affected_pids:
+            if pid in self.persons:
+                self.persons[pid]["updated_at"] = now
+
+        self.save_db()
+
+    def delete_face(self, face_id: int, delete_file: bool = True) -> bool:
+        """Permanently delete a face from the database and optionally from disk."""
+        if face_id not in self.faces:
+            return False
+        face = self.faces[face_id]
+        pid = face.get("person_id")
+        if pid and pid in self.persons:
+            self.persons[pid]["face_count"] = max(0, self.persons[pid].get("face_count", 0) - 1)
+            if self.persons[pid].get("avatar_face_id") == face_id:
+                self.persons[pid]["avatar_face_id"] = None
+            self.persons[pid]["updated_at"] = datetime.utcnow().isoformat()
+
+        img_path = face.get("image_path")
+        if delete_file and img_path and os.path.exists(img_path):
+            try:
+                os.remove(img_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete face crop file {img_path}: {e}")
+
+        del self.faces[face_id]
+        self.save_db()
+        return True
 
     def merge_persons(self, source_person_id: int, target_person_id: int) -> bool:
         """Move all faces from source to target, then delete source."""
@@ -562,6 +641,18 @@ def merge_persons(*args, **kwargs):
 
 def delete_person(person_id):
     db_instance.delete_person(person_id)
+
+def delete_face(face_id, delete_file=True):
+    return db_instance.delete_face(face_id, delete_file=delete_file)
+
+def set_person_avatar(person_id, face_id):
+    return db_instance.set_person_avatar(person_id, face_id)
+
+def get_person_avatar_face(person_id):
+    return db_instance.get_person_avatar_face(person_id)
+
+def batch_assign_faces(face_ids, person_id):
+    return db_instance.batch_assign_faces(face_ids, person_id)
     
 def get_stats():
     return db_instance.get_stats()

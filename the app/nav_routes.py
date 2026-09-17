@@ -207,11 +207,20 @@ GALLERY_VIEW_MAP: Dict[str, str] = {
     "media": "📷 All Media",
     "photos": "📷 All Media",
     "all_media": "📷 All Media",
+    "archive": "📷 All Media",
     "person": "By Person",
     "people": "By Person",
     "by_person": "By Person",
+    "characters": "By Person",
+    "identities": "By Person",
     "unassigned": "Unassigned Faces",
     "unassigned_faces": "Unassigned Faces",
+    "triage": "Unassigned Faces",
+    "inbox": "Unassigned Faces",
+    "insights": "📊 Biometric Insights",
+    "analytics": "📊 Biometric Insights",
+    "quality": "📊 Biometric Insights",
+    "stats": "📊 Biometric Insights",
 }
 
 def resolve_gallery_view(view_input: Optional[Any]) -> Optional[str]:
@@ -220,3 +229,21 @@ def resolve_gallery_view(view_input: Optional[Any]) -> Optional[str]:
         return None
     val = str(view_input).strip().lower()
     return GALLERY_VIEW_MAP.get(val)
+
+
+def get_gallery_person_param(st_module: Any) -> Optional[int]:
+    """Extract person_id integer from Streamlit query params if present."""
+    try:
+        val = None
+        if hasattr(st_module, "query_params"):
+            val = st_module.query_params.get("person_id") or st_module.query_params.get("person")
+        elif hasattr(st_module, "experimental_get_query_params"):
+            qp = st_module.experimental_get_query_params()
+            val = (qp.get("person_id") or qp.get("person") or [None])[0]
+        if val is not None:
+            if isinstance(val, list) and val:
+                val = val[0]
+            return int(str(val).strip())
+    except Exception:
+        pass
+    return None

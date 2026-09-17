@@ -67,6 +67,10 @@ from database import (
     merge_persons,
     assign_face_to_person,
     find_similar_faces,
+    delete_face,
+    set_person_avatar,
+    get_person_avatar_face,
+    batch_assign_faces,
     JsonDatabase
 )
 from job_manager import JobManager, JobStatus, add_job_to_queue
@@ -86,6 +90,7 @@ from nav_routes import (
     get_url_route,
     set_url_route,
     resolve_gallery_view,
+    get_gallery_person_param,
 )
 
 # Load environment variables
@@ -507,6 +512,15 @@ if 'sources_loaded' not in st.session_state:
 url_route = get_url_route(st)
 resolved_page_from_url = resolve_route(url_route)
 
+# Check if there is a pending navigation request from a button click on previous run
+if "_pending_nav_page" in st.session_state and st.session_state._pending_nav_page:
+    pending = st.session_state.pop("_pending_nav_page")
+    resolved_pending = resolve_route(pending)
+    if resolved_pending:
+        st.session_state.active_nav_page = resolved_pending
+        st.session_state._last_url_slug = get_primary_slug(resolved_pending)
+        set_url_route(st, st.session_state._last_url_slug)
+
 # Initialize or synchronize session state with URL route
 if 'active_nav_page' not in st.session_state:
     if resolved_page_from_url:
@@ -532,11 +546,11 @@ def on_nav_page_change():
     set_url_route(st, slug)
 
 def navigate_to(page_or_route: str):
-    """Programmatically navigate to any page and update the URL."""
+    """Programmatically navigate to any page and update the URL safely across widget lifecycles."""
     resolved = resolve_route(page_or_route)
     if resolved:
-        st.session_state.active_nav_page = resolved
         slug = get_primary_slug(resolved)
+        st.session_state._pending_nav_page = resolved
         st.session_state._last_url_slug = slug
         set_url_route(st, slug)
         st.rerun()
@@ -906,10 +920,26 @@ elif page == "📁 Data Sources":
 
 
 elif page == "👥 Gallery":
-    st.title("👥 Gallery")
+    # -------------------------------------------------------------------------
+    # BIOMETRIC STUDIO: Gallery & Character Management
+    # -------------------------------------------------------------------------
     
-    # View mode selector (supports ?view=all / ?view=person / ?view=unassigned)
-    gallery_view_options = ["📷 All Media", "By Person", "Unassigned Faces"]
+    # Sub-view canonical mapping
+    VIEW_PEOPLE = "👤 Identities & Characters"
+    VIEW_TRIAGE = "⚡ Smart Triage"
+    VIEW_MEDIA = "🎬 Media Archive"
+    VIEW_INSIGHTS = "📊 Biometric Insights"
+
+    VIEW_MAP = {
+        "By Person": VIEW_PEOPLE,
+        "Unassigned Faces": VIEW_TRIAGE,
+        "📷 All Media": VIEW_MEDIA,
+        "📊 Biometric Insights": VIEW_INSIGHTS,
+    }
+    REVERSE_VIEW_MAP = {v: k for k, v in VIEW_MAP.items()}
+    gallery_view_options = [VIEW_PEOPLE, VIEW_TRIAGE, VIEW_MEDIA, VIEW_INSIGHTS]
+
+    # Handle URL routing and deep-linking query parameters
     default_view_idx = 0
     view_param = None
     try:
@@ -920,344 +950,898 @@ elif page == "👥 Gallery":
             view_param = (_qp.get("view") or _qp.get("mode") or [None])[0]
     except Exception:
         pass
-    
+
     resolved_view = resolve_gallery_view(view_param)
-    if resolved_view and resolved_view in gallery_view_options:
-        default_view_idx = gallery_view_options.index(resolved_view)
+    if resolved_view:
+        mapped_display = VIEW_MAP.get(resolved_view, resolved_view)
+        if mapped_display in gallery_view_options:
+            default_view_idx = gallery_view_options.index(mapped_display)
 
-    view_mode = st.radio("View Mode", gallery_view_options, index=default_view_idx, horizontal=True)
-    
-    if view_mode == "📷 All Media":
-        st.markdown("View all photos and videos from your data sources")
-        
-        # Get all media files from data sources
-        all_media_files = []
-        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif'}
-        video_extensions = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'}
-        
-        for source in st.session_state.data_sources:
-            folder = Path(source['path'])
-            if folder.exists():
-                if source.get('include_subfolders', True):
-                    files = list(folder.rglob('*'))
-                else:
-                    files = list(folder.iterdir())
-                
-                for f in files:
-                    if f.is_file():
-                        ext = f.suffix.lower()
-                        if ext in image_extensions:
-                            all_media_files.append({'path': f, 'type': 'image', 'source': source['name']})
-                        elif ext in video_extensions:
-                            all_media_files.append({'path': f, 'type': 'video', 'source': source['name']})
-        
-        if not all_media_files:
-            st.info("No media files found. Add data sources in the 'Data Sources' tab to see your photos and videos here.")
+    # Check for direct person_id deep link (?page=gallery&person_id=32)
+    qp_person_id = get_gallery_person_param(st)
+    if qp_person_id is not None:
+        all_p_ids = [p["id"] for p in get_all_persons()]
+        if qp_person_id in all_p_ids:
+            st.session_state.selected_person_id = qp_person_id
+            default_view_idx = 0  # Force People view
+
+    # Initialize gallery state
+    if "selected_person_id" not in st.session_state:
+        st.session_state.selected_person_id = None
+    if "triage_selected_faces" not in st.session_state:
+        st.session_state.triage_selected_faces = set()
+    if "curation_selected_faces" not in st.session_state:
+        st.session_state.curation_selected_faces = set()
+    if "media_page_num" not in st.session_state:
+        st.session_state.media_page_num = 0
+
+    # Top Studio Header
+    col_hdr1, col_hdr2 = st.columns([3, 2])
+    with col_hdr1:
+        st.title("🔬 Biometric Studio")
+        st.caption("Curate character identities, inspect high-res faces, and manage training media")
+    with col_hdr2:
+        # View switcher pills
+        view_mode = st.radio(
+            "Studio Workspace",
+            gallery_view_options,
+            index=default_view_idx,
+            horizontal=True,
+            label_visibility="collapsed",
+            key="gallery_workspace_selector"
+        )
+        # Sync view query param
+        try:
+            canonical_slug = REVERSE_VIEW_MAP.get(view_mode, "people").lower()
+            if hasattr(st, "query_params"):
+                if view_mode == VIEW_PEOPLE:
+                    st.query_params["view"] = "people"
+                elif view_mode == VIEW_TRIAGE:
+                    st.query_params["view"] = "unassigned"
+                elif view_mode == VIEW_MEDIA:
+                    st.query_params["view"] = "media"
+                elif view_mode == VIEW_INSIGHTS:
+                    st.query_params["view"] = "insights"
+        except Exception:
+            pass
+
+    st.markdown("---")
+
+    # Helper for rendering semantic quality badge
+    def render_q_badge(score: float) -> str:
+        if score >= 0.85:
+            return f'<span class="q-badge q-badge-high">⭐ {score:.2f} High</span>'
+        elif score >= 0.70:
+            return f'<span class="q-badge q-badge-med">✨ {score:.2f} Good</span>'
+        elif score >= 0.50:
+            return f'<span class="q-badge q-badge-med">⚡ {score:.2f} Fair</span>'
         else:
-            # Filter options
-            col1, col2, col3 = st.columns([1, 1, 2])
-            with col1:
-                filter_type = st.selectbox("Filter by type", ["All", "Photos", "Videos"])
-            with col2:
-                source_names = list(set([m['source'] for m in all_media_files]))
-                filter_source = st.selectbox("Filter by source", ["All Sources"] + source_names)
-            with col3:
-                st.metric("Total Media", len(all_media_files))
-            
-            # Apply filters
-            filtered_media = all_media_files
-            if filter_type == "Photos":
-                filtered_media = [m for m in filtered_media if m['type'] == 'image']
-            elif filter_type == "Videos":
-                filtered_media = [m for m in filtered_media if m['type'] == 'video']
-            
-            if filter_source != "All Sources":
-                filtered_media = [m for m in filtered_media if m['source'] == filter_source]
-            
-            # Pagination
-            items_per_page = 24
-            total_pages = max(1, (len(filtered_media) + items_per_page - 1) // items_per_page)
-            
-            if 'media_page' not in st.session_state:
-                st.session_state.media_page = 0
-            
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col1:
-                if st.button("⬅️ Previous") and st.session_state.media_page > 0:
-                    st.session_state.media_page -= 1
-                    st.rerun()
-            with col2:
-                st.markdown(f"<div style='text-align: center;'>Page {st.session_state.media_page + 1} of {total_pages}</div>", unsafe_allow_html=True)
-            with col3:
-                if st.button("Next ➡️") and st.session_state.media_page < total_pages - 1:
-                    st.session_state.media_page += 1
-                    st.rerun()
-            
-            st.markdown("---")
-            
-            # Display media grid
-            start_idx = st.session_state.media_page * items_per_page
-            end_idx = min(start_idx + items_per_page, len(filtered_media))
-            page_media = filtered_media[start_idx:end_idx]
-            
-            cols = st.columns(6)
-            for i, media in enumerate(page_media):
-                with cols[i % 6]:
-                    file_path = media['path']
-                    if media['type'] == 'image':
-                        try:
-                            st.image(str(file_path), width='stretch')
-                        except Exception:
-                            st.error("Error loading image")
-                        st.caption(f"🖼️ {file_path.name[:20]}...")
-                    else:  # video
-                        try:
-                            st.video(str(file_path))
-                        except Exception:
-                            st.info(f"🎬 {file_path.name[:15]}...")
-                        st.caption(f"🎬 {file_path.name[:20]}...")
-    
-    elif view_mode == "By Person":
-        persons = get_all_persons()
-        
-        if not persons:
-            st.warning("No persons in database. Assign faces to create person groups.")
-        else:
-            # Check if a person is selected for detailed view
-            if 'selected_person_id' not in st.session_state:
+            return f'<span class="q-badge q-badge-low">⚠️ {score:.2f} Low</span>'
+
+    # =========================================================================
+    # WORKSPACE 1: 👤 IDENTITIES & CHARACTERS (The People Hub & Studio)
+    # =========================================================================
+    if view_mode == VIEW_PEOPLE:
+        all_persons = get_all_persons()
+
+        # Check if user is in Deep-Dive Person Studio or Directory Overview
+        if st.session_state.selected_person_id is not None:
+            active_p = next((p for p in all_persons if p["id"] == st.session_state.selected_person_id), None)
+            if not active_p:
                 st.session_state.selected_person_id = None
-            
-            if st.session_state.selected_person_id is not None:
-                # Show detailed view for selected person
-                selected_person = next((p for p in persons if p['id'] == st.session_state.selected_person_id), None)
-                
-                if selected_person:
-                    # Header with back button
-                    col1, col2 = st.columns([1, 5])
-                    with col1:
-                        if st.button("⬅️ Back to All"):
-                            st.session_state.selected_person_id = None
+                st.rerun()
+
+            # --- Person Studio Breadcrumbs & Header ---
+            bc_col1, bc_col2 = st.columns([1, 4])
+            with bc_col1:
+                if st.button("⬅️ Back to Characters", key="studio_back_btn", use_container_width=True):
+                    st.session_state.selected_person_id = None
+                    try:
+                        if hasattr(st, "query_params") and "person_id" in st.query_params:
+                            del st.query_params["person_id"]
+                    except Exception:
+                        pass
+                    st.rerun()
+
+            p_faces = get_faces_by_person(active_p["id"])
+            avatar_face = get_person_avatar_face(active_p["id"])
+            avg_q = np.mean([f.get("quality_score", 0.0) for f in p_faces]) if p_faces else 0.0
+            max_q = max([f.get("quality_score", 0.0) for f in p_faces]) if p_faces else 0.0
+            lora_info = db.get_person_lora_info(active_p["id"])
+
+            # Studio Hero Banner
+            hero_col_avatar, hero_col_info, hero_col_actions = st.columns([1, 3, 2])
+            with hero_col_avatar:
+                if avatar_face and avatar_face.get("image_path") and os.path.exists(avatar_face["image_path"]):
+                    st.image(avatar_face["image_path"], width=130)
+                else:
+                    st.markdown("""
+                        <div class="studio-avatar-placeholder">
+                            <span>👤</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+            with hero_col_info:
+                st.markdown(f"### 🧑 {active_p['name']}")
+                meta_html = f"""
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                        <span class="meta-chip">🆔 #{active_p['id']}</span>
+                        <span class="meta-chip">👥 {len(p_faces)} Faces</span>
+                        {render_q_badge(avg_q)}
+                    </div>
+                """
+                st.markdown(meta_html, unsafe_allow_html=True)
+                if lora_info.get("trigger_word"):
+                    st.caption(f"🧬 **LoRA Trigger Word:** `{lora_info['trigger_word']}`")
+                if lora_info.get("lora_path") and os.path.exists(lora_info["lora_path"]):
+                    st.caption(f"📁 **Model File:** `{Path(lora_info['lora_path']).name}`")
+
+            with hero_col_actions:
+                st.markdown("##### 🚀 Quick Workflows")
+                # 1-Click bridge to Character LoRA training
+                if st.button("🧬 Train Character LoRA", key=f"studio_lora_jump_{active_p['id']}", use_container_width=True, type="primary"):
+                    st.session_state["lora_dataset_person"] = active_p["id"]
+                    st.session_state["lora_dataset_source_mode"] = "👥 Use Gallery Person"
+                    navigate_to("lora")
+
+                # 1-Click bridge to Reface V2
+                if st.button("🎭 Use in Reface", key=f"studio_reface_jump_{active_p['id']}", use_container_width=True):
+                    navigate_to("reface_v2")
+
+            st.markdown("---")
+
+            # Studio Tabs: 1) Face Curation, 2) Source Media, 3) Identity Settings
+            std_tab1, std_tab2, std_tab3 = st.tabs([
+                "📸 Face Curation Desk",
+                "🎬 Linked Source Media",
+                "⚙️ Character Settings & Merge"
+            ])
+
+            # TAB 1: Face Curation Desk
+            with std_tab1:
+                cur_bar1, cur_bar2, cur_bar3 = st.columns([2, 2, 2])
+                with cur_bar1:
+                    q_filter = st.slider(
+                        "Quality Threshold", 
+                        0.0, 1.0, 0.0, 0.05, 
+                        key=f"cur_q_filter_{active_p['id']}",
+                        help="Show only faces above this quality score"
+                    )
+                with cur_bar2:
+                    sort_order = st.selectbox(
+                        "Sort Faces",
+                        ["Quality: High to Low", "Quality: Low to High", "Newest First", "Oldest First"],
+                        key=f"cur_sort_{active_p['id']}"
+                    )
+                with cur_bar3:
+                    st.metric("Visible Faces", f"{len([f for f in p_faces if f.get('quality_score', 0) >= q_filter])} / {len(p_faces)}")
+
+                # Filter and sort
+                cur_faces = [f for f in p_faces if f.get("quality_score", 0.0) >= q_filter]
+                if sort_order == "Quality: High to Low":
+                    cur_faces.sort(key=lambda x: x.get("quality_score", 0.0), reverse=True)
+                elif sort_order == "Quality: Low to High":
+                    cur_faces.sort(key=lambda x: x.get("quality_score", 0.0))
+                elif sort_order == "Newest First":
+                    cur_faces.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                elif sort_order == "Oldest First":
+                    cur_faces.sort(key=lambda x: x.get("created_at", ""))
+
+                # Batch Action Bar
+                with st.expander("⚡ Batch Face Operations", expanded=False):
+                    bat_c1, bat_c2, bat_c3 = st.columns([2, 2, 2])
+                    with bat_c1:
+                        if st.button("Select All Visible", key=f"sel_all_vis_{active_p['id']}"):
+                            st.session_state.curation_selected_faces = set(f["id"] for f in cur_faces)
                             st.rerun()
-                    with col2:
-                        st.subheader(f"🧑 {selected_person['name']} ({selected_person['face_count']} faces)")
-                    
-                    # Manage person: Rename, Merge, Delete
-                    with st.expander("⚙️ Manage Person (Rename / Merge / Delete)", expanded=False):
-                        m_col1, m_col2 = st.columns(2)
-                        with m_col1:
-                            st.markdown("##### ✏️ Rename Person")
-                            new_name_val = st.text_input("New Name", value=selected_person["name"], key=f"rename_input_{selected_person['id']}")
-                            if st.button("💾 Save Name", key=f"save_name_{selected_person['id']}"):
-                                if new_name_val.strip():
-                                    rename_person(selected_person["id"], new_name_val.strip())
-                                    st.success(f"Renamed to {new_name_val.strip()}!")
-                                    st.rerun()
+                    with bat_c2:
+                        if st.button("Clear Selection", key=f"clr_sel_{active_p['id']}"):
+                            st.session_state.curation_selected_faces = set()
+                            st.rerun()
+                    with bat_c3:
+                        st.caption(f"{len(st.session_state.curation_selected_faces)} face(s) selected")
 
-                        with m_col2:
-                            st.markdown("##### 🔀 Merge into Another Person")
-                            other_persons = [p for p in persons if p["id"] != selected_person["id"]]
-                            if other_persons:
-                                target_p_id = st.selectbox(
-                                    "Target person",
-                                    options=[p["id"] for p in other_persons],
-                                    format_func=lambda x: next(f"{p['name']} ({p['face_count']} faces)" for p in other_persons if p["id"] == x),
-                                    key=f"merge_target_{selected_person['id']}"
+                    if st.session_state.curation_selected_faces:
+                        b_act_col1, b_act_col2 = st.columns(2)
+                        with b_act_col1:
+                            other_ps = [p for p in all_persons if p["id"] != active_p["id"]]
+                            if other_ps:
+                                tgt_move_id = st.selectbox(
+                                    "Move selected to character:",
+                                    options=[p["id"] for p in other_ps],
+                                    format_func=lambda x: next(p["name"] for p in other_ps if p["id"] == x),
+                                    key=f"batch_move_tgt_{active_p['id']}"
                                 )
-                                if st.button("🔀 Merge This Person Into Target", type="primary", key=f"merge_btn_{selected_person['id']}"):
-                                    merge_persons(selected_person["id"], target_p_id)
-                                    st.session_state.selected_person_id = target_p_id
-                                    st.success("Persons merged successfully!")
+                                if st.button("📦 Move Selected", key=f"do_move_batch_{active_p['id']}", type="primary"):
+                                    batch_assign_faces(list(st.session_state.curation_selected_faces), tgt_move_id)
+                                    st.session_state.curation_selected_faces = set()
+                                    st.success("Moved faces successfully!")
                                     st.rerun()
-                            else:
-                                st.caption("No other persons available to merge with.")
-
-                        st.markdown("---")
-                        del_col1, del_col2 = st.columns([3, 1])
-                        with del_col2:
-                            if st.button("🗑️ Delete Person", key=f"delete_btn_{selected_person['id']}", type="secondary"):
-                                delete_person(selected_person["id"])
-                                st.session_state.selected_person_id = None
-                                st.success("Person deleted (faces unassigned).")
-                                st.rerun()
-
-                    st.markdown("---")
-                    
-                    # Get all faces for this person to find source files
-                    faces = get_faces_for_person(selected_person["id"], limit=500)
-                    
-                    # Collect unique source files
-                    source_files = {}
-                    for face in faces:
-                        if face.get("source_path"):
-                            source_path = Path(face["source_path"])
-                            if source_path.exists() and str(source_path) not in source_files:
-                                ext = source_path.suffix.lower()
-                                image_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif'}
-                                video_exts = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'}
-                                if ext in image_exts:
-                                    source_files[str(source_path)] = {'path': source_path, 'type': 'image'}
-                                elif ext in video_exts:
-                                    source_files[str(source_path)] = {'path': source_path, 'type': 'video'}
-                    
-                    # Show tabs for Faces and Source Media
-                    tab1, tab2 = st.tabs(["👤 Extracted Faces", "📁 Source Media"])
-                    
-                    with tab1:
-                        st.markdown(f"**{len(faces)} face(s) extracted**")
-                        cols = st.columns(6)
-                        for i, face in enumerate(faces):
-                            with cols[i % 6]:
-                                if face["image_path"] and os.path.exists(face["image_path"]):
-                                    st.image(face["image_path"], width='stretch')
-                                    st.caption(f"Q: {face['quality_score']:.2f}")
-                    
-                    with tab2:
-                        if source_files:
-                            st.markdown(f"**{len(source_files)} source file(s) containing this person**")
-                            cols = st.columns(4)
-                            for i, (path_str, media_info) in enumerate(source_files.items()):
-                                with cols[i % 4]:
-                                    file_path = media_info['path']
-                                    if media_info['type'] == 'image':
-                                        try:
-                                            st.image(str(file_path), width='stretch')
-                                        except Exception:
-                                            st.error("Error loading")
-                                        st.caption(f"🖼️ {file_path.name[:25]}...")
-                                    else:  # video
-                                        try:
-                                            st.video(str(file_path))
-                                        except Exception:
-                                            st.info(f"🎬 Video file")
-                                        st.caption(f"🎬 {file_path.name[:25]}...")
-                        else:
-                            st.info("No source files found. Source files may have been moved or deleted.")
-            else:
-                # Show person grid with thumbnails
-                st.markdown("**Click on a person to see their photos and videos**")
-                
-                # Auto-merge similar persons button
-                col1, col2, col3 = st.columns([2, 2, 3])
-                with col1:
-                    merge_threshold = st.slider("Similarity threshold", 0.3, 0.8, 0.55, 0.05, 
-                                                help="Higher = more lenient matching (will merge more)")
-                with col2:
-                    if st.button("🔄 Auto-Merge Similar Persons", type="primary"):
-                        with st.spinner("Finding and merging similar persons..."):
-                            try:
-                                merge_stats = merge_similar_persons(similarity_threshold=merge_threshold)
-                                if merge_stats["persons_merged"] > 0:
-                                    st.success(f"✅ Merged {merge_stats['persons_merged']} similar persons! "
-                                              f"({merge_stats['faces_moved']} faces moved, "
-                                              f"{merge_stats['persons_remaining']} persons remaining)")
-                                else:
-                                    st.info("No similar persons found to merge at this threshold. "
-                                           "Try increasing the threshold.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Merge failed: {e}")
-                with col3:
-                    st.caption("Automatically finds and merges person clusters that appear to be the same individual")
-                
-                # Manual Merge Expander
-                with st.expander("🔀 Manual Merge People (Choose 2 Persons)", expanded=False):
-                    if len(persons) >= 2:
-                        mc1, mc2, mc3 = st.columns([2, 2, 1])
-                        with mc1:
-                            src_options = {f"{p['name']} ({p['face_count']} faces)": p['id'] for p in persons}
-                            src_name = st.selectbox("Source (will be deleted)", options=list(src_options.keys()), key="gallery_mrg_src")
-                            src_id = src_options[src_name] if src_name else None
-                        with mc2:
-                            tgt_candidates = [p for p in persons if p['id'] != src_id]
-                            tgt_options = {f"{p['name']} ({p['face_count']} faces)": p['id'] for p in tgt_candidates}
-                            tgt_name = st.selectbox("Target (receives faces)", options=list(tgt_options.keys()), key="gallery_mrg_tgt")
-                            tgt_id = tgt_options[tgt_name] if tgt_name else None
-                        with mc3:
-                            st.write("")
-                            st.write("")
-                            if st.button("🔀 Merge", key="gallery_btn_manual_merge", type="primary"):
-                                if src_id and tgt_id and src_id != tgt_id:
-                                    merge_persons(src_id, tgt_id)
-                                    st.success("Merged successfully!")
+                        with b_act_col2:
+                            del_b1, del_b2 = st.columns(2)
+                            with del_b1:
+                                if st.button("❌ Unassign Selected", key=f"unassign_batch_{active_p['id']}"):
+                                    batch_assign_faces(list(st.session_state.curation_selected_faces), None)
+                                    st.session_state.curation_selected_faces = set()
+                                    st.success("Faces unassigned!")
                                     st.rerun()
-                    else:
-                        st.info("Need at least 2 persons to merge manually.")
+                            with del_b2:
+                                if st.button("🗑️ Delete Selected", key=f"delete_batch_{active_p['id']}"):
+                                    for fid in list(st.session_state.curation_selected_faces):
+                                        delete_face(fid, delete_file=True)
+                                    st.session_state.curation_selected_faces = set()
+                                    st.success("Selected faces deleted!")
+                                    st.rerun()
 
                 st.markdown("---")
-                
-                # Display persons in a grid
-                cols = st.columns(5)
-                for i, person in enumerate(persons):
-                    with cols[i % 5]:
-                        # Get first face as thumbnail
-                        faces = get_faces_for_person(person["id"], limit=1)
-                        
-                        # Display thumbnail
-                        if faces and faces[0]["image_path"] and os.path.exists(faces[0]["image_path"]):
-                            st.image(faces[0]["image_path"], width='stretch')
+
+                if not cur_faces:
+                    st.info("No faces match the current quality threshold.")
+                else:
+                    # Face Grid
+                    f_cols = st.columns(6)
+                    for i, face in enumerate(cur_faces):
+                        fid = face["id"]
+                        with f_cols[i % 6]:
+                            with st.container(border=True):
+                                # Thumbnail
+                                if face.get("image_path") and os.path.exists(face["image_path"]):
+                                    st.image(face["image_path"], width='stretch')
+                                else:
+                                    st.caption("No image")
+
+                                # Quality Score & Avatar Indicator
+                                is_avatar = (avatar_face and avatar_face.get("id") == fid)
+                                st.markdown(render_q_badge(face.get("quality_score", 0.0)), unsafe_allow_html=True)
+                                if is_avatar:
+                                    st.markdown('<span class="meta-chip meta-chip-lora" style="margin-top: 4px;">⭐ Avatar</span>', unsafe_allow_html=True)
+
+                                # Checkbox for batch
+                                is_checked = fid in st.session_state.curation_selected_faces
+                                if st.checkbox("Select", value=is_checked, key=f"chk_f_{fid}"):
+                                    st.session_state.curation_selected_faces.add(fid)
+                                else:
+                                    st.session_state.curation_selected_faces.discard(fid)
+
+                                # Card actions
+                                if not is_avatar:
+                                    if st.button("🌟 Set Avatar", key=f"set_av_{fid}", use_container_width=True):
+                                        set_person_avatar(active_p["id"], fid)
+                                        st.success("Avatar updated!")
+                                        st.rerun()
+                                
+                                act_c1, act_c2 = st.columns(2)
+                                with act_c1:
+                                    if st.button("❌", key=f"unass_f_{fid}", help="Unassign this face"):
+                                        assign_face_to_person(fid, None)
+                                        st.rerun()
+                                with act_c2:
+                                    if st.button("🗑️", key=f"del_f_{fid}", help="Permanently delete face crop"):
+                                        delete_face(fid, delete_file=True)
+                                        st.rerun()
+
+            # TAB 2: Linked Source Media
+            with std_tab2:
+                # Find all unique source files for this person
+                src_map = {}
+                for face in p_faces:
+                    sp = face.get("source_path")
+                    if sp and os.path.exists(sp):
+                        if sp not in src_map:
+                            ext = Path(sp).suffix.lower()
+                            is_vid = ext in {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'}
+                            src_map[sp] = {
+                                "path": Path(sp),
+                                "is_video": is_vid,
+                                "faces": 0
+                            }
+                        src_map[sp]["faces"] += 1
+
+                if not src_map:
+                    st.info("No active source media files found on disk for this character.")
+                else:
+                    st.markdown(f"Found **{len(src_map)} source file(s)** associated with this character:")
+                    s_cols = st.columns(4)
+                    for i, (path_str, s_info) in enumerate(src_map.items()):
+                        with s_cols[i % 4]:
+                            with st.container(border=True):
+                                f_path = s_info["path"]
+                                if not s_info["is_video"]:
+                                    try:
+                                        st.image(str(f_path), width='stretch')
+                                    except Exception:
+                                        st.error("Error loading image")
+                                    st.caption(f"🖼️ {f_path.name[:22]}")
+                                    st.caption(f"👤 {s_info['faces']} face(s) tagged")
+                                    if st.button("✨ Use in Undress", key=f"src_undress_{i}", use_container_width=True):
+                                        try:
+                                            st.session_state.undress_image = Image.open(str(f_path)).convert("RGB")
+                                            st.session_state.undress_upload_name = None
+                                            st.session_state.undress_bbox = None
+                                            st.session_state.undress_detected = False
+                                            navigate_to("undress")
+                                        except Exception as e:
+                                            st.error(f"Failed to open image: {e}")
+                                else:
+                                    try:
+                                        st.video(str(f_path))
+                                    except Exception:
+                                        st.info("🎬 Video file")
+                                    st.caption(f"🎬 {f_path.name[:22]}")
+                                    st.caption(f"👤 {s_info['faces']} face(s) tagged")
+
+            # TAB 3: Character Settings & Merge
+            with std_tab3:
+                s_col1, s_col2 = st.columns(2)
+                with s_col1:
+                    with st.container(border=True):
+                        st.markdown("#### ✏️ Rename Character")
+                        new_name = st.text_input("Name", value=active_p["name"], key=f"inp_rename_{active_p['id']}")
+                        if st.button("💾 Save Name", key=f"save_name_btn_{active_p['id']}", type="primary"):
+                            if new_name.strip():
+                                rename_person(active_p["id"], new_name.strip())
+                                st.success(f"Renamed to {new_name.strip()}!")
+                                st.rerun()
+
+                    with st.container(border=True):
+                        st.markdown("#### 🧬 LoRA Training Metadata")
+                        curr_trig = lora_info.get("trigger_word") or ""
+                        curr_lpath = lora_info.get("lora_path") or ""
+                        inp_trig = st.text_input("Trigger Word", value=curr_trig, key=f"lora_trig_{active_p['id']}")
+                        inp_lpath = st.text_input("Model File (.safetensors)", value=curr_lpath, key=f"lora_path_{active_p['id']}")
+                        if st.button("💾 Update LoRA Info", key=f"save_lora_meta_{active_p['id']}"):
+                            db.set_person_lora_info(active_p["id"], trigger_word=inp_trig.strip(), lora_path=inp_lpath.strip())
+                            st.success("LoRA metadata updated!")
+                            st.rerun()
+
+                with s_col2:
+                    with st.container(border=True):
+                        st.markdown("#### 🔀 Merge Into Another Character")
+                        st.caption("Moves all faces from this character into the chosen target, then deletes this record.")
+                        other_ps = [p for p in all_persons if p["id"] != active_p["id"]]
+                        if other_ps:
+                            m_target_id = st.selectbox(
+                                "Target character",
+                                options=[p["id"] for p in other_ps],
+                                format_func=lambda x: next(f"{p['name']} ({p['face_count']} faces)" for p in other_ps if p["id"] == x),
+                                key=f"merge_target_select_{active_p['id']}"
+                            )
+                            if st.button("🔀 Execute Merge", key=f"do_merge_btn_{active_p['id']}", type="primary"):
+                                merge_persons(active_p["id"], m_target_id)
+                                st.session_state.selected_person_id = m_target_id
+                                st.success("Characters merged successfully!")
+                                st.rerun()
                         else:
-                            st.markdown("""
-                            <div style="background: #333; border-radius: 10px; height: 100px; 
-                                        display: flex; align-items: center; justify-content: center;">
-                                <span style="font-size: 40px;">👤</span>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        # Person info and button
-                        if st.button(f"🧑 {person['name'][:15]}", key=f"person_{person['id']}", width='stretch'):
-                            st.session_state.selected_person_id = person['id']
+                            st.info("No other characters available to merge with.")
+
+                    with st.container(border=True):
+                        st.markdown("#### 🗑️ Delete Character")
+                        st.caption("Deletes the character group. Faces will remain in the database as unassigned.")
+                        confirm_del = st.checkbox("Confirm character deletion", key=f"confirm_del_{active_p['id']}")
+                        if st.button("🗑️ Delete Character", key=f"del_char_btn_{active_p['id']}", disabled=not confirm_del):
+                            delete_person(active_p["id"])
+                            st.session_state.selected_person_id = None
+                            st.success("Character deleted.")
                             st.rerun()
-                        st.caption(f"{person['face_count']} faces")
-    
-    else:  # Unassigned Faces
-        faces = get_unassigned_faces(limit=100)
-        
-        if not faces:
-            st.success("All faces are assigned to persons!")
+
         else:
-            st.warning(f"Found {len(faces)} unassigned faces")
+            # --- Characters Directory Overview ---
+            # Overview Metrics
+            tot_p = len(all_persons)
+            tot_assigned_faces = sum(p.get("face_count", 0) for p in all_persons)
+            lora_count = sum(1 for p in all_persons if db.get_person_lora_info(p["id"]).get("lora_path"))
             
-            # Auto-cluster button
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                if st.button("🔄 Auto-Cluster All", type="primary"):
-                    with st.spinner("Clustering faces by similarity..."):
-                        try:
-                            cluster_stats = cluster_all_unassigned_faces(similarity_threshold=0.35)
-                            st.success(f"Created {cluster_stats['new_persons']} person groups from {cluster_stats['assigned']} faces")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Clustering failed: {e}")
-            with col2:
-                st.caption("Automatically groups similar faces into person clusters using AI embedding similarity")
-            
+            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+            m_col1.metric("Total Characters", tot_p)
+            m_col2.metric("Curated Faces", tot_assigned_faces)
+            m_col3.metric("Trained LoRAs", lora_count)
+            m_col4.metric("Avg Faces / Character", f"{(tot_assigned_faces / tot_p):.1f}" if tot_p > 0 else "0")
+
             st.markdown("---")
-            
-            # Create new person option
-            with st.form("create_person"):
-                new_name = st.text_input("Create new person with name:")
-                selected_faces = st.multiselect(
-                    "Select faces to assign",
-                    options=[f["id"] for f in faces],
-                    format_func=lambda x: f"Face #{x}"
+
+            # Search & Control Bar
+            c_bar1, c_bar2, c_bar3 = st.columns([3, 2, 2])
+            with c_bar1:
+                search_query = st.text_input("🔍 Search Character by Name...", "", key="p_search_input")
+            with c_bar2:
+                sort_p_by = st.selectbox(
+                    "Sort Characters",
+                    ["Most Faces First", "Highest Quality Avatar", "Name (A-Z)", "Recently Updated", "Has LoRA Model"],
+                    key="p_sort_selector"
                 )
-                
-                if st.form_submit_button("Create Person & Assign"):
-                    if new_name and selected_faces:
-                        person_id = create_person(new_name)
-                        assign_faces_to_person(selected_faces, person_id)
-                        st.success(f"Created {new_name} with {len(selected_faces)} faces!")
-                        st.rerun()
-            
+            with c_bar3:
+                st.write("")
+                st.write("")
+                with st.popover("➕ New Character", use_container_width=True):
+                    st.markdown("##### Create Character Identity")
+                    new_char_name = st.text_input("Character Name", placeholder="e.g. Sarah Jenkins")
+                    if st.button("Create", key="btn_create_new_char", type="primary", use_container_width=True):
+                        if new_char_name.strip():
+                            new_pid = create_person(new_char_name.strip())
+                            st.session_state.selected_person_id = new_pid
+                            st.success(f"Created {new_char_name.strip()}!")
+                            st.rerun()
+
+            # Filter persons
+            display_persons = all_persons
+            if search_query.strip():
+                q_lower = search_query.strip().lower()
+                display_persons = [p for p in display_persons if q_lower in p["name"].lower()]
+
+            # Sort persons
+            if sort_p_by == "Most Faces First":
+                display_persons.sort(key=lambda x: x.get("face_count", 0), reverse=True)
+            elif sort_p_by == "Name (A-Z)":
+                display_persons.sort(key=lambda x: x["name"].lower())
+            elif sort_p_by == "Recently Updated":
+                display_persons.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+            elif sort_p_by == "Has LoRA Model":
+                display_persons.sort(
+                    key=lambda x: (1 if db.get_person_lora_info(x["id"]).get("lora_path") else 0, x.get("face_count", 0)), 
+                    reverse=True
+                )
+            elif sort_p_by == "Highest Quality Avatar":
+                def get_av_score(p):
+                    av = get_person_avatar_face(p["id"])
+                    return av.get("quality_score", 0.0) if av else 0.0
+                display_persons.sort(key=get_av_score, reverse=True)
+
+            # Auto-Merge Drawer
+            with st.expander("🔀 Automatic Duplicate Detector & Merger", expanded=False):
+                col_am1, col_am2 = st.columns([3, 1])
+                with col_am1:
+                    m_thresh = st.slider("Similarity Threshold", 0.35, 0.85, 0.65, 0.05, 
+                                         help="Higher threshold means only very similar clusters are merged.")
+                with col_am2:
+                    st.write("")
+                    st.write("")
+                    if st.button("🔄 Scan & Auto-Merge", key="btn_auto_merge_run", type="primary", use_container_width=True):
+                        with st.spinner("Finding duplicate clusters..."):
+                            m_stats = merge_similar_persons(similarity_threshold=m_thresh)
+                            if m_stats["persons_merged"] > 0:
+                                st.success(f"Merged {m_stats['persons_merged']} similar characters ({m_stats['faces_moved']} faces relocated)!")
+                            else:
+                                st.info("No duplicates detected at this threshold.")
+                            st.rerun()
+
             st.markdown("---")
-            
-            # Display unassigned faces
-            cols = st.columns(6)
-            for i, face in enumerate(faces):
-                with cols[i % 6]:
-                    if face["image_path"] and os.path.exists(face["image_path"]):
-                        st.image(face["image_path"], width='stretch')
-                        st.caption(f"#{face['id']}, Q: {face['quality_score']:.2f}")
+
+            # Characters Grid
+            if not display_persons:
+                st.markdown("""
+                    <div class="empty-state-box">
+                        <h4>No Characters Found</h4>
+                        <p>No characters match your search filter or no characters have been created yet.</p>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                p_cols = st.columns(4)
+                for i, person in enumerate(display_persons):
+                    with p_cols[i % 4]:
+                        with st.container(border=True):
+                            avatar = get_person_avatar_face(person["id"])
+                            if avatar and avatar.get("image_path") and os.path.exists(avatar["image_path"]):
+                                st.image(avatar["image_path"], width='stretch')
+                            else:
+                                st.markdown("""
+                                    <div style="background: #20232d; border-radius: 10px; height: 160px; 
+                                                display: flex; align-items: center; justify-content: center;">
+                                        <span style="font-size: 50px;">👤</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
+
+                            # Name & Badge
+                            st.markdown(f"##### {person['name']}")
+                            chips_html = f"""
+                                <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
+                                    <span class="meta-chip">👥 {person.get('face_count', 0)} faces</span>
+                            """
+                            if avatar and "quality_score" in avatar:
+                                chips_html += render_q_badge(avatar["quality_score"])
+                            
+                            p_lora = db.get_person_lora_info(person["id"])
+                            if p_lora.get("lora_path") and os.path.exists(p_lora["lora_path"]):
+                                chips_html += '<span class="meta-chip meta-chip-lora">🧬 LoRA</span>'
+                            chips_html += "</div>"
+                            st.markdown(chips_html, unsafe_allow_html=True)
+
+                            # Card Buttons
+                            if st.button("🔍 Open Studio", key=f"open_char_{person['id']}", type="primary", use_container_width=True):
+                                st.session_state.selected_person_id = person["id"]
+                                st.rerun()
+
+                            act_r1, act_r2 = st.columns(2)
+                            with act_r1:
+                                if st.button("🧬 LoRA", key=f"quick_lora_{person['id']}", use_container_width=True):
+                                    st.session_state["lora_dataset_person"] = person["id"]
+                                    st.session_state["lora_dataset_source_mode"] = "👥 Use Gallery Person"
+                                    navigate_to("lora")
+                            with act_r2:
+                                if st.button("🎭 Reface", key=f"quick_reface_{person['id']}", use_container_width=True):
+                                    navigate_to("reface_v2")
+
+    # =========================================================================
+    # WORKSPACE 2: ⚡ SMART TRIAGE & INBOX (Unassigned Faces)
+    # =========================================================================
+    elif view_mode == VIEW_TRIAGE:
+        unassigned_faces = get_faces_by_person(None)
+        
+        # Triage Metrics
+        tot_unass = len(unassigned_faces)
+        high_q_count = sum(1 for f in unassigned_faces if f.get("quality_score", 0.0) >= 0.70)
+        med_q_count = sum(1 for f in unassigned_faces if 0.50 <= f.get("quality_score", 0.0) < 0.70)
+        low_q_count = sum(1 for f in unassigned_faces if f.get("quality_score", 0.0) < 0.50)
+
+        tr_m1, tr_m2, tr_m3, tr_m4 = st.columns(4)
+        tr_m1.metric("Inbox Faces", tot_unass)
+        tr_m2.metric("High Quality (≥0.70)", high_q_count)
+        tr_m3.metric("Medium Quality", med_q_count)
+        tr_m4.metric("Low Quality (<0.50)", low_q_count)
+
+        st.markdown("---")
+
+        if tot_unass == 0:
+            st.success("🎉 All faces are assigned to characters! Your inbox is completely clean.")
+        else:
+            # AI Automation & Bulk Operations Toolbar
+            col_ai1, col_ai2 = st.columns([1, 1])
+            with col_ai1:
+                with st.container(border=True):
+                    st.markdown("##### ⚡ Automated AI Clustering")
+                    st.caption("Groups similar unassigned faces into characters using InsightFace cosine similarity.")
+                    c_col1, c_col2 = st.columns([2, 1])
+                    with c_col1:
+                        c_thresh = st.slider("Clustering Sensitivity", 0.25, 0.60, 0.35, 0.05, 
+                                             help="Lower = stricter matching (more separate people); Higher = merges more faces.")
+                    with c_col2:
+                        st.write("")
+                        if st.button("🚀 Run Auto-Cluster", key="btn_run_cluster_all", type="primary", use_container_width=True):
+                            with st.spinner("Clustering faces by embedding similarity..."):
+                                c_stats = cluster_all_unassigned_faces(similarity_threshold=c_thresh)
+                                st.success(f"Created {c_stats['new_persons']} characters from {c_stats['assigned']} faces!")
+                                st.rerun()
+
+            with col_ai2:
+                with st.container(border=True):
+                    st.markdown("##### 🧹 Noise Discard Tool")
+                    st.caption("Safely discard low-quality, blurred, or false-positive face detections.")
+                    disc_col1, disc_col2 = st.columns([2, 1])
+                    with disc_col1:
+                        st.markdown(f"**{low_q_count} faces** detected with Quality < 0.50")
+                    with disc_col2:
+                        if st.button("🗑️ Discard Low Q (<0.50)", key="btn_discard_low_q", use_container_width=True, disabled=(low_q_count == 0)):
+                            low_faces = [f["id"] for f in unassigned_faces if f.get("quality_score", 0.0) < 0.50]
+                            for fid in low_faces:
+                                delete_face(fid, delete_file=True)
+                            st.success(f"Discarded {len(low_faces)} low quality faces.")
+                            st.rerun()
+
+            st.markdown("---")
+
+            # Batch Selection & Assignment Toolbar
+            all_persons = get_all_persons()
+            with st.container(border=True):
+                st.markdown("##### 📦 Visual Batch Assignment Desk")
+                
+                sel_b1, sel_b2, sel_b3, sel_b4 = st.columns([1, 1, 1, 2])
+                with sel_b1:
+                    if st.button("Select All", key="triage_sel_all"):
+                        st.session_state.triage_selected_faces = set(f["id"] for f in unassigned_faces)
+                        st.rerun()
+                with sel_b2:
+                    if st.button("Select High Q (≥0.7)", key="triage_sel_high"):
+                        st.session_state.triage_selected_faces = set(f["id"] for f in unassigned_faces if f.get("quality_score", 0.0) >= 0.70)
+                        st.rerun()
+                with sel_b3:
+                    if st.button("Clear Selection", key="triage_sel_clear"):
+                        st.session_state.triage_selected_faces = set()
+                        st.rerun()
+                with sel_b4:
+                    st.markdown(f"**Selected Faces:** `{len(st.session_state.triage_selected_faces)}`")
+
+                if st.session_state.triage_selected_faces:
+                    assign_col1, assign_col2, assign_col3 = st.columns([2, 2, 1])
+                    with assign_col1:
+                        assign_mode = st.radio("Assignment Target", ["Existing Character", "New Character"], horizontal=True, key="assign_target_mode")
+                    with assign_col2:
+                        if assign_mode == "Existing Character":
+                            if all_persons:
+                                target_p_id = st.selectbox(
+                                    "Select Character",
+                                    options=[p["id"] for p in all_persons],
+                                    format_func=lambda x: next(f"{p['name']} ({p['face_count']} faces)" for p in all_persons if p["id"] == x),
+                                    key="triage_existing_p_select"
+                                )
+                            else:
+                                st.info("No characters created yet.")
+                                target_p_id = None
+                        else:
+                            new_p_name = st.text_input("New Character Name", placeholder="e.g. Michael", key="triage_new_p_name")
+                            target_p_id = None
+                    with assign_col3:
+                        st.write("")
+                        st.write("")
+                        if st.button("✅ Assign", key="btn_execute_triage_assign", type="primary", use_container_width=True):
+                            f_list = list(st.session_state.triage_selected_faces)
+                            if assign_mode == "Existing Character" and target_p_id:
+                                batch_assign_faces(f_list, target_p_id)
+                                st.session_state.triage_selected_faces = set()
+                                st.success(f"Assigned {len(f_list)} faces!")
+                                st.rerun()
+                            elif assign_mode == "New Character" and new_p_name.strip():
+                                new_pid = create_person(new_p_name.strip())
+                                batch_assign_faces(f_list, new_pid)
+                                st.session_state.triage_selected_faces = set()
+                                st.success(f"Created {new_p_name.strip()} and assigned {len(f_list)} faces!")
+                                st.rerun()
+
+            st.markdown("---")
+
+            # Display Faces Grid
+            t_cols = st.columns(6)
+            for i, face in enumerate(unassigned_faces[:120]):
+                fid = face["id"]
+                with t_cols[i % 6]:
+                    with st.container(border=True):
+                        if face.get("image_path") and os.path.exists(face["image_path"]):
+                            st.image(face["image_path"], width='stretch')
+                        else:
+                            st.caption("No image")
+
+                        st.markdown(render_q_badge(face.get("quality_score", 0.0)), unsafe_allow_html=True)
+                        if face.get("source_path"):
+                            st.caption(f"📁 {Path(face['source_path']).name[:16]}")
+
+                        # Checkbox for batch selection
+                        is_sel = fid in st.session_state.triage_selected_faces
+                        if st.checkbox("Select", value=is_sel, key=f"triage_chk_{fid}"):
+                            st.session_state.triage_selected_faces.add(fid)
+                        else:
+                            st.session_state.triage_selected_faces.discard(fid)
+
+                        # Individual quick assign dropdown
+                        if all_persons:
+                            q_opt = [None] + [p["id"] for p in all_persons]
+                            chosen_pid = st.selectbox(
+                                "Quick Assign",
+                                options=q_opt,
+                                format_func=lambda x: "Assign to..." if x is None else next(p["name"][:12] for p in all_persons if p["id"] == x),
+                                key=f"q_ass_{fid}"
+                            )
+                            if chosen_pid is not None:
+                                assign_face_to_person(fid, chosen_pid)
+                                st.rerun()
+
+                        # Discard single face
+                        if st.button("🗑️ Discard", key=f"disc_single_{fid}", use_container_width=True):
+                            delete_face(fid, delete_file=True)
+                            st.rerun()
+
+    # =========================================================================
+    # WORKSPACE 3: 🎬 MEDIA ARCHIVE (Source Photos & Videos Library)
+    # =========================================================================
+    elif view_mode == VIEW_MEDIA:
+        st.markdown("##### 📁 Ingested Photos & Videos")
+        st.caption("Inspect media files from your data sources, examine detected faces, and send files directly to Reface or Magic Undress.")
+
+        # Cache media scanning to ensure ultra-fast rendering without disk thrashing
+        if "cached_media_files" not in st.session_state or st.button("🔄 Refresh Media Scan", key="btn_refresh_media_cache"):
+            all_media = []
+            img_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif'}
+            vid_exts = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'}
+
+            for source in st.session_state.data_sources:
+                folder = Path(source['path'])
+                if folder.exists():
+                    files = list(folder.rglob('*')) if source.get('include_subfolders', True) else list(folder.iterdir())
+                    for f in files:
+                        if f.is_file():
+                            ext = f.suffix.lower()
+                            if ext in img_exts:
+                                all_media.append({'path': f, 'type': 'image', 'source': source['name']})
+                            elif ext in vid_exts:
+                                all_media.append({'path': f, 'type': 'video', 'source': source['name']})
+            st.session_state.cached_media_files = all_media
+
+        media_files = st.session_state.cached_media_files
+
+        if not media_files:
+            st.info("No media files found. Add data sources in the 'Data Sources' tab to inspect your library here.")
+        else:
+            # Media Filter Bar
+            mf_col1, mf_col2, mf_col3, mf_col4 = st.columns([2, 2, 2, 1])
+            with mf_col1:
+                f_type = st.selectbox("Media Type", ["All Formats", "Photos Only", "Videos Only"], key="mf_type_filter")
+            with mf_col2:
+                src_options = ["All Sources"] + list(set(m["source"] for m in media_files))
+                f_src = st.selectbox("Data Source", src_options, key="mf_src_filter")
+            with mf_col3:
+                f_search = st.text_input("Search Filename", "", key="mf_search_input")
+            with mf_col4:
+                per_page = st.selectbox("Per Page", [12, 24, 48], index=1, key="mf_per_page")
+
+            # Apply filters
+            filtered_media = media_files
+            if f_type == "Photos Only":
+                filtered_media = [m for m in filtered_media if m["type"] == "image"]
+            elif f_type == "Videos Only":
+                filtered_media = [m for m in filtered_media if m["type"] == "video"]
+            if f_src != "All Sources":
+                filtered_media = [m for m in filtered_media if m["source"] == f_src]
+            if f_search.strip():
+                s_term = f_search.strip().lower()
+                filtered_media = [m for m in filtered_media if s_term in m["path"].name.lower()]
+
+            tot_filtered = len(filtered_media)
+            total_pages = max(1, (tot_filtered + per_page - 1) // per_page)
+            curr_page = min(st.session_state.media_page_num, total_pages - 1)
+            st.session_state.media_page_num = curr_page
+
+            # Pagination Bar
+            pg_col1, pg_col2, pg_col3 = st.columns([1, 2, 1])
+            with pg_col1:
+                if st.button("⬅️ Previous", key="btn_media_prev", disabled=(curr_page == 0)):
+                    st.session_state.media_page_num = max(0, curr_page - 1)
+                    st.rerun()
+            with pg_col2:
+                st.markdown(f"<div style='text-align: center; font-weight: 600; color: #94a3b8; padding-top: 8px;'>Page {curr_page + 1} of {total_pages} ({tot_filtered} total files)</div>", unsafe_allow_html=True)
+            with pg_col3:
+                if st.button("Next ➡️", key="btn_media_next", disabled=(curr_page >= total_pages - 1)):
+                    st.session_state.media_page_num = min(total_pages - 1, curr_page + 1)
+                    st.rerun()
+
+            st.markdown("---")
+
+            # Media Cards Grid
+            start_i = curr_page * per_page
+            end_i = min(start_i + per_page, tot_filtered)
+            page_items = filtered_media[start_i:end_i]
+
+            m_grid = st.columns(4)
+            for idx, item in enumerate(page_items):
+                f_path = item["path"]
+                with m_grid[idx % 4]:
+                    with st.container(border=True):
+                        if item["type"] == "image":
+                            try:
+                                st.image(str(f_path), width='stretch')
+                            except Exception:
+                                st.error("Error loading image")
+                            st.caption(f"🖼️ {f_path.name[:25]}")
+                            st.caption(f"📁 {item['source']}")
+
+                            # Quick action buttons
+                            act1, act2 = st.columns(2)
+                            with act1:
+                                if st.button("✨ Undress", key=f"med_undress_{start_i + idx}", use_container_width=True):
+                                    try:
+                                        st.session_state.undress_image = Image.open(str(f_path)).convert("RGB")
+                                        st.session_state.undress_upload_name = None
+                                        st.session_state.undress_bbox = None
+                                        st.session_state.undress_detected = False
+                                        navigate_to("undress")
+                                    except Exception as e:
+                                        st.error(f"Failed to open: {e}")
+                            with act2:
+                                if st.button("🎭 Target", key=f"med_reface_{start_i + idx}", use_container_width=True):
+                                    st.session_state['reface_target_path'] = str(f_path)
+                                    st.session_state['reface_target_is_video'] = False
+                                    navigate_to("reface_v2")
+
+                        else:  # video
+                            try:
+                                st.video(str(f_path))
+                            except Exception:
+                                st.info("🎬 Video File")
+                            st.caption(f"🎬 {f_path.name[:25]}")
+                            st.caption(f"📁 {item['source']}")
+
+                            if st.button("🎭 Use as Reface Target", key=f"med_reface_vid_{start_i + idx}", use_container_width=True):
+                                st.session_state['reface_target_path'] = str(f_path)
+                                st.session_state['reface_target_is_video'] = True
+                                navigate_to("reface_v2")
+
+    # =========================================================================
+    # WORKSPACE 4: 📊 BIOMETRIC INSIGHTS & HEALTH STUDIO
+    # =========================================================================
+    elif view_mode == VIEW_INSIGHTS:
+        st.markdown("##### 📊 Library Health & Face Quality Distribution")
+        st.caption("Real-time biometric telemetry, confidence distributions, and dataset optimization diagnostics.")
+
+        all_faces = get_all_faces()
+        all_persons = get_all_persons()
+        tot_f = len(all_faces)
+        tot_p = len(all_persons)
+        unass_count = sum(1 for f in all_faces if f.get("person_id") is None)
+        assigned_count = tot_f - unass_count
+
+        ins_c1, ins_c2, ins_c3, ins_c4 = st.columns(4)
+        ins_c1.metric("Total Extracted Faces", tot_f)
+        ins_c2.metric("Curated Characters", tot_p)
+        ins_c3.metric("Assignment Rate", f"{((assigned_count / tot_f) * 100):.1f}%" if tot_f > 0 else "0%")
+        ins_c4.metric("Pending Ingestion", unass_count)
+
+        st.markdown("---")
+
+        if tot_f == 0:
+            st.info("No face embeddings available yet. Ingest media in Data Sources to generate analytics.")
+        else:
+            ch_col1, ch_col2 = st.columns(2)
+
+            with ch_col1:
+                with st.container(border=True):
+                    st.markdown("##### 📈 Face Quality Score Distribution")
+                    q_scores = [f.get("quality_score", 0.0) for f in all_faces]
+                    fig_hist = px.histogram(
+                        x=q_scores,
+                        nbins=20,
+                        labels={"x": "InsightFace Buffalo_L Confidence Score", "y": "Count"},
+                        color_discrete_sequence=["#8a2be2"]
+                    )
+                    fig_hist.update_layout(
+                        template="plotly_dark",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        margin=dict(l=20, r=20, t=30, b=20),
+                        height=320
+                    )
+                    st.plotly_chart(fig_hist, use_container_width=True)
+
+            with ch_col2:
+                with st.container(border=True):
+                    st.markdown("##### 🏆 Top Characters by Dataset Size")
+                    if all_persons:
+                        top_p = sorted(all_persons, key=lambda x: x.get("face_count", 0), reverse=True)[:10]
+                        p_names = [p["name"] for p in top_p]
+                        p_counts = [p.get("face_count", 0) for p in top_p]
+                        fig_bar = px.bar(
+                            x=p_counts,
+                            y=p_names,
+                            orientation="h",
+                            labels={"x": "Face Count", "y": "Character"},
+                            color=p_counts,
+                            color_continuous_scale="Purples"
+                        )
+                        fig_bar.update_layout(
+                            template="plotly_dark",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            margin=dict(l=20, r=20, t=30, b=20),
+                            height=320,
+                            yaxis=dict(autorange="reversed")
+                        )
+                        st.plotly_chart(fig_bar, use_container_width=True)
+                    else:
+                        st.info("No characters created yet.")
+
+            st.markdown("---")
+
+            # Duplicate Scanner Tool
+            with st.container(border=True):
+                st.markdown("##### 🔍 Vector Cosine Duplicate Scanner")
+                st.caption("Scans the 512-d embeddings matrix for duplicate crops (< 0.05 cosine distance).")
+                if st.button("Scan for Duplicates Now", key="btn_scan_dupes"):
+                    dup_pairs = []
+                    matrix, ids = db._get_embedding_matrix()
+                    if matrix.size > 0:
+                        norms = np.linalg.norm(matrix, axis=1)
+                        norms[norms == 0] = 1e-10
+                        norm_mat = matrix / norms[:, np.newaxis]
+                        # Compute similarity matrix
+                        sim_mat = np.dot(norm_mat, norm_mat.T)
+                        n = len(ids)
+                        for i_idx in range(n):
+                            for j_idx in range(i_idx + 1, n):
+                                if (1.0 - sim_mat[i_idx, j_idx]) < 0.05:
+                                    dup_pairs.append((ids[i_idx], ids[j_idx], 1.0 - sim_mat[i_idx, j_idx]))
+
+                    if dup_pairs:
+                        st.warning(f"Found {len(dup_pairs)} duplicate face pair(s) in the database!")
+                        for f1_id, f2_id, d_val in dup_pairs[:10]:
+                            st.caption(f"Face #{f1_id} ↔ Face #{f2_id} (Distance: {d_val:.4f})")
+                    else:
+                        st.success("✅ Clean database! No duplicate face embeddings found (threshold < 0.05).")
+
 
 
 elif page == "🎭 Reface":
