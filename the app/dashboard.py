@@ -96,21 +96,15 @@ from nav_routes import (
 # Load environment variables
 load_dotenv()
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+# Add parent directory to path for imports (this script re-runs on every
+# Streamlit rerun, so only insert it once)
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
 
-# Add ALL NVIDIA DLL paths for ONNX Runtime CUDA support
-if os.name == 'nt':
-    _nvidia_base = os.path.join(sys.prefix, 'Lib', 'site-packages', 'nvidia')
-    if os.path.isdir(_nvidia_base):
-        for _pkg in os.listdir(_nvidia_base):
-            _bin_dir = os.path.join(_nvidia_base, _pkg, 'bin')
-            if os.path.isdir(_bin_dir):
-                try:
-                    os.add_dll_directory(_bin_dir)
-                    os.environ['PATH'] = _bin_dir + os.pathsep + os.environ.get('PATH', '')
-                except Exception:
-                    pass
+# Add ALL NVIDIA DLL paths for ONNX Runtime CUDA support. Must be idempotent:
+# see cuda_dll_dirs.py for the WinError 206 that re-registering on each rerun caused.
+from cuda_dll_dirs import add_nvidia_dll_dirs
+add_nvidia_dll_dirs()
 
 # Initialize the JsonDatabase
 db = JsonDatabase()

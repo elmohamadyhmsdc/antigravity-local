@@ -83,7 +83,7 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 - Quality threshold default: **0.6**
 
 ## GPU Setup Notes
-- ONNX Runtime GPU: requires CUDA DLLs on PATH — `face_miner.py` and `dashboard.py` auto-add nvidia package bin dirs
+- ONNX Runtime GPU: requires CUDA DLLs on PATH — `cuda_dll_dirs.add_nvidia_dll_dirs()` registers the `venv/.../nvidia/*/bin` dirs (called by `dashboard.py`, the reface engines, `face_restore.py`, `face_masking.py`); `face_miner.py` separately adds the CUDA Toolkit bin. Registration must stay once-per-process: `dashboard.py` re-runs on every Streamlit rerun, and repeated `os.add_dll_directory` calls exhaust the DLL search list (~150 reruns) → `[WinError 206]` on `import torch`
 - `NvOptimusEnablement=1` env var set for Advanced Optimus/MUX laptops
 - Magic Undress downloads ~5 GB of models on first run, plus ~1 GB for the optional IP-Adapter + CLIP image encoder
 - Undress pipeline targets a 6 GB card: `enable_model_cpu_offload()` stays ON, generation caps at 768, and the high-res refine pass is tiled so VRAM stays flat regardless of photo size

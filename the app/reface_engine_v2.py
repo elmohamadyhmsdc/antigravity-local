@@ -15,17 +15,8 @@ import cv2
 import numpy as np
 
 # Add ALL NVIDIA DLL paths for ONNX Runtime CUDA support
-if os.name == 'nt':
-    _nvidia_base = os.path.join(sys.prefix, 'Lib', 'site-packages', 'nvidia')
-    if os.path.isdir(_nvidia_base):
-        for _pkg in os.listdir(_nvidia_base):
-            _bin_dir = os.path.join(_nvidia_base, _pkg, 'bin')
-            if os.path.isdir(_bin_dir):
-                try:
-                    os.add_dll_directory(_bin_dir)
-                    os.environ['PATH'] = _bin_dir + os.pathsep + os.environ.get('PATH', '')
-                except Exception:
-                    pass
+from cuda_dll_dirs import add_nvidia_dll_dirs
+add_nvidia_dll_dirs()
 
 import insightface
 from insightface.app import FaceAnalysis

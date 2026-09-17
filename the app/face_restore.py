@@ -23,18 +23,9 @@ from typing import Optional
 import cv2
 import numpy as np
 
-# Add NVIDIA DLL dirs so onnxruntime-gpu finds CUDA (mirrors reface_engine.py)
-if os.name == "nt":
-    _nvidia_base = os.path.join(sys.prefix, "Lib", "site-packages", "nvidia")
-    if os.path.isdir(_nvidia_base):
-        for _pkg in os.listdir(_nvidia_base):
-            _bin = os.path.join(_nvidia_base, _pkg, "bin")
-            if os.path.isdir(_bin):
-                try:
-                    os.add_dll_directory(_bin)
-                    os.environ["PATH"] = _bin + os.pathsep + os.environ.get("PATH", "")
-                except Exception:
-                    pass
+# Add NVIDIA DLL dirs so onnxruntime-gpu finds CUDA
+from cuda_dll_dirs import add_nvidia_dll_dirs
+add_nvidia_dll_dirs()
 
 import onnxruntime as ort
 
