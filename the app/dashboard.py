@@ -3704,66 +3704,105 @@ elif page == "🧬 Character LoRA":
         upload_paths = None
 
         if source_mode == "📤 Upload New":
-            character_name = st.text_input("Character Name", key="lora_upload_character_name")
+            from lora_staging import (MEDIA_EXTENSIONS, clear_staged, import_folder, list_staged, move_staged,
+                                      pick_folder, stage_bytes, staged_fingerprints, staging_dir, summarize_staging)
 
-            if "lora_upload_paths" not in st.session_state:
-                st.session_state["lora_upload_paths"] = []
+            character_name = st.text_input("Character Name", key="lora_upload_character_name")
             if "lora_upload_widget_key" not in st.session_state:
                 st.session_state["lora_upload_widget_key"] = 0
 
-            staged_count = len(st.session_state["lora_upload_paths"])
-            st.caption(
-                f"{staged_count} photo(s) staged so far. Upload in smaller batches (20-30 at a time) - "
-                "selecting 100+ files in one go can overwhelm the browser tab before it ever reaches the app."
-            )
+            # The staging folder is the staged list, so nothing is lost on a refresh or a dropped connection.
+            stage_dir = staging_dir(character_name)
+            staged = list_staged(stage_dir)
+            upload_paths = [str(p) for p in staged["images"] + staged["videos"]]
 
-            uploaded_files = st.file_uploader(
-                "Upload a batch of photos (any quality, any time period)",
-                type=["jpg", "jpeg", "png", "bmp", "webp"],
-                accept_multiple_files=True,
-                key=f"lora_dataset_upload_{st.session_state['lora_upload_widget_key']}",
-            )
+            notice = st.session_state.pop("lora_stage_notice", None)
+            if notice:
+                (st.warning if notice["result"].get("failed") else st.success)(summarize_staging(notice["result"]))
+                for error in notice["result"].get("errors", [])[:10]:
+                    st.caption(f"• {error}")
 
-            if uploaded_files:
-                from lora_dataset import _slugify
+            if not character_name.strip():
+                st.info("Type the character's name first — photos and videos are staged in a folder named after it.")
+            else:
+                st.markdown(f"**{len(staged['images'])} photo(s) and {len(staged['videos'])} video(s) staged**")
+                st.caption(f"In `{stage_dir}`. They stay there until you clear them, even if the page reloads or "
+                           "the dashboard restarts. Videos are sampled for face frames when you build the dataset.")
 
-                upload_dir = Path(__file__).parent / "lora_uploads" / _slugify(character_name or "unnamed")
-                upload_dir.mkdir(parents=True, exist_ok=True)
+                earlier_dir = staging_dir("")
+                earlier = list_staged(earlier_dir) if earlier_dir != stage_dir else {"images": [], "videos": []}
+                earlier_count = len(earlier["images"]) + len(earlier["videos"])
+                if earlier_count and st.button(f"📥 Add the {earlier_count} file(s) uploaded earlier without a name",
+                                               help=f"Moves them here from `{earlier_dir}`."):
+                    st.session_state["lora_stage_notice"] = {"result": move_staged(earlier_dir, stage_dir)}
+                    st.rerun()
 
-                failed_files = []
-                print(f"[LORA_UPLOAD] {datetime.now().isoformat()} starting save of {len(uploaded_files)} file(s) to {upload_dir}", flush=True)
-                progress = st.progress(0.0, text=f"Saving 0/{len(uploaded_files)} photo(s)...")
-                for i, uf in enumerate(uploaded_files):
-                    print(f"[LORA_UPLOAD] {datetime.now().isoformat()} [{i+1}/{len(uploaded_files)}] {uf.name} ({uf.size} bytes) - reading buffer...", flush=True)
-                    try:
-                        fpath = upload_dir / uf.name
-                        with open(fpath, "wb") as out:
-                            out.write(uf.getbuffer())
-                        st.session_state["lora_upload_paths"].append(str(fpath))
-                        print(f"[LORA_UPLOAD] {datetime.now().isoformat()} [{i+1}/{len(uploaded_files)}] {uf.name} - saved OK", flush=True)
-                    except Exception as e:
-                        failed_files.append((uf.name, str(e)))
-                        print(f"[LORA_UPLOAD] {datetime.now().isoformat()} [{i+1}/{len(uploaded_files)}] {uf.name} - FAILED: {e}", flush=True)
-                    progress.progress((i + 1) / len(uploaded_files), text=f"Saving {i + 1}/{len(uploaded_files)} photo(s)...")
-                progress.empty()
-                print(f"[LORA_UPLOAD] {datetime.now().isoformat()} done: {len(uploaded_files) - len(failed_files)} saved, {len(failed_files)} failed", flush=True)
+                add_mode = st.radio("Add photos & videos", ["📁 From a folder on this PC", "📤 Upload from the browser"],
+                                    horizontal=True, key="lora_stage_add_mode")
+                if add_mode == "📁 From a folder on this PC":
+                    folder_col, browse_col = st.columns([5, 1], vertical_alignment="bottom")
+                    # The button is handled before the text box exists this run, so it may still set the box's value.
+                    if browse_col.button("📂 Browse…", width='stretch',
+                                         help="Opens a folder picker on the PC running the dashboard."):
+                        picked = pick_folder(st.session_state.get("lora_import_folder", ""))
+                        if picked:
+                            st.session_state["lora_import_folder"] = picked
+                    import_source = folder_col.text_input("Folder", key="lora_import_folder",
+                                                          placeholder=r"D:\Phone\DCIM\Camera").strip().strip('"')
+                    import_recursive = st.checkbox("Include subfolders", value=True, key="lora_import_recursive")
+                    st.caption("Best for big batches and long videos: files are read straight from disk, so there's "
+                               "no upload to fail. Same-drive files are hard-linked (no extra space). Files already "
+                               "staged are skipped, so running it again only adds what's new.")
+                    if st.button("➕ Import", disabled=not import_source):
+                        bar = st.progress(0.0, text="Scanning...")
+                        try:
+                            result = import_folder(import_source, stage_dir, recursive=import_recursive, progress=bar.progress)
+                        except OSError as e:
+                            bar.empty()
+                            st.error(f"Couldn't import: {e}")
+                        else:
+                            print(f"[LORA_UPLOAD] {datetime.now().isoformat()} import {import_source} -> {stage_dir}: "
+                                  f"{summarize_staging(result)}", flush=True)
+                            if not result["found"] and not result["unsupported"]:
+                                result["errors"] = [f"No photos or videos found in {import_source}"]
+                            st.session_state["lora_stage_notice"] = {"result": result}
+                            st.rerun()
+                else:
+                    st.caption("Fine for a few dozen photos. Files are only saved once the whole batch has arrived, "
+                               "and a dropped connection stops the rest of the batch — for big batches or videos, "
+                               "use **From a folder on this PC**. If a batch fails part-way, select the same files "
+                               "again: the ones already staged are skipped.")
+                    uploaded_files = st.file_uploader(
+                        "Photos and videos", type=sorted(ext.lstrip(".") for ext in MEDIA_EXTENSIONS),
+                        accept_multiple_files=True, key=f"lora_dataset_upload_{st.session_state['lora_upload_widget_key']}",
+                    )
+                    if uploaded_files:
+                        result = {"added": 0, "duplicate": 0, "unsupported": 0, "failed": 0, "errors": []}
+                        known = staged_fingerprints(stage_dir)
+                        bar = st.progress(0.0, text=f"Saving 0/{len(uploaded_files)}...")
+                        for i, uf in enumerate(uploaded_files):
+                            try:
+                                result[stage_bytes(stage_dir, uf.name, uf.getvalue(), known)] += 1
+                            except OSError as e:
+                                result["failed"] += 1
+                                result["errors"].append(f"{uf.name}: {e}")
+                            bar.progress((i + 1) / len(uploaded_files), text=f"Saving {i + 1}/{len(uploaded_files)}...")
+                        print(f"[LORA_UPLOAD] {datetime.now().isoformat()} browser batch of {len(uploaded_files)} -> "
+                              f"{stage_dir}: {summarize_staging(result)}", flush=True)
+                        st.session_state["lora_stage_notice"] = {"result": result}
+                        # A fresh, empty uploader so the next batch doesn't re-include these files.
+                        st.session_state["lora_upload_widget_key"] += 1
+                        st.rerun()
 
-                if failed_files:
-                    st.warning(f"{len(failed_files)} photo(s) failed to save:")
-                    for name, err in failed_files[:10]:
-                        st.caption(f"• {name}: {err}")
+                if upload_paths:
+                    with st.popover("🗑️ Clear staged files"):
+                        st.write(f"Deletes the {len(upload_paths)} staged file(s) in `{stage_dir}`. "
+                                 "Originals imported from a folder stay where they are.")
+                        if st.button("Delete staged files", type="primary", key="lora_clear_staged"):
+                            clear_staged(stage_dir)
+                            st.rerun()
 
-                # Force a fresh, empty uploader widget so the next batch doesn't
-                # re-include files already saved, and rerun to show the updated count.
-                st.session_state["lora_upload_widget_key"] += 1
-                st.rerun()
-
-            if st.session_state["lora_upload_paths"] and st.button("🗑️ Clear staged photos"):
-                st.session_state["lora_upload_paths"] = []
-                st.rerun()
-
-            upload_paths = st.session_state.get("lora_upload_paths")
-            if st.button("🛠️ Build Dataset", type="primary", disabled=not (character_name and upload_paths)):
+            if st.button("🛠️ Build Dataset", type="primary", disabled=not (character_name.strip() and upload_paths)):
                 build_clicked = True
                 build_kind = "upload"
                 build_person_name = character_name
@@ -3795,7 +3834,10 @@ elif page == "🧬 Character LoRA":
 
                     existing = next((p for p in persons if p["name"].lower() == build_person_name.lower()), None)
                     build_person_id = existing["id"] if existing else add_person(build_person_name)
-                    report = build_dataset_from_uploads(upload_paths, build_person_id, build_person_name, get_face_analyzer())
+                    build_bar = st.progress(0.0, text="Finding faces...")
+                    report = build_dataset_from_uploads(upload_paths, build_person_id, build_person_name, get_face_analyzer(),
+                                                        progress=build_bar.progress)
+                    build_bar.empty()
                 else:
                     from lora_dataset import build_dataset
 
@@ -3812,8 +3854,13 @@ elif page == "🧬 Character LoRA":
                 st.success(f"Built {report['image_count']} images in {report['dataset_dir']}")
             if report["skipped_body_count"]:
                 st.info(f"{report['skipped_body_count']} item(s) had no body crop (video-sourced or missing source image) — face-only was used for those.")
+            if report.get("video_count"):
+                from lora_dataset import FRAMES_PER_VIDEO
+                unreadable = (f" {report['unreadable_video_count']} couldn't be opened (unsupported codec?)."
+                              if report.get("unreadable_video_count") else "")
+                st.info(f"Sampled up to {FRAMES_PER_VIDEO} frames from each of {report['video_count']} video(s).{unreadable}")
             if report.get("skipped_no_face_count"):
-                st.info(f"{report['skipped_no_face_count']} uploaded photo(s) had no detectable face and were skipped.")
+                st.info(f"{report['skipped_no_face_count']} uploaded photo(s) or video frame(s) had no detectable face and were skipped.")
 
             dataset_dir = Path(report["dataset_dir"])
             image_files = sorted(dataset_dir.glob("*.jpg"))

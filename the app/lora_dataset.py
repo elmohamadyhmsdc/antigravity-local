@@ -21,10 +21,52 @@ from mask_utils import get_person_bbox
 QUALITY_THRESHOLD = 0.6  # matches database.py / reface_engine_v3.py convention
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm", ".3gp", ".wmv"}
+
+# A clip adds at most this many frames, at least this far apart, so one long video can't flood the
+# dataset with near-identical shots of the same moment.
+FRAMES_PER_VIDEO = 12
+MIN_SECONDS_BETWEEN_FRAMES = 1.0
+VIDEO_FRAMES_DIRNAME = "_frames"
 
 
 def _is_image_source(source_path: str) -> bool:
     return Path(source_path).suffix.lower() in IMAGE_EXTENSIONS
+
+
+def _is_video_source(source_path: str) -> bool:
+    return Path(source_path).suffix.lower() in VIDEO_EXTENSIONS
+
+
+def sample_video_frames(video_path: str, frames_dir: Path, max_frames: int = FRAMES_PER_VIDEO,
+                        min_gap_seconds: float = MIN_SECONDS_BETWEEN_FRAMES) -> list:
+    """Saves evenly spaced frames of a video as JPGs in frames_dir (emptied first) and returns their
+    paths, so the photo pipeline — face detection, body crop, captioning — can treat them as photos.
+    Returns [] for a video OpenCV can't open."""
+    frames_dir = Path(frames_dir)
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    for old in frames_dir.glob("*.jpg"):
+        old.unlink()
+
+    cap = cv2.VideoCapture(str(video_path))
+    try:
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) if cap.isOpened() else 0
+        if total <= 0:
+            return []
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        count = max(1, min(max_frames, int(total / fps / min_gap_seconds)))
+        paths = []
+        for k in range(count):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int((k + 0.5) * total / count))
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                continue
+            path = frames_dir / f"frame_{k:02d}.jpg"
+            cv2.imwrite(str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            paths.append(str(path))
+        return paths
+    finally:
+        cap.release()
 
 
 def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[FaceRestorer] = None) -> Dict:
@@ -197,7 +239,7 @@ def _get_or_create_trigger_word(person_id: int) -> str:
 
 
 def _write_dataset_records(face_records, trigger_word: str, slug: str, output_root: Path, repeats: int,
-                            face_app, restorer: FaceRestorer, tagger: "WD14Tagger") -> Dict:
+                            face_app, restorer: FaceRestorer, tagger: "WD14Tagger", progress=None) -> Dict:
     """Shared write loop: turns a list of face-record-shaped dicts (either pulled
     from the database or synthesized fresh by detect_face_record_from_image)
     into the sd-scripts folder layout. Both build_dataset() and
@@ -209,6 +251,8 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
     skipped_body_count = 0
 
     for i, face in enumerate(face_records):
+        if progress:
+            progress(i / max(len(face_records), 1), f"Cropping + captioning {i + 1}/{len(face_records)}")
         extracted = extract_face_and_body_crop(face, face_app, restorer=restorer)
         if extracted["skipped_body"]:
             skipped_body_count += 1
@@ -302,7 +346,8 @@ def detect_face_record_from_image(image_path: str, face_app) -> Optional[Dict]:
 
 def build_dataset_from_uploads(image_paths, person_id: int, person_name: str, face_app,
                                 output_root: Path = None, repeats: int = DEFAULT_REPEATS,
-                                restorer: Optional[FaceRestorer] = None, tagger: Optional["WD14Tagger"] = None) -> Dict:
+                                restorer: Optional[FaceRestorer] = None, tagger: Optional["WD14Tagger"] = None,
+                                progress=None) -> Dict:
     """
     Builds an sd-scripts-compatible dataset directly from a list of uploaded
     image paths, without requiring those photos to already be mined into the
@@ -311,8 +356,14 @@ def build_dataset_from_uploads(image_paths, person_id: int, person_name: str, fa
     bookkeeping (create one on the fly with database.add_person() if the
     character doesn't already exist as a gallery person).
 
+    Videos in the list are sampled with sample_video_frames() into a
+    `_frames/<video name>/` folder next to the video, and each frame is then
+    handled like an uploaded photo. `progress(fraction, text)` — e.g. a
+    Streamlit progress bar's .progress — is called as items are processed.
+
     Returns the same shape as build_dataset(), plus "skipped_no_face_count"
-    for uploaded images where no face could be detected at all.
+    for uploaded images (or video frames) where no face could be detected at
+    all, "video_count", and "unreadable_video_count".
     """
     if output_root is None:
         output_root = Path(__file__).parent / "lora_datasets"
@@ -324,15 +375,37 @@ def build_dataset_from_uploads(image_paths, person_id: int, person_name: str, fa
     trigger_word = _get_or_create_trigger_word(person_id)
     slug = _slugify(person_name)
 
+    image_paths = list(image_paths)
     records = []
     skipped_no_face = 0
-    for path in image_paths:
-        record = detect_face_record_from_image(path, face_app)
-        if record is None:
-            skipped_no_face += 1
-            continue
-        records.append(record)
+    video_count = unreadable_videos = 0
 
-    result = _write_dataset_records(records, trigger_word, slug, output_root, repeats, face_app, restorer, tagger)
-    result["skipped_no_face_count"] = skipped_no_face
+    def report(done, text):
+        # Finding faces is the first half of the bar, cropping + captioning the second.
+        if progress:
+            progress(min(done, 1.0) / 2, text)
+
+    for n, path in enumerate(image_paths):
+        if _is_video_source(path):
+            video_count += 1
+            report(n / max(len(image_paths), 1), f"Sampling frames from video {Path(path).name} ({n + 1}/{len(image_paths)})")
+            frames = sample_video_frames(path, Path(path).parent / VIDEO_FRAMES_DIRNAME / Path(path).name)
+            if not frames:
+                unreadable_videos += 1
+        else:
+            frames = [path]
+        for frame_path in frames:
+            report(n / max(len(image_paths), 1), f"Finding faces {n + 1}/{len(image_paths)}")
+            record = detect_face_record_from_image(frame_path, face_app)
+            if record is None:
+                skipped_no_face += 1
+                continue
+            records.append(record)
+
+    result = _write_dataset_records(records, trigger_word, slug, output_root, repeats, face_app, restorer, tagger,
+                                    progress=(lambda f, text: progress(0.5 + f / 2, text)) if progress else None)
+    if progress:
+        progress(1.0, "Done")
+    result.update(skipped_no_face_count=skipped_no_face, video_count=video_count,
+                  unreadable_video_count=unreadable_videos)
     return result

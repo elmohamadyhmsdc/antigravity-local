@@ -201,10 +201,52 @@ try:
         print(f"Expected 4 images written (2 uploads x face+body crop), got: {upload_report}")
         exit(1)
 
+    # --- Videos in the upload list: sampled into frames, then handled like photos ---
+    from lora_dataset import VIDEO_FRAMES_DIRNAME, sample_video_frames
+
+    video_path = fixture_dir3 / "clip.avi"
+    writer = cv2.VideoWriter(str(video_path), cv2.VideoWriter_fourcc(*"MJPG"), 10, (640, 480))
+    for frame_index in range(50):  # 5 seconds at 10 fps
+        writer.write(np.full((480, 640, 3), 100 + frame_index, dtype=np.uint8))
+    writer.release()
+    broken_video = fixture_dir3 / "broken.mp4"
+    broken_video.write_bytes(b"not a video")
+
+    frames = sample_video_frames(str(video_path), fixture_dir3 / "frames_check")
+    if len(frames) != 5:  # one per second of a 5 s clip, under the FRAMES_PER_VIDEO cap
+        print(f"Expected 5 frames sampled from a 5 s clip, got {len(frames)}: {frames}")
+        exit(1)
+    if len(sample_video_frames(str(video_path), fixture_dir3 / "frames_check", max_frames=3)) != 3 or \
+            len(list((fixture_dir3 / "frames_check").glob("*.jpg"))) != 3:
+        print("sample_video_frames should respect max_frames and clear frames from an earlier run")
+        exit(1)
+    if sample_video_frames(str(broken_video), fixture_dir3 / "frames_broken") != []:
+        print("sample_video_frames should return [] for a file OpenCV can't open")
+        exit(1)
+
+    progress_calls = []
+    video_report = build_dataset_from_uploads(
+        [upload_paths[0], str(video_path), str(broken_video)], pid3, "Upload Path Test", _FakeFaceApp(),
+        output_root=Path("temp_lora_test3_video_out"), progress=lambda f, text: progress_calls.append(f))
+    if (video_report["video_count"], video_report["unreadable_video_count"]) != (2, 1):
+        print(f"Expected 2 videos, 1 unreadable, got: {video_report}")
+        exit(1)
+    if video_report["image_count"] != 12:  # (1 photo + 5 frames) x face + body crop
+        print(f"Expected 12 images from 1 photo + 5 video frames, got: {video_report}")
+        exit(1)
+    if not (fixture_dir3 / VIDEO_FRAMES_DIRNAME / "clip.avi").is_dir():
+        print("Video frames should be kept in a _frames/<video name> folder next to the video")
+        exit(1)
+    if not progress_calls or progress_calls[-1] != 1.0 or progress_calls != sorted(progress_calls):
+        print(f"progress should rise monotonically to 1.0, got: {progress_calls}")
+        exit(1)
+
     db.delete_person(pid3)
     _shutil.rmtree(fixture_dir3, ignore_errors=True)
     _shutil.rmtree(Path("temp_lora_test3_out"), ignore_errors=True)
-    print("Upload-path verification successful! build_dataset_from_uploads works without pre-existing gallery faces.")
+    _shutil.rmtree(Path("temp_lora_test3_video_out"), ignore_errors=True)
+    print("Upload-path verification successful! build_dataset_from_uploads works without pre-existing gallery faces, "
+          "and samples frames from videos.")
 except ImportError as e:
     print(f"Import failed: {e}")
     exit(1)

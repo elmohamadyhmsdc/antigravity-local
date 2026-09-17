@@ -5,3 +5,8 @@ secondaryBackgroundColor = "#12141c" # Surface / Card backdrop
 textColor = "#f8fafc" # Crisp White
 font = "sans serif"
 
+
+[server]
+# MB per file (default 200). Lets Character LoRA's browser upload take phone videos; each uploaded file
+# is held in RAM until it's saved, so really big batches should use that tab's folder import instead.
+maxUploadSize = 2048
