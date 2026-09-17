@@ -101,6 +101,88 @@ try:
                 exit(1)
     print("Resume helpers verification successful!")
 
+    # --- lora_trainer.py: live stage/progress parsing of sd-scripts output (what the dashboard shows) ---
+    from datetime import datetime, timedelta
+    from lora_trainer import (update_training_state, describe_training_state, read_log_tail, training_view,
+                              STAGE_TRAINING, _TrainingLog)
+
+    state = {"epoch": 1, "total_epochs": 3}
+    feed = [
+        ("2026-09-17 10:07:01 INFO     load StableDiffusion checkpoint: models/sd15.safetensors  model_io.py:361", "stage", "Loading the base model..."),
+        ("                    INFO     loading u-net: <All keys matched successfully>           model_util.py:1017", None, "Loading the base model..."),
+        ("                    INFO     caching latents...                                       dataset.py:802", "stage", None),
+        (" 39%|###9      | 20/51 [00:02<00:03,  9.10it/s]", "progress", None),
+        ("some unrelated line", None, None),
+        ("running training / 学習開始", "stage", "Starting the training loop..."),
+        ("steps:   0%|          | 0/3060 [00:00<?, ?it/s]", "stage", "Training epoch 1/3 — step 0/3060"),
+        ("epoch 1/3", "stage", "Training epoch 1/3 — step 0/3060"),
+        ("steps:  19%|█▉        | 589/3060 [05:12<21:50,  1.89it/s, avr_loss=0.0912]", "progress", "Training epoch 1/3 — step 589/3060"),
+    ]
+    for line, expected_change, expected_message in feed:
+        change = update_training_state(state, line)
+        if change != expected_change:
+            print(f"update_training_state({line!r}) should return {expected_change!r}, got {change!r}")
+            exit(1)
+        if expected_message and describe_training_state(state) != expected_message:
+            print(f"After {line!r} the message should be {expected_message!r}, got {describe_training_state(state)!r}")
+            exit(1)
+        if line.startswith(" 39%") and (state.get("stage_done"), state.get("stage_total")) != (20, 51):
+            print(f"The latent-caching bar should record 20/51, got {state}")
+            exit(1)
+    if state["stage"] != STAGE_TRAINING or "stage_total" in state:
+        print(f"Entering training should drop the caching bar's counts: {state}")
+        exit(1)
+    if state["loss"] != 0.0912 or abs(state["sec_per_step"] - 1 / 1.89) > 1e-9:
+        print(f"Loss and speed should come from the step bar: {state}")
+        exit(1)
+
+    slow = {"total_epochs": 3}
+    update_training_state(slow, "steps:  50%|#####     | 10/20 [00:50<00:50,  5.00s/it, avr_loss=0.1]")
+    if slow["sec_per_step"] != 5.0:
+        print(f"A 's/it' rate is already seconds per step: {slow}")
+        exit(1)
+    resumed = {"total_epochs": 3}
+    update_training_state(resumed, "steps:   0%|          | 0/3060 [00:00<?, ?it/s]", resumed_epochs=2)
+    if resumed["step"] != 2040:
+        print(f"After resuming past 2 of 3 epochs, step 0 should read as 2040, got {resumed['step']}")
+        exit(1)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        log_path = Path(tmp) / "train.log"
+        log_path.write_text("\n".join(f"line {i}" for i in range(100)), encoding="utf-8")
+        tail = read_log_tail(log_path).splitlines()
+        if len(tail) != 40 or tail[-1] != "line 99":
+            print(f"read_log_tail should return the last 40 lines, got {len(tail)} ending {tail[-1:]}")
+            exit(1)
+        if read_log_tail(Path(tmp) / "missing.log") != "":
+            print("read_log_tail should return '' for a missing log")
+            exit(1)
+
+        thinned_path = Path(tmp) / "thinned.log"
+        log = _TrainingLog(thinned_path)
+        for step in range(6):  # redraws within BAR_INTERVAL: only the first and the last one are kept
+            log.write(f"steps:  {step}%|          | {step}/3060 [00:00<?, ?it/s]")
+        log.write("saving checkpoint: example-000001.safetensors")
+        log.close()
+        kept = thinned_path.read_text(encoding="utf-8").splitlines()
+        if len(kept) != 3 or "| 0/3060" not in kept[0] or "| 5/3060" not in kept[1]:
+            print(f"_TrainingLog should keep the first bar, the last bar before a normal line, and that line: {kept}")
+            exit(1)
+
+        # A job saved before `details` existed: epoch/step come from its message, the ETA is extrapolated.
+        now = datetime(2026, 9, 17, 12, 0, 0)
+        old_job = Job(id="abc12345", job_type="train_lora", status=JobStatus.RUNNING, progress=0.19,
+                      message="Training epoch 1/3 — step 589/3060", created_at=(now - timedelta(minutes=11)).isoformat(),
+                      started_at=(now - timedelta(minutes=10)).isoformat(), params={"output_dir": tmp, "output_name": "example"})
+        view = training_view(old_job, JobManager(tmp), now=now)
+        if (view.get("epoch"), view.get("step"), view.get("total_steps")) != (1, 589, 3060):
+            print(f"training_view should read epoch/step from an old job's message: {view}")
+            exit(1)
+        if not view["eta_is_rough"] or abs(view["eta_seconds"] - 600 * (3060 - 589) / 589) > 1e-6:
+            print(f"training_view should extrapolate a rough ETA from elapsed time: {view}")
+            exit(1)
+    print("Training progress parsing verification successful!")
+
     if "networks.lora" not in args:
         print(f"Expected network_module 'networks.lora' in args: {args}")
         exit(1)

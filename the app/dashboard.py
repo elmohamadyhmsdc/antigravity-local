@@ -3096,16 +3096,35 @@ elif page == "🧬 Character LoRA":
                     st.success(f"Training job queued: {job.id}")
 
             st.markdown("**Recent training jobs:**")
-            from job_manager import JobManager as _JM, start_queue_worker
-            from lora_trainer import can_resume_training, latest_resume_state, resume_training_job, training_run_dir
+            from job_manager import JobManager as _JM, JobStatus as _JS, start_queue_worker
+            from lora_trainer import (can_resume_training, latest_resume_state, read_log_tail, resume_training_job,
+                                      training_log_path, training_run_dir, training_view)
 
             train_jobs_dir = str(Path(__file__).parent / "jobs")
             train_jobs = _JM(train_jobs_dir)
-            recent = [j for j in train_jobs.list_jobs(limit=20) if j.job_type == "train_lora"]
-            for j in recent:
-                st.write(f"`{j.id}` — {j.status.value} — {j.message} ({int(j.progress*100)}%)")
+            person_names = {p["id"]: p["name"] for p in persons}
+
+            def _fmt_duration(seconds):
+                if seconds is None:
+                    return "—"
+                h, rem = divmod(int(max(seconds, 0)), 3600)
+                m, s = divmod(rem, 60)
+                return f"{h}h {m:02d}m" if h else (f"{m}m {s:02d}s" if m else f"{s}s")
+
+            def _settings_line(p):
+                return (f"{p.get('epochs')} epochs · dim {p.get('network_dim')} · alpha {p.get('network_alpha')} · "
+                        f"lr {p.get('learning_rate')} · batch {p.get('batch_size')} · {p.get('max_resolution', 512)}px")
+
+            def _training_active():
+                # Poll only while a worker is alive to move a training job forward; a job nobody will
+                # pick up never changes, and polling it would just rerun this panel forever.
+                return train_jobs.is_worker_running() and any(
+                    j.job_type == "train_lora" and j.status in (_JS.PENDING, _JS.QUEUED, _JS.RUNNING)
+                    for j in train_jobs.list_jobs(limit=20))
+
+            def _resume_controls(j):
                 if not can_resume_training(j, train_jobs):
-                    continue
+                    return
                 saved = latest_resume_state(training_run_dir(j), j.params["output_name"])
                 if saved is None:
                     st.caption("No finished epoch was saved for this run, so there's nothing to resume — start a new training instead.")
@@ -3113,6 +3132,119 @@ elif page == "🧬 Character LoRA":
                     resume_training_job(j, train_jobs)
                     start_queue_worker(train_jobs_dir)
                     st.rerun()
+
+            def _render_running(j, who, view):
+                p = j.params or {}
+                with st.container(border=True):
+                    st.markdown(f"🟢 **Training `{j.id}` — {who}**")
+                    stage = view.get("stage") or j.message
+                    stage_for = f" · for {_fmt_duration(view['stage_seconds'])}" if view.get("stage_seconds") is not None else ""
+                    st.markdown(f"**Now:** {stage}{stage_for}")
+                    if view.get("stage_total"):
+                        st.progress(min(view["stage_done"] / view["stage_total"], 1.0),
+                                    text=f"{view['stage_done']}/{view['stage_total']}")
+                    st.progress(min(j.progress, 1.0), text=f"Overall {int(j.progress * 100)}% — {j.message}")
+
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Epoch", f"{view['epoch']}/{view['total_epochs']}" if view.get("epoch") else "—")
+                    if view.get("total_steps"):  # the total goes in the label: "3,010/3,060" is too wide for a third-width metric
+                        c2.metric(f"Step (of {view['total_steps']:,})", f"{view['step']:,}")
+                    else:
+                        c2.metric("Step", "—")
+                    c3.metric("Loss (avg)", f"{view['loss']:.4f}" if view.get("loss") is not None else "—")
+                    c4, c5, c6 = st.columns(3)
+                    c4.metric("Elapsed", _fmt_duration(view["elapsed_seconds"]))
+                    eta = _fmt_duration(view["eta_seconds"]) if view["eta_seconds"] is not None else "—"
+                    c5.metric("Time left", f"≈ {eta}" if view["eta_is_rough"] else eta)
+                    c6.metric("Speed", f"{view['sec_per_step']:.2f} s/step" if view.get("sec_per_step") else "—")
+
+                    idle = view["idle_seconds"]
+                    if idle is not None and idle > 300:
+                        st.warning(f"No sign of life from sd-scripts for {_fmt_duration(idle)}. Loading the model can take "
+                                   "a minute or two, but this long usually means it's stuck — check the log below and "
+                                   "the terminal running Streamlit.")
+                    elif idle is not None:
+                        st.caption(f"Last update {_fmt_duration(idle)} ago · refreshes every 2 s")
+                    st.caption(f"Started {j.started_at[:19].replace('T', ' ')} · {_settings_line(p)}")
+                    st.caption(f"Dataset: `{p.get('dataset_dir')}` · run folder: `{training_run_dir(j)}`")
+                    if view["saved_files"]:
+                        st.caption("Saved so far: " + ", ".join(f"{name} ({mb:.0f} MB)" for name, mb in view["saved_files"]))
+
+                    with st.expander("📜 Training log (last 40 lines)"):
+                        tail = read_log_tail(training_log_path(j))
+                        if tail:
+                            st.code(tail, language=None)
+                        else:
+                            st.caption("No log file for this run — it was started before the dashboard kept one, so "
+                                       "its output only shows in the terminal running Streamlit.")
+
+            def _render_queued(j, who, view, worker_alive):
+                with st.container(border=True):
+                    st.markdown(f"🕒 **Queued `{j.id}` — {who}**")
+                    if not worker_alive:
+                        st.error("The background worker isn't running, so this job won't start by itself "
+                                 "(the dashboard or PC was probably restarted).")
+                        if st.button("▶️ Start worker", key=f"start_worker_{j.id}"):
+                            start_queue_worker(train_jobs_dir)
+                            st.rerun()
+                    else:
+                        queued = train_jobs.get_queued_jobs()
+                        ahead = next((i for i, q in enumerate(queued) if q.id == j.id), 0)
+                        running = train_jobs.get_running_job()
+                        if running is not None:
+                            st.markdown(f"Waiting for job `{running.id}` ({running.job_type}) to finish first:")
+                            st.progress(min(running.progress, 1.0), text=running.message)
+                        elif ahead == 0:
+                            st.caption("The worker is picking this job up...")
+                        if ahead:
+                            st.caption(f"{ahead} other queued job(s) run before this one.")
+                    st.caption(f"Queued {_fmt_duration(view['queued_seconds'])} ago · {_settings_line(j.params or {})}")
+
+            def _render_finished(j, who, view, expanded):
+                p = j.params or {}
+                interrupted = j.status == _JS.RUNNING
+                icon = "⚠️" if interrupted else ("✅" if j.status == _JS.COMPLETED else "❌")
+                label = "interrupted" if interrupted else j.status.value
+                with st.expander(f"{icon} `{j.id}` — {who} — {label}", expanded=expanded):
+                    st.write(j.message)
+                    if interrupted:
+                        st.warning("Still marked running, but no worker process is alive — the run was cut off "
+                                   f"(dashboard or PC restarted?). Last sign of life {_fmt_duration(view['idle_seconds'])} ago.")
+                    elif view["elapsed_seconds"] is not None:
+                        st.caption(f"Ran for {_fmt_duration(view['elapsed_seconds'])} · started {(j.started_at or '')[:19].replace('T', ' ')}")
+                    if j.status != _JS.COMPLETED and view.get("stage"):
+                        st.caption(f"Stopped during: {view['stage']}")
+                    st.caption(_settings_line(p))
+                    if j.result_path:
+                        st.caption(f"LoRA file: `{j.result_path}`")
+                    if view["saved_files"]:
+                        st.caption("Epoch snapshots: " + ", ".join(f"{name} ({mb:.0f} MB)" for name, mb in view["saved_files"]))
+                    if j.error:
+                        st.code(j.error, language=None)
+                    _resume_controls(j)
+
+            polling = _training_active()
+
+            @st.fragment(run_every=2 if polling else None)
+            def _training_jobs_panel():
+                recent = [j for j in train_jobs.list_jobs(limit=20) if j.job_type == "train_lora"]
+                if not recent:
+                    st.caption("No training jobs yet.")
+                worker_alive = train_jobs.is_worker_running()
+                for i, j in enumerate(recent):
+                    p = j.params or {}
+                    who = person_names.get(p.get("person_id"), p.get("output_name", "?"))
+                    view = training_view(j, train_jobs)
+                    if j.status == _JS.RUNNING and worker_alive:
+                        _render_running(j, who, view)
+                    elif j.status in (_JS.PENDING, _JS.QUEUED):
+                        _render_queued(j, who, view, worker_alive)
+                    else:
+                        _render_finished(j, who, view, expanded=(i == 0))
+                if polling and not _training_active():
+                    st.rerun()  # the run just ended: stop polling and let the Generate tab pick up the new LoRA
+
+            _training_jobs_panel()
 
     with tab_generate:
         from database import get_person_lora_info

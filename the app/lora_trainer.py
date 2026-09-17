@@ -13,7 +13,10 @@ or interrupted job can be re-queued and continues from its newest saved
 epoch; on success the finished LoRA is moved up into models/loras.
 """
 
+import os
 import re
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -39,7 +42,33 @@ TARGET_TOTAL_STEPS = 3000
 
 _EPOCH_RE = re.compile(r"epoch\s+(\d+)\s*/\s*(\d+)", re.IGNORECASE)
 _STEP_RE = re.compile(r"steps:\s*\d+%\|.*\|\s*(\d+)/(\d+)")
+# Any tqdm bar, e.g. "100%|##########| 51/51 [00:05<00:00,  9.10it/s]" (latent caching has no desc).
+_BAR_RE = re.compile(r"\d+%\|.*\|\s*(\d+)/(\d+)")
+_RATE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(it/s|s/it)")
+_LOSS_RE = re.compile(r"avr_loss=([-+]?\d+(?:\.\d*)?(?:e[-+]?\d+)?|nan|inf)", re.IGNORECASE)
+# The one-line job message, for jobs saved before `details` existed.
+_MESSAGE_PROGRESS_RE = re.compile(r"epoch (\d+)/(\d+)(?: — step (\d+)/(\d+))?")
 _REPEATS_DIR_RE = re.compile(r"^(\d+)_")
+
+STAGE_LAUNCHING = "Launching sd-scripts (Python + torch)"
+STAGE_TRAINING = "Training"
+# sd-scripts log lines that open a new stage, in the order they normally appear. Loading the model and
+# caching latents print little for a minute or more; naming the stage keeps that from looking like a hang.
+_STAGE_MARKERS = (
+    ("prepare images", "Reading the dataset"),
+    ("make buckets", "Grouping images into resolution buckets"),
+    ("preparing accelerator", "Starting CUDA / accelerate"),
+    ("load stablediffusion checkpoint", "Loading the base model"),
+    ("loading u-net", "Loading the base model"),
+    ("caching latents", "Caching latents (VAE-encoding each image once)"),
+    ("import network module", "Building the LoRA network"),
+    ("prepare optimizer", "Preparing the optimizer"),
+    ("load train state", "Loading the saved training state"),
+    ("running training", "Starting the training loop"),
+    ("saving checkpoint", "Saving this epoch's LoRA"),
+    ("saving state", "Saving the training state"),
+    ("model saved", "Saving the final LoRA"),
+)
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}  # sd-scripts' library/dataset.py list
 # accelerate's save_state writes this file last, so a state folder without it was cut off mid-save.
 _STATE_COMPLETE_MARKER = "random_states_0.pkl"
@@ -89,6 +118,171 @@ def resume_training_job(job, manager):
     job.status = JobStatus.QUEUED
     job.message = "▶️ Queued to resume"
     manager.save_job(job)
+
+
+def training_log_path(job) -> Path:
+    """Everything sd-scripts printed for this job, appended across resumes."""
+    return training_run_dir(job) / "train.log"
+
+
+def read_log_tail(path, max_lines: int = 40) -> str:
+    """Last lines of a log that may still be growing, without reading the whole file."""
+    path = Path(path)
+    if not path.exists():
+        return ""
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        f.seek(max(0, f.tell() - 64_000))
+        text = f.read().decode("utf-8", errors="replace")
+    return "\n".join(text.splitlines()[-max_lines:])
+
+
+def update_training_state(state: dict, line: str, resumed_epochs: int = 0) -> Optional[str]:
+    """Folds one line of sd-scripts output into state (the job's `details`).
+
+    Returns "stage" when the run entered a new stage or epoch (worth saving at once), "progress" for a
+    progress-bar tick (fine to save throttled), or None when the line changed nothing.
+    """
+    now = datetime.now().isoformat()
+
+    def enter(stage) -> bool:
+        if state.get("stage") == stage:
+            return False
+        state.update(stage=stage, stage_started_at=now)
+        state.pop("stage_done", None)
+        state.pop("stage_total", None)
+        return True
+
+    step_match = _STEP_RE.search(line)
+    if step_match:
+        # sd-scripts' step counter runs across all epochs, not per epoch. After a resume it
+        # restarts from 0 while its total still spans the whole run, so add the done epochs back.
+        step, total_steps = int(step_match.group(1)), int(step_match.group(2))
+        step += resumed_epochs * (total_steps // max(state.get("total_epochs") or 1, 1))
+        state.update(step=step, total_steps=total_steps, updated_at=now)
+        rate = _RATE_RE.search(line)
+        if rate and float(rate.group(1)) > 0:
+            value = float(rate.group(1))
+            state["sec_per_step"] = value if rate.group(2) == "s/it" else 1.0 / value
+        loss = _LOSS_RE.search(line)
+        if loss:
+            state["loss"] = float(loss.group(1))
+        return "stage" if enter(STAGE_TRAINING) else "progress"
+
+    epoch_match = _EPOCH_RE.search(line)
+    if epoch_match:
+        state.update(epoch=int(epoch_match.group(1)), total_epochs=int(epoch_match.group(2)))
+        enter(STAGE_TRAINING)
+        return "stage"
+
+    bar_match = _BAR_RE.search(line)
+    if bar_match:
+        if state.get("stage") in (None, STAGE_TRAINING):
+            return None
+        state.update(stage_done=int(bar_match.group(1)), stage_total=int(bar_match.group(2)), updated_at=now)
+        return "progress"
+
+    lowered = line.lower()
+    for marker, stage in _STAGE_MARKERS:
+        if marker in lowered:
+            return "stage" if enter(stage) else None
+    return None
+
+
+def describe_training_state(state: dict) -> str:
+    """The one-line job message for the current `details`."""
+    stage = state.get("stage") or STAGE_LAUNCHING
+    if stage == STAGE_TRAINING:
+        text = f"Training epoch {state.get('epoch', '?')}/{state.get('total_epochs', '?')}"
+        if state.get("total_steps"):
+            text += f" — step {state['step']}/{state['total_steps']}"
+        return text
+    if state.get("stage_total"):
+        return f"{stage} — {state['stage_done']}/{state['stage_total']}"
+    return f"{stage}..."
+
+
+def training_view(job, manager, now: Optional[datetime] = None) -> dict:
+    """What the dashboard shows for a train_lora job: its live `details` plus derived timings in
+    seconds (None when unknown) and the LoRA snapshots saved so far."""
+    now = now or datetime.now()
+    view = dict(job.details or {})
+    if "step" not in view:
+        match = _MESSAGE_PROGRESS_RE.search(job.message or "")
+        if match:
+            view.setdefault("epoch", int(match.group(1)))
+            view.setdefault("total_epochs", int(match.group(2)))
+            if match.group(3):
+                view["step"], view["total_steps"] = int(match.group(3)), int(match.group(4))
+
+    def seconds_since(iso):
+        return (now - datetime.fromisoformat(iso)).total_seconds() if iso else None
+
+    view["queued_seconds"] = seconds_since(job.created_at)
+    view["stage_seconds"] = seconds_since(view.get("stage_started_at"))
+    if job.started_at and job.completed_at:
+        view["elapsed_seconds"] = (datetime.fromisoformat(job.completed_at) - datetime.fromisoformat(job.started_at)).total_seconds()
+    else:
+        view["elapsed_seconds"] = seconds_since(job.started_at)
+
+    view["eta_seconds"], view["eta_is_rough"] = None, False
+    if job.status == JobStatus.RUNNING and view.get("total_steps"):
+        steps_left = max(view["total_steps"] - view["step"], 0)
+        if view.get("sec_per_step"):
+            view["eta_seconds"] = max(steps_left * view["sec_per_step"] - (seconds_since(view.get("updated_at")) or 0), 0)
+        elif view["step"] and view["elapsed_seconds"]:
+            # No measured speed (job saved before `details` existed): extrapolate from the run so far, start-up included.
+            view["eta_seconds"] = view["elapsed_seconds"] * steps_left / view["step"]
+            view["eta_is_rough"] = True
+
+    # The job file is rewritten on every progress tick and the log on every line, so their newest
+    # modification time is the last sign of life from the run.
+    heartbeats = []
+    for path in (manager._job_file(job.id), training_log_path(job)):
+        try:
+            heartbeats.append(path.stat().st_mtime)
+        except OSError:
+            pass
+    view["idle_seconds"] = now.timestamp() - max(heartbeats) if heartbeats else None
+
+    view["saved_files"] = []
+    run_dir = training_run_dir(job)
+    if run_dir.is_dir():
+        for path in sorted(run_dir.glob("*.safetensors")):
+            try:
+                view["saved_files"].append((path.name, path.stat().st_size / 2**20))
+            except OSError:  # sd-scripts removed an old snapshot between the glob and the stat
+                pass
+    return view
+
+
+class _TrainingLog:
+    """train.log in the run folder. Progress bars redraw several times a second, so those are thinned
+    to one line every BAR_INTERVAL seconds (plus the last one before any other line) to stay readable."""
+
+    BAR_INTERVAL = 10.0
+
+    def __init__(self, path):
+        self._file = open(path, "a", encoding="utf-8")
+        self._pending_bar = None
+        self._last_bar = 0.0
+
+    def write(self, line: str):
+        if _BAR_RE.search(line):
+            if time.monotonic() - self._last_bar < self.BAR_INTERVAL:
+                self._pending_bar = line
+                return
+            self._last_bar = time.monotonic()
+        elif self._pending_bar:
+            self._file.write(self._pending_bar + "\n")
+        self._pending_bar = None
+        self._file.write(line + "\n")
+        self._file.flush()
+
+    def close(self):
+        if self._pending_bar:
+            self._file.write(self._pending_bar + "\n")
+        self._file.close()
 
 
 def build_training_args(dataset_dir: str, output_dir: str, output_name: str, base_checkpoint: str,
@@ -145,10 +339,8 @@ def build_training_args(dataset_dir: str, output_dir: str, output_name: str, bas
 
 def run_training(job, manager) -> bool:
     """Entry point called from job_manager.run_single_job for job_type == 'train_lora'."""
-    import os
     import shutil
     import subprocess
-    from datetime import datetime
 
     params = job.params
     run_dir = training_run_dir(job)
@@ -157,8 +349,11 @@ def run_training(job, manager) -> bool:
 
     job.status = JobStatus.RUNNING
     job.started_at = datetime.now().isoformat()
+    job.completed_at = None
     job.message = f"Resuming LoRA training after epoch {resumed_epochs}..." if resume else "Starting LoRA training..."
     job.error = None
+    job.details = {"stage": STAGE_LAUNCHING, "stage_started_at": job.started_at,
+                   "epoch": resumed_epochs + 1, "total_epochs": params.get("epochs", DEFAULT_EPOCHS)}
     manager.save_job(job)
 
     if not VENV_LORA_PYTHON.exists() or not SD_SCRIPTS_TRAIN_SCRIPT.exists():
@@ -182,7 +377,6 @@ def run_training(job, manager) -> bool:
         max_resolution=params.get("max_resolution", DEFAULT_MAX_RESOLUTION),
         resume_state=str(resume[1]) if resume else None, resumed_epochs=resumed_epochs,
     )
-    total_epochs = params.get("epochs", DEFAULT_EPOCHS)
 
     cmd = [str(VENV_LORA_PYTHON), str(SD_SCRIPTS_TRAIN_SCRIPT)] + args
     print(f"[JOB {job.id}] Launching: {' '.join(cmd)}")
@@ -197,40 +391,48 @@ def run_training(job, manager) -> bool:
                                 stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
                                 bufsize=1, env=child_env)
 
+    log = _TrainingLog(training_log_path(job))
+    log.write(f"===== {datetime.now():%Y-%m-%d %H:%M:%S} "
+              f"{f'resuming after epoch {resumed_epochs}' if resume else 'new run'} =====")
+    log.write(" ".join(cmd))
+
     log_lines = []
-    current_epoch = resumed_epochs
+    last_save = time.monotonic()
     try:
         for line in process.stdout:
-            log_lines.append(line.rstrip("\n"))
+            line = line.rstrip("\n")
+            log_lines.append(line)
+            log.write(line)
             print(f"[JOB {job.id}] {line.rstrip()}")
 
-            epoch_match = _EPOCH_RE.search(line)
-            if epoch_match:
-                current_epoch, total_epochs = int(epoch_match.group(1)), int(epoch_match.group(2))
-                job.message = f"Training epoch {current_epoch}/{total_epochs}"
-                manager.save_job(job)
+            try:
+                change = update_training_state(job.details, line, resumed_epochs)
+            except Exception as e:  # a display-only parsing slip must never abort (and kill) a long training run
+                print(f"[JOB {job.id}] could not parse progress line: {e}")
+                change = None
+            if change is None:
                 continue
-
-            step_match = _STEP_RE.search(line)
-            if step_match:
-                # sd-scripts' step counter runs across all epochs, not per epoch. After a resume it
-                # restarts from 0 while its total still spans the whole run, so add the done epochs back.
-                step, total_steps = int(step_match.group(1)), int(step_match.group(2))
-                step += resumed_epochs * (total_steps // max(total_epochs, 1))
-                job.progress = min(0.99, step / max(total_steps, 1))
-                job.message = f"Training epoch {current_epoch}/{total_epochs} — step {step}/{total_steps}"
+            if job.details.get("total_steps"):
+                job.progress = min(0.99, job.details["step"] / max(job.details["total_steps"], 1))
+            job.message = describe_training_state(job.details)
+            # A new stage is saved at once; progress-bar ticks at most once a second.
+            if change == "stage" or time.monotonic() - last_save >= 1.0:
                 manager.save_job(job)
+                last_save = time.monotonic()
     finally:
         # If anything above raises (e.g. another stdout-encoding surprise), don't leave
         # train_network.py orphaned and blocked writing to a pipe nobody is draining.
         if process.poll() is None:
             process.kill()
         process.wait()
+        log.write(f"===== sd-scripts exited with code {process.returncode} =====")
+        log.close()
 
     if process.returncode != 0:
         job.status = JobStatus.FAILED
         job.message = "❌ sd-scripts training failed"
         job.error = "\n".join(log_lines[-50:])
+        job.completed_at = datetime.now().isoformat()
         manager.save_job(job)
         print(f"[JOB {job.id}] ❌ FAILED (exit code {process.returncode})")
         return False
@@ -239,6 +441,7 @@ def run_training(job, manager) -> bool:
     if not final_file.exists():
         job.status = JobStatus.FAILED
         job.message = "❌ Training finished but no .safetensors was produced"
+        job.completed_at = datetime.now().isoformat()
         job.error = "\n".join(log_lines[-50:])
         manager.save_job(job)
         return False

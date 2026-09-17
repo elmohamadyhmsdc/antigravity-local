@@ -47,7 +47,8 @@ class Job:
     last_frame: int = 0  # For video resume - last processed frame
     frames_done: int = 0  # cumulative across parts
     part_files: List[str] = field(default_factory=list)  # rendered segments, in order
-    
+    details: Dict[str, Any] = field(default_factory=dict)  # engine-specific live state (e.g. LoRA training stage/loss/speed)
+
     def to_dict(self):
         d = asdict(self)
         d['status'] = self.status.value
@@ -89,12 +90,16 @@ class JobManager:
     def load_job(self, job_id: str) -> Optional[Job]:
         """Load job state from disk."""
         path = self._job_file(job_id)
-        if path.exists():
+        # The worker rewrites a running job's file up to once a second while the dashboard polls it;
+        # a read that lands mid-write sees a truncated file, so retry briefly instead of dropping the job.
+        for _ in range(3):
+            if not path.exists():
+                return None
             try:
                 with open(path, 'r') as f:
                     return Job.from_dict(json.load(f))
-            except:
-                pass
+            except Exception:
+                time.sleep(0.05)
         return None
     
     def list_jobs(self, limit: int = 20) -> List[Job]:
