@@ -28,16 +28,17 @@ import time
 from pathlib import Path
 
 DEFAULT_PROMPT_TEMPLATE = (
-    "front view portrait of {trigger} person, neutral expression, closed mouth, "
-    "looking straight at camera, flat studio lighting, no shadows on face, "
-    "symmetrical face, highly detailed skin texture, 8k resolution, solid white background"
+    "raw candid color photo portrait of {trigger} person, natural daylight, "
+    "soft natural shadows, authentic skin texture, realistic facial features, "
+    "shallow depth of field, 35mm film photography, highly detailed, photorealistic"
 )
 DEFAULT_NEGATIVE_PROMPT = (
-    "smiling, teeth, side view, dramatic lighting, harsh shadows, glasses, "
-    "hair covering forehead, blurry, deformed"
+    "doll, plastic, smooth skin, cartoon, anime, illustration, 3d render, painting, "
+    "deformed, bad anatomy, bad eyes, disfigured, blurry, oversaturated, harsh contrast"
 )
 DEFAULT_STEPS = 30
-DEFAULT_GUIDANCE = 7.5
+DEFAULT_GUIDANCE = 4.5
+DEFAULT_LORA_SCALE = 0.8
 
 REFERENCE_COMPOSITION = "composition"
 REFERENCE_STYLE = "style"
@@ -98,7 +99,7 @@ def reference_size(width: int, height: int, base: int = 512, max_side: int = 768
     return max(8, round(width * scale) // 8 * 8), max(8, round(height * scale) // 8 * 8)
 
 
-def load_person_lora(pipe, lora_path):
+def load_person_lora(pipe, lora_path, lora_scale: float = DEFAULT_LORA_SCALE):
     """pipe.load_lora_weights(lora_path), working around a diffusers/transformers mismatch.
 
     diffusers converts the text-encoder half of a kohya (sd-scripts) LoRA to keys under
@@ -112,9 +113,18 @@ def load_person_lora(pipe, lora_path):
         def rename(d):
             return {k.replace("text_encoder.text_model.", "text_encoder.", 1): v for k, v in d.items()} if d else d
         state_dict, network_alphas = rename(state_dict), rename(network_alphas)
-    pipe.load_lora_into_unet(state_dict, network_alphas=network_alphas, unet=pipe.unet, metadata=metadata, _pipeline=pipe)
-    pipe.load_lora_into_text_encoder(state_dict, network_alphas=network_alphas, text_encoder=pipe.text_encoder,
-                                     lora_scale=pipe.lora_scale, metadata=metadata, _pipeline=pipe)
+    if network_alphas:
+        network_alphas = {k: float(v) * float(lora_scale) for k, v in network_alphas.items()}
+    adapter_name = "person_lora"
+    pipe.load_lora_into_unet(state_dict, network_alphas=network_alphas, unet=pipe.unet,
+                            adapter_name=adapter_name, metadata=metadata, _pipeline=pipe)
+    if hasattr(pipe, "text_encoder") and pipe.text_encoder is not None:
+        pipe.load_lora_into_text_encoder(state_dict, network_alphas=network_alphas, text_encoder=pipe.text_encoder,
+                                         adapter_name=adapter_name, lora_scale=float(lora_scale), metadata=metadata, _pipeline=pipe)
+    try:
+        pipe.set_adapters([adapter_name], adapter_weights=[float(lora_scale)])
+    except Exception:
+        pass
 
 
 def main():
@@ -126,6 +136,8 @@ def main():
     num_images = int(request.get("num_images", 1))
     steps = int(request.get("steps", DEFAULT_STEPS))
     seed = int(request.get("seed", -1))
+    lora_scale = float(request.get("lora_scale", DEFAULT_LORA_SCALE))
+    guidance_scale = float(request.get("guidance_scale", DEFAULT_GUIDANCE))
     output_dir = Path(request["output_dir"])
     file_prefix = request.get("file_prefix", "reference")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -141,7 +153,7 @@ def main():
 
     emit("stage", stage=STAGE_LOADING_TORCH)
     import torch
-    from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, UniPCMultistepScheduler
+    from diffusers import DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionPipeline
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
@@ -154,11 +166,11 @@ def main():
     emit("stage", stage=STAGE_LOADING_CHECKPOINT)
     pipeline_class = StableDiffusionImg2ImgPipeline if use_img2img else StableDiffusionPipeline
     pipe = pipeline_class.from_single_file(request["base_checkpoint"], torch_dtype=dtype, safety_checker=None)
-    pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
+    pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, use_karras_sigmas=True)
     pipe.set_progress_bar_config(disable=True)  # per-step progress is reported as events instead
 
     emit("stage", stage=STAGE_LOADING_LORA)
-    load_person_lora(pipe, request["lora_path"])
+    load_person_lora(pipe, request["lora_path"], lora_scale=lora_scale)
 
     if use_ip_adapter:
         emit("stage", stage=STAGE_LOADING_IP_ADAPTER)
@@ -203,7 +215,7 @@ def main():
             return callback_kwargs
 
         image = pipe(
-            prompt, negative_prompt=negative_prompt, num_inference_steps=steps, guidance_scale=DEFAULT_GUIDANCE,
+            prompt, negative_prompt=negative_prompt, num_inference_steps=steps, guidance_scale=guidance_scale,
             generator=torch.Generator(device).manual_seed(image_seed), callback_on_step_end=on_step_end,
             **reference_kwargs,
         ).images[0]

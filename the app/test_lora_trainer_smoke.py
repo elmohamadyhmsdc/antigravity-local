@@ -16,7 +16,8 @@ try:
     required_flags = [
         "--pretrained_model_name_or_path", "--train_data_dir", "--output_dir",
         "--output_name", "--network_module", "--network_dim", "--network_alpha",
-        "--train_batch_size", "--max_train_epochs", "--learning_rate",
+        "--network_train_unet_only", "--train_batch_size", "--max_train_epochs", "--learning_rate",
+        "--lr_scheduler", "--caption_extension", "--shuffle_caption", "--keep_tokens",
         "--mixed_precision", "--gradient_checkpointing", "--enable_bucket",
         "--save_model_as",
         # Without --sdpa, attention at 768px overflows a 6 GB card (~10 s/step, then CUDA OOM).
@@ -200,8 +201,8 @@ try:
     if "{trigger}" not in DEFAULT_PROMPT_TEMPLATE:
         print(f"DEFAULT_PROMPT_TEMPLATE must contain a {{trigger}} placeholder: {DEFAULT_PROMPT_TEMPLATE!r}")
         exit(1)
-    if "flat studio lighting" not in DEFAULT_PROMPT_TEMPLATE:
-        print(f"DEFAULT_PROMPT_TEMPLATE should request flat studio lighting per the master-reference recipe: {DEFAULT_PROMPT_TEMPLATE!r}")
+    if "photo" not in DEFAULT_PROMPT_TEMPLATE:
+        print(f"DEFAULT_PROMPT_TEMPLATE should request realistic photo rendering: {DEFAULT_PROMPT_TEMPLATE!r}")
         exit(1)
     if not DEFAULT_NEGATIVE_PROMPT:
         print("DEFAULT_NEGATIVE_PROMPT should not be empty")

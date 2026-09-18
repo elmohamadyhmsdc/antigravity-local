@@ -4105,7 +4105,8 @@ elif page == "🧬 Character LoRA":
         else:
             from job_manager import JobManager as _JM, JobStatus as _JS, add_job_to_queue, start_queue_worker
             from lora_generate import (DEFAULT_PROMPT_TEMPLATE, DEFAULT_NEGATIVE_PROMPT, DEFAULT_REFERENCE_SCALE,
-                                       DEFAULT_REFERENCE_STRENGTH, REFERENCE_MODES, STAGE_GENERATING,
+                                       DEFAULT_REFERENCE_STRENGTH, DEFAULT_GUIDANCE, DEFAULT_LORA_SCALE,
+                                       REFERENCE_MODES, STAGE_GENERATING,
                                        denoising_steps, reference_mode, uses_img2img, uses_ip_adapter)
             from lora_generate_job import (build_generation_params, generation_log_path, generation_output_dir,
                                            generation_problems, generation_view, save_reference_image)
@@ -4124,6 +4125,14 @@ elif page == "🧬 Character LoRA":
             negative_prompt = st.text_area("Negative Prompt", DEFAULT_NEGATIVE_PROMPT, key="lora_gen_negative")
             num_images = st.slider("Number of images", 1, 8, 4)
             seed = st.number_input("Seed (-1 for random)", value=-1, step=1, key="lora_gen_seed")
+
+            c_scale1, c_scale2 = st.columns(2)
+            with c_scale1:
+                lora_scale = st.slider("LoRA Strength", 0.3, 1.2, DEFAULT_LORA_SCALE, 0.05, key="lora_gen_scale",
+                                       help="0.75 - 0.85 preserves likeness without overpowering base photorealism.")
+            with c_scale2:
+                guidance_scale = st.slider("CFG Guidance", 2.0, 10.0, DEFAULT_GUIDANCE, 0.5, key="lora_gen_guidance",
+                                           help="Realistic Vision works best at 4.0 - 5.5. Values above 7 cause oversaturated, burnt skin.")
 
             gen_reference = st.file_uploader(
                 "Reference image (optional)", type=["png", "jpg", "jpeg", "webp"], key="lora_gen_reference",
@@ -4176,7 +4185,9 @@ elif page == "🧬 Character LoRA":
                 add_job_to_queue("generate_lora_images",
                                  build_generation_params(gen_person, lora_info, num_images, seed=seed, prompt=prompt,
                                                          negative_prompt=negative_prompt,
-                                                         reference_params=gen_reference_params),
+                                                         reference_params=gen_reference_params,
+                                                         lora_scale=lora_scale,
+                                                         guidance_scale=guidance_scale),
                                  jobs_dir=gen_jobs_dir)
                 st.rerun()
 

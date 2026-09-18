@@ -31,7 +31,8 @@ BASE_CHECKPOINT = APP_DIR / "models" / "sd15_realistic_base.safetensors"
 REFERENCE_DIR = APP_DIR / "lora_uploads" / "_generate_references"
 
 REQUEST_KEYS = ("base_checkpoint", "lora_path", "trigger_word", "prompt", "negative_prompt", "num_images", "seed",
-                "reference_image", "reference_mode", "reference_strength", "reference_scale")
+                "reference_image", "reference_mode", "reference_strength", "reference_scale",
+                "lora_scale", "guidance_scale")
 
 STAGE_LAUNCHING = "Launching venv_ai (Python 3.10)"
 
@@ -81,7 +82,9 @@ def generation_problems(lora_info: dict, person_name: Optional[str] = None) -> l
 
 def build_generation_params(person: dict, lora_info: dict, num_images: int, seed: int = -1,
                             prompt: Optional[str] = None, negative_prompt: Optional[str] = None,
-                            reference_params: Optional[dict] = None) -> dict:
+                            reference_params: Optional[dict] = None,
+                            lora_scale: Optional[float] = None,
+                            guidance_scale: Optional[float] = None) -> dict:
     """The generate_lora_images job params for one person - shared by the Generate tab and Reface
     V2's Trained LoRA source mode so a queued job always looks the same either way."""
     from lora_generate import DEFAULT_NEGATIVE_PROMPT, DEFAULT_PROMPT_TEMPLATE, DEFAULT_STEPS
@@ -95,6 +98,10 @@ def build_generation_params(person: dict, lora_info: dict, num_images: int, seed
         "num_images": int(num_images), "seed": int(seed), "steps": DEFAULT_STEPS,
         "output_dir": str(generation_output_dir(person["name"])),
     }
+    if lora_scale is not None:
+        params["lora_scale"] = float(lora_scale)
+    if guidance_scale is not None:
+        params["guidance_scale"] = float(guidance_scale)
     params.update(reference_params or {})
     return params
 

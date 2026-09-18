@@ -36,9 +36,9 @@ DEFAULT_LEARNING_RATE = 0.0001
 DEFAULT_BATCH_SIZE = 1
 DEFAULT_MAX_RESOLUTION = 512
 RESOLUTION_OPTIONS = (512, 768)
-# A person LoRA is usually done within a few thousand steps (at batch size 1); the
+# A person LoRA is usually done within 1,500 - 2,500 steps (at batch size 1); the
 # dashboard suggests an epoch count that lands near this for the dataset's size.
-TARGET_TOTAL_STEPS = 3000
+TARGET_TOTAL_STEPS = 2000
 
 _EPOCH_RE = re.compile(r"epoch\s+(\d+)\s*/\s*(\d+)", re.IGNORECASE)
 _STEP_RE = re.compile(r"steps:\s*\d+%\|.*\|\s*(\d+)/(\d+)")
@@ -301,9 +301,12 @@ def build_training_args(dataset_dir: str, output_dir: str, output_name: str, bas
         "--network_module", "networks.lora",
         "--network_dim", str(network_dim),
         "--network_alpha", str(network_alpha),
+        "--network_train_unet_only",
         "--train_batch_size", str(batch_size),
         "--max_train_epochs", str(epochs),
         "--learning_rate", str(learning_rate),
+        "--lr_scheduler", "cosine_with_restarts",
+        "--lr_warmup_steps", "100",
         "--mixed_precision", "fp16",
         "--gradient_checkpointing",
         # Memory-efficient attention. Without it every attention layer materialises a full
@@ -311,6 +314,9 @@ def build_training_args(dataset_dir: str, output_dir: str, output_name: str, bas
         # silently spills VRAM into system RAM (~10 s/step) until it finally hits CUDA OOM.
         "--sdpa",
         "--optimizer_type", "AdamW8bit",
+        "--caption_extension", ".txt",
+        "--shuffle_caption",
+        "--keep_tokens", "1",
         "--enable_bucket",
         "--min_bucket_reso", "256",
         "--max_bucket_reso", str(max_resolution),
