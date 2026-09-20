@@ -9,9 +9,11 @@ import json
 import time
 import shutil
 import logging
+import threading
+import contextlib
 import numpy as np
 from datetime import datetime
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Optional, List, Tuple, Dict, Any, Iterable, Set
 from pathlib import Path
 
 # Setup logging
@@ -26,110 +28,178 @@ FACES_FILE = DATA_DIR / "faces.json"
 # Embedding dimension (InsightFace Buffalo_L produces 512-d embeddings)
 EMBEDDING_DIM = 512
 
-class JsonDatabase:
-    _instance = None
-    _initialized = False
+# (attribute, file name, indent). persons.json stays human-readable; the big
+# collections are written compact.
+_COLLECTIONS = (
+    ("persons", "persons.json", 2),
+    ("faces", "faces.json", None),
+    ("bodies", "bodies.json", None),
+    ("media", "media.json", None),
+)
 
-    def __new__(cls):
+
+def norm_path(path: str) -> str:
+    """Key used to recognise the same media file across scans."""
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+class JsonDatabase:
+    """Local JSON store.
+
+    persons/faces as before, plus (gallery v2):
+      bodies - person detections: bbox, keypoints, outfit descriptor, and either
+               face_id (linked through its face) or person_id + link_method
+      media  - one record per scanned photo/video with every detection in it
+
+    Only the default instance (no data_dir) is a process-wide singleton; pass a
+    data_dir for an isolated store (tests, sandboxes).
+    """
+    _instance = None
+
+    def __new__(cls, data_dir=None):
+        if data_dir is not None:
+            return super(JsonDatabase, cls).__new__(cls)
         if cls._instance is None:
             cls._instance = super(JsonDatabase, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self):
-        if self._initialized:
+    def __init__(self, data_dir=None):
+        if getattr(self, "_initialized", False):
             return
-        
+        self.data_dir = Path(data_dir) if data_dir is not None else DATA_DIR
+
         self.persons: Dict[int, Dict[str, Any]] = {}
         self.faces: Dict[int, Dict[str, Any]] = {}
-        
+        self.bodies: Dict[int, Dict[str, Any]] = {}
+        self.media: Dict[int, Dict[str, Any]] = {}
+
         self.next_person_id = 1
         self.next_face_id = 1
-        
+        self.next_body_id = 1
+        self.next_media_id = 1
+
+        self.version = 0            # bumps on every load/save; UI caches key on it
+        self._lock = threading.RLock()
+        self._defer_depth = 0
+        self._dirty = False
+        self._disk_sig = None
+        self._media_by_path: Dict[str, int] = {}
+        self._emb_cache = None
+
         self._load_db()
         self._initialized = True
 
+    # --- Files ---
+
+    def _file(self, name: str) -> Path:
+        return self.data_dir / name
+
+    def _signature(self):
+        sig = []
+        for _, name, _ in _COLLECTIONS:
+            try:
+                st = self._file(name).stat()
+                sig.append((st.st_mtime_ns, st.st_size))
+            except OSError:
+                sig.append(None)
+        return tuple(sig)
+
     def _load_db(self):
         """Load data from JSON files."""
-        if not DATA_DIR.exists():
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
-        
-        # Load Persons
-        if PERSONS_FILE.exists():
-            try:
-                with open(PERSONS_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if isinstance(data, dict) and "items" in data:
-                        self.persons = {int(k): v for k, v in data["items"].items()}
-                        self.next_person_id = data.get("next_id", 1)
-                    else:
-                        self.persons = {}
-                        self.next_person_id = 1
-            except Exception as e:
-                logger.error(f"Failed to load persons.json: {e}")
-                self.persons = {}
-        else:
-             self.persons = {}
+        with self._lock:
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+            for attr, name, _ in _COLLECTIONS:
+                items, next_id = {}, 1
+                path = self._file(name)
+                if path.exists():
+                    try:
+                        with open(path, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                        if isinstance(data, dict) and "items" in data:
+                            items = {int(k): v for k, v in data["items"].items()}
+                            next_id = data.get("next_id", 1)
+                    except Exception as e:
+                        logger.error(f"Failed to load {name}: {e}")
+                setattr(self, attr, items)
+                id_attr = {"persons": "next_person_id", "faces": "next_face_id",
+                           "bodies": "next_body_id", "media": "next_media_id"}[attr]
+                setattr(self, id_attr, max(next_id, max(items, default=0) + 1))
+            self._media_by_path = {norm_path(m["path"]): mid for mid, m in self.media.items() if m.get("path")}
+            self._emb_cache = None
+            self._disk_sig = self._signature()
+            self.version += 1
 
-        # Load Faces
-        if FACES_FILE.exists():
-            try:
-                with open(FACES_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if isinstance(data, dict) and "items" in data:
-                        self.faces = {int(k): v for k, v in data["items"].items()}
-                        self.next_face_id = data.get("next_id", 1)
-                    else:
-                        self.faces = {}
-                        self.next_face_id = 1
-            except Exception as e:
-                logger.error(f"Failed to load faces.json: {e}")
-                self.faces = {}
-        else:
-            self.faces = {}
-            
+    def refresh_if_changed(self) -> bool:
+        """Reload if another process (e.g. the job worker saving LoRA info)
+        rewrote the files since we last loaded or saved them. Without this, our
+        next save would silently overwrite its changes."""
+        with self._lock:
+            if self._defer_depth or self._signature() == self._disk_sig:
+                return False
+            logger.info("Data files changed on disk - reloading")
+            self._load_db()
+            return True
+
     def save_db(self):
-        """Save data to JSON files atomically."""
-        if not DATA_DIR.exists():
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
+        """Save data to JSON files atomically (deferred inside batch())."""
+        with self._lock:
+            if self._defer_depth:
+                self._dirty = True
+                return
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+            for attr, name, indent in _COLLECTIONS:
+                items = getattr(self, attr)
+                path = self._file(name)
+                if attr in ("bodies", "media") and not items and not path.exists():
+                    continue  # don't create empty files for stores that never used them
+                id_attr = {"persons": "next_person_id", "faces": "next_face_id",
+                           "bodies": "next_body_id", "media": "next_media_id"}[attr]
+                try:
+                    temp_file = path.with_suffix('.tmp')
+                    with open(temp_file, 'w', encoding='utf-8') as f:
+                        json.dump({"next_id": getattr(self, id_attr), "items": items}, f,
+                                  indent=indent, separators=None if indent else (',', ':'), default=str)
+                    os.replace(temp_file, path)
+                except Exception as e:
+                    logger.error(f"Failed to save {name}: {e}")
+            self._dirty = False
+            self._disk_sig = self._signature()
+            self.version += 1
 
-        # Save Persons
-        try:
-            temp_file = PERSONS_FILE.with_suffix('.tmp')
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                json.dump({
-                    "next_id": self.next_person_id,
-                    "items": self.persons
-                }, f, indent=2, default=str)
-            
-            # Atomic replace (simulated)
-            if PERSONS_FILE.exists():
-                os.replace(temp_file, PERSONS_FILE)
-            else:
-                os.rename(temp_file, PERSONS_FILE)
-                
-        except Exception as e:
-            logger.error(f"Failed to save persons.json: {e}")
+    # Older callers
+    save_persons = save_db
+    save_faces = save_db
 
-        # Save Faces
+    @contextlib.contextmanager
+    def batch(self):
+        """Group many changes into one write (scanning, grouping, bulk edits)."""
+        with self._lock:
+            if not self._defer_depth:
+                self.refresh_if_changed()
+            self._defer_depth += 1
         try:
-            temp_file = FACES_FILE.with_suffix('.tmp')
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                json.dump({
-                    "next_id": self.next_face_id,
-                    "items": self.faces
-                }, f, indent=2, default=str)
-                
-            if FACES_FILE.exists():
-                os.replace(temp_file, FACES_FILE)
-            else:
-                os.rename(temp_file, FACES_FILE)
-                
-        except Exception as e:
-            logger.error(f"Failed to save faces.json: {e}")
+            yield self
+        finally:
+            with self._lock:
+                self._defer_depth -= 1
+                if not self._defer_depth and self._dirty:
+                    self.save_db()
+
+    def flush(self):
+        """Write pending batched changes now (keeps the batch open) - lets a long
+        scan persist progress so an interrupted run can resume."""
+        with self._lock:
+            if self._dirty:
+                depth, self._defer_depth = self._defer_depth, 0
+                try:
+                    self.save_db()
+                finally:
+                    self._defer_depth = depth
 
     # --- Person Management ---
 
     def create_person(self, name: Optional[str] = None) -> int:
+        self.refresh_if_changed()
         pid = self.next_person_id
         self.next_person_id += 1
         
@@ -195,14 +265,25 @@ class JsonDatabase:
 
     def delete_person(self, person_id: int):
         """Delete a person. Faces associated with this person will become unassigned."""
+        self.refresh_if_changed()
         if person_id in self.persons:
             del self.persons[person_id]
-            
+
             # Unassign faces
             for face in self.faces.values():
                 if face.get("person_id") == person_id:
                     face["person_id"] = None
-            
+
+            # Bodies linked straight to this person (no face of their own) come loose too
+            for body in self.bodies.values():
+                if body.get("person_id") == person_id:
+                    body["person_id"] = None
+                    body["link_method"] = None
+                    body["link_confidence"] = None
+            for other in self.persons.values():
+                if person_id in (other.get("distinct_from") or ()):
+                    other["distinct_from"] = [p for p in other["distinct_from"] if p != person_id]
+
             self.save_db()
 
     def set_person_avatar(self, person_id: int, face_id: int) -> bool:
@@ -230,23 +311,29 @@ class JsonDatabase:
 
     # --- Face Management ---
 
-    def add_face(self, 
-                 embedding: List[float], 
-                 source_path: str, 
+    def add_face(self,
+                 embedding: List[float],
+                 source_path: str,
                  person_id: Optional[int] = None,
                  bbox: Optional[Dict] = None,
                  quality_score: float = 0.0,
-                 image_path: Optional[str] = None) -> int:
-        
+                 image_path: Optional[str] = None,
+                 extra: Optional[Dict[str, Any]] = None) -> int:
+        """`extra` carries the gallery-v2 detection metadata (media_id,
+        frame_number, det_score, kps, pose, sharpness, quality_version, ...)."""
+        self.refresh_if_changed()
         fid = self.next_face_id
         self.next_face_id += 1
-        
+
         now = datetime.utcnow().isoformat()
-        
+
         # Ensure embedding is a list (if numpy array came in)
         if hasattr(embedding, "tolist"):
             embedding = embedding.tolist()
-            
+        # 6 decimals is far below what cosine similarity can tell apart and
+        # keeps faces.json (and its per-save cost) about a third of the size
+        embedding = [round(float(v), 6) for v in embedding]
+
         self.faces[fid] = {
             "id": fid,
             "embedding": embedding,
@@ -260,38 +347,94 @@ class JsonDatabase:
             "image_path": image_path,
             "created_at": now
         }
-        
+        if extra:
+            self.faces[fid].update(extra)
+
         if person_id and person_id in self.persons:
             self.persons[person_id]["face_count"] += 1
             self.persons[person_id]["updated_at"] = now
-            
+
+        self._append_embedding(fid, embedding)
         self.save_db()
         return fid
 
+    def update_face(self, face_id: int, updates: Dict[str, Any]) -> bool:
+        """Patch a face record (used when a re-scan finds better metadata for a
+        face that's already in the gallery)."""
+        self.refresh_if_changed()
+        face = self.faces.get(face_id)
+        if face is None:
+            return False
+        face.update(updates)
+        if "embedding" in updates:
+            self._emb_cache = None
+        self.save_db()
+        return True
+
     def get_faces_by_person(self, person_id: int) -> List[Dict]:
-        # Return simplified objects to match old API somewhat if needed, 
+        # Return simplified objects to match old API somewhat if needed,
         # but for now returning plain dicts is cleaner. Consumers should adapt.
         return [f for f in self.faces.values() if f.get("person_id") == person_id]
 
     def get_face(self, face_id: int) -> Optional[Dict]:
         return self.faces.get(face_id)
 
+    def get_faces_by_source(self, source_path: str) -> List[Dict]:
+        key = norm_path(source_path)
+        return [f for f in self.faces.values()
+                if f.get("source_path") and norm_path(f["source_path"]) == key]
+
     # --- Vector Search ---
 
     def _get_embedding_matrix(self) -> Tuple[np.ndarray, List[int]]:
-        """Helper to get all embeddings as a matrix and their corresponding IDs."""
+        """All embeddings as an (N, 512) matrix plus their face ids.
+
+        Cached: rebuilding it per duplicate check made scanning quadratic.
+        The stamp catches code that edits self.faces directly."""
+        cache = self._emb_cache
+        stamp = (len(self.faces), self.next_face_id)
+        if cache is not None and cache["stamp"] == stamp:
+            return cache["buf"][:cache["n"]], cache["ids"]
         ids = []
         embeddings = []
         for fid, face in self.faces.items():
             if "embedding" in face and face["embedding"]:
                 ids.append(fid)
                 embeddings.append(face["embedding"])
-        
+
         if not embeddings:
-            return np.array([]), []
-            
-        # Stack to create (N, 512) matrix
-        return np.array(embeddings, dtype=np.float32), ids
+            matrix = np.array([])
+        else:
+            # Stack to create (N, 512) matrix
+            matrix = np.array(embeddings, dtype=np.float32)
+        self._emb_cache = {"stamp": stamp, "buf": matrix, "n": len(ids), "ids": ids}
+        return matrix, ids
+
+    def _append_embedding(self, face_id: int, embedding: List[float]):
+        """Keep the matrix cache warm while a scan adds faces one at a time -
+        rebuilding it on every added face made duplicate checking quadratic."""
+        cache = self._emb_cache
+        if cache is None or cache["n"] != len(cache["ids"]):
+            return
+        n, buf = cache["n"], cache["buf"]
+        if buf.size == 0 or n >= buf.shape[0]:
+            grown = np.zeros((max(32, n * 2), EMBEDDING_DIM), dtype=np.float32)
+            if n:
+                grown[:n] = buf[:n]
+            buf = cache["buf"] = grown
+        buf[n] = np.asarray(embedding, dtype=np.float32)
+        cache["ids"].append(face_id)
+        cache["n"] = n + 1
+        cache["stamp"] = (len(self.faces), self.next_face_id)
+
+    def get_embeddings_for(self, face_ids: List[int]) -> np.ndarray:
+        """(len(face_ids), 512) matrix in the given order; missing faces are zeros."""
+        out = np.zeros((len(face_ids), EMBEDDING_DIM), dtype=np.float32)
+        for i, fid in enumerate(face_ids):
+            emb = (self.faces.get(fid) or {}).get("embedding")
+            if emb:
+                out[i] = np.asarray(emb, dtype=np.float32)
+        return out
 
     def find_duplicate(self, embedding: List[float], threshold: float = 0.05) -> Optional[Tuple[int, float]]:
         """
@@ -371,9 +514,10 @@ class JsonDatabase:
 
     def assign_face_to_person(self, face_id: int, person_id: Optional[int]):
         """Assign a face to a person, or unassign by passing person_id=None."""
+        self.refresh_if_changed()
         if face_id not in self.faces:
             return
-        
+
         old_pid = self.faces[face_id].get("person_id")
         if old_pid == person_id:
             return
@@ -395,6 +539,7 @@ class JsonDatabase:
 
     def batch_assign_faces(self, face_ids: List[int], person_id: Optional[int]):
         """Batch assign multiple faces to a person (or unassign them if person_id=None)."""
+        self.refresh_if_changed()
         now = datetime.utcnow().isoformat()
         affected_pids = set()
         if person_id and person_id in self.persons:
@@ -423,6 +568,7 @@ class JsonDatabase:
 
     def delete_face(self, face_id: int, delete_file: bool = True) -> bool:
         """Permanently delete a face from the database and optionally from disk."""
+        self.refresh_if_changed()
         if face_id not in self.faces:
             return False
         face = self.faces[face_id]
@@ -441,11 +587,21 @@ class JsonDatabase:
                 logger.warning(f"Failed to delete face crop file {img_path}: {e}")
 
         del self.faces[face_id]
+        # A body that was identified through this face loses its link
+        for body in self.bodies.values():
+            if body.get("face_id") == face_id:
+                body["face_id"] = None
+        for m in self.media.values():
+            dets = m.get("detections")
+            if dets:
+                m["detections"] = [d for d in dets if not (d[2] == "f" and d[3] == face_id)]
+        self._emb_cache = None
         self.save_db()
         return True
 
     def merge_persons(self, source_person_id: int, target_person_id: int) -> bool:
         """Move all faces from source to target, then delete source."""
+        self.refresh_if_changed()
         try:
             source_person_id = int(source_person_id)
             target_person_id = int(target_person_id)
@@ -471,10 +627,42 @@ class JsonDatabase:
             if face.get("person_id") == source_person_id:
                 face["person_id"] = target_person_id
                 source_faces_count += 1
+            rejected = face.get("rejected_person_ids")
+            if rejected and source_person_id in rejected:
+                # "not this person" still holds once that person is part of the target
+                face["rejected_person_ids"] = sorted(
+                    {target_person_id if p == source_person_id else p for p in rejected})
 
+        # Move bodies that were linked to the source person directly
+        for body in self.bodies.values():
+            if body.get("person_id") == source_person_id:
+                body["person_id"] = target_person_id
+            rejected = body.get("rejected_person_ids")
+            if rejected and source_person_id in rejected:
+                body["rejected_person_ids"] = sorted(
+                    {target_person_id if p == source_person_id else p for p in rejected})
+
+        target = self.persons[target_person_id]
+        source = self.persons[source_person_id]
         # Update counts
-        self.persons[target_person_id]["face_count"] = self.persons[target_person_id].get("face_count", 0) + source_faces_count
-        self.persons[target_person_id]["updated_at"] = datetime.utcnow().isoformat()
+        target["face_count"] = target.get("face_count", 0) + source_faces_count
+        target["updated_at"] = datetime.utcnow().isoformat()
+        if not target.get("avatar_face_id") and source.get("avatar_face_id"):
+            target["avatar_face_id"] = source["avatar_face_id"]
+        if source.get("name") and not target.get("name", "").strip():
+            target["name"] = source["name"]
+        if source.get("auto_created") and not target.get("auto_created"):
+            pass  # a named person absorbing an auto group stays named
+        distinct = set(target.get("distinct_from") or ()) | set(source.get("distinct_from") or ())
+        distinct.discard(source_person_id)
+        distinct.discard(target_person_id)
+        if distinct:
+            target["distinct_from"] = sorted(distinct)
+        for other in self.persons.values():
+            if source_person_id in (other.get("distinct_from") or ()):
+                other["distinct_from"] = sorted(
+                    {target_person_id if p == source_person_id else p for p in other["distinct_from"]}
+                    - {other["id"]})
 
         # Delete source
         del self.persons[source_person_id]
@@ -483,11 +671,19 @@ class JsonDatabase:
         return True
         
     def get_stats(self) -> Dict[str, int]:
+        self.refresh_if_changed()
         unassigned_count = sum(1 for face in self.faces.values() if face.get("person_id") is None)
+        linked_bodies = sum(1 for b in self.bodies.values() if self.body_person_id(b) is not None)
+        photos = sum(1 for m in self.media.values() if m.get("type") == "image")
         return {
             "total_persons": len(self.persons),
             "total_faces": len(self.faces),
-            "unassigned_faces": unassigned_count
+            "unassigned_faces": unassigned_count,
+            "total_bodies": len(self.bodies),
+            "linked_bodies": linked_bodies,
+            "total_media": len(self.media),
+            "total_photos": photos,
+            "total_videos": len(self.media) - photos,
         }
         
     def auto_assign_to_person(self, face_id: int, embedding: List[float], similarity_threshold: float = 0.35) -> int:
@@ -547,6 +743,251 @@ class JsonDatabase:
             new_pid = self.create_person(f"Person_{face_id}")
             self.assign_face_to_person(face_id, new_pid)
             return new_pid
+
+    # -----------------------------------------------------------------
+    # Corrections the user makes (so auto-grouping never re-does them)
+    # -----------------------------------------------------------------
+
+    def reject_face_from_person(self, face_id: int, person_id: Optional[int] = None):
+        """"This face is not that person": unassign it and remember, so
+        auto-grouping won't put it back."""
+        self.refresh_if_changed()
+        face = self.faces.get(face_id)
+        if face is None:
+            return
+        pid = person_id if person_id is not None else face.get("person_id")
+        with self.batch():  # one write, and no reload between the two edits
+            if pid is not None:
+                face["rejected_person_ids"] = sorted(set(face.get("rejected_person_ids") or ()) | {int(pid)})
+            if face.get("person_id") == pid:
+                self.assign_face_to_person(face_id, None)
+            self.save_db()
+
+    def reject_body_from_person(self, body_id: int, person_id: Optional[int] = None):
+        self.refresh_if_changed()
+        body = self.bodies.get(body_id)
+        if body is None:
+            return
+        pid = person_id if person_id is not None else self.body_person_id(body)
+        if pid is not None:
+            body["rejected_person_ids"] = sorted(set(body.get("rejected_person_ids") or ()) | {int(pid)})
+        if body.get("person_id") == pid:
+            body["person_id"] = None
+            body["link_method"] = None
+            body["link_confidence"] = None
+        if body.get("face_id") is not None and (self.faces.get(body["face_id"]) or {}).get("person_id") == pid:
+            body["face_id"] = None  # the face stays, it just isn't this body's face
+        self.save_db()
+
+    def mark_persons_distinct(self, person_a: int, person_b: int):
+        """"These two are different people" - keeps the pair out of merge suggestions."""
+        self.refresh_if_changed()
+        for a, b in ((person_a, person_b), (person_b, person_a)):
+            person = self.persons.get(a)
+            if person is not None:
+                person["distinct_from"] = sorted(set(person.get("distinct_from") or ()) | {int(b)})
+        self.save_db()
+
+    def distinct_pairs(self) -> List[Tuple[int, int]]:
+        pairs = set()
+        for pid, person in self.persons.items():
+            for other in person.get("distinct_from") or ():
+                pairs.add((min(pid, other), max(pid, other)))
+        return sorted(pairs)
+
+    def dismiss_face_group(self, face_ids: Iterable[int]):
+        """Hide these faces from "new group" suggestions until they change."""
+        self.refresh_if_changed()
+        for fid in face_ids:
+            face = self.faces.get(fid)
+            if face is not None:
+                face["review_dismissed"] = True
+        self.save_db()
+
+    # -----------------------------------------------------------------
+    # Bodies
+    # -----------------------------------------------------------------
+
+    def add_body(self, record: Dict[str, Any]) -> int:
+        self.refresh_if_changed()
+        bid = self.next_body_id
+        self.next_body_id += 1
+        record = dict(record)
+        record["id"] = bid
+        record.setdefault("created_at", datetime.utcnow().isoformat())
+        record.setdefault("face_id", None)
+        record.setdefault("person_id", None)
+        record.setdefault("link_method", None)
+        record.setdefault("link_confidence", None)
+        self.bodies[bid] = record
+        self.save_db()
+        return bid
+
+    def update_body(self, body_id: int, updates: Dict[str, Any]) -> bool:
+        self.refresh_if_changed()
+        body = self.bodies.get(body_id)
+        if body is None:
+            return False
+        body.update(updates)
+        self.save_db()
+        return True
+
+    def get_body(self, body_id: int) -> Optional[Dict]:
+        return self.bodies.get(body_id)
+
+    def get_all_bodies(self) -> List[Dict]:
+        return list(self.bodies.values())
+
+    def body_person_id(self, body: Dict) -> Optional[int]:
+        """Who a body belongs to: its face's person if it has one, else the
+        person it was linked to by outfit/weak face/by hand."""
+        if not body:
+            return None
+        fid = body.get("face_id")
+        if fid is not None:
+            face = self.faces.get(fid)
+            if face and face.get("person_id") is not None:
+                return face["person_id"]
+        pid = body.get("person_id")
+        return pid if pid in self.persons else None
+
+    def get_bodies_by_person(self, person_id: int) -> List[Dict]:
+        return [b for b in self.bodies.values() if self.body_person_id(b) == person_id]
+
+    def get_bodies_by_media(self, media_id: int) -> List[Dict]:
+        return [b for b in self.bodies.values() if b.get("media_id") == media_id]
+
+    def link_body_to_person(self, body_id: int, person_id: Optional[int],
+                            method: str = "manual", confidence: Optional[float] = None) -> bool:
+        self.refresh_if_changed()
+        body = self.bodies.get(body_id)
+        if body is None:
+            return False
+        body["person_id"] = person_id
+        body["link_method"] = method if person_id is not None else None
+        body["link_confidence"] = confidence
+        self.save_db()
+        return True
+
+    def delete_body(self, body_id: int, delete_file: bool = True) -> bool:
+        self.refresh_if_changed()
+        body = self.bodies.pop(body_id, None)
+        if body is None:
+            return False
+        crop = body.get("crop_path")
+        if delete_file and crop and os.path.exists(crop):
+            try:
+                os.remove(crop)
+            except Exception as e:
+                logger.warning(f"Failed to delete body crop {crop}: {e}")
+        for m in self.media.values():
+            dets = m.get("detections")
+            if dets:
+                m["detections"] = [d for d in dets if not (d[2] == "b" and d[3] == body_id)]
+        self.save_db()
+        return True
+
+    # -----------------------------------------------------------------
+    # Media (one record per scanned photo / video)
+    # -----------------------------------------------------------------
+
+    def get_media(self, media_id: int) -> Optional[Dict]:
+        return self.media.get(media_id)
+
+    def get_all_media(self) -> List[Dict]:
+        return list(self.media.values())
+
+    def get_media_by_path(self, path: str) -> Optional[Dict]:
+        mid = self._media_by_path.get(norm_path(path))
+        return self.media.get(mid) if mid is not None else None
+
+    def upsert_media(self, path: str, fields: Dict[str, Any]) -> int:
+        """Create or update the record for a media file; returns its id."""
+        self.refresh_if_changed()
+        key = norm_path(path)
+        mid = self._media_by_path.get(key)
+        if mid is None or mid not in self.media:
+            mid = self.next_media_id
+            self.next_media_id += 1
+            self.media[mid] = {"id": mid, "path": str(path), "name": os.path.basename(str(path)),
+                               "detections": [], "created_at": datetime.utcnow().isoformat()}
+            self._media_by_path[key] = mid
+        self.media[mid].update(fields)
+        self.save_db()
+        return mid
+
+    def delete_media(self, media_id: int, delete_children: bool = False) -> bool:
+        self.refresh_if_changed()
+        record = self.media.pop(media_id, None)
+        if record is None:
+            return False
+        self._media_by_path.pop(norm_path(record.get("path", "")), None)
+        with self.batch():
+            if delete_children:
+                for bid in [b["id"] for b in self.bodies.values() if b.get("media_id") == media_id]:
+                    self.delete_body(bid)
+                for fid in [f["id"] for f in self.faces.values() if f.get("media_id") == media_id]:
+                    self.delete_face(fid)
+            self.save_db()
+        return True
+
+    def media_person_ids(self, media_id: int) -> Set[int]:
+        """Everyone who appears in one media file, by face or by body."""
+        people = set()
+        for face in self.faces.values():
+            if face.get("media_id") == media_id and face.get("person_id") is not None:
+                people.add(face["person_id"])
+        for body in self.bodies.values():
+            if body.get("media_id") == media_id:
+                pid = self.body_person_id(body)
+                if pid is not None:
+                    people.add(pid)
+        return people
+
+    def media_index(self) -> Dict[int, Dict[str, Any]]:
+        """media_id -> {faces, bodies, people, body_only_people} in one pass over
+        the faces and bodies (the per-media loops above are O(N) each)."""
+        index = {mid: {"faces": 0, "bodies": 0, "people": set(), "face_people": set()}
+                 for mid in self.media}
+        for face in self.faces.values():
+            entry = index.get(face.get("media_id"))
+            if entry is None:
+                continue
+            entry["faces"] += 1
+            if face.get("person_id") is not None:
+                entry["people"].add(face["person_id"])
+                entry["face_people"].add(face["person_id"])
+        for body in self.bodies.values():
+            entry = index.get(body.get("media_id"))
+            if entry is None:
+                continue
+            entry["bodies"] += 1
+            pid = self.body_person_id(body)
+            if pid is not None:
+                entry["people"].add(pid)
+        for entry in index.values():
+            entry["body_only_people"] = entry["people"] - entry["face_people"]
+        return index
+
+    def person_media_ids(self, person_id: int) -> Set[int]:
+        media = {f.get("media_id") for f in self.faces.values()
+                 if f.get("person_id") == person_id and f.get("media_id") is not None}
+        media |= {b.get("media_id") for b in self.bodies.values()
+                  if b.get("media_id") is not None and self.body_person_id(b) == person_id}
+        return {m for m in media if m in self.media}
+
+    def person_source_paths(self, person_id: int) -> List[str]:
+        """Source files for a person, including faces mined before media records
+        existed (they only carry source_path)."""
+        paths = {}
+        for mid in self.person_media_ids(person_id):
+            record = self.media[mid]
+            paths[norm_path(record["path"])] = record["path"]
+        for face in self.faces.values():
+            if face.get("person_id") == person_id and face.get("source_path"):
+                paths.setdefault(norm_path(face["source_path"]), face["source_path"])
+        return list(paths.values())
+
 
 # --- Module Level Exported Functions (for backward compatibility / ease of use) ---
 
@@ -656,6 +1097,39 @@ def batch_assign_faces(face_ids, person_id):
     
 def get_stats():
     return db_instance.get_stats()
+
+def update_face(face_id, updates):
+    return db_instance.update_face(face_id, updates)
+
+def get_faces_by_source(source_path):
+    return db_instance.get_faces_by_source(source_path)
+
+def reject_face_from_person(face_id, person_id=None):
+    return db_instance.reject_face_from_person(face_id, person_id)
+
+def mark_persons_distinct(person_a, person_b):
+    return db_instance.mark_persons_distinct(person_a, person_b)
+
+def add_body(record):
+    return db_instance.add_body(record)
+
+def get_all_bodies():
+    return db_instance.get_all_bodies()
+
+def get_bodies_by_person(person_id):
+    return db_instance.get_bodies_by_person(person_id)
+
+def link_body_to_person(body_id, person_id, method="manual", confidence=None):
+    return db_instance.link_body_to_person(body_id, person_id, method, confidence)
+
+def get_all_media():
+    return db_instance.get_all_media()
+
+def get_media_by_path(path):
+    return db_instance.get_media_by_path(path)
+
+def person_media_ids(person_id):
+    return db_instance.person_media_ids(person_id)
 
 def test_vector_similarity():
     print("Testing vector similarity...")

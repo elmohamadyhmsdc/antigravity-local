@@ -881,3 +881,295 @@ header[data-testid="stHeader"] {
         scroll-behavior: auto !important;
     }
 }
+
+/* ==========================================================================
+   Gallery v2 (gallery_page.py) - people, review queue, media library
+   ========================================================================== */
+
+.gal-h1 {
+    font-size: clamp(24px, 3vw, 32px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+}
+.gal-h2 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+.gal-h1-sub {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 2px;
+}
+
+/* Stat strip */
+.gal-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 10px;
+    margin: 14px 0 18px;
+}
+.gal-stat {
+    background: var(--bg-card-glass);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    position: relative;
+    overflow: hidden;
+}
+.gal-stat::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--accent-primary);
+}
+.gal-stat-violet::before { background: linear-gradient(180deg, #8a2be2, #c084fc); }
+.gal-stat-indigo::before { background: linear-gradient(180deg, #6366f1, #818cf8); }
+.gal-stat-cyan::before { background: linear-gradient(180deg, #06b6d4, #67e8f9); }
+.gal-stat-emerald::before { background: linear-gradient(180deg, #10b981, #34d399); }
+.gal-stat-amber::before { background: linear-gradient(180deg, #f59e0b, #fbbf24); }
+.gal-stat-value {
+    font-size: 22px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+.gal-stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Cards */
+.gal-card {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: 6px;
+    transition: var(--transition-fast);
+}
+.gal-card-sel {
+    outline: 2px solid var(--accent-light);
+    outline-offset: 2px;
+}
+.gal-media {
+    position: relative;
+    line-height: 0;
+}
+.gal-thumb {
+    width: 100%;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    display: block;
+    background: #14161f;
+    transition: var(--transition-fast);
+}
+.gal-card:hover .gal-thumb {
+    border-color: var(--border-accent);
+    box-shadow: var(--shadow-card);
+}
+.gal-thumb-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 34px;
+    color: #4b5468;
+    background: #171a26;
+}
+.gal-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 8px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.gal-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.gal-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+/* Chips */
+.gal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: 10.5px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    white-space: nowrap;
+}
+.gal-chip-lora { background: rgba(138, 43, 226, 0.2); border-color: rgba(138, 43, 226, 0.5); color: #d8b4fe; }
+.gal-chip-soft { background: rgba(99, 102, 241, 0.16); border-color: rgba(99, 102, 241, 0.4); color: #a5b4fc; }
+.gal-chip-ok { background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.4); color: #34d399; }
+.gal-chip-warn { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.4); color: #fbbf24; }
+.gal-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Overlays on a thumbnail */
+.gal-overlay {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: rgba(9, 10, 15, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.6;
+    color: #f8fafc;
+    backdrop-filter: blur(6px);
+}
+.gal-corner {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.9);
+    color: #fff;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Row of tiny faces on a media card */
+.gal-strip {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+}
+.gal-mini {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(9, 10, 15, 0.9);
+    margin-left: -8px;
+    background: #20232d;
+}
+.gal-mini-empty, .gal-mini-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #cbd5e1;
+}
+
+/* Person hero */
+.gal-hero {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 4px;
+}
+.gal-avatar-lg {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--accent-primary);
+    box-shadow: var(--shadow-glow-violet);
+    flex: 0 0 auto;
+}
+.gal-avatar-sm {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border-medium);
+}
+.gal-hero-name {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin-bottom: 6px;
+}
+
+/* Sections */
+.gal-section {
+    margin: 22px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.gal-section-title {
+    font-size: 15px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.gal-section-caption {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.gal-count {
+    background: rgba(138, 43, 226, 0.22);
+    border: 1px solid rgba(138, 43, 226, 0.45);
+    color: #d8b4fe;
+    border-radius: var(--radius-full);
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.gal-pagelabel {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding-top: 10px;
+}
+
+/* Empty states */
+.gal-empty {
+    text-align: center;
+    padding: 46px 24px;
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    color: var(--text-secondary);
+    margin: 10px 0;
+}
+.gal-empty-icon { font-size: 34px; margin-bottom: 6px; }
+.gal-empty h4 { color: var(--text-primary); font-weight: 700; margin-bottom: 4px; }
+.gal-empty p { font-size: 13px; margin: 0; }
+
+@media (max-width: 768px) {
+    .gal-hero { gap: 12px; }
+    .gal-avatar-lg { width: 68px; height: 68px; }
+    .gal-hero-name { font-size: 20px; }
+    .gal-stats { grid-template-columns: repeat(3, 1fr); }
+    .gal-stat-value { font-size: 18px; }
+}

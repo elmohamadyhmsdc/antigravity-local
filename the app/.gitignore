@@ -9,6 +9,7 @@ data/
 data_sources.json
 facesets/*
 extracted_faces/*
+extracted_bodies/*
 reface_uploads/*
 reface_output/*
 temp_basicsr/*

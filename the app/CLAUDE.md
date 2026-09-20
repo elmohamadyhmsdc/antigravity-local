@@ -27,10 +27,15 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 
 ### Storage (NO PostgreSQL — fully local JSON)
 - `database.py` — `JsonDatabase` singleton, **source of truth for all data**
-  - `data/persons.json` — person metadata + face_count
-  - `data/faces.json` — face embeddings (512-d InsightFace Buffalo_L) + metadata
-  - Vector search: brute-force cosine similarity via NumPy (fast enough up to ~100k faces)
+  - `data/persons.json` — person metadata + face_count (+ `distinct_from`: pairs the user said are different people)
+  - `data/faces.json` — face embeddings (512-d InsightFace Buffalo_L) + metadata (+ `media_id`, `frame_number`, `timestamp`, `kps`, `pose`, quality v2 fields, `rejected_person_ids`)
+  - `data/bodies.json` — person (body) detections: bbox, COCO keypoints, outfit descriptor, crop, and either `face_id` (identified through its face) or `person_id` + `link_method`
+  - `data/media.json` — one record per scanned photo/video: file signature, scan status/version, and every detection in it (`[frame, t, "f"|"b", id, x, y, w, h]`) — this is what makes "which photos is this person in?" answerable
+  - Vector search: brute-force cosine similarity via NumPy (fast enough up to ~100k faces); the embedding matrix is cached and appended to as faces are added
   - Atomic writes via temp files + `os.replace()`
+  - `with db.batch(): ...` groups many changes into one write (scanning, grouping); `db.flush()` persists mid-batch so an interrupted scan can resume
+  - `db.refresh_if_changed()` reloads when another process (the job worker) rewrote the files — without it, this process's next save silently reverts their changes. Mutating methods call it.
+  - `JsonDatabase(data_dir=...)` returns a standalone instance (tests/sandboxes); the no-arg form is the process singleton
 - `get_session()` / `get_db()` return `MockSession` for backward-compatibility — they are no-ops
 
 ### Core Modules
@@ -38,7 +43,14 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 |------|------|
 | `database.py` | JsonDatabase singleton, all CRUD + vector search |
 | `ffmpeg_utils.py` | Shared FFmpeg discovery, audio muxing, and segment concat commands |
-| `face_miner.py` | Extract faces from video/images using InsightFace |
+| `library_scanner.py` | **Gallery ingest** — multi-scale face detection + body detection per photo/video, writes faces/bodies/media records. Resumable and incremental (skips files whose size+mtime are unchanged) |
+| `face_quality.py` | Calibrated face quality score (embedding norm, size, sharpness, pose). Pure CPU maths |
+| `body_detector.py` | YOLOX-m person detection + RTMPose-m 17-keypoint bodies, ONNX only. Auto-downloads ~145 MB into `models/body/` on first use |
+| `person_linking.py` | **Grouping brain** — face↔body association, face→person matching, clustering, duplicate-person and outfit-based body suggestions. No models, no I/O |
+| `gallery_grouping.py` | Runs person_linking over the database: `group_library()` (the "sort my gallery" action) and `review_state()` (what the Review tab shows) |
+| `gallery_page.py` | The whole Gallery page UI (People / Review / Media / Insights) |
+| `eval_grouping.py` | Measures grouping accuracy against the people you've already curated (read-only) |
+| `face_miner.py` | Legacy face extraction (standalone CLI). The dashboard now ingests through `library_scanner.py` |
 | `reface_engine.py` | Face swap engine V1 |
 | `reface_engine_v2.py` | Face swap engine V2 (legacy fallback) |
 | `reface_engine_v3.py` | **Face swap engine V3 (HD, recommended)** — ONNX CodeFormer restore + BiSeNet parser/XSeg occluder masks + averaged identity; stable video |
