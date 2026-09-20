@@ -18,7 +18,7 @@ import base64
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import streamlit as st
@@ -126,6 +126,148 @@ def thumb_for(path: Optional[str], size: int = 256, ratio: float = 1.0,
 
 def data_uri(payload: Optional[bytes]) -> Optional[str]:
     return None if not payload else "data:image/jpeg;base64," + base64.b64encode(payload).decode("ascii")
+
+
+@st.cache_data(show_spinner=False, max_entries=2048)
+def _body_thumb_cached(crop_path: str, stamp: float, bbox: Tuple[float, float, float, float],
+                       kpts: Tuple[Tuple[float, float, float], ...],
+                       size: int = 200, ratio: float = 0.75, highlight: bool = True) -> Optional[bytes]:
+    """Target-centered thumbnail with a neon focus reticle isolating the subject."""
+    import cv2
+    from library_scanner import imread
+    img = imread(crop_path)
+    if img is None:
+        return None
+    crop_h, crop_w = img.shape[:2]
+    bx, by, bw, bh = bbox
+
+    target_w, target_h = (size, int(size / ratio)) if ratio >= 1 else (int(size * ratio), size)
+
+    if not highlight or bw <= 0 or bh <= 0:
+        scale = max(target_w / crop_w, target_h / crop_h)
+        resized = cv2.resize(img, (max(1, int(round(crop_w * scale))), max(1, int(round(crop_h * scale)))),
+                             interpolation=cv2.INTER_AREA)
+        rh, rw = resized.shape[:2]
+        x, y = max(0, (rw - target_w) // 2), max(0, (rh - target_h) // 2)
+        ok, buf = cv2.imencode(".jpg", resized[y:y + target_h, x:x + target_w], [cv2.IMWRITE_JPEG_QUALITY, 85])
+        return buf.tobytes() if ok else None
+
+    # Calculate padding used when crop was created in library_scanner._body_crop
+    pad_x = int(bw * 0.06)
+    pad_y = int(bh * 0.04)
+    crop_x0 = max(0.0, bx - pad_x)
+    crop_y0 = max(0.0, by - pad_y)
+
+    top_pad = by - crop_y0
+    unscaled_h = top_pad + bh + pad_y
+    scale_to_crop = crop_h / max(1.0, unscaled_h)
+
+    # Use RTMPose keypoints if available to isolate target person from adjacent bodies
+    valid_kpts = [pt for pt in kpts if len(pt) >= 3 and pt[2] >= 0.25]
+    if valid_kpts:
+        kxs = [pt[0] for pt in valid_kpts]
+        kys = [pt[1] for pt in valid_kpts]
+        min_kx, max_kx = min(kxs), max(kxs)
+        min_ky, max_ky = min(kys), max(kys)
+        kw = max_kx - min_kx
+        kh = max_ky - min_ky
+        tgt_x1 = max(bx, min_kx - kw * 0.08)
+        tgt_y1 = max(by, min_ky - kh * 0.04)
+        tgt_x2 = min(bx + bw, max_kx + kw * 0.08)
+        tgt_y2 = min(by + bh, max_ky + kh * 0.04)
+    else:
+        tgt_x1, tgt_y1, tgt_x2, tgt_y2 = bx, by, bx + bw, by + bh
+
+    # Projected coordinates inside crop
+    rx1 = int(round((tgt_x1 - crop_x0) * scale_to_crop))
+    ry1 = int(round((tgt_y1 - crop_y0) * scale_to_crop))
+    rx2 = int(round((tgt_x2 - crop_x0) * scale_to_crop))
+    ry2 = int(round((tgt_y2 - crop_y0) * scale_to_crop))
+
+    rx1 = max(0, min(crop_w - 1, rx1))
+    ry1 = max(0, min(crop_h - 1, ry1))
+    rx2 = max(rx1 + 4, min(crop_w, rx2))
+    ry2 = max(ry1 + 4, min(crop_h, ry2))
+
+    tgt_cx = (rx1 + rx2) // 2
+    tgt_cy = (ry1 + ry2) // 2
+
+    # Aspect ratio cropping centered on target person
+    if (crop_w / crop_h) < ratio:
+        slice_w = crop_w
+        slice_h = min(crop_h, int(crop_w / ratio))
+        slice_x = 0
+        slice_y = max(0, min(crop_h - slice_h, tgt_cy - slice_h // 2))
+    else:
+        slice_h = crop_h
+        slice_w = min(crop_w, int(crop_h * ratio))
+        slice_y = 0
+        slice_x = max(0, min(crop_w - slice_w, tgt_cx - slice_w // 2))
+
+    cropped = img[slice_y:slice_y + slice_h, slice_x:slice_x + slice_w]
+    ch, cw = cropped.shape[:2]
+
+    bx1 = rx1 - slice_x
+    by1 = ry1 - slice_y
+    bx2 = rx2 - slice_x
+    by2 = ry2 - slice_y
+
+    scale_disp = target_h / max(1.0, ch)
+    disp = cv2.resize(cropped, (target_w, target_h), interpolation=cv2.INTER_AREA)
+
+    fx1 = max(0, min(target_w - 2, int(round(bx1 * scale_disp))))
+    fy1 = max(0, min(target_h - 2, int(round(by1 * scale_disp))))
+    fx2 = max(fx1 + 4, min(target_w, int(round(bx2 * scale_disp))))
+    fy2 = max(fy1 + 4, min(target_h, int(round(by2 * scale_disp))))
+
+    # Dim area outside the target so the target person immediately stands out
+    mask = np.zeros((target_h, target_w), dtype=np.float32)
+    mask[fy1:fy2, fx1:fx2] = 1.0
+    mask = cv2.GaussianBlur(mask, (15, 15), 0)
+    mask = np.clip(mask[:, :, None], 0.0, 1.0)
+    disp = (disp.astype(np.float32) * mask + (disp.astype(np.float32) * 0.65) * (1.0 - mask)).astype(np.uint8)
+
+    neon_bgr = (252, 132, 192)  # Bright neon violet
+    # Subtle inner border
+    cv2.rectangle(disp, (fx1, fy1), (fx2, fy2), neon_bgr, 1, cv2.LINE_AA)
+
+    # High-contrast corner brackets [ ]
+    arm = max(8, min(20, (fx2 - fx1) // 4, (fy2 - fy1) // 6))
+    for cx, cy, dx, dy in [(fx1, fy1, 1, 1), (fx2, fy1, -1, 1), (fx1, fy2, 1, -1), (fx2, fy2, -1, -1)]:
+        cv2.line(disp, (cx, cy), (cx + dx * arm, cy), (0, 0, 0), 3, cv2.LINE_AA)
+        cv2.line(disp, (cx, cy), (cx, cy + dy * arm), (0, 0, 0), 3, cv2.LINE_AA)
+        cv2.line(disp, (cx, cy), (cx + dx * arm, cy), neon_bgr, 2, cv2.LINE_AA)
+        cv2.line(disp, (cx, cy), (cx, cy + dy * arm), neon_bgr, 2, cv2.LINE_AA)
+
+    # Top indicator badge
+    badge_w = min(fx2 - fx1, 52)
+    cv2.rectangle(disp, (fx1, max(0, fy1 - 14)), (fx1 + badge_w, fy1), neon_bgr, -1)
+    cv2.putText(disp, "TARGET", (fx1 + 3, max(10, fy1 - 3)), cv2.FONT_HERSHEY_SIMPLEX, 0.30,
+                (0, 0, 0), 1, cv2.LINE_AA)
+
+    ok, buf = cv2.imencode(".jpg", disp, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    return buf.tobytes() if ok else None
+
+
+def body_thumb_for(body: Optional[Dict], size: int = 200, ratio: float = 0.75,
+                   highlight: bool = True) -> Optional[bytes]:
+    """Generates or retrieves a cached body thumbnail with target highlighting."""
+    if not body:
+        return None
+    crop_path = body.get("crop_path")
+    if not crop_path or not os.path.exists(crop_path):
+        return None
+    b = body.get("bbox")
+    if isinstance(b, dict):
+        bbox = (float(b.get("x", 0)), float(b.get("y", 0)), float(b.get("w", 0)), float(b.get("h", 0)))
+    elif isinstance(b, (list, tuple)) and len(b) >= 4:
+        bbox = (float(b[0]), float(b[1]), float(b[2]), float(b[3]))
+    else:
+        bbox = (0.0, 0.0, 0.0, 0.0)
+    raw_kpts = body.get("kpts") or ()
+    kpts_tuple = tuple(tuple(float(v) for v in pt[:3]) for pt in raw_kpts if len(pt) >= 3)
+    stamp = _file_stamp(crop_path)
+    return _body_thumb_cached(crop_path, stamp, bbox, kpts_tuple, size, ratio, highlight)
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
@@ -258,12 +400,14 @@ def duration_text(seconds: Optional[float]) -> str:
 
 
 def empty_state(title: str, body: str, icon: str = "🖼️"):
-    st.markdown(f"""
-    <div class="gal-empty">
-        <div class="gal-empty-icon">{icon}</div>
-        <h4>{_esc(title)}</h4>
-        <p>{_esc(body)}</p>
-    </div>""", unsafe_allow_html=True)
+    html = (
+        f'<div class="gal-empty">'
+        f'<div class="gal-empty-icon">{icon}</div>'
+        f'<h4>{_esc(title)}</h4>'
+        f'<p>{_esc(body)}</p>'
+        f'</div>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def tile(image: Optional[bytes], title: str = "", subtitle: str = "", chips: str = "",
@@ -272,13 +416,19 @@ def tile(image: Optional[bytes], title: str = "", subtitle: str = "", chips: str
     uri = data_uri(image)
     picture = (f'<img class="gal-thumb" style="aspect-ratio:{ratio}" src="{uri}">' if uri else
                f'<div class="gal-thumb gal-thumb-empty" style="aspect-ratio:{ratio}">{placeholder}</div>')
-    st.markdown(f"""
-    <div class="gal-card{' gal-card-sel' if selected else ''}">
-        <div class="gal-media">{picture}{overlay}</div>
-        {f'<div class="gal-title">{_esc(title)}</div>' if title else ''}
-        {f'<div class="gal-sub">{_esc(subtitle)}</div>' if subtitle else ''}
-        {f'<div class="gal-chips">{chips}</div>' if chips else ''}
-    </div>""", unsafe_allow_html=True)
+    sel_cls = " gal-card-sel" if selected else ""
+    title_html = f'<div class="gal-title">{_esc(title)}</div>' if title else ""
+    sub_html = f'<div class="gal-sub">{_esc(subtitle)}</div>' if subtitle else ""
+    chips_html = f'<div class="gal-chips">{chips}</div>' if chips else ""
+    html = (
+        f'<div class="gal-card{sel_cls}">'
+        f'<div class="gal-media">{picture}{overlay}</div>'
+        f'{title_html}'
+        f'{sub_html}'
+        f'{chips_html}'
+        f'</div>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def avatar_strip(person_ids: Sequence[int], db: JsonDatabase, limit: int = 4) -> str:
@@ -873,12 +1023,17 @@ def _person_bodies(ctx: GalleryContext, person_id: int, bodies: List[Dict]):
                 chips += chip("via face", "gal-chip-ok")
             elif method:
                 chips += chip(LINK_LABELS.get(method, method), "gal-chip-soft")
-            tile(thumb_for(body.get("crop_path"), 200, ratio=0.75), "", "", chips, ratio="3 / 4",
+            tile(body_thumb_for(body, 200, ratio=0.75, highlight=True), "", "", chips, ratio="3 / 4",
                  placeholder="🧍")
-            if st.button("🚫 Not this person", key=f"gal_bodyno_{body['id']}", width="stretch"):
-                ctx.db.reject_body_from_person(body["id"], person_id)
-                ctx.after_change("Unlinked")
-                st.rerun()
+            b_acts = st.columns([1, 2])
+            with b_acts[0]:
+                with st.popover("🔍", help="Inspect in full photo"):
+                    _render_body_context(ctx, body)
+            with b_acts[1]:
+                if st.button("🚫 Unlink", key=f"gal_bodyno_{body['id']}", width="stretch"):
+                    ctx.db.reject_body_from_person(body["id"], person_id)
+                    ctx.after_change("Unlinked")
+                    st.rerun()
 
 
 def _person_suggestions(ctx: GalleryContext, person_id: int, suggestions, duplicates, body_links):
@@ -1049,6 +1204,156 @@ def _duplicate_row(ctx: GalleryContext, a: int, b: int, score: float):
                 st.rerun()
 
 
+def _read_source_frame(path: str, frame_number: Optional[int]):
+    """The pixels a detection was made on: the photo itself, or that frame of
+    the video (cv2.imread can't open a video, which is how an .mp4 path used to
+    reach st.image and blow up in PIL)."""
+    import cv2
+    from library_scanner import imread, is_video
+    if not is_video(path):
+        return imread(path)
+    cap = cv2.VideoCapture(str(path))
+    try:
+        if frame_number:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(frame_number))
+        ok, frame = cap.read()
+        return frame if ok else None
+    finally:
+        cap.release()
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def _annotated_body_context_bytes(path: str, stamp: float, boxes: tuple, target_body_id: int,
+                                  frame_number: Optional[int] = None) -> Optional[bytes]:
+    import cv2
+    img = _read_source_frame(path, frame_number)
+    if img is None:
+        return None
+    scale = min(1.0, 1400 / max(img.shape[:2]))
+    if scale < 1.0:
+        img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+
+    target_box = None
+    for x, y, w, h, kind, label, ref_id in boxes:
+        if kind == "b" and ref_id == target_body_id:
+            target_box = (x, y, w, h, kind, label, ref_id)
+            continue
+        sx, sy, sw, sh = [int(v * scale) for v in (x, y, w, h)]
+        color = (226, 43, 138) if kind == "f" else (212, 185, 6)
+        cv2.rectangle(img, (sx, sy), (sx + sw, sy + sh), color, 2 if kind == "f" else 1)
+        if label:
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+            cv2.rectangle(img, (sx, max(0, sy - th - 6)), (sx + tw + 6, sy), color, -1)
+            cv2.putText(img, label, (sx + 3, max(10, sy - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.45,
+                        (255, 255, 255), 1, cv2.LINE_AA)
+
+    if target_box:
+        x, y, w, h, kind, label, ref_id = target_box
+        sx, sy, sw, sh = [int(v * scale) for v in (x, y, w, h)]
+        neon_color = (252, 132, 192)  # Bright neon violet
+        cv2.rectangle(img, (sx - 1, sy - 1), (sx + sw + 1, sy + sh + 1), (0, 0, 0), 4)
+        cv2.rectangle(img, (sx, sy), (sx + sw, sy + sh), neon_color, 3)
+
+        arm = max(12, min(30, sw // 4, sh // 6))
+        for cx, cy, dx, dy in [(sx, sy, 1, 1), (sx + sw, sy, -1, 1), (sx, sy + sh, 1, -1), (sx + sw, sy + sh, -1, -1)]:
+            cv2.line(img, (cx, cy), (cx + dx * arm, cy), (255, 255, 255), 3, cv2.LINE_AA)
+            cv2.line(img, (cx, cy), (cx, cy + dy * arm), (255, 255, 255), 3, cv2.LINE_AA)
+
+        target_lbl = f"★ TARGET: {label}" if label else "★ TARGET BODY"
+        (tw, th), _ = cv2.getTextSize(target_lbl, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+        banner_y0 = max(0, sy - th - 10)
+        cv2.rectangle(img, (sx, banner_y0), (sx + tw + 12, sy), neon_color, -1)
+        cv2.putText(img, target_lbl, (sx + 6, max(12, sy - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
+                    (0, 0, 0), 2, cv2.LINE_AA)
+
+    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 88])
+    return buf.tobytes() if ok else None
+
+
+def _annotated_body_context(db: JsonDatabase, path: str, media_id: Optional[int], target_body_id: int,
+                            frame_number: Optional[int] = None) -> Optional[bytes]:
+    """The frame this body was seen in, with its neighbours boxed and the body
+    itself highlighted. None if the frame can't be read."""
+    record = db.get_media(media_id) if media_id else None
+    boxes = []
+    has_target = False
+    for det in (record or {}).get("detections", []) or []:
+        det_frame, _, kind, ref, x, y, w, h = det
+        if det_frame != frame_number:
+            continue  # a video's detections span every sampled frame - keep this one's
+        if kind == "f":
+            face = db.get_face(ref)
+            person = db.get_person(face.get("person_id")) if face and face.get("person_id") else None
+            label = (person or {}).get("name") or "Face"
+        else:
+            body = db.get_body(ref)
+            pid = db.body_person_id(body) if body else None
+            pname = (db.get_person(pid) or {}).get("name", "") if pid else ""
+            label = f"{pname}" if pname else f"Body {ref}"
+            if ref == target_body_id:
+                has_target = True
+        boxes.append((x, y, w, h, kind, label, ref))
+
+    if not has_target:
+        tbody = db.get_body(target_body_id)
+        if tbody and tbody.get("bbox"):
+            tb = tbody["bbox"]
+            bx = tb.get("x", 0) if isinstance(tb, dict) else tb[0]
+            by = tb.get("y", 0) if isinstance(tb, dict) else tb[1]
+            bw = tb.get("w", 0) if isinstance(tb, dict) else tb[2]
+            bh = tb.get("h", 0) if isinstance(tb, dict) else tb[3]
+            pid = db.body_person_id(tbody)
+            pname = (db.get_person(pid) or {}).get("name", "") if pid else ""
+            boxes.append((bx, by, bw, bh, "b", pname or f"Body {target_body_id}", target_body_id))
+
+    return _annotated_body_context_bytes(path, _file_stamp(path), tuple(boxes), target_body_id,
+                                         frame_number)
+
+
+def _render_body_context(ctx: GalleryContext, body: Dict, link=None):
+    """Shows full photo with all bodies boxed and the target body highlighted in neon."""
+    db = ctx.db
+    media_id = body.get("media_id")
+    media = db.get_media(media_id) if media_id else None
+    path = (media or {}).get("path") or body.get("source_path")
+    target_person_id = link.person_id if link else db.body_person_id(body)
+    target_person = db.get_person(target_person_id) if target_person_id else None
+    target_name = (target_person or {}).get("name") or (f"Person {target_person_id}" if target_person_id else "Unassigned")
+
+    st.markdown(f"**Target Body {body.get('id')} → {target_name}**")
+    if link:
+        st.caption(f"Suggested Match: **{link.confidence * 100:.0f}%** confidence via {LINK_LABELS.get(link.method, link.method)}")
+
+    frame_number = body.get("frame_number")
+    annotated_img = None
+    if path and os.path.exists(path):
+        annotated_img = _annotated_body_context(db, path, media_id, target_body_id=body.get("id"),
+                                                frame_number=frame_number)
+    if annotated_img is not None:
+        st.image(annotated_img, width="stretch")
+        if frame_number is not None:
+            st.caption(f"Frame {frame_number}"
+                       + (f" · {duration_text(body.get('timestamp'))}" if body.get("timestamp") else ""))
+    else:
+        crop = body.get("crop_path")
+        if crop and os.path.exists(crop):
+            st.image(crop, width="stretch")
+            st.caption("Showing the saved crop — the original frame couldn't be read.")
+        else:
+            st.warning("Neither the original file nor the saved crop is on disk any more.")
+
+    if link:
+        btn_c1, btn_c2 = st.columns(2)
+        if btn_c1.button("✓ Confirm Match", key=f"pop_yes_{link.body_id}_{link.person_id}", type="primary", width="stretch"):
+            ctx.db.link_body_to_person(link.body_id, link.person_id, "manual", link.confidence)
+            ctx.after_change("Linked")
+            st.rerun()
+        if btn_c2.button("✕ Dismiss", key=f"pop_no_{link.body_id}_{link.person_id}", width="stretch"):
+            ctx.db.reject_body_from_person(link.body_id, link.person_id)
+            ctx.after_change("Dismissed")
+            st.rerun()
+
+
 def _body_link_grid(ctx: GalleryContext, links, key: str):
     columns = st.columns(6)
     for i, link in enumerate(links[:24]):
@@ -1057,19 +1362,22 @@ def _body_link_grid(ctx: GalleryContext, links, key: str):
         if not body:
             continue
         with columns[i % 6]:
-            tile(thumb_for(body.get("crop_path"), 200, ratio=0.75), "",
+            tile(body_thumb_for(body, 200, ratio=0.75, highlight=True), "",
                  person.get("name") or f"Person {link.person_id}",
                  chip(f"{link.confidence * 100:.0f}% · {LINK_LABELS.get(link.method, link.method)}",
                       "gal-chip-soft"), ratio="3 / 4", placeholder="🧍")
-            yes, no = st.columns(2)
-            if yes.button("✓", key=f"gal_by_{key}_{link.body_id}", width="stretch"):
+            col_yes, col_no, col_inspect = st.columns([1, 1, 1])
+            if col_yes.button("✓", key=f"gal_by_{key}_{link.body_id}", width="stretch", help="Confirm match"):
                 ctx.db.link_body_to_person(link.body_id, link.person_id, "manual", link.confidence)
                 ctx.after_change("Linked")
                 st.rerun()
-            if no.button("✕", key=f"gal_bn_{key}_{link.body_id}", width="stretch"):
+            if col_no.button("✕", key=f"gal_bn_{key}_{link.body_id}", width="stretch", help="Dismiss suggestion"):
                 ctx.db.reject_body_from_person(link.body_id, link.person_id)
                 ctx.after_change("Dismissed")
                 st.rerun()
+            with col_inspect:
+                with st.popover("🔍", help="Inspect in full photo"):
+                    _render_body_context(ctx, body, link)
 
 
 def _unsorted_faces(ctx: GalleryContext, face_ids: List[int]):
@@ -1224,7 +1532,11 @@ def _inspector(ctx: GalleryContext, row: Dict):
     is_vid = row.get("type") == "video"
 
     if not is_vid and path and os.path.exists(path):
-        st.image(_annotated(ctx, path, media_id), width="stretch")
+        annotated = _annotated(ctx, path, media_id)
+        if annotated is None:
+            st.warning("This file couldn't be opened as an image.")
+        else:
+            st.image(annotated, width="stretch")
     elif is_vid and path and os.path.exists(path):
         start = st.session_state.get("gal_inspect_start", 0)
         st.video(path, start_time=int(start))
@@ -1328,8 +1640,9 @@ def _annotated(ctx: GalleryContext, path: str, media_id: Optional[int]):
             pid = db.body_person_id(body) if body else None
             label = (db.get_person(pid) or {}).get("name", "") if pid else ""
         boxes.append((x, y, w, h, kind, label))
-    payload = _annotated_bytes(path, _file_stamp(path), tuple(boxes))
-    return payload if payload else path
+    # Bytes, or None if the file can't be decoded - never the path itself: handing
+    # a video (or a broken file) to st.image raises PIL's UnidentifiedImageError.
+    return _annotated_bytes(path, _file_stamp(path), tuple(boxes))
 
 
 # ---------------------------------------------------------------------------

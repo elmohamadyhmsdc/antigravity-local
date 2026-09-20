@@ -20,8 +20,13 @@ It mines faces from videos/photos, deduplicates them, groups them by person, and
 Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 
 **Run tests (CPU-only, no models or GPU required):**
+- `python test_gallery.py` — quality scoring, grouping/linking, storage, scanner (uses temp data dirs, never the real `data/`)
+- `python test_gallery_ui.py` — runs the Gallery page headlessly via `streamlit.testing.v1.AppTest` against a fixture library
 - `python test_reface_v2.py`
-- `python test_compositor.py`
+- `python test_compositor.py` (one pre-existing failure: `test_feather_mask_keeps_a_solid_centre`)
+
+**Check grouping accuracy against your own curated people** (read-only):
+- `python eval_grouping.py`
 
 ## Architecture
 
@@ -71,7 +76,7 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 ### Dashboard Pages (sidebar radio)
 1. **📊 Dashboard** — stats, source analytics
 2. **📁 Data Sources** — add folder paths or upload files
-3. **👥 Gallery** — browse persons/faces, assign unassigned faces
+3. **👥 Gallery** — `gallery_page.py`, four views: **People** (person cards → faces, photos/videos, body shots, suggestions), **Review** (the decision queue: faces that match someone known, new groups, possible duplicate people, bodies matched by outfit), **Media** (every file, who's in it, inspector with drawn boxes), **Insights**. "Scan library" ingests new/changed files and groups them
 4. **🎭 Reface** — Quick Swap + Build Faceset + Background Jobs
 5. **🎭 Reface V2** — engine radio: ✨ HD V3 (recommended) or Legacy V2, plus occlusion/enhancement options
 6. **✨ Magic Undress** — clothes restyle via JobManager + persistent venv_ai worker
@@ -92,9 +97,12 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 
 ## Key Constants / Thresholds
 - Embedding dim: **512** (InsightFace Buffalo_L)
-- Duplicate threshold: **0.05** cosine distance (very strict)
-- Auto-cluster similarity: **0.35** cosine distance
-- Quality threshold default: **0.6**
+- Duplicate threshold: **0.05** cosine distance (very strict) — a detection this close to a stored face is *linked* to it, not stored again
+- Detector scales: `[(128,128), (640,640)]`, plus `(1280,1280)` for images ≥1600px. The single 640 scale the app used before missed faces that fill the frame (119 of 290 existing crops weren't re-detectable at 640 alone)
+- Face quality (`face_quality.py`, v2): `0.35·norm + 0.20·size + 0.20·sharpness + 0.25·pose`; gate for storing a face **0.40** (`FACE_MIN_QUALITY`), det_score ≥ 0.5, ≥ 24px. Correlates with identity reliability at ρ=0.56 (the old `det_score × size-ratio` score: 0.40)
+- Grouping (`person_linking.STRICTNESS`, default **balanced**): auto-assign to a known person at identity score **0.40** with a **0.10** lead over the runner-up; suggest at 0.25; average-linkage cut **0.70**; groups of ≥3 cohesive faces become a person; duplicate people suggested at 0.40, folded automatically at 0.60; faceless bodies linked by outfit at **0.86** within the same file
+- Measured on the curated library (2026-09-19): matching 98% auto with 0 wrong and 0 false matches for an unseen person; regrouping 3 people into 6 groups at 100% pairwise precision (the old greedy 0.35 pass made 17)
+- **One person can't appear twice in the same photo/frame** — enforced in matching (Hungarian assignment), clustering (cannot-link) and body linking
 
 ## GPU Setup Notes
 - ONNX Runtime GPU: requires CUDA DLLs on PATH — `cuda_dll_dirs.add_nvidia_dll_dirs()` registers the `venv/.../nvidia/*/bin` dirs (called by `dashboard.py`, the reface engines, `face_restore.py`, `face_masking.py`); `face_miner.py` separately adds the CUDA Toolkit bin. Registration must stay once-per-process: `dashboard.py` re-runs on every Streamlit rerun, and repeated `os.add_dll_directory` calls exhaust the DLL search list (~150 reruns) → `[WinError 206]` on `import torch`
@@ -103,8 +111,9 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 - Undress pipeline targets a 6 GB card: `enable_model_cpu_offload()` stays ON, generation caps at 768, and the high-res refine pass is tiled so VRAM stays flat regardless of photo size
 
 ## Data Directories (gitignored)
-- `data/` — persons.json, faces.json
+- `data/` — persons.json, faces.json, bodies.json, media.json
 - `extracted_faces/` — saved face image crops
+- `extracted_bodies/` — saved body crops (gallery body shots)
 - `uploads/` — uploaded files
 - `facesets/` — saved faceset directories
 - `jobs/` — background job JSON files

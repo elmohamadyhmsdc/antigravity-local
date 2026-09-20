@@ -32,6 +32,9 @@ streamlit run dashboard.py
 There's no pytest suite — "tests" are standalone scripts that print results and `exit(1)` on failure; run them directly with the venv active:
 ```
 python test_stats.py        # database.py sanity check
+python test_gallery.py      # gallery: quality score, grouping/linking, storage, scanner (temp data dirs, no GPU)
+python test_gallery_ui.py   # gallery page rendered headlessly via streamlit's AppTest, on a fixture library
+python eval_grouping.py     # read-only: grouping accuracy against the people already curated in data/
 python test_v3_smoke.py     # RefaceEngineV3 + real ONNX model I/O (needs models/ downloaded + a saved faceset)
 python test_imports.py
 python test_onnx.py
@@ -67,10 +70,18 @@ No shell commands — run the numbered `.bat` files in that folder in order agai
 ## Architecture
 
 ### `the app/` in one paragraph
-`dashboard.py` (~3,750 lines, one file, no page-routing framework — a sidebar radio over 9 emoji-named pages, each an `elif page == "..."` block) is the only entry point users touch. Everything else is a library module it imports directly: `database.py` (storage), `face_miner.py` (ingest), three generations of reface engine, `job_manager.py` (background queue for long-running swaps, LoRA training, and `undress_image` jobs), `undress_core.py` / `undress_engine.py` (persistent `venv_ai` worker — CUDA torch cannot share the main venv; SD1.5 inpaint at <=768 on a native-res crop, then a tiled full-res refine pass, with optional IP-Adapter reference images), and `dfm_engine.py`/`dfl_metadata.py` (DeepFaceLab interop). The full per-module table lives in `the app/CLAUDE.md`.
+`dashboard.py` (~4,400 lines, one file, no page-routing framework — a sidebar radio over 9 emoji-named pages, each an `elif page == "..."` block) is the only entry point users touch. Everything else is a library module it imports directly: `database.py` (storage), the gallery stack (`library_scanner.py` ingest → `face_quality.py` + `body_detector.py` + `person_linking.py` → `gallery_grouping.py` → `gallery_page.py`, which owns the whole Gallery page — see below), three generations of reface engine, `job_manager.py` (background queue for long-running swaps, LoRA training, and `undress_image` jobs), `undress_core.py` / `undress_engine.py` (persistent `venv_ai` worker — CUDA torch cannot share the main venv; SD1.5 inpaint at <=768 on a native-res crop, then a tiled full-res refine pass, with optional IP-Adapter reference images), and `dfm_engine.py`/`dfl_metadata.py` (DeepFaceLab interop). The full per-module table lives in `the app/CLAUDE.md`.
+
+### Gallery: scan → group → review
+Ingest and identity grouping are separate layers, all driven from the Gallery page's "Scan library" button (Data Sources' Process button runs the same code):
+- `library_scanner.py` walks photos/videos and writes three record types: **faces** (embedding + quality metadata), **bodies** (box, 17 COCO keypoints, outfit histogram, crop; tied to its face when the face is usable) and **media** (per-file scan signature + every detection, so "which photos is this person in?" is answerable). It's incremental (skips unchanged files) and resumable mid-video.
+- `person_linking.py` is the pure-logic core: face↔body association, matching faces to known people, average-linkage clustering, duplicate-person and outfit-based body suggestions. It never touches models or files, so it's unit-tested on CPU.
+- `gallery_grouping.py` binds the two to the database: `group_library()` applies only confident decisions, `review_state()` returns everything else for the Review tab.
+- Corrections are remembered: `rejected_person_ids` on a face/body and `distinct_from` on a person, so auto-grouping never re-does a correction the user made.
+- Detection is deliberately onnxruntime-only (`venv`'s torch is CPU-only): InsightFace for faces, YOLOX-m + RTMPose-m for bodies (auto-downloaded to `models/body/`, ~145 MB).
 
 ### Storage: local JSON, despite what the top-level docs say
-`the app/README.md` and `the app/.env.template` both describe a PostgreSQL + pgvector setup. That's stale — the project migrated to a local JSON store (migration record in `the app/.agent/memory.md`), and `database.py`'s `JsonDatabase` singleton is the actual source of truth: `data/persons.json` + `data/faces.json`, brute-force NumPy cosine similarity, atomic writes (temp file + `os.replace`). `get_session()`/`get_db()` still exist but return a no-op `MockSession` for backward compatibility only. Don't reintroduce SQLAlchemy/pgvector on the strength of the README.
+`the app/README.md` and `the app/.env.template` both describe a PostgreSQL + pgvector setup. That's stale — the project migrated to a local JSON store (migration record in `the app/.agent/memory.md`), and `database.py`'s `JsonDatabase` singleton is the actual source of truth: `data/persons.json` + `data/faces.json` + `data/bodies.json` + `data/media.json`, brute-force NumPy cosine similarity, atomic writes (temp file + `os.replace`), `db.batch()` to group writes and `db.refresh_if_changed()` so the Streamlit process and the job worker don't overwrite each other. `get_session()`/`get_db()` still exist but return a no-op `MockSession` for backward compatibility only. Don't reintroduce SQLAlchemy/pgvector on the strength of the README.
 
 ### Reface: three engine generations, both reachable from one confusingly-named page
 - `reface_engine.py` (V1) and `reface_engine_v2.py` (V2 — adds occlusion handling, GFPGAN enhancement, temporal smoothing; imports V1's classes) power the original **🎭 Reface** page.
@@ -89,6 +100,8 @@ It exposes `/api/faces/detect|cluster|merge|find-match|find-matching-group|compa
 | Constant | `the app/database.py` | `python-services/services/face_clustering.py` |
 |---|---|---|
 | Embedding | 512-d, InsightFace Buffalo_L | same model |
-| Duplicate threshold | 0.05 cosine distance | — |
-| Person-clustering threshold | 0.35 cosine distance (`auto_assign_to_person`) | DBSCAN `eps=0.28`, `min_samples=2` |
-| Quality threshold | 0.6 default | 0.6 default |
+| Duplicate threshold | 0.05 cosine distance (links the detection to the existing face) | — |
+| Person grouping | `person_linking.STRICTNESS` (balanced): match a known person at score ≥ 0.40 with a 0.10 lead; average-linkage cut 0.70; folds alike groups at 0.60 | DBSCAN `eps=0.28`, `min_samples=2` |
+| Quality | `face_quality` v2: norm/size/sharpness/pose, store at ≥ 0.40 | 0.6 default |
+
+`database.auto_assign_to_person()` (the old per-face 0.35 greedy rule) is still there for `face_miner.py`, but the dashboard no longer uses it — the Gallery groups through `gallery_grouping.group_library()`.

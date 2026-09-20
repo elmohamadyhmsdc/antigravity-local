@@ -93,12 +93,36 @@ def build_sandbox() -> Path:
                                                          color, (160, 320))})
                     detections.append([None, None, "f", fid, 100 + index * 300, 80, 120, 140])
                     detections.append([None, None, "b", bid, 60 + index * 300, 40, 200, 520])
+        # a body found in a VIDEO frame, linked by hand to the first person:
+        # rendering it used to hand the .mp4 path to st.image (PIL blew up)
+        clip = root / "media" / "clip.avi"
+        writer = cv2.VideoWriter(str(clip), cv2.VideoWriter_fourcc(*"MJPG"), 10.0, (320, 480))
+        for _ in range(24):
+            writer.write(np.full((480, 320, 3), (60, 80, 100), dtype=np.uint8))
+        writer.release()
+        clip_media = db.upsert_media(str(clip), {"type": "video", "width": 320, "height": 480,
+                                                 "fps": 10.0, "frame_count": 24, "duration": 2.4,
+                                                 "scan_status": "done", "scan_version": 2,
+                                                 "size": clip.stat().st_size,
+                                                 "mtime": int(clip.stat().st_mtime),
+                                                 "frames_scanned": 3})
+        video_body = db.add_body({"media_id": clip_media, "source_path": str(clip),
+                                  "frame_number": 10, "timestamp": 1.0,
+                                  "bbox": {"x": 40, "y": 30, "w": 200, "h": 420}, "score": 0.9,
+                                  "extent": "full", "appearance": [float(v) for v in outfit],
+                                  "crop_path": crop(root / "extracted_bodies" / "b_video.jpg",
+                                                    (100, 90, 90), (160, 320))})
+        db.upsert_media(str(clip), {"detections": [[10, 1.0, "b", video_body, 40, 30, 200, 420],
+                                                   [20, 2.0, "b", video_body, 10, 10, 90, 120]]})
+
         # a body nobody claimed, and a loose face for the review queue
         db.add_body({"media_id": media_id, "source_path": str(photo), "frame_number": None,
                      "bbox": {"x": 600, "y": 40, "w": 180, "h": 520}, "score": 0.8, "extent": "upper",
                      "appearance": [float(v) for v in outfit],
                      "crop_path": crop(root / "extracted_bodies" / "b_loose.jpg", (120, 120, 120),
                                        (160, 320))})
+        db.link_body_to_person(video_body, 1, "manual")
+
         stray = rng.standard_normal(512).astype(np.float32)
         db.add_face(stray / np.linalg.norm(stray), str(photo), quality_score=0.7,
                     image_path=crop(root / "extracted_faces" / "f_loose.jpg", (150, 150, 150)),
@@ -176,6 +200,30 @@ def test_person_detail_opens_with_tabs_and_actions():
     check("faces" in body.lower() and "bodies" in body.lower(), "counts should be shown")
     check(any("Suggestions" in t for t in [tab.label for tab in app.tabs]),
           f"tabs missing: {[t.label for t in app.tabs]}")
+
+
+@test
+def test_body_shots_render_for_a_body_found_in_a_video():
+    """A body detected in a video must show that video frame, not crash st.image
+    with an .mp4 path (PIL UnidentifiedImageError)."""
+    import gallery_page
+    from database import JsonDatabase
+
+    sandbox()
+    db = JsonDatabase(data_dir=sandbox() / "data")
+    video_body = next(b for b in db.get_all_bodies() if b.get("frame_number") == 10)
+    annotated = gallery_page._annotated_body_context(db, b_path := video_body["source_path"],
+                                                     video_body["media_id"], video_body["id"],
+                                                     frame_number=10)
+    check(isinstance(annotated, bytes) and annotated.startswith(bytes((0xFF, 0xD8))),
+          f"a video body should annotate that frame as JPEG bytes, got {type(annotated)}")
+    check(gallery_page._read_source_frame(b_path, 10) is not None, "the video frame should be readable")
+
+    app = run_app()
+    click(app, "Open")
+    tabs = [t.label for t in app.tabs]
+    check(any("Body shots" in t for t in tabs), f"body shots tab missing: {tabs}")
+    check(not app.exception, f"opening the person raised: {app.exception}")
 
 
 @test
