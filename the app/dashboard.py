@@ -2807,6 +2807,8 @@ elif page == "🧬 Character LoRA":
             negative_prompt = st.text_area("Negative Prompt", DEFAULT_NEGATIVE_PROMPT, key="lora_gen_negative")
             num_images = st.slider("Number of images", 1, 8, 4)
             seed = st.number_input("Seed (-1 for random)", value=-1, step=1, key="lora_gen_seed")
+            multi_angle = st.checkbox("📐 Multi-angle set (Front, 3/4, Profile views)", value=True, key="lora_gen_multi_angle",
+                                      help="Automatically varies poses across images (frontal, 3/4 left, 3/4 right, profile) so the reference set covers all angles.")
 
             c_scale1, c_scale2 = st.columns(2)
             with c_scale1:
@@ -2869,7 +2871,8 @@ elif page == "🧬 Character LoRA":
                                                          negative_prompt=negative_prompt,
                                                          reference_params=gen_reference_params,
                                                          lora_scale=lora_scale,
-                                                         guidance_scale=guidance_scale),
+                                                         guidance_scale=guidance_scale,
+                                                         multi_angle=multi_angle),
                                  jobs_dir=gen_jobs_dir)
                 st.rerun()
 

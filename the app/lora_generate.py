@@ -29,16 +29,27 @@ from pathlib import Path
 
 DEFAULT_PROMPT_TEMPLATE = (
     "raw candid color photo portrait of {trigger} person, natural daylight, "
-    "soft natural shadows, authentic skin texture, realistic facial features, "
-    "shallow depth of field, 35mm film photography, highly detailed, photorealistic"
+    "soft natural shadows, authentic skin texture with visible pores, realistic facial features, "
+    "85mm portrait lens, shallow depth of field, 35mm film photography, highly detailed, photorealistic"
 )
 DEFAULT_NEGATIVE_PROMPT = (
-    "doll, plastic, smooth skin, cartoon, anime, illustration, 3d render, painting, "
-    "deformed, bad anatomy, bad eyes, disfigured, blurry, oversaturated, harsh contrast"
+    "doll, plastic, smooth skin, airbrushed, wax figure, CGI, 3d render, cartoon, anime, illustration, painting, "
+    "deformed, bad anatomy, bad eyes, disfigured, blurry, oversaturated, harsh contrast, poreless, fake skin, over-smoothed"
 )
 DEFAULT_STEPS = 30
 DEFAULT_GUIDANCE = 4.5
-DEFAULT_LORA_SCALE = 0.8
+DEFAULT_LORA_SCALE = 0.75
+
+PORTRAIT_ANGLES = [
+    "front view portrait, looking directly at camera, centered composition",
+    "three-quarter view turned to the left, natural lighting, looking slightly away",
+    "three-quarter view turned to the right, dynamic head angle, soft natural shadows",
+    "side profile view, 90 degree angle, sharp jawline and silhouette",
+    "candid expressive portrait, slight head tilt, natural daylight",
+    "three-quarter portrait looking towards camera, subtle smile",
+    "side profile view from opposite angle, looking away",
+    "close-up frontal portrait, detailed eye reflections and natural skin texture",
+]
 
 REFERENCE_COMPOSITION = "composition"
 REFERENCE_STYLE = "style"
@@ -204,6 +215,8 @@ def main():
     base_seed = seed if seed != -1 else random.randint(0, 2**31 - 1 - num_images)
     emit("stage", stage=STAGE_GENERATING, total_images=num_images, steps=run_steps, base_seed=base_seed)
 
+    multi_angle = bool(request.get("multi_angle", True)) if not reference_mode(request) and num_images > 1 else False
+
     for index in range(num_images):
         image_seed = base_seed + index
         started = time.monotonic()
@@ -214,8 +227,13 @@ def main():
             emit("step", image=index + 1, step=step + 1, steps=run_steps, seconds=round(time.monotonic() - started, 2))
             return callback_kwargs
 
+        current_prompt = prompt
+        if multi_angle:
+            angle_desc = PORTRAIT_ANGLES[index % len(PORTRAIT_ANGLES)]
+            current_prompt = f"{prompt}, {angle_desc}"
+
         image = pipe(
-            prompt, negative_prompt=negative_prompt, num_inference_steps=steps, guidance_scale=guidance_scale,
+            current_prompt, negative_prompt=negative_prompt, num_inference_steps=steps, guidance_scale=guidance_scale,
             generator=torch.Generator(device).manual_seed(image_seed), callback_on_step_end=on_step_end,
             **reference_kwargs,
         ).images[0]
