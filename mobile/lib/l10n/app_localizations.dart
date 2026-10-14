@@ -769,7 +769,7 @@ abstract class AppLocalizations {
   /// No description provided for @albumsHint.
   ///
   /// In en, this message translates to:
-  /// **'Choose the albums whose photos should be scanned. Photos stay on this phone; only a downscaled copy of each is sent to your PC.'**
+  /// **'Choose the albums whose items should be scanned. Photos stay on this phone; only a downscaled copy of each is sent to your PC.'**
   String get albumsHint;
 
   /// No description provided for @albumsTitle.
@@ -817,7 +817,7 @@ abstract class AppLocalizations {
   /// No description provided for @backupIntro.
   ///
   /// In en, this message translates to:
-  /// **'Your library lives only on this phone. A backup is one file you can keep in Files, Drive or on your PC; restoring it brings everything back exactly as it was.'**
+  /// **'Your library, private results, datasets and trained LoRAs live on this phone. Export a backup to keep another copy; PC connections and active jobs are excluded.'**
   String get backupIntro;
 
   /// No description provided for @backupKeepSafe.
@@ -1633,7 +1633,7 @@ abstract class AppLocalizations {
   /// No description provided for @scanFootnote.
   ///
   /// In en, this message translates to:
-  /// **'Scanning keeps going with the screen off. Photos already scanned are skipped, so you can run it again whenever new photos arrive.'**
+  /// **'Scanning keeps going with the screen off. Photos already scanned are skipped, so you can run it again whenever new items arrive.'**
   String get scanFootnote;
 
   /// No description provided for @scanFound.
@@ -1651,7 +1651,7 @@ abstract class AppLocalizations {
   /// No description provided for @scanLibraryHint.
   ///
   /// In en, this message translates to:
-  /// **'Find the faces in your photos'**
+  /// **'Find the faces in your items'**
   String get scanLibraryHint;
 
   /// No description provided for @scanModelMismatch.
@@ -1681,13 +1681,13 @@ abstract class AppLocalizations {
   /// No description provided for @scanNotificationText.
   ///
   /// In en, this message translates to:
-  /// **'{done}/{total} photos · {faces} faces'**
+  /// **'{done}/{total} items · {faces} faces'**
   String scanNotificationText(int done, int total, int faces);
 
   /// No description provided for @scanNotificationTitle.
   ///
   /// In en, this message translates to:
-  /// **'Scanning your photos'**
+  /// **'Scanning your items'**
   String get scanNotificationTitle;
 
   /// No description provided for @scanNow.
@@ -1981,7 +1981,7 @@ abstract class AppLocalizations {
   /// No description provided for @whoIsHere.
   ///
   /// In en, this message translates to:
-  /// **'Who is in this photo'**
+  /// **'Who is here'**
   String get whoIsHere;
 
   /// No description provided for @close.
@@ -1989,6 +1989,1230 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get close;
+
+  /// No description provided for @allMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'All photos & videos'**
+  String get allMedia;
+
+  /// No description provided for @mediaCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 item} other{{count} items}}'**
+  String mediaCount(int count);
+
+  /// No description provided for @includeVideos.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan videos too'**
+  String get includeVideos;
+
+  /// No description provided for @includeVideosHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Videos upload to your paired PC. Progress resumes after interruptions.'**
+  String get includeVideosHint;
+
+  /// No description provided for @videoFrameInterval.
+  ///
+  /// In en, this message translates to:
+  /// **'Sample video frames'**
+  String get videoFrameInterval;
+
+  /// No description provided for @videoEverySeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Every {seconds} s'**
+  String videoEverySeconds(String seconds);
+
+  /// No description provided for @videoUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading video · {percent}%'**
+  String videoUploading(int percent);
+
+  /// No description provided for @videoAnalyzing.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyzing video · {percent}%'**
+  String videoAnalyzing(int percent);
+
+  /// No description provided for @videoDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading video detections…'**
+  String get videoDownloading;
+
+  /// No description provided for @videoImporting.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving video detections on this phone…'**
+  String get videoImporting;
+
+  /// No description provided for @videoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get videoTitle;
+
+  /// No description provided for @videoUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Video unavailable'**
+  String get videoUnavailable;
+
+  /// No description provided for @videoUnavailableBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The original may have been removed, access may have changed, or this format cannot be played.'**
+  String get videoUnavailableBody;
+
+  /// No description provided for @videoPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get videoPlay;
+
+  /// No description provided for @videoPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause playback'**
+  String get videoPause;
+
+  /// No description provided for @videoDetectedFrames.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to a detected frame'**
+  String get videoDetectedFrames;
+
+  /// No description provided for @videoNoDetections.
+  ///
+  /// In en, this message translates to:
+  /// **'No detections yet. Scan this video to find people.'**
+  String get videoNoDetections;
+
+  /// No description provided for @insightsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Library insights'**
+  String get insightsTitle;
+
+  /// No description provided for @insightsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan coverage, identified faces and people in your library.'**
+  String get insightsHint;
+
+  /// No description provided for @insightsCoverage.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan coverage'**
+  String get insightsCoverage;
+
+  /// No description provided for @insightsScanned.
+  ///
+  /// In en, this message translates to:
+  /// **'{done} of {total} items scanned'**
+  String insightsScanned(int done, int total);
+
+  /// No description provided for @insightsFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Identified faces'**
+  String get insightsFaces;
+
+  /// No description provided for @insightsBodies.
+  ///
+  /// In en, this message translates to:
+  /// **'Identified bodies'**
+  String get insightsBodies;
+
+  /// No description provided for @insightsTopPeople.
+  ///
+  /// In en, this message translates to:
+  /// **'Most seen people'**
+  String get insightsTopPeople;
+
+  /// No description provided for @insightsPersonMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} media items'**
+  String insightsPersonMedia(int count);
+
+  /// No description provided for @insightsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan your library to see insights'**
+  String get insightsEmpty;
+
+  /// No description provided for @insightsAssigned.
+  ///
+  /// In en, this message translates to:
+  /// **'{identified} of {total} identified'**
+  String insightsAssigned(int identified, int total);
+
+  /// No description provided for @insightsUnsorted.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsorted faces'**
+  String get insightsUnsorted;
+
+  /// No description provided for @insightsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Items needing another scan'**
+  String get insightsFailed;
+
+  /// No description provided for @tabMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos & videos'**
+  String get tabMedia;
+
+  /// No description provided for @studioTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Studio'**
+  String get studioTitle;
+
+  /// No description provided for @studioHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Create with your private library'**
+  String get studioHint;
+
+  /// No description provided for @studioNeedsPc.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to your paired PC to detect faces and start a new job.'**
+  String get studioNeedsPc;
+
+  /// No description provided for @studioBusyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The GPU is busy. New Studio jobs will wait in the queue.'**
+  String get studioBusyHint;
+
+  /// No description provided for @refaceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reface'**
+  String get refaceTitle;
+
+  /// No description provided for @refaceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Swap a person into a photo or video'**
+  String get refaceHint;
+
+  /// No description provided for @privateResults.
+  ///
+  /// In en, this message translates to:
+  /// **'Private results'**
+  String get privateResults;
+
+  /// No description provided for @privateResultsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Outputs stay inside Antigravity until you choose to share them.'**
+  String get privateResultsHint;
+
+  /// No description provided for @refaceTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Target'**
+  String get refaceTarget;
+
+  /// No description provided for @refaceIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Source identity'**
+  String get refaceIdentity;
+
+  /// No description provided for @refaceQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Engine & quality'**
+  String get refaceQuality;
+
+  /// No description provided for @refaceReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Review & create'**
+  String get refaceReview;
+
+  /// No description provided for @chooseTargetPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a photo'**
+  String get chooseTargetPhoto;
+
+  /// No description provided for @chooseTargetVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a video'**
+  String get chooseTargetVideo;
+
+  /// No description provided for @selectedTargetFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the faces to swap'**
+  String get selectedTargetFaces;
+
+  /// No description provided for @videoSwapsAllFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Video Reface swaps every detected face in the selected clip.'**
+  String get videoSwapsAllFaces;
+
+  /// No description provided for @videoTrimStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start (seconds)'**
+  String get videoTrimStart;
+
+  /// No description provided for @videoTrimEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'End (seconds, optional)'**
+  String get videoTrimEnd;
+
+  /// No description provided for @selectSourcePerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose source person'**
+  String get selectSourcePerson;
+
+  /// No description provided for @sourceFacesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select clear faces of the same person. The best 20 are selected by default.'**
+  String get sourceFacesHint;
+
+  /// No description provided for @refaceHd.
+  ///
+  /// In en, this message translates to:
+  /// **'HD'**
+  String get refaceHd;
+
+  /// No description provided for @refaceLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy'**
+  String get refaceLegacy;
+
+  /// No description provided for @refacePro.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro · DFM'**
+  String get refacePro;
+
+  /// No description provided for @refaceEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'Engine'**
+  String get refaceEngine;
+
+  /// No description provided for @dfmModel.
+  ///
+  /// In en, this message translates to:
+  /// **'DFM model'**
+  String get dfmModel;
+
+  /// No description provided for @refaceRestorer.
+  ///
+  /// In en, this message translates to:
+  /// **'Face restoration'**
+  String get refaceRestorer;
+
+  /// No description provided for @restorerAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get restorerAuto;
+
+  /// No description provided for @restorerNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get restorerNone;
+
+  /// No description provided for @refacePreset.
+  ///
+  /// In en, this message translates to:
+  /// **'Realism preset'**
+  String get refacePreset;
+
+  /// No description provided for @presetNatural.
+  ///
+  /// In en, this message translates to:
+  /// **'Natural'**
+  String get presetNatural;
+
+  /// No description provided for @presetDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum detail'**
+  String get presetDetail;
+
+  /// No description provided for @presetClean.
+  ///
+  /// In en, this message translates to:
+  /// **'Clean'**
+  String get presetClean;
+
+  /// No description provided for @protectOcclusions.
+  ///
+  /// In en, this message translates to:
+  /// **'Protect glasses and occlusions'**
+  String get protectOcclusions;
+
+  /// No description provided for @useFaceParser.
+  ///
+  /// In en, this message translates to:
+  /// **'Use face region mask'**
+  String get useFaceParser;
+
+  /// No description provided for @submitReface.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Reface job'**
+  String get submitReface;
+
+  /// No description provided for @refaceReviewHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The target is copied to private storage so this request survives closing the app. The PC keeps it only while processing.'**
+  String get refaceReviewHint;
+
+  /// No description provided for @selectFaceRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Select at least one target face.'**
+  String get selectFaceRequired;
+
+  /// No description provided for @selectIdentityRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a source person and at least one face.'**
+  String get selectIdentityRequired;
+
+  /// No description provided for @chooseTargetRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose and detect a photo, or choose a video.'**
+  String get chooseTargetRequired;
+
+  /// No description provided for @invalidTrimRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid trim range: end must be greater than start.'**
+  String get invalidTrimRange;
+
+  /// No description provided for @fileTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'This file exceeds the PC upload limit.'**
+  String get fileTooLarge;
+
+  /// No description provided for @studioNoEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'No Reface engine is available. Check the models on your PC.'**
+  String get studioNoEngine;
+
+  /// No description provided for @jobsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No Studio jobs yet'**
+  String get jobsEmpty;
+
+  /// No description provided for @jobsEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Start a Reface job from Studio. Progress and results will appear here.'**
+  String get jobsEmptyHint;
+
+  /// No description provided for @jobDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Job details'**
+  String get jobDetails;
+
+  /// No description provided for @jobPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get jobPause;
+
+  /// No description provided for @jobResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get jobResume;
+
+  /// No description provided for @jobRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get jobRetry;
+
+  /// No description provided for @jobRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove job'**
+  String get jobRemove;
+
+  /// No description provided for @jobSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync now'**
+  String get jobSync;
+
+  /// No description provided for @jobResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Open result'**
+  String get jobResult;
+
+  /// No description provided for @statusUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading'**
+  String get statusUploading;
+
+  /// No description provided for @statusQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued'**
+  String get statusQueued;
+
+  /// No description provided for @statusRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get statusRunning;
+
+  /// No description provided for @statusPaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Paused'**
+  String get statusPaused;
+
+  /// No description provided for @statusDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving result'**
+  String get statusDownloading;
+
+  /// No description provided for @statusCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get statusCompleted;
+
+  /// No description provided for @statusFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get statusFailed;
+
+  /// No description provided for @statusLost.
+  ///
+  /// In en, this message translates to:
+  /// **'PC job expired'**
+  String get statusLost;
+
+  /// No description provided for @resultEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No private results yet'**
+  String get resultEmpty;
+
+  /// No description provided for @resultEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Finished outputs are saved here automatically.'**
+  String get resultEmptyHint;
+
+  /// No description provided for @resultBefore.
+  ///
+  /// In en, this message translates to:
+  /// **'Before'**
+  String get resultBefore;
+
+  /// No description provided for @resultAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'After'**
+  String get resultAfter;
+
+  /// No description provided for @resultCompare.
+  ///
+  /// In en, this message translates to:
+  /// **'Before / after'**
+  String get resultCompare;
+
+  /// No description provided for @resultShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share output'**
+  String get resultShare;
+
+  /// No description provided for @resultFavourite.
+  ///
+  /// In en, this message translates to:
+  /// **'Favourite'**
+  String get resultFavourite;
+
+  /// No description provided for @resultDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete result'**
+  String get resultDelete;
+
+  /// No description provided for @resultDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this private output and its comparison original from the phone?'**
+  String get resultDeleteBody;
+
+  /// No description provided for @jobRemoveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this job and its temporary input? Saved results are kept.'**
+  String get jobRemoveBody;
+
+  /// No description provided for @next.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get next;
+
+  /// No description provided for @createAnother.
+  ///
+  /// In en, this message translates to:
+  /// **'Create another'**
+  String get createAnother;
+
+  /// No description provided for @allResults.
+  ///
+  /// In en, this message translates to:
+  /// **'All results'**
+  String get allResults;
+
+  /// No description provided for @favouriteResults.
+  ///
+  /// In en, this message translates to:
+  /// **'Favourites'**
+  String get favouriteResults;
+
+  /// No description provided for @resultPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo'**
+  String get resultPhoto;
+
+  /// No description provided for @resultVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get resultVideo;
+
+  /// No description provided for @jobErrorHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your target remains on the phone. Reconnect or retry to continue.'**
+  String get jobErrorHint;
+
+  /// No description provided for @useInStudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Use in Studio'**
+  String get useInStudio;
+
+  /// No description provided for @studioResultReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Your result is ready and saved privately on this phone.'**
+  String get studioResultReady;
+
+  /// No description provided for @restyleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clothes restyle'**
+  String get restyleTitle;
+
+  /// No description provided for @restyleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Change clothing while protecting the face'**
+  String get restyleHint;
+
+  /// No description provided for @restylePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe the clothing'**
+  String get restylePrompt;
+
+  /// No description provided for @restyleDefaultPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Photorealistic fashion photo, wearing an elegant blue tailored suit, natural fabric texture and folds, preserve the same person, pose, lighting and background'**
+  String get restyleDefaultPrompt;
+
+  /// No description provided for @restyleNegative.
+  ///
+  /// In en, this message translates to:
+  /// **'Negative prompt'**
+  String get restyleNegative;
+
+  /// No description provided for @restyleNegativeDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'nudity, underwear, deformed hands, bad anatomy, blurry, plastic skin, watermark'**
+  String get restyleNegativeDefault;
+
+  /// No description provided for @restyleStrength.
+  ///
+  /// In en, this message translates to:
+  /// **'Change strength'**
+  String get restyleStrength;
+
+  /// No description provided for @restyleFace.
+  ///
+  /// In en, this message translates to:
+  /// **'Protected face'**
+  String get restyleFace;
+
+  /// No description provided for @restylePadding.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra face protection'**
+  String get restylePadding;
+
+  /// No description provided for @restyleReferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Clothing references'**
+  String get restyleReferences;
+
+  /// No description provided for @addReference.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a reference photo'**
+  String get addReference;
+
+  /// No description provided for @restyleCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create restyle job'**
+  String get restyleCreate;
+
+  /// No description provided for @engineUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This tool is unavailable on your PC. Check its environment and model files.'**
+  String get engineUnavailable;
+
+  /// No description provided for @advancedOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced options'**
+  String get advancedOptions;
+
+  /// No description provided for @seed.
+  ///
+  /// In en, this message translates to:
+  /// **'Seed (-1 = random)'**
+  String get seed;
+
+  /// No description provided for @steps.
+  ///
+  /// In en, this message translates to:
+  /// **'Steps'**
+  String get steps;
+
+  /// No description provided for @guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Guidance'**
+  String get guidance;
+
+  /// No description provided for @refineOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Refine at original resolution'**
+  String get refineOutput;
+
+  /// No description provided for @promptRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe the clothing before submitting.'**
+  String get promptRequired;
+
+  /// No description provided for @loraTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Character LoRA'**
+  String get loraTitle;
+
+  /// No description provided for @loraHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Build a dataset, train a character and generate portraits'**
+  String get loraHint;
+
+  /// No description provided for @loraDatasetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Character dataset'**
+  String get loraDatasetTitle;
+
+  /// No description provided for @loraDatasetBuild.
+  ///
+  /// In en, this message translates to:
+  /// **'Build dataset'**
+  String get loraDatasetBuild;
+
+  /// No description provided for @loraChoosePhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose training photos'**
+  String get loraChoosePhotos;
+
+  /// No description provided for @loraPhotoHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose 5–64 clear photos of the selected person. The PC matches that identity before cropping.'**
+  String get loraPhotoHint;
+
+  /// No description provided for @loraTrigger.
+  ///
+  /// In en, this message translates to:
+  /// **'Trigger word'**
+  String get loraTrigger;
+
+  /// No description provided for @loraTriggerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'3–64 letters, digits or underscores; start with a letter'**
+  String get loraTriggerHint;
+
+  /// No description provided for @loraRepeats.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeats per image'**
+  String get loraRepeats;
+
+  /// No description provided for @loraTrain.
+  ///
+  /// In en, this message translates to:
+  /// **'Train LoRA'**
+  String get loraTrain;
+
+  /// No description provided for @loraGenerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate portraits'**
+  String get loraGenerate;
+
+  /// No description provided for @loraNoDatasets.
+  ///
+  /// In en, this message translates to:
+  /// **'No character datasets yet'**
+  String get loraNoDatasets;
+
+  /// No description provided for @loraNoModels.
+  ///
+  /// In en, this message translates to:
+  /// **'No trained LoRAs yet'**
+  String get loraNoModels;
+
+  /// No description provided for @loraDatasetEditor.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit dataset'**
+  String get loraDatasetEditor;
+
+  /// No description provided for @loraCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'Caption'**
+  String get loraCaption;
+
+  /// No description provided for @loraIncluded.
+  ///
+  /// In en, this message translates to:
+  /// **'Include in training'**
+  String get loraIncluded;
+
+  /// No description provided for @loraExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export training zip'**
+  String get loraExport;
+
+  /// No description provided for @loraTrainHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Training uses the included images and edited captions. The finished LoRA is saved on this phone.'**
+  String get loraTrainHint;
+
+  /// No description provided for @loraEpochs.
+  ///
+  /// In en, this message translates to:
+  /// **'Epochs'**
+  String get loraEpochs;
+
+  /// No description provided for @loraDim.
+  ///
+  /// In en, this message translates to:
+  /// **'Network dimension'**
+  String get loraDim;
+
+  /// No description provided for @loraLearningRate.
+  ///
+  /// In en, this message translates to:
+  /// **'Learning rate'**
+  String get loraLearningRate;
+
+  /// No description provided for @loraResolution.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolution'**
+  String get loraResolution;
+
+  /// No description provided for @loraBase.
+  ///
+  /// In en, this message translates to:
+  /// **'Base checkpoint'**
+  String get loraBase;
+
+  /// No description provided for @loraModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Trained LoRA'**
+  String get loraModel;
+
+  /// No description provided for @loraCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Number of portraits'**
+  String get loraCount;
+
+  /// No description provided for @loraPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Portrait prompt'**
+  String get loraPrompt;
+
+  /// No description provided for @loraDefaultPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'A natural studio portrait of {trigger} person, neutral expression, realistic skin texture, soft daylight, fully clothed, photorealistic'**
+  String loraDefaultPrompt(Object trigger);
+
+  /// No description provided for @loraReferenceMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow the reference'**
+  String get loraReferenceMode;
+
+  /// No description provided for @referenceComposition.
+  ///
+  /// In en, this message translates to:
+  /// **'Pose & composition'**
+  String get referenceComposition;
+
+  /// No description provided for @referenceStyle.
+  ///
+  /// In en, this message translates to:
+  /// **'Style & clothing'**
+  String get referenceStyle;
+
+  /// No description provided for @referenceBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Both'**
+  String get referenceBoth;
+
+  /// No description provided for @loraIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Use generated portraits in Reface'**
+  String get loraIdentity;
+
+  /// No description provided for @loraBuildIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Build Reface identity'**
+  String get loraBuildIdentity;
+
+  /// No description provided for @loraIdentityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Generated faces are added only when they match the person’s real face identity.'**
+  String get loraIdentityHint;
+
+  /// No description provided for @loraIdentityReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Reface identity saved'**
+  String get loraIdentityReady;
+
+  /// No description provided for @loraChooseDataset.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a dataset'**
+  String get loraChooseDataset;
+
+  /// No description provided for @loraMinImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Include at least five images before training.'**
+  String get loraMinImages;
+
+  /// No description provided for @invalidForm.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the form values and try again.'**
+  String get invalidForm;
+
+  /// No description provided for @loraNoBase.
+  ///
+  /// In en, this message translates to:
+  /// **'No compatible base checkpoint is available on this PC.'**
+  String get loraNoBase;
+
+  /// No description provided for @privateArtifact.
+  ///
+  /// In en, this message translates to:
+  /// **'Private model or dataset'**
+  String get privateArtifact;
+
+  /// No description provided for @openDataset.
+  ///
+  /// In en, this message translates to:
+  /// **'Open dataset editor'**
+  String get openDataset;
+
+  /// No description provided for @openLora.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Character LoRA'**
+  String get openLora;
+
+  /// No description provided for @trainingDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Training progress'**
+  String get trainingDetails;
+
+  /// No description provided for @loss.
+  ///
+  /// In en, this message translates to:
+  /// **'Loss'**
+  String get loss;
+
+  /// No description provided for @epoch.
+  ///
+  /// In en, this message translates to:
+  /// **'Epoch'**
+  String get epoch;
+
+  /// No description provided for @totalSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Steps'**
+  String get totalSteps;
+
+  /// No description provided for @saveToGallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to gallery'**
+  String get saveToGallery;
+
+  /// No description provided for @savedToGallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to gallery'**
+  String get savedToGallery;
+
+  /// No description provided for @storageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage'**
+  String get storageTitle;
+
+  /// No description provided for @appLockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'App lock'**
+  String get appLockTitle;
+
+  /// No description provided for @appLockHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use your phone’s screen lock when opening Antigravity.'**
+  String get appLockHint;
+
+  /// No description provided for @unlockApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock Antigravity'**
+  String get unlockApp;
+
+  /// No description provided for @unlockBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm your phone screen lock to open your private library.'**
+  String get unlockBody;
+
+  /// No description provided for @unlockFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock was cancelled, or a phone screen lock is not set up.'**
+  String get unlockFailed;
+
+  /// No description provided for @storageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage private outputs, datasets and trained models.'**
+  String get storageHint;
+
+  /// No description provided for @storageUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Private files'**
+  String get storageUsed;
+
+  /// No description provided for @storageDeleteResults.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete private results'**
+  String get storageDeleteResults;
+
+  /// No description provided for @storageDeleteDatasets.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete datasets'**
+  String get storageDeleteDatasets;
+
+  /// No description provided for @storageDeleteLoras.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete trained LoRAs'**
+  String get storageDeleteLoras;
+
+  /// No description provided for @storageDeleteTemporary.
+  ///
+  /// In en, this message translates to:
+  /// **'Clean temporary files'**
+  String get storageDeleteTemporary;
+
+  /// No description provided for @storageConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the selected private files from this phone? Export a backup first if you want to keep them.'**
+  String get storageConfirm;
+
+  /// No description provided for @storageBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause scans and active Studio jobs before cleaning storage.'**
+  String get storageBusy;
+
+  /// No description provided for @storageCleaned.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage updated'**
+  String get storageCleaned;
+
+  /// No description provided for @backgroundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Background work'**
+  String get backgroundTitle;
+
+  /// No description provided for @backgroundIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow notifications and unrestricted battery use so scans, uploads and result downloads can continue when you leave the app or lock the screen. An ongoing notification shows when work is active.'**
+  String get backgroundIntro;
+
+  /// No description provided for @backgroundSettingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep work going with the screen off'**
+  String get backgroundSettingsHint;
+
+  /// No description provided for @backgroundLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue for now'**
+  String get backgroundLater;
+
+  /// No description provided for @backgroundEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow background work'**
+  String get backgroundEnable;
+
+  /// No description provided for @backgroundRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh status'**
+  String get backgroundRefresh;
+
+  /// No description provided for @backgroundNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Progress notifications allowed'**
+  String get backgroundNotifications;
+
+  /// No description provided for @backgroundBattery.
+  ///
+  /// In en, this message translates to:
+  /// **'Battery use unrestricted'**
+  String get backgroundBattery;
+
+  /// No description provided for @backgroundRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Background service is running'**
+  String get backgroundRunning;
+
+  /// No description provided for @backgroundIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to start when there is active work'**
+  String get backgroundIdle;
+
+  /// No description provided for @backgroundOpenSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Android app settings'**
+  String get backgroundOpenSettings;
+
+  /// No description provided for @backgroundAndroidOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Background permissions are available on Android.'**
+  String get backgroundAndroidOnly;
+
+  /// No description provided for @backgroundServiceFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Android could not start the background service. Keep the app open and check notifications and battery settings.'**
+  String get backgroundServiceFailed;
+
+  /// No description provided for @backgroundLimits.
+  ///
+  /// In en, this message translates to:
+  /// **'A force stop, phone shutdown or Android background time limit can stop phone work. Open the app to resume its saved queue. Some phones also require allowing auto-start in the manufacturer\'s battery settings. The PC must stay on and connected to the phone.'**
+  String get backgroundLimits;
 }
 
 class _AppLocalizationsDelegate

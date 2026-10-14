@@ -15,6 +15,7 @@ NAV_PAGES: List[str] = [
     "🔀 Merge People",
     "🧬 Character LoRA",
     "⚙️ Settings",
+    "📱 Mobile Devices",
 ]
 
 # Primary clean URL slug for each page
@@ -28,6 +29,7 @@ PAGE_TO_PRIMARY_SLUG: Dict[str, str] = {
     "🔀 Merge People": "merge",
     "🧬 Character LoRA": "lora",
     "⚙️ Settings": "settings",
+    "📱 Mobile Devices": "mobile",
 }
 
 # Mapping of all slugs, aliases, numbers, and Arabic names to canonical page names
@@ -117,6 +119,14 @@ ROUTE_MAP: Dict[str, str] = {
     "9": "⚙️ Settings",
     "الاعدادات": "⚙️ Settings",
     "الإعدادات": "⚙️ Settings",
+
+    "mobile": "📱 Mobile Devices",
+    "devices": "📱 Mobile Devices",
+    "phones": "📱 Mobile Devices",
+    "pair": "📱 Mobile Devices",
+    "10": "📱 Mobile Devices",
+    "الموبايل": "📱 Mobile Devices",
+    "الأجهزة": "📱 Mobile Devices",
 }
 
 # Auto-register full titles and stripped title variations

@@ -1,4 +1,5 @@
 {
+  "client_job_id": "fixture-restyle",
   "type": "undress_image",
   "params": {
     "face_bbox": {

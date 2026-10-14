@@ -390,11 +390,17 @@ class TestEnv {
   Future<void> pump(
     WidgetTester tester, {
     List<Override> extra = const [],
+    bool settle = true,
   }) async {
     await tester.pumpWidget(
       ProviderScope(overrides: [...overrides, ...extra], child: const App()),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
   }
 
   Future<void> dispose(WidgetTester tester) async {

@@ -256,7 +256,9 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
               ],
             ),
             const SizedBox(height: 10),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 FilledButton(
                   key: Key('match-accept-${g.person.id}'),
@@ -265,7 +267,6 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
                       : () => repo.acceptMatches(chosen, g.person.id),
                   child: Text(l10n.addFacesTo(chosen.length)),
                 ),
-                const SizedBox(width: 8),
                 OutlinedButton(
                   key: Key('match-reject-${g.person.id}'),
                   onPressed: chosen.isEmpty

@@ -296,14 +296,10 @@ void main() {
 
       final settings = await b.settings.load();
       expect(
-        (
-          settings.strictness,
-          settings.qualityGate,
-          settings.albumIds,
-          settings.modelId,
-        ),
-        ('strict', 0.55, ['b-1', 'b-2'], 'buffalo_l@1'),
+        (settings.strictness, settings.qualityGate, settings.modelId),
+        ('strict', 0.55, 'buffalo_l@1'),
       );
+      expect(settings.albumIds, ['b-1', 'b-2']);
       expect(
         settings.scanActive,
         isFalse,
@@ -482,7 +478,7 @@ void main() {
         b.backup.inspect(junk),
         throwsA(isA<BackupException>()),
       );
-      await expectRefused(junk, contains('could not be restored'));
+      await expectRefused(junk, contains('not an Antigravity backup'));
     });
 
     test('a zip without a manifest', () async {
@@ -578,4 +574,33 @@ void main() {
     expect(SettingKeys.backedUp, isNot(contains(SettingKeys.scanActive)));
     expect(SettingKeys.backedUp, isNot(contains(SettingKeys.lastBackupAt)));
   });
+
+  test(
+    'restore preserves video checkpoints and discards stale PC job references',
+    () async {
+      final id = await seedMedia(
+        a.db,
+        asset: 'video',
+        kind: 'video',
+        status: 'scanning',
+      );
+      await (a.db.update(a.db.media)..where((m) => m.id.equals(id))).write(
+        const MediaCompanion(lastScannedFrame: Value(31)),
+      );
+      await a.settings.setScanVideos(false);
+      await a.settings.setFrameInterval(2);
+      await a.db.putSetting('video.job.$id', '{"id":"source-pc-job"}');
+      final file = await a.backup.export(Directory('${a.dir.path}/out'));
+      await b.db.putSetting('video.job.$id', '{"id":"newer-pc-job"}');
+      await b.settings.setScanActive(true);
+      await b.backup.restore(file);
+      expect((await b.db.select(b.db.media).get()).single.lastScannedFrame, 31);
+      expect(await b.db.setting('video.job.$id'), isNull);
+      final prefs = await b.settings.load();
+      expect(
+        (prefs.scanVideos, prefs.frameInterval, prefs.scanActive),
+        (false, 2.0, false),
+      );
+    },
+  );
 }

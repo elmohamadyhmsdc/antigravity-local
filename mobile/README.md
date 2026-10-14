@@ -14,6 +14,11 @@ Contract with the PC: [`the app/mobile_api/contract/openapi.yaml`](../the%20app/
 | P0 Foundations | done |
 | P1 Server core + pairing | done - S01 Welcome/Pair (QR, tapped link, typed address + fingerprint check), S02 Permissions, S03 Home (PC status chip, library stats from the local DB), "Detect faces in a photo" (the end-to-end check against the PC) |
 | P2 Library & People | built - photo scan with foreground service, People / Person / Face picker / Review / Merge, photo viewer with boxes, Settings (grouping strictness, quality gate), backup & restore; awaiting verification on the phone |
+| P3 Videos & bodies | implemented - resumable video uploads, device-owned analysis jobs, frame checkpoints, local video playback with sampled detection boxes, photo/video filters, body-only person sightings, offline Insights; automated checks pass, real-phone acceptance still required |
+| P4 Reface | implemented - photo face selection, V3/V2/available DFM, video trim and checkpoints, durable uploads, Jobs with SSE/polling, private Results with comparison, favourites, share and explicit gallery export |
+| P5 Clothes restyle | implemented - protected face, prompts, references, strength/seed/refine; this PC needs complete local model weights before runtime acceptance |
+| P6 Character LoRA | implemented - identity-matched photo/video datasets, caption/include editor, zip export, epoch-resumable training, safetensors import, portrait generation and LoRA identity augmentation for Reface |
+| P7 Hardening | app lock using phone credentials, FLAG_SECURE viewers, completion notifications, storage cleanup and expanded backup implemented; device performance/acceptance and production signing pending |
 
 ## Layout
 
@@ -22,14 +27,15 @@ lib/
   app.dart main.dart providers.dart      router/session wiring, start-up (opens the encrypted DB or shows an error screen)
   core/                                  router (with the agmobile:// deep link), theme
   data/db/                               Drift schema (tables.dart), migrations (app_database.dart), SQLCipher opening
-  data/api/                              pinned Dio client, DTOs parsed from the contract, pairing payload, LAN-only host check
+  data/api/                              pinned Dio client, VideoApi + StudioApi (resumable blobs, jobs and SSE), DTOs, pairing payload, LAN-only host check
   data/secrets/ data/repositories/       Keystore wrapper, which PC we are paired with (token in Keystore, rest in the DB)
   data/platform/                         permissions / photo picker / device name behind small interfaces
   data/{files,index,media}/              FileStore (relative crop paths), EmbeddingIndex (isolate), MediaStore access (photo_manager)
   data/repositories/                     library queue, people + manual corrections, review plan, media queries, typed settings
-  domain/{scan,grouping,backup}/         ScanEngine + PhotoResultStore, grouping rounds + PlanApplier, .agbackup export/restore
+  domain/{scan,grouping,backup,jobs}/    scan, grouping, .agbackup, persistent Studio tracker and verified artifact import
   features/{onboarding,home,analyze}/    screens S01-S03 and the detection check
-  features/{library,media,people,review,merge,scan,settings,backup}/   S04-S11, S24, S26
+  features/{library,media,people,review,merge,scan,settings,backup,insights}/   S04-S11, S23, S24, S26
+  features/{studio,reface,restyle,lora,jobs,results,privacy,storage}/          Studio and private artifact workflows
   l10n/app_en.arb                        all user-visible strings
 ```
 
@@ -46,9 +52,33 @@ flutter build apk --debug                 # needs the Android SDK licences accep
 
 ## Trying it against the PC
 
-1. PC: `the app/run_mobile_api.bat` (opens `http://127.0.0.1:8444/pair`, which shows the QR, code and certificate fingerprint).
+1. PC: open the regular dashboard at `http://localhost:8501/?page=mobile` → **Mobile Devices** → **Start mobile server**. The page shows the QR, one-time code, address and certificate fingerprint. The standalone `the app/run_mobile_api.bat` and `http://127.0.0.1:8444/pair` remain available.
 2. Phone on the same Wi-Fi: Scan QR code (or Enter address manually and compare the fingerprint shown with the PC's page).
 3. Home shows the PC as connected; "Detect faces in a photo" sends one downscaled photo and draws what the PC found.
+4. Sources: choose albums, enable **Scan videos too**, select a sampling interval and start scanning. Videos use the original file (server upload limit: 2 GB by default); image analysis still sends downscaled JPEGs.
+5. Library: use **Photos / Videos**, open a video, then tap a timestamp to pause at a detected frame. Face/body boxes appear only within 150 ms of their sampled frame. Home → **Library insights** works without the PC.
+
+The dashboard's **Mobile Devices** page refreshes every 3 seconds and lists each paired phone, pairing time, last activity and active job count. **Rename** changes its PC-side label. **Disconnect** revokes its token, invalidates the current pairing code and pauses that phone's jobs; **Disconnect all phones** applies this to every device. **Stop server** shuts down mobile processing while preserving pairing records and the certificate. “Active recently” means a request within the last 2 minutes, not a continuously open socket.
+
+Device administration is available from a browser on this PC via `localhost`. The dashboard talks to the separate loopback control listener using an ephemeral local secret; these controls are never served by the phone-facing HTTPS API. Starting and pairing need no Internet download, package installation or manual terminal command.
+
+### Background work and scan server recovery
+
+Permissions and Settings → **Background work** explain and request Android notifications and a battery-optimization exemption. The first user-started scan or Studio submission offers this setup once; declining continues the work. The screen refreshes permission/service status when returning from Android settings. A shared foreground service holds wake/Wi-Fi locks and displays scan/Studio progress only while work is active. Finishing one workload cannot stop another workload's notification. The main Flutter engine survives Activity removal, and a small service guard checks that real phone work still exists before retaining a restarted notification.
+
+Force stop, shutdown, vendor restrictions and Android's data-sync time limit can still interrupt work. Reopening restores the saved queue. Long-duration screen-lock/task-removal acceptance on a phone remains required; this pass does not install or replace the user's running phone build. Validation: zero Dart analyzer issues, **348 Flutter tests passed**, including service start/stop races, denied-service recovery, permission status refresh and the optional first-work prompt.
+
+Scan inference now runs in a disposable local process, with bounded JSON/pixel pipe messages and no temporary photo files or executable serialization. A native inference failure returns a retryable error while the HTTPS API and device controls remain online; the next request recreates the worker. Shutdown/unload releases it. Existing local face/body weights are required; the mobile scan path never downloads them. The dashboard exposes unexpected server termination and its diagnostic log. A real GPU face/body/pose scan at 512, 1600 and 2560 pixels and process-failure recovery are covered by the scan acceptance scripts.
+
+### Video checkpoints
+
+Uploads use 4 MB chunks and the PC's authoritative `Upload-Offset`. A stable client job ID is saved before submission. Closing the app resumes the existing job; if the PC restarted, the phone creates a new job beginning at the next uncommitted sample. Every imported frame and its checkpoint commit together. The complete NDJSON download is size/SHA-256 checked before importing; crops are inline in each frame response. The phone ACKs/purges the PC job only after local storage succeeds.
+
+Video scan reuses the existing frame/timestamp/checkpoint columns. Schema v5 also stores Studio Jobs, Results, Datasets, DatasetItems and LoRAs, including per-input recovery and model-stamped generated identities. Ephemeral video job references live under private `video.job.*` settings and never enter backups. Scan preferences do travel in backups. Studio progress uses SSE with polling as a fallback.
+
+Restoring a backup also clears stale video job references on the destination phone. An older restored checkpoint therefore starts a fresh PC job rather than skipping ahead to a newer job's starting point.
+
+Real-phone acceptance: scan a short video, pause/resume, close/reopen during upload and import, restart the PC while a job is active, then check playback, sampled boxes, grouping and backup/restore. GPU execution and actual Android playback still need this device check.
 
 USB alternative without any firewall rule: `adb reverse tcp:8443 tcp:8443`, start the server with `--bind 127.0.0.1`,
 pair with address `127.0.0.1`. The Android emulator reaches the PC at `10.0.2.2`.
@@ -59,3 +89,15 @@ pair with address `127.0.0.1`. The Android emulator reaches the PC at `10.0.2.2`
 - Pairing only accepts private-network addresses (192.168.x.x, 10.x, 172.16-31.x, link-local, `.local`, loopback).
 - A tapped `agmobile://pair` link never pairs silently; it shows the address and asks.
 - `allowBackup=false` plus data-extraction rules exclude everything from Android backups. Cleartext traffic is disabled.
+- Settings → App lock uses the phone's PIN/pattern/password and relocks when the app backgrounds. Media/result viewers block screenshots. The database is SQLCipher encrypted; result files remain in private app storage until explicitly shared or saved.
+- Backups include saved results, datasets, captions and models, and omit active jobs, scratch inputs and PC credentials. Backup/restore waits for scan and Studio writes to settle. The `.agbackup` archive itself is not encrypted.
+
+## Studio verification and remaining acceptance
+
+On 2026-10-14: zero analyzer issues and 343 Flutter tests passed. CPU suites cover Studio lifecycle, artifacts, video jobs, API contract and statelessness; fixtures validate against OpenAPI. Real GPU API round trips passed for V3 Reface, identity-matched dataset building/captioning, a tiny one-epoch LoRA train, and generation with an existing LoRA. Each round trip verified the returned file before ACK/purge. A tiny training run verifies the integration, not production identity quality.
+
+Both installed secondary environments have CUDA. Restyle is disabled by the PC capabilities probe while required weights are incomplete. No downloads are authorized on the current metered connection. See [the local model audit](../docs/local-model-audit-2026-10-14.md). `venv\Scripts\python -m mobile_api --check-models` is read-only and local.
+
+Still requiring phone acceptance: Android export/notifications/device credential UI, long-video interruption recovery and foreground/background behaviour. Video Reface currently swaps all detected faces; photo targets support individual selection. LoRA training resumes at the last saved epoch, not an arbitrary step. Named identity presets, encrypted backups and per-person video tracking are possible follow-ups.
+
+The current APK is a debug build. A production release key/signing configuration and device performance measurements are still required before distribution.

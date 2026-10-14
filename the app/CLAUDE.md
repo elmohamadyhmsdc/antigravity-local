@@ -28,6 +28,7 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 - `python test_identity_builder.py` — identity builder: picks the person (not the detector's first face), filters, pose-diverse video picks, save/load (fake faces, no models)
 - `python test_grouping_core.py` — `grouping_core` vs the embedded pre-refactor `gallery_grouping` (identical end states on every library / strictness / flag combination), the phone's 3-round orchestration, golden GroupingPlan fixtures, request validation
 - `python test_mobile_api_contract.py` / `python test_mobile_stateless.py` — the mobile API (needs `requirements_mobile_api.txt` in `venv`; fake engines, no GPU)
+- `python test_mobile_dashboard.py` — Mobile Devices page and controls, local admin authorization, QR/rename/revocation, and a real temporary loopback HTTP/HTTPS server lifecycle (no GPU/downloads)
 
 **Check grouping accuracy against your own curated people** (read-only):
 - `python eval_grouping.py`
@@ -64,6 +65,7 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 | `gallery_page.py` | The whole Gallery page UI (People / Review / Media / Insights) |
 | `eval_grouping.py` | Measures grouping accuracy against the people you've already curated (read-only) |
 | `mobile_api/` | **Mobile API** (FastAPI, HTTPS) — stateless compute server for the Flutter phone app: bearer-token auth + pairing, pinned self-signed TLS, content-addressed blob cache, `POST /v1/analyze/image`, GPU guard over both job queues. Never imports `database`, never reads `data/` (`test_mobile_stateless.py` enforces it). Also `POST /v1/grouping/plan` (CPU only, gzip in/out, size-capped). Run with `run_mobile_api.bat`; see the root `CLAUDE.md` and `contract/openapi.yaml` |
+| `mobile_devices_page.py` / `mobile_dashboard_controller.py` | **📱 Mobile Devices** inside the dashboard (`?page=mobile`): start/stop a hidden server using the existing venv, QR/code/address, paired phones + activity/jobs, rename and revoke. UI requires a loopback browser connection. Controls use a per-run secret on the separate local pairing listener; they never write a second AuthStore or launch a second server over occupied ports. |
 | `face_miner.py` | Legacy face extraction (standalone CLI). The dashboard now ingests through `library_scanner.py` |
 | `reface_engine.py` | Face swap engine V1 |
 | `reface_engine_v2.py` | Face swap engine V2 (legacy fallback) |
@@ -96,6 +98,7 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 7. **🔀 Merge People** — merge duplicate person clusters
 8. **📤 Export for LoRA** — export facesets as zips for training
 9. **⚙️ Settings** — thresholds, paths, config
+10. **📱 Mobile Devices** — start/stop mobile server, QR pairing, paired phone activity, rename, disconnect individual/all devices. Open the dashboard via `http://localhost:8501/?page=mobile` on the PC.
 
 ### Job System
 - `job_manager.py` / `JobManager` class

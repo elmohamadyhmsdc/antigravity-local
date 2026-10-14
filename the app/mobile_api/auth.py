@@ -106,8 +106,8 @@ class AuthStore:
             if found is None:
                 return None
             now = time.monotonic()
+            found['last_seen'] = datetime.now().isoformat(timespec='seconds')
             if now - self._last_write.get(found["id"], -1e9) >= LAST_SEEN_WRITE_INTERVAL:
-                found["last_seen"] = datetime.now().isoformat(timespec="seconds")
                 self._last_write[found["id"]] = now
                 self._save()
             return self._public(found)
@@ -119,6 +119,22 @@ class AuthStore:
             if len(self._data["devices"]) != before:
                 self._save()
                 return True
+            return False
+
+    def has_device(self, device_id: str) -> bool:
+        with self._lock:
+            return any(d['id'] == device_id for d in self._data['devices'])
+
+    def rename(self, device_id: str, name: str) -> bool:
+        name = name.strip()
+        if not name or len(name) > 64:
+            raise ValueError('Use a device name between 1 and 64 characters.')
+        with self._lock:
+            for device in self._data['devices']:
+                if device['id'] == device_id:
+                    device['name'] = name
+                    self._save()
+                    return True
             return False
 
     def devices(self) -> List[Dict]:

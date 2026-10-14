@@ -4,6 +4,7 @@ import 'dart:collection';
 import '../../data/api/api_exception.dart';
 import '../../data/api/dtos/analyze.dart';
 import '../../data/api/mobile_api.dart';
+import '../../data/api/video_api.dart';
 import '../../data/db/app_database.dart';
 import '../../data/media/media_library.dart';
 import '../../data/repositories/app_settings.dart';
@@ -12,6 +13,7 @@ import '../grouping/grouping_config.dart';
 import '../grouping/grouping_runner.dart';
 import 'photo_result_store.dart';
 import 'scan_state.dart';
+import 'video_scan.dart';
 
 /// How long the engine keeps retrying a busy / unreachable PC before it pauses by itself.
 class ScanPolicy {
@@ -50,6 +52,8 @@ class ScanEngine {
     required this._settings,
     required this._store,
     required this._grouping,
+    this._videoScan,
+    String Function(String, double)? describeVideo,
     this._keepAlive = const NoKeepAlive(),
     this._policy = const ScanPolicy(),
     DateTime Function()? clock,
@@ -60,7 +64,10 @@ class ScanEngine {
        _clock = clock ?? DateTime.now,
        _delay = delay ?? ((d) => Future<void>.delayed(d)),
        _describe = describe ?? _defaultDescribe,
-       _title = keepAliveTitle;
+       _title = keepAliveTitle,
+       _describeVideo =
+           describeVideo ??
+           ((stage, progress) => '$stage ${(progress * 100).round()}%');
 
   final LibraryRepository _repo;
   final MediaLibrary _media;
@@ -74,6 +81,8 @@ class ScanEngine {
   final Future<void> Function(Duration) _delay;
   final String Function(ScanProgress) _describe;
   final String _title;
+  final VideoScan? _videoScan;
+  final String Function(String, double) _describeVideo;
 
   static String _defaultDescribe(ScanProgress p) =>
       '${p.done + p.failed}/${p.total} photos, ${p.facesFound} faces';
@@ -81,6 +90,7 @@ class ScanEngine {
   final _controller = StreamController<ScanProgress>.broadcast();
   ScanProgress _progress = const ScanProgress();
   bool _active = false;
+  Completer<void>? _settled;
   bool _pauseRequested = false;
   bool _keepAliveOn = false;
   DateTime _lastNotification = DateTime.fromMillisecondsSinceEpoch(0);
@@ -96,6 +106,13 @@ class ScanEngine {
 
   /// Asks the running scan to stop after the photo it is on.
   void pause() => _pauseRequested = true;
+
+  /// Waits until all current database/file writes and grouping have settled.
+  /// Backup and restore must not race the photo currently being analysed.
+  Future<void> pauseAndWait() async {
+    pause();
+    await _settled?.future;
+  }
 
   /// Hides the summary of a finished scan (the progress card goes away).
   void dismiss() {
@@ -123,16 +140,22 @@ class ScanEngine {
   Future<void> start({bool enumerate = true}) async {
     if (_active) return;
     _active = true;
+    final settled = _settled = Completer<void>();
     _pauseRequested = false;
     try {
       await _run(enumerate);
     } catch (e) {
       await _pause(PauseReason.error, '$e');
     } finally {
-      _active = false;
-      if (_keepAliveOn) {
-        _keepAliveOn = false;
-        await _keepAlive.stop();
+      try {
+        if (_keepAliveOn) {
+          _keepAliveOn = false;
+          await _keepAlive.stop();
+        }
+      } finally {
+        _active = false;
+        _settled = null;
+        settled.complete();
       }
     }
   }
@@ -171,10 +194,14 @@ class ScanEngine {
         await _pause(PauseReason.noAlbums);
         return;
       }
+      await _repo.resetScanning();
       await _repo.skipPending();
       var found = const SyncResult();
       await for (final page in _media.photos(prefs.albumIds.toSet())) {
-        found += await _repo.syncAssets(page);
+        found += await _repo.syncAssets([
+          for (final asset in page)
+            if (asset.kind != 'video' || prefs.scanVideos) asset,
+        ]);
         _emit(
           ScanProgress(
             phase: ScanPhase.preparing,
@@ -315,13 +342,15 @@ class ScanEngine {
     required String? modelId,
     required ScanProgress Function({ScanPhase phase, String? message}) snapshot,
   }) async {
-    final bytes = await _media.downscaledJpeg(
-      row.assetId,
-      width: row.width ?? 0,
-      height: row.height ?? 0,
-      maxSide: prefs.maxSide,
-    );
-    if (bytes == null) {
+    final bytes = row.kind == 'video'
+        ? null
+        : await _media.downscaledJpeg(
+            row.assetId,
+            width: row.width ?? 0,
+            height: row.height ?? 0,
+            maxSide: prefs.maxSide,
+          );
+    if (bytes == null && row.kind != 'video') {
       await _repo.markFailed(
         row.id,
         'The photo could not be read (it was deleted or is not a supported format).',
@@ -332,8 +361,36 @@ class ScanEngine {
     var busy = 0, offline = 0, serverErrors = 0;
     while (true) {
       try {
+        if (row.kind == 'video') {
+          final scanner = _videoScan;
+          final media = _media;
+          if (scanner == null ||
+              api is! VideoApi ||
+              media is! VideoMediaLibrary) {
+            await _repo.markFailed(
+              row.id,
+              'Video scanning is unavailable. Update the phone app and PC server.',
+            );
+            return const _Failed();
+          }
+          final outcome = await scanner.run(
+            row,
+            api: api as VideoApi,
+            library: media as VideoMediaLibrary,
+            prefs: prefs,
+            paused: () => _pauseRequested,
+            report: (stage, progress) {
+              _emit(snapshot(message: _describeVideo(stage, progress)));
+              unawaited(_keepAlive.update(_describe(_progress)));
+            },
+          );
+          return _Scanned(
+            outcome,
+            (await _settings.load()).modelId ?? modelId ?? 'buffalo_l@1',
+          );
+        }
         final response = await api.analyzeImage(
-          bytes,
+          bytes!,
           options: AnalyzeOptions(
             detectBodies: prefs.scanBodies,
             minQuality: prefs.qualityGate,
@@ -350,6 +407,8 @@ class ScanEngine {
         }
         final outcome = await _store.store(media, response);
         return _Scanned(outcome, response.modelId);
+      } on VideoScanPaused {
+        return _stop(row.id, PauseReason.user);
       } on ApiException catch (e) {
         if (e.isGpuBusy) {
           busy++;

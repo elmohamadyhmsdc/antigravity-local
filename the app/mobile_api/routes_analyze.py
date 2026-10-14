@@ -43,7 +43,11 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
         engine_options = AnalyzeOptions(min_face_quality=opts.min_face_quality,
                                         detect_bodies=opts.detect_bodies, body_score=opts.body_score)
         try:
-            result = await run_in_threadpool(ctx.engines.analyze, img, engine_options)
+            def compute():
+                with ctx.compute_lock:
+                    ctx.gpu.require_free()
+                    return ctx.engines.analyze(img, engine_options)
+            result = await run_in_threadpool(compute)
         except ApiError:
             raise
         except Exception:  # noqa: BLE001

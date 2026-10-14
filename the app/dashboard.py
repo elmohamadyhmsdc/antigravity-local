@@ -436,7 +436,11 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # Main content based on page selection
-if page == "📊 Dashboard":
+if page == "📱 Mobile Devices":
+    from mobile_devices_page import render_mobile_devices
+    render_mobile_devices()
+
+elif page == "📊 Dashboard":
     st.title("📊 Dashboard")
     st.markdown("Overview of your biometric gallery")
     

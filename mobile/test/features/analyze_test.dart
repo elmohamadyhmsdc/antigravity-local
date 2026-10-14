@@ -1,6 +1,7 @@
 // "Detect faces in a photo": pick -> upload -> boxes + per-face quality, and the failure paths.
 
 import 'package:antigravity_mobile/data/api/api_exception.dart';
+import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
 import 'package:antigravity_mobile/features/analyze/analyze_controller.dart';
 import 'package:flutter/material.dart';
@@ -11,9 +12,10 @@ import '../support/fixtures.dart';
 import '../support/harness.dart';
 
 Future<void> _openAnalyze(WidgetTester tester, TestEnv env) async {
-  await env.pump(tester);
-  await tester.tap(find.byKey(const Key('try-detection')));
-  await tester.pumpAndSettle();
+  await env.pump(
+    tester,
+    extra: [initialLocationProvider.overrideWithValue('/analyze')],
+  );
 }
 
 void main() {

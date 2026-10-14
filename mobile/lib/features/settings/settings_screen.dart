@@ -8,6 +8,7 @@ import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
 import '../review/review_screen.dart';
+import '../privacy/app_lock.dart';
 
 /// S24 (the library part) - how strictly the PC groups faces, how good a face must be to be kept,
 /// scan defaults, and the way into Sources, Backup and "Sort now".
@@ -42,6 +43,47 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          SwitchListTile(
+            key: const Key('app-lock'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.appLockTitle),
+            subtitle: Text(l10n.appLockHint),
+            value: ref.watch(appLockEnabledProvider).value ?? false,
+            onChanged: (enabled) async {
+              try {
+                if (enabled) {
+                  final ok = await ref
+                      .read(privacyServiceProvider)
+                      .authenticate(l10n.appLockTitle, l10n.unlockBody);
+                  if (!ok) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(l10n.unlockFailed)),
+                      );
+                    }
+                    return;
+                  }
+                  ref.read(lockSessionProvider.notifier).unlock();
+                }
+                await ref
+                    .read(databaseProvider)
+                    .putSetting('privacy.app_lock', '$enabled');
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('$e')));
+                }
+              }
+            },
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.storageTitle),
+            leading: const Icon(Icons.storage_outlined),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(Routes.storage),
+          ),
           Text(l10n.settingsGrouping, style: text.titleMedium),
           const SizedBox(height: 8),
           SegmentedButton<String>(
@@ -143,6 +185,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Divider(height: 32),
           Text(l10n.settingsPc, style: text.titleMedium),
           ListTile(
+            key: const Key('settings-background'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.battery_charging_full),
+            title: Text(l10n.backgroundTitle),
+            subtitle: Text(l10n.backgroundSettingsHint),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(Routes.background),
+          ),
+          ListTile(
+            key: const Key('settings-pc'),
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.computer_outlined),
             title: Text(session?.name ?? l10n.notPaired),

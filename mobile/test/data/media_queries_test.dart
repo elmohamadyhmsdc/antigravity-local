@@ -17,7 +17,7 @@ void main() {
   });
   tearDown(() => db.close());
 
-  late int sara, withFaces, withoutFaces, pending, failed;
+  late int sara, withFaces, withoutFaces, pending, failed, video;
 
   Future<void> seedLibrary() async {
     sara = await seedPerson(db, name: 'Sara');
@@ -25,7 +25,7 @@ void main() {
     withoutFaces = await seedMedia(db, asset: 'b', takenAt: 3000);
     pending = await seedMedia(db, asset: 'c', status: 'pending', takenAt: 2000);
     failed = await seedMedia(db, asset: 'd', status: 'failed', takenAt: 1000);
-    await seedMedia(db, asset: 'v', kind: 'video', takenAt: 5000);
+    video = await seedMedia(db, asset: 'v', kind: 'video', takenAt: 5000);
     await seedFace(db, mediaId: withFaces, personId: sara, seed: 1);
     await seedFace(db, mediaId: withFaces, seed: 2);
   }
@@ -41,18 +41,21 @@ void main() {
   )).map((m) => m.id).toList();
 
   test(
-    'the library lists photos newest first and leaves videos out (they come in a later phase)',
+    'the library lists photos and videos newest first and can filter by kind',
     () async {
       await seedLibrary();
-      expect(await queries.count(const MediaFilter()), 4);
+      expect(await queries.count(const MediaFilter()), 5);
+      expect(await queries.count(const MediaFilter(kind: 'photo')), 4);
+      expect(await ids(const MediaFilter(kind: 'video')), [video]);
       expect(await ids(const MediaFilter()), [
+        video,
         withFaces,
         withoutFaces,
         pending,
         failed,
       ]);
       final first = (await queries.page(
-        const MediaFilter(),
+        const MediaFilter(kind: 'photo'),
         offset: 0,
         limit: 1,
       )).single;
@@ -67,6 +70,7 @@ void main() {
   test('scanned / not scanned / failed', () async {
     await seedLibrary();
     expect(await ids(const MediaFilter(scan: ScanFilter.scanned)), [
+      video,
       withFaces,
       withoutFaces,
     ]);
@@ -81,7 +85,7 @@ void main() {
       expect(await ids(const MediaFilter(hasFaces: true)), [withFaces]);
       expect(
         await ids(const MediaFilter(hasFaces: false)),
-        [withoutFaces],
+        [video, withoutFaces],
         reason: 'a photo waiting to be scanned is not "without faces"',
       );
     },

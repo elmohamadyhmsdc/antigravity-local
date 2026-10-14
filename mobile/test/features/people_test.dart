@@ -111,7 +111,7 @@ void main() {
         await _settle(tester);
         expect(find.byKey(const Key('tab-faces')), findsOneWidget);
         expect(find.text('Faces (1)'), findsOneWidget);
-        expect(find.text('Photos'), findsOneWidget);
+        expect(find.text('Photos & videos'), findsOneWidget);
         expect(find.text('Bodies'), findsOneWidget);
         expect(find.text('Suggestions'), findsOneWidget);
       },
@@ -196,6 +196,7 @@ void main() {
           extra: [initialLocationProvider.overrideWithValue('/people/$sara')],
         );
         await _settle(tester);
+        await tester.ensureVisible(find.byKey(const Key('tab-suggestions')));
         await tester.tap(find.byKey(const Key('tab-suggestions')));
         await _settle(tester);
 

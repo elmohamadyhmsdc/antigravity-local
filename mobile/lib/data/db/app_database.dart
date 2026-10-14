@@ -58,6 +58,11 @@ class LibraryStats {
     ReviewGroups,
     ReviewDuplicates,
     ReviewBodyLinks,
+    Jobs,
+    Results,
+    Datasets,
+    DatasetItems,
+    Loras,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -65,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 3;
+  static const currentSchemaVersion = 5;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -100,6 +105,22 @@ class AppDatabase extends _$AppDatabase {
         ]) {
           await m.createIndex(index);
         }
+      }
+      if (from < 4) {
+        await m.createTable(jobs);
+        await m.createTable(results);
+        await m.createIndex(jobsStatus);
+        await m.createIndex(resultsCreatedAt);
+      }
+      if (from < 5) {
+        // Fresh v4 tables already use the current shape when upgrading from v1-v3.
+        if (from >= 4) {
+          await m.addColumn(jobs, jobs.inputFiles);
+          await m.addColumn(jobs, jobs.detailsJson);
+        }
+        await m.createTable(datasets);
+        await m.createTable(datasetItems);
+        await m.createTable(loras);
       }
     },
     beforeOpen: (details) async {

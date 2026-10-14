@@ -83,8 +83,8 @@ class SourcesScreen extends ConsumerWidget {
                       CheckboxListTile(
                         key: Key('album-${a.id}'),
                         value: chosen.contains(a.id),
-                        title: Text(a.isAll ? l10n.allPhotos : a.name),
-                        subtitle: Text(l10n.photosCount(a.count)),
+                        title: Text(a.isAll ? l10n.allMedia : a.name),
+                        subtitle: Text(l10n.mediaCount(a.count)),
                         onChanged: (on) {
                           final next = {...chosen};
                           on == true ? next.add(a.id) : next.remove(a.id);
@@ -100,6 +100,38 @@ class SourcesScreen extends ConsumerWidget {
           Card(
             child: Column(
               children: [
+                SwitchListTile(
+                  key: const Key('scan-videos'),
+                  value: settings.scanVideos,
+                  title: Text(l10n.includeVideos),
+                  subtitle: Text(l10n.includeVideosHint),
+                  onChanged: progress.isActive
+                      ? null
+                      : settingsStore.setScanVideos,
+                ),
+                if (settings.scanVideos)
+                  ListTile(
+                    title: Text(l10n.videoFrameInterval),
+                    trailing: DropdownButton<double>(
+                      key: const Key('video-frame-interval'),
+                      value:
+                          [0.5, 1.0, 2.0, 5.0].contains(settings.frameInterval)
+                          ? settings.frameInterval
+                          : 1.0,
+                      items: [
+                        for (final seconds in [0.5, 1.0, 2.0, 5.0])
+                          DropdownMenuItem(
+                            value: seconds,
+                            child: Text(l10n.videoEverySeconds('$seconds')),
+                          ),
+                      ],
+                      onChanged: progress.isActive
+                          ? null
+                          : (v) {
+                              if (v != null) settingsStore.setFrameInterval(v);
+                            },
+                    ),
+                  ),
                 SwitchListTile(
                   key: const Key('scan-bodies'),
                   value: settings.scanBodies,

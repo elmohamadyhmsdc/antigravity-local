@@ -58,8 +58,11 @@ class PhotoResultStore {
 
   Future<StoreOutcome> store(
     MediaRow media,
-    AnalyzeImageResponse analysis,
-  ) async {
+    AnalyzeImageResponse analysis, {
+    int? frameNumber,
+    int? timestampMs,
+    bool complete = true,
+  }) async {
     final w = analysis.imageW, h = analysis.imageH;
     final now = _clock().millisecondsSinceEpoch;
     final gated = [
@@ -67,7 +70,7 @@ class PhotoResultStore {
         if (analysis.faces[i].passesGate) i,
     ];
 
-    final inFile = await _facesOfMedia(media.id);
+    final inFile = await _facesOfMedia(media.id, frameNumber);
     final hits = await _index.nearest([
       for (final i in gated) analysis.faces[i].embedding,
     ]);
@@ -136,6 +139,8 @@ class PhotoResultStore {
             .insert(
               FacesCompanion.insert(
                 mediaId: Value(media.id),
+                frameNumber: Value(frameNumber),
+                timestampMs: Value(timestampMs),
                 modelId: analysis.modelId,
                 embedding: embeddingToBlob(face.embedding),
                 qualityScore: face.quality.score,
@@ -173,14 +178,21 @@ class PhotoResultStore {
       // detections of the faces, replacing earlier rows for the same (photo, face)
       for (final i in gated) {
         final box = _box(analysis.faces[i].bbox, w, h);
-        await _putDetection(media.id, 'f', faceDbId[i]!, box);
+        await _putDetection(
+          media.id,
+          'f',
+          faceDbId[i]!,
+          box,
+          frameNumber,
+          timestampMs,
+        );
       }
 
       // ---- bodies --------------------------------------------------------------------
       final faceOfBody = {
         for (final p in analysis.pairs) p.bodyIndex: p.faceIndex,
       };
-      final existingBodies = await _bodiesOfMedia(media.id);
+      final existingBodies = await _bodiesOfMedia(media.id, frameNumber);
       final usedBodies = <int>{};
       final keptOutfits = <List<double>>[
         for (final b in existingBodies)
@@ -219,7 +231,14 @@ class PhotoResultStore {
             ],
             updates: {_db.bodies},
           );
-          await _putDetection(media.id, 'b', same.id, box);
+          await _putDetection(
+            media.id,
+            'b',
+            same.id,
+            box,
+            frameNumber,
+            timestampMs,
+          );
           continue;
         }
 
@@ -249,6 +268,8 @@ class PhotoResultStore {
             .insert(
               BodiesCompanion.insert(
                 mediaId: Value(media.id),
+                frameNumber: Value(frameNumber),
+                timestampMs: Value(timestampMs),
                 faceId: Value(faceId),
                 bboxX: box.x,
                 bboxY: box.y,
@@ -275,7 +296,7 @@ class PhotoResultStore {
             BodiesCompanion(cropPath: Value(path)),
           );
         }
-        await _putDetection(media.id, 'b', id, box);
+        await _putDetection(media.id, 'b', id, box, frameNumber, timestampMs);
         newBodies++;
         if (faceId == null) {
           keptFaceless++;
@@ -285,7 +306,10 @@ class PhotoResultStore {
 
       await (_db.update(_db.media)..where((m) => m.id.equals(media.id))).write(
         MediaCompanion(
-          scanStatus: const Value('done'),
+          scanStatus: Value(complete ? 'done' : 'scanning'),
+          lastScannedFrame: frameNumber == null
+              ? const Value.absent()
+              : Value(frameNumber + 1),
           scanVersion: const Value(scanVersion),
           scannedAt: Value(now),
           scanError: const Value(null),
@@ -316,11 +340,11 @@ class PhotoResultStore {
       [_r(k[0] / w), _r(k[1] / h), k[2]],
   ]);
 
-  Future<List<_Existing>> _facesOfMedia(int mediaId) async {
+  Future<List<_Existing>> _facesOfMedia(int mediaId, int? frameNumber) async {
     final rows = await _db
         .customSelect(
-          'SELECT id, bbox_x, bbox_y, bbox_w, bbox_h, embedding, quality_score, quality_version FROM faces WHERE media_id = ?',
-          variables: [Variable.withInt(mediaId)],
+          'SELECT id, bbox_x, bbox_y, bbox_w, bbox_h, embedding, quality_score, quality_version FROM faces WHERE media_id = ? AND frame_number IS ?',
+          variables: [Variable.withInt(mediaId), Variable<int>(frameNumber)],
           readsFrom: {_db.faces},
         )
         .get();
@@ -341,11 +365,14 @@ class PhotoResultStore {
     ];
   }
 
-  Future<List<_ExistingBody>> _bodiesOfMedia(int mediaId) async {
+  Future<List<_ExistingBody>> _bodiesOfMedia(
+    int mediaId,
+    int? frameNumber,
+  ) async {
     final rows = await _db
         .customSelect(
-          'SELECT id, face_id, bbox_x, bbox_y, bbox_w, bbox_h, appearance FROM bodies WHERE media_id = ?',
-          variables: [Variable.withInt(mediaId)],
+          'SELECT id, face_id, bbox_x, bbox_y, bbox_w, bbox_h, appearance FROM bodies WHERE media_id = ? AND frame_number IS ?',
+          variables: [Variable.withInt(mediaId), Variable<int>(frameNumber)],
           readsFrom: {_db.bodies},
         )
         .get();
@@ -399,13 +426,16 @@ class PhotoResultStore {
     String kind,
     int refId,
     _Box box,
+    int? frameNumber,
+    int? timestampMs,
   ) async {
     await _db.customUpdate(
-      'DELETE FROM media_detections WHERE media_id = ? AND kind = ? AND ref_id = ?',
+      'DELETE FROM media_detections WHERE media_id = ? AND kind = ? AND ref_id = ? AND frame_number IS ?',
       variables: [
         Variable.withInt(mediaId),
         Variable.withString(kind),
         Variable.withInt(refId),
+        Variable<int>(frameNumber),
       ],
       updates: {_db.mediaDetections},
     );
@@ -414,6 +444,8 @@ class PhotoResultStore {
         .insert(
           MediaDetectionsCompanion.insert(
             mediaId: mediaId,
+            frameNumber: Value(frameNumber),
+            timestampMs: Value(timestampMs),
             kind: kind,
             refId: refId,
             x: box.x,

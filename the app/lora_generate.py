@@ -119,7 +119,13 @@ def load_person_lora(pipe, lora_path, lora_scale: float = DEFAULT_LORA_SCALE):
     "IndexError: list index out of range". Renaming the keys (and their alphas, which set the LoRA's
     strength) to the model's real module names fixes it; the calls below are what load_lora_weights does.
     """
-    state_dict, network_alphas, metadata = pipe.lora_state_dict(lora_path, return_lora_metadata=True)
+    if Path(lora_path).suffix.lower() != '.safetensors':
+        raise ValueError('LoRA weights must use the safetensors format.')
+    # Network-uploaded LoRAs must never fall back to torch/pickle loading. Naming
+    # the weight also avoids a Hub lookup when diffusers runs in offline mode.
+    state_dict, network_alphas, metadata = pipe.lora_state_dict(
+        lora_path, return_lora_metadata=True, use_safetensors=True,
+        weight_name=Path(lora_path).name, local_files_only=True)
     if not hasattr(pipe.text_encoder, "text_model"):
         def rename(d):
             return {k.replace("text_encoder.text_model.", "text_encoder.", 1): v for k, v in d.items()} if d else d

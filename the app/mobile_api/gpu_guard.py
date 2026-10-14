@@ -35,6 +35,7 @@ class GpuGuard:
         self.dashboard_jobs_dir = Path(dashboard_jobs_dir) if dashboard_jobs_dir else None
         self.mobile_jobs_dir = Path(mobile_jobs_dir) if mobile_jobs_dir else None
         self._manager_factory = manager_factory
+        self.mobile_busy = lambda: None
 
     def _manager(self, jobs_dir: Path):
         if self._manager_factory is not None:
@@ -44,14 +45,20 @@ class GpuGuard:
 
     def busy(self) -> Optional[Busy]:
         """The job holding the GPU, or None. Mobile jobs win when both queues are busy."""
-        from job_manager import gpu_heavy_job_running
+        active = self.mobile_busy()
+        if active is not None:
+            return active
         if self.mobile_jobs_dir is not None and self.mobile_jobs_dir.exists():
             manager = self._manager(self.mobile_jobs_dir)
             if manager.is_worker_running():
                 job = manager.get_running_job()
                 if job is not None:
                     return Busy(job.id, job.job_type, "mobile")
-        if self.dashboard_jobs_dir is not None and self.dashboard_jobs_dir.exists():  # don't create jobs/ just to look
+        return self.dashboard_busy()
+
+    def dashboard_busy(self) -> Optional[Busy]:
+        from job_manager import gpu_heavy_job_running
+        if self.dashboard_jobs_dir is not None and self.dashboard_jobs_dir.exists():
             job = gpu_heavy_job_running(self._manager(self.dashboard_jobs_dir))
             if job is not None:
                 return Busy(job.id, job.job_type, "dashboard")

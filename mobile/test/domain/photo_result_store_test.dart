@@ -111,7 +111,7 @@ void main() {
         )..where((m) => m.id.equals(media.id))).getSingle();
         expect(
           (done.scanStatus, done.scanVersion, done.scanError),
-          ('done', scanVersion, isNull),
+          ('done', scanVersion, null),
         );
         expect(done.scannedAt, isNotNull);
         expect(

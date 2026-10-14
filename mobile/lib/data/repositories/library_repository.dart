@@ -105,7 +105,8 @@ class LibraryRepository {
             fresh.add(
               MediaCompanion.insert(
                 assetId: a.id,
-                kind: 'photo',
+                kind: a.kind,
+                durationMs: Value(a.durationMs),
                 modifiedAt: Value(a.modifiedAt),
                 width: Value(a.width),
                 height: Value(a.height),
@@ -115,11 +116,14 @@ class LibraryRepository {
             added++;
             continue;
           }
-          final same = a.sameSignatureAs(
-            modifiedAt: row.modifiedAt,
-            width: row.width ?? 0,
-            height: row.height ?? 0,
-          );
+          final same =
+              row.kind == a.kind &&
+              row.durationMs == a.durationMs &&
+              a.sameSignatureAs(
+                modifiedAt: row.modifiedAt,
+                width: row.width ?? 0,
+                height: row.height ?? 0,
+              );
           if (!same) {
             await (_db.update(
               _db.media,
@@ -129,6 +133,9 @@ class LibraryRepository {
                 width: Value(a.width),
                 height: Value(a.height),
                 takenAt: Value(a.takenAt),
+                kind: Value(a.kind),
+                durationMs: Value(a.durationMs),
+                lastScannedFrame: const Value(0),
                 scanStatus: const Value('pending'),
                 scanAttempts: const Value(0),
                 scanError: const Value(null),
@@ -170,7 +177,9 @@ class LibraryRepository {
     final row =
         await (_db.select(_db.media)
               ..where(
-                (m) => m.scanStatus.equals('pending') & m.kind.equals('photo'),
+                (m) =>
+                    m.scanStatus.equals('pending') &
+                    m.kind.isIn(['photo', 'video']),
               )
               ..orderBy([(m) => OrderingTerm.asc(m.id)])
               ..limit(1))
@@ -220,7 +229,7 @@ class LibraryRepository {
         COALESCE(SUM(scan_status = 'done'), 0) AS done,
         COALESCE(SUM(scan_status = 'failed'), 0) AS failed,
         COALESCE(SUM(scan_status = 'skipped'), 0) AS skipped
-      FROM media WHERE kind = 'photo'
+      FROM media WHERE kind IN ('photo', 'video')
       ''',
           readsFrom: {_db.media},
         )
@@ -237,7 +246,7 @@ class LibraryRepository {
       COALESCE(SUM(scan_status = 'done'), 0) AS done,
       COALESCE(SUM(scan_status = 'failed'), 0) AS failed,
       COALESCE(SUM(scan_status = 'skipped'), 0) AS skipped
-    FROM media WHERE kind = 'photo'
+    FROM media WHERE kind IN ('photo', 'video')
     ''',
         readsFrom: {_db.media},
       )

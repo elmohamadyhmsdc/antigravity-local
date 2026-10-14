@@ -288,7 +288,7 @@
     }
   },
   "addToPerson": "Add to a person…",
-  "albumsHint": "Choose the albums whose photos should be scanned. Photos stay on this phone; only a downscaled copy of each is sent to your PC.",
+  "albumsHint": "Choose the albums whose items should be scanned. Photos stay on this phone; only a downscaled copy of each is sent to your PC.",
   "albumsTitle": "Albums to scan",
   "allPhotos": "All photos",
   "allowPhotoAccess": "Allow photo access",
@@ -310,7 +310,7 @@
       }
     }
   },
-  "backupIntro": "Your library lives only on this phone. A backup is one file you can keep in Files, Drive or on your PC; restoring it brings everything back exactly as it was.",
+  "backupIntro": "Your library, private results, datasets and trained LoRAs live on this phone. Export a backup to keep another copy; PC connections and active jobs are excluded.",
   "backupKeepSafe": "The backup file is not encrypted. Keep it somewhere private - it contains the faces of the people in your photos.",
   "backupLibrarySummary": "{people} people · {faces} faces · {photos} photos",
   "@backupLibrarySummary": {
@@ -768,7 +768,7 @@
       }
     }
   },
-  "scanFootnote": "Scanning keeps going with the screen off. Photos already scanned are skipped, so you can run it again whenever new photos arrive.",
+  "scanFootnote": "Scanning keeps going with the screen off. Photos already scanned are skipped, so you can run it again whenever new items arrive.",
   "scanFound": "{count} photos found",
   "@scanFound": {
     "placeholders": {
@@ -778,12 +778,12 @@
     }
   },
   "scanLibrary": "Scan library",
-  "scanLibraryHint": "Find the faces in your photos",
+  "scanLibraryHint": "Find the faces in your items",
   "scanModelMismatch": "Your PC now uses a different face-recognition model than this library. Switch the PC back, or start a new library.",
   "scanNoAccess": "Photo access is off. Allow it in Android settings.",
   "scanNoAlbums": "No albums chosen.",
   "scanNotPaired": "Pair with your PC first.",
-  "scanNotificationText": "{done}/{total} photos · {faces} faces",
+  "scanNotificationText": "{done}/{total} items · {faces} faces",
   "@scanNotificationText": {
     "placeholders": {
       "done": {
@@ -797,7 +797,7 @@
       }
     }
   },
-  "scanNotificationTitle": "Scanning your photos",
+  "scanNotificationTitle": "Scanning your items",
   "scanNow": "Scan now",
   "scanOffline": "The PC could not be reached. Check that the server is running on the same Wi-Fi, then resume.",
   "scanPaused": "Scan paused",
@@ -917,6 +917,265 @@
       }
     }
   },
-  "whoIsHere": "Who is in this photo",
-  "close": "Close"
+  "whoIsHere": "Who is here",
+  "close": "Close",
+  "allMedia": "All photos & videos",
+  "mediaCount": "{count, plural, =1{1 item} other{{count} items}}",
+  "includeVideos": "Scan videos too",
+  "includeVideosHint": "Videos upload to your paired PC. Progress resumes after interruptions.",
+  "videoFrameInterval": "Sample video frames",
+  "videoEverySeconds": "Every {seconds} s",
+  "videoUploading": "Uploading video · {percent}%",
+  "videoAnalyzing": "Analyzing video · {percent}%",
+  "videoDownloading": "Downloading video detections…",
+  "videoImporting": "Saving video detections on this phone…",
+  "videoTitle": "Video",
+  "videoUnavailable": "Video unavailable",
+  "videoUnavailableBody": "The original may have been removed, access may have changed, or this format cannot be played.",
+  "videoPlay": "Play",
+  "videoPause": "Pause playback",
+  "videoDetectedFrames": "Jump to a detected frame",
+  "videoNoDetections": "No detections yet. Scan this video to find people.",
+  "insightsTitle": "Library insights",
+  "insightsHint": "Scan coverage, identified faces and people in your library.",
+  "insightsCoverage": "Scan coverage",
+  "insightsScanned": "{done} of {total} items scanned",
+  "insightsFaces": "Identified faces",
+  "insightsBodies": "Identified bodies",
+  "insightsTopPeople": "Most seen people",
+  "insightsPersonMedia": "{count} media items",
+  "insightsEmpty": "Scan your library to see insights",
+  "insightsAssigned": "{identified} of {total} identified",
+  "insightsUnsorted": "Unsorted faces",
+  "insightsFailed": "Items needing another scan",
+  "tabMedia": "Photos & videos",
+  "@mediaCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@videoEverySeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "@videoUploading": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "@videoAnalyzing": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "@insightsScanned": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "@insightsPersonMedia": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@insightsAssigned": {
+    "placeholders": {
+      "identified": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "studioTitle": "Studio",
+  "studioHint": "Create with your private library",
+  "studioNeedsPc": "Connect to your paired PC to detect faces and start a new job.",
+  "studioBusyHint": "The GPU is busy. New Studio jobs will wait in the queue.",
+  "refaceTitle": "Reface",
+  "refaceHint": "Swap a person into a photo or video",
+  "privateResults": "Private results",
+  "privateResultsHint": "Outputs stay inside Antigravity until you choose to share them.",
+  "refaceTarget": "Target",
+  "refaceIdentity": "Source identity",
+  "refaceQuality": "Engine & quality",
+  "refaceReview": "Review & create",
+  "chooseTargetPhoto": "Choose a photo",
+  "chooseTargetVideo": "Choose a video",
+  "selectedTargetFaces": "Choose the faces to swap",
+  "videoSwapsAllFaces": "Video Reface swaps every detected face in the selected clip.",
+  "videoTrimStart": "Start (seconds)",
+  "videoTrimEnd": "End (seconds, optional)",
+  "selectSourcePerson": "Choose source person",
+  "sourceFacesHint": "Select clear faces of the same person. The best 20 are selected by default.",
+  "refaceHd": "HD",
+  "refaceLegacy": "Legacy",
+  "refacePro": "Pro · DFM",
+  "refaceEngine": "Engine",
+  "dfmModel": "DFM model",
+  "refaceRestorer": "Face restoration",
+  "restorerAuto": "Automatic",
+  "restorerNone": "Off",
+  "refacePreset": "Realism preset",
+  "presetNatural": "Natural",
+  "presetDetail": "Maximum detail",
+  "presetClean": "Clean",
+  "protectOcclusions": "Protect glasses and occlusions",
+  "useFaceParser": "Use face region mask",
+  "submitReface": "Create Reface job",
+  "refaceReviewHint": "The target is copied to private storage so this request survives closing the app. The PC keeps it only while processing.",
+  "selectFaceRequired": "Select at least one target face.",
+  "selectIdentityRequired": "Choose a source person and at least one face.",
+  "chooseTargetRequired": "Choose and detect a photo, or choose a video.",
+  "invalidTrimRange": "Enter a valid trim range: end must be greater than start.",
+  "fileTooLarge": "This file exceeds the PC upload limit.",
+  "studioNoEngine": "No Reface engine is available. Check the models on your PC.",
+  "jobsEmpty": "No Studio jobs yet",
+  "jobsEmptyHint": "Start a Reface job from Studio. Progress and results will appear here.",
+  "jobDetails": "Job details",
+  "jobPause": "Pause",
+  "jobResume": "Resume",
+  "jobRetry": "Retry",
+  "jobRemove": "Remove job",
+  "jobSync": "Sync now",
+  "jobResult": "Open result",
+  "statusUploading": "Uploading",
+  "statusQueued": "Queued",
+  "statusRunning": "Running",
+  "statusPaused": "Paused",
+  "statusDownloading": "Saving result",
+  "statusCompleted": "Completed",
+  "statusFailed": "Failed",
+  "statusLost": "PC job expired",
+  "resultEmpty": "No private results yet",
+  "resultEmptyHint": "Finished outputs are saved here automatically.",
+  "resultBefore": "Before",
+  "resultAfter": "After",
+  "resultCompare": "Before / after",
+  "resultShare": "Share output",
+  "resultFavourite": "Favourite",
+  "resultDelete": "Delete result",
+  "resultDeleteBody": "Delete this private output and its comparison original from the phone?",
+  "jobRemoveBody": "Remove this job and its temporary input? Saved results are kept.",
+  "next": "Next",
+  "createAnother": "Create another",
+  "allResults": "All results",
+  "favouriteResults": "Favourites",
+  "resultPhoto": "Photo",
+  "resultVideo": "Video",
+  "jobErrorHint": "Your target remains on the phone. Reconnect or retry to continue.",
+  "useInStudio": "Use in Studio",
+  "studioResultReady": "Your result is ready and saved privately on this phone.",
+  "restyleTitle": "Clothes restyle",
+  "restyleHint": "Change clothing while protecting the face",
+  "restylePrompt": "Describe the clothing",
+  "restyleDefaultPrompt": "Photorealistic fashion photo, wearing an elegant blue tailored suit, natural fabric texture and folds, preserve the same person, pose, lighting and background",
+  "restyleNegative": "Negative prompt",
+  "restyleNegativeDefault": "nudity, underwear, deformed hands, bad anatomy, blurry, plastic skin, watermark",
+  "restyleStrength": "Change strength",
+  "restyleFace": "Protected face",
+  "restylePadding": "Extra face protection",
+  "restyleReferences": "Clothing references",
+  "addReference": "Add a reference photo",
+  "restyleCreate": "Create restyle job",
+  "engineUnavailable": "This tool is unavailable on your PC. Check its environment and model files.",
+  "advancedOptions": "Advanced options",
+  "seed": "Seed (-1 = random)",
+  "steps": "Steps",
+  "guidance": "Guidance",
+  "refineOutput": "Refine at original resolution",
+  "promptRequired": "Describe the clothing before submitting.",
+  "loraTitle": "Character LoRA",
+  "loraHint": "Build a dataset, train a character and generate portraits",
+  "loraDatasetTitle": "Character dataset",
+  "loraDatasetBuild": "Build dataset",
+  "loraChoosePhotos": "Choose training photos",
+  "loraPhotoHint": "Choose 5–64 clear photos of the selected person. The PC matches that identity before cropping.",
+  "loraTrigger": "Trigger word",
+  "loraTriggerHint": "3–64 letters, digits or underscores; start with a letter",
+  "loraRepeats": "Repeats per image",
+  "loraTrain": "Train LoRA",
+  "loraGenerate": "Generate portraits",
+  "loraNoDatasets": "No character datasets yet",
+  "loraNoModels": "No trained LoRAs yet",
+  "loraDatasetEditor": "Edit dataset",
+  "loraCaption": "Caption",
+  "loraIncluded": "Include in training",
+  "loraExport": "Export training zip",
+  "loraTrainHint": "Training uses the included images and edited captions. The finished LoRA is saved on this phone.",
+  "loraEpochs": "Epochs",
+  "loraDim": "Network dimension",
+  "loraLearningRate": "Learning rate",
+  "loraResolution": "Resolution",
+  "loraBase": "Base checkpoint",
+  "loraModel": "Trained LoRA",
+  "loraCount": "Number of portraits",
+  "loraPrompt": "Portrait prompt",
+  "loraDefaultPrompt": "A natural studio portrait of {trigger} person, neutral expression, realistic skin texture, soft daylight, fully clothed, photorealistic",
+  "loraReferenceMode": "Follow the reference",
+  "referenceComposition": "Pose & composition",
+  "referenceStyle": "Style & clothing",
+  "referenceBoth": "Both",
+  "loraIdentity": "Use generated portraits in Reface",
+  "loraBuildIdentity": "Build Reface identity",
+  "loraIdentityHint": "Generated faces are added only when they match the person’s real face identity.",
+  "loraIdentityReady": "Reface identity saved",
+  "loraChooseDataset": "Choose a dataset",
+  "loraMinImages": "Include at least five images before training.",
+  "invalidForm": "Check the form values and try again.",
+  "loraNoBase": "No compatible base checkpoint is available on this PC.",
+  "privateArtifact": "Private model or dataset",
+  "openDataset": "Open dataset editor",
+  "openLora": "Open Character LoRA",
+  "trainingDetails": "Training progress",
+  "loss": "Loss",
+  "epoch": "Epoch",
+  "totalSteps": "Steps",
+  "saveToGallery": "Save to gallery",
+  "savedToGallery": "Saved to gallery",
+  "storageTitle": "Storage",
+  "appLockTitle": "App lock",
+  "appLockHint": "Use your phone’s screen lock when opening Antigravity.",
+  "unlockApp": "Unlock Antigravity",
+  "unlockBody": "Confirm your phone screen lock to open your private library.",
+  "unlockFailed": "Unlock was cancelled, or a phone screen lock is not set up.",
+  "storageHint": "Manage private outputs, datasets and trained models.",
+  "storageUsed": "Private files",
+  "storageDeleteResults": "Delete private results",
+  "storageDeleteDatasets": "Delete datasets",
+  "storageDeleteLoras": "Delete trained LoRAs",
+  "storageDeleteTemporary": "Clean temporary files",
+  "storageConfirm": "Delete the selected private files from this phone? Export a backup first if you want to keep them.",
+  "storageBusy": "Pause scans and active Studio jobs before cleaning storage.",
+  "storageCleaned": "Storage updated",
+  "backgroundTitle": "Background work",
+  "backgroundIntro": "Allow notifications and unrestricted battery use so scans, uploads and result downloads can continue when you leave the app or lock the screen. An ongoing notification shows when work is active.",
+  "backgroundSettingsHint": "Keep work going with the screen off",
+  "backgroundLater": "Continue for now",
+  "backgroundEnable": "Allow background work",
+  "backgroundRefresh": "Refresh status",
+  "backgroundNotifications": "Progress notifications allowed",
+  "backgroundBattery": "Battery use unrestricted",
+  "backgroundRunning": "Background service is running",
+  "backgroundIdle": "Ready to start when there is active work",
+  "backgroundOpenSettings": "Open Android app settings",
+  "backgroundAndroidOnly": "Background permissions are available on Android.",
+  "backgroundServiceFailed": "Android could not start the background service. Keep the app open and check notifications and battery settings.",
+  "backgroundLimits": "A force stop, phone shutdown or Android background time limit can stop phone work. Open the app to resume its saved queue. Some phones also require allowing auto-start in the manufacturer's battery settings. The PC must stay on and connected to the phone."
 }

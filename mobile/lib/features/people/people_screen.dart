@@ -117,7 +117,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 130,
-                    childAspectRatio: 0.82,
+                    mainAxisExtent: 160,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
                   ),

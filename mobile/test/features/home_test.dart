@@ -192,6 +192,16 @@ void main() {
     env,
   ) async {
     await env.pump(tester);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('try-detection')),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('home-list')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     await tester.tap(find.byKey(const Key('try-detection')));
     await tester.pumpAndSettle();
     expect(find.text('Choose a photo'), findsOneWidget);

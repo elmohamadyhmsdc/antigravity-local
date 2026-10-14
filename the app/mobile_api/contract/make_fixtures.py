@@ -283,6 +283,7 @@ def job_fixtures():
         "inputs": {"target": sha("target-photo")},
     })
     write("JobCreate.reface_video_dfm", {
+        "client_job_id": "fixture-reface-video",
         "type": "reface_video_dfm",
         "params": {"source_faces": [], "dfm_model": "RTM_WF_224", "start_time": 2.5, "end_time": 14.0},
         "inputs": {"target": sha("target-video")},
@@ -293,6 +294,7 @@ def job_fixtures():
         "inputs": {"video": sha("holiday-video")},
     })
     write("JobCreate.undress_image", {
+        "client_job_id": "fixture-restyle",
         "type": "undress_image",
         "params": {
             "face_bbox": {"x": 412.5, "y": 188.0, "w": 176.0, "h": 214.5},
@@ -304,20 +306,23 @@ def job_fixtures():
         "inputs": {"image": sha("photo-to-restyle"), "refs": [sha("ref-1")]},
     })
     write("JobCreate.build_lora_dataset", {
+        "client_job_id": "fixture-dataset",
         "type": "build_lora_dataset",
-        "params": {"trigger_word": "sks_sara", "repeats": 10},
+        "params": {"trigger_word": "sks_sara", "repeats": 10, "anchor_embedding": b64(unit(np.arange(DIM,dtype=np.float32)))},
         "inputs": {"images": [sha("img-a"), sha("img-b"), sha("img-c")]},
     })
     write("JobCreate.train_lora", {
+        "client_job_id": "fixture-training",
         "type": "train_lora",
-        "params": {"output_name": "sara_v1", "base_checkpoint": "sd15_realistic_base",
+        "params": {"output_name": "sara_v1", "trigger_word": "sks_sara", "base_checkpoint": "sd15_realistic_base",
                    "epochs": 10, "network_dim": 32, "network_alpha": 16,
                    "learning_rate": 0.0001, "batch_size": 1, "max_resolution": 512},
         "inputs": {"dataset": sha("dataset-zip")},
     })
     write("JobCreate.generate_lora_images", {
+        "client_job_id": "fixture-generation",
         "type": "generate_lora_images",
-        "params": {"trigger_word": "sks_sara", "num_images": 4, "seed": 1234, "steps": 30,
+        "params": {"trigger_word": "sks_sara", "base_checkpoint": "sd15_realistic_base", "num_images": 4, "seed": 1234, "steps": 30,
                    "reference_mode": "composition", "reference_strength": 0.6, "multi_angle": False},
         "inputs": {"lora": sha("sara-lora"), "reference": sha("pose-ref")},
     })

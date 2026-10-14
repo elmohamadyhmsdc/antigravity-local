@@ -215,11 +215,12 @@ class BodyAnalyzer:
     faces without bodies."""
 
     def __init__(self, use_pose: bool = True, providers=None, log: Callable[[str], None] = print,
-                 models_dir: Path = None):
+                 models_dir: Path = None, allow_downloads: bool = True):
         self.use_pose = use_pose
         self.providers = providers
         self.log = log
         self.models_dir = models_dir
+        self.allow_downloads = allow_downloads
         self.detector: Optional[PersonDetector] = None
         self.pose: Optional[PoseEstimator] = None
         self.error: Optional[str] = None
@@ -231,9 +232,16 @@ class BodyAnalyzer:
         self._loaded = True
         try:
             providers = self.providers or default_providers()
-            self.detector = PersonDetector(ensure_model("person", self.log, self.models_dir), providers)
+            def model(key):
+                if self.allow_downloads: return ensure_model(key, self.log, self.models_dir)
+                spec = MODEL_SPECS[key]
+                path = Path(self.models_dir or MODELS_DIR)/spec['file']
+                if not path.is_file() or path.stat().st_size != spec['onnx_size']:
+                    raise FileNotFoundError('Local body model is missing or incomplete: '+spec['file'])
+                return path
+            self.detector = PersonDetector(model("person"), providers)
             if self.use_pose:
-                self.pose = PoseEstimator(ensure_model("pose", self.log, self.models_dir), providers)
+                self.pose = PoseEstimator(model("pose"), providers)
         except Exception as e:
             self.error = str(e)
             self.detector = None

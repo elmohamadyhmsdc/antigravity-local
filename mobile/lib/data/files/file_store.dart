@@ -24,8 +24,16 @@ class FileStore {
   String faceCropPath(int faceId) => '$facesFolder/$faceId.jpg';
   String bodyCropPath(int bodyId) => '$bodiesFolder/$bodyId.jpg';
 
-  File resolve(String relative) =>
-      File(p.joinAll([root.path, ...p.posix.split(relative)]));
+  File resolve(String relative) {
+    if (relative.isEmpty ||
+        relative.contains('\\') ||
+        p.posix.isAbsolute(relative) ||
+        relative.contains(':') ||
+        p.posix.split(relative).any((s) => s == '..' || s.isEmpty)) {
+      throw const FormatException('Unsafe private file path');
+    }
+    return File(p.joinAll([root.path, ...p.posix.split(relative)]));
+  }
 
   /// Writes `bytes` to the relative path (creating folders) and returns the path.
   Future<String> write(String relative, Uint8List bytes) async {

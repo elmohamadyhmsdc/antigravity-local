@@ -7648,6 +7648,2769 @@ class ReviewBodyLinksCompanion extends UpdateCompanion<ReviewBodyLinkRow> {
   }
 }
 
+class $JobsTable extends Jobs with TableInfo<$JobsTable, JobRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $JobsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<String> serverId = GeneratedColumn<String>(
+    'server_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _remoteIdMeta = const VerificationMeta(
+    'remoteId',
+  );
+  @override
+  late final GeneratedColumn<String> remoteId = GeneratedColumn<String>(
+    'remote_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _requestJsonMeta = const VerificationMeta(
+    'requestJson',
+  );
+  @override
+  late final GeneratedColumn<String> requestJson = GeneratedColumn<String>(
+    'request_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _inputFilesMeta = const VerificationMeta(
+    'inputFiles',
+  );
+  @override
+  late final GeneratedColumn<String> inputFiles = GeneratedColumn<String>(
+    'input_files',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _detailsJsonMeta = const VerificationMeta(
+    'detailsJson',
+  );
+  @override
+  late final GeneratedColumn<String> detailsJson = GeneratedColumn<String>(
+    'details_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _targetPathMeta = const VerificationMeta(
+    'targetPath',
+  );
+  @override
+  late final GeneratedColumn<String> targetPath = GeneratedColumn<String>(
+    'target_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetShaMeta = const VerificationMeta(
+    'targetSha',
+  );
+  @override
+  late final GeneratedColumn<String> targetSha = GeneratedColumn<String>(
+    'target_sha',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetSizeMeta = const VerificationMeta(
+    'targetSize',
+  );
+  @override
+  late final GeneratedColumn<int> targetSize = GeneratedColumn<int>(
+    'target_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _progressMeta = const VerificationMeta(
+    'progress',
+  );
+  @override
+  late final GeneratedColumn<double> progress = GeneratedColumn<double>(
+    'progress',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _messageMeta = const VerificationMeta(
+    'message',
+  );
+  @override
+  late final GeneratedColumn<String> message = GeneratedColumn<String>(
+    'message',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+    'error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _acknowledgedMeta = const VerificationMeta(
+    'acknowledged',
+  );
+  @override
+  late final GeneratedColumn<bool> acknowledged = GeneratedColumn<bool>(
+    'acknowledged',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("acknowledged" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    serverId,
+    remoteId,
+    type,
+    requestJson,
+    inputFiles,
+    detailsJson,
+    targetPath,
+    targetSha,
+    targetSize,
+    personId,
+    status,
+    progress,
+    message,
+    error,
+    acknowledged,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'jobs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<JobRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_serverIdMeta);
+    }
+    if (data.containsKey('remote_id')) {
+      context.handle(
+        _remoteIdMeta,
+        remoteId.isAcceptableOrUnknown(data['remote_id']!, _remoteIdMeta),
+      );
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('request_json')) {
+      context.handle(
+        _requestJsonMeta,
+        requestJson.isAcceptableOrUnknown(
+          data['request_json']!,
+          _requestJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_requestJsonMeta);
+    }
+    if (data.containsKey('input_files')) {
+      context.handle(
+        _inputFilesMeta,
+        inputFiles.isAcceptableOrUnknown(data['input_files']!, _inputFilesMeta),
+      );
+    }
+    if (data.containsKey('details_json')) {
+      context.handle(
+        _detailsJsonMeta,
+        detailsJson.isAcceptableOrUnknown(
+          data['details_json']!,
+          _detailsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('target_path')) {
+      context.handle(
+        _targetPathMeta,
+        targetPath.isAcceptableOrUnknown(data['target_path']!, _targetPathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetPathMeta);
+    }
+    if (data.containsKey('target_sha')) {
+      context.handle(
+        _targetShaMeta,
+        targetSha.isAcceptableOrUnknown(data['target_sha']!, _targetShaMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetShaMeta);
+    }
+    if (data.containsKey('target_size')) {
+      context.handle(
+        _targetSizeMeta,
+        targetSize.isAcceptableOrUnknown(data['target_size']!, _targetSizeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetSizeMeta);
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('progress')) {
+      context.handle(
+        _progressMeta,
+        progress.isAcceptableOrUnknown(data['progress']!, _progressMeta),
+      );
+    }
+    if (data.containsKey('message')) {
+      context.handle(
+        _messageMeta,
+        message.isAcceptableOrUnknown(data['message']!, _messageMeta),
+      );
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+        _errorMeta,
+        error.isAcceptableOrUnknown(data['error']!, _errorMeta),
+      );
+    }
+    if (data.containsKey('acknowledged')) {
+      context.handle(
+        _acknowledgedMeta,
+        acknowledged.isAcceptableOrUnknown(
+          data['acknowledged']!,
+          _acknowledgedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  JobRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return JobRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}server_id'],
+      )!,
+      remoteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_id'],
+      ),
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      requestJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}request_json'],
+      )!,
+      inputFiles: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}input_files'],
+      )!,
+      detailsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}details_json'],
+      )!,
+      targetPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_path'],
+      )!,
+      targetSha: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_sha'],
+      )!,
+      targetSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}target_size'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      progress: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}progress'],
+      )!,
+      message: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message'],
+      ),
+      error: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error'],
+      ),
+      acknowledged: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}acknowledged'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $JobsTable createAlias(String alias) {
+    return $JobsTable(attachedDatabase, alias);
+  }
+}
+
+class JobRow extends DataClass implements Insertable<JobRow> {
+  final String id;
+  final String serverId;
+  final String? remoteId;
+  final String type;
+  final String requestJson;
+  final String inputFiles;
+  final String detailsJson;
+  final String targetPath;
+  final String targetSha;
+  final int targetSize;
+  final int? personId;
+  final String status;
+  final double progress;
+  final String? message;
+  final String? error;
+  final bool acknowledged;
+  final int createdAt;
+  final int updatedAt;
+  const JobRow({
+    required this.id,
+    required this.serverId,
+    this.remoteId,
+    required this.type,
+    required this.requestJson,
+    required this.inputFiles,
+    required this.detailsJson,
+    required this.targetPath,
+    required this.targetSha,
+    required this.targetSize,
+    this.personId,
+    required this.status,
+    required this.progress,
+    this.message,
+    this.error,
+    required this.acknowledged,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['server_id'] = Variable<String>(serverId);
+    if (!nullToAbsent || remoteId != null) {
+      map['remote_id'] = Variable<String>(remoteId);
+    }
+    map['type'] = Variable<String>(type);
+    map['request_json'] = Variable<String>(requestJson);
+    map['input_files'] = Variable<String>(inputFiles);
+    map['details_json'] = Variable<String>(detailsJson);
+    map['target_path'] = Variable<String>(targetPath);
+    map['target_sha'] = Variable<String>(targetSha);
+    map['target_size'] = Variable<int>(targetSize);
+    if (!nullToAbsent || personId != null) {
+      map['person_id'] = Variable<int>(personId);
+    }
+    map['status'] = Variable<String>(status);
+    map['progress'] = Variable<double>(progress);
+    if (!nullToAbsent || message != null) {
+      map['message'] = Variable<String>(message);
+    }
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    map['acknowledged'] = Variable<bool>(acknowledged);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  JobsCompanion toCompanion(bool nullToAbsent) {
+    return JobsCompanion(
+      id: Value(id),
+      serverId: Value(serverId),
+      remoteId: remoteId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteId),
+      type: Value(type),
+      requestJson: Value(requestJson),
+      inputFiles: Value(inputFiles),
+      detailsJson: Value(detailsJson),
+      targetPath: Value(targetPath),
+      targetSha: Value(targetSha),
+      targetSize: Value(targetSize),
+      personId: personId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(personId),
+      status: Value(status),
+      progress: Value(progress),
+      message: message == null && nullToAbsent
+          ? const Value.absent()
+          : Value(message),
+      error: error == null && nullToAbsent
+          ? const Value.absent()
+          : Value(error),
+      acknowledged: Value(acknowledged),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory JobRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return JobRow(
+      id: serializer.fromJson<String>(json['id']),
+      serverId: serializer.fromJson<String>(json['serverId']),
+      remoteId: serializer.fromJson<String?>(json['remoteId']),
+      type: serializer.fromJson<String>(json['type']),
+      requestJson: serializer.fromJson<String>(json['requestJson']),
+      inputFiles: serializer.fromJson<String>(json['inputFiles']),
+      detailsJson: serializer.fromJson<String>(json['detailsJson']),
+      targetPath: serializer.fromJson<String>(json['targetPath']),
+      targetSha: serializer.fromJson<String>(json['targetSha']),
+      targetSize: serializer.fromJson<int>(json['targetSize']),
+      personId: serializer.fromJson<int?>(json['personId']),
+      status: serializer.fromJson<String>(json['status']),
+      progress: serializer.fromJson<double>(json['progress']),
+      message: serializer.fromJson<String?>(json['message']),
+      error: serializer.fromJson<String?>(json['error']),
+      acknowledged: serializer.fromJson<bool>(json['acknowledged']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'serverId': serializer.toJson<String>(serverId),
+      'remoteId': serializer.toJson<String?>(remoteId),
+      'type': serializer.toJson<String>(type),
+      'requestJson': serializer.toJson<String>(requestJson),
+      'inputFiles': serializer.toJson<String>(inputFiles),
+      'detailsJson': serializer.toJson<String>(detailsJson),
+      'targetPath': serializer.toJson<String>(targetPath),
+      'targetSha': serializer.toJson<String>(targetSha),
+      'targetSize': serializer.toJson<int>(targetSize),
+      'personId': serializer.toJson<int?>(personId),
+      'status': serializer.toJson<String>(status),
+      'progress': serializer.toJson<double>(progress),
+      'message': serializer.toJson<String?>(message),
+      'error': serializer.toJson<String?>(error),
+      'acknowledged': serializer.toJson<bool>(acknowledged),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  JobRow copyWith({
+    String? id,
+    String? serverId,
+    Value<String?> remoteId = const Value.absent(),
+    String? type,
+    String? requestJson,
+    String? inputFiles,
+    String? detailsJson,
+    String? targetPath,
+    String? targetSha,
+    int? targetSize,
+    Value<int?> personId = const Value.absent(),
+    String? status,
+    double? progress,
+    Value<String?> message = const Value.absent(),
+    Value<String?> error = const Value.absent(),
+    bool? acknowledged,
+    int? createdAt,
+    int? updatedAt,
+  }) => JobRow(
+    id: id ?? this.id,
+    serverId: serverId ?? this.serverId,
+    remoteId: remoteId.present ? remoteId.value : this.remoteId,
+    type: type ?? this.type,
+    requestJson: requestJson ?? this.requestJson,
+    inputFiles: inputFiles ?? this.inputFiles,
+    detailsJson: detailsJson ?? this.detailsJson,
+    targetPath: targetPath ?? this.targetPath,
+    targetSha: targetSha ?? this.targetSha,
+    targetSize: targetSize ?? this.targetSize,
+    personId: personId.present ? personId.value : this.personId,
+    status: status ?? this.status,
+    progress: progress ?? this.progress,
+    message: message.present ? message.value : this.message,
+    error: error.present ? error.value : this.error,
+    acknowledged: acknowledged ?? this.acknowledged,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  JobRow copyWithCompanion(JobsCompanion data) {
+    return JobRow(
+      id: data.id.present ? data.id.value : this.id,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      remoteId: data.remoteId.present ? data.remoteId.value : this.remoteId,
+      type: data.type.present ? data.type.value : this.type,
+      requestJson: data.requestJson.present
+          ? data.requestJson.value
+          : this.requestJson,
+      inputFiles: data.inputFiles.present
+          ? data.inputFiles.value
+          : this.inputFiles,
+      detailsJson: data.detailsJson.present
+          ? data.detailsJson.value
+          : this.detailsJson,
+      targetPath: data.targetPath.present
+          ? data.targetPath.value
+          : this.targetPath,
+      targetSha: data.targetSha.present ? data.targetSha.value : this.targetSha,
+      targetSize: data.targetSize.present
+          ? data.targetSize.value
+          : this.targetSize,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      status: data.status.present ? data.status.value : this.status,
+      progress: data.progress.present ? data.progress.value : this.progress,
+      message: data.message.present ? data.message.value : this.message,
+      error: data.error.present ? data.error.value : this.error,
+      acknowledged: data.acknowledged.present
+          ? data.acknowledged.value
+          : this.acknowledged,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('JobRow(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('remoteId: $remoteId, ')
+          ..write('type: $type, ')
+          ..write('requestJson: $requestJson, ')
+          ..write('inputFiles: $inputFiles, ')
+          ..write('detailsJson: $detailsJson, ')
+          ..write('targetPath: $targetPath, ')
+          ..write('targetSha: $targetSha, ')
+          ..write('targetSize: $targetSize, ')
+          ..write('personId: $personId, ')
+          ..write('status: $status, ')
+          ..write('progress: $progress, ')
+          ..write('message: $message, ')
+          ..write('error: $error, ')
+          ..write('acknowledged: $acknowledged, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    serverId,
+    remoteId,
+    type,
+    requestJson,
+    inputFiles,
+    detailsJson,
+    targetPath,
+    targetSha,
+    targetSize,
+    personId,
+    status,
+    progress,
+    message,
+    error,
+    acknowledged,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is JobRow &&
+          other.id == this.id &&
+          other.serverId == this.serverId &&
+          other.remoteId == this.remoteId &&
+          other.type == this.type &&
+          other.requestJson == this.requestJson &&
+          other.inputFiles == this.inputFiles &&
+          other.detailsJson == this.detailsJson &&
+          other.targetPath == this.targetPath &&
+          other.targetSha == this.targetSha &&
+          other.targetSize == this.targetSize &&
+          other.personId == this.personId &&
+          other.status == this.status &&
+          other.progress == this.progress &&
+          other.message == this.message &&
+          other.error == this.error &&
+          other.acknowledged == this.acknowledged &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class JobsCompanion extends UpdateCompanion<JobRow> {
+  final Value<String> id;
+  final Value<String> serverId;
+  final Value<String?> remoteId;
+  final Value<String> type;
+  final Value<String> requestJson;
+  final Value<String> inputFiles;
+  final Value<String> detailsJson;
+  final Value<String> targetPath;
+  final Value<String> targetSha;
+  final Value<int> targetSize;
+  final Value<int?> personId;
+  final Value<String> status;
+  final Value<double> progress;
+  final Value<String?> message;
+  final Value<String?> error;
+  final Value<bool> acknowledged;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const JobsCompanion({
+    this.id = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.remoteId = const Value.absent(),
+    this.type = const Value.absent(),
+    this.requestJson = const Value.absent(),
+    this.inputFiles = const Value.absent(),
+    this.detailsJson = const Value.absent(),
+    this.targetPath = const Value.absent(),
+    this.targetSha = const Value.absent(),
+    this.targetSize = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.progress = const Value.absent(),
+    this.message = const Value.absent(),
+    this.error = const Value.absent(),
+    this.acknowledged = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  JobsCompanion.insert({
+    required String id,
+    required String serverId,
+    this.remoteId = const Value.absent(),
+    required String type,
+    required String requestJson,
+    this.inputFiles = const Value.absent(),
+    this.detailsJson = const Value.absent(),
+    required String targetPath,
+    required String targetSha,
+    required int targetSize,
+    this.personId = const Value.absent(),
+    required String status,
+    this.progress = const Value.absent(),
+    this.message = const Value.absent(),
+    this.error = const Value.absent(),
+    this.acknowledged = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       serverId = Value(serverId),
+       type = Value(type),
+       requestJson = Value(requestJson),
+       targetPath = Value(targetPath),
+       targetSha = Value(targetSha),
+       targetSize = Value(targetSize),
+       status = Value(status),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<JobRow> custom({
+    Expression<String>? id,
+    Expression<String>? serverId,
+    Expression<String>? remoteId,
+    Expression<String>? type,
+    Expression<String>? requestJson,
+    Expression<String>? inputFiles,
+    Expression<String>? detailsJson,
+    Expression<String>? targetPath,
+    Expression<String>? targetSha,
+    Expression<int>? targetSize,
+    Expression<int>? personId,
+    Expression<String>? status,
+    Expression<double>? progress,
+    Expression<String>? message,
+    Expression<String>? error,
+    Expression<bool>? acknowledged,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (serverId != null) 'server_id': serverId,
+      if (remoteId != null) 'remote_id': remoteId,
+      if (type != null) 'type': type,
+      if (requestJson != null) 'request_json': requestJson,
+      if (inputFiles != null) 'input_files': inputFiles,
+      if (detailsJson != null) 'details_json': detailsJson,
+      if (targetPath != null) 'target_path': targetPath,
+      if (targetSha != null) 'target_sha': targetSha,
+      if (targetSize != null) 'target_size': targetSize,
+      if (personId != null) 'person_id': personId,
+      if (status != null) 'status': status,
+      if (progress != null) 'progress': progress,
+      if (message != null) 'message': message,
+      if (error != null) 'error': error,
+      if (acknowledged != null) 'acknowledged': acknowledged,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  JobsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? serverId,
+    Value<String?>? remoteId,
+    Value<String>? type,
+    Value<String>? requestJson,
+    Value<String>? inputFiles,
+    Value<String>? detailsJson,
+    Value<String>? targetPath,
+    Value<String>? targetSha,
+    Value<int>? targetSize,
+    Value<int?>? personId,
+    Value<String>? status,
+    Value<double>? progress,
+    Value<String?>? message,
+    Value<String?>? error,
+    Value<bool>? acknowledged,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return JobsCompanion(
+      id: id ?? this.id,
+      serverId: serverId ?? this.serverId,
+      remoteId: remoteId ?? this.remoteId,
+      type: type ?? this.type,
+      requestJson: requestJson ?? this.requestJson,
+      inputFiles: inputFiles ?? this.inputFiles,
+      detailsJson: detailsJson ?? this.detailsJson,
+      targetPath: targetPath ?? this.targetPath,
+      targetSha: targetSha ?? this.targetSha,
+      targetSize: targetSize ?? this.targetSize,
+      personId: personId ?? this.personId,
+      status: status ?? this.status,
+      progress: progress ?? this.progress,
+      message: message ?? this.message,
+      error: error ?? this.error,
+      acknowledged: acknowledged ?? this.acknowledged,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<String>(serverId.value);
+    }
+    if (remoteId.present) {
+      map['remote_id'] = Variable<String>(remoteId.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (requestJson.present) {
+      map['request_json'] = Variable<String>(requestJson.value);
+    }
+    if (inputFiles.present) {
+      map['input_files'] = Variable<String>(inputFiles.value);
+    }
+    if (detailsJson.present) {
+      map['details_json'] = Variable<String>(detailsJson.value);
+    }
+    if (targetPath.present) {
+      map['target_path'] = Variable<String>(targetPath.value);
+    }
+    if (targetSha.present) {
+      map['target_sha'] = Variable<String>(targetSha.value);
+    }
+    if (targetSize.present) {
+      map['target_size'] = Variable<int>(targetSize.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (progress.present) {
+      map['progress'] = Variable<double>(progress.value);
+    }
+    if (message.present) {
+      map['message'] = Variable<String>(message.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    if (acknowledged.present) {
+      map['acknowledged'] = Variable<bool>(acknowledged.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('JobsCompanion(')
+          ..write('id: $id, ')
+          ..write('serverId: $serverId, ')
+          ..write('remoteId: $remoteId, ')
+          ..write('type: $type, ')
+          ..write('requestJson: $requestJson, ')
+          ..write('inputFiles: $inputFiles, ')
+          ..write('detailsJson: $detailsJson, ')
+          ..write('targetPath: $targetPath, ')
+          ..write('targetSha: $targetSha, ')
+          ..write('targetSize: $targetSize, ')
+          ..write('personId: $personId, ')
+          ..write('status: $status, ')
+          ..write('progress: $progress, ')
+          ..write('message: $message, ')
+          ..write('error: $error, ')
+          ..write('acknowledged: $acknowledged, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ResultsTable extends Results with TableInfo<$ResultsTable, ResultRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ResultsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+    'path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _originalPathMeta = const VerificationMeta(
+    'originalPath',
+  );
+  @override
+  late final GeneratedColumn<String> originalPath = GeneratedColumn<String>(
+    'original_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _mimeMeta = const VerificationMeta('mime');
+  @override
+  late final GeneratedColumn<String> mime = GeneratedColumn<String>(
+    'mime',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sizeBytesMeta = const VerificationMeta(
+    'sizeBytes',
+  );
+  @override
+  late final GeneratedColumn<int> sizeBytes = GeneratedColumn<int>(
+    'size_bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sha256Meta = const VerificationMeta('sha256');
+  @override
+  late final GeneratedColumn<String> sha256 = GeneratedColumn<String>(
+    'sha256',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _favouriteMeta = const VerificationMeta(
+    'favourite',
+  );
+  @override
+  late final GeneratedColumn<bool> favourite = GeneratedColumn<bool>(
+    'favourite',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("favourite" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    type,
+    path,
+    originalPath,
+    mime,
+    sizeBytes,
+    sha256,
+    personId,
+    favourite,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'results';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ResultRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('path')) {
+      context.handle(
+        _pathMeta,
+        path.isAcceptableOrUnknown(data['path']!, _pathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    if (data.containsKey('original_path')) {
+      context.handle(
+        _originalPathMeta,
+        originalPath.isAcceptableOrUnknown(
+          data['original_path']!,
+          _originalPathMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_originalPathMeta);
+    }
+    if (data.containsKey('mime')) {
+      context.handle(
+        _mimeMeta,
+        mime.isAcceptableOrUnknown(data['mime']!, _mimeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_mimeMeta);
+    }
+    if (data.containsKey('size_bytes')) {
+      context.handle(
+        _sizeBytesMeta,
+        sizeBytes.isAcceptableOrUnknown(data['size_bytes']!, _sizeBytesMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sizeBytesMeta);
+    }
+    if (data.containsKey('sha256')) {
+      context.handle(
+        _sha256Meta,
+        sha256.isAcceptableOrUnknown(data['sha256']!, _sha256Meta),
+      );
+    } else if (isInserting) {
+      context.missing(_sha256Meta);
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    }
+    if (data.containsKey('favourite')) {
+      context.handle(
+        _favouriteMeta,
+        favourite.isAcceptableOrUnknown(data['favourite']!, _favouriteMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ResultRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ResultRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      path: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}path'],
+      )!,
+      originalPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}original_path'],
+      )!,
+      mime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mime'],
+      )!,
+      sizeBytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}size_bytes'],
+      )!,
+      sha256: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sha256'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      ),
+      favourite: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}favourite'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ResultsTable createAlias(String alias) {
+    return $ResultsTable(attachedDatabase, alias);
+  }
+}
+
+class ResultRow extends DataClass implements Insertable<ResultRow> {
+  final String id;
+  final String type;
+  final String path;
+  final String originalPath;
+  final String mime;
+  final int sizeBytes;
+  final String sha256;
+  final int? personId;
+  final bool favourite;
+  final int createdAt;
+  const ResultRow({
+    required this.id,
+    required this.type,
+    required this.path,
+    required this.originalPath,
+    required this.mime,
+    required this.sizeBytes,
+    required this.sha256,
+    this.personId,
+    required this.favourite,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['type'] = Variable<String>(type);
+    map['path'] = Variable<String>(path);
+    map['original_path'] = Variable<String>(originalPath);
+    map['mime'] = Variable<String>(mime);
+    map['size_bytes'] = Variable<int>(sizeBytes);
+    map['sha256'] = Variable<String>(sha256);
+    if (!nullToAbsent || personId != null) {
+      map['person_id'] = Variable<int>(personId);
+    }
+    map['favourite'] = Variable<bool>(favourite);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  ResultsCompanion toCompanion(bool nullToAbsent) {
+    return ResultsCompanion(
+      id: Value(id),
+      type: Value(type),
+      path: Value(path),
+      originalPath: Value(originalPath),
+      mime: Value(mime),
+      sizeBytes: Value(sizeBytes),
+      sha256: Value(sha256),
+      personId: personId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(personId),
+      favourite: Value(favourite),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ResultRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ResultRow(
+      id: serializer.fromJson<String>(json['id']),
+      type: serializer.fromJson<String>(json['type']),
+      path: serializer.fromJson<String>(json['path']),
+      originalPath: serializer.fromJson<String>(json['originalPath']),
+      mime: serializer.fromJson<String>(json['mime']),
+      sizeBytes: serializer.fromJson<int>(json['sizeBytes']),
+      sha256: serializer.fromJson<String>(json['sha256']),
+      personId: serializer.fromJson<int?>(json['personId']),
+      favourite: serializer.fromJson<bool>(json['favourite']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'type': serializer.toJson<String>(type),
+      'path': serializer.toJson<String>(path),
+      'originalPath': serializer.toJson<String>(originalPath),
+      'mime': serializer.toJson<String>(mime),
+      'sizeBytes': serializer.toJson<int>(sizeBytes),
+      'sha256': serializer.toJson<String>(sha256),
+      'personId': serializer.toJson<int?>(personId),
+      'favourite': serializer.toJson<bool>(favourite),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  ResultRow copyWith({
+    String? id,
+    String? type,
+    String? path,
+    String? originalPath,
+    String? mime,
+    int? sizeBytes,
+    String? sha256,
+    Value<int?> personId = const Value.absent(),
+    bool? favourite,
+    int? createdAt,
+  }) => ResultRow(
+    id: id ?? this.id,
+    type: type ?? this.type,
+    path: path ?? this.path,
+    originalPath: originalPath ?? this.originalPath,
+    mime: mime ?? this.mime,
+    sizeBytes: sizeBytes ?? this.sizeBytes,
+    sha256: sha256 ?? this.sha256,
+    personId: personId.present ? personId.value : this.personId,
+    favourite: favourite ?? this.favourite,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ResultRow copyWithCompanion(ResultsCompanion data) {
+    return ResultRow(
+      id: data.id.present ? data.id.value : this.id,
+      type: data.type.present ? data.type.value : this.type,
+      path: data.path.present ? data.path.value : this.path,
+      originalPath: data.originalPath.present
+          ? data.originalPath.value
+          : this.originalPath,
+      mime: data.mime.present ? data.mime.value : this.mime,
+      sizeBytes: data.sizeBytes.present ? data.sizeBytes.value : this.sizeBytes,
+      sha256: data.sha256.present ? data.sha256.value : this.sha256,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      favourite: data.favourite.present ? data.favourite.value : this.favourite,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResultRow(')
+          ..write('id: $id, ')
+          ..write('type: $type, ')
+          ..write('path: $path, ')
+          ..write('originalPath: $originalPath, ')
+          ..write('mime: $mime, ')
+          ..write('sizeBytes: $sizeBytes, ')
+          ..write('sha256: $sha256, ')
+          ..write('personId: $personId, ')
+          ..write('favourite: $favourite, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    type,
+    path,
+    originalPath,
+    mime,
+    sizeBytes,
+    sha256,
+    personId,
+    favourite,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ResultRow &&
+          other.id == this.id &&
+          other.type == this.type &&
+          other.path == this.path &&
+          other.originalPath == this.originalPath &&
+          other.mime == this.mime &&
+          other.sizeBytes == this.sizeBytes &&
+          other.sha256 == this.sha256 &&
+          other.personId == this.personId &&
+          other.favourite == this.favourite &&
+          other.createdAt == this.createdAt);
+}
+
+class ResultsCompanion extends UpdateCompanion<ResultRow> {
+  final Value<String> id;
+  final Value<String> type;
+  final Value<String> path;
+  final Value<String> originalPath;
+  final Value<String> mime;
+  final Value<int> sizeBytes;
+  final Value<String> sha256;
+  final Value<int?> personId;
+  final Value<bool> favourite;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const ResultsCompanion({
+    this.id = const Value.absent(),
+    this.type = const Value.absent(),
+    this.path = const Value.absent(),
+    this.originalPath = const Value.absent(),
+    this.mime = const Value.absent(),
+    this.sizeBytes = const Value.absent(),
+    this.sha256 = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.favourite = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ResultsCompanion.insert({
+    required String id,
+    required String type,
+    required String path,
+    required String originalPath,
+    required String mime,
+    required int sizeBytes,
+    required String sha256,
+    this.personId = const Value.absent(),
+    this.favourite = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       type = Value(type),
+       path = Value(path),
+       originalPath = Value(originalPath),
+       mime = Value(mime),
+       sizeBytes = Value(sizeBytes),
+       sha256 = Value(sha256),
+       createdAt = Value(createdAt);
+  static Insertable<ResultRow> custom({
+    Expression<String>? id,
+    Expression<String>? type,
+    Expression<String>? path,
+    Expression<String>? originalPath,
+    Expression<String>? mime,
+    Expression<int>? sizeBytes,
+    Expression<String>? sha256,
+    Expression<int>? personId,
+    Expression<bool>? favourite,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (type != null) 'type': type,
+      if (path != null) 'path': path,
+      if (originalPath != null) 'original_path': originalPath,
+      if (mime != null) 'mime': mime,
+      if (sizeBytes != null) 'size_bytes': sizeBytes,
+      if (sha256 != null) 'sha256': sha256,
+      if (personId != null) 'person_id': personId,
+      if (favourite != null) 'favourite': favourite,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ResultsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? type,
+    Value<String>? path,
+    Value<String>? originalPath,
+    Value<String>? mime,
+    Value<int>? sizeBytes,
+    Value<String>? sha256,
+    Value<int?>? personId,
+    Value<bool>? favourite,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ResultsCompanion(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      path: path ?? this.path,
+      originalPath: originalPath ?? this.originalPath,
+      mime: mime ?? this.mime,
+      sizeBytes: sizeBytes ?? this.sizeBytes,
+      sha256: sha256 ?? this.sha256,
+      personId: personId ?? this.personId,
+      favourite: favourite ?? this.favourite,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    if (originalPath.present) {
+      map['original_path'] = Variable<String>(originalPath.value);
+    }
+    if (mime.present) {
+      map['mime'] = Variable<String>(mime.value);
+    }
+    if (sizeBytes.present) {
+      map['size_bytes'] = Variable<int>(sizeBytes.value);
+    }
+    if (sha256.present) {
+      map['sha256'] = Variable<String>(sha256.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (favourite.present) {
+      map['favourite'] = Variable<bool>(favourite.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ResultsCompanion(')
+          ..write('id: $id, ')
+          ..write('type: $type, ')
+          ..write('path: $path, ')
+          ..write('originalPath: $originalPath, ')
+          ..write('mime: $mime, ')
+          ..write('sizeBytes: $sizeBytes, ')
+          ..write('sha256: $sha256, ')
+          ..write('personId: $personId, ')
+          ..write('favourite: $favourite, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DatasetsTable extends Datasets
+    with TableInfo<$DatasetsTable, DatasetRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DatasetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _triggerWordMeta = const VerificationMeta(
+    'triggerWord',
+  );
+  @override
+  late final GeneratedColumn<String> triggerWord = GeneratedColumn<String>(
+    'trigger_word',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _repeatsMeta = const VerificationMeta(
+    'repeats',
+  );
+  @override
+  late final GeneratedColumn<int> repeats = GeneratedColumn<int>(
+    'repeats',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(20),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    personId,
+    triggerWord,
+    repeats,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'datasets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DatasetRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    }
+    if (data.containsKey('trigger_word')) {
+      context.handle(
+        _triggerWordMeta,
+        triggerWord.isAcceptableOrUnknown(
+          data['trigger_word']!,
+          _triggerWordMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_triggerWordMeta);
+    }
+    if (data.containsKey('repeats')) {
+      context.handle(
+        _repeatsMeta,
+        repeats.isAcceptableOrUnknown(data['repeats']!, _repeatsMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DatasetRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DatasetRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      ),
+      triggerWord: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger_word'],
+      )!,
+      repeats: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}repeats'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DatasetsTable createAlias(String alias) {
+    return $DatasetsTable(attachedDatabase, alias);
+  }
+}
+
+class DatasetRow extends DataClass implements Insertable<DatasetRow> {
+  final String id;
+  final int? personId;
+  final String triggerWord;
+  final int repeats;
+  final int createdAt;
+  const DatasetRow({
+    required this.id,
+    this.personId,
+    required this.triggerWord,
+    required this.repeats,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || personId != null) {
+      map['person_id'] = Variable<int>(personId);
+    }
+    map['trigger_word'] = Variable<String>(triggerWord);
+    map['repeats'] = Variable<int>(repeats);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  DatasetsCompanion toCompanion(bool nullToAbsent) {
+    return DatasetsCompanion(
+      id: Value(id),
+      personId: personId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(personId),
+      triggerWord: Value(triggerWord),
+      repeats: Value(repeats),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DatasetRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DatasetRow(
+      id: serializer.fromJson<String>(json['id']),
+      personId: serializer.fromJson<int?>(json['personId']),
+      triggerWord: serializer.fromJson<String>(json['triggerWord']),
+      repeats: serializer.fromJson<int>(json['repeats']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'personId': serializer.toJson<int?>(personId),
+      'triggerWord': serializer.toJson<String>(triggerWord),
+      'repeats': serializer.toJson<int>(repeats),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  DatasetRow copyWith({
+    String? id,
+    Value<int?> personId = const Value.absent(),
+    String? triggerWord,
+    int? repeats,
+    int? createdAt,
+  }) => DatasetRow(
+    id: id ?? this.id,
+    personId: personId.present ? personId.value : this.personId,
+    triggerWord: triggerWord ?? this.triggerWord,
+    repeats: repeats ?? this.repeats,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  DatasetRow copyWithCompanion(DatasetsCompanion data) {
+    return DatasetRow(
+      id: data.id.present ? data.id.value : this.id,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      triggerWord: data.triggerWord.present
+          ? data.triggerWord.value
+          : this.triggerWord,
+      repeats: data.repeats.present ? data.repeats.value : this.repeats,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DatasetRow(')
+          ..write('id: $id, ')
+          ..write('personId: $personId, ')
+          ..write('triggerWord: $triggerWord, ')
+          ..write('repeats: $repeats, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, personId, triggerWord, repeats, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DatasetRow &&
+          other.id == this.id &&
+          other.personId == this.personId &&
+          other.triggerWord == this.triggerWord &&
+          other.repeats == this.repeats &&
+          other.createdAt == this.createdAt);
+}
+
+class DatasetsCompanion extends UpdateCompanion<DatasetRow> {
+  final Value<String> id;
+  final Value<int?> personId;
+  final Value<String> triggerWord;
+  final Value<int> repeats;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const DatasetsCompanion({
+    this.id = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.triggerWord = const Value.absent(),
+    this.repeats = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DatasetsCompanion.insert({
+    required String id,
+    this.personId = const Value.absent(),
+    required String triggerWord,
+    this.repeats = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       triggerWord = Value(triggerWord),
+       createdAt = Value(createdAt);
+  static Insertable<DatasetRow> custom({
+    Expression<String>? id,
+    Expression<int>? personId,
+    Expression<String>? triggerWord,
+    Expression<int>? repeats,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (personId != null) 'person_id': personId,
+      if (triggerWord != null) 'trigger_word': triggerWord,
+      if (repeats != null) 'repeats': repeats,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DatasetsCompanion copyWith({
+    Value<String>? id,
+    Value<int?>? personId,
+    Value<String>? triggerWord,
+    Value<int>? repeats,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return DatasetsCompanion(
+      id: id ?? this.id,
+      personId: personId ?? this.personId,
+      triggerWord: triggerWord ?? this.triggerWord,
+      repeats: repeats ?? this.repeats,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (triggerWord.present) {
+      map['trigger_word'] = Variable<String>(triggerWord.value);
+    }
+    if (repeats.present) {
+      map['repeats'] = Variable<int>(repeats.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DatasetsCompanion(')
+          ..write('id: $id, ')
+          ..write('personId: $personId, ')
+          ..write('triggerWord: $triggerWord, ')
+          ..write('repeats: $repeats, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DatasetItemsTable extends DatasetItems
+    with TableInfo<$DatasetItemsTable, DatasetItemRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DatasetItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _datasetIdMeta = const VerificationMeta(
+    'datasetId',
+  );
+  @override
+  late final GeneratedColumn<String> datasetId = GeneratedColumn<String>(
+    'dataset_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES datasets (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+    'path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _captionMeta = const VerificationMeta(
+    'caption',
+  );
+  @override
+  late final GeneratedColumn<String> caption = GeneratedColumn<String>(
+    'caption',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _includedMeta = const VerificationMeta(
+    'included',
+  );
+  @override
+  late final GeneratedColumn<bool> included = GeneratedColumn<bool>(
+    'included',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("included" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    datasetId,
+    path,
+    caption,
+    included,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dataset_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DatasetItemRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('dataset_id')) {
+      context.handle(
+        _datasetIdMeta,
+        datasetId.isAcceptableOrUnknown(data['dataset_id']!, _datasetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_datasetIdMeta);
+    }
+    if (data.containsKey('path')) {
+      context.handle(
+        _pathMeta,
+        path.isAcceptableOrUnknown(data['path']!, _pathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    if (data.containsKey('caption')) {
+      context.handle(
+        _captionMeta,
+        caption.isAcceptableOrUnknown(data['caption']!, _captionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_captionMeta);
+    }
+    if (data.containsKey('included')) {
+      context.handle(
+        _includedMeta,
+        included.isAcceptableOrUnknown(data['included']!, _includedMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DatasetItemRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DatasetItemRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      datasetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dataset_id'],
+      )!,
+      path: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}path'],
+      )!,
+      caption: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption'],
+      )!,
+      included: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}included'],
+      )!,
+    );
+  }
+
+  @override
+  $DatasetItemsTable createAlias(String alias) {
+    return $DatasetItemsTable(attachedDatabase, alias);
+  }
+}
+
+class DatasetItemRow extends DataClass implements Insertable<DatasetItemRow> {
+  final int id;
+  final String datasetId;
+  final String path;
+  final String caption;
+  final bool included;
+  const DatasetItemRow({
+    required this.id,
+    required this.datasetId,
+    required this.path,
+    required this.caption,
+    required this.included,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['dataset_id'] = Variable<String>(datasetId);
+    map['path'] = Variable<String>(path);
+    map['caption'] = Variable<String>(caption);
+    map['included'] = Variable<bool>(included);
+    return map;
+  }
+
+  DatasetItemsCompanion toCompanion(bool nullToAbsent) {
+    return DatasetItemsCompanion(
+      id: Value(id),
+      datasetId: Value(datasetId),
+      path: Value(path),
+      caption: Value(caption),
+      included: Value(included),
+    );
+  }
+
+  factory DatasetItemRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DatasetItemRow(
+      id: serializer.fromJson<int>(json['id']),
+      datasetId: serializer.fromJson<String>(json['datasetId']),
+      path: serializer.fromJson<String>(json['path']),
+      caption: serializer.fromJson<String>(json['caption']),
+      included: serializer.fromJson<bool>(json['included']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'datasetId': serializer.toJson<String>(datasetId),
+      'path': serializer.toJson<String>(path),
+      'caption': serializer.toJson<String>(caption),
+      'included': serializer.toJson<bool>(included),
+    };
+  }
+
+  DatasetItemRow copyWith({
+    int? id,
+    String? datasetId,
+    String? path,
+    String? caption,
+    bool? included,
+  }) => DatasetItemRow(
+    id: id ?? this.id,
+    datasetId: datasetId ?? this.datasetId,
+    path: path ?? this.path,
+    caption: caption ?? this.caption,
+    included: included ?? this.included,
+  );
+  DatasetItemRow copyWithCompanion(DatasetItemsCompanion data) {
+    return DatasetItemRow(
+      id: data.id.present ? data.id.value : this.id,
+      datasetId: data.datasetId.present ? data.datasetId.value : this.datasetId,
+      path: data.path.present ? data.path.value : this.path,
+      caption: data.caption.present ? data.caption.value : this.caption,
+      included: data.included.present ? data.included.value : this.included,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DatasetItemRow(')
+          ..write('id: $id, ')
+          ..write('datasetId: $datasetId, ')
+          ..write('path: $path, ')
+          ..write('caption: $caption, ')
+          ..write('included: $included')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, datasetId, path, caption, included);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DatasetItemRow &&
+          other.id == this.id &&
+          other.datasetId == this.datasetId &&
+          other.path == this.path &&
+          other.caption == this.caption &&
+          other.included == this.included);
+}
+
+class DatasetItemsCompanion extends UpdateCompanion<DatasetItemRow> {
+  final Value<int> id;
+  final Value<String> datasetId;
+  final Value<String> path;
+  final Value<String> caption;
+  final Value<bool> included;
+  const DatasetItemsCompanion({
+    this.id = const Value.absent(),
+    this.datasetId = const Value.absent(),
+    this.path = const Value.absent(),
+    this.caption = const Value.absent(),
+    this.included = const Value.absent(),
+  });
+  DatasetItemsCompanion.insert({
+    this.id = const Value.absent(),
+    required String datasetId,
+    required String path,
+    required String caption,
+    this.included = const Value.absent(),
+  }) : datasetId = Value(datasetId),
+       path = Value(path),
+       caption = Value(caption);
+  static Insertable<DatasetItemRow> custom({
+    Expression<int>? id,
+    Expression<String>? datasetId,
+    Expression<String>? path,
+    Expression<String>? caption,
+    Expression<bool>? included,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (datasetId != null) 'dataset_id': datasetId,
+      if (path != null) 'path': path,
+      if (caption != null) 'caption': caption,
+      if (included != null) 'included': included,
+    });
+  }
+
+  DatasetItemsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? datasetId,
+    Value<String>? path,
+    Value<String>? caption,
+    Value<bool>? included,
+  }) {
+    return DatasetItemsCompanion(
+      id: id ?? this.id,
+      datasetId: datasetId ?? this.datasetId,
+      path: path ?? this.path,
+      caption: caption ?? this.caption,
+      included: included ?? this.included,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (datasetId.present) {
+      map['dataset_id'] = Variable<String>(datasetId.value);
+    }
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    if (caption.present) {
+      map['caption'] = Variable<String>(caption.value);
+    }
+    if (included.present) {
+      map['included'] = Variable<bool>(included.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DatasetItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('datasetId: $datasetId, ')
+          ..write('path: $path, ')
+          ..write('caption: $caption, ')
+          ..write('included: $included')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LorasTable extends Loras with TableInfo<$LorasTable, LoraRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LorasTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+    'path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _triggerWordMeta = const VerificationMeta(
+    'triggerWord',
+  );
+  @override
+  late final GeneratedColumn<String> triggerWord = GeneratedColumn<String>(
+    'trigger_word',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _identityJsonMeta = const VerificationMeta(
+    'identityJson',
+  );
+  @override
+  late final GeneratedColumn<String> identityJson = GeneratedColumn<String>(
+    'identity_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    personId,
+    path,
+    triggerWord,
+    identityJson,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'loras';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LoraRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    }
+    if (data.containsKey('path')) {
+      context.handle(
+        _pathMeta,
+        path.isAcceptableOrUnknown(data['path']!, _pathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    if (data.containsKey('trigger_word')) {
+      context.handle(
+        _triggerWordMeta,
+        triggerWord.isAcceptableOrUnknown(
+          data['trigger_word']!,
+          _triggerWordMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_triggerWordMeta);
+    }
+    if (data.containsKey('identity_json')) {
+      context.handle(
+        _identityJsonMeta,
+        identityJson.isAcceptableOrUnknown(
+          data['identity_json']!,
+          _identityJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LoraRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LoraRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      ),
+      path: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}path'],
+      )!,
+      triggerWord: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger_word'],
+      )!,
+      identityJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}identity_json'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LorasTable createAlias(String alias) {
+    return $LorasTable(attachedDatabase, alias);
+  }
+}
+
+class LoraRow extends DataClass implements Insertable<LoraRow> {
+  final String id;
+  final int? personId;
+  final String path;
+  final String triggerWord;
+  final String? identityJson;
+  final int createdAt;
+  const LoraRow({
+    required this.id,
+    this.personId,
+    required this.path,
+    required this.triggerWord,
+    this.identityJson,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || personId != null) {
+      map['person_id'] = Variable<int>(personId);
+    }
+    map['path'] = Variable<String>(path);
+    map['trigger_word'] = Variable<String>(triggerWord);
+    if (!nullToAbsent || identityJson != null) {
+      map['identity_json'] = Variable<String>(identityJson);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  LorasCompanion toCompanion(bool nullToAbsent) {
+    return LorasCompanion(
+      id: Value(id),
+      personId: personId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(personId),
+      path: Value(path),
+      triggerWord: Value(triggerWord),
+      identityJson: identityJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(identityJson),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory LoraRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LoraRow(
+      id: serializer.fromJson<String>(json['id']),
+      personId: serializer.fromJson<int?>(json['personId']),
+      path: serializer.fromJson<String>(json['path']),
+      triggerWord: serializer.fromJson<String>(json['triggerWord']),
+      identityJson: serializer.fromJson<String?>(json['identityJson']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'personId': serializer.toJson<int?>(personId),
+      'path': serializer.toJson<String>(path),
+      'triggerWord': serializer.toJson<String>(triggerWord),
+      'identityJson': serializer.toJson<String?>(identityJson),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  LoraRow copyWith({
+    String? id,
+    Value<int?> personId = const Value.absent(),
+    String? path,
+    String? triggerWord,
+    Value<String?> identityJson = const Value.absent(),
+    int? createdAt,
+  }) => LoraRow(
+    id: id ?? this.id,
+    personId: personId.present ? personId.value : this.personId,
+    path: path ?? this.path,
+    triggerWord: triggerWord ?? this.triggerWord,
+    identityJson: identityJson.present ? identityJson.value : this.identityJson,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  LoraRow copyWithCompanion(LorasCompanion data) {
+    return LoraRow(
+      id: data.id.present ? data.id.value : this.id,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      path: data.path.present ? data.path.value : this.path,
+      triggerWord: data.triggerWord.present
+          ? data.triggerWord.value
+          : this.triggerWord,
+      identityJson: data.identityJson.present
+          ? data.identityJson.value
+          : this.identityJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LoraRow(')
+          ..write('id: $id, ')
+          ..write('personId: $personId, ')
+          ..write('path: $path, ')
+          ..write('triggerWord: $triggerWord, ')
+          ..write('identityJson: $identityJson, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, personId, path, triggerWord, identityJson, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LoraRow &&
+          other.id == this.id &&
+          other.personId == this.personId &&
+          other.path == this.path &&
+          other.triggerWord == this.triggerWord &&
+          other.identityJson == this.identityJson &&
+          other.createdAt == this.createdAt);
+}
+
+class LorasCompanion extends UpdateCompanion<LoraRow> {
+  final Value<String> id;
+  final Value<int?> personId;
+  final Value<String> path;
+  final Value<String> triggerWord;
+  final Value<String?> identityJson;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const LorasCompanion({
+    this.id = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.path = const Value.absent(),
+    this.triggerWord = const Value.absent(),
+    this.identityJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LorasCompanion.insert({
+    required String id,
+    this.personId = const Value.absent(),
+    required String path,
+    required String triggerWord,
+    this.identityJson = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       path = Value(path),
+       triggerWord = Value(triggerWord),
+       createdAt = Value(createdAt);
+  static Insertable<LoraRow> custom({
+    Expression<String>? id,
+    Expression<int>? personId,
+    Expression<String>? path,
+    Expression<String>? triggerWord,
+    Expression<String>? identityJson,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (personId != null) 'person_id': personId,
+      if (path != null) 'path': path,
+      if (triggerWord != null) 'trigger_word': triggerWord,
+      if (identityJson != null) 'identity_json': identityJson,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LorasCompanion copyWith({
+    Value<String>? id,
+    Value<int?>? personId,
+    Value<String>? path,
+    Value<String>? triggerWord,
+    Value<String?>? identityJson,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return LorasCompanion(
+      id: id ?? this.id,
+      personId: personId ?? this.personId,
+      path: path ?? this.path,
+      triggerWord: triggerWord ?? this.triggerWord,
+      identityJson: identityJson ?? this.identityJson,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    if (triggerWord.present) {
+      map['trigger_word'] = Variable<String>(triggerWord.value);
+    }
+    if (identityJson.present) {
+      map['identity_json'] = Variable<String>(identityJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LorasCompanion(')
+          ..write('id: $id, ')
+          ..write('personId: $personId, ')
+          ..write('path: $path, ')
+          ..write('triggerWord: $triggerWord, ')
+          ..write('identityJson: $identityJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -7673,6 +10436,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ReviewBodyLinksTable reviewBodyLinks = $ReviewBodyLinksTable(
     this,
   );
+  late final $JobsTable jobs = $JobsTable(this);
+  late final $ResultsTable results = $ResultsTable(this);
+  late final $DatasetsTable datasets = $DatasetsTable(this);
+  late final $DatasetItemsTable datasetItems = $DatasetItemsTable(this);
+  late final $LorasTable loras = $LorasTable(this);
   late final Index mediaScanStatus = Index(
     'media_scan_status',
     'CREATE INDEX media_scan_status ON media (scan_status)',
@@ -7709,6 +10477,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'media_detections_ref',
     'CREATE INDEX media_detections_ref ON media_detections (kind, ref_id)',
   );
+  late final Index jobsStatus = Index(
+    'jobs_status',
+    'CREATE INDEX jobs_status ON jobs (status)',
+  );
+  late final Index resultsCreatedAt = Index(
+    'results_created_at',
+    'CREATE INDEX results_created_at ON results (created_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7730,6 +10506,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     reviewGroups,
     reviewDuplicates,
     reviewBodyLinks,
+    jobs,
+    results,
+    datasets,
+    datasetItems,
+    loras,
     mediaScanStatus,
     facesPersonId,
     facesMediaId,
@@ -7739,6 +10520,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     faceRejectionsPersonId,
     mediaDetectionsMediaId,
     mediaDetectionsRef,
+    jobsStatus,
+    resultsCreatedAt,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -7867,6 +10650,41 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('review_body_links', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('jobs', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('results', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('datasets', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'datasets',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('dataset_items', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('loras', kind: UpdateKind.update)],
     ),
   ]);
 }
@@ -8069,6 +10887,81 @@ final class $$PersonsTableReferences
     final cache = $_typedResult.readTableOrNull(
       _reviewBodyLinksRefsTable($_db),
     );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$JobsTable, List<JobRow>> _jobsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.jobs,
+    aliasName: 'persons__id__jobs__person_id',
+  );
+
+  $$JobsTableProcessedTableManager get jobsRefs {
+    final manager = $$JobsTableTableManager(
+      $_db,
+      $_db.jobs,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_jobsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ResultsTable, List<ResultRow>> _resultsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.results,
+    aliasName: 'persons__id__results__person_id',
+  );
+
+  $$ResultsTableProcessedTableManager get resultsRefs {
+    final manager = $$ResultsTableTableManager(
+      $_db,
+      $_db.results,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_resultsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$DatasetsTable, List<DatasetRow>>
+  _datasetsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.datasets,
+    aliasName: 'persons__id__datasets__person_id',
+  );
+
+  $$DatasetsTableProcessedTableManager get datasetsRefs {
+    final manager = $$DatasetsTableTableManager(
+      $_db,
+      $_db.datasets,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_datasetsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$LorasTable, List<LoraRow>> _lorasRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.loras,
+    aliasName: 'persons__id__loras__person_id',
+  );
+
+  $$LorasTableProcessedTableManager get lorasRefs {
+    final manager = $$LorasTableTableManager(
+      $_db,
+      $_db.loras,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_lorasRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -8345,6 +11238,106 @@ class $$PersonsTableFilterComposer
           }) => $$ReviewBodyLinksTableFilterComposer(
             $db: $db,
             $table: $db.reviewBodyLinks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> jobsRefs(
+    Expression<bool> Function($$JobsTableFilterComposer f) f,
+  ) {
+    final $$JobsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.jobs,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JobsTableFilterComposer(
+            $db: $db,
+            $table: $db.jobs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> resultsRefs(
+    Expression<bool> Function($$ResultsTableFilterComposer f) f,
+  ) {
+    final $$ResultsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.results,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ResultsTableFilterComposer(
+            $db: $db,
+            $table: $db.results,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> datasetsRefs(
+    Expression<bool> Function($$DatasetsTableFilterComposer f) f,
+  ) {
+    final $$DatasetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.datasets,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DatasetsTableFilterComposer(
+            $db: $db,
+            $table: $db.datasets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> lorasRefs(
+    Expression<bool> Function($$LorasTableFilterComposer f) f,
+  ) {
+    final $$LorasTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.loras,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LorasTableFilterComposer(
+            $db: $db,
+            $table: $db.loras,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -8657,6 +11650,106 @@ class $$PersonsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> jobsRefs<T extends Object>(
+    Expression<T> Function($$JobsTableAnnotationComposer a) f,
+  ) {
+    final $$JobsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.jobs,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JobsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.jobs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> resultsRefs<T extends Object>(
+    Expression<T> Function($$ResultsTableAnnotationComposer a) f,
+  ) {
+    final $$ResultsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.results,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ResultsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.results,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> datasetsRefs<T extends Object>(
+    Expression<T> Function($$DatasetsTableAnnotationComposer a) f,
+  ) {
+    final $$DatasetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.datasets,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DatasetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.datasets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> lorasRefs<T extends Object>(
+    Expression<T> Function($$LorasTableAnnotationComposer a) f,
+  ) {
+    final $$LorasTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.loras,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LorasTableAnnotationComposer(
+            $db: $db,
+            $table: $db.loras,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PersonsTableTableManager
@@ -8683,6 +11776,10 @@ class $$PersonsTableTableManager
             bool reviewDuplicateAsA,
             bool reviewDuplicateAsB,
             bool reviewBodyLinksRefs,
+            bool jobsRefs,
+            bool resultsRefs,
+            bool datasetsRefs,
+            bool lorasRefs,
           })
         > {
   $$PersonsTableTableManager(_$AppDatabase db, $PersonsTable table)
@@ -8740,6 +11837,10 @@ class $$PersonsTableTableManager
                 reviewDuplicateAsA = false,
                 reviewDuplicateAsB = false,
                 reviewBodyLinksRefs = false,
+                jobsRefs = false,
+                resultsRefs = false,
+                datasetsRefs = false,
+                lorasRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -8754,6 +11855,10 @@ class $$PersonsTableTableManager
                     if (reviewDuplicateAsA) db.reviewDuplicates,
                     if (reviewDuplicateAsB) db.reviewDuplicates,
                     if (reviewBodyLinksRefs) db.reviewBodyLinks,
+                    if (jobsRefs) db.jobs,
+                    if (resultsRefs) db.results,
+                    if (datasetsRefs) db.datasets,
+                    if (lorasRefs) db.loras,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -8964,6 +12069,82 @@ class $$PersonsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (jobsRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          JobRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._jobsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(db, table, p0).jobsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (resultsRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          ResultRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._resultsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).resultsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (datasetsRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          DatasetRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._datasetsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).datasetsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (lorasRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          LoraRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._lorasRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(db, table, p0).lorasRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8995,6 +12176,10 @@ typedef $$PersonsTableProcessedTableManager =
         bool reviewDuplicateAsA,
         bool reviewDuplicateAsB,
         bool reviewBodyLinksRefs,
+        bool jobsRefs,
+        bool resultsRefs,
+        bool datasetsRefs,
+        bool lorasRefs,
       })
     >;
 typedef $$MediaTableCreateCompanionBuilder =
@@ -15457,6 +18642,2056 @@ typedef $$ReviewBodyLinksTableProcessedTableManager =
       ReviewBodyLinkRow,
       PrefetchHooks Function({bool bodyId, bool personId})
     >;
+typedef $$JobsTableCreateCompanionBuilder =
+    JobsCompanion Function({
+      required String id,
+      required String serverId,
+      Value<String?> remoteId,
+      required String type,
+      required String requestJson,
+      Value<String> inputFiles,
+      Value<String> detailsJson,
+      required String targetPath,
+      required String targetSha,
+      required int targetSize,
+      Value<int?> personId,
+      required String status,
+      Value<double> progress,
+      Value<String?> message,
+      Value<String?> error,
+      Value<bool> acknowledged,
+      required int createdAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$JobsTableUpdateCompanionBuilder =
+    JobsCompanion Function({
+      Value<String> id,
+      Value<String> serverId,
+      Value<String?> remoteId,
+      Value<String> type,
+      Value<String> requestJson,
+      Value<String> inputFiles,
+      Value<String> detailsJson,
+      Value<String> targetPath,
+      Value<String> targetSha,
+      Value<int> targetSize,
+      Value<int?> personId,
+      Value<String> status,
+      Value<double> progress,
+      Value<String?> message,
+      Value<String?> error,
+      Value<bool> acknowledged,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$JobsTableReferences
+    extends BaseReferences<_$AppDatabase, $JobsTable, JobRow> {
+  $$JobsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('jobs__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager? get personId {
+    final $_column = $_itemColumn<int>('person_id');
+    if ($_column == null) return null;
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$JobsTableFilterComposer extends Composer<_$AppDatabase, $JobsTable> {
+  $$JobsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteId => $composableBuilder(
+    column: $table.remoteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get requestJson => $composableBuilder(
+    column: $table.requestJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get inputFiles => $composableBuilder(
+    column: $table.inputFiles,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get detailsJson => $composableBuilder(
+    column: $table.detailsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetPath => $composableBuilder(
+    column: $table.targetPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetSha => $composableBuilder(
+    column: $table.targetSha,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get targetSize => $composableBuilder(
+    column: $table.targetSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get progress => $composableBuilder(
+    column: $table.progress,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get message => $composableBuilder(
+    column: $table.message,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get acknowledged => $composableBuilder(
+    column: $table.acknowledged,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$JobsTableOrderingComposer extends Composer<_$AppDatabase, $JobsTable> {
+  $$JobsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remoteId => $composableBuilder(
+    column: $table.remoteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get requestJson => $composableBuilder(
+    column: $table.requestJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get inputFiles => $composableBuilder(
+    column: $table.inputFiles,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get detailsJson => $composableBuilder(
+    column: $table.detailsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetPath => $composableBuilder(
+    column: $table.targetPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetSha => $composableBuilder(
+    column: $table.targetSha,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get targetSize => $composableBuilder(
+    column: $table.targetSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get progress => $composableBuilder(
+    column: $table.progress,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get message => $composableBuilder(
+    column: $table.message,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get acknowledged => $composableBuilder(
+    column: $table.acknowledged,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$JobsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $JobsTable> {
+  $$JobsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<String> get remoteId =>
+      $composableBuilder(column: $table.remoteId, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get requestJson => $composableBuilder(
+    column: $table.requestJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get inputFiles => $composableBuilder(
+    column: $table.inputFiles,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get detailsJson => $composableBuilder(
+    column: $table.detailsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetPath => $composableBuilder(
+    column: $table.targetPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetSha =>
+      $composableBuilder(column: $table.targetSha, builder: (column) => column);
+
+  GeneratedColumn<int> get targetSize => $composableBuilder(
+    column: $table.targetSize,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<double> get progress =>
+      $composableBuilder(column: $table.progress, builder: (column) => column);
+
+  GeneratedColumn<String> get message =>
+      $composableBuilder(column: $table.message, builder: (column) => column);
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+
+  GeneratedColumn<bool> get acknowledged => $composableBuilder(
+    column: $table.acknowledged,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$JobsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $JobsTable,
+          JobRow,
+          $$JobsTableFilterComposer,
+          $$JobsTableOrderingComposer,
+          $$JobsTableAnnotationComposer,
+          $$JobsTableCreateCompanionBuilder,
+          $$JobsTableUpdateCompanionBuilder,
+          (JobRow, $$JobsTableReferences),
+          JobRow,
+          PrefetchHooks Function({bool personId})
+        > {
+  $$JobsTableTableManager(_$AppDatabase db, $JobsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$JobsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$JobsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$JobsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> serverId = const Value.absent(),
+                Value<String?> remoteId = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<String> requestJson = const Value.absent(),
+                Value<String> inputFiles = const Value.absent(),
+                Value<String> detailsJson = const Value.absent(),
+                Value<String> targetPath = const Value.absent(),
+                Value<String> targetSha = const Value.absent(),
+                Value<int> targetSize = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<double> progress = const Value.absent(),
+                Value<String?> message = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                Value<bool> acknowledged = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => JobsCompanion(
+                id: id,
+                serverId: serverId,
+                remoteId: remoteId,
+                type: type,
+                requestJson: requestJson,
+                inputFiles: inputFiles,
+                detailsJson: detailsJson,
+                targetPath: targetPath,
+                targetSha: targetSha,
+                targetSize: targetSize,
+                personId: personId,
+                status: status,
+                progress: progress,
+                message: message,
+                error: error,
+                acknowledged: acknowledged,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String serverId,
+                Value<String?> remoteId = const Value.absent(),
+                required String type,
+                required String requestJson,
+                Value<String> inputFiles = const Value.absent(),
+                Value<String> detailsJson = const Value.absent(),
+                required String targetPath,
+                required String targetSha,
+                required int targetSize,
+                Value<int?> personId = const Value.absent(),
+                required String status,
+                Value<double> progress = const Value.absent(),
+                Value<String?> message = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                Value<bool> acknowledged = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => JobsCompanion.insert(
+                id: id,
+                serverId: serverId,
+                remoteId: remoteId,
+                type: type,
+                requestJson: requestJson,
+                inputFiles: inputFiles,
+                detailsJson: detailsJson,
+                targetPath: targetPath,
+                targetSha: targetSha,
+                targetSize: targetSize,
+                personId: personId,
+                status: status,
+                progress: progress,
+                message: message,
+                error: error,
+                acknowledged: acknowledged,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$JobsTable, JobRow>(table),
+                  $$JobsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({personId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (personId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.personId,
+                                referencedTable: $$JobsTableReferences
+                                    ._personIdTable(db),
+                                referencedColumn: $$JobsTableReferences
+                                    ._personIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$JobsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $JobsTable,
+      JobRow,
+      $$JobsTableFilterComposer,
+      $$JobsTableOrderingComposer,
+      $$JobsTableAnnotationComposer,
+      $$JobsTableCreateCompanionBuilder,
+      $$JobsTableUpdateCompanionBuilder,
+      (JobRow, $$JobsTableReferences),
+      JobRow,
+      PrefetchHooks Function({bool personId})
+    >;
+typedef $$ResultsTableCreateCompanionBuilder =
+    ResultsCompanion Function({
+      required String id,
+      required String type,
+      required String path,
+      required String originalPath,
+      required String mime,
+      required int sizeBytes,
+      required String sha256,
+      Value<int?> personId,
+      Value<bool> favourite,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $$ResultsTableUpdateCompanionBuilder =
+    ResultsCompanion Function({
+      Value<String> id,
+      Value<String> type,
+      Value<String> path,
+      Value<String> originalPath,
+      Value<String> mime,
+      Value<int> sizeBytes,
+      Value<String> sha256,
+      Value<int?> personId,
+      Value<bool> favourite,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$ResultsTableReferences
+    extends BaseReferences<_$AppDatabase, $ResultsTable, ResultRow> {
+  $$ResultsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('results__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager? get personId {
+    final $_column = $_itemColumn<int>('person_id');
+    if ($_column == null) return null;
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ResultsTableFilterComposer
+    extends Composer<_$AppDatabase, $ResultsTable> {
+  $$ResultsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get originalPath => $composableBuilder(
+    column: $table.originalPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mime => $composableBuilder(
+    column: $table.mime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sizeBytes => $composableBuilder(
+    column: $table.sizeBytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get favourite => $composableBuilder(
+    column: $table.favourite,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ResultsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ResultsTable> {
+  $$ResultsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get originalPath => $composableBuilder(
+    column: $table.originalPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mime => $composableBuilder(
+    column: $table.mime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sizeBytes => $composableBuilder(
+    column: $table.sizeBytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sha256 => $composableBuilder(
+    column: $table.sha256,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get favourite => $composableBuilder(
+    column: $table.favourite,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ResultsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ResultsTable> {
+  $$ResultsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<String> get originalPath => $composableBuilder(
+    column: $table.originalPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mime =>
+      $composableBuilder(column: $table.mime, builder: (column) => column);
+
+  GeneratedColumn<int> get sizeBytes =>
+      $composableBuilder(column: $table.sizeBytes, builder: (column) => column);
+
+  GeneratedColumn<String> get sha256 =>
+      $composableBuilder(column: $table.sha256, builder: (column) => column);
+
+  GeneratedColumn<bool> get favourite =>
+      $composableBuilder(column: $table.favourite, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ResultsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ResultsTable,
+          ResultRow,
+          $$ResultsTableFilterComposer,
+          $$ResultsTableOrderingComposer,
+          $$ResultsTableAnnotationComposer,
+          $$ResultsTableCreateCompanionBuilder,
+          $$ResultsTableUpdateCompanionBuilder,
+          (ResultRow, $$ResultsTableReferences),
+          ResultRow,
+          PrefetchHooks Function({bool personId})
+        > {
+  $$ResultsTableTableManager(_$AppDatabase db, $ResultsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ResultsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ResultsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ResultsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<String> path = const Value.absent(),
+                Value<String> originalPath = const Value.absent(),
+                Value<String> mime = const Value.absent(),
+                Value<int> sizeBytes = const Value.absent(),
+                Value<String> sha256 = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                Value<bool> favourite = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ResultsCompanion(
+                id: id,
+                type: type,
+                path: path,
+                originalPath: originalPath,
+                mime: mime,
+                sizeBytes: sizeBytes,
+                sha256: sha256,
+                personId: personId,
+                favourite: favourite,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String type,
+                required String path,
+                required String originalPath,
+                required String mime,
+                required int sizeBytes,
+                required String sha256,
+                Value<int?> personId = const Value.absent(),
+                Value<bool> favourite = const Value.absent(),
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ResultsCompanion.insert(
+                id: id,
+                type: type,
+                path: path,
+                originalPath: originalPath,
+                mime: mime,
+                sizeBytes: sizeBytes,
+                sha256: sha256,
+                personId: personId,
+                favourite: favourite,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ResultsTable, ResultRow>(table),
+                  $$ResultsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({personId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (personId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.personId,
+                                referencedTable: $$ResultsTableReferences
+                                    ._personIdTable(db),
+                                referencedColumn: $$ResultsTableReferences
+                                    ._personIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ResultsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ResultsTable,
+      ResultRow,
+      $$ResultsTableFilterComposer,
+      $$ResultsTableOrderingComposer,
+      $$ResultsTableAnnotationComposer,
+      $$ResultsTableCreateCompanionBuilder,
+      $$ResultsTableUpdateCompanionBuilder,
+      (ResultRow, $$ResultsTableReferences),
+      ResultRow,
+      PrefetchHooks Function({bool personId})
+    >;
+typedef $$DatasetsTableCreateCompanionBuilder =
+    DatasetsCompanion Function({
+      required String id,
+      Value<int?> personId,
+      required String triggerWord,
+      Value<int> repeats,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $$DatasetsTableUpdateCompanionBuilder =
+    DatasetsCompanion Function({
+      Value<String> id,
+      Value<int?> personId,
+      Value<String> triggerWord,
+      Value<int> repeats,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$DatasetsTableReferences
+    extends BaseReferences<_$AppDatabase, $DatasetsTable, DatasetRow> {
+  $$DatasetsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('datasets__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager? get personId {
+    final $_column = $_itemColumn<int>('person_id');
+    if ($_column == null) return null;
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$DatasetItemsTable, List<DatasetItemRow>>
+  _datasetItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.datasetItems,
+    aliasName: 'datasets__id__dataset_items__dataset_id',
+  );
+
+  $$DatasetItemsTableProcessedTableManager get datasetItemsRefs {
+    final manager = $$DatasetItemsTableTableManager(
+      $_db,
+      $_db.datasetItems,
+    ).filter((f) => f.datasetId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_datasetItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$DatasetsTableFilterComposer
+    extends Composer<_$AppDatabase, $DatasetsTable> {
+  $$DatasetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get triggerWord => $composableBuilder(
+    column: $table.triggerWord,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get repeats => $composableBuilder(
+    column: $table.repeats,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> datasetItemsRefs(
+    Expression<bool> Function($$DatasetItemsTableFilterComposer f) f,
+  ) {
+    final $$DatasetItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.datasetItems,
+      getReferencedColumn: (t) => t.datasetId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DatasetItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.datasetItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DatasetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DatasetsTable> {
+  $$DatasetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get triggerWord => $composableBuilder(
+    column: $table.triggerWord,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get repeats => $composableBuilder(
+    column: $table.repeats,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DatasetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DatasetsTable> {
+  $$DatasetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get triggerWord => $composableBuilder(
+    column: $table.triggerWord,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get repeats =>
+      $composableBuilder(column: $table.repeats, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> datasetItemsRefs<T extends Object>(
+    Expression<T> Function($$DatasetItemsTableAnnotationComposer a) f,
+  ) {
+    final $$DatasetItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.datasetItems,
+      getReferencedColumn: (t) => t.datasetId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DatasetItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.datasetItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DatasetsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DatasetsTable,
+          DatasetRow,
+          $$DatasetsTableFilterComposer,
+          $$DatasetsTableOrderingComposer,
+          $$DatasetsTableAnnotationComposer,
+          $$DatasetsTableCreateCompanionBuilder,
+          $$DatasetsTableUpdateCompanionBuilder,
+          (DatasetRow, $$DatasetsTableReferences),
+          DatasetRow,
+          PrefetchHooks Function({bool personId, bool datasetItemsRefs})
+        > {
+  $$DatasetsTableTableManager(_$AppDatabase db, $DatasetsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DatasetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DatasetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DatasetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                Value<String> triggerWord = const Value.absent(),
+                Value<int> repeats = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DatasetsCompanion(
+                id: id,
+                personId: personId,
+                triggerWord: triggerWord,
+                repeats: repeats,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<int?> personId = const Value.absent(),
+                required String triggerWord,
+                Value<int> repeats = const Value.absent(),
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DatasetsCompanion.insert(
+                id: id,
+                personId: personId,
+                triggerWord: triggerWord,
+                repeats: repeats,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DatasetsTable, DatasetRow>(table),
+                  $$DatasetsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({personId = false, datasetItemsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (datasetItemsRefs) db.datasetItems,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (personId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.personId,
+                                    referencedTable: $$DatasetsTableReferences
+                                        ._personIdTable(db),
+                                    referencedColumn: $$DatasetsTableReferences
+                                        ._personIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (datasetItemsRefs)
+                        await $_getPrefetchedData<
+                          DatasetRow,
+                          $DatasetsTable,
+                          DatasetItemRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DatasetsTableReferences
+                              ._datasetItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DatasetsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).datasetItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.datasetId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$DatasetsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DatasetsTable,
+      DatasetRow,
+      $$DatasetsTableFilterComposer,
+      $$DatasetsTableOrderingComposer,
+      $$DatasetsTableAnnotationComposer,
+      $$DatasetsTableCreateCompanionBuilder,
+      $$DatasetsTableUpdateCompanionBuilder,
+      (DatasetRow, $$DatasetsTableReferences),
+      DatasetRow,
+      PrefetchHooks Function({bool personId, bool datasetItemsRefs})
+    >;
+typedef $$DatasetItemsTableCreateCompanionBuilder =
+    DatasetItemsCompanion Function({
+      Value<int> id,
+      required String datasetId,
+      required String path,
+      required String caption,
+      Value<bool> included,
+    });
+typedef $$DatasetItemsTableUpdateCompanionBuilder =
+    DatasetItemsCompanion Function({
+      Value<int> id,
+      Value<String> datasetId,
+      Value<String> path,
+      Value<String> caption,
+      Value<bool> included,
+    });
+
+final class $$DatasetItemsTableReferences
+    extends BaseReferences<_$AppDatabase, $DatasetItemsTable, DatasetItemRow> {
+  $$DatasetItemsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $DatasetsTable _datasetIdTable(_$AppDatabase db) =>
+      db.datasets.createAlias('dataset_items__dataset_id__datasets__id');
+
+  $$DatasetsTableProcessedTableManager get datasetId {
+    final $_column = $_itemColumn<String>('dataset_id')!;
+
+    final manager = $$DatasetsTableTableManager(
+      $_db,
+      $_db.datasets,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_datasetIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$DatasetItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $DatasetItemsTable> {
+  $$DatasetItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get included => $composableBuilder(
+    column: $table.included,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$DatasetsTableFilterComposer get datasetId {
+    final $$DatasetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.datasetId,
+      referencedTable: $db.datasets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DatasetsTableFilterComposer(
+            $db: $db,
+            $table: $db.datasets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DatasetItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DatasetItemsTable> {
+  $$DatasetItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get included => $composableBuilder(
+    column: $table.included,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$DatasetsTableOrderingComposer get datasetId {
+    final $$DatasetsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.datasetId,
+      referencedTable: $db.datasets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DatasetsTableOrderingComposer(
+            $db: $db,
+            $table: $db.datasets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DatasetItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DatasetItemsTable> {
+  $$DatasetItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<String> get caption =>
+      $composableBuilder(column: $table.caption, builder: (column) => column);
+
+  GeneratedColumn<bool> get included =>
+      $composableBuilder(column: $table.included, builder: (column) => column);
+
+  $$DatasetsTableAnnotationComposer get datasetId {
+    final $$DatasetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.datasetId,
+      referencedTable: $db.datasets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DatasetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.datasets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DatasetItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DatasetItemsTable,
+          DatasetItemRow,
+          $$DatasetItemsTableFilterComposer,
+          $$DatasetItemsTableOrderingComposer,
+          $$DatasetItemsTableAnnotationComposer,
+          $$DatasetItemsTableCreateCompanionBuilder,
+          $$DatasetItemsTableUpdateCompanionBuilder,
+          (DatasetItemRow, $$DatasetItemsTableReferences),
+          DatasetItemRow,
+          PrefetchHooks Function({bool datasetId})
+        > {
+  $$DatasetItemsTableTableManager(_$AppDatabase db, $DatasetItemsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DatasetItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DatasetItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DatasetItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> datasetId = const Value.absent(),
+                Value<String> path = const Value.absent(),
+                Value<String> caption = const Value.absent(),
+                Value<bool> included = const Value.absent(),
+              }) => DatasetItemsCompanion(
+                id: id,
+                datasetId: datasetId,
+                path: path,
+                caption: caption,
+                included: included,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String datasetId,
+                required String path,
+                required String caption,
+                Value<bool> included = const Value.absent(),
+              }) => DatasetItemsCompanion.insert(
+                id: id,
+                datasetId: datasetId,
+                path: path,
+                caption: caption,
+                included: included,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DatasetItemsTable, DatasetItemRow>(table),
+                  $$DatasetItemsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({datasetId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (datasetId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.datasetId,
+                                referencedTable: $$DatasetItemsTableReferences
+                                    ._datasetIdTable(db),
+                                referencedColumn: $$DatasetItemsTableReferences
+                                    ._datasetIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$DatasetItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DatasetItemsTable,
+      DatasetItemRow,
+      $$DatasetItemsTableFilterComposer,
+      $$DatasetItemsTableOrderingComposer,
+      $$DatasetItemsTableAnnotationComposer,
+      $$DatasetItemsTableCreateCompanionBuilder,
+      $$DatasetItemsTableUpdateCompanionBuilder,
+      (DatasetItemRow, $$DatasetItemsTableReferences),
+      DatasetItemRow,
+      PrefetchHooks Function({bool datasetId})
+    >;
+typedef $$LorasTableCreateCompanionBuilder =
+    LorasCompanion Function({
+      required String id,
+      Value<int?> personId,
+      required String path,
+      required String triggerWord,
+      Value<String?> identityJson,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $$LorasTableUpdateCompanionBuilder =
+    LorasCompanion Function({
+      Value<String> id,
+      Value<int?> personId,
+      Value<String> path,
+      Value<String> triggerWord,
+      Value<String?> identityJson,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$LorasTableReferences
+    extends BaseReferences<_$AppDatabase, $LorasTable, LoraRow> {
+  $$LorasTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('loras__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager? get personId {
+    final $_column = $_itemColumn<int>('person_id');
+    if ($_column == null) return null;
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LorasTableFilterComposer extends Composer<_$AppDatabase, $LorasTable> {
+  $$LorasTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get triggerWord => $composableBuilder(
+    column: $table.triggerWord,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get identityJson => $composableBuilder(
+    column: $table.identityJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LorasTableOrderingComposer
+    extends Composer<_$AppDatabase, $LorasTable> {
+  $$LorasTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get triggerWord => $composableBuilder(
+    column: $table.triggerWord,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get identityJson => $composableBuilder(
+    column: $table.identityJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LorasTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LorasTable> {
+  $$LorasTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<String> get triggerWord => $composableBuilder(
+    column: $table.triggerWord,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get identityJson => $composableBuilder(
+    column: $table.identityJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LorasTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LorasTable,
+          LoraRow,
+          $$LorasTableFilterComposer,
+          $$LorasTableOrderingComposer,
+          $$LorasTableAnnotationComposer,
+          $$LorasTableCreateCompanionBuilder,
+          $$LorasTableUpdateCompanionBuilder,
+          (LoraRow, $$LorasTableReferences),
+          LoraRow,
+          PrefetchHooks Function({bool personId})
+        > {
+  $$LorasTableTableManager(_$AppDatabase db, $LorasTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LorasTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LorasTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LorasTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                Value<String> path = const Value.absent(),
+                Value<String> triggerWord = const Value.absent(),
+                Value<String?> identityJson = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LorasCompanion(
+                id: id,
+                personId: personId,
+                path: path,
+                triggerWord: triggerWord,
+                identityJson: identityJson,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<int?> personId = const Value.absent(),
+                required String path,
+                required String triggerWord,
+                Value<String?> identityJson = const Value.absent(),
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => LorasCompanion.insert(
+                id: id,
+                personId: personId,
+                path: path,
+                triggerWord: triggerWord,
+                identityJson: identityJson,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$LorasTable, LoraRow>(table),
+                  $$LorasTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({personId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (personId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.personId,
+                                referencedTable: $$LorasTableReferences
+                                    ._personIdTable(db),
+                                referencedColumn: $$LorasTableReferences
+                                    ._personIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LorasTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LorasTable,
+      LoraRow,
+      $$LorasTableFilterComposer,
+      $$LorasTableOrderingComposer,
+      $$LorasTableAnnotationComposer,
+      $$LorasTableCreateCompanionBuilder,
+      $$LorasTableUpdateCompanionBuilder,
+      (LoraRow, $$LorasTableReferences),
+      LoraRow,
+      PrefetchHooks Function({bool personId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -15493,4 +20728,13 @@ class $AppDatabaseManager {
       $$ReviewDuplicatesTableTableManager(_db, _db.reviewDuplicates);
   $$ReviewBodyLinksTableTableManager get reviewBodyLinks =>
       $$ReviewBodyLinksTableTableManager(_db, _db.reviewBodyLinks);
+  $$JobsTableTableManager get jobs => $$JobsTableTableManager(_db, _db.jobs);
+  $$ResultsTableTableManager get results =>
+      $$ResultsTableTableManager(_db, _db.results);
+  $$DatasetsTableTableManager get datasets =>
+      $$DatasetsTableTableManager(_db, _db.datasets);
+  $$DatasetItemsTableTableManager get datasetItems =>
+      $$DatasetItemsTableTableManager(_db, _db.datasetItems);
+  $$LorasTableTableManager get loras =>
+      $$LorasTableTableManager(_db, _db.loras);
 }

@@ -57,18 +57,22 @@ void main() {
           reason: 'the face count badge of the first photo',
         );
 
+        await tester.ensureVisible(find.byKey(const Key('filter-unscanned')));
         await tester.tap(find.byKey(const Key('filter-unscanned')));
         await _settle(tester);
         expect(find.byKey(Key('media-$waiting')), findsOneWidget);
         expect(find.byKey(Key('media-$scanned')), findsNothing);
 
+        await tester.ensureVisible(find.byKey(const Key('filter-all')));
         await tester.tap(find.byKey(const Key('filter-all')));
         await _settle(tester);
+        await tester.ensureVisible(find.byKey(const Key('filter-has-faces')));
         await tester.tap(find.byKey(const Key('filter-has-faces')));
         await _settle(tester);
         expect(find.byKey(Key('media-$scanned')), findsOneWidget);
         expect(find.byKey(Key('media-$empty')), findsNothing);
 
+        await tester.ensureVisible(find.byKey(const Key('filter-failed')));
         await tester.tap(find.byKey(const Key('filter-failed')));
         await _settle(tester);
         expect(find.text('No photos match these filters'), findsOneWidget);
@@ -85,6 +89,7 @@ void main() {
         await seedFace(env.db, mediaId: withSara, personId: sara, seed: 1);
         await _open(tester, env, '/library');
 
+        await tester.ensureVisible(find.byKey(const Key('filter-pick-person')));
         await tester.tap(find.byKey(const Key('filter-pick-person')));
         await _settle(tester);
         await tester.tap(find.byKey(Key('person-picker-$sara')));
@@ -127,7 +132,7 @@ void main() {
         await seedFace(env.db, mediaId: photo, personId: sara, seed: 1);
         await seedFace(env.db, mediaId: photo, seed: 2, x: 0.5);
         await _open(tester, env, '/media/$photo');
-        expect(find.text('Who is in this photo'), findsOneWidget);
+        expect(find.text('Who is here'), findsOneWidget);
         expect(find.byKey(Key('who-$sara')), findsOneWidget);
         expect(find.text('1 unsorted'), findsOneWidget);
         // the original is not available in this test: the viewer says so instead of crashing

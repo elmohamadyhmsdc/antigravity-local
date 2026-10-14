@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from job_manager import JobStatus
-from database import set_person_lora_info
 
 APP_DIR = Path(__file__).parent
 VENV_LORA_PYTHON = APP_DIR / "venv_lora" / "Scripts" / "python.exe"
@@ -464,6 +463,7 @@ def run_training(job, manager) -> bool:
         shutil.rmtree(state_dir, ignore_errors=True)
 
     if params.get("person_id") is not None:
+        from database import set_person_lora_info
         set_person_lora_info(params["person_id"], lora_path=str(trained_file))
 
     job.status = JobStatus.COMPLETED

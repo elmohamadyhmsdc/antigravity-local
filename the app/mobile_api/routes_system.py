@@ -47,7 +47,8 @@ def build_system_router(ctx, require_device: Callable) -> APIRouter:
     @router.post("/v1/pair/complete")
     async def pair_complete(body: PairRequest):
         try:
-            device, server_id = ctx.pairing.complete(body.code, body.device_name)
+            with ctx.jobs_lock:
+                device, server_id = ctx.pairing.complete(body.code, body.device_name)
         except PairingError as e:
             code = "pairing_locked" if e.kind == "locked" else "invalid_code"
             raise ApiError(_PAIR_STATUS[e.kind], code, e.message, retryable=False)

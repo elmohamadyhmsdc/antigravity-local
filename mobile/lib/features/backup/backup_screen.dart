@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -14,6 +15,7 @@ import '../../domain/backup/backup_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
+import '../../studio_providers.dart';
 import '../shared/empty_state.dart';
 
 /// S26 - the phone holds the ONLY copy of the library, so this is where it is protected: export one
@@ -33,11 +35,17 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   Future<void> _export() async {
     final l10n = AppLocalizations.of(context);
     final service = ref.read(backupServiceProvider);
+    final tracker = ref.read(jobTrackerProvider);
+    final engine = ref.read(scanEngineProvider);
+    final scanWasRunning = engine.isRunning;
+    bool? wasActive;
     setState(() {
       _busy = true;
       _message = null;
     });
     try {
+      await engine.pauseAndWait();
+      wasActive = await tracker.suspendForMaintenance();
       final tmp = await getTemporaryDirectory();
       final dir = Directory('${tmp.path}/backups');
       if (await dir.exists()) await dir.delete(recursive: true);
@@ -58,6 +66,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     } on Object catch (e) {
       if (mounted) setState(() => _message = l10n.backupFailed('$e'));
     } finally {
+      if (wasActive != null) tracker.resumeAfterMaintenance(wasActive);
+      if (scanWasRunning) unawaited(engine.start(enumerate: false));
       if (mounted) {
         setState(() {
           _busy = false;
@@ -70,6 +80,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   Future<void> _restore() async {
     final l10n = AppLocalizations.of(context);
     final service = ref.read(backupServiceProvider);
+    final tracker = ref.read(jobTrackerProvider);
+    bool? wasActive;
     final picked = await FilePicker.pickFile(
       dialogTitle: l10n.restoreFromBackup,
     );
@@ -98,7 +110,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         _message = null;
       });
       final engine = ref.read(scanEngineProvider);
-      engine.pause();
+      await engine.pauseAndWait();
+      wasActive = await tracker.suspendForMaintenance();
       await service.restore(
         file,
         onProgress: (p) {
@@ -117,6 +130,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     } on Object catch (e) {
       if (mounted) setState(() => _message = l10n.backupFailed('$e'));
     } finally {
+      if (wasActive != null) tracker.resumeAfterMaintenance(wasActive);
       if (mounted) {
         setState(() {
           _busy = false;

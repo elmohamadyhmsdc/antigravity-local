@@ -189,6 +189,7 @@ paths:
   /v1/jobs:
     post:
       summary: Queue a GPU job
+      description: "Implements analyze_video, Reface, clothing restyle and character LoRA dataset/train/generate jobs. Studio requests are limited to 512 KB, require client_job_id and queue behind active GPU work. Jobs and input snapshots are private to their paired device."
       requestBody:
         required: true
         content:
@@ -208,7 +209,7 @@ paths:
     get:
       summary: Status of several jobs (re-sync after reconnecting)
       parameters:
-        - { name: ids, in: query, required: true, schema: { type: string }, description: Comma-separated job ids }
+        - { name: ids, in: query, required: false, schema: { type: string }, description: "Up to 32 comma-separated job ids; omitted lists this device's jobs. Any unknown or unowned id returns 404." }
       responses:
         "200":
           description: OK
@@ -259,7 +260,7 @@ paths:
     parameters:
       - { name: job_id, in: path, required: true, schema: { type: string } }
     post:
-      summary: Pause (video jobs keep `last_frame`) or cancel a queued job
+      summary: Pause a queued job or request pause at the next video checkpoint
       responses:
         "200":
           description: OK
@@ -271,7 +272,7 @@ paths:
     parameters:
       - { name: job_id, in: path, required: true, schema: { type: string } }
     post:
-      summary: Re-queue a paused or failed job
+      summary: Re-queue a paused job (failed jobs must be removed and submitted again)
       responses:
         "200":
           description: OK
@@ -759,37 +760,45 @@ components:
         reface_image_* / reface_video_*. Inputs: `target` (image or video blob).
         `target_faces` are matched to detections by IoU on the server (indices
         are not stable across runs). `dfm_model` is required for *_dfm and then
-        `source_faces` may be empty.
+        `source_faces` may be empty. P4 target-face selection is photo-only:
+        videos swap all detected faces in the trim range. Empty target_faces
+        is invalid; omit it to swap all faces. P4 rejects unknown options.
       required: [source_faces]
       properties:
         source_faces:
           type: array
+          maxItems: 100
           items: { $ref: "#/components/schemas/SourceFace" }
+        model_id: { type: string, default: "buffalo_l@1" }
         target_faces:
           type: array
           description: Boxes (pixels of the target image/first frame) to swap; omit for all faces
           items: { $ref: "#/components/schemas/BBox" }
-        restorer: { type: string, default: codeformer }
+        restorer: { type: string, default: auto, description: "auto uses the V3 engine's evaluated default; none disables restoration." }
         restorer_weight: { type: number, default: 0.5 }
         use_parser: { type: boolean, default: true }
         use_occluder: { type: boolean, default: true }
         realism_preset: { type: string, default: natural }
-        realism_overrides: { type: [object, "null"] }
+        realism_overrides: { type: [object, "null"], description: "Reserved; not accepted by P4." }
         dfm_model: { type: string }
-        use_angle_matching: { type: boolean, default: true }
+        use_angle_matching: { type: boolean, default: true, description: "Reserved; not accepted by P4." }
         start_time: { type: number, default: 0 }
         end_time: { type: [number, "null"] }
 
     AnalyzeVideoParams:
       type: object
-      description: "Inputs: `video` blob. Result: detections.ndjson + crops.zip."
+      description: "Inputs: `video` blob. Result: detections.ndjson, one AnalyzeImageResponse per sampled frame with frame_number and timestamp_ms; crops are inline base64. P3 uses progress polling (SSE arrives with P4)."
       properties:
-        frame_interval: { type: number, default: 1.0 }
-        min_quality: { type: number, default: 0.40 }
+        frame_interval: { type: number, default: 1.0, minimum: 0.25, maximum: 60 }
+        min_quality: { type: number, default: 0.40, minimum: 0, maximum: 1 }
         detect_bodies: { type: boolean, default: true }
-        video_similar_distance: { type: number, default: 0.08 }
-        max_bodies_per_media: { type: integer, default: 40 }
-        start_time: { type: number, default: 0 }
+        start_time: { type: number, default: 0, minimum: 0, maximum: 86400 }
+        start_frame:
+          type: integer
+          default: 0
+          minimum: 0
+          description: First uncommitted frame; rounded up to the original frame_interval sampling grid.
+        model_id: { type: [string, "null"] }
 
     UndressParams:
       type: object
@@ -817,19 +826,21 @@ components:
 
     BuildLoraDatasetParams:
       type: object
-      description: "Inputs: `images` blobs. Result: dataset.zip (crops + captions) and preview.json."
-      required: [trigger_word]
+      description: "Inputs: `images` blobs (photos or videos, up to 64). Result: dataset.zip containing one repeats_trigger person folder of images and captions. The anchor selects this person, including in group photos."
+      required: [trigger_word, anchor_embedding]
       properties:
         trigger_word: { type: string }
-        repeats: { type: integer, default: 10 }
-        max_frames_per_video: { type: integer, default: 12 }
+        anchor_embedding: { $ref: "#/components/schemas/Embedding" }
+        repeats: { type: integer, default: 20, minimum: 1, maximum: 100 }
+        max_frames_per_video: { type: integer, default: 12, minimum: 1, maximum: 24 }
 
     TrainLoraParams:
       type: object
-      description: "Inputs: `dataset` blob (dataset.zip). Result: <output_name>.safetensors. `person_id` is deliberately absent."
-      required: [output_name, base_checkpoint]
+      description: "Inputs: `dataset` blob (dataset.zip). Result: lora.safetensors. Only image/caption zip entries are accepted; training state is generated inside this job's scratch directory. Pausing resumes from the newest complete epoch checkpoint. person_id is deliberately absent."
+      required: [trigger_word, base_checkpoint]
       properties:
         output_name: { type: string, pattern: "^[A-Za-z0-9_-]{1,64}$" }
+        trigger_word: { type: string }
         base_checkpoint:
           type: string
           description: A name from capabilities.lora_base_checkpoints
@@ -849,7 +860,7 @@ components:
         trigger_word: { type: string }
         prompt: { type: string }
         negative_prompt: { type: string }
-        num_images: { type: integer, minimum: 1, maximum: 64 }
+        num_images: { type: integer, minimum: 1, maximum: 16 }
         seed: { type: integer, default: -1 }
         steps: { type: integer, default: 30 }
         lora_scale: { type: number }

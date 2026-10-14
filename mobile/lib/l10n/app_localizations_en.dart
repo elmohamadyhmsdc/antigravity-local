@@ -451,7 +451,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get albumsHint =>
-      'Choose the albums whose photos should be scanned. Photos stay on this phone; only a downscaled copy of each is sent to your PC.';
+      'Choose the albums whose items should be scanned. Photos stay on this phone; only a downscaled copy of each is sent to your PC.';
 
   @override
   String get albumsTitle => 'Albums to scan';
@@ -486,7 +486,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupIntro =>
-      'Your library lives only on this phone. A backup is one file you can keep in Files, Drive or on your PC; restoring it brings everything back exactly as it was.';
+      'Your library, private results, datasets and trained LoRAs live on this phone. Export a backup to keep another copy; PC connections and active jobs are excluded.';
 
   @override
   String get backupKeepSafe =>
@@ -1067,7 +1067,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scanFootnote =>
-      'Scanning keeps going with the screen off. Photos already scanned are skipped, so you can run it again whenever new photos arrive.';
+      'Scanning keeps going with the screen off. Photos already scanned are skipped, so you can run it again whenever new items arrive.';
 
   @override
   String scanFound(int count) {
@@ -1078,7 +1078,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scanLibrary => 'Scan library';
 
   @override
-  String get scanLibraryHint => 'Find the faces in your photos';
+  String get scanLibraryHint => 'Find the faces in your items';
 
   @override
   String get scanModelMismatch =>
@@ -1096,11 +1096,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String scanNotificationText(int done, int total, int faces) {
-    return '$done/$total photos · $faces faces';
+    return '$done/$total items · $faces faces';
   }
 
   @override
-  String get scanNotificationTitle => 'Scanning your photos';
+  String get scanNotificationTitle => 'Scanning your items';
 
   @override
   String get scanNow => 'Scan now';
@@ -1277,8 +1277,681 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get whoIsHere => 'Who is in this photo';
+  String get whoIsHere => 'Who is here';
 
   @override
   String get close => 'Close';
+
+  @override
+  String get allMedia => 'All photos & videos';
+
+  @override
+  String mediaCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get includeVideos => 'Scan videos too';
+
+  @override
+  String get includeVideosHint =>
+      'Videos upload to your paired PC. Progress resumes after interruptions.';
+
+  @override
+  String get videoFrameInterval => 'Sample video frames';
+
+  @override
+  String videoEverySeconds(String seconds) {
+    return 'Every $seconds s';
+  }
+
+  @override
+  String videoUploading(int percent) {
+    return 'Uploading video · $percent%';
+  }
+
+  @override
+  String videoAnalyzing(int percent) {
+    return 'Analyzing video · $percent%';
+  }
+
+  @override
+  String get videoDownloading => 'Downloading video detections…';
+
+  @override
+  String get videoImporting => 'Saving video detections on this phone…';
+
+  @override
+  String get videoTitle => 'Video';
+
+  @override
+  String get videoUnavailable => 'Video unavailable';
+
+  @override
+  String get videoUnavailableBody =>
+      'The original may have been removed, access may have changed, or this format cannot be played.';
+
+  @override
+  String get videoPlay => 'Play';
+
+  @override
+  String get videoPause => 'Pause playback';
+
+  @override
+  String get videoDetectedFrames => 'Jump to a detected frame';
+
+  @override
+  String get videoNoDetections =>
+      'No detections yet. Scan this video to find people.';
+
+  @override
+  String get insightsTitle => 'Library insights';
+
+  @override
+  String get insightsHint =>
+      'Scan coverage, identified faces and people in your library.';
+
+  @override
+  String get insightsCoverage => 'Scan coverage';
+
+  @override
+  String insightsScanned(int done, int total) {
+    return '$done of $total items scanned';
+  }
+
+  @override
+  String get insightsFaces => 'Identified faces';
+
+  @override
+  String get insightsBodies => 'Identified bodies';
+
+  @override
+  String get insightsTopPeople => 'Most seen people';
+
+  @override
+  String insightsPersonMedia(int count) {
+    return '$count media items';
+  }
+
+  @override
+  String get insightsEmpty => 'Scan your library to see insights';
+
+  @override
+  String insightsAssigned(int identified, int total) {
+    return '$identified of $total identified';
+  }
+
+  @override
+  String get insightsUnsorted => 'Unsorted faces';
+
+  @override
+  String get insightsFailed => 'Items needing another scan';
+
+  @override
+  String get tabMedia => 'Photos & videos';
+
+  @override
+  String get studioTitle => 'Studio';
+
+  @override
+  String get studioHint => 'Create with your private library';
+
+  @override
+  String get studioNeedsPc =>
+      'Connect to your paired PC to detect faces and start a new job.';
+
+  @override
+  String get studioBusyHint =>
+      'The GPU is busy. New Studio jobs will wait in the queue.';
+
+  @override
+  String get refaceTitle => 'Reface';
+
+  @override
+  String get refaceHint => 'Swap a person into a photo or video';
+
+  @override
+  String get privateResults => 'Private results';
+
+  @override
+  String get privateResultsHint =>
+      'Outputs stay inside Antigravity until you choose to share them.';
+
+  @override
+  String get refaceTarget => 'Target';
+
+  @override
+  String get refaceIdentity => 'Source identity';
+
+  @override
+  String get refaceQuality => 'Engine & quality';
+
+  @override
+  String get refaceReview => 'Review & create';
+
+  @override
+  String get chooseTargetPhoto => 'Choose a photo';
+
+  @override
+  String get chooseTargetVideo => 'Choose a video';
+
+  @override
+  String get selectedTargetFaces => 'Choose the faces to swap';
+
+  @override
+  String get videoSwapsAllFaces =>
+      'Video Reface swaps every detected face in the selected clip.';
+
+  @override
+  String get videoTrimStart => 'Start (seconds)';
+
+  @override
+  String get videoTrimEnd => 'End (seconds, optional)';
+
+  @override
+  String get selectSourcePerson => 'Choose source person';
+
+  @override
+  String get sourceFacesHint =>
+      'Select clear faces of the same person. The best 20 are selected by default.';
+
+  @override
+  String get refaceHd => 'HD';
+
+  @override
+  String get refaceLegacy => 'Legacy';
+
+  @override
+  String get refacePro => 'Pro · DFM';
+
+  @override
+  String get refaceEngine => 'Engine';
+
+  @override
+  String get dfmModel => 'DFM model';
+
+  @override
+  String get refaceRestorer => 'Face restoration';
+
+  @override
+  String get restorerAuto => 'Automatic';
+
+  @override
+  String get restorerNone => 'Off';
+
+  @override
+  String get refacePreset => 'Realism preset';
+
+  @override
+  String get presetNatural => 'Natural';
+
+  @override
+  String get presetDetail => 'Maximum detail';
+
+  @override
+  String get presetClean => 'Clean';
+
+  @override
+  String get protectOcclusions => 'Protect glasses and occlusions';
+
+  @override
+  String get useFaceParser => 'Use face region mask';
+
+  @override
+  String get submitReface => 'Create Reface job';
+
+  @override
+  String get refaceReviewHint =>
+      'The target is copied to private storage so this request survives closing the app. The PC keeps it only while processing.';
+
+  @override
+  String get selectFaceRequired => 'Select at least one target face.';
+
+  @override
+  String get selectIdentityRequired =>
+      'Choose a source person and at least one face.';
+
+  @override
+  String get chooseTargetRequired =>
+      'Choose and detect a photo, or choose a video.';
+
+  @override
+  String get invalidTrimRange =>
+      'Enter a valid trim range: end must be greater than start.';
+
+  @override
+  String get fileTooLarge => 'This file exceeds the PC upload limit.';
+
+  @override
+  String get studioNoEngine =>
+      'No Reface engine is available. Check the models on your PC.';
+
+  @override
+  String get jobsEmpty => 'No Studio jobs yet';
+
+  @override
+  String get jobsEmptyHint =>
+      'Start a Reface job from Studio. Progress and results will appear here.';
+
+  @override
+  String get jobDetails => 'Job details';
+
+  @override
+  String get jobPause => 'Pause';
+
+  @override
+  String get jobResume => 'Resume';
+
+  @override
+  String get jobRetry => 'Retry';
+
+  @override
+  String get jobRemove => 'Remove job';
+
+  @override
+  String get jobSync => 'Sync now';
+
+  @override
+  String get jobResult => 'Open result';
+
+  @override
+  String get statusUploading => 'Uploading';
+
+  @override
+  String get statusQueued => 'Queued';
+
+  @override
+  String get statusRunning => 'Running';
+
+  @override
+  String get statusPaused => 'Paused';
+
+  @override
+  String get statusDownloading => 'Saving result';
+
+  @override
+  String get statusCompleted => 'Completed';
+
+  @override
+  String get statusFailed => 'Failed';
+
+  @override
+  String get statusLost => 'PC job expired';
+
+  @override
+  String get resultEmpty => 'No private results yet';
+
+  @override
+  String get resultEmptyHint =>
+      'Finished outputs are saved here automatically.';
+
+  @override
+  String get resultBefore => 'Before';
+
+  @override
+  String get resultAfter => 'After';
+
+  @override
+  String get resultCompare => 'Before / after';
+
+  @override
+  String get resultShare => 'Share output';
+
+  @override
+  String get resultFavourite => 'Favourite';
+
+  @override
+  String get resultDelete => 'Delete result';
+
+  @override
+  String get resultDeleteBody =>
+      'Delete this private output and its comparison original from the phone?';
+
+  @override
+  String get jobRemoveBody =>
+      'Remove this job and its temporary input? Saved results are kept.';
+
+  @override
+  String get next => 'Next';
+
+  @override
+  String get createAnother => 'Create another';
+
+  @override
+  String get allResults => 'All results';
+
+  @override
+  String get favouriteResults => 'Favourites';
+
+  @override
+  String get resultPhoto => 'Photo';
+
+  @override
+  String get resultVideo => 'Video';
+
+  @override
+  String get jobErrorHint =>
+      'Your target remains on the phone. Reconnect or retry to continue.';
+
+  @override
+  String get useInStudio => 'Use in Studio';
+
+  @override
+  String get studioResultReady =>
+      'Your result is ready and saved privately on this phone.';
+
+  @override
+  String get restyleTitle => 'Clothes restyle';
+
+  @override
+  String get restyleHint => 'Change clothing while protecting the face';
+
+  @override
+  String get restylePrompt => 'Describe the clothing';
+
+  @override
+  String get restyleDefaultPrompt =>
+      'Photorealistic fashion photo, wearing an elegant blue tailored suit, natural fabric texture and folds, preserve the same person, pose, lighting and background';
+
+  @override
+  String get restyleNegative => 'Negative prompt';
+
+  @override
+  String get restyleNegativeDefault =>
+      'nudity, underwear, deformed hands, bad anatomy, blurry, plastic skin, watermark';
+
+  @override
+  String get restyleStrength => 'Change strength';
+
+  @override
+  String get restyleFace => 'Protected face';
+
+  @override
+  String get restylePadding => 'Extra face protection';
+
+  @override
+  String get restyleReferences => 'Clothing references';
+
+  @override
+  String get addReference => 'Add a reference photo';
+
+  @override
+  String get restyleCreate => 'Create restyle job';
+
+  @override
+  String get engineUnavailable =>
+      'This tool is unavailable on your PC. Check its environment and model files.';
+
+  @override
+  String get advancedOptions => 'Advanced options';
+
+  @override
+  String get seed => 'Seed (-1 = random)';
+
+  @override
+  String get steps => 'Steps';
+
+  @override
+  String get guidance => 'Guidance';
+
+  @override
+  String get refineOutput => 'Refine at original resolution';
+
+  @override
+  String get promptRequired => 'Describe the clothing before submitting.';
+
+  @override
+  String get loraTitle => 'Character LoRA';
+
+  @override
+  String get loraHint =>
+      'Build a dataset, train a character and generate portraits';
+
+  @override
+  String get loraDatasetTitle => 'Character dataset';
+
+  @override
+  String get loraDatasetBuild => 'Build dataset';
+
+  @override
+  String get loraChoosePhotos => 'Choose training photos';
+
+  @override
+  String get loraPhotoHint =>
+      'Choose 5–64 clear photos of the selected person. The PC matches that identity before cropping.';
+
+  @override
+  String get loraTrigger => 'Trigger word';
+
+  @override
+  String get loraTriggerHint =>
+      '3–64 letters, digits or underscores; start with a letter';
+
+  @override
+  String get loraRepeats => 'Repeats per image';
+
+  @override
+  String get loraTrain => 'Train LoRA';
+
+  @override
+  String get loraGenerate => 'Generate portraits';
+
+  @override
+  String get loraNoDatasets => 'No character datasets yet';
+
+  @override
+  String get loraNoModels => 'No trained LoRAs yet';
+
+  @override
+  String get loraDatasetEditor => 'Edit dataset';
+
+  @override
+  String get loraCaption => 'Caption';
+
+  @override
+  String get loraIncluded => 'Include in training';
+
+  @override
+  String get loraExport => 'Export training zip';
+
+  @override
+  String get loraTrainHint =>
+      'Training uses the included images and edited captions. The finished LoRA is saved on this phone.';
+
+  @override
+  String get loraEpochs => 'Epochs';
+
+  @override
+  String get loraDim => 'Network dimension';
+
+  @override
+  String get loraLearningRate => 'Learning rate';
+
+  @override
+  String get loraResolution => 'Resolution';
+
+  @override
+  String get loraBase => 'Base checkpoint';
+
+  @override
+  String get loraModel => 'Trained LoRA';
+
+  @override
+  String get loraCount => 'Number of portraits';
+
+  @override
+  String get loraPrompt => 'Portrait prompt';
+
+  @override
+  String loraDefaultPrompt(Object trigger) {
+    return 'A natural studio portrait of $trigger person, neutral expression, realistic skin texture, soft daylight, fully clothed, photorealistic';
+  }
+
+  @override
+  String get loraReferenceMode => 'Follow the reference';
+
+  @override
+  String get referenceComposition => 'Pose & composition';
+
+  @override
+  String get referenceStyle => 'Style & clothing';
+
+  @override
+  String get referenceBoth => 'Both';
+
+  @override
+  String get loraIdentity => 'Use generated portraits in Reface';
+
+  @override
+  String get loraBuildIdentity => 'Build Reface identity';
+
+  @override
+  String get loraIdentityHint =>
+      'Generated faces are added only when they match the person’s real face identity.';
+
+  @override
+  String get loraIdentityReady => 'Reface identity saved';
+
+  @override
+  String get loraChooseDataset => 'Choose a dataset';
+
+  @override
+  String get loraMinImages => 'Include at least five images before training.';
+
+  @override
+  String get invalidForm => 'Check the form values and try again.';
+
+  @override
+  String get loraNoBase =>
+      'No compatible base checkpoint is available on this PC.';
+
+  @override
+  String get privateArtifact => 'Private model or dataset';
+
+  @override
+  String get openDataset => 'Open dataset editor';
+
+  @override
+  String get openLora => 'Open Character LoRA';
+
+  @override
+  String get trainingDetails => 'Training progress';
+
+  @override
+  String get loss => 'Loss';
+
+  @override
+  String get epoch => 'Epoch';
+
+  @override
+  String get totalSteps => 'Steps';
+
+  @override
+  String get saveToGallery => 'Save to gallery';
+
+  @override
+  String get savedToGallery => 'Saved to gallery';
+
+  @override
+  String get storageTitle => 'Storage';
+
+  @override
+  String get appLockTitle => 'App lock';
+
+  @override
+  String get appLockHint =>
+      'Use your phone’s screen lock when opening Antigravity.';
+
+  @override
+  String get unlockApp => 'Unlock Antigravity';
+
+  @override
+  String get unlockBody =>
+      'Confirm your phone screen lock to open your private library.';
+
+  @override
+  String get unlockFailed =>
+      'Unlock was cancelled, or a phone screen lock is not set up.';
+
+  @override
+  String get storageHint =>
+      'Manage private outputs, datasets and trained models.';
+
+  @override
+  String get storageUsed => 'Private files';
+
+  @override
+  String get storageDeleteResults => 'Delete private results';
+
+  @override
+  String get storageDeleteDatasets => 'Delete datasets';
+
+  @override
+  String get storageDeleteLoras => 'Delete trained LoRAs';
+
+  @override
+  String get storageDeleteTemporary => 'Clean temporary files';
+
+  @override
+  String get storageConfirm =>
+      'Delete the selected private files from this phone? Export a backup first if you want to keep them.';
+
+  @override
+  String get storageBusy =>
+      'Pause scans and active Studio jobs before cleaning storage.';
+
+  @override
+  String get storageCleaned => 'Storage updated';
+
+  @override
+  String get backgroundTitle => 'Background work';
+
+  @override
+  String get backgroundIntro =>
+      'Allow notifications and unrestricted battery use so scans, uploads and result downloads can continue when you leave the app or lock the screen. An ongoing notification shows when work is active.';
+
+  @override
+  String get backgroundSettingsHint => 'Keep work going with the screen off';
+
+  @override
+  String get backgroundLater => 'Continue for now';
+
+  @override
+  String get backgroundEnable => 'Allow background work';
+
+  @override
+  String get backgroundRefresh => 'Refresh status';
+
+  @override
+  String get backgroundNotifications => 'Progress notifications allowed';
+
+  @override
+  String get backgroundBattery => 'Battery use unrestricted';
+
+  @override
+  String get backgroundRunning => 'Background service is running';
+
+  @override
+  String get backgroundIdle => 'Ready to start when there is active work';
+
+  @override
+  String get backgroundOpenSettings => 'Open Android app settings';
+
+  @override
+  String get backgroundAndroidOnly =>
+      'Background permissions are available on Android.';
+
+  @override
+  String get backgroundServiceFailed =>
+      'Android could not start the background service. Keep the app open and check notifications and battery settings.';
+
+  @override
+  String get backgroundLimits =>
+      'A force stop, phone shutdown or Android background time limit can stop phone work. Open the app to resume its saved queue. Some phones also require allowing auto-start in the manufacturer\'s battery settings. The PC must stay on and connected to the phone.';
 }

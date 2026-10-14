@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .discovery import lan_addresses
+from .admin import build_admin_router, revoke_device
 from .pairing import pair_payload, render_pair_page
 
 _HOST_RE = re.compile(r"^[A-Za-z0-9.\-]{1,253}$")
@@ -40,7 +41,11 @@ def create_pair_app(ctx, addresses_fn=lan_addresses) -> FastAPI:
         origin_host = "" if not origin else origin.split("//", 1)[-1].rsplit(":", 1)[0].strip("[]")
         if host not in LOOPBACK | {"testserver"} or (origin and origin_host not in LOOPBACK | {"testserver"}):
             return HTMLResponse("Forbidden", status_code=403)
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    app.include_router(build_admin_router(ctx))
 
     def page(host: Optional[str], notice: str = "") -> HTMLResponse:
         addresses = ctx.host_addresses or addresses_fn()
@@ -69,7 +74,7 @@ def create_pair_app(ctx, addresses_fn=lan_addresses) -> FastAPI:
 
     @app.post("/pair/revoke/{device_id}")
     async def revoke(device_id: str):
-        ctx.auth.revoke(device_id)
+        revoke_device(ctx,device_id)
         return RedirectResponse("/pair", status_code=303)
 
     return app

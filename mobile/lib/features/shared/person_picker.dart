@@ -136,14 +136,15 @@ class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
 
   Future<void> _askNewName(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
-    final controller = TextEditingController();
+    var draft = '';
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.newPerson),
-        content: TextField(
+        content: TextFormField(
           key: const Key('new-person-name'),
-          controller: controller,
+          initialValue: draft,
+          onChanged: (value) => draft = value,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
           decoration: InputDecoration(
@@ -157,13 +158,12 @@ class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
             child: Text(l10n.cancel),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
+            onPressed: () => Navigator.pop(context, draft),
             child: Text(l10n.create),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (name != null && context.mounted) {
       Navigator.pop(context, PersonChoice.newPerson(name));
     }

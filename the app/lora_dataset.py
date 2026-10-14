@@ -217,7 +217,6 @@ def build_caption(image_bgr: np.ndarray, trigger_word: str, quality_score: float
 import re
 import uuid
 
-from database import get_faces_by_person, set_person_lora_info, get_person_lora_info
 
 MIN_IMAGES_WARN = 15
 MIN_IMAGES_BLOCK = 5
@@ -230,6 +229,7 @@ def _slugify(name: str) -> str:
 
 
 def _get_or_create_trigger_word(person_id: int) -> str:
+    from database import get_person_lora_info, set_person_lora_info
     info = get_person_lora_info(person_id)
     if info.get("trigger_word"):
         return info["trigger_word"]
@@ -297,6 +297,7 @@ def build_dataset(person_id: int, person_name: str, face_app, output_root: Path 
     Returns {"dataset_dir": str, "image_count": int, "skipped_body_count": int,
              "warning": Optional[str], "blocked": bool}
     """
+    from database import get_faces_by_person
     if output_root is None:
         output_root = Path(__file__).parent / "lora_datasets"
     if restorer is None:
@@ -310,7 +311,7 @@ def build_dataset(person_id: int, person_name: str, face_app, output_root: Path 
     return _write_dataset_records(faces, trigger_word, slug, output_root, repeats, face_app, restorer, tagger)
 
 
-def detect_face_record_from_image(image_path: str, face_app) -> Optional[Dict]:
+def detect_face_record_from_image(image_path: str, face_app, anchor_embedding=None) -> Optional[Dict]:
     """
     Runs face detection directly on an image that was NOT pre-mined into the
     gallery database (e.g. freshly uploaded, like Reface V2's "Upload New"
@@ -327,7 +328,16 @@ def detect_face_record_from_image(image_path: str, face_app) -> Optional[Dict]:
     if not faces:
         return None
 
-    main_face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+    if anchor_embedding is not None:
+        anchor = np.asarray(anchor_embedding, dtype=np.float32)
+        anchor = anchor / max(float(np.linalg.norm(anchor)), 1e-8)
+        scores = [float(np.dot(anchor, f.normed_embedding)) for f in faces]
+        best = int(np.argmax(scores))
+        if scores[best] < 0.4:
+            return None
+        main_face = faces[best]
+    else:
+        main_face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
     x1, y1, x2, y2 = main_face.bbox.astype(int)
     width, height = int(x2 - x1), int(y2 - y1)
 

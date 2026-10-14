@@ -114,12 +114,17 @@ void main() {
       await _open(tester, env, '/review');
       expect(find.text('Review'), findsOneWidget);
       expect(find.text('No faces waiting to be matched'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('review-tab-groups')));
       await tester.tap(find.byKey(const Key('review-tab-groups')));
       await _settle(tester);
       expect(find.text('No new groups to review'), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(const Key('review-tab-duplicates')),
+      );
       await tester.tap(find.byKey(const Key('review-tab-duplicates')));
       await _settle(tester);
       expect(find.text('No people look like duplicates'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('review-tab-outfits')));
       await tester.tap(find.byKey(const Key('review-tab-outfits')));
       await _settle(tester);
       expect(find.text('No outfit matches to review'), findsOneWidget);
@@ -134,7 +139,13 @@ void main() {
 
         await tester.tap(find.byKey(Key('match-face-${l.f2}'))); // untick
         await tester.pumpAndSettle();
-        expect(find.text('Add 1 face'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(Key('match-card-${l.sara}')),
+            matching: find.text('Add 1 face'),
+          ),
+          findsOneWidget,
+        );
         await tester.tap(find.byKey(Key('match-accept-${l.sara}')));
         await _settle(tester);
 
@@ -200,6 +211,7 @@ void main() {
 
     group('New groups', () {
       Future<void> groupsTab(WidgetTester tester) async {
+        await tester.ensureVisible(find.byKey(const Key('review-tab-groups')));
         await tester.tap(find.byKey(const Key('review-tab-groups')));
         await _settle(tester);
       }
@@ -285,6 +297,9 @@ void main() {
 
     group('Duplicates and S11 Merge', () {
       Future<int> compare(WidgetTester tester, _Library l) async {
+        await tester.ensureVisible(
+          find.byKey(const Key('review-tab-duplicates')),
+        );
         await tester.tap(find.byKey(const Key('review-tab-duplicates')));
         await _settle(tester);
         expect(find.text('55% alike'), findsOneWidget);
@@ -298,6 +313,9 @@ void main() {
         (tester, env) async {
           final l = await _seed(env);
           await _open(tester, env, '/review');
+          await tester.ensureVisible(
+            find.byKey(const Key('review-tab-duplicates')),
+          );
           await tester.tap(find.byKey(const Key('review-tab-duplicates')));
           await _settle(tester);
           await tester.tap(find.byKey(Key('dup-distinct-${l.sara}-${l.anna}')));
@@ -386,6 +404,7 @@ void main() {
 
     group('Outfit links', () {
       Future<void> outfits(WidgetTester tester) async {
+        await tester.ensureVisible(find.byKey(const Key('review-tab-outfits')));
         await tester.tap(find.byKey(const Key('review-tab-outfits')));
         await _settle(tester);
       }

@@ -360,6 +360,9 @@ void main() {
           .get(); // creates the file with the current schema
       await fresh.close();
       final legacy = raw.sqlite3.open(file.path);
+      legacy.execute(
+        'DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results;',
+      );
       legacy.execute('''
         DROP TABLE review_body_links; DROP TABLE review_duplicates; DROP TABLE review_groups;
         DROP TABLE review_matches; DROP TABLE media_detections;
@@ -501,6 +504,64 @@ void main() {
       final second = AppDatabase(NativeDatabase(file));
       addTearDown(second.close);
       expect(await second.setting('a'), 'b');
+    });
+    test('v3 -> v4 keeps the library and adds empty Studio tables', () async {
+      final file = File(p.join(dir.path, 'v3.db'));
+      final before = AppDatabase(NativeDatabase(file));
+      await before
+          .into(before.persons)
+          .insert(
+            PersonsCompanion.insert(name: const Value('Sara'), createdAt: 1),
+          );
+      await before.close();
+      final legacy = raw.sqlite3.open(file.path);
+      legacy.execute(
+        'DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results; PRAGMA user_version = 3;',
+      );
+      legacy.close();
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+      expect((await after.select(after.persons).get()).single.name, 'Sara');
+      expect(await after.select(after.jobs).get(), isEmpty);
+      expect(await after.select(after.results).get(), isEmpty);
+      expect(
+        await after.customSelect('PRAGMA foreign_key_check').get(),
+        isEmpty,
+      );
+    });
+    test('v4 -> v5 preserves Studio jobs and adds artifact tables', () async {
+      final file = File(p.join(dir.path, 'v4.db'));
+      final before = AppDatabase(NativeDatabase(file));
+      await before
+          .into(before.jobs)
+          .insert(
+            JobsCompanion.insert(
+              id: 'saved-job',
+              serverId: 'pc',
+              type: 'reface_image_v3',
+              requestJson: '{}',
+              targetPath: 'work/target.jpg',
+              targetSha: 'a' * 64,
+              targetSize: 1,
+              status: 'paused',
+              createdAt: 1,
+              updatedAt: 1,
+            ),
+          );
+      await before.close();
+      final legacy = raw.sqlite3.open(file.path);
+      legacy.execute(
+        'DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; ALTER TABLE jobs DROP COLUMN input_files; ALTER TABLE jobs DROP COLUMN details_json; PRAGMA user_version = 4;',
+      );
+      legacy.close();
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+      final job = (await after.select(after.jobs).get()).single;
+      expect(job.id, 'saved-job');
+      expect(job.inputFiles, '{}');
+      expect(job.detailsJson, '{}');
+      expect(await after.select(after.datasets).get(), isEmpty);
+      expect(await after.select(after.loras).get(), isEmpty);
     });
   });
 }

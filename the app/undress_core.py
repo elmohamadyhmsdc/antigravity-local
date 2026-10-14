@@ -1325,6 +1325,7 @@ class UndressClient:
         script_path=None,
         script_args: Optional[Sequence[str]] = None,
         is_module_script: bool = False,
+        env=None,
     ):
         if is_module_script:
             self.cmd = [str(python_exe)] + list(script_args or [])
@@ -1334,6 +1335,7 @@ class UndressClient:
         self._out_q: Queue = Queue()
         self._err_chunks: List[str] = []
         self._reader_started = False
+        self.env = env
 
     def _ensure(self) -> None:
         if self.proc is not None and self.proc.poll() is None:
@@ -1346,6 +1348,7 @@ class UndressClient:
             encoding="utf-8",
             errors="replace",
             bufsize=1,
+            env=self.env,
         )
         if os.name == "nt":
             kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -1369,7 +1372,7 @@ class UndressClient:
         for line in proc.stderr:
             self._err_chunks.append(line)
 
-    def generate(self, payload: Dict[str, Any], timeout: float = 1800, status_callback=None) -> Dict[str, Any]:
+    def generate(self, payload: Dict[str, Any], timeout: float = 1800, status_callback=None, stop_requested=None) -> Dict[str, Any]:
         self._ensure()
         assert self.proc is not None and self.proc.stdin is not None
         self.proc.stdin.write(json.dumps(payload) + "\n")
@@ -1378,6 +1381,10 @@ class UndressClient:
         collected: List[str] = []
         last_err_len = len(self._err_chunks)
         while time.time() < deadline:
+            if stop_requested and stop_requested():
+                terminate_process(self.proc)
+                self.proc = None
+                raise InterruptedError('Clothes restyle paused.')
             if self.proc.poll() is not None:
                 # Drain anything already queued so a fast worker still parses.
                 while True:

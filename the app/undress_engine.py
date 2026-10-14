@@ -529,7 +529,8 @@ def generate(payload: dict, device: str, dtype, parser_proc, parser) -> dict:
     old_offline = os.environ.get("HF_HUB_OFFLINE")
     os.environ["HF_HUB_OFFLINE"] = "1"
     try:
-        pose_model = OpenposeDetector.from_pretrained("lllyasviel/Annotators", local_files_only=True).to(device)
+        pose_src = ensure_local_model("lllyasviel/Annotators", "body_pose_model.pth")
+        pose_model = OpenposeDetector.from_pretrained(pose_src, local_files_only=True).to(device)
     finally:
         if old_offline is not None:
             os.environ["HF_HUB_OFFLINE"] = old_offline

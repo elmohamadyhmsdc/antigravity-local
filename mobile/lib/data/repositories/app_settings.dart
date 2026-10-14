@@ -7,6 +7,8 @@ abstract final class SettingKeys {
   static const qualityGate = 'quality.gate';
   static const albumIds = 'scan.albums';
   static const scanBodies = 'scan.bodies';
+  static const scanVideos = 'scan.videos';
+  static const frameInterval = 'scan.frame_interval';
   static const maxSide = 'scan.max_side';
   static const scanActive = 'scan.active';
   static const modelId = 'library.model_id';
@@ -19,6 +21,8 @@ abstract final class SettingKeys {
     qualityGate,
     albumIds,
     scanBodies,
+    scanVideos,
+    frameInterval,
     maxSide,
     modelId,
   ];
@@ -39,6 +43,8 @@ class SettingsSnapshot {
     this.qualityGate = defaultQualityGate,
     this.albumIds = const [],
     this.scanBodies = true,
+    this.scanVideos = true,
+    this.frameInterval = 1.0,
     this.maxSide = defaultMaxSide,
     this.scanActive = false,
     this.modelId,
@@ -66,6 +72,12 @@ class SettingsSnapshot {
           : gate.clamp(minQualityGate, maxQualityGate).toDouble(),
       albumIds: albums,
       scanBodies: (m[SettingKeys.scanBodies] ?? '1') != '0',
+      scanVideos: (m[SettingKeys.scanVideos] ?? '1') != '0',
+      frameInterval:
+          (double.tryParse(m[SettingKeys.frameInterval] ?? '') ?? 1.0).clamp(
+            0.25,
+            60,
+          ),
       maxSide: side == null ? defaultMaxSide : side.clamp(800, 4096),
       scanActive: m[SettingKeys.scanActive] == '1',
       modelId: m[SettingKeys.modelId],
@@ -81,6 +93,8 @@ class SettingsSnapshot {
   final List<String>
   albumIds; // MediaStore bucket ids chosen on the Sources screen
   final bool scanBodies;
+  final bool scanVideos;
+  final double frameInterval;
   final int maxSide; // long side of the picture sent to the PC
   final bool
   scanActive; // a scan was started and not finished/paused: resume it after a restart
@@ -127,6 +141,12 @@ class AppSettings {
 
   Future<void> setScanBodies(bool value) =>
       _put(SettingKeys.scanBodies, value ? '1' : '0');
+
+  Future<void> setScanVideos(bool value) =>
+      _put(SettingKeys.scanVideos, value ? '1' : '0');
+
+  Future<void> setFrameInterval(double value) =>
+      _put(SettingKeys.frameInterval, value.clamp(0.25, 60).toString());
 
   Future<void> setMaxSide(int value) => _put(SettingKeys.maxSide, '$value');
 

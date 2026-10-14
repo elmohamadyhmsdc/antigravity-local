@@ -28,6 +28,7 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  video_player: ^2.14.1
   archive: ^4.5.1
   collection: ^1.19.1
   crypto: ^3.0.7

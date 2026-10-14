@@ -48,6 +48,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: SegmentedButton<String>(
+              segments: [
+                ButtonSegment(
+                  value: 'all',
+                  label: Text(l10n.filterAll),
+                  icon: const Icon(Icons.perm_media_outlined),
+                ),
+                ButtonSegment(
+                  value: 'photo',
+                  label: Text(l10n.statPhotos),
+                  icon: const Icon(Icons.photo_outlined),
+                ),
+                ButtonSegment(
+                  value: 'video',
+                  label: Text(l10n.statVideos),
+                  icon: const Icon(Icons.videocam_outlined),
+                ),
+              ],
+              selected: {_filter.kind ?? 'all'},
+              onSelectionChanged: (value) => setState(() {
+                _filter = value.single == 'all'
+                    ? _filter.copyWith(clearKind: true)
+                    : _filter.copyWith(kind: value.single);
+              }),
+            ),
+          ),
           SingleChildScrollView(
             key: const Key('library-filters'),
             scrollDirection: Axis.horizontal,
@@ -87,6 +115,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 if (personId != null)
                   InputChip(
                     key: const Key('filter-person'),
+                    deleteIcon: const Icon(Icons.cancel),
                     avatar: PersonAvatar(
                       cropPath: people[personId]?.avatarCropPath,
                       radius: 12,

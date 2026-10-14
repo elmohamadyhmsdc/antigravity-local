@@ -8,6 +8,7 @@ import '../../core/router.dart';
 import '../../data/repositories/media_queries.dart';
 import '../../library_providers.dart';
 import '../shared/empty_state.dart';
+import '../media/video_media_view.dart';
 
 /// A paged grid of the user's photos. Rows come from the database a page at a time (a library can
 /// hold 100k photos) and thumbnails from MediaStore; it refreshes itself while a scan adds photos.
@@ -172,6 +173,37 @@ class MediaTile extends ConsumerWidget {
                       const SizedBox(width: 3),
                       Text(
                         '${item.faceCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (item.kind == 'video')
+            Positioned(
+              right: 4,
+              bottom: 4,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.play_arrow,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                      Text(
+                        videoTime(item.durationMs ?? 0),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 11,

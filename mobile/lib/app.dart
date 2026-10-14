@@ -8,6 +8,8 @@ import 'core/theme.dart';
 import 'l10n/app_localizations.dart';
 import 'library_providers.dart';
 import 'providers.dart';
+import 'studio_providers.dart';
+import 'features/privacy/app_lock.dart';
 
 /// Where the app opens (null = Home when paired, Welcome otherwise). Tests start on a link.
 final initialLocationProvider = Provider<String?>((ref) => null);
@@ -48,6 +50,7 @@ class _AppState extends ConsumerState<App> {
       Future<void>.microtask(() {
         if (mounted && ref.read(sessionProvider) != null) {
           ref.read(scanEngineProvider).resumeIfInterrupted();
+          ref.read(jobTrackerProvider).start();
         }
       });
     }
@@ -55,7 +58,14 @@ class _AppState extends ConsumerState<App> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(sessionProvider, (_, next) {
+      if (next != null && ref.read(autoResumeScanProvider)) {
+        ref.read(jobTrackerProvider).start();
+      }
+    });
     return MaterialApp.router(
+      builder: (context, child) =>
+          AppLockGate(child: child ?? const SizedBox.shrink()),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),

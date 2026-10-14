@@ -8,6 +8,7 @@ import '../../data/repositories/app_settings.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
+import '../../studio_providers.dart';
 import '../scan/scan_progress_card.dart';
 
 /// S03 - Home: PC status chip, library stats from the local database, entry points.
@@ -55,6 +56,7 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: ListView(
+        key: const Key('home-list'),
         padding: const EdgeInsets.all(16),
         children: [
           _StatusBanner(
@@ -62,6 +64,16 @@ class HomeScreen extends ConsumerWidget {
             onPairAgain: () => ref.read(sessionProvider.notifier).forget(),
           ),
           _StatsGrid(stats: stats),
+          Card(
+            child: ListTile(
+              key: const Key('open-insights'),
+              leading: const Icon(Icons.insights_outlined),
+              title: Text(l10n.insightsTitle),
+              subtitle: Text(l10n.insightsHint),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(Routes.insights),
+            ),
+          ),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -124,6 +136,28 @@ class HomeScreen extends ConsumerWidget {
               subtitle: Text(l10n.tryDetectionBody),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push(Routes.analyze),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              key: const Key('home-jobs'),
+              leading: const Icon(Icons.pending_actions_outlined),
+              title: Text(
+                '${l10n.navJobs} (${(ref.watch(jobsProvider).value ?? const []).where((j) => !const ['completed', 'failed', 'lost'].contains(j.status)).length})',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go(Routes.jobs),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              key: const Key('home-results'),
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(
+                '${l10n.privateResults} (${(ref.watch(resultsProvider).value ?? const []).length})',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(Routes.results),
             ),
           ),
         ],

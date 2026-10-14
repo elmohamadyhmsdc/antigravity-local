@@ -1,4 +1,5 @@
 {
+  "client_job_id": "fixture-reface-video",
   "type": "reface_video_dfm",
   "params": {
     "source_faces": [],

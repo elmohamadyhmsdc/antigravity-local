@@ -1,7 +1,9 @@
 {
+  "client_job_id": "fixture-generation",
   "type": "generate_lora_images",
   "params": {
     "trigger_word": "sks_sara",
+    "base_checkpoint": "sd15_realistic_base",
     "num_images": 4,
     "seed": 1234,
     "steps": 30,

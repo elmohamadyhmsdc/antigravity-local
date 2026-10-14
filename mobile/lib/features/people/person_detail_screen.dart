@@ -90,6 +90,8 @@ class PersonDetailScreen extends ConsumerWidget {
                   key: const Key('person-menu'),
                   onSelected: (v) {
                     switch (v) {
+                      case 'studio':
+                        context.push('${Routes.reface}?person=$personId');
                       case 'rename':
                         _rename(context, ref, p);
                       case 'merge':
@@ -99,6 +101,10 @@ class PersonDetailScreen extends ConsumerWidget {
                     }
                   },
                   itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'studio',
+                      child: Text(l10n.useInStudio),
+                    ),
                     PopupMenuItem(value: 'rename', child: Text(l10n.rename)),
                     PopupMenuItem(value: 'merge', child: Text(l10n.mergeWith)),
                     PopupMenuItem(
@@ -116,7 +122,7 @@ class PersonDetailScreen extends ConsumerWidget {
                     key: const Key('tab-faces'),
                     text: l10n.tabFaces(p.faceCount),
                   ),
-                  Tab(key: const Key('tab-photos'), text: l10n.tabPhotos),
+                  Tab(key: const Key('tab-photos'), text: l10n.tabMedia),
                   Tab(key: const Key('tab-bodies'), text: l10n.tabBodies),
                   Tab(
                     key: const Key('tab-suggestions'),
@@ -151,14 +157,15 @@ class PersonDetailScreen extends ConsumerWidget {
     PersonSummary p,
   ) async {
     final l10n = AppLocalizations.of(context);
-    final controller = TextEditingController(text: p.isNamed ? p.name : '');
+    var draft = p.isNamed ? (p.name ?? '') : '';
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.rename),
-        content: TextField(
+        content: TextFormField(
           key: const Key('rename-field'),
-          controller: controller,
+          initialValue: draft,
+          onChanged: (value) => draft = value,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
           decoration: InputDecoration(labelText: l10n.personNameLabel),
@@ -170,13 +177,12 @@ class PersonDetailScreen extends ConsumerWidget {
           ),
           FilledButton(
             key: const Key('rename-save'),
-            onPressed: () => Navigator.pop(context, controller.text),
+            onPressed: () => Navigator.pop(context, draft),
             child: Text(l10n.save),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (name != null) {
       await ref.read(peopleRepositoryProvider).renamePerson(p.id, name);
     }
@@ -427,7 +433,9 @@ class _SuggestionsTabState extends ConsumerState<_SuggestionsTab> {
             ],
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               FilledButton(
                 key: const Key('accept-suggested'),
@@ -436,7 +444,6 @@ class _SuggestionsTabState extends ConsumerState<_SuggestionsTab> {
                     : () => repo.acceptMatches(chosen, p.id),
                 child: Text(l10n.addFacesTo(chosen.length)),
               ),
-              const SizedBox(width: 8),
               OutlinedButton(
                 key: const Key('reject-suggested'),
                 onPressed: chosen.isEmpty

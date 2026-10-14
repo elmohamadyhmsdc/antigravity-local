@@ -18,6 +18,7 @@ import 'domain/grouping/grouping_runner.dart';
 import 'domain/scan/photo_result_store.dart';
 import 'domain/scan/scan_engine.dart';
 import 'domain/scan/scan_state.dart';
+import 'domain/scan/video_scan.dart';
 import 'l10n/app_localizations.dart';
 import 'providers.dart';
 
@@ -146,6 +147,17 @@ final scanEngineProvider = Provider<ScanEngine>((ref) {
     settings: ref.watch(appSettingsProvider),
     store: ref.watch(photoResultStoreProvider),
     grouping: ref.watch(groupingRunnerProvider),
+    videoScan: VideoScan(
+      db: ref.watch(databaseProvider),
+      store: ref.watch(photoResultStoreProvider),
+      settings: ref.watch(appSettingsProvider),
+    ),
+    describeVideo: (stage, progress) => switch (stage) {
+      'upload' => _en.videoUploading((progress * 100).round()),
+      'analyze' => _en.videoAnalyzing((progress * 100).round()),
+      'download' => _en.videoDownloading,
+      _ => _en.videoImporting,
+    },
     keepAlive: ref.watch(scanKeepAliveProvider),
     keepAliveTitle: _en.scanNotificationTitle,
     describe: (p) =>

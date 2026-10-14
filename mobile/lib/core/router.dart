@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../features/analyze/analyze_screen.dart';
 import '../features/backup/backup_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/insights/insights_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/media/media_screen.dart';
 import '../features/merge/merge_screen.dart';
@@ -17,17 +18,35 @@ import '../features/onboarding/welcome_screen.dart';
 import '../features/review/review_screen.dart';
 import '../features/scan/sources_screen.dart';
 import '../features/settings/settings_screen.dart';
-import '../features/shared/placeholder_screen.dart';
+import '../features/settings/background_screen.dart';
+import '../features/studio/studio_screen.dart';
+import '../features/reface/reface_screen.dart';
+import '../features/jobs/jobs_screen.dart';
+import '../features/results/results_screen.dart';
+import '../features/restyle/restyle_screen.dart';
+import '../features/lora/lora_screens.dart';
+import '../features/privacy/app_lock.dart';
+import '../features/storage/storage_screen.dart';
 import '../features/shell/app_shell.dart';
-import '../l10n/app_localizations.dart';
 
 abstract final class Routes {
   static const home = '/home';
+  static const insights = '/insights';
   static const people = '/people';
   static const library = '/library';
   static const studio = '/studio';
   static const jobs = '/jobs';
+  static const reface = '/reface';
+  static const results = '/results';
+  static const restyle = '/restyle';
+  static const lora = '/lora';
+  static const loraBuild = '/lora/build';
+  static const loraTrain = '/lora/train';
+  static const loraGenerate = '/lora/generate';
+  static const datasets = '/datasets';
+  static const storage = '/storage';
   static const settings = '/settings';
+  static const background = '/background';
   static const analyze = '/analyze';
   static const media = '/media'; // S06, /media/:id
   static const unsorted = '/people/unsorted';
@@ -86,6 +105,69 @@ GoRouter createRouter({
     },
     routes: [
       GoRoute(
+        path: Routes.background,
+        builder: (context, state) => const BackgroundScreen(),
+      ),
+      GoRoute(
+        path: Routes.storage,
+        builder: (context, state) => const StorageScreen(),
+      ),
+      GoRoute(
+        path: Routes.restyle,
+        builder: (context, state) =>
+            const SensitiveSurface(child: RestyleScreen()),
+      ),
+      GoRoute(
+        path: Routes.lora,
+        builder: (context, state) => const LoraScreen(),
+      ),
+      GoRoute(
+        path: Routes.loraBuild,
+        builder: (context, state) => const DatasetBuildScreen(),
+      ),
+      GoRoute(
+        path: Routes.loraTrain,
+        builder: (context, state) =>
+            LoraTrainScreen(datasetId: state.uri.queryParameters['dataset']),
+      ),
+      GoRoute(
+        path: Routes.loraGenerate,
+        builder: (context, state) =>
+            LoraGenerateScreen(loraId: state.uri.queryParameters['id']),
+      ),
+      GoRoute(
+        path: '${Routes.datasets}/:id',
+        builder: (context, state) =>
+            DatasetScreen(id: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: Routes.reface,
+        builder: (context, state) => SensitiveSurface(
+          child: RefaceScreen(
+            personId: int.tryParse(state.uri.queryParameters['person'] ?? ''),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '${Routes.jobs}/:id',
+        builder: (context, state) =>
+            JobDetailScreen(id: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: Routes.results,
+        builder: (context, state) => const ResultsScreen(),
+      ),
+      GoRoute(
+        path: '${Routes.results}/:id',
+        builder: (context, state) => SensitiveSurface(
+          child: ResultDetailScreen(id: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: Routes.insights,
+        builder: (context, state) => const InsightsScreen(),
+      ),
+      GoRoute(
         path: Routes.welcome,
         builder: (context, state) =>
             WelcomeScreen(link: state.uri.queryParameters['link']),
@@ -118,8 +200,9 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: '${Routes.media}/:id',
-        builder: (context, state) =>
-            MediaScreen(mediaId: int.parse(state.pathParameters['id']!)),
+        builder: (context, state) => SensitiveSurface(
+          child: MediaScreen(mediaId: int.parse(state.pathParameters['id']!)),
+        ),
       ),
       GoRoute(
         path: '${Routes.merge}/:a/:b',
@@ -171,14 +254,7 @@ GoRouter createRouter({
             routes: [
               GoRoute(
                 path: Routes.studio,
-                builder: (context, state) {
-                  final l10n = AppLocalizations.of(context);
-                  return PlaceholderScreen(
-                    title: l10n.navStudio,
-                    description: l10n.studioPlaceholder,
-                    phase: 'P4',
-                  );
-                },
+                builder: (context, state) => const StudioScreen(),
               ),
             ],
           ),
@@ -186,14 +262,7 @@ GoRouter createRouter({
             routes: [
               GoRoute(
                 path: Routes.jobs,
-                builder: (context, state) {
-                  final l10n = AppLocalizations.of(context);
-                  return PlaceholderScreen(
-                    title: l10n.navJobs,
-                    description: l10n.jobsPlaceholder,
-                    phase: 'P4',
-                  );
-                },
+                builder: (context, state) => const JobsScreen(),
               ),
             ],
           ),

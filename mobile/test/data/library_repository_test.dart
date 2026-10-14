@@ -64,6 +64,7 @@ void main() {
             .write(
               const MediaCompanion(
                 scanStatus: Value('done'),
+                scanVersion: Value(scanVersion),
                 scanAttempts: Value(2),
               ),
             );
@@ -131,7 +132,7 @@ void main() {
         final failed = await row('failed');
         expect(
           (failed.scanStatus, failed.scanError, failed.scanAttempts),
-          ('pending', isNull, 0),
+          ('pending', null, 0),
         );
         expect((await row('fresh')).scanStatus, 'done');
       },

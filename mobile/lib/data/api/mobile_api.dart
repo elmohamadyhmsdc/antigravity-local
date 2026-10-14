@@ -10,6 +10,9 @@ import 'dtos/analyze.dart';
 import 'dtos/grouping.dart';
 import 'dtos/system.dart';
 import 'pinned_http.dart';
+import 'dtos/jobs.dart';
+import 'video_api.dart';
+import 'studio_api.dart';
 
 /// The PC a phone is paired with, and the secret that proves it.
 class ServerSession {
@@ -138,7 +141,7 @@ Map<String, dynamic> _json(Response<dynamic> response) {
   throw ApiException.badResponse('expected a JSON object');
 }
 
-class HttpMobileApi implements MobileApi {
+class HttpMobileApi implements MobileApi, VideoApi, StudioApi {
   HttpMobileApi(this.session, {Dio? dio})
     : _dio =
           dio ??
@@ -151,6 +154,196 @@ class HttpMobileApi implements MobileApi {
 
   final ServerSession session;
   final Dio _dio;
+
+  @override
+  String get serverId => session.serverId;
+
+  @override
+  Future<({bool exists, int offset})> blobOffset(String sha256) =>
+      _guard(() async {
+        final r = await _dio.head(
+          '/v1/blobs/$sha256',
+          options: Options(validateStatus: (s) => s == 200 || s == 404),
+        );
+        final exists = r.statusCode == 200;
+        final offset = int.tryParse(
+          r.headers.value(exists ? 'content-length' : 'upload-offset') ?? '',
+        );
+        if (offset == null || offset < 0) {
+          throw const FormatException('Invalid upload offset');
+        }
+        return (exists: exists, offset: offset);
+      });
+
+  @override
+  Future<int> uploadChunk(
+    String sha256,
+    Uint8List bytes,
+    int offset,
+    int total,
+  ) => _guard(() async {
+    final r = await _dio.put(
+      '/v1/blobs/$sha256',
+      data: bytes,
+      options: Options(
+        contentType: 'application/octet-stream',
+        headers: {
+          'Content-Range': 'bytes $offset-${offset + bytes.length - 1}/$total',
+        },
+        validateStatus: (s) => s == 201 || s == 202 || s == 204 || s == 409,
+      ),
+    );
+    if (r.statusCode == 204 || r.statusCode == 201) return total;
+    final next = int.tryParse(r.headers.value('upload-offset') ?? '');
+    if (next == null || next < 0 || next > total) {
+      throw const FormatException('Invalid upload offset');
+    }
+    return next;
+  });
+
+  @override
+  Future<VideoJobStatus> createVideoJob(Map<String, dynamic> request) => _guard(
+    () async => VideoJobStatus.fromJson(
+      _json(await _dio.post('/v1/jobs', data: request)),
+    ),
+  );
+
+  @override
+  Future<VideoJobStatus> videoJob(String id) => _guard(
+    () async => VideoJobStatus.fromJson(
+      _json(await _dio.get('/v1/jobs/${Uri.encodeComponent(id)}')),
+    ),
+  );
+
+  @override
+  Future<VideoJobStatus> controlVideoJob(
+    String id, {
+    required bool resume,
+  }) => _guard(
+    () async => VideoJobStatus.fromJson(
+      _json(
+        await _dio.post(
+          '/v1/jobs/${Uri.encodeComponent(id)}/${resume ? 'resume' : 'stop'}',
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Future<VideoResultFile> videoResult(String id) => _guard(() async {
+    final json = _json(
+      await _dio.get('/v1/jobs/${Uri.encodeComponent(id)}/result'),
+    );
+    final files = json['files'];
+    if (files is! List || files.length != 1) {
+      throw const FormatException('Expected one video result');
+    }
+    return VideoResultFile.fromJson(
+      Map<String, dynamic>.from(files.single as Map),
+    );
+  });
+
+  @override
+  Future<void> downloadVideoResult(String id, File target) => _guard(() async {
+    await _dio.download(
+      '/v1/jobs/${Uri.encodeComponent(id)}/result/detections.ndjson',
+      target.path,
+      options: Options(receiveTimeout: const Duration(minutes: 10)),
+    );
+  });
+
+  @override
+  Future<void> deleteVideoJob(String id) => _guard(() async {
+    await _dio.delete('/v1/jobs/${Uri.encodeComponent(id)}');
+  });
+
+  @override
+  Future<StudioJobStatus> createStudioJob(Map<String, dynamic> request) =>
+      _guard(
+        () async => StudioJobStatus.fromJson(
+          _json(await _dio.post('/v1/jobs', data: request)),
+        ),
+      );
+
+  @override
+  Future<StudioJobStatus> studioJob(String id) => _guard(
+    () async => StudioJobStatus.fromJson(
+      _json(await _dio.get('/v1/jobs/${Uri.encodeComponent(id)}')),
+    ),
+  );
+
+  @override
+  Future<StudioJobStatus> controlStudioJob(
+    String id, {
+    required bool resume,
+  }) => _guard(
+    () async => StudioJobStatus.fromJson(
+      _json(
+        await _dio.post(
+          '/v1/jobs/${Uri.encodeComponent(id)}/${resume ? 'resume' : 'stop'}',
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Stream<StudioJobStatus> studioEvents(String id) async* {
+    final cancel = CancelToken();
+    try {
+      final response = await _guard(
+        () => _dio.get<ResponseBody>(
+          '/v1/jobs/${Uri.encodeComponent(id)}/events',
+          cancelToken: cancel,
+          options: Options(
+            responseType: ResponseType.stream,
+            receiveTimeout: const Duration(seconds: 45),
+          ),
+        ),
+      );
+      final lines = response.data!.stream
+          .cast<List<int>>()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
+      await for (final line in lines) {
+        if (line.startsWith('data: ')) {
+          yield StudioJobStatus.fromJson(
+            jsonDecode(line.substring(6)) as Map<String, dynamic>,
+          );
+        }
+      }
+    } catch (e) {
+      throw _toApiException(e);
+    } finally {
+      cancel.cancel();
+    }
+  }
+
+  @override
+  Future<StudioResultFile> studioResult(String id) => _guard(() async {
+    final json = _json(
+      await _dio.get('/v1/jobs/${Uri.encodeComponent(id)}/result'),
+    );
+    final files = json['files'];
+    if (files is! List || files.length != 1 || files.single is! Map) {
+      throw const FormatException('Expected one Studio result');
+    }
+    return StudioResultFile.fromJson(
+      Map<String, dynamic>.from(files.single as Map),
+    );
+  });
+
+  @override
+  Future<void> downloadStudioResult(
+    String id,
+    String name,
+    File target,
+  ) => _guard(() async {
+    await _dio.download(
+      '/v1/jobs/${Uri.encodeComponent(id)}/result/${Uri.encodeComponent(name)}',
+      target.path,
+      options: Options(receiveTimeout: const Duration(minutes: 10)),
+    );
+  });
 
   @override
   Future<Health> health() =>

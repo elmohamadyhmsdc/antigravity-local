@@ -1,7 +1,9 @@
 {
+  "client_job_id": "fixture-training",
   "type": "train_lora",
   "params": {
     "output_name": "sara_v1",
+    "trigger_word": "sks_sara",
     "base_checkpoint": "sd15_realistic_base",
     "epochs": 10,
     "network_dim": 32,

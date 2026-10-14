@@ -9,9 +9,13 @@ phones on the LAN need "Private networks" allowed. This program never changes fi
 """
 
 import argparse
+import json
 import logging
+import os
+import socket
 import threading
 import webbrowser
+from contextlib import ExitStack
 from pathlib import Path
 
 from . import API_VERSION, APP_DIR
@@ -24,10 +28,43 @@ from .pair_ui import create_pair_app
 from .pairing import PairingManager
 from .tls import ensure_cert
 from .workspace import Workspace
+from .admin import CONTROL_FILE, PROTOCOL
 
 DEFAULT_WORKSPACE = APP_DIR / "mobile_workspace"
 DEFAULT_PORT = 8443
 DEFAULT_PAIR_PORT = 8444
+
+
+def reserve_listener(host, port):
+    """Reserve both ports before preparing/wiping scratch space."""
+    family = socket.AF_INET6 if ':' in host else socket.AF_INET
+    listener = socket.socket(family,socket.SOCK_STREAM)
+    try:
+        if os.name == 'nt': listener.setsockopt(socket.SOL_SOCKET,socket.SO_EXCLUSIVEADDRUSE,1)
+        listener.bind((host,port))
+        listener.listen(128)
+        listener.setblocking(False)
+        return listener
+    except BaseException:
+        listener.close()
+        raise
+
+
+def write_control(ctx):
+    path = ctx.workspace.root/CONTROL_FILE
+    temporary = path.with_suffix('.tmp')
+    temporary.write_text(json.dumps({'protocol':PROTOCOL,'admin_token':ctx.admin_token,
+        'pair_port':ctx.pair_port,'api_port':ctx.api_port,'server_id':ctx.auth.server_id,'pid':os.getpid()}),encoding='utf-8')
+    os.replace(temporary,path)
+
+
+def remove_control(ctx):
+    path = ctx.workspace.root/CONTROL_FILE
+    try:
+        if json.loads(path.read_text(encoding='utf-8')).get('admin_token') == ctx.admin_token:
+            path.unlink()
+    except (OSError,ValueError):
+        pass
 
 
 def build_context(workspace_dir=DEFAULT_WORKSPACE, *, name=None, host_ip=None, port=DEFAULT_PORT,
@@ -55,11 +92,30 @@ def main(argv=None) -> int:
     ap.add_argument("--no-mdns", action="store_true")
     ap.add_argument("--no-browser", action="store_true", help="do not open the pairing page")
     ap.add_argument("--preload", action="store_true", help="load the face models now instead of on the first request")
+    ap.add_argument("--check-models", action="store_true", help="report local engine/model readiness and exit without downloading")
     args = ap.parse_args(argv)
+
+    if args.check_models:
+        from .model_readiness import restyle_missing_models
+        print(json.dumps({'engines': CapabilityProbe().engines(),
+                          'restyle_missing_models': restyle_missing_models(APP_DIR)},indent=2))
+        return 0
 
     import uvicorn
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    with ExitStack() as listeners:
+        try:
+            api_socket = listeners.enter_context(reserve_listener(args.bind,args.port))
+            pair_socket = listeners.enter_context(reserve_listener('127.0.0.1',args.pair_port))
+        except OSError as error:
+            print(f'Cannot start Mobile API: {error}. Another server may already be using these ports.')
+            return 1
+        return serve(args,api_socket,pair_socket)
+
+
+def serve(args,api_socket,pair_socket):
+    import uvicorn
     ctx = build_context(args.workspace, name=args.name, host_ip=args.host_ip, port=args.port,
                         pair_port=args.pair_port)
     issued = ctx.pairing.issue()
@@ -77,9 +133,16 @@ def main(argv=None) -> int:
     if args.preload:
         ctx.engines.load()
 
+    api_app = create_app(ctx)
+    api_server = uvicorn.Server(uvicorn.Config(api_app,host=args.bind,port=args.port,
+                    ssl_certfile=str(ctx.cert.cert_path),ssl_keyfile=str(ctx.cert.key_path),
+                    timeout_keep_alive=75,log_level='info'))
+    ctx.shutdown = lambda: setattr(api_server,'should_exit',True)
     pair_server = uvicorn.Server(uvicorn.Config(create_pair_app(ctx), host="127.0.0.1", port=args.pair_port,
-                                                log_level="warning"))
-    threading.Thread(target=pair_server.run, name="pair-ui", daemon=True).start()
+                                                log_level="info", access_log=False))
+    pair_thread = threading.Thread(target=lambda: pair_server.run(sockets=[pair_socket]),name='pair-ui',daemon=True)
+    pair_thread.start()
+    write_control(ctx)
 
     discovery = Discovery()
     if not args.no_mdns:
@@ -89,13 +152,10 @@ def main(argv=None) -> int:
         threading.Timer(1.5, lambda: webbrowser.open(pair_url)).start()
 
     try:
-        uvicorn.run(create_app(ctx), host=args.bind, port=args.port,
-                    ssl_certfile=str(ctx.cert.cert_path), ssl_keyfile=str(ctx.cert.key_path),
-                    # uvicorn's default (5 s) drops idle keep-alive connections that the phone's HTTP client
-                    # still pools; its next request then fails ("Connection closed before full header")
-                    timeout_keep_alive=75,
-                    log_level="info")
+        api_server.run(sockets=[api_socket])
     finally:
         pair_server.should_exit = True
         discovery.stop()
+        pair_thread.join(timeout=5)
+        remove_control(ctx)
     return 0

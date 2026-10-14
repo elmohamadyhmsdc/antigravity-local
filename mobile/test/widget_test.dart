@@ -27,7 +27,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(NavigationDestination, 'Jobs'));
     await tester.pumpAndSettle();
-    expect(find.text('Coming in phase P4'), findsOneWidget);
+    expect(find.text('No Studio jobs yet'), findsOneWidget);
   }, session: testSession);
 
   appTest('before pairing there are no tabs - only the Welcome screen', (

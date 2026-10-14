@@ -237,7 +237,8 @@ class _SelectionBar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               IconButton(
                 key: const Key('selection-clear'),
@@ -249,7 +250,6 @@ class _SelectionBar extends StatelessWidget {
                 l10n.selectedCount(count),
                 style: Theme.of(context).textTheme.titleSmall,
               ),
-              const Spacer(),
               TextButton(onPressed: onSelectAll, child: Text(l10n.selectAll)),
               IconButton(
                 key: const Key('selection-assign'),

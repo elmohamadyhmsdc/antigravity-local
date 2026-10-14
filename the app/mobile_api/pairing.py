@@ -91,6 +91,11 @@ class PairingManager:
                 return None
             return IssuedCode(format_code(self._code), self._expires, self.ttl)
 
+    def cancel(self) -> None:
+        with self._lock:
+            self._code = None
+            self._expires = 0.0
+
     def complete(self, code: str, device_name: str) -> Tuple[Dict, str]:
         """Exchange the code for a device. Returns (device incl. plain token, server_id)."""
         with self._lock:

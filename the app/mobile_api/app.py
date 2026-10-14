@@ -6,7 +6,10 @@ and a temporary workspace and drive it with FastAPI's TestClient - no GPU, no ne
 """
 
 import logging
+import secrets
 import traceback
+import threading
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -24,6 +27,9 @@ from .routes_analyze import build_analyze_router
 from .routes_blobs import build_blob_router
 from .routes_grouping import build_grouping_router
 from .routes_system import build_system_router
+from .routes_jobs import build_jobs_router
+from .video_jobs import VideoJobs
+from .studio_jobs import StudioJobs
 from .tls import CertInfo
 from .workspace import Workspace
 
@@ -52,11 +58,33 @@ class ServerContext:
     max_plan_wire_bytes: int = MAX_PLAN_WIRE_BYTES
     max_plan_json_bytes: int = MAX_PLAN_JSON_BYTES
     api_version: str = API_VERSION
+    admin_token: str = field(default_factory=lambda: secrets.token_urlsafe(32), repr=False)
+    api_ready: bool = False
+    shutdown: object = None
 
 
 def create_app(ctx: ServerContext) -> FastAPI:
+    ctx.jobs_lock = threading.RLock()
+    ctx.compute_lock = threading.RLock()
+    ctx.video_jobs = VideoJobs(ctx)
+    ctx.studio_jobs = StudioJobs(ctx)
+    ctx.gpu.mobile_busy = lambda: ctx.video_jobs.busy() or ctx.studio_jobs.busy()
+
+    @asynccontextmanager
+    async def lifespan(app):
+        ctx.api_ready = True
+        try:
+            yield
+        finally:
+            ctx.api_ready = False
+            from starlette.concurrency import run_in_threadpool
+            await run_in_threadpool(ctx.video_jobs.close)
+            await run_in_threadpool(ctx.studio_jobs.close)
+            if hasattr(ctx.engines, 'unload'):
+                await run_in_threadpool(ctx.engines.unload)
+
     app = FastAPI(title="Antigravity Mobile API", version=ctx.api_version,
-                  docs_url=None, redoc_url=None, openapi_url=None)  # the contract is contract/openapi.yaml
+                  docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
     async def require_device(authorization: Optional[str] = Header(default=None)) -> dict:
         return authenticate_header(ctx.auth, authorization)
@@ -65,6 +93,7 @@ def create_app(ctx: ServerContext) -> FastAPI:
     app.include_router(build_blob_router(ctx, require_device))
     app.include_router(build_analyze_router(ctx, require_device))
     app.include_router(build_grouping_router(ctx, require_device))
+    app.include_router(build_jobs_router(ctx, require_device))
 
     @app.exception_handler(ApiError)
     async def _api_error(_: Request, exc: ApiError):

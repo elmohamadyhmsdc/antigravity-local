@@ -27,13 +27,18 @@ Future<void> _open(
 }) async {
   await env.pump(
     tester,
+    settle: progress?.isActive != true,
     extra: [
       initialLocationProvider.overrideWithValue(location),
       if (progress != null)
         scanProgressProvider.overrideWith((ref) => Stream.value(progress)),
     ],
   );
-  await _settle(tester);
+  if (progress?.isActive == true) {
+    await tester.pump(const Duration(milliseconds: 100));
+  } else {
+    await _settle(tester);
+  }
 }
 
 void main() {
@@ -236,10 +241,14 @@ void main() {
         );
         await _open(tester, env, '/sources');
 
-        expect(find.text('All photos'), findsOneWidget);
+        expect(find.text('All photos & videos'), findsOneWidget);
         expect(find.text('Camera'), findsOneWidget);
-        expect(find.text('480 photos'), findsOneWidget);
-        expect(find.text('1 photo'), findsOneWidget);
+        expect(find.text('480 items'), findsOneWidget);
+        expect(find.text('1 item'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('scan-start')),
+          200,
+        );
         expect(find.text('Choose albums first'), findsOneWidget);
         expect(
           tester
@@ -248,9 +257,18 @@ void main() {
           isNull,
         );
 
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('album-cam')),
+          -200,
+        );
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('album-cam')));
         await _settle(tester);
         expect((await env.settingsSnapshot()).albumIds, ['cam']);
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('scan-start')),
+          200,
+        );
         expect(find.text('Scan now'), findsOneWidget);
         expect(
           tester
@@ -259,6 +277,11 @@ void main() {
           isNotNull,
         );
 
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('album-cam')),
+          -200,
+        );
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('album-cam')));
         await _settle(tester);
         expect((await env.settingsSnapshot()).albumIds, isEmpty);
@@ -324,6 +347,10 @@ void main() {
       'it links to Sources, to Backup and shows the paired PC',
       (tester, env) async {
         await _open(tester, env, '/settings');
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('settings-pc')),
+          200,
+        );
         expect(find.text('RTX-PC'), findsOneWidget);
         expect(find.text('192.168.1.20:8443'), findsOneWidget);
         await tester.ensureVisible(find.byKey(const Key('settings-backup')));

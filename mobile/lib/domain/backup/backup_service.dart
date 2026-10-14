@@ -43,6 +43,10 @@ const backupTables = [
   BackupTable('review_groups'),
   BackupTable('review_duplicates'),
   BackupTable('review_body_links'),
+  BackupTable('results'),
+  BackupTable('datasets'),
+  BackupTable('dataset_items'),
+  BackupTable('loras'),
 ];
 
 const _rowsPerFile = 2000;
@@ -151,7 +155,12 @@ class BackupService {
         rows[table.name] = count;
       }
 
-      final crops = await _files.allFiles();
+      final crops = (await _files.allFiles())
+          .where(
+            (entry) =>
+                !entry.$1.startsWith('work/') && !entry.$1.endsWith('.part'),
+          )
+          .toList();
       var cropsDone = 0;
       for (final (relative, file) in crops) {
         await encoder.addFile(
@@ -299,9 +308,7 @@ class BackupService {
         if (relative.contains('..')) {
           throw BackupException('The backup is damaged (unsafe file name).');
         }
-        final target = File(
-          p.joinAll([staging.path, ...p.posix.split(relative)]),
-        );
+        final target = FileStore(staging).resolve(relative);
         await target.parent.create(recursive: true);
         await target.writeAsBytes(entry.content, flush: true);
         onProgress?.call(
@@ -323,6 +330,8 @@ class BackupService {
       final total = info.rows.values.fold<int>(0, (a, b) => a + b);
       var done = 0;
       await _db.transaction(() async {
+        // PC job IDs never travel. A restored output remains a private local result.
+        await _db.delete(_db.jobs).go();
         for (final table in backupTables.reversed) {
           await _db.customStatement('DELETE FROM ${table.name}');
         }
@@ -362,9 +371,16 @@ class BackupService {
         final settings = manifest['settings'];
         if (settings is Map<String, dynamic>) {
           await _settings.putRaw({
-            for (final e in settings.entries) e.key: '${e.value}',
+            for (final e in settings.entries)
+              if (SettingKeys.backedUp.contains(e.key)) e.key: '${e.value}',
           });
         }
+        // A restored backup may have an earlier video checkpoint than the current
+        // phone. Reusing that phone's newer PC job could skip uncommitted samples.
+        await (_db.delete(
+          _db.settings,
+        )..where((s) => s.key.like('video.job.%'))).go();
+        await _settings.setScanActive(false);
       });
 
       // raw statements do not wake drift's streams: tell every screen that watches the library

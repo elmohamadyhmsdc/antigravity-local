@@ -377,6 +377,8 @@ RTM WF faceset/
 # ============================================
 # The Python-packaging "lib/" rule above would otherwise hide the Flutter source.
 !mobile/lib/
+!mobile/lib/data/media/
+!mobile/lib/features/media/
 # ...and the generic "[Dd]ebug/" rule would hide Android's debug manifest (adds INTERNET for hot reload).
 !mobile/android/app/src/debug/
 # Ephemeral blob cache, job dirs, TLS cert and paired devices of the mobile API

@@ -9,6 +9,7 @@ import '../../domain/scan/scan_state.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
+import '../settings/background_screen.dart';
 
 String _eta(AppLocalizations l10n, Duration d) {
   if (d.inSeconds < 90) return l10n.etaSeconds(d.inSeconds.clamp(5, 90));
@@ -67,6 +68,7 @@ class ScanProgressCard extends ConsumerWidget {
         );
       case ScanPhase.running:
         headline = progress.grouping ? l10n.scanSorting : l10n.scanRunning;
+        if (progress.message != null) lines.add(progress.message!);
         lines.add(l10n.scanPhotosOf(processed, progress.total));
         lines.add(l10n.scanFacesFound(progress.facesFound));
         if (progress.facesLinked > 0) {
@@ -108,7 +110,7 @@ class ScanProgressCard extends ConsumerWidget {
         } else {
           action = FilledButton(
             key: const Key('scan-resume'),
-            onPressed: () => unawaited(engine.start(enumerate: false)),
+            onPressed: () => startScan(ref, enumerate: false),
             child: Text(l10n.resume),
           );
         }
@@ -204,5 +206,7 @@ Future<void> startScan(WidgetRef ref, {bool enumerate = true}) async {
   final engine = ref.read(scanEngineProvider);
   if (engine.isRunning) return;
   if (ref.read(mobileApiProvider) == null) return;
+  await prepareBackgroundForWork(ref.context, ref);
+  if (!ref.context.mounted) return;
   unawaited(engine.start(enumerate: enumerate));
 }

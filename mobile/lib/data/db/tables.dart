@@ -298,3 +298,101 @@ class ReviewBodyLinks extends Table {
   @override
   Set<Column> get primaryKey => {bodyId};
 }
+
+// ---- v4: Studio requests are durable before the first network call ------------
+
+@TableIndex(name: 'jobs_status', columns: {#status})
+@DataClassName('JobRow')
+class Jobs extends Table {
+  TextColumn get id => text()(); // phone-generated idempotency key
+  TextColumn get serverId => text()();
+  TextColumn get remoteId => text().nullable()();
+  TextColumn get type => text()();
+  TextColumn get requestJson => text()();
+  TextColumn get inputFiles =>
+      text().withDefault(const Constant('{}'))(); // sha -> relative path
+  TextColumn get detailsJson => text().withDefault(const Constant('{}'))();
+  TextColumn get targetPath => text()(); // private, relative snapshot
+  TextColumn get targetSha => text()();
+  IntColumn get targetSize => integer()();
+  IntColumn get personId => integer().nullable().references(
+    Persons,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get status =>
+      text()(); // uploading|queued|running|paused|downloading|completed|failed|lost
+  RealColumn get progress => real().withDefault(const Constant(0))();
+  TextColumn get message => text().nullable()();
+  TextColumn get error => text().nullable()();
+  BoolColumn get acknowledged => boolean().withDefault(const Constant(false))();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@TableIndex(name: 'results_created_at', columns: {#createdAt})
+@DataClassName('ResultRow')
+class Results extends Table {
+  TextColumn get id => text()(); // local job id; import is idempotent
+  TextColumn get type => text()();
+  TextColumn get path => text()();
+  TextColumn get originalPath => text()();
+  TextColumn get mime => text()();
+  IntColumn get sizeBytes => integer()();
+  TextColumn get sha256 => text()();
+  IntColumn get personId => integer().nullable().references(
+    Persons,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  BoolColumn get favourite => boolean().withDefault(const Constant(false))();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('DatasetRow')
+class Datasets extends Table {
+  TextColumn get id => text()();
+  IntColumn get personId => integer().nullable().references(
+    Persons,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get triggerWord => text()();
+  IntColumn get repeats => integer().withDefault(const Constant(20))();
+  IntColumn get createdAt => integer()();
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('DatasetItemRow')
+class DatasetItems extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get datasetId =>
+      text().references(Datasets, #id, onDelete: KeyAction.cascade)();
+  TextColumn get path => text()();
+  TextColumn get caption => text()();
+  BoolColumn get included => boolean().withDefault(const Constant(true))();
+}
+
+@DataClassName('LoraRow')
+class Loras extends Table {
+  TextColumn get id => text()();
+  IntColumn get personId => integer().nullable().references(
+    Persons,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get path => text()();
+  TextColumn get triggerWord => text()();
+  TextColumn get identityJson =>
+      text().nullable()(); // anchor-verified generated portraits
+  IntColumn get createdAt => integer()();
+  @override
+  Set<Column> get primaryKey => {id};
+}

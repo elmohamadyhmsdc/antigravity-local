@@ -1,6 +1,7 @@
 // The photo scan end to end with fakes for the phone's gallery and the PC: queueing, dedupe, grouping
 // rounds, resuming after a kill, and what a busy / unreachable / revoked PC does to the scan.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:antigravity_mobile/data/api/api_exception.dart';
@@ -104,6 +105,41 @@ void main() {
     rig.pc = rig.api;
   });
   tearDown(() => rig.dispose());
+
+  test(
+    'maintenance waits for the in-flight photo to commit before returning',
+    () async {
+      await rig.choose();
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      rig.api.analyzeHandler = (bytes, options) async {
+        entered.complete();
+        await release.future;
+        return analysis(
+          faces: [faceJson(unitVec(1000))],
+          modelId: 'buffalo_l@1',
+        );
+      };
+      final engine = rig.engine();
+      final scan = engine.start();
+      await entered.future;
+      var settled = false;
+      final maintenance = engine.pauseAndWait().then((_) => settled = true);
+      await Future<void>.delayed(Duration.zero);
+      expect(settled, isFalse);
+      release.complete();
+      await maintenance;
+      await scan;
+      expect(engine.isRunning, isFalse);
+      expect(await rig.faces(), 1);
+      expect((await rig.media()).map((m) => m.scanStatus), [
+        'done',
+        'pending',
+        'pending',
+      ]);
+      expect(engine.progress.phase, ScanPhase.paused);
+    },
+  );
 
   test(
     'a scan lists the chosen albums, analyses every photo, groups and finishes',
