@@ -107,6 +107,58 @@ void main() {
   tearDown(() => rig.dispose());
 
   test(
+    'network recovery cannot restart a scan while backup maintenance owns the library',
+    () async {
+      await rig.choose();
+      rig.everyPhotoHasANewFace();
+      rig.api.analyzeError = ApiException.network('offline');
+      final engine = rig.engine(policy: const ScanPolicy(offlineRetries: 0));
+      await engine.start();
+      await engine.pauseAndWait();
+      rig.api.analyzeError = null;
+      await engine.resumeAfterConnectionRestored();
+      expect(engine.progress.phase, ScanPhase.paused);
+      expect(await rig.faces(), 0);
+      await engine.start(enumerate: false);
+      expect(engine.progress.phase, ScanPhase.completed);
+    },
+  );
+
+  test(
+    'connection recovery resumes an offline pause, preserving a user pause',
+    () async {
+      await rig.choose();
+      rig.everyPhotoHasANewFace();
+      rig.api.analyzeError = ApiException.network('network changed');
+      final engine = rig.engine(policy: const ScanPolicy(offlineRetries: 0));
+      await engine.start();
+      expect(engine.progress.pauseReason, PauseReason.offline);
+      rig.api.analyzeError = null;
+      await engine.resumeAfterConnectionRestored();
+      expect(engine.progress.phase, ScanPhase.completed);
+      expect(await rig.faces(), 3);
+      final entered = Completer<void>(), release = Completer<void>();
+      rig.library.setAlbum('cam', syntheticAssets(6));
+      rig.api.analyzeHandler = (bytes, options) async {
+        entered.complete();
+        await release.future;
+        return analysis(
+          faces: [faceJson(unitVec(9000))],
+          modelId: 'buffalo_l@1',
+        );
+      };
+      final scan = engine.start();
+      await entered.future;
+      engine.pause();
+      release.complete();
+      await scan;
+      expect(engine.progress.pauseReason, PauseReason.user);
+      await engine.resumeAfterConnectionRestored();
+      expect(engine.progress.pauseReason, PauseReason.user);
+    },
+  );
+
+  test(
     'maintenance waits for the in-flight photo to commit before returning',
     () async {
       await rig.choose();

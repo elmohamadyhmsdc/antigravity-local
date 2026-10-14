@@ -3130,6 +3130,138 @@ abstract class AppLocalizations {
   /// **'Storage updated'**
   String get storageCleaned;
 
+  /// No description provided for @connectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection help'**
+  String get connectionTitle;
+
+  /// No description provided for @connectionFix.
+  ///
+  /// In en, this message translates to:
+  /// **'Fix connection'**
+  String get connectionFix;
+
+  /// No description provided for @connectionIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect locally over a router, either device\'s hotspot, or USB. Internet access is not required. If the PC address changes, search again without forgetting your pairing.'**
+  String get connectionIntro;
+
+  /// No description provided for @connectionFind.
+  ///
+  /// In en, this message translates to:
+  /// **'Find my PC on this network'**
+  String get connectionFind;
+
+  /// No description provided for @connectionTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify and save PC address'**
+  String get connectionTest;
+
+  /// No description provided for @connectionPairAtAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair at this address'**
+  String get connectionPairAtAddress;
+
+  /// No description provided for @connectionRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to the same verified PC. Your pairing and library are preserved.'**
+  String get connectionRestored;
+
+  /// No description provided for @connectionNothingFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No PC answered local discovery. Check the current address in the PC dashboard and try it below. Discovery may be blocked even when direct connection works.'**
+  String get connectionNothingFound;
+
+  /// No description provided for @connectionVerifyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The discovered addresses could not be verified as your paired PC. Check that the server is running and use its current address.'**
+  String get connectionVerifyFailed;
+
+  /// No description provided for @connectionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection could not be completed. Check the server, local address and firewall settings below.'**
+  String get connectionFailed;
+
+  /// No description provided for @connectionInvalidAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a private-network PC address and a port from 1 to 65535.'**
+  String get connectionInvalidAddress;
+
+  /// No description provided for @connectionPhoneAddresses.
+  ///
+  /// In en, this message translates to:
+  /// **'This phone\'s local addresses'**
+  String get connectionPhoneAddresses;
+
+  /// No description provided for @connectionNoLan.
+  ///
+  /// In en, this message translates to:
+  /// **'No local Wi-Fi, hotspot or USB interface was found. Turn on the hotspot or connect to a local network. A cellular connection alone cannot reach the PC.'**
+  String get connectionNoLan;
+
+  /// No description provided for @connectionPhoneHotspotTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone shares its hotspot'**
+  String get connectionPhoneHotspotTitle;
+
+  /// No description provided for @connectionPhoneHotspot.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect the PC to this phone\'s hotspot. On the PC open Mobile Devices and use the PC\'s Wi-Fi address shown there. Keep the hotspot enabled; some phones turn it off automatically. Mobile data can stay enabled.'**
+  String get connectionPhoneHotspot;
+
+  /// No description provided for @connectionPcHotspotTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'PC shares its hotspot'**
+  String get connectionPcHotspotTitle;
+
+  /// No description provided for @connectionPcHotspot.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect the phone to the PC hotspot. Use the hotspot adapter\'s PC address from Mobile Devices. It can differ from the PC\'s router or Ethernet address.'**
+  String get connectionPcHotspot;
+
+  /// No description provided for @connectionRouterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Router, guest Wi-Fi or VPN'**
+  String get connectionRouterTitle;
+
+  /// No description provided for @connectionRouter.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the same local network and allow the Python server through Windows Firewall. Guest isolation and some VPNs block device traffic; enable local-network access or use another local network. An Internet connection is not a connectivity test.'**
+  String get connectionRouter;
+
+  /// No description provided for @connectionUsbTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'USB fallback'**
+  String get connectionUsbTitle;
+
+  /// No description provided for @connectionUsb.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect a USB cable, enable and authorize USB debugging, then run the command below on the PC. Use 127.0.0.1 and the PC server\'s port here. This avoids Wi-Fi isolation and uses no mobile data.'**
+  String get connectionUsb;
+
+  /// No description provided for @connectionPinSafety.
+  ///
+  /// In en, this message translates to:
+  /// **'Finding a device never changes the saved certificate or sends media to an unverified PC. If the PC certificate was replaced, confirm its new QR on the PC before pairing again.'**
+  String get connectionPinSafety;
+
   /// No description provided for @backgroundTitle.
   ///
   /// In en, this message translates to:

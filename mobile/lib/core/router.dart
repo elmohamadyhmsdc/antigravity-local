@@ -19,6 +19,7 @@ import '../features/review/review_screen.dart';
 import '../features/scan/sources_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/background_screen.dart';
+import '../features/settings/connection_screen.dart';
 import '../features/studio/studio_screen.dart';
 import '../features/reface/reface_screen.dart';
 import '../features/jobs/jobs_screen.dart';
@@ -47,6 +48,7 @@ abstract final class Routes {
   static const storage = '/storage';
   static const settings = '/settings';
   static const background = '/background';
+  static const connection = '/connection';
   static const analyze = '/analyze';
   static const media = '/media'; // S06, /media/:id
   static const unsorted = '/people/unsorted';
@@ -61,7 +63,9 @@ abstract final class Routes {
 
   /// Screens that make sense (and are reachable) before a PC is paired.
   static bool isOnboarding(String location) =>
-      location == welcome || location.startsWith('/pair/');
+      location == welcome ||
+      location == connection ||
+      location.startsWith('/pair/');
 }
 
 /// Back to the previous screen, or to [fallback] when this screen was opened directly.
@@ -104,6 +108,10 @@ GoRouter createRouter({
       return null;
     },
     routes: [
+      GoRoute(
+        path: Routes.connection,
+        builder: (context, state) => const ConnectionScreen(),
+      ),
       GoRoute(
         path: Routes.background,
         builder: (context, state) => const BackgroundScreen(),
@@ -178,7 +186,10 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.manual,
-        builder: (context, state) => const ManualPairScreen(),
+        builder: (context, state) => ManualPairScreen(
+          initialHost: state.uri.queryParameters['host'],
+          initialPort: int.tryParse(state.uri.queryParameters['port'] ?? ''),
+        ),
       ),
       GoRoute(
         path: Routes.permissions,

@@ -142,18 +142,41 @@ Map<String, dynamic> _json(Response<dynamic> response) {
 }
 
 class HttpMobileApi implements MobileApi, VideoApi, StudioApi {
-  HttpMobileApi(this.session, {Dio? dio})
-    : _dio =
-          dio ??
-          createPinnedDio(
-            host: session.host,
-            port: session.port,
-            fingerprint: session.fingerprint,
-            token: session.token,
-          );
+  HttpMobileApi(
+    this.session, {
+    Dio? dio,
+    Duration connectTimeout = const Duration(seconds: 8),
+  }) : _dio =
+           dio ??
+           createPinnedDio(
+             host: session.host,
+             port: session.port,
+             fingerprint: session.fingerprint,
+             token: session.token,
+             connectTimeout: connectTimeout,
+           );
 
-  final ServerSession session;
+  ServerSession session;
   final Dio _dio;
+
+  void close() => _dio.close(force: false);
+
+  void resetTransport() {
+    final old = _dio.httpClientAdapter;
+    _dio.httpClientAdapter = pinnedHttpAdapter(session.fingerprint);
+    old.close(force: false);
+  }
+
+  void relocate(ServerSession next) {
+    if (next.serverId != session.serverId ||
+        next.token != session.token ||
+        next.fingerprint.toLowerCase() != session.fingerprint.toLowerCase()) {
+      throw StateError('Reconnection cannot change a paired PC identity.');
+    }
+    session = next;
+    _dio.options.baseUrl = baseUrl(next.host, next.port);
+    resetTransport();
+  }
 
   @override
   String get serverId => session.serverId;
@@ -346,13 +369,30 @@ class HttpMobileApi implements MobileApi, VideoApi, StudioApi {
   });
 
   @override
-  Future<Health> health() =>
-      _guard(() async => Health.fromJson(_json(await _dio.get('/v1/health'))));
+  Future<Health> health() => _guard(
+    () async => Health.fromJson(
+      _json(
+        await _dio.get(
+          '/v1/health',
+          options: Options(
+            headers: {'Authorization': null},
+            receiveTimeout: const Duration(seconds: 5),
+          ),
+        ),
+      ),
+    ),
+  );
 
   @override
   Future<Capabilities> capabilities() => _guard(
-    () async =>
-        Capabilities.fromJson(_json(await _dio.get('/v1/capabilities'))),
+    () async => Capabilities.fromJson(
+      _json(
+        await _dio.get(
+          '/v1/capabilities',
+          options: Options(receiveTimeout: const Duration(seconds: 6)),
+        ),
+      ),
+    ),
   );
 
   @override

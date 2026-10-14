@@ -10,6 +10,8 @@ import 'data/db/app_database.dart';
 import 'data/platform/platform_services.dart';
 import 'data/repositories/session_store.dart';
 import 'data/secrets/secret_store.dart';
+import 'data/platform/lan_network.dart';
+import 'data/api/connection_recovery.dart';
 
 // ---- storage ----------------------------------------------------------------------
 
@@ -41,6 +43,19 @@ class SessionNotifier extends Notifier<ServerSession?> {
     state = session;
   }
 
+  Future<bool> relocate(ServerSession expected, ServerSession verified) async {
+    if (!identical(state, expected) ||
+        expected.serverId != verified.serverId ||
+        expected.token != verified.token ||
+        expected.fingerprint != verified.fingerprint) {
+      return false;
+    }
+    await ref.read(sessionStoreProvider).move(verified);
+    if (!identical(state, expected)) return false;
+    state = verified;
+    return true;
+  }
+
   /// Forget the PC. Library data on the phone is untouched.
   Future<void> forget() async {
     final current = state;
@@ -61,10 +76,60 @@ final pairingApiProvider = Provider<PairingApi>(
   (ref) => const HttpPairingApi(),
 );
 
+final endpointVerifierProvider =
+    Provider<Future<VerifiedEndpoint> Function(ServerSession, LanEndpoint)>(
+      (ref) =>
+          (session, endpoint) => verifyEndpoint(session, endpoint),
+    );
+
 /// The authenticated, certificate-pinned client for the paired PC (null when not paired).
 final mobileApiProvider = Provider<MobileApi?>((ref) {
-  final session = ref.watch(sessionProvider);
-  return session == null ? null : HttpMobileApi(session);
+  final identity = ref.watch(
+    sessionProvider.select(
+      (s) => s == null ? null : (s.serverId, s.fingerprint, s.token),
+    ),
+  );
+  if (identity == null) return null;
+  final client = HttpMobileApi(ref.read(sessionProvider)!);
+  ref.listen(sessionProvider, (_, next) {
+    if (next != null &&
+        (next.serverId, next.fingerprint, next.token) == identity) {
+      client.relocate(next);
+    }
+  });
+  ref.onDispose(client.close);
+  return client;
+});
+
+final lanSignatureProvider = StreamProvider.autoDispose<String>((ref) {
+  final network = ref.watch(lanNetworkProvider);
+  if (!network.supported) return Stream.value('');
+  final events = StreamController<String>();
+  var closed = false;
+  Timer? timer;
+  Future<void> poll() async {
+    try {
+      final interfaces = await network.interfaces();
+      if (!closed) {
+        events.add(
+          (interfaces.map((i) => '${i.name}:${i.address}/${i.prefix}').toList()
+                ..sort())
+              .join(','),
+        );
+      }
+    } on Object {
+      /* Retain the last known signature. */
+    }
+    if (!closed) timer = Timer(const Duration(seconds: 5), poll);
+  }
+
+  poll();
+  ref.onDispose(() {
+    closed = true;
+    timer?.cancel();
+    events.close();
+  });
+  return events.stream.distinct();
 });
 
 // ---- OS services ----------------------------------------------------------------------
@@ -128,7 +193,32 @@ final serverStatusProvider = StreamProvider.autoDispose<ServerStatus>((ref) {
 
   Future<void> poll() async {
     if (api == null || closed) return;
-    final status = await checkServer(api);
+    var status = await checkServer(api);
+    if (closed) return;
+    final saved = ref.read(sessionProvider);
+    final network = ref.read(lanNetworkProvider);
+    if (!closed &&
+        status is ServerOffline &&
+        saved != null &&
+        network.supported) {
+      controller.add(status);
+      try {
+        final recovered = await recoverEndpoint(saved, network);
+        if (!closed &&
+            recovered != null &&
+            await ref
+                .read(sessionProvider.notifier)
+                .relocate(saved, recovered.session)) {
+          status = recovered.capabilities.isBusy
+              ? ServerBusy(recovered.capabilities)
+              : ServerReady(recovered.capabilities);
+        }
+      } on ApiException catch (error) {
+        if (error.isUnauthorized) status = const ServerRevoked();
+      } on Object {
+        /* Keep the original connection error. */
+      }
+    }
     if (closed) return;
     controller.add(status);
     timer = Timer(statusPollInterval, poll);

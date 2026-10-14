@@ -19,7 +19,9 @@ String? _message(AppLocalizations l10n, InputProblem? problem) =>
 
 /// Pairing by typing the PC's address - for routers that block QR-free discovery, or no camera.
 class ManualPairScreen extends ConsumerStatefulWidget {
-  const ManualPairScreen({super.key});
+  const ManualPairScreen({super.key, this.initialHost, this.initialPort});
+  final String? initialHost;
+  final int? initialPort;
 
   @override
   ConsumerState<ManualPairScreen> createState() => _ManualPairScreenState();
@@ -30,6 +32,13 @@ class _ManualPairScreenState extends ConsumerState<ManualPairScreen> {
   final _host = TextEditingController();
   final _port = TextEditingController(text: '8443');
   final _code = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _host.text = widget.initialHost ?? '';
+    _port.text = '${widget.initialPort ?? 8443}';
+  }
 
   @override
   void dispose() {

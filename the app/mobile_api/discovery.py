@@ -16,6 +16,7 @@ SERVICE_TYPE = "_antigravity._tcp.local."
 def lan_addresses() -> List[str]:
     """IPv4 addresses of this PC that other devices could reach, primary route first."""
     found: List[str] = []
+    assigned = None
     try:  # the address the OS would use to reach the internet (no packet is sent)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("192.0.2.1", 9))
@@ -27,11 +28,34 @@ def lan_addresses() -> List[str]:
             found.append(info[4][0])
     except OSError:
         pass
+    # Windows hotspot/USB adapters need not register in the PC's DNS name.
+    # psutil is already provided by the dashboard; keep a stdlib fallback.
+    try:
+        import psutil
+        stats = psutil.net_if_stats()
+        assigned = set()
+        for name, entries in psutil.net_if_addrs().items():
+            if name in stats and not stats[name].isup: continue
+            for entry in entries:
+                if entry.family == socket.AF_INET:
+                    found.append(entry.address)
+                    assigned.add(entry.address)
+    except (ImportError,OSError):
+        pass
     out = []
     for ip in found:
-        if ip and not ip.startswith(("127.", "169.254.", "0.")) and ip not in out:
+        if (ip and not ip.startswith(("127.", "169.254.", "0.")) and ip not in out
+                and (assigned is None or ip in assigned)):
             out.append(ip)
     return out
+
+
+def address_labels():
+    try:
+        import psutil
+        return {entry.address:name for name,entries in psutil.net_if_addrs().items()
+                for entry in entries if entry.family == socket.AF_INET}
+    except (ImportError,OSError): return {}
 
 
 def _instance_name(name: str) -> str:

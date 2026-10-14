@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 
 import 'api_exception.dart';
+import '../platform/lan_network.dart';
 
 /// SHA-256 of a certificate's DER bytes, lowercase hex - the same value the PC prints and
 /// puts in the pairing QR (`tls.fingerprint_of_cert`).
@@ -35,6 +36,46 @@ HttpClientAdapter pinnedHttpAdapter(String fingerprint) {
       final client = HttpClient(
         context: SecurityContext(withTrustedRoots: false),
       );
+      client.findProxy = (_) => 'DIRECT';
+      client.connectionFactory = (uri, proxyHost, proxyPort) async {
+        if (uri.scheme != 'https' || proxyHost != null) {
+          throw const HandshakeException(
+            'Only direct pinned HTTPS is supported.',
+          );
+        }
+        final task = await startLanConnection(uri.host, uri.port);
+        Socket? plain;
+        SecureSocket? secure;
+        var cancelled = false;
+        final socket = task.socket.then<Socket>((connected) async {
+          plain = connected;
+          try {
+            if (cancelled) throw const SocketException('Connection cancelled');
+            final tls = await SecureSocket.secure(
+              connected,
+              host: uri.host,
+              context: SecurityContext(withTrustedRoots: false),
+              onBadCertificate: (cert) =>
+                  _sameFingerprint(certificateFingerprint(cert), pinned),
+            );
+            secure = tls;
+            if (cancelled) {
+              tls.destroy();
+              throw const SocketException('Connection cancelled');
+            }
+            return tls;
+          } on Object {
+            connected.destroy();
+            rethrow;
+          }
+        });
+        return ConnectionTask.fromSocket(socket, () {
+          cancelled = true;
+          task.cancel();
+          plain?.destroy();
+          secure?.destroy();
+        });
+      };
       client.badCertificateCallback =
           (X509Certificate cert, String host, int port) =>
               _sameFingerprint(certificateFingerprint(cert), pinned);
@@ -52,14 +93,21 @@ Future<String> probeCertificateFingerprint(
   Duration timeout = const Duration(seconds: 6),
 }) async {
   SecureSocket? socket;
+  Socket? plain;
   try {
-    socket = await SecureSocket.connect(
-      host,
-      port,
+    final task = await startLanConnection(host, port);
+    try {
+      plain = await task.socket.timeout(timeout);
+    } on TimeoutException {
+      task.cancel();
+      rethrow;
+    }
+    socket = await SecureSocket.secure(
+      plain,
+      host: host,
       context: SecurityContext(withTrustedRoots: false),
       onBadCertificate: (_) => true,
-      timeout: timeout,
-    );
+    ).timeout(timeout);
     final cert = socket.peerCertificate;
     if (cert == null) {
       throw ApiException.badResponse('the PC did not present a certificate');
@@ -75,6 +123,7 @@ Future<String> probeCertificateFingerprint(
     );
   } finally {
     socket?.destroy();
+    plain?.destroy();
   }
 }
 
@@ -95,6 +144,7 @@ Dio createPinnedDio({
 }) {
   final dio = Dio(
     BaseOptions(
+      followRedirects: false,
       baseUrl: baseUrl(host, port),
       connectTimeout: connectTimeout,
       sendTimeout: const Duration(minutes: 5),

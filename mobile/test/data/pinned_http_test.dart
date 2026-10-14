@@ -141,6 +141,43 @@ void main() {
       final health = await HttpMobileApi(session()).health();
       expect(health.serverId, 'srv_7f3a91c2');
       expect(seen.requests, hasLength(1));
+      expect(
+        seen.requests.single.headers.value('authorization'),
+        isNull,
+        reason: 'Identity probing must not carry the saved bearer token.',
+      );
+    },
+  );
+
+  test(
+    'the same API object follows a verified endpoint change for ongoing jobs',
+    () async {
+      final context = SecurityContext()
+        ..useCertificateChain(certPath)
+        ..usePrivateKey(keyPath);
+      final second = await HttpServer.bindSecure('127.0.0.1', 0, context);
+      String? authorization;
+      second.listen((request) async {
+        authorization = request.headers.value('authorization');
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode(fixture('Capabilities.idle')));
+        await request.response.close();
+      });
+      final api = HttpMobileApi(session());
+      try {
+        await api.health();
+        api.relocate(api.session.copyWith(port: second.port));
+        expect((await api.capabilities()).serverId, api.session.serverId);
+        expect(authorization, 'Bearer $_token');
+        expect(api.session.port, second.port);
+        expect(
+          () => api.relocate(session(fingerprint: 'ff' * 32)),
+          throwsStateError,
+        );
+      } finally {
+        api.close();
+        await second.close(force: true);
+      }
     },
   );
 

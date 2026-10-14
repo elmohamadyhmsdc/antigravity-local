@@ -50,13 +50,16 @@ def build_admin_router(ctx):
         if not supplied or not hmac.compare_digest(supplied.encode('utf-8'),ctx.admin_token.encode('utf-8')):
             raise HTTPException(403,'PC administration token required.')
 
-    def choose_host(host):
+    def choose_host(host, strict=False):
         addresses = list(dict.fromkeys([*ctx.host_addresses,'127.0.0.1','10.0.2.2']))
-        if host is not None and host not in addresses:
+        if ctx.bind_address in ('127.0.0.1','localhost','::1'): addresses = ['127.0.0.1','10.0.2.2']
+        elif ctx.bind_address not in ('0.0.0.0','::'): addresses = [ctx.bind_address]
+        if strict and host is not None and host not in addresses:
             raise HTTPException(400,'Choose an address offered by this PC.')
-        return host or addresses[0], addresses
+        return host if host in addresses else addresses[0], addresses
 
     def snapshot(host=None):
+        from .discovery import address_labels
         chosen, addresses = choose_host(host)
         current = ctx.pairing.current()
         counts = {}
@@ -70,6 +73,8 @@ def build_admin_router(ctx):
         return {'protocol':PROTOCOL,'server_id':ctx.auth.server_id,'name':ctx.auth.server_name,
                 'api_ready':ctx.api_ready,'api_port':ctx.api_port,'addresses':addresses,'host':chosen,
                 'fingerprint':ctx.cert.fingerprint if ctx.cert else '',
+                'network':{'bind':ctx.bind_address,'discovery_port':ctx.discovery_port,
+                    'discovery_ready':ctx.lan_discovery_ready,'labels':address_labels()},
                 'devices':devices,'pairing':None if current is None else {
                     'code':current.code,'expires_at':current.expires_at,
                     'remaining_seconds':max(0,int(current.expires_at-ctx.pairing._clock())),
@@ -84,7 +89,7 @@ def build_admin_router(ctx):
 
     @router.post('/pairing',dependencies=[Depends(require_admin)])
     def issue(body: PairOptions):
-        choose_host(body.host)
+        choose_host(body.host,strict=True)
         ctx.pairing.issue()
         return snapshot(body.host)
 

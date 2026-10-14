@@ -48,8 +48,10 @@ def create_pair_app(ctx, addresses_fn=lan_addresses) -> FastAPI:
     app.include_router(build_admin_router(ctx))
 
     def page(host: Optional[str], notice: str = "") -> HTMLResponse:
-        addresses = ctx.host_addresses or addresses_fn()
-        chosen = host if host and _HOST_RE.match(host) else (addresses[0] if addresses else "127.0.0.1")
+        addresses = list(dict.fromkeys([*(ctx.host_addresses or addresses_fn()),'127.0.0.1','10.0.2.2']))
+        if ctx.bind_address in ('127.0.0.1','localhost','::1'): addresses = ['127.0.0.1','10.0.2.2']
+        elif ctx.bind_address not in ('0.0.0.0','::'): addresses = [ctx.bind_address]
+        chosen = host if host in addresses else (addresses[0] if addresses else "127.0.0.1")
         issued = ctx.pairing.current() or ctx.pairing.issue()
         fp = ctx.cert.fingerprint if ctx.cert else ""
         payload = pair_payload(chosen, ctx.api_port, fp, issued.code)

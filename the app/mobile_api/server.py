@@ -29,6 +29,7 @@ from .pairing import PairingManager
 from .tls import ensure_cert
 from .workspace import Workspace
 from .admin import CONTROL_FILE, PROTOCOL
+from .lan_discovery import LanResponder, NetworkMonitor, DISCOVERY_PORT
 
 DEFAULT_WORKSPACE = APP_DIR / "mobile_workspace"
 DEFAULT_PORT = 8443
@@ -90,6 +91,8 @@ def main(argv=None) -> int:
     ap.add_argument("--host-ip", help="address to put in the QR code (default: auto-detected)")
     ap.add_argument("--workspace", default=str(DEFAULT_WORKSPACE))
     ap.add_argument("--no-mdns", action="store_true")
+    ap.add_argument("--no-discovery", action="store_true", help="disable LAN UDP discovery")
+    ap.add_argument("--discovery-port", type=int, default=DISCOVERY_PORT)
     ap.add_argument("--no-browser", action="store_true", help="do not open the pairing page")
     ap.add_argument("--preload", action="store_true", help="load the face models now instead of on the first request")
     ap.add_argument("--check-models", action="store_true", help="report local engine/model readiness and exit without downloading")
@@ -118,6 +121,8 @@ def serve(args,api_socket,pair_socket):
     import uvicorn
     ctx = build_context(args.workspace, name=args.name, host_ip=args.host_ip, port=args.port,
                         pair_port=args.pair_port)
+    ctx.bind_address = args.bind
+    ctx.discovery_port = args.discovery_port
     issued = ctx.pairing.issue()
     pair_url = f"http://127.0.0.1:{args.pair_port}/pair"
 
@@ -145,9 +150,10 @@ def serve(args,api_socket,pair_socket):
     write_control(ctx)
 
     discovery = Discovery()
-    if not args.no_mdns:
-        discovery.start(name=ctx.auth.server_name, server_id=ctx.auth.server_id, api_version=API_VERSION,
-                        port=args.port, addresses=ctx.host_addresses)
+    monitor = NetworkMonitor(ctx,discovery,addresses=lan_addresses,mdns=not args.no_mdns,fixed_host=args.host_ip)
+    monitor.start()
+    responder = LanResponder(ctx,bind=args.bind,port=args.discovery_port)
+    if not args.no_discovery: ctx.lan_discovery_ready = responder.start()
     if not args.no_browser:
         threading.Timer(1.5, lambda: webbrowser.open(pair_url)).start()
 
@@ -155,6 +161,8 @@ def serve(args,api_socket,pair_socket):
         api_server.run(sockets=[api_socket])
     finally:
         pair_server.should_exit = True
+        responder.stop()
+        monitor.stop()
         discovery.stop()
         pair_thread.join(timeout=5)
         remove_control(ctx)

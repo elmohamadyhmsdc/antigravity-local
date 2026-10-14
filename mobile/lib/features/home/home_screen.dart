@@ -282,6 +282,11 @@ class _StatusBanner extends StatelessWidget {
                   onPressed: onPairAgain,
                   child: Text(l10n.homePairAgain),
                 ),
+              if (status is ServerOffline)
+                TextButton(
+                  onPressed: () => context.push(Routes.connection),
+                  child: Text(l10n.connectionFix),
+                ),
             ],
           ),
         ),

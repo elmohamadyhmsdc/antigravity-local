@@ -61,6 +61,9 @@ class ServerContext:
     admin_token: str = field(default_factory=lambda: secrets.token_urlsafe(32), repr=False)
     api_ready: bool = False
     shutdown: object = None
+    bind_address: str = '0.0.0.0'
+    discovery_port: int = 8445
+    lan_discovery_ready: bool = False
 
 
 def create_app(ctx: ServerContext) -> FastAPI:

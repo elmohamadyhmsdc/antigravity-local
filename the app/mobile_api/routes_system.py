@@ -4,6 +4,7 @@ from typing import Callable
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from . import EMBEDDING_DIM, EMBEDDING_MODEL_ID
 from .errors import ApiError
@@ -27,7 +28,7 @@ def build_system_router(ctx, require_device: Callable) -> APIRouter:
 
     @router.get("/v1/capabilities")
     async def capabilities(_: dict = Depends(require_device)):
-        snap = ctx.probe.snapshot()
+        snap = await run_in_threadpool(ctx.probe.snapshot)
         busy = ctx.gpu.busy()
         return {
             "api_version": ctx.api_version,

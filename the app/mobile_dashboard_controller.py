@@ -115,7 +115,7 @@ class MobileDashboardController:
             with open(log,'a',encoding='utf-8') as output:
                 command = [str(python),'-u','-m','mobile_api','--no-browser','--bind',self.bind,
                     '--workspace',str(self.workspace),'--port',str(self.api_port),'--pair-port',str(self.pair_port)]
-                if not self.mdns: command.append('--no-mdns')
+                if not self.mdns: command.extend(['--no-mdns','--no-discovery'])
                 self._process = subprocess.Popen(command,
                     cwd=str(self.app_dir),stdin=subprocess.DEVNULL,stdout=output,stderr=subprocess.STDOUT,
                     env=dict(os.environ,PYTHONIOENCODING='utf-8',PYTHONFAULTHANDLER='1',HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1'),

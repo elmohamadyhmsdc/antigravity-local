@@ -92,4 +92,20 @@ void main() {
       1,
     );
   });
+
+  test(
+    'moving the endpoint preserves pairing time and keystore token; it cannot resurrect a forgotten PC',
+    () async {
+      await store.save(_session);
+      final before = await db.latestServer();
+      await store.move(_session.copyWith(host: '10.183.49.149', port: 9443));
+      final after = await db.latestServer();
+      expect(after!.pairedAt, before!.pairedAt);
+      expect((await store.load())!.token, _session.token);
+      expect((await store.load())!.host, '10.183.49.149');
+      await store.clear(_session.serverId);
+      await store.move(_session);
+      expect(await store.load(), isNull);
+    },
+  );
 }

@@ -1910,6 +1910,84 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storageCleaned => 'Storage updated';
 
   @override
+  String get connectionTitle => 'Connection help';
+
+  @override
+  String get connectionFix => 'Fix connection';
+
+  @override
+  String get connectionIntro =>
+      'Connect locally over a router, either device\'s hotspot, or USB. Internet access is not required. If the PC address changes, search again without forgetting your pairing.';
+
+  @override
+  String get connectionFind => 'Find my PC on this network';
+
+  @override
+  String get connectionTest => 'Verify and save PC address';
+
+  @override
+  String get connectionPairAtAddress => 'Pair at this address';
+
+  @override
+  String get connectionRestored =>
+      'Connected to the same verified PC. Your pairing and library are preserved.';
+
+  @override
+  String get connectionNothingFound =>
+      'No PC answered local discovery. Check the current address in the PC dashboard and try it below. Discovery may be blocked even when direct connection works.';
+
+  @override
+  String get connectionVerifyFailed =>
+      'The discovered addresses could not be verified as your paired PC. Check that the server is running and use its current address.';
+
+  @override
+  String get connectionFailed =>
+      'Connection could not be completed. Check the server, local address and firewall settings below.';
+
+  @override
+  String get connectionInvalidAddress =>
+      'Enter a private-network PC address and a port from 1 to 65535.';
+
+  @override
+  String get connectionPhoneAddresses => 'This phone\'s local addresses';
+
+  @override
+  String get connectionNoLan =>
+      'No local Wi-Fi, hotspot or USB interface was found. Turn on the hotspot or connect to a local network. A cellular connection alone cannot reach the PC.';
+
+  @override
+  String get connectionPhoneHotspotTitle => 'Phone shares its hotspot';
+
+  @override
+  String get connectionPhoneHotspot =>
+      'Connect the PC to this phone\'s hotspot. On the PC open Mobile Devices and use the PC\'s Wi-Fi address shown there. Keep the hotspot enabled; some phones turn it off automatically. Mobile data can stay enabled.';
+
+  @override
+  String get connectionPcHotspotTitle => 'PC shares its hotspot';
+
+  @override
+  String get connectionPcHotspot =>
+      'Connect the phone to the PC hotspot. Use the hotspot adapter\'s PC address from Mobile Devices. It can differ from the PC\'s router or Ethernet address.';
+
+  @override
+  String get connectionRouterTitle => 'Router, guest Wi-Fi or VPN';
+
+  @override
+  String get connectionRouter =>
+      'Use the same local network and allow the Python server through Windows Firewall. Guest isolation and some VPNs block device traffic; enable local-network access or use another local network. An Internet connection is not a connectivity test.';
+
+  @override
+  String get connectionUsbTitle => 'USB fallback';
+
+  @override
+  String get connectionUsb =>
+      'Connect a USB cable, enable and authorize USB debugging, then run the command below on the PC. Use 127.0.0.1 and the PC server\'s port here. This avoids Wi-Fi isolation and uses no mobile data.';
+
+  @override
+  String get connectionPinSafety =>
+      'Finding a device never changes the saved certificate or sends media to an unverified PC. If the PC certificate was replaced, confirm its new QR on the PC before pairing again.';
+
+  @override
   String get backgroundTitle => 'Background work';
 
   @override

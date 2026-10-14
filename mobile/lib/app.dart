@@ -10,6 +10,7 @@ import 'library_providers.dart';
 import 'providers.dart';
 import 'studio_providers.dart';
 import 'features/privacy/app_lock.dart';
+import 'data/api/mobile_api.dart';
 
 /// Where the app opens (null = Home when paired, Welcome otherwise). Tests start on a link.
 final initialLocationProvider = Provider<String?>((ref) => null);
@@ -41,10 +42,11 @@ class App extends ConsumerStatefulWidget {
   ConsumerState<App> createState() => _AppState();
 }
 
-class _AppState extends ConsumerState<App> {
+class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (ref.read(autoResumeScanProvider)) {
       // a scan is persistent: if the app was killed mid-scan, carry on where it stopped
       Future<void>.microtask(() {
@@ -57,9 +59,47 @@ class _AppState extends ConsumerState<App> {
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _refreshConnection() {
+    final api = ref.read(mobileApiProvider);
+    if (api is HttpMobileApi) api.resetTransport();
+    ref.invalidate(serverStatusProvider);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        ref.read(autoResumeScanProvider)) {
+      _refreshConnection();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    ref.listen(sessionProvider, (_, next) {
-      if (next != null && ref.read(autoResumeScanProvider)) {
+    if (ref.watch(autoResumeScanProvider)) {
+      ref.listen(lanSignatureProvider, (previous, next) {
+        if (previous?.hasValue == true &&
+            next.hasValue &&
+            previous!.value != next.value) {
+          _refreshConnection();
+        }
+      });
+      ref.listen(serverStatusProvider, (previous, next) {
+        if (next.value is ServerReady || next.value is ServerBusy) {
+          ref.read(scanEngineProvider).resumeAfterConnectionRestored();
+        }
+      });
+    }
+    ref.listen(sessionProvider, (previous, next) {
+      if (next != null &&
+          ref.read(autoResumeScanProvider) &&
+          (previous == null ||
+              previous.serverId != next.serverId ||
+              previous.token != next.token)) {
         ref.read(jobTrackerProvider).start();
       }
     });

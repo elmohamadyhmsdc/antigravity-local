@@ -195,6 +195,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           ListTile(
             key: const Key('settings-pc'),
+            onTap: () => context.push(Routes.connection),
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.computer_outlined),
             title: Text(session?.name ?? l10n.notPaired),

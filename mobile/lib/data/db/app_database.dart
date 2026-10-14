@@ -180,6 +180,12 @@ class AppDatabase extends _$AppDatabase {
     return row?.value;
   }
 
+  Future<void> moveServer(String id, String host, int port) async {
+    await (update(servers)..where((s) => s.id.equals(id))).write(
+      ServersCompanion(host: Value(host), port: Value(port)),
+    );
+  }
+
   Future<void> putSetting(String key, String value) => into(
     settings,
   ).insertOnConflictUpdate(SettingsCompanion.insert(key: key, value: value));

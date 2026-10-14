@@ -53,4 +53,7 @@ class SessionStore {
 
   Future<void> touch(String serverId) =>
       _db.touchServer(serverId, _clock().millisecondsSinceEpoch);
+
+  Future<void> move(ServerSession session) =>
+      _db.moveServer(session.serverId, session.host, session.port);
 }

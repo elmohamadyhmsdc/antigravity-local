@@ -92,6 +92,7 @@ class ScanEngine {
   bool _active = false;
   Completer<void>? _settled;
   bool _pauseRequested = false;
+  bool _allowReconnectResume = true;
   bool _keepAliveOn = false;
   DateTime _lastNotification = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -105,7 +106,10 @@ class ScanEngine {
   }
 
   /// Asks the running scan to stop after the photo it is on.
-  void pause() => _pauseRequested = true;
+  void pause() {
+    _allowReconnectResume = false;
+    _pauseRequested = true;
+  }
 
   /// Waits until all current database/file writes and grouping have settled.
   /// Backup and restore must not race the photo currently being analysed.
@@ -135,10 +139,20 @@ class ScanEngine {
     }
   }
 
+  Future<void> resumeAfterConnectionRestored() async {
+    if (_allowReconnectResume &&
+        !_active &&
+        _progress.phase == ScanPhase.paused &&
+        _progress.pauseReason == PauseReason.offline) {
+      await start(enumerate: false);
+    }
+  }
+
   /// Runs until the queue is empty or the scan is paused. `enumerate` = list the chosen albums first
   /// (a new scan); false = just work through what is already queued (resume).
   Future<void> start({bool enumerate = true}) async {
     if (_active) return;
+    _allowReconnectResume = true;
     _active = true;
     final settled = _settled = Completer<void>();
     _pauseRequested = false;

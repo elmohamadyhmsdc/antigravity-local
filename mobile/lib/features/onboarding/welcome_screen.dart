@@ -124,6 +124,10 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                       icon: const Icon(Icons.keyboard_outlined),
                       label: Text(l10n.welcomeManual),
                     ),
+                    TextButton(
+                      onPressed: () => context.push(Routes.connection),
+                      child: Text(l10n.connectionTitle),
+                    ),
                   ],
                 ),
               ),

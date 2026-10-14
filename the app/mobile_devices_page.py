@@ -94,7 +94,9 @@ def render_mobile_devices(controller=None, *, local_access=None):
         old = st.session_state.get('mobile_pair_host',state['host'])
         if old not in addresses: st.session_state['mobile_pair_host'] = state['host']
         host = st.selectbox('PC address for the phone',addresses,
-            index=addresses.index(old) if old in addresses else 0,key='mobile_pair_host')
+            index=addresses.index(old) if old in addresses else 0,key='mobile_pair_host',
+            format_func=lambda ip:ip+(' · '+state.get('network',{}).get('labels',{}).get(ip,'')
+                                     if state.get('network',{}).get('labels',{}).get(ip) else ''))
         if host != state['host']:
             state = controller.status(host)
             if state['state'] != 'running': return
@@ -125,6 +127,25 @@ def render_mobile_devices(controller=None, *, local_access=None):
         with st.expander('Certificate fingerprint for manual pairing'):
             st.code(state['fingerprint'],language=None)
             st.caption('Compare this fingerprint with the one shown by the phone.')
+
+        with st.expander('Connection help · hotspot / router / USB'):
+            st.write('Phone hotspot: connect the PC to the phone, then select this PC’s Wi-Fi address above. The phone’s gateway address is not the PC address.')
+            st.write('PC hotspot: connect the phone to the PC, then select the hotspot adapter address above. It can differ from the router/Ethernet address.')
+            st.write('Addresses and the QR update automatically when adapters change. On the phone open Connection help → Find my PC, or verify the current address manually; pairing is preserved.')
+            network = state.get('network',{})
+            if network:
+                st.caption(f"Listening on {network['bind']} · HTTPS TCP {state['api_port']} · discovery UDP {network['discovery_port']}")
+                if not network['discovery_ready']: st.info('Local discovery is unavailable; QR and direct address connection remain available.')
+            st.write('Windows Firewall must allow the existing Python server on the current network profile. Guest/client isolation and some VPNs can block local devices. USB forwarding is an alternative when LAN traffic is blocked.')
+            st.code(f"adb reverse tcp:{state['api_port']} tcp:{state['api_port']}",language=None)
+            st.caption('For USB forwarding, choose 127.0.0.1 above. USB debugging must be authorized on the phone.')
+            from pathlib import Path
+            script = Path(__file__).with_name('allow_mobile_lan.ps1')
+            if script.is_file():
+                st.download_button('Download scoped Windows firewall setup',script.read_text(encoding='utf-8'),
+                    file_name='allow_mobile_lan.ps1',mime='text/plain')
+                st.caption('Optional: run as administrator on this PC. The reviewed script allows only this Python executable and the local TCP/UDP ports from LocalSubnet on Private/Public networks; it does not disable the firewall.')
+                st.code(f"& '{script}' -PythonPath '{script.parent/'venv'/'Scripts'/'python.exe'}' -ApiPort {state['api_port']} -DiscoveryPort {network.get('discovery_port',8445)}",language='powershell')
 
         st.divider()
         devices = state['devices']
