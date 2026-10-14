@@ -1,0 +1,17 @@
+{
+  "job_id": "9c1d2e84-aaaa-4bbb-8ccc-0123456789ab",
+  "client_job_id": "c0a8e6f2-1111-4a1b-9c1d-5a5a5a5a5a5a",
+  "type": "reface_video_v3",
+  "status": "queued",
+  "progress": 0.0,
+  "message": "Waiting in queue",
+  "queue_position": 2,
+  "created_at": "2026-10-11T12:30:05.120000",
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "last_frame": 0,
+  "frames_done": 0,
+  "details": {},
+  "has_result": false
+}

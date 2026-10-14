@@ -821,6 +821,219 @@ def test_audio_mux_command_applies_clipping_to_the_source():
     check(cmd[cmd.index("-to") + 1] == "9.5", "end time not passed through")
 
 
+@test
+def test_face_changed_sees_a_small_face_in_a_big_frame():
+    """Regression: the no-op guard averaged over the whole frame, so a fully
+    swapped 300px face in 1080p read as 'unchanged' (~0.2) and the HD composite
+    was replaced by insightface's plain paste on nearly every video frame."""
+    import numpy as np
+    from reface_engine_v3 import face_changed, _mean_abs_diff
+
+    before = np.full((1080, 1920, 3), 120, np.uint8)
+    after = before.copy()
+    after[400:550, 900:1050] += 6          # a 150px face, swapped
+    face = _FakeFace(np.zeros((5, 2)))
+    face.bbox = np.array([900.0, 400.0, 1050.0, 550.0])
+
+    check(_mean_abs_diff(after, before) < 0.5, "precondition: whole-frame mean is tiny")
+    check(face_changed(after, before, face), "a swapped face must count as changed")
+    other = _FakeFace(np.zeros((5, 2)))
+    other.bbox = np.array([100.0, 100.0, 250.0, 250.0])
+    check(not face_changed(after, before, other), "an untouched face must count as unchanged")
+
+
+@test
+def test_frame_rate_keeps_fractional_rates():
+    from reface_engine_v3 import rate_arg, video_fps
+
+    check(rate_arg(29.97002997) == "30000/1001", f"29.97 -> {rate_arg(29.97002997)}")
+    check(rate_arg(23.976023976) == "24000/1001", f"23.976 -> {rate_arg(23.976023976)}")
+    check(rate_arg(25.0) == "25/1", f"25 -> {rate_arg(25.0)}")
+
+    class _Cap:
+        def __init__(self, fps):
+            self.fps = fps
+
+        def get(self, _prop):
+            return self.fps
+
+    check(abs(video_fps(_Cap(29.97002997)) - 29.97002997) < 1e-6, "fps must stay fractional")
+    check(video_fps(_Cap(0.0)) == 25.0, "an unknown rate falls back to 25")
+    check(video_fps(_Cap(float("nan"))) == 25.0, "a NaN rate falls back to 25")
+
+
+def _unit(v):
+    import numpy as np
+    v = np.asarray(v, np.float32)
+    return v / np.linalg.norm(v)
+
+
+@test
+def test_match_reference_keeps_a_lookalike_bystander_out():
+    import numpy as np
+    from reface_engine_v3 import match_reference
+
+    rng = np.random.default_rng(3)
+    a = _unit(rng.standard_normal(512))
+    noise = _unit(rng.standard_normal(512))
+    b = _unit(0.6 * a + 0.8 * noise)               # a different person who looks a bit like A
+    refs = np.stack([a, b])
+
+    check(match_reference(_unit(a + 0.1 * noise), refs, {0}), "A again must be selected")
+    check(not match_reference(_unit(b + 0.05 * a), refs, {0}),
+          "B resembles A but is nearest to B's own reference: not selected")
+    stranger = _unit(rng.standard_normal(512))
+    check(not match_reference(stranger, refs, {0, 1}), "a stranger matches nobody")
+    check(not match_reference(None, refs, {0}), "no embedding, no swap")
+
+
+@test
+def test_face_selector_reidentifies_tracks_periodically():
+    import numpy as np
+    from reface_engine_v3 import FaceSelector, SELECT_RECHECK_FRAMES
+
+    a = _unit(np.random.default_rng(5).standard_normal(512))
+    sel = FaceSelector([a.tolist()], [0])
+    calls = []
+
+    def embed():
+        calls.append(1)
+        return a
+
+    for frame_no in range(SELECT_RECHECK_FRAMES):
+        check(sel.wants(7, frame_no, embed), "the selected person must be swapped")
+    check(len(calls) == 1, f"one embedding per recheck window, got {len(calls)}")
+    sel.wants(7, SELECT_RECHECK_FRAMES, embed)
+    check(len(calls) == 2, "the track must be re-identified after the window")
+
+
+@test
+def test_identity_boost_pushes_away_from_the_target():
+    import numpy as np
+    from identity import AveragedSource
+    from reface_engine_v3 import RefaceEngineV3
+
+    rng = np.random.default_rng(1)
+    s, t = _unit(rng.standard_normal(512)), _unit(rng.standard_normal(512))
+    src = AveragedSource(s)
+    eng = RefaceEngineV3.__new__(RefaceEngineV3)   # no models
+    eng._embed = lambda img, face: t
+
+    eng.identity_boost = 0.0
+    check(eng.boosted_source(src, None, None) is src, "boost 0 must leave the source untouched")
+    eng.identity_boost = 1.0
+    got = eng.boosted_source(src, None, None).normed_embedding
+    check(np.allclose(got, s * 1.35 - t * 0.35, atol=1e-6), "boost 1 = FaceFusion's maximum extrapolation")
+    check(float(_unit(got) @ t) < float(s @ t), "the boosted identity must be further from the target")
+
+
+def _full_frame_paste(frame, crop, mask, m_ffhq):
+    """The pre-ROI paste, kept here as the reference the ROI version must match."""
+    import cv2
+    import numpy as np
+
+    h, w = frame.shape[:2]
+    im = cv2.invertAffineTransform(m_ffhq)
+    back = cv2.warpAffine(crop, im, (w, h), borderMode=cv2.BORDER_REPLICATE)
+    m_back = np.clip(cv2.warpAffine(mask, im, (w, h)), 0.0, 1.0)[..., None]
+    return (frame.astype(np.float32) * (1.0 - m_back) + back.astype(np.float32) * m_back).astype(np.uint8)
+
+
+@test
+def test_roi_paste_matches_a_full_frame_paste():
+    import cv2
+    import numpy as np
+    from face_compositor import CompositeConfig, FaceCompositor, alignment_matrix
+
+    # Face-like content: smooth crop, feathered mask. (On white noise the two
+    # differ by OpenCV's 1/32-pixel interpolation steps, which a real face
+    # never shows.)
+    rng = np.random.default_rng(9)
+    frame = rng.integers(0, 255, (720, 1280, 3)).astype(np.uint8)
+    yy, xx = np.mgrid[0:512, 0:512].astype(np.float32)
+    crop = np.dstack([128 + 60 * np.sin(xx / 40), 128 + 60 * np.cos(yy / 35),
+                      128 + 40 * np.sin((xx + yy) / 50)]).astype(np.uint8)
+    mask = np.zeros((512, 512), np.float32)
+    mask[96:416, 96:416] = 1.0
+    mask = cv2.GaussianBlur(mask, (0, 0), 12)
+    comp = FaceCompositor(_StubRestorer(), _StubMasker(), CompositeConfig())
+
+    for cx in (640.0, 40.0):                       # centred, and hanging off the left edge
+        kps = np.array([[cx - 40, 300], [cx + 40, 302], [cx, 340],
+                        [cx - 32, 375], [cx + 32, 376]], np.float32)
+        m = alignment_matrix(kps, 512)
+        got = comp._paste(frame, crop, mask, m, native_px=400.0)
+        want = _full_frame_paste(frame, crop, mask, m)
+        diff = np.abs(got.astype(int) - want.astype(int))
+        check(diff.max() <= 3 and diff.mean() < 0.01,
+              f"ROI paste drifted from the full-frame paste at cx={cx}: max {diff.max()}, mean {diff.mean():.4f}")
+
+
+@test
+def test_low_res_gain_map_matches_full_res():
+    import numpy as np
+    from face_harmonize import apply_gain, compute_gain
+
+    yy, xx = np.mgrid[0:512, 0:512].astype(np.float32)
+    ref = np.dstack([90 + 0.2 * xx, 100 + 0.1 * yy, 120 + 0.05 * (xx + yy)]).clip(0, 255).astype(np.uint8)
+    res = np.full((512, 512, 3), 128, np.uint8)
+    mask = np.zeros((512, 512), np.float32)
+    mask[64:448, 96:416] = 1.0
+
+    full = apply_gain(res, compute_gain(res, ref, mask, scale=1), 1.0).astype(int)
+    fast = apply_gain(res, compute_gain(res, ref, mask), 1.0).astype(int)
+    inside = mask > 0.5
+    check(np.abs(full - fast)[inside].max() <= 2,
+          f"low-res gain must stay within 2 grey levels, got {np.abs(full - fast)[inside].max()}")
+
+
+@test
+def test_finish_v3_video_joins_parts_and_adds_audio():
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+    from ffmpeg_utils import _ffmpeg_exe
+    from job_manager import Job, JobStatus, finish_v3_video
+
+    ff = _ffmpeg_exe()
+    if not (Path(ff).exists() or shutil.which(ff)):
+        print("   (skipped: no ffmpeg)")
+        return
+
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        def make(path, seconds, start, audio=False):
+            cmd = [ff, "-y", "-loglevel", "error", "-f", "lavfi",
+                   "-i", f"testsrc=size=160x120:rate=30000/1001:duration={seconds}"]
+            if audio:
+                cmd += ["-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}", "-c:a", "aac"]
+            cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)]
+            subprocess.run(cmd, check=True)
+
+        source = tmp / "source.mp4"
+        make(source, 4, 0, audio=True)
+        part1, part2 = tmp / "refaced_v3_part_a.mp4", tmp / "refaced_v3_part_b.mp4"
+        make(part1, 2, 0)
+        make(part2, 2, 0)
+
+        job = Job(id="t1", job_type="reface_video_v3", status=JobStatus.RUNNING,
+                  progress=0.5, message="", created_at="", params={})
+        job.part_files = [str(part1)]
+        job.frames_done = 60
+        final = finish_v3_video(job, str(part2), 60, str(source))
+
+        probe = subprocess.run([ff, "-hide_banner", "-i", str(final)], capture_output=True, text=True).stderr
+        check(final.exists(), "final video must exist")
+        check("Audio:" in probe, "the source audio must be muxed onto the joined video")
+        check("Duration: 00:00:04" in probe or "Duration: 00:00:03.9" in probe,
+              f"both parts must be joined (~4s): {probe[probe.find('Duration'):][:30]}")
+        check(not part1.exists() and not part2.exists(), "parts must be cleaned up")
+        check(job.part_files == [] and job.frames_done == 120, "job bookkeeping must be updated")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main(argv):
     pattern = argv[0] if argv else ""
     selected = [t for t in _TESTS if pattern in t.__name__]

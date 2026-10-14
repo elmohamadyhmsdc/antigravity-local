@@ -9,6 +9,7 @@ models and any future higher-resolution swapper all share one realism core
 instead of each carrying a copy of it.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -56,6 +57,42 @@ def scale_affine(m: np.ndarray, factor: float) -> np.ndarray:
     """Adjust a crop-to-frame affine for a crop that was resized by `factor`."""
     s = np.diag([1.0 / factor, 1.0 / factor, 1.0])
     return (_to_h(m) @ s)[:2].astype(np.float32)
+
+
+def frame_roi(crop_to_frame, crop_w: int, crop_h: int, frame_shape, pad: int = 3):
+    """(x0, y0, x1, y1) of the frame area a crop lands on, padded for the
+    bilinear taps and clipped to the frame; None when it misses the frame.
+
+    Warping only this box instead of the whole frame is what keeps a 4K paste
+    at ~20 ms instead of ~400 ms - the face is a few percent of the frame.
+    """
+    h, w = frame_shape[:2]
+    a = np.asarray(_as_2x3(crop_to_frame), np.float64)
+    corners = np.array([[0, 0, 1], [crop_w, 0, 1], [crop_w, crop_h, 1], [0, crop_h, 1]], np.float64)
+    pts = corners @ a.T
+    x0 = max(0, int(np.floor(pts[:, 0].min())) - pad)
+    y0 = max(0, int(np.floor(pts[:, 1].min())) - pad)
+    x1 = min(w, int(np.ceil(pts[:, 0].max())) + pad)
+    y1 = min(h, int(np.ceil(pts[:, 1].max())) + pad)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    return x0, y0, x1, y1
+
+
+def _into_roi(crop_to_frame, x0: int, y0: int) -> np.ndarray:
+    """A crop->frame affine re-targeted at the ROI whose corner is (x0, y0)."""
+    m = np.asarray(crop_to_frame, np.float64).copy()
+    m[0, 2] -= x0
+    m[1, 2] -= y0
+    return m.astype(np.float32)
+
+
+def _from_roi(frame_to_crop, x0: int, y0: int) -> np.ndarray:
+    """A frame->crop affine that reads from the ROI whose corner is (x0, y0)."""
+    m = np.asarray(frame_to_crop, np.float64).copy()
+    m[0, 2] += m[0, 0] * x0 + m[0, 1] * y0
+    m[1, 2] += m[1, 0] * x0 + m[1, 1] * y0
+    return m.astype(np.float32)
 
 
 @dataclass
@@ -134,6 +171,12 @@ class FaceCompositor:
         self._frame_no = 0
         self._rng = np.random.default_rng()
         self._logged = set()
+        self._pool = None   # one worker: the restorer runs while the masks are built
+
+    def _executor(self) -> ThreadPoolExecutor:
+        if self._pool is None:
+            self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="restore")
+        return self._pool
 
     # -------------------------------------------------------------- lifecycle
 
@@ -175,18 +218,26 @@ class FaceCompositor:
         compose_affine(M_ffhq, M_swap) is the one-resample ideal, but mixing
         insightface's skimage matrix with OpenCV's FFHQ matrix sent the swapped
         pixels outside the paste mask, so the original face was written back.
+
+        Only the frame box under the FFHQ crop is rendered: the same two
+        resamples, a few percent of the pixels.
         """
         m_swap = _as_2x3(m_swap)
         if m_swap is None:
             raise ValueError("unusable swap affine")
-        h, w = frame.shape[:2]
-        im = cv2.invertAffineTransform(m_swap)
-        canvas = cv2.warpAffine(aligned_swap, im, (w, h), borderValue=0)
+        roi = frame_roi(cv2.invertAffineTransform(m_ffhq), size, size, frame.shape)
+        if roi is None:
+            raise ValueError("face crop lies outside the frame")
+        x0, y0, x1, y1 = roi
+        rw, rh = x1 - x0, y1 - y0
+        im = _into_roi(cv2.invertAffineTransform(m_swap), x0, y0)
+        canvas = cv2.warpAffine(aligned_swap, im, (rw, rh), borderValue=0)
         ones = np.ones(aligned_swap.shape[:2], np.float32)
-        cov_f = cv2.warpAffine(ones, im, (w, h), borderValue=0.0)
-        warped = cv2.warpAffine(canvas, m_ffhq, (size, size),
+        cov_f = cv2.warpAffine(ones, im, (rw, rh), borderValue=0.0)
+        m_read = _from_roi(m_ffhq, x0, y0)
+        warped = cv2.warpAffine(canvas, m_read, (size, size),
                                 borderMode=cv2.BORDER_REPLICATE)
-        cov = cv2.warpAffine(cov_f, m_ffhq, (size, size), borderValue=0.0)
+        cov = cv2.warpAffine(cov_f, m_read, (size, size), borderValue=0.0)
         cov = np.clip(cv2.GaussianBlur(cov, (0, 0), 2.0), 0.0, 1.0)[..., None]
         blended = (warped.astype(np.float32) * cov
                    + orig_aligned.astype(np.float32) * (1.0 - cov))
@@ -236,13 +287,25 @@ class FaceCompositor:
     def _mask_area(mask) -> float:
         return float((np.asarray(mask) > 0.01).mean())
 
-    def _build_mask(self, restored, orig_aligned):
-        """Return (paste_mask, region_orig, skin_orig), all float32 [0,1]."""
+    def _orig_masks(self, orig_aligned):
+        """(parser map, occlusion matte) of the original crop. Neither depends
+        on the swap, so composite() builds them while the restorer runs."""
+        seg = self.masker.segment(orig_aligned) if self.config.use_parser else None
+        occ = None
+        if self.config.use_occluder and self.masker.occluder is not None:
+            occ = self.masker.occlusion_mask(orig_aligned)
+        return seg, occ
+
+    def _build_mask(self, restored, orig_aligned, orig_masks=None):
+        """Return (paste_mask, region_orig, skin_orig), all float32 [0,1].
+
+        `orig_masks` is _orig_masks(orig_aligned) when the caller already has it.
+        """
         h, w = restored.shape[:2]
         regions = self._regions()
         floor = self.config.mask_area_floor
 
-        seg_orig = self.masker.segment(orig_aligned) if self.config.use_parser else None
+        seg_orig, occ = orig_masks if orig_masks is not None else self._orig_masks(orig_aligned)
         seg_res = self.masker.segment(restored) if self.config.use_parser else None
 
         if seg_orig is None or seg_res is None:
@@ -275,15 +338,13 @@ class FaceCompositor:
 
         mask = feather_mask(region, self.config.mask_erode, self.config.mask_feather)
 
-        if self.config.use_occluder and self.masker.occluder is not None:
-            occ = self.masker.occlusion_mask(orig_aligned)
-            if occ is not None:
-                hardened = harden_occlusion(occ)
-                masked = mask * hardened
-                if self._mask_area(masked) < floor:
-                    self._log_once("occluder wiped the paste mask; ignoring occluder")
-                else:
-                    mask = masked
+        if occ is not None:
+            hardened = harden_occlusion(occ)
+            masked = mask * hardened
+            if self._mask_area(masked) < floor:
+                self._log_once("occluder wiped the paste mask; ignoring occluder")
+            else:
+                mask = masked
 
         if self._mask_area(mask) < floor:
             self._log_once("paste mask collapsed; using box fallback")
@@ -379,13 +440,18 @@ class FaceCompositor:
             self._log_once(f"alignment failed ({e}); face skipped")
             return frame
 
+        orig_masks = None
         if restore and getattr(self.restorer, "available", False):
-            base = self._guard("restore", lambda: self.restorer.enhance(base), base)
+            # The original-crop masks don't depend on the restored face, so
+            # they're built on this thread while the restorer runs on the pool.
+            pending = self._executor().submit(self.restorer.enhance, base)
+            orig_masks = self._guard("mask", lambda: self._orig_masks(orig_aligned), None)
+            base = self._guard("restore", pending.result, base)
             if base.shape[:2] != (size, size):
                 base = cv2.resize(base, (size, size), interpolation=cv2.INTER_LINEAR)
 
         mask, region_orig, skin = self._guard(
-            "mask", lambda: self._build_mask(base, orig_aligned),
+            "mask", lambda: self._build_mask(base, orig_aligned, orig_masks),
             (box_mask(size, size), np.ones((size, size), np.float32),
              np.ones((size, size), np.float32)),
         )
@@ -398,7 +464,6 @@ class FaceCompositor:
         return self._paste(frame, out, mask, m_ffhq, native_px)
 
     def _paste(self, frame, crop, mask, m_ffhq, native_px):
-        h, w = frame.shape[:2]
         size = crop.shape[0]
         im = cv2.invertAffineTransform(m_ffhq)
 
@@ -411,12 +476,21 @@ class FaceCompositor:
             mask = cv2.resize(mask, (d, d), interpolation=cv2.INTER_AREA)
             im = scale_affine(im, d / float(size))
 
-        back = cv2.warpAffine(crop, im, (w, h), borderMode=cv2.BORDER_REPLICATE)
-        m_back = cv2.warpAffine(mask, im, (w, h))
+        # Outside the crop's footprint the mask is zero, so only that box changes.
+        roi = frame_roi(im, crop.shape[1], crop.shape[0], frame.shape)
+        if roi is None:
+            return frame
+        x0, y0, x1, y1 = roi
+        im = _into_roi(im, x0, y0)
+        back = cv2.warpAffine(crop, im, (x1 - x0, y1 - y0), borderMode=cv2.BORDER_REPLICATE)
+        m_back = cv2.warpAffine(mask, im, (x1 - x0, y1 - y0))
         m_back = np.clip(m_back * self.config.blend, 0.0, 1.0)[..., None]
 
-        out = frame.astype(np.float32) * (1.0 - m_back) + back.astype(np.float32) * m_back
-        return out.astype(np.uint8)
+        out = frame.copy()
+        region = frame[y0:y1, x0:x1].astype(np.float32)
+        out[y0:y1, x0:x1] = (region * (1.0 - m_back)
+                             + back.astype(np.float32) * m_back).astype(np.uint8)
+        return out
 
     # -------------------------------------------------------------- temporal
 

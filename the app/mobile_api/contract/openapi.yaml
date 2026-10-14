@@ -1,0 +1,955 @@
+openapi: 3.1.0
+info:
+  title: Antigravity Mobile API
+  version: 1.0.0
+  description: |
+    Stateless GPU compute API used by the Antigravity Mobile app (Flutter).
+    The phone is the source of truth for ALL user data; this server keeps no
+    user database. See docs/plans/2026-10-11-mobile-app-plan.md.
+
+    Conventions
+    - Transport: HTTPS with a self-signed certificate that the phone pins by
+      SHA-256 fingerprint (from the pairing QR). `Authorization: Bearer <token>`
+      on everything except /v1/health and /v1/pair/complete.
+    - Embeddings are 512 x float32 little-endian, base64 (always 2732 chars).
+    - Boxes are pixels of the *uploaded* image: {x, y, w, h}, top-left origin.
+    - Errors: `{error: {code, message, retryable}}`. 503 `gpu_busy` carries
+      `Retry-After`. 409 `missing_blobs` also carries `missing: [sha256...]`.
+    - The server's blob store is an evictable cache. A 409 means "upload these
+      and retry", never "the data is lost".
+servers:
+  - url: https://{host}:{port}
+    variables:
+      host: { default: 192.168.1.10 }
+      port: { default: "8443" }
+security:
+  - bearer: []
+
+paths:
+  /v1/health:
+    get:
+      summary: Liveness and identity (no auth)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /v1/capabilities:
+    get:
+      summary: What this server can do right now
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Capabilities" }
+
+  /v1/pair/complete:
+    post:
+      summary: Exchange the one-time code from the QR for a device token (no auth)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PairRequest" }
+      responses:
+        "200":
+          description: Paired
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PairResponse" }
+        "401":
+          description: Wrong, expired or used code (`invalid_code`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: Too many wrong codes; the code is burned (`pairing_locked`). Create a new one on the PC.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/blobs/{sha256}:
+    parameters:
+      - { name: sha256, in: path, required: true, schema: { $ref: "#/components/schemas/Sha256" } }
+    head:
+      summary: Does the server cache this blob? (also tells a resuming upload where to continue)
+      responses:
+        "200":
+          description: Cached
+          headers:
+            Content-Length: { schema: { type: integer } }
+        "404":
+          description: Not cached; upload it
+          headers:
+            Upload-Offset:
+              description: Bytes of a partial upload the server already holds (0 if none). Continue from here.
+              schema: { type: integer }
+    put:
+      summary: Upload a blob, in one request or in resumable chunks. The complete body must hash to {sha256}.
+      description: |
+        Without `Content-Range` the body is the whole blob (any partial upload is restarted).
+        With `Content-Range: bytes <start>-<end>/<total>` it is one chunk and `<start>` must equal
+        the current `Upload-Offset` (see HEAD); the chunk that completes `<total>` bytes finishes
+        the upload and the server verifies the SHA-256.
+      parameters:
+        - { name: Content-Range, in: header, required: false, schema: { type: string, pattern: "^bytes \\d+-\\d+/\\d+$" } }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        "201": { description: Stored and verified }
+        "202":
+          description: Chunk accepted, more expected
+          headers:
+            Upload-Offset: { schema: { type: integer } }
+        "204": { description: Already cached (body ignored) }
+        "400": { $ref: "#/components/responses/Error" }
+        "409":
+          description: The chunk does not start where the server's partial upload ends (`offset_mismatch`); resume from `Upload-Offset`
+          headers:
+            Upload-Offset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "422":
+          description: The bytes do not hash to {sha256} (`hash_mismatch`); the partial upload was discarded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /v1/analyze/image:
+    post:
+      summary: Detect faces and bodies in one image
+      description: Returns 503 gpu_busy while a heavy job is running.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary }
+                options: { $ref: "#/components/schemas/AnalyzeImageOptions" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyzeImageResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/grouping/plan:
+    post:
+      summary: Pure function - decide how faces/bodies should be grouped
+      description: |
+        Nothing is stored. `mode: apply` mirrors group_library (only confident
+        decisions); `mode: review` mirrors review_state (everything the Review
+        screen shows). The phone applies the result in one transaction.
+
+        Served by grouping_core.plan_request - the same DB-free code the PC's own
+        gallery runs on - on the CPU, so it never answers `gpu_busy`.
+
+        The body may be sent with `Content-Encoding: gzip` (a first scan is several
+        MB of base64 embeddings) and the answer is gzipped when `Accept-Encoding`
+        allows it. Both the compressed and the inflated size are capped by the
+        server (413 `too_large`).
+
+        The phone orchestrates rounds so ids stay real: round 1 `apply` with
+        [match, cluster] -> apply the autos in one transaction (new people get real
+        ids) -> round 2 `apply` with [bodies] (derived body links cleared first) ->
+        round 3 `review` with all four stages -> store the suggestions. In `apply`
+        mode `body_links` also carries the `suggest` links; the caller applies only
+        `auto` ones.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GroupingPlanRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GroupingPlanResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+
+  /v1/jobs:
+    post:
+      summary: Queue a GPU job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JobCreate" }
+      responses:
+        "201":
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobStatus" }
+        "409":
+          description: Some input blobs are not cached; upload them and retry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MissingBlobsError" }
+    get:
+      summary: Status of several jobs (re-sync after reconnecting)
+      parameters:
+        - { name: ids, in: query, required: true, schema: { type: string }, description: Comma-separated job ids }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [jobs]
+                properties:
+                  jobs:
+                    type: array
+                    items: { $ref: "#/components/schemas/JobStatus" }
+                  unknown_ids:
+                    type: array
+                    items: { type: string }
+                    description: Ids the server no longer has (purged after ACK/TTL)
+
+  /v1/jobs/{job_id}:
+    parameters:
+      - { name: job_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: One job
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobStatus" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: ACK the results and purge the job directory
+      responses:
+        "204": { description: Purged }
+
+  /v1/jobs/{job_id}/events:
+    parameters:
+      - { name: job_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Server-sent events, one JobStatus JSON per `data:` line
+      responses:
+        "200":
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  /v1/jobs/{job_id}/stop:
+    parameters:
+      - { name: job_id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Pause (video jobs keep `last_frame`) or cancel a queued job
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobStatus" }
+
+  /v1/jobs/{job_id}/resume:
+    parameters:
+      - { name: job_id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Re-queue a paused or failed job
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobStatus" }
+
+  /v1/jobs/{job_id}/result:
+    parameters:
+      - { name: job_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Manifest of the files a finished (or partially finished) job produced
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResultManifest" }
+
+  /v1/jobs/{job_id}/result/{name}:
+    parameters:
+      - { name: job_id, in: path, required: true, schema: { type: string } }
+      - { name: name, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Download one result file (supports Range)
+      responses:
+        "200":
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "206": { description: Partial content }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    # ---------------------------------------------------------------- basics
+    Sha256:
+      type: string
+      pattern: "^[0-9a-f]{64}$"
+
+    Embedding:
+      type: string
+      description: 512 x float32 little-endian, base64
+      minLength: 2732
+      maxLength: 2732
+      pattern: "^[A-Za-z0-9+/]{2731}=$"
+
+    Base64Jpeg:
+      type: string
+      description: base64 JPEG bytes
+
+    Appearance:
+      type: array
+      description: 2 regions (torso, legs) x 40 Hellinger-form histogram bins
+      minItems: 80
+      maxItems: 80
+      items: { type: number }
+
+    BBox:
+      type: object
+      required: [x, y, w, h]
+      properties:
+        x: { type: number }
+        y: { type: number }
+        w: { type: number, exclusiveMinimum: 0 }
+        h: { type: number, exclusiveMinimum: 0 }
+
+    Pose:
+      type: object
+      required: [yaw, pitch]
+      properties:
+        yaw: { type: number }
+        pitch: { type: number }
+        roll: { type: [number, "null"] }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code:
+              type: string
+              examples: [gpu_busy, unauthorized, missing_blobs, bad_request, bad_image, model_mismatch, not_found, internal,
+                         offset_mismatch, hash_mismatch, too_large, invalid_code, pairing_locked]
+            message: { type: string }
+            retryable: { type: boolean }
+
+    MissingBlobsError:
+      type: object
+      required: [error, missing]
+      properties:
+        error: { $ref: "#/components/schemas/Error/properties/error" }
+        missing:
+          type: array
+          items: { $ref: "#/components/schemas/Sha256" }
+
+    # ---------------------------------------------------------------- system
+    Health:
+      type: object
+      required: [status, server_id, name, api_version]
+      properties:
+        status: { type: string, const: ok }
+        server_id: { type: string }
+        name: { type: string }
+        api_version: { type: string }
+
+    Capabilities:
+      type: object
+      required: [api_version, server_id, name, embedding_model, gpu, engines, restorers, lora_base_checkpoints, limits, busy]
+      properties:
+        api_version: { type: string }
+        server_id: { type: string }
+        name: { type: string }
+        embedding_model:
+          type: object
+          required: [id, dim]
+          properties:
+            id: { type: string, examples: ["buffalo_l@1"] }
+            dim: { type: integer, const: 512 }
+        gpu:
+          type: [object, "null"]
+          required: [name, vram_total_mb, vram_free_mb]
+          properties:
+            name: { type: string }
+            vram_total_mb: { type: integer }
+            vram_free_mb: { type: integer }
+        engines:
+          type: object
+          required: [reface_v3, reface_v2, dfm_models, undress, lora_train, lora_generate, body_detection]
+          properties:
+            reface_v3: { type: boolean }
+            reface_v2: { type: boolean }
+            dfm_models:
+              type: array
+              items: { type: string }
+            undress: { type: boolean }
+            lora_train: { type: boolean }
+            lora_generate: { type: boolean }
+            body_detection: { type: boolean }
+        restorers:
+          type: array
+          items: { type: string }
+        lora_base_checkpoints:
+          type: array
+          items: { type: string }
+        limits:
+          type: object
+          required: [max_image_px, max_upload_mb, blob_cache_mb]
+          properties:
+            max_image_px: { type: integer }
+            max_upload_mb: { type: integer }
+            blob_cache_mb: { type: integer }
+        busy:
+          type: [object, "null"]
+          required: [job_id, job_type, source]
+          properties:
+            job_id: { type: string }
+            job_type: { type: string }
+            source:
+              type: string
+              enum: [mobile, dashboard]
+
+    PairRequest:
+      type: object
+      required: [code, device_name]
+      properties:
+        code: { type: string }
+        device_name: { type: string }
+
+    PairResponse:
+      type: object
+      required: [token, server_id, server_name]
+      properties:
+        token: { type: string }
+        server_id: { type: string }
+        server_name: { type: string }
+
+    # --------------------------------------------------------------- analyze
+    AnalyzeImageOptions:
+      type: object
+      properties:
+        detect_bodies: { type: boolean, default: true }
+        min_quality: { type: number, default: 0.40 }
+        return_crops: { type: boolean, default: true }
+        body_score: { type: number, default: 0.5 }
+        model_id:
+          type: string
+          description: The embedding model the phone's library uses; the server answers 409 `model_mismatch` if it differs
+
+    FaceQuality:
+      type: object
+      description: Output of face_quality.assess (quality v2)
+      required: [quality_score, quality_version, quality_parts, det_score, face_px, sharpness, embedding_norm, pose]
+      properties:
+        quality_score: { type: number, minimum: 0, maximum: 1 }
+        quality_version: { type: integer }
+        quality_parts:
+          type: object
+          required: [norm, size, sharp, pose]
+          properties:
+            norm: { type: number }
+            size: { type: number }
+            sharp: { type: number }
+            pose: { type: number }
+        det_score: { type: number }
+        face_px: { type: number }
+        sharpness: { type: number }
+        embedding_norm: { type: [number, "null"] }
+        pose:
+          oneOf:
+            - { $ref: "#/components/schemas/Pose" }
+            - { type: "null" }
+
+    Face:
+      type: object
+      required: [bbox, kps, det_score, embedding, quality, passes_gate]
+      properties:
+        bbox: { $ref: "#/components/schemas/BBox" }
+        kps:
+          type: array
+          description: 5 landmarks (eyes, nose, mouth corners) as [x, y]
+          minItems: 5
+          maxItems: 5
+          items: { type: array, minItems: 2, maxItems: 2, items: { type: number } }
+        det_score: { type: number }
+        embedding: { $ref: "#/components/schemas/Embedding" }
+        quality: { $ref: "#/components/schemas/FaceQuality" }
+        passes_gate:
+          type: boolean
+          description: Meets det_score, size and min_quality; the phone stores only these as gallery faces
+        crop_jpeg:
+          oneOf:
+            - { $ref: "#/components/schemas/Base64Jpeg" }
+            - { type: "null" }
+
+    Body:
+      type: object
+      required: [bbox, score]
+      properties:
+        bbox: { $ref: "#/components/schemas/BBox" }
+        score: { type: number }
+        kpts:
+          description: 17 COCO keypoints as [x, y, score]
+          oneOf:
+            - { type: array, minItems: 17, maxItems: 17, items: { type: array, minItems: 3, maxItems: 3, items: { type: number } } }
+            - { type: "null" }
+        appearance:
+          description: 80-float outfit descriptor (torso + legs HSV histograms; person_linking.appearance_descriptor)
+          oneOf:
+            - { $ref: "#/components/schemas/Appearance" }
+            - { type: "null" }
+        extent:
+          type: [string, "null"]
+        crop_jpeg:
+          oneOf:
+            - { $ref: "#/components/schemas/Base64Jpeg" }
+            - { type: "null" }
+
+    FaceBodyPair:
+      type: object
+      required: [face_index, body_index, score]
+      properties:
+        face_index: { type: integer, minimum: 0 }
+        body_index: { type: integer, minimum: 0 }
+        score: { type: number }
+
+    AnalyzeImageResponse:
+      type: object
+      required: [model_id, image_w, image_h, faces, bodies, pairs]
+      properties:
+        model_id: { type: string, examples: ["buffalo_l@1"] }
+        image_w: { type: integer }
+        image_h: { type: integer }
+        faces:
+          type: array
+          items: { $ref: "#/components/schemas/Face" }
+        bodies:
+          type: array
+          items: { $ref: "#/components/schemas/Body" }
+        pairs:
+          type: array
+          items: { $ref: "#/components/schemas/FaceBodyPair" }
+        timings_ms:
+          type: object
+          additionalProperties: { type: number }
+
+    # -------------------------------------------------------------- grouping
+    GroupingModel:
+      type: object
+      description: |
+        One person. `proto` is the quality-weighted (q^2) mean of ALL the person's
+        face embeddings; `members` are the best-quality faces first (capped).
+        Duplicate-person scoring reads the first 50 members, so keep cap >= 50.
+        The server accepts 1..1000 members per person and does not re-normalise
+        `proto`/`members` (send unit vectors). The phone's cap is
+        `groupingMemberCap` in lib/domain/grouping/grouping_config.dart (the PC's
+        own gallery uses 300; eval_member_cap.py measures the smaller values).
+      required: [pid, proto, members, count]
+      properties:
+        pid: { type: integer }
+        proto: { $ref: "#/components/schemas/Embedding" }
+        members:
+          type: array
+          items: { $ref: "#/components/schemas/Embedding" }
+        count: { type: integer, minimum: 1 }
+
+    GroupingFace:
+      type: object
+      required: [id, embedding, quality, frame_key, rejected_person_ids]
+      properties:
+        id: { type: integer }
+        embedding: { $ref: "#/components/schemas/Embedding" }
+        quality: { type: number }
+        frame_key:
+          type: [string, "null"]
+          description: Faces sharing a key are in the same photo/frame and cannot be one person
+        rejected_person_ids:
+          type: array
+          items: { type: integer }
+
+    GroupingBody:
+      type: object
+      required: [id, media_id, frame_number, anchor_person_id, appearance, rejected_person_ids]
+      properties:
+        id: { type: integer }
+        media_id: { type: [integer, "null"] }
+        frame_number: { type: [integer, "null"] }
+        anchor_person_id:
+          type: [integer, "null"]
+          description: |
+            Person it already belongs to through its face or a link made by hand.
+            Round 2 (`apply`, bodies) sends derived (appearance / weak_face) links as
+            null because they are being re-derived; `review` sends every current link,
+            exactly like the PC's review_state.
+        appearance:
+          oneOf:
+            - { $ref: "#/components/schemas/Appearance" }
+            - { type: "null" }
+        weak_face_embedding:
+          oneOf:
+            - { $ref: "#/components/schemas/Embedding" }
+            - { type: "null" }
+        rejected_person_ids:
+          type: array
+          items: { type: integer }
+
+    GroupingPlanRequest:
+      type: object
+      required: [mode, stages, strictness, models, pending, distinct_pairs, bodies]
+      properties:
+        mode:
+          type: string
+          enum: [apply, review]
+        stages:
+          type: array
+          description: apply supports match, cluster, bodies; review supports all four
+          items: { type: string, enum: [match, cluster, duplicates, bodies] }
+          uniqueItems: true
+        strictness: { type: string, enum: [strict, balanced, loose] }
+        models:
+          type: array
+          items: { $ref: "#/components/schemas/GroupingModel" }
+        pending:
+          type: array
+          description: Faces with no person yet
+          items: { $ref: "#/components/schemas/GroupingFace" }
+        dismissed_face_ids:
+          type: array
+          items: { type: integer }
+        distinct_pairs:
+          type: array
+          items: { type: array, minItems: 2, maxItems: 2, items: { type: integer } }
+        bodies:
+          type: array
+          items: { $ref: "#/components/schemas/GroupingBody" }
+        max_suggestions_per_person: { type: integer, default: 60 }
+
+    FaceAssignment:
+      type: object
+      required: [face_id, person_id, score, margin, decision]
+      properties:
+        face_id: { type: integer }
+        person_id: { type: integer }
+        score: { type: number }
+        margin: { type: number }
+        decision: { type: string, enum: [auto, suggest] }
+
+    FaceGroup:
+      type: object
+      required: [face_ids, cohesion, quality, auto_create]
+      properties:
+        face_ids:
+          type: array
+          items: { type: integer }
+        cohesion: { type: number }
+        quality: { type: number }
+        auto_create:
+          type: boolean
+          description: Big and cohesive enough that apply mode makes a person from it
+
+    DuplicatePeople:
+      type: object
+      required: [person_a, person_b, score]
+      properties:
+        person_a: { type: integer }
+        person_b: { type: integer }
+        score: { type: number }
+
+    BodyLink:
+      type: object
+      required: [body_id, person_id, method, confidence, decision]
+      properties:
+        body_id: { type: integer }
+        person_id: { type: integer }
+        method: { type: string, enum: [appearance, weak_face] }
+        confidence: { type: number }
+        decision: { type: string, enum: [auto, suggest] }
+
+    GroupingPlanResponse:
+      type: object
+      required: [mode, assignments, groups, duplicates, body_links, unsorted_face_ids]
+      properties:
+        mode: { type: string, enum: [apply, review] }
+        assignments:
+          type: array
+          description: apply -> auto only; review -> auto and suggest
+          items: { $ref: "#/components/schemas/FaceAssignment" }
+        groups:
+          type: array
+          items: { $ref: "#/components/schemas/FaceGroup" }
+        duplicates:
+          type: array
+          items: { $ref: "#/components/schemas/DuplicatePeople" }
+        body_links:
+          type: array
+          items: { $ref: "#/components/schemas/BodyLink" }
+        unsorted_face_ids:
+          type: array
+          items: { type: integer }
+
+    # ------------------------------------------------------------------ jobs
+    JobType:
+      type: string
+      enum:
+        - reface_image_v3
+        - reface_image_v2
+        - reface_image_dfm
+        - reface_video_v3
+        - reface_video_v2
+        - reface_video_dfm
+        - analyze_video
+        - undress_image
+        - build_lora_dataset
+        - train_lora
+        - generate_lora_images
+
+    SourceFace:
+      type: object
+      description: One identity face. inswapper only consumes the embedding; quality/pose weight and angle-match it.
+      required: [embedding, quality]
+      properties:
+        embedding: { $ref: "#/components/schemas/Embedding" }
+        quality: { type: number }
+        pose:
+          oneOf:
+            - { $ref: "#/components/schemas/Pose" }
+            - { type: "null" }
+
+    RefaceParams:
+      type: object
+      description: |
+        reface_image_* / reface_video_*. Inputs: `target` (image or video blob).
+        `target_faces` are matched to detections by IoU on the server (indices
+        are not stable across runs). `dfm_model` is required for *_dfm and then
+        `source_faces` may be empty.
+      required: [source_faces]
+      properties:
+        source_faces:
+          type: array
+          items: { $ref: "#/components/schemas/SourceFace" }
+        target_faces:
+          type: array
+          description: Boxes (pixels of the target image/first frame) to swap; omit for all faces
+          items: { $ref: "#/components/schemas/BBox" }
+        restorer: { type: string, default: codeformer }
+        restorer_weight: { type: number, default: 0.5 }
+        use_parser: { type: boolean, default: true }
+        use_occluder: { type: boolean, default: true }
+        realism_preset: { type: string, default: natural }
+        realism_overrides: { type: [object, "null"] }
+        dfm_model: { type: string }
+        use_angle_matching: { type: boolean, default: true }
+        start_time: { type: number, default: 0 }
+        end_time: { type: [number, "null"] }
+
+    AnalyzeVideoParams:
+      type: object
+      description: "Inputs: `video` blob. Result: detections.ndjson + crops.zip."
+      properties:
+        frame_interval: { type: number, default: 1.0 }
+        min_quality: { type: number, default: 0.40 }
+        detect_bodies: { type: boolean, default: true }
+        video_similar_distance: { type: number, default: 0.08 }
+        max_bodies_per_media: { type: integer, default: 40 }
+        start_time: { type: number, default: 0 }
+
+    UndressParams:
+      type: object
+      description: "Inputs: `image` blob, optional `refs` blobs. Mirrors undress_core.run_undress_job."
+      properties:
+        face_bbox:
+          oneOf:
+            - { $ref: "#/components/schemas/BBox" }
+            - { type: "null" }
+        prompt: { type: string }
+        negative_prompt: { type: string }
+        seed: { type: integer, default: -1 }
+        steps: { type: integer, default: 26 }
+        guidance_scale: { type: number, default: 6.0 }
+        strength: { type: number, default: 0.6 }
+        init_color:
+          oneOf:
+            - { type: array, minItems: 3, maxItems: 3, items: { type: integer, minimum: 0, maximum: 255 } }
+            - { type: "null" }
+        controlnet_scale: { type: number, default: 0.0 }
+        ref_scale: { type: number, default: 0.85 }
+        refine: { type: boolean, default: true }
+        refine_strength: { type: number, default: 0.40 }
+        refine_steps: { type: integer, default: 35 }
+
+    BuildLoraDatasetParams:
+      type: object
+      description: "Inputs: `images` blobs. Result: dataset.zip (crops + captions) and preview.json."
+      required: [trigger_word]
+      properties:
+        trigger_word: { type: string }
+        repeats: { type: integer, default: 10 }
+        max_frames_per_video: { type: integer, default: 12 }
+
+    TrainLoraParams:
+      type: object
+      description: "Inputs: `dataset` blob (dataset.zip). Result: <output_name>.safetensors. `person_id` is deliberately absent."
+      required: [output_name, base_checkpoint]
+      properties:
+        output_name: { type: string, pattern: "^[A-Za-z0-9_-]{1,64}$" }
+        base_checkpoint:
+          type: string
+          description: A name from capabilities.lora_base_checkpoints
+        epochs: { type: integer, default: 10 }
+        network_dim: { type: integer, default: 32 }
+        network_alpha: { type: integer, default: 16 }
+        learning_rate: { type: number, default: 0.0001 }
+        batch_size: { type: integer, default: 1 }
+        max_resolution: { type: integer, enum: [512, 768], default: 512 }
+
+    GenerateLoraParams:
+      type: object
+      description: "Inputs: `lora` blob (.safetensors), optional `reference` blob."
+      required: [trigger_word, num_images]
+      properties:
+        base_checkpoint: { type: string }
+        trigger_word: { type: string }
+        prompt: { type: string }
+        negative_prompt: { type: string }
+        num_images: { type: integer, minimum: 1, maximum: 64 }
+        seed: { type: integer, default: -1 }
+        steps: { type: integer, default: 30 }
+        lora_scale: { type: number }
+        guidance_scale: { type: number }
+        multi_angle: { type: boolean, default: true }
+        reference_mode: { type: string, enum: [composition, style, both] }
+        reference_strength: { type: number, default: 0.6 }
+        reference_scale: { type: number, default: 0.5 }
+
+    JobCreate:
+      type: object
+      required: [type, params, inputs]
+      properties:
+        client_job_id:
+          type: string
+          description: Optional idempotency key; re-posting the same id returns the existing job
+        type: { $ref: "#/components/schemas/JobType" }
+        params: { type: object }
+        inputs:
+          type: object
+          description: Blob slots -> sha256 (or an array of sha256 for `images` and `refs`)
+          additionalProperties:
+            oneOf:
+              - { $ref: "#/components/schemas/Sha256" }
+              - { type: array, items: { $ref: "#/components/schemas/Sha256" } }
+      allOf:
+        - if: { properties: { type: { enum: [reface_image_v3, reface_image_v2, reface_image_dfm, reface_video_v3, reface_video_v2, reface_video_dfm] } }, required: [type] }
+          then:
+            properties:
+              params: { $ref: "#/components/schemas/RefaceParams" }
+              inputs: { required: [target] }
+        - if: { properties: { type: { const: analyze_video } }, required: [type] }
+          then:
+            properties:
+              params: { $ref: "#/components/schemas/AnalyzeVideoParams" }
+              inputs: { required: [video] }
+        - if: { properties: { type: { const: undress_image } }, required: [type] }
+          then:
+            properties:
+              params: { $ref: "#/components/schemas/UndressParams" }
+              inputs: { required: [image] }
+        - if: { properties: { type: { const: build_lora_dataset } }, required: [type] }
+          then:
+            properties:
+              params: { $ref: "#/components/schemas/BuildLoraDatasetParams" }
+              inputs: { required: [images] }
+        - if: { properties: { type: { const: train_lora } }, required: [type] }
+          then:
+            properties:
+              params: { $ref: "#/components/schemas/TrainLoraParams" }
+              inputs: { required: [dataset] }
+        - if: { properties: { type: { const: generate_lora_images } }, required: [type] }
+          then:
+            properties:
+              params: { $ref: "#/components/schemas/GenerateLoraParams" }
+              inputs: { required: [lora] }
+
+    JobStatus:
+      type: object
+      description: Mirror of job_manager.Job
+      required: [job_id, type, status, progress, message, queue_position, created_at]
+      properties:
+        job_id: { type: string }
+        client_job_id: { type: [string, "null"] }
+        type: { $ref: "#/components/schemas/JobType" }
+        status:
+          type: string
+          enum: [pending, queued, running, paused, completed, failed]
+        progress: { type: number, minimum: 0, maximum: 1 }
+        message: { type: string }
+        queue_position: { type: integer }
+        created_at: { type: string }
+        started_at: { type: [string, "null"] }
+        completed_at: { type: [string, "null"] }
+        error: { type: [string, "null"] }
+        last_frame: { type: integer }
+        frames_done: { type: integer }
+        details:
+          type: object
+          description: Engine-specific live state (LoRA stage/epoch/step/loss, generation seeds, ...)
+          additionalProperties: true
+        has_result: { type: boolean }
+
+    ResultFile:
+      type: object
+      required: [name, size, sha256, mime]
+      properties:
+        name: { type: string }
+        size: { type: integer }
+        sha256: { $ref: "#/components/schemas/Sha256" }
+        mime: { type: string }
+
+    ResultManifest:
+      type: object
+      required: [job_id, files]
+      properties:
+        job_id: { type: string }
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/ResultFile" }
+        meta:
+          type: object
+          additionalProperties: true

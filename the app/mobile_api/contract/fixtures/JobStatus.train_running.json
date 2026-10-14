@@ -1,0 +1,25 @@
+{
+  "job_id": "9c1d2e84-aaaa-4bbb-8ccc-0123456789ab",
+  "client_job_id": "c0a8e6f2-1111-4a1b-9c1d-5a5a5a5a5a5a",
+  "type": "train_lora",
+  "status": "running",
+  "progress": 0.42,
+  "message": "epoch 5/10 - step 120/280",
+  "queue_position": 0,
+  "created_at": "2026-10-11T12:30:05.120000",
+  "started_at": "2026-10-11T12:30:09.004000",
+  "completed_at": null,
+  "error": null,
+  "last_frame": 0,
+  "frames_done": 0,
+  "details": {
+    "stage": "Training",
+    "epoch": 5,
+    "total_epochs": 10,
+    "step": 120,
+    "total_steps": 280,
+    "loss": 0.0931,
+    "seconds_per_step": 1.7
+  },
+  "has_result": false
+}

@@ -1,0 +1,922 @@
+{
+  "@@locale": "en",
+  "appTitle": "Antigravity",
+  "@appTitle": {
+    "description": "App name shown in the title bar and task switcher."
+  },
+  "navHome": "Home",
+  "navPeople": "People",
+  "navLibrary": "Library",
+  "navStudio": "Studio",
+  "navJobs": "Jobs",
+  "settings": "Settings",
+  "cancel": "Cancel",
+  "retry": "Try again",
+  "back": "Back",
+  "comingInPhase": "Coming in phase {phase}",
+  "@comingInPhase": {
+    "description": "Placeholder shown on screens that are not built yet.",
+    "placeholders": {
+      "phase": {
+        "type": "String",
+        "example": "P2"
+      }
+    }
+  },
+  "peoplePlaceholder": "Everyone found in your photos and videos, grouped by identity.",
+  "libraryPlaceholder": "Your photos and videos, with who is in each one.",
+  "studioPlaceholder": "Reface, Restyle and Character LoRA.",
+  "jobsPlaceholder": "Running, queued, paused and finished GPU jobs.",
+  "settingsPlaceholder": "Pairing, grouping strictness, scan defaults and app lock.",
+  "welcomeTitle": "Connect to your PC",
+  "welcomeBody": "Antigravity does the heavy AI work on your Windows PC. Your photos, faces and results stay on this phone - the PC only computes.",
+  "welcomeSameWifi": "Your phone and PC must be on the same Wi-Fi.",
+  "welcomeScan": "Scan QR code",
+  "welcomeManual": "Enter address manually",
+  "welcomeStep": "On the PC, run run_mobile_api.bat. It opens a page with a QR code.",
+  "scanTitle": "Scan the QR code",
+  "scanHint": "Point the camera at the QR code on your PC's pairing page.",
+  "scanNotPairingCode": "That is not an Antigravity pairing code.",
+  "scanCameraDenied": "Camera access is needed to scan the code. You can also enter the address manually.",
+  "scanEnterManually": "Enter address manually",
+  "manualTitle": "Enter the address",
+  "manualIntro": "Type the address and pairing code shown on your PC's pairing page.",
+  "manualHostLabel": "PC address",
+  "manualHostHint": "192.168.1.20",
+  "manualPortLabel": "Port",
+  "manualCodeLabel": "Pairing code",
+  "manualCodeHint": "K7QM-3XRD",
+  "manualConnect": "Connect",
+  "errHostEmpty": "Enter the PC's address.",
+  "errHostInvalid": "That is not a valid address.",
+  "errHostNotLan": "The PC must be on your Wi-Fi (an address like 192.168.x.x or 10.x.x.x).",
+  "errPortInvalid": "Enter a port between 1 and 65535.",
+  "errCodeInvalid": "The code has 8 letters and digits, like K7QM-3XRD.",
+  "confirmFingerprintTitle": "Is this your PC?",
+  "confirmFingerprintBody": "Compare this fingerprint with the one on your PC's pairing page. Only continue if they are identical.",
+  "confirmFingerprintYes": "They match - pair",
+  "pairLinkTitle": "Pair with {host}?",
+  "@pairLinkTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String",
+        "example": "192.168.1.20"
+      }
+    }
+  },
+  "pairLinkBody": "A link asked this phone to pair with a PC at {host}. Only continue if you started this on your own PC.",
+  "@pairLinkBody": {
+    "placeholders": {
+      "host": {
+        "type": "String",
+        "example": "192.168.1.20"
+      }
+    }
+  },
+  "pairLinkInvalid": "That pairing link is not valid, or it does not point to a PC on your Wi-Fi.",
+  "pairLinkContinue": "Pair",
+  "pairingConnecting": "Connecting to {host}…",
+  "@pairingConnecting": {
+    "placeholders": {
+      "host": {
+        "type": "String",
+        "example": "192.168.1.20"
+      }
+    }
+  },
+  "permissionsTitle": "Permissions",
+  "permissionsIntro": "Antigravity asks only for what it needs. You can change these later in Android settings.",
+  "permMediaTitle": "Photos and videos",
+  "permMediaWhy": "To find faces in your library. Files are read in place and never copied or uploaded in full - only downscaled pictures are sent to your own PC.",
+  "permCameraTitle": "Camera",
+  "permCameraWhy": "Only to scan the pairing QR code.",
+  "permNotificationsTitle": "Notifications",
+  "permNotificationsWhy": "So you hear when a long job on your PC has finished.",
+  "permAllow": "Allow",
+  "permGranted": "Allowed",
+  "permBlocked": "Blocked - open settings",
+  "permContinue": "Continue",
+  "homeStatusChecking": "Checking…",
+  "homeStatusConnected": "{name}",
+  "@homeStatusConnected": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "RTX-PC"
+      }
+    }
+  },
+  "homeStatusBusy": "{name} - busy",
+  "@homeStatusBusy": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "RTX-PC"
+      }
+    }
+  },
+  "homeStatusOffline": "PC offline",
+  "homeStatusRevoked": "Pairing revoked",
+  "homeStatusTooltip": "Tap to check the connection",
+  "homeBusyBanner": "Your PC's GPU is busy with a {job} job.",
+  "@homeBusyBanner": {
+    "placeholders": {
+      "job": {
+        "type": "String",
+        "example": "train_lora"
+      }
+    }
+  },
+  "homeOfflineBanner": "Cannot reach your PC. Is the server running and is this phone on the same Wi-Fi?",
+  "homeRevokedBanner": "This phone was removed on the PC. Pair again to continue.",
+  "homePairAgain": "Pair again",
+  "statPeople": "People",
+  "statFaces": "Faces",
+  "statPhotos": "Photos",
+  "statVideos": "Videos",
+  "unsortedFaces": "{count, plural, =0{No unsorted faces} =1{1 unsorted face} other{{count} unsorted faces}}",
+  "@unsortedFaces": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "12"
+      }
+    }
+  },
+  "emptyLibraryTitle": "Your library is empty",
+  "emptyLibraryBody": "Choose albums to scan and the people in your photos show up here. You can also test face detection on a single photo.",
+  "tryDetectionTitle": "Detect faces in a photo",
+  "tryDetectionBody": "Sends one downscaled photo to your PC and shows what it finds.",
+  "forgetPc": "Forget this PC",
+  "forgetPcTitle": "Forget {name}?",
+  "@forgetPcTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "RTX-PC"
+      }
+    }
+  },
+  "forgetPcBody": "This phone will be unpaired. Everything in your library stays on the phone.",
+  "forgetPcConfirm": "Forget",
+  "analyzeTitle": "Detect faces",
+  "analyzePick": "Choose a photo",
+  "analyzePickAnother": "Choose another photo",
+  "analyzeIdle": "Pick a photo from your gallery. It is downscaled and analysed on your PC; nothing is stored there.",
+  "analyzing": "Analysing on {name}…",
+  "@analyzing": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "RTX-PC"
+      }
+    }
+  },
+  "analyzeFacesFound": "{count, plural, =0{No faces found} =1{1 face found} other{{count} faces found}}",
+  "@analyzeFacesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "analyzeBodiesFound": "{count, plural, =0{no bodies} =1{1 body} other{{count} bodies}}",
+  "@analyzeBodiesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "analyzeSummary": "{faces} · {bodies} · {width}×{height} · {ms} ms",
+  "@analyzeSummary": {
+    "placeholders": {
+      "faces": {
+        "type": "String",
+        "example": "2 faces found"
+      },
+      "bodies": {
+        "type": "String",
+        "example": "1 body"
+      },
+      "width": {
+        "type": "int",
+        "example": "1920"
+      },
+      "height": {
+        "type": "int",
+        "example": "1080"
+      },
+      "ms": {
+        "type": "int",
+        "example": "120"
+      }
+    }
+  },
+  "analyzeFaceTitle": "Face {number}",
+  "@analyzeFaceTitle": {
+    "placeholders": {
+      "number": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "analyzeFaceDetail": "{pixels} px · detector {det}",
+  "@analyzeFaceDetail": {
+    "placeholders": {
+      "pixels": {
+        "type": "int",
+        "example": "176"
+      },
+      "det": {
+        "type": "String",
+        "example": "0.93"
+      }
+    }
+  },
+  "analyzeQuality": "{tier} {score}",
+  "@analyzeQuality": {
+    "placeholders": {
+      "tier": {
+        "type": "String",
+        "example": "Great"
+      },
+      "score": {
+        "type": "String",
+        "example": "0.82"
+      }
+    }
+  },
+  "analyzeMeetsGate": "Would be saved",
+  "analyzeBelowGate": "Too small or unclear - skipped",
+  "tierGreat": "Great",
+  "tierGood": "Good",
+  "tierFair": "Fair",
+  "tierPoor": "Poor",
+  "analyzeNoFaces": "No faces were found in this photo.",
+  "gpuBusyMessage": "Your PC's GPU is busy right now. Try again in a moment.",
+  "analyzeFailed": "Analysis failed",
+  "startupErrorTitle": "Antigravity could not open its database",
+  "startupErrorBody": "Your library is stored encrypted on this phone and could not be opened. Details:",
+  "accept": "Accept",
+  "acceptAllMatches": "Accept all {count, plural, =1{1 match} other{{count} matches}}",
+  "@acceptAllMatches": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "acceptAllMatchesBody": "Every suggested face is added to the person it looks like. You can still move faces afterwards.",
+  "acceptAllOutfits": "Accept all {count, plural, =1{1 outfit match} other{{count} outfit matches}}",
+  "@acceptAllOutfits": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addFacesTo": "Add {count, plural, =1{1 face} other{{count} faces}}",
+  "@addFacesTo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addToPerson": "Add to a person…",
+  "albumsHint": "Choose the albums whose photos should be scanned. Photos stay on this phone; only a downscaled copy of each is sent to your PC.",
+  "albumsTitle": "Albums to scan",
+  "allPhotos": "All photos",
+  "allowPhotoAccess": "Allow photo access",
+  "assignFacesTitle": "Move {count, plural, =1{1 face} other{{count} faces}} to…",
+  "@assignFacesTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "assignTo": "Assign to…",
+  "backupDone": "Backup created. Choose where to save it.",
+  "backupFailed": "Backup problem: {error}",
+  "@backupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "backupIntro": "Your library lives only on this phone. A backup is one file you can keep in Files, Drive or on your PC; restoring it brings everything back exactly as it was.",
+  "backupKeepSafe": "The backup file is not encrypted. Keep it somewhere private - it contains the faces of the people in your photos.",
+  "backupLibrarySummary": "{people} people · {faces} faces · {photos} photos",
+  "@backupLibrarySummary": {
+    "placeholders": {
+      "people": {
+        "type": "int"
+      },
+      "faces": {
+        "type": "int"
+      },
+      "photos": {
+        "type": "int"
+      }
+    }
+  },
+  "backupNow": "Back up now",
+  "backupReminderBody": "Your library exists only on this phone. Save a backup file somewhere safe.",
+  "backupReminderNever": "You have never made a backup",
+  "backupReminderOld": "Your last backup is more than 2 weeks old",
+  "backupSettingsHint": "Save or restore your whole library",
+  "backupShareSubject": "Antigravity backup",
+  "backupStageCrops": "Saving face pictures…",
+  "backupStageDatabase": "Saving your library…",
+  "backupStageFinishing": "Finishing…",
+  "backupStageRestoring": "Restoring your library…",
+  "backupTitle": "Backup & restore",
+  "backupWhatIsIncluded": "What is in a backup",
+  "backupWhatIsIncludedBody": "People, faces and their pictures, body links, which photos each person is in, your corrections and your grouping settings. Not included: your original photos (they stay in your gallery), the pairing with your PC and anything stored on the PC.",
+  "bodyBox": "Body",
+  "bodyLinkDetail": "{method} · {percent}% sure",
+  "@bodyLinkDetail": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "bodyLinkTitle": "Looks like {person}",
+  "@bodyLinkTitle": {
+    "placeholders": {
+      "person": {
+        "type": "String"
+      }
+    }
+  },
+  "chooseAlbums": "Choose albums",
+  "chooseAlbumsFirst": "Choose albums first",
+  "clearSelection": "Clear selection",
+  "compare": "Compare",
+  "coverChanged": "Cover photo changed",
+  "create": "Create",
+  "createAllGroups": "Create {count, plural, =1{1 person} other{{count} people}}",
+  "@createAllGroups": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "createPerson": "Create person",
+  "delete": "Delete",
+  "deleteFace": "Delete this face",
+  "deleteFacesBody": "The face pictures are removed from this phone. Your original photos are not touched.",
+  "deleteFacesTitle": "Delete {count, plural, =1{this face} other{{count} faces}}?",
+  "@deleteFacesTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deletePerson": "Delete person",
+  "deletePersonBody": "{count, plural, =1{Their 1 face becomes unsorted.} other{Their {count} faces become unsorted.}} Nothing else is deleted.",
+  "@deletePersonBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deletePersonTitle": "Delete {name}?",
+  "@deletePersonTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "differentPeople": "They are different people",
+  "etaHours": "about {hours} h {minutes} min left",
+  "@etaHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "etaMinutes": "about {minutes} min left",
+  "@etaMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "etaSeconds": "about {seconds} s left",
+  "@etaSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "faceBox": "Face",
+  "facesCount": "{count, plural, =0{No faces} =1{1 face} other{{count} faces}}",
+  "@facesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "facesMoved": "{count, plural, =1{1 face moved} other{{count} faces moved}}",
+  "@facesMoved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "facesRejected": "{count, plural, =1{1 face removed from this person} other{{count} faces removed from this person}}",
+  "@facesRejected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "filterAll": "All",
+  "filterFailed": "Failed",
+  "filterHasFaces": "Has faces",
+  "filterNotScanned": "Not scanned",
+  "filterPerson": "Person",
+  "filterScanned": "Scanned",
+  "groupCardTitle": "New person? {count, plural, =1{1 face} other{{count} faces}}",
+  "@groupCardTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hideBodies": "Hide bodies",
+  "keepPerson": "Keep {label}",
+  "@keepPerson": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "lastBackup": "Last backup: {date}",
+  "@lastBackup": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "libraryEmptyBody": "Scan your albums to find the faces in them. Your photos stay on this phone.",
+  "libraryEmptyTitle": "No photos yet",
+  "linkManual": "By hand",
+  "linkOutfit": "Same outfit",
+  "linkWeakFace": "Blurry face",
+  "matchCardTitle": "{person} · {count, plural, =1{1 face looks like them} other{{count} faces look like them}}",
+  "@matchCardTitle": {
+    "placeholders": {
+      "person": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "merge": "Merge",
+  "mergeConfirmBody": "{source} ({count, plural, =1{1 face} other{{count} faces}}) becomes part of {target}, and {source} disappears. You can still move faces back one by one.",
+  "@mergeConfirmBody": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "mergeConfirmTitle": "Merge these people?",
+  "mergeInto": "Merge {source} into {target}",
+  "@mergeInto": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "mergeNotFlagged": "Not flagged by your PC",
+  "mergeScoreHint": "How alike your PC thinks the two people are",
+  "mergeTitle": "Merge people",
+  "mergeWith": "Merge with…",
+  "mergedInto": "Merged into {name}",
+  "@mergedInto": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "needsReview": "{count, plural, =1{1 decision needs you} other{{count} decisions need you}}",
+  "@needsReview": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "neverBackedUp": "No backup yet",
+  "newPerson": "New person",
+  "noBodiesBody": "Bodies are found next to faces and matched by outfit.",
+  "noBodiesTitle": "No body shots yet",
+  "noFacesInPhoto": "No faces were found in this photo.",
+  "noFacesYet": "No faces yet",
+  "noPeopleBody": "Scan your photos and the people in them show up here.",
+  "noPeopleTitle": "No people yet",
+  "noPeopleYet": "No people yet",
+  "noPhotoAccessBody": "Antigravity needs permission to read your photos before it can scan them.",
+  "noPhotoAccessTitle": "No photo access",
+  "noPhotosMatch": "No photos match these filters",
+  "noPhotosOfPerson": "No photos of this person yet",
+  "noSuggestionsBody": "Nothing needs your decision for this person right now.",
+  "noSuggestionsTitle": "No suggestions",
+  "noUnsortedFaces": "No unsorted faces",
+  "notAPerson": "Not a person",
+  "notPaired": "Not paired",
+  "notPerson": "Not {name}",
+  "@notPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "notScannedYet": "This photo has not been scanned yet.",
+  "notThem": "Not them ({count})",
+  "@notThem": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notThisPerson": "Not this person",
+  "openPerson": "Open {name}",
+  "@openPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "optionBodies": "Find bodies",
+  "optionBodiesHint": "Also detect people's bodies, so photos where a face is hidden can be matched by outfit.",
+  "optionImageSize": "Picture size sent to your PC",
+  "optionImageSizeHint": "Longest side. Bigger finds smaller faces but is slower.",
+  "outfitMatchesTitle": "Same outfit",
+  "pause": "Pause",
+  "personFallbackName": "Person {id}",
+  "@personFallbackName": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
+  "personGone": "This person no longer exists.",
+  "personNameLabel": "Name",
+  "personNameOptional": "Optional",
+  "photoGone": "Photo not found",
+  "photoGoneBody": "The original is no longer on this phone. The faces found in it are still in your library.",
+  "photoTitle": "Photo",
+  "photosCount": "{count, plural, =1{1 photo} other{{count} photos}}",
+  "@photosCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pickPersonTitle": "Choose a person",
+  "possibleSamePerson": "May be the same person",
+  "qualityGateValue": "Minimum quality {value}",
+  "@qualityGateValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "reject": "Reject",
+  "rename": "Rename",
+  "restore": "Restore",
+  "restoreConfirmBody": "This replaces everything in the app with the backup from {date}: {people} people, {faces} faces, {photos} photos. Anything added since then is lost.",
+  "@restoreConfirmBody": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "people": {
+        "type": "int"
+      },
+      "faces": {
+        "type": "int"
+      },
+      "photos": {
+        "type": "int"
+      }
+    }
+  },
+  "restoreConfirmTitle": "Replace your library?",
+  "restoreDone": "Restored {people} people and {faces} faces.",
+  "@restoreDone": {
+    "placeholders": {
+      "people": {
+        "type": "int"
+      },
+      "faces": {
+        "type": "int"
+      }
+    }
+  },
+  "restoreFromBackup": "Restore from a backup",
+  "resume": "Resume",
+  "reviewDecisions": "{count} to review",
+  "@reviewDecisions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reviewDuplicatesEmpty": "No people look like duplicates",
+  "reviewGroupsEmpty": "No new groups to review",
+  "reviewMatchesEmpty": "No faces waiting to be matched",
+  "reviewOutfitsEmpty": "No outfit matches to review",
+  "reviewTabDuplicates": "Duplicates ({count})",
+  "@reviewTabDuplicates": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reviewTabGroups": "New groups ({count})",
+  "@reviewTabGroups": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reviewTabMatches": "Matches ({count})",
+  "@reviewTabMatches": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reviewTabOutfits": "Outfits ({count})",
+  "@reviewTabOutfits": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reviewTitle": "Review",
+  "reviewTitleCount": "Review ({count})",
+  "@reviewTitleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "save": "Save",
+  "scanChannelDescription": "Progress while your photos are scanned",
+  "scanChannelName": "Library scan",
+  "scanCountsLine": "{done} scanned · {waiting} waiting · {failed} failed",
+  "@scanCountsLine": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "waiting": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "scanDone": "Scan finished",
+  "scanError": "The scan stopped: {message}",
+  "@scanError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "scanFacesFound": "{count, plural, =0{No new faces} =1{1 new face} other{{count} new faces}}",
+  "@scanFacesFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scanFacesLinked": "{count} seen before",
+  "@scanFacesLinked": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scanFailedCount": "{count, plural, =1{1 photo could not be read} other{{count} photos could not be read}}",
+  "@scanFailedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scanFootnote": "Scanning keeps going with the screen off. Photos already scanned are skipped, so you can run it again whenever new photos arrive.",
+  "scanFound": "{count} photos found",
+  "@scanFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scanLibrary": "Scan library",
+  "scanLibraryHint": "Find the faces in your photos",
+  "scanModelMismatch": "Your PC now uses a different face-recognition model than this library. Switch the PC back, or start a new library.",
+  "scanNoAccess": "Photo access is off. Allow it in Android settings.",
+  "scanNoAlbums": "No albums chosen.",
+  "scanNotPaired": "Pair with your PC first.",
+  "scanNotificationText": "{done}/{total} photos · {faces} faces",
+  "@scanNotificationText": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "faces": {
+        "type": "int"
+      }
+    }
+  },
+  "scanNotificationTitle": "Scanning your photos",
+  "scanNow": "Scan now",
+  "scanOffline": "The PC could not be reached. Check that the server is running on the same Wi-Fi, then resume.",
+  "scanPaused": "Scan paused",
+  "scanPausedUser": "You paused the scan.",
+  "scanPcBusy": "Your PC's GPU stayed busy for several minutes. Resume when its other job is done.",
+  "scanPhotosOf": "{done} of {total} photos",
+  "@scanPhotosOf": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "scanPreparing": "Listing your photos…",
+  "scanRevoked": "This phone was removed on the PC. Pair again to scan.",
+  "scanRunning": "Scanning…",
+  "scanSorting": "Sorting faces into people…",
+  "scanSummary": "{photos} photos scanned · {faces} new faces",
+  "@scanSummary": {
+    "placeholders": {
+      "photos": {
+        "type": "int"
+      },
+      "faces": {
+        "type": "int"
+      }
+    }
+  },
+  "scanWaiting": "Waiting for your PC…",
+  "searchPeopleHint": "Search people",
+  "selectAll": "Select all",
+  "selectedCount": "{count} selected",
+  "@selectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "setAsCover": "Use as cover photo",
+  "settingsGrouping": "Grouping",
+  "settingsPc": "Your PC",
+  "settingsQualityGate": "Face quality",
+  "settingsQualityGateHint": "Faces below this quality are ignored. Raise it for cleaner groups, lower it to catch more faces. Applies to new scans.",
+  "settingsScanDefaults": "Scanning",
+  "showBodies": "Show bodies",
+  "similarityPercent": "{percent}% alike",
+  "@similarityPercent": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "sortBy": "Sort",
+  "sortDone": "Added {assigned} faces to people, created {created} people, {review} to review",
+  "@sortDone": {
+    "placeholders": {
+      "assigned": {
+        "type": "int"
+      },
+      "created": {
+        "type": "int"
+      },
+      "review": {
+        "type": "int"
+      }
+    }
+  },
+  "sortMostFaces": "Most faces",
+  "sortName": "Name",
+  "sortNeedsPc": "Pair with your PC to sort faces.",
+  "sortNewest": "Newest",
+  "sortNow": "Sort faces now",
+  "sortNowHint": "Ask the PC to sort unsorted faces into people again",
+  "sorting": "Sorting faces…",
+  "sourcesTitle": "Sources & scan",
+  "strictnessBalanced": "Balanced",
+  "strictnessBalancedHint": "Recommended. Adds a face to a person only when it is clearly them.",
+  "strictnessLoose": "Loose",
+  "strictnessLooseHint": "Groups more faces automatically. Quicker, but may need more corrections.",
+  "strictnessStrict": "Strict",
+  "strictnessStrictHint": "Asks you about more faces. Fewer mistakes.",
+  "suggestedFacesTitle": "{count, plural, =1{1 face may be {name}} other{{count} faces may be {name}}}",
+  "@suggestedFacesTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tabBodies": "Bodies",
+  "tabFaces": "Faces ({count})",
+  "@tabFaces": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tabPhotos": "Photos",
+  "tabSuggestions": "Suggestions",
+  "thisIsPerson": "This is…",
+  "unsortedCardTitle": "Unsorted",
+  "unsortedFace": "Unsorted face",
+  "unsortedFacesInPhoto": "{count} unsorted",
+  "@unsortedFacesInPhoto": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "whoIsHere": "Who is in this photo",
+  "close": "Close"
+}

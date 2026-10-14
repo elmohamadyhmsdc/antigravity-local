@@ -3109,9 +3109,10 @@ elif page == "🎭 Reface V2":
             st.warning(f"⏳ `{_v2_gpu_job.job_type}` job `{_v2_gpu_job.id}` is using the GPU — foreground swaps "
                        "and identity builds are disabled until it finishes (background swaps will queue behind it).")
 
-        tab_v2_swap, tab_v2_build, tab_v2_history, tab_v2_jobs = st.tabs([
+        tab_v2_swap, tab_v2_build, tab_v2_dfl, tab_v2_history, tab_v2_jobs = st.tabs([
             "🔄 Quick Swap (V2)",
             "📦 Build Faceset (Advanced)",
+            "🧠 Video Model (DFL)",
             "📜 History / Results",
             "⚙️ Background Jobs"
         ])
@@ -3345,7 +3346,13 @@ elif page == "🎭 Reface V2":
                     target_path = target_dir / target_file.name
                     with open(target_path, "wb") as out:
                         out.write(target_file.getbuffer())
-                    
+
+                    if st.session_state.get('v2_target_path') != str(target_path):
+                        # New target: faces detected and ticked on the old one no longer apply.
+                        for k in [k for k in st.session_state.keys() if str(k).startswith('v2_target_face_')]:
+                            del st.session_state[k]
+                        st.session_state['v2_detected_faces'] = []
+                        st.session_state['v2_selected_target_faces'] = []
                     st.session_state['v2_target_path'] = str(target_path)
                     
                     ext = Path(target_file.name).suffix.lower()
@@ -3376,12 +3383,9 @@ elif page == "🎭 Reface V2":
                         with st.spinner("Detecting faces..."):
                             try:
                                 import cv2
-                                from insightface.app import FaceAnalysis
-                                
-                                # Initialize face detector
-                                app = FaceAnalysis(name='buffalo_l')
-                                app.prepare(ctx_id=0, det_size=(640, 640))
-                                
+
+                                app = get_face_analyzer()  # cached; loading buffalo_l per click cost seconds
+
                                 if is_video_target:
                                     # For video, extract first frame
                                     cap = cv2.VideoCapture(target_path_str)
@@ -3399,7 +3403,11 @@ elif page == "🎭 Reface V2":
                                     
                                     if faces:
                                         st.session_state['v2_detected_faces'] = []
-                                        
+                                        st.session_state['v2_selected_target_faces'] = []
+                                        for k in [k for k in st.session_state.keys()
+                                                  if str(k).startswith('v2_target_face_')]:
+                                            del st.session_state[k]
+
                                         # Save face crops for display
                                         face_crops_dir = Path(__file__).parent / "reface_uploads" / "v2_face_crops"
                                         face_crops_dir.mkdir(parents=True, exist_ok=True)
@@ -3422,7 +3430,10 @@ elif page == "🎭 Reface V2":
                                             st.session_state['v2_detected_faces'].append({
                                                 'index': i,
                                                 'bbox': bbox.tolist(),
-                                                'crop_path': str(crop_path)
+                                                'crop_path': str(crop_path),
+                                                # V3 finds the ticked people in every frame by
+                                                # identity; detection order changes frame to frame.
+                                                'embedding': [float(x) for x in face.normed_embedding],
                                             })
                                         
                                         st.success(f"✅ Detected {len(faces)} faces!")
@@ -3490,17 +3501,29 @@ elif page == "🎭 Reface V2":
             if use_v3:
                 vc1, vc2, vc3 = st.columns(3)
                 with vc1:
+                    from face_restore import RESTORER_FILES as _RESTORER_FILES, MODELS_DIR as _RESTORER_DIR
+                    from reface_engine_v3 import DEFAULT_RESTORER as _DEFAULT_RESTORER
+                    _restorer_opts = list(_RESTORER_FILES) + ["none"]
                     v3_restorer = st.selectbox(
                         "Restorer",
-                        ["codeformer", "gfpgan_1.4", "gpen_bfr_512", "none"],
-                        index=0,
-                        help="CodeFormer best preserves identity. 'none' = swap only (no HD restore).",
+                        _restorer_opts,
+                        index=_restorer_opts.index(_DEFAULT_RESTORER) if _DEFAULT_RESTORER in _restorer_opts else 0,
+                        format_func=lambda n: n if n == "none" or (_RESTORER_DIR / _RESTORER_FILES[n]).exists()
+                        else f"{n} (not downloaded - falls back to CodeFormer)",
+                        help="CodeFormer best preserves identity. 'none' = swap only (no HD restore). "
+                             "Optional restorers: venv\\Scripts\\python download_models.py --extras",
                     )
                 with vc2:
-                    v3_weight = st.slider(
-                        "CodeFormer fidelity", 0.0, 1.0, 0.5, 0.05,
-                        help="Lower = sharper/stronger restoration; higher = more faithful to the swap. 0.5 is balanced.",
-                    )
+                    if v3_restorer == "codeformer":
+                        v3_weight = st.slider(
+                            "CodeFormer fidelity", 0.0, 1.0, 0.5, 0.05,
+                            help="Lower = sharper/stronger restoration; higher = more faithful to the swap. 0.5 is balanced.",
+                        )
+                    else:
+                        v3_weight = 0.5   # only CodeFormer has a fidelity input
+                        st.caption("Measured on 4 people (eval_reface.py): GPEN 512 keeps the identity and adds "
+                                   "the most detail; GPEN 1024 is marginally better and 4x slower; CodeFormer "
+                                   "loses the most identity.")
                 with vc3:
                     v3_use_parser = st.checkbox(
                         "Parser blending", value=True,
@@ -3510,7 +3533,36 @@ elif page == "🎭 Reface V2":
                         "Occlusion handling", value=True,
                         help="Preserve hands / objects / glasses in front of the face.",
                     )
+                from face_swappers import available_swappers as _available_swappers
+                from reface_engine_v3 import resolve_swapper_name as _resolve_swapper
+                _swappers = _available_swappers()
+                v3_swapper = st.selectbox(
+                    "Swapper",
+                    ["auto"] + _swappers,
+                    format_func=lambda n: f"auto - best measured ({_resolve_swapper('auto')})" if n == "auto" else n,
+                    help="HyperSwap works at 256 px (4x the pixels of inswapper_128) and reads the same "
+                         "identity. 'auto' uses whichever eval_reface.py measured best on this PC. "
+                         "Missing ones: venv\\Scripts\\python download_models.py --extras",
+                )
+                from reface_engine_v3 import DEFAULT_IDENTITY_BOOST as _DEFAULT_BOOST
+                v3_identity_boost = st.slider(
+                    "Identity strength", 0.0, 1.0, float(_DEFAULT_BOOST), 0.05,
+                    help="Pushes the identity away from the target's own face before swapping, so less of the "
+                         "original person leaks through. 0 = off, 1 = FaceFusion's maximum. Too high can look "
+                         "exaggerated.",
+                )
                 st.caption("V3 runs entirely on GPU via onnxruntime. First run loads the restorer/parser/occluder models.")
+                from dfl_bridge import dfm_for as _dfm_for
+                _sel_fs = (st.session_state.get('v2_selected_faceset')
+                           if st.session_state.get('v2_data_source_mode') == 'faceset' else None)
+                _dfm_path = _dfm_for(_sel_fs) if _sel_fs else None
+                v3_use_dfm = False
+                if _dfm_path:
+                    v3_use_dfm = st.checkbox(
+                        f"🧠 Use the trained video model for {_sel_fs}", value=True, key="v2_use_dfm",
+                        help="DeepFaceLab model trained on this person (🧠 Video Model tab). It learned the face "
+                             "itself, not just an identity vector - the best quality for video. "
+                             "Untick to use the swapper above.")
 
                 with st.expander("🎬 Realism", expanded=True):
                     v3_preset = st.selectbox(
@@ -3556,103 +3608,114 @@ elif page == "🎭 Reface V2":
             else:
                 v3_restorer, v3_weight, v3_use_parser, v3_use_occluder = "codeformer", 0.7, True, True
                 v3_preset, v3_realism_overrides = "natural", {}
-
-            col1, col2, col3 = st.columns(3)
-            
-            # The preset seeds every control below it. Keeping the values in one
-            # place is what stops the dropdown from drifting back into a label
-            # that changes two checkboxes and nothing else.
-            _PRESET_DEFAULTS = {
-                "fast":         {"enhancer_index": 0, "upscale_index": 0, "smoothing_window": 3,
-                                 "occlusion": False, "temporal": False, "strength": 0.7},
-                "standard":     {"enhancer_index": 1, "upscale_index": 1, "smoothing_window": 3,
-                                 "occlusion": True,  "temporal": True,  "strength": 0.7},
-                "professional": {"enhancer_index": 2, "upscale_index": 1, "smoothing_window": 5,
-                                 "occlusion": True,  "temporal": True,  "strength": 0.8},
-            }
-
-            with col1:
-                quality_preset = st.selectbox(
-                    "Quality Preset",
-                    ["fast", "standard", "professional"],
-                    index=1,
-                    format_func=lambda x: f"{x.title()} {'⚡' if x=='fast' else '🔧' if x=='standard' else '🌟'}",
-                    help="Seeds every option below. Change the preset first, then adjust "
-                         "individual controls — they keep whatever you set."
-                )
+                v3_swapper = "auto"
+                v3_use_dfm, _dfm_path = False, None
+                v3_identity_boost = 0.0
 
             is_video_target = st.session_state.get('v2_is_video', False)
-            with col2:
-                if is_video_target:
-                    enhancement_mode = st.selectbox(
-                        "Video Enhancement Mode",
-                        ["auto", "always", "off"],
-                        index=0,
-                        format_func=lambda x: {
-                            "auto": "Auto (Quality Gate)",
-                            "always": "Always (Force)",
-                            "off": "Off (None)"
-                        }[x],
-                        help="Auto enhances only sharp faces in 540p+ videos to avoid inventing clashing detail on low-res sources."
-                    )
-                    enhancer_type = "gfpgan" if enhancement_mode != "off" else "none"
-                else:
-                    enhancement_mode = "auto"
-                    enhancer_type = st.selectbox(
-                        "Face Enhancer",
-                        ["none", "opencv", "gfpgan"],
-                        index=_PRESET_DEFAULTS[quality_preset]["enhancer_index"],
-                        format_func=lambda x: {"none": "None (Raw)", "opencv": "OpenCV (Basic)", "gfpgan": "GFPGAN (Neural)"}[x]
-                    )
+            if use_v3:
+                # None of the Legacy V2 controls reach V3 (it has its own above), so
+                # they are hidden; these values only fill the shared job params.
+                quality_preset, enhancement_mode, enhancer_type = "standard", "auto", "none"
+                use_angle_match, enable_occlusion, temporal_smooth = True, True, True
+                enhancement_strength, upscale_factor, smoothing_window = 0.7, 1, 3
+                protect_glasses, protect_hair = True, True
+            else:
+                col1, col2, col3 = st.columns(3)
             
-            with col3:
-                use_angle_match = st.checkbox("🔄 Angle Matching", value=True, help="Match source face angle to target")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                enable_occlusion = st.checkbox("🎭 Occlusion Protection",
-                                              value=_PRESET_DEFAULTS[quality_preset]["occlusion"],
-                                              help="Protect glasses, hands, hair from being overwritten")
-            
-            with col2:
-                temporal_smooth = st.checkbox("🎬 Temporal Smoothing",
-                                             value=_PRESET_DEFAULTS[quality_preset]["temporal"],
-                                             help="Reduce video jitter (videos only)")
-            
-            with col3:
-                enhancement_strength = st.slider("Enhancement Strength", 0.0, 1.0,
-                                                _PRESET_DEFAULTS[quality_preset]["strength"], 0.1,
-                                                help="How strongly to apply face enhancement")
-            
-            # Advanced options
-            with st.expander("🔧 Advanced Engineering Options"):
-                col1, col2 = st.columns(2)
+                # The preset seeds every control below it. Keeping the values in one
+                # place is what stops the dropdown from drifting back into a label
+                # that changes two checkboxes and nothing else.
+                _PRESET_DEFAULTS = {
+                    "fast":         {"enhancer_index": 0, "upscale_index": 0, "smoothing_window": 3,
+                                     "occlusion": False, "temporal": False, "strength": 0.7},
+                    "standard":     {"enhancer_index": 1, "upscale_index": 1, "smoothing_window": 3,
+                                     "occlusion": True,  "temporal": True,  "strength": 0.7},
+                    "professional": {"enhancer_index": 2, "upscale_index": 1, "smoothing_window": 5,
+                                     "occlusion": True,  "temporal": True,  "strength": 0.8},
+                }
+
                 with col1:
-                    if is_video_target:
-                        st.caption("ℹ️ Upscale Factor applies to still images only. Video frames stay at source resolution.")
-                        upscale_factor = 1
-                    else:
-                        upscale_factor = st.selectbox(
-                            "Upscale Factor", [1, 2, 4],
-                            index=_PRESET_DEFAULTS[quality_preset]["upscale_index"]
-                        )
-                    protect_glasses = st.checkbox("Protect Glasses", value=True)
-                with col2:
-                    smoothing_window = st.slider(
-                        "Smoothing Window (frames)", 1, 7,
-                        _PRESET_DEFAULTS[quality_preset]["smoothing_window"]
+                    quality_preset = st.selectbox(
+                        "Quality Preset",
+                        ["fast", "standard", "professional"],
+                        index=1,
+                        format_func=lambda x: f"{x.title()} {'⚡' if x=='fast' else '🔧' if x=='standard' else '🌟'}",
+                        help="Seeds every option below. Change the preset first, then adjust "
+                             "individual controls — they keep whatever you set."
                     )
-                    protect_hair = st.checkbox("Protect Hair Region", value=True)
-                
-                # Video specific time clipping options
-                if st.session_state.get('v2_is_video', False):
-                    st.markdown("##### 🎬 Video Clipping")
+
+                with col2:
+                    if is_video_target:
+                        enhancement_mode = st.selectbox(
+                            "Video Enhancement Mode",
+                            ["auto", "always", "off"],
+                            index=0,
+                            format_func=lambda x: {
+                                "auto": "Auto (Quality Gate)",
+                                "always": "Always (Force)",
+                                "off": "Off (None)"
+                            }[x],
+                            help="Auto enhances only sharp faces in 540p+ videos to avoid inventing clashing detail on low-res sources."
+                        )
+                        enhancer_type = "gfpgan" if enhancement_mode != "off" else "none"
+                    else:
+                        enhancement_mode = "auto"
+                        enhancer_type = st.selectbox(
+                            "Face Enhancer",
+                            ["none", "opencv", "gfpgan"],
+                            index=_PRESET_DEFAULTS[quality_preset]["enhancer_index"],
+                            format_func=lambda x: {"none": "None (Raw)", "opencv": "OpenCV (Basic)", "gfpgan": "GFPGAN (Neural)"}[x]
+                        )
+            
+                with col3:
+                    use_angle_match = st.checkbox("🔄 Angle Matching", value=True, help="Match source face angle to target")
+            
+                col1, col2, col3 = st.columns(3)
+            
+                with col1:
+                    enable_occlusion = st.checkbox("🎭 Occlusion Protection",
+                                                  value=_PRESET_DEFAULTS[quality_preset]["occlusion"],
+                                                  help="Protect glasses, hands, hair from being overwritten")
+            
+                with col2:
+                    temporal_smooth = st.checkbox("🎬 Temporal Smoothing",
+                                                 value=_PRESET_DEFAULTS[quality_preset]["temporal"],
+                                                 help="Reduce video jitter (videos only)")
+            
+                with col3:
+                    enhancement_strength = st.slider("Enhancement Strength", 0.0, 1.0,
+                                                    _PRESET_DEFAULTS[quality_preset]["strength"], 0.1,
+                                                    help="How strongly to apply face enhancement")
+            
+                # Advanced options
+                with st.expander("🔧 Advanced Engineering Options"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if is_video_target:
+                            st.caption("ℹ️ Upscale Factor applies to still images only. Video frames stay at source resolution.")
+                            upscale_factor = 1
+                        else:
+                            upscale_factor = st.selectbox(
+                                "Upscale Factor", [1, 2, 4],
+                                index=_PRESET_DEFAULTS[quality_preset]["upscale_index"]
+                            )
+                        protect_glasses = st.checkbox("Protect Glasses", value=True)
+                    with col2:
+                        smoothing_window = st.slider(
+                            "Smoothing Window (frames)", 1, 7,
+                            _PRESET_DEFAULTS[quality_preset]["smoothing_window"]
+                        )
+                        protect_hair = st.checkbox("Protect Hair Region", value=True)
+
+            # Video specific time clipping options (both engines)
+            if is_video_target:
+                with st.expander("🎬 Video Clipping"):
                     tcol1, tcol2 = st.columns(2)
                     with tcol1:
                         start_time_sec = st.number_input("Start Time (seconds)", min_value=0.0, value=0.0, step=1.0)
                     with tcol2:
-                        end_time_sec = st.number_input("End Time (seconds)", min_value=0.0, value=0.0, step=1.0, 
+                        end_time_sec = st.number_input("End Time (seconds)", min_value=0.0, value=0.0, step=1.0,
                                                        help="0.0 means go to the end of the video")
         
         st.markdown("---")
@@ -3693,7 +3756,13 @@ elif page == "🎭 Reface V2":
                         is_video = st.session_state.get('v2_is_video', False)
                         selected_indices = st.session_state.get('v2_selected_target_faces', [])
                         target_face_indices = selected_indices if len(selected_indices) > 0 else None
-                        
+                        # Every detected face's embedding (not just the ticked ones): V3 assigns
+                        # each face it meets to the nearest of these, so a bystander matches
+                        # their own reference instead of borrowing a selected one.
+                        _ref_embs = [f.get('embedding') for f in st.session_state.get('v2_detected_faces', [])]
+                        target_face_embeddings = (_ref_embs if target_face_indices and _ref_embs
+                                                  and all(e is not None for e in _ref_embs) else None)
+
                         if run_in_background:
                             from job_manager import add_job_to_queue
                             
@@ -3719,6 +3788,11 @@ elif page == "🎭 Reface V2":
                                 params['source_paths'] = st.session_state['v2_source_paths']
                             
                             if use_v3:
+                                params['target_face_embeddings'] = target_face_embeddings
+                                params['swapper'] = v3_swapper
+                                params['identity_boost'] = v3_identity_boost
+                                if v3_use_dfm and _dfm_path:
+                                    params['dfm_path'] = str(_dfm_path)
                                 params['restorer'] = v3_restorer
                                 params['restorer_weight'] = v3_weight
                                 params['use_parser'] = v3_use_parser
@@ -3726,6 +3800,8 @@ elif page == "🎭 Reface V2":
                                 params['realism_preset'] = v3_preset
                                 params['realism_overrides'] = v3_realism_overrides
                                 job_type = "reface_video_v3" if is_video else "reface_image_v3"
+                                if v3_use_dfm and _dfm_path:
+                                    job_type = "reface_video_dfm" if is_video else "reface_image_dfm"
                             else:
                                 job_type = "reface_video_v2" if is_video else "reface_image_v2"
                             job = add_job_to_queue(job_type, params)
@@ -3736,6 +3812,9 @@ elif page == "🎭 Reface V2":
                             # Create engine
                             if use_v3:
                                 engine = RefaceEngineV3(
+                                    dfm_path=str(_dfm_path) if (v3_use_dfm and _dfm_path) else None,
+                                    swapper=v3_swapper,
+                                    identity_boost=v3_identity_boost,
                                     restorer=v3_restorer,
                                     restorer_weight=v3_weight,
                                     use_parser=v3_use_parser,
@@ -3767,11 +3846,17 @@ elif page == "🎭 Reface V2":
                                     progress.progress(current / total)
                                     status_build.text(f"Building faceset: {current}/{total} ({progress_pct}%) ({eta_str} remaining)...")
                                 
-                                faceset = engine.build_faceset_from_media(
-                                    st.session_state['v2_source_paths'],
-                                    faceset_name="v2_temp",
-                                    progress_callback=update_progress
-                                )
+                                if use_v3:
+                                    from identity_builder import faceset_from_media
+                                    faceset = faceset_from_media(st.session_state['v2_source_paths'],
+                                                                 engine.app, name="v2_temp")
+                                    update_progress(1, 1)
+                                else:
+                                    faceset = engine.build_faceset_from_media(
+                                        st.session_state['v2_source_paths'],
+                                        faceset_name="v2_temp",
+                                        progress_callback=update_progress
+                                    )
                             
                             if not faceset or not faceset.faces:
                                 st.error("No faces found in source!")
@@ -3808,6 +3893,7 @@ elif page == "🎭 Reface V2":
                                         target_video_path=target_path,
                                         faceset=faceset,
                                         target_face_indices=target_face_indices,
+                                        target_face_embeddings=target_face_embeddings,
                                         progress_callback=update_swap,
                                         start_time=start_time_sec,
                                         end_time=final_end_time,
@@ -3830,6 +3916,7 @@ elif page == "🎭 Reface V2":
                                         target_image_path=target_path,
                                         faceset=faceset,
                                         target_face_indices=target_face_indices,
+                                        target_face_embeddings=target_face_embeddings,
                                     )
                                 else:
                                     result = engine.reface_with_faceset_v2(
@@ -3967,21 +4054,30 @@ After building a faceset, you'll see:
                             status_text.text(f"Processing media {current}/{total} ({progress_pct}%) ({eta_str} remaining)...")
                             
                         try:
-                            # Build
-                            if 'v2_engine_instance_builder' not in st.session_state:
-                                st.session_state['v2_engine_instance_builder'] = RefaceEngineV2()
-                            engine = st.session_state['v2_engine_instance_builder']
-                            
-                            faceset = engine.build_faceset_from_media(
-                                saved_paths, 
-                                faceset_name=new_faceset_name,
-                                progress_callback=update_progress
-                            )
-                            
-                            # Save
-                            engine.save_faceset(faceset)
-                            
-                            st.success(f"✅ Faceset '{new_faceset_name}' created with {len(faceset.faces)} faces!")
+                            # Identity builder: finds the person in every photo/frame (not just the
+                            # detector's first face), drops small/blurry/duplicate/outlier faces and
+                            # spreads video frames across head poses. See identity_builder.py.
+                            from identity_builder import build_identity, save_identity
+                            identity, id_report = build_identity(
+                                new_faceset_name.strip(), saved_paths, get_face_analyzer(),
+                                progress=lambda i, n, _name: update_progress(i, n))
+                            if identity is None:
+                                raise ValueError(id_report.get("reason", "Could not build an identity."))
+                            save_identity(identity)
+                            faceset = Faceset.load(Path(__file__).parent / "facesets" / f"{identity.slug}.pkl")
+
+                            st.success(f"✅ Identity '{identity.slug}' built from {id_report['kept']} of "
+                                       f"{id_report['faces_seen']} detected faces — grade {id_report['grade']}, "
+                                       f"consistency {id_report['consistency']:.2f}")
+                            _dropped = id_report.get("dropped") or {}
+                            if _dropped:
+                                st.caption("Left out: " + ", ".join(f"{n} × {why}" for why, n in _dropped.items()))
+                            _weak = id_report.get("weakest") or []
+                            if _weak:
+                                with st.expander("Weakest photos kept (check these are really the person)"):
+                                    for w in _weak:
+                                        _where = Path(w["source"]).name + (f" @ frame {w['frame']}" if w.get("frame") is not None else "")
+                                        st.caption(f"{_where}: similarity {w['similarity']:.2f}")
                             
                             # Show detailed coverage analysis
                             st.markdown("#### 📊 Faceset Quality Analysis")
@@ -4037,11 +4133,15 @@ After building a faceset, you'll see:
             # --- Manage Existing Facesets ---
             st.subheader("📚 Your Facesets")
             
-            if 'v2_engine_instance_manager' not in st.session_state:
-                 st.session_state['v2_engine_instance_manager'] = RefaceEngineV2()
-            
-            engine = st.session_state['v2_engine_instance_manager']
-            facesets = engine.list_facesets()
+            # Listing files needs no models. (This used to keep a whole RefaceEngineV2 -
+            # ~2.5 GB of VRAM - alive in the Streamlit process for the session.)
+            from types import SimpleNamespace
+            _fs_dir = Path(__file__).parent / "facesets"
+            engine = SimpleNamespace(
+                faceset_dir=_fs_dir,
+                load_faceset_by_name=lambda n: Faceset.load(_fs_dir / f"{n}.pkl") if (_fs_dir / f"{n}.pkl").exists() else None,
+            )
+            facesets = sorted(f.stem for f in _fs_dir.glob("*.pkl")) if _fs_dir.exists() else []
             
             if not facesets:
                 st.info("No saved facesets found.")
@@ -4096,10 +4196,117 @@ After building a faceset, you'll see:
                                     media_dir = engine.faceset_dir / fs_name
                                     if media_dir.exists():
                                         shutil.rmtree(media_dir)
+                                    identity_dir = Path(__file__).parent / "identities" / fs_name
+                                    if identity_dir.exists():
+                                        shutil.rmtree(identity_dir)
                                     st.success(f"Deleted {fs_name}")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(str(e))
+
+        with tab_v2_dfl:
+            st.markdown("### 🧠 Trained video model (DeepFaceLab)")
+            st.caption("The best quality for video. Instead of a 512-number identity vector, DeepFaceLab trains a "
+                       "network on thousands of frames of one person, so it learns the face itself - skin, teeth, "
+                       "expressions. It takes days of GPU time, runs in the background, and can be stopped and "
+                       "resumed any time; every stop saves the model and exports it so you can already use it.")
+            import dfl_bridge
+            from identity_builder import list_identities, load_manifest
+            _dfl_problem = dfl_bridge.available()
+            _idents = list_identities()
+            if _dfl_problem:
+                st.error(f"DeepFaceLab isn't usable: {_dfl_problem}")
+            elif not _idents:
+                st.info("Build an identity first in 📦 Build Faceset - it decides which face in every frame is the person.")
+            else:
+                dfl_slug = st.selectbox("Person (identity)", _idents, key="dfl_identity")
+                _man = load_manifest(dfl_slug) or {"faces": []}
+                _srcs = sorted({f["source"] for f in _man["faces"] if Path(f["source"]).exists()})
+                _vids = [x for x in _srcs if Path(x).suffix.lower() in dfl_bridge.VIDEO_EXTS]
+                _pics = [x for x in _srcs if Path(x).suffix.lower() in dfl_bridge.IMAGE_EXTS]
+                _extra_dir = st.text_input("More videos of the person - a folder on this PC (optional)",
+                                           key=f"dfl_extra_{dfl_slug}")
+                _extra = []
+                if _extra_dir and Path(_extra_dir).is_dir():
+                    _extra = sorted(str(x) for x in Path(_extra_dir).iterdir()
+                                    if x.suffix.lower() in dfl_bridge.VIDEO_EXTS | dfl_bridge.IMAGE_EXTS)
+                elif _extra_dir:
+                    st.warning("That folder doesn't exist.")
+                st.caption(f"{len(_vids)} video(s) and {len(_pics)} photo(s) from the identity, plus {len(_extra)} "
+                           "from the folder. Aim for several minutes of video of the person: turning the head, "
+                           "talking, different light. Photos alone are rarely enough.")
+                _phase_labels = {
+                    "base": "1 · Base - learn the face (until the loss stops falling, ~150-300k iterations)",
+                    "sharpen": "2 · Sharpen - random warp off, LR dropout on (~50-100k)",
+                    "detail": "3 · Detail - light GAN for pores and teeth (~20-50k)",
+                }
+                dfl_phase = st.radio("Phase", list(_phase_labels), format_func=_phase_labels.get,
+                                     key=f"dfl_phase_{dfl_slug}")
+
+                _dfl_jobs = [j for j in _v2_jobs.list_jobs(limit=200)
+                             if j.job_type == "train_dfl" and (j.params or {}).get("slug") == dfl_slug]
+                _dfl_active = next((j for j in _dfl_jobs
+                                    if j.status in (_V2JS.PENDING, _V2JS.QUEUED, _V2JS.RUNNING)), None)
+                _dfl_paused = next((j for j in _dfl_jobs if j.status == _V2JS.PAUSED), None)
+                _dfl_other_gpu = (_v2_gpu_job if (_v2_gpu_job and (not _dfl_active or _v2_gpu_job.id != _dfl_active.id))
+                                  else None)
+
+                bc1, bc2 = st.columns(2)
+                if _dfl_active:
+                    if bc1.button("⏹ Stop (saves and exports the model)", key="dfl_stop", use_container_width=True):
+                        _v2_jobs.request_stop(_dfl_active.id)
+                        st.toast("Stopping - DeepFaceLab saves first, this can take a minute.")
+                elif _dfl_paused:
+                    if bc1.button("▶ Resume training", key="dfl_resume", type="primary", use_container_width=True):
+                        _dfl_paused.params = {**(_dfl_paused.params or {}), "phase": dfl_phase}
+                        _v2_jobs.save_job(_dfl_paused)
+                        _v2_jobs.resume_job(_dfl_paused.id)
+                        from job_manager import start_queue_worker as _sqw
+                        _sqw(str(Path(__file__).parent / "jobs"))
+                        st.rerun()
+                else:
+                    _media = _vids + _pics + _extra
+                    # Paused 2026-10-14: extract + masks verified, training not yet
+                    # (dfl_runner's answer patch must survive DeepFaceLab's spawned workers).
+                    st.warning("Not finished yet - training is disabled until it has been verified end to end.")
+                    if bc1.button("🚀 Start training", key="dfl_start", type="primary", use_container_width=True,
+                                  disabled=True):
+                        from job_manager import add_job_to_queue as _dfl_add
+                        _dfl_add("train_dfl", {"slug": dfl_slug, "media": _media, "phase": dfl_phase},
+                                 jobs_dir=str(Path(__file__).parent / "jobs"))
+                        st.rerun()
+                if _dfl_other_gpu:
+                    st.caption(f"Queued behind `{_dfl_other_gpu.job_type}` job `{_dfl_other_gpu.id}`.")
+
+                _dfl_polling = bool(_dfl_active) and _v2_jobs.is_worker_running()
+
+                @st.fragment(run_every=5 if _dfl_polling else None)
+                def _dfl_status():
+                    jobs_now = [j for j in _v2_jobs.list_jobs(limit=200)
+                                if j.job_type == "train_dfl" and (j.params or {}).get("slug") == dfl_slug]
+                    j = jobs_now[0] if jobs_now else None
+                    if j is not None:
+                        d = j.details or {}
+                        st.markdown(f"**{j.message}**")
+                        cols = st.columns(4)
+                        cols[0].metric("Iteration", f"{d.get('iter', 0):,}")
+                        loss = d.get("loss") or []
+                        cols[1].metric("Loss (src)", f"{loss[0]:.4f}" if loss else "-")
+                        cols[2].metric("ms / iteration", d.get("ms_per_iter") or "-")
+                        cols[3].metric("Training faces", d.get("aligned") or "-")
+                        if d.get("clean"):
+                            st.caption("Training set: " + ", ".join(f"{k} {v}" for k, v in d["clean"].items()))
+                    if dfl_bridge.dfm_for(dfl_slug):
+                        st.success(f"✅ Trained model ready for {dfl_slug}. In 🔄 Quick Swap pick this identity "
+                                   "under 📦 Use Faceset and keep '🧠 Use the trained video model' ticked.")
+                    if _dfl_polling and not (j and j.status in (_V2JS.PENDING, _V2JS.QUEUED, _V2JS.RUNNING)):
+                        st.rerun()
+
+                _dfl_status()
+                with st.expander("Log"):
+                    _log = dfl_bridge.Workspace(dfl_slug).log
+                    st.code(_log.read_text(encoding="utf-8", errors="replace")[-4000:]
+                            if _log.exists() else "(no log yet)")
 
         with tab_v2_history:
             st.markdown("### 📜 Reface History (V2)")

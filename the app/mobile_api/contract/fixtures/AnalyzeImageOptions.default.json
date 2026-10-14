@@ -1,0 +1,7 @@
+{
+  "detect_bodies": true,
+  "min_quality": 0.4,
+  "return_crops": true,
+  "body_score": 0.5,
+  "model_id": "buffalo_l@1"
+}

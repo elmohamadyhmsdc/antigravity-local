@@ -1,0 +1,26 @@
+{
+  "type": "undress_image",
+  "params": {
+    "face_bbox": {
+      "x": 412.5,
+      "y": 188.0,
+      "w": 176.0,
+      "h": 214.5
+    },
+    "prompt": "elegant white strapless cotton summer dress, photorealistic",
+    "negative_prompt": "watermark, text, deformed hands",
+    "seed": -1,
+    "steps": 26,
+    "guidance_scale": 6.0,
+    "strength": 0.6,
+    "refine": true,
+    "refine_strength": 0.4,
+    "refine_steps": 35
+  },
+  "inputs": {
+    "image": "0793f139fc43e69233e6d1f3a3a19824820b9e29d1ffff00abea2dffe1eb521f",
+    "refs": [
+      "9ebcefdf73b3c490cb2de115a02858be46f1d689c4f55ba64081e4aa3b09c030"
+    ]
+  }
+}

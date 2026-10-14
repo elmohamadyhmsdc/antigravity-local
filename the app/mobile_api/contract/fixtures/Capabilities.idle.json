@@ -1,0 +1,37 @@
+{
+  "api_version": "1.0.0",
+  "server_id": "srv_7f3a91c2",
+  "name": "RTX-PC",
+  "embedding_model": {
+    "id": "buffalo_l@1",
+    "dim": 512
+  },
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "vram_total_mb": 6144,
+    "vram_free_mb": 5320
+  },
+  "engines": {
+    "reface_v3": true,
+    "reface_v2": true,
+    "dfm_models": [
+      "RTM_WF_224"
+    ],
+    "undress": true,
+    "lora_train": true,
+    "lora_generate": true,
+    "body_detection": true
+  },
+  "restorers": [
+    "codeformer"
+  ],
+  "lora_base_checkpoints": [
+    "sd15_realistic_base"
+  ],
+  "limits": {
+    "max_image_px": 4096,
+    "max_upload_mb": 2048,
+    "blob_cache_mb": 20480
+  },
+  "busy": null
+}

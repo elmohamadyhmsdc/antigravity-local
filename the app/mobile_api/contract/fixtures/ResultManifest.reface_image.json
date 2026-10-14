@@ -1,0 +1,14 @@
+{
+  "job_id": "9c1d2e84-aaaa-4bbb-8ccc-0123456789ab",
+  "files": [
+    {
+      "name": "result.png",
+      "size": 2481733,
+      "sha256": "ff209f059b88845e5907a1094d021a3a353e9786b0ef78a448de3f274c190608",
+      "mime": "image/png"
+    }
+  ],
+  "meta": {
+    "faces_swapped": 1
+  }
+}

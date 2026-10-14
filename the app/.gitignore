@@ -29,3 +29,5 @@ jobs/
 .worker.pid
 .stop_*
 .agent/
+identities/
+dfl_work/

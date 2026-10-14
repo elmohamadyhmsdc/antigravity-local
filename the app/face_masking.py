@@ -34,6 +34,11 @@ MODELS_DIR = Path(__file__).parent / "models"
 
 PARSER_FILE = "bisenet_resnet_34.onnx"
 OCCLUDER_FILE = "xseg_1.onnx"
+# Occluder models by name. With several, a pixel is face only if every model
+# says so (FaceFusion's 'many' = per-pixel minimum): a hand either one sees
+# stays a hand.
+OCCLUDER_FILES = {"xseg_1": "xseg_1.onnx", "xseg_2": "xseg_2.onnx"}
+DEFAULT_OCCLUDERS = ["xseg_1"]
 
 # CelebAMask-HQ class indices used by BiSeNet
 REGIONS = {
@@ -50,10 +55,35 @@ _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
-def _make_session(path: Path, providers):
+def _make_session(path, providers):
     so = ort.SessionOptions()
     so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    return ort.InferenceSession(str(path), sess_options=so, providers=providers)
+    return ort.InferenceSession(path if isinstance(path, bytes) else str(path),
+                                sess_options=so, providers=providers)
+
+
+def _parser_session_with_argmax(path: Path, providers):
+    """The parser with an ArgMax over its class axis appended to the graph.
+
+    Same class map as numpy's argmax (both pick the first maximum), but it runs
+    on the GPU and copies back 512x512 labels instead of 19x512x512 floats:
+    ~20 ms less per call, and segment() runs twice per face. Returns None when
+    the graph can't be patched, so the caller falls back to the plain model.
+    """
+    try:
+        import onnx
+        model = onnx.load(str(path))
+        graph = model.graph
+        logits = graph.output[0].name
+        graph.node.append(onnx.helper.make_node(
+            "ArgMax", [logits], ["seg_argmax"], axis=1, keepdims=0))
+        del graph.output[:]
+        graph.output.append(onnx.helper.make_tensor_value_info(
+            "seg_argmax", onnx.TensorProto.INT64, None))
+        return _make_session(model.SerializeToString(), providers)
+    except Exception as e:
+        print(f"[MASK] parser argmax patch unavailable ({e}); using numpy argmax")
+        return None
 
 
 def _layout(shape):
@@ -68,39 +98,54 @@ def _layout(shape):
 
 class FaceMasker:
     def __init__(self, parser_path: Optional[str] = None,
-                 occluder_path: Optional[str] = None, providers=None):
+                 occluder_path: Optional[str] = None, providers=None,
+                 occluders: Optional[List[str]] = None):
         providers = providers or ["CUDAExecutionProvider", "CPUExecutionProvider"]
         self.parser = None
-        self.occluder = None
+        self.occluder = None          # first occluder session; None means no occlusion handling
+        self._occluders = []          # [(session, input name, layout)]
         self._parser_in = None
         self._parser_layout = ("nchw", 512)
-        self._occ_in = None
-        self._occ_layout = ("nhwc", 256)
+        self._parser_argmax = False   # True when the session already returns class labels
 
         pp = Path(parser_path) if parser_path else MODELS_DIR / PARSER_FILE
-        op = Path(occluder_path) if occluder_path else MODELS_DIR / OCCLUDER_FILE
+        if occluder_path:
+            occ_paths = [Path(occluder_path)]
+        else:
+            names = occluders or DEFAULT_OCCLUDERS
+            occ_paths = [MODELS_DIR / OCCLUDER_FILES.get(n, f"{n}.onnx") for n in names]
 
         if pp.exists():
             try:
-                self.parser = _make_session(pp, providers)
+                # The ArgMax patch assumes class logits on axis 1 (NCHW).
+                patched = _parser_session_with_argmax(pp, providers)
+                if patched is not None and _layout(patched.get_inputs()[0].shape)[0] == "nchw":
+                    self.parser, self._parser_argmax = patched, True
+                else:
+                    self.parser = _make_session(pp, providers)
                 self._parser_in = self.parser.get_inputs()[0].name
                 self._parser_layout = _layout(self.parser.get_inputs()[0].shape)
-                print(f"[MASK] face parser loaded ({self._parser_layout})")
+                print(f"[MASK] face parser loaded ({self._parser_layout}"
+                      f"{', argmax on GPU' if self._parser_argmax else ''})")
             except Exception as e:
                 print(f"[MASK] parser load failed: {e}")
         else:
             print(f"[MASK] parser not found: {pp} (using box region mask)")
 
-        if op.exists():
+        for op in occ_paths:
+            if not op.exists():
+                print(f"[MASK] occluder not found: {op}")
+                continue
             try:
-                self.occluder = _make_session(op, providers)
-                self._occ_in = self.occluder.get_inputs()[0].name
-                self._occ_layout = _layout(self.occluder.get_inputs()[0].shape)
-                print(f"[MASK] face occluder loaded ({self._occ_layout})")
+                sess = _make_session(op, providers)
+                self._occluders.append((sess, sess.get_inputs()[0].name, _layout(sess.get_inputs()[0].shape)))
+                print(f"[MASK] face occluder {op.stem} loaded ({self._occluders[-1][2]})")
             except Exception as e:
-                print(f"[MASK] occluder load failed: {e}")
+                print(f"[MASK] occluder {op.name} load failed: {e}")
+        if self._occluders:
+            self.occluder = self._occluders[0][0]
         else:
-            print(f"[MASK] occluder not found: {op} (no occlusion handling)")
+            print("[MASK] no occluder available (no occlusion handling)")
 
     # ---- individual masks -------------------------------------------------
 
@@ -122,7 +167,10 @@ class FaceMasker:
                 prep = prep.transpose(2, 0, 1)
             prep = prep[None, ...].astype(np.float32)
             out = self.parser.run(None, {self._parser_in: prep})[0][0]
-            seg = out.argmax(0) if out.shape[0] <= 32 else out.argmax(-1)
+            if self._parser_argmax:
+                seg = out
+            else:
+                seg = out.argmax(0) if out.shape[0] <= 32 else out.argmax(-1)
             return cv2.resize(seg.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST)
         except Exception as e:
             print(f"[MASK] segment failed: {e}")
@@ -138,21 +186,23 @@ class FaceMasker:
 
     def occlusion_mask(self, crop_bgr: np.ndarray) -> Optional[np.ndarray]:
         """Float [0,1] mask: 1 = visible face, 0 = occluder. None if unavailable."""
-        if self.occluder is None:
+        if not self._occluders:
             return None
-        try:
-            h, w = crop_bgr.shape[:2]
-            layout, size = self._occ_layout
-            prep = cv2.resize(crop_bgr, (size, size)).astype(np.float32) / 255.0
-            if layout == "nchw":
-                prep = prep.transpose(2, 0, 1)
-            prep = prep[None, ...].astype(np.float32)
-            out = self.occluder.run(None, {self._occ_in: prep})[0][0]
-            out = np.squeeze(out).clip(0, 1).astype(np.float32)
-            return cv2.resize(out, (w, h), interpolation=cv2.INTER_LINEAR)
-        except Exception as e:
-            print(f"[MASK] occlusion_mask failed: {e}")
-            return None
+        h, w = crop_bgr.shape[:2]
+        combined = None
+        for sess, in_name, (layout, size) in self._occluders:
+            try:
+                prep = cv2.resize(crop_bgr, (size, size)).astype(np.float32) / 255.0
+                if layout == "nchw":
+                    prep = prep.transpose(2, 0, 1)
+                prep = prep[None, ...].astype(np.float32)
+                out = sess.run(None, {in_name: prep})[0][0]
+                out = np.squeeze(out).clip(0, 1).astype(np.float32)
+                out = cv2.resize(out, (w, h), interpolation=cv2.INTER_LINEAR)
+                combined = out if combined is None else np.minimum(combined, out)
+            except Exception as e:
+                print(f"[MASK] occlusion_mask failed: {e}")
+        return combined
 
     # ---- combined paste mask ---------------------------------------------
 
@@ -232,11 +282,17 @@ def feather_mask(mask: np.ndarray, erode: float = 0.02, feather: float = 0.05) -
     size = min(h, w)
     binary = (mask > 0.5).astype(np.uint8)
 
+    # Outside the crop counts as "not face": OpenCV's erode pads with the
+    # foreground value and distanceTransform sees no edge at all, so a region
+    # touching the crop border (a close-up, a face cut off by the frame) kept
+    # full weight there and pasted with a hard seam along the crop boundary.
     e = int(size * erode)
     if e > 0:
-        binary = cv2.erode(binary, np.ones((2 * e + 1, 2 * e + 1), np.uint8))
+        binary = cv2.erode(binary, np.ones((2 * e + 1, 2 * e + 1), np.uint8),
+                           borderType=cv2.BORDER_CONSTANT, borderValue=0)
 
     f = max(2.0, size * feather)
-    dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
+    padded = cv2.copyMakeBorder(binary, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+    dist = cv2.distanceTransform(padded, cv2.DIST_L2, 5)[1:-1, 1:-1]
     ramp = np.clip(dist / f, 0.0, 1.0).astype(np.float32)
     return cv2.GaussianBlur(ramp, (0, 0), 1.0)

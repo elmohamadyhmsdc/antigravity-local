@@ -36,6 +36,8 @@ RESTORER_FILES = {
     "codeformer": "codeformer.onnx",
     "gfpgan_1.4": "gfpgan_1.4.onnx",
     "gpen_bfr_512": "gpen_bfr_512.onnx",
+    "gpen_bfr_1024": "gpen_bfr_1024.onnx",
+    "restoreformer_plus_plus": "restoreformer_plus_plus.onnx",
 }
 
 

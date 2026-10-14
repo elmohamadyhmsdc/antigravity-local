@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "missing_blobs",
+    "message": "1 input blob is not cached on the server.",
+    "retryable": true
+  },
+  "missing": [
+    "195ad4520e3c0a93c4d742bc103095a882835a4f75f5af9c03115a7a87300b5e"
+  ]
+}

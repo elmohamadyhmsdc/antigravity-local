@@ -1,0 +1,16 @@
+{
+  "type": "generate_lora_images",
+  "params": {
+    "trigger_word": "sks_sara",
+    "num_images": 4,
+    "seed": 1234,
+    "steps": 30,
+    "reference_mode": "composition",
+    "reference_strength": 0.6,
+    "multi_angle": false
+  },
+  "inputs": {
+    "lora": "168738df87e11cdb4a890d54227ee467788fcb61f8a54f1f1e0e667aea5e5110",
+    "reference": "c37feacc69409b349d276a5abe8c6a9e0db3112d19845de4cc68d3b80c6b1e16"
+  }
+}

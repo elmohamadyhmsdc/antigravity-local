@@ -1,0 +1,12 @@
+{
+  "type": "reface_video_dfm",
+  "params": {
+    "source_faces": [],
+    "dfm_model": "RTM_WF_224",
+    "start_time": 2.5,
+    "end_time": 14.0
+  },
+  "inputs": {
+    "target": "99358a5a64c53f5d974b43a13dc5a726a4bccfa9fe2d9a0293b305a9242ba04b"
+  }
+}

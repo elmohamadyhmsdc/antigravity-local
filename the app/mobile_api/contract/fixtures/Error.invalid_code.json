@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "invalid_code",
+    "message": "Wrong pairing code (4 attempts left).",
+    "retryable": false
+  }
+}

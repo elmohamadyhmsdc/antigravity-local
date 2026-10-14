@@ -1,0 +1,11 @@
+{
+  "type": "analyze_video",
+  "params": {
+    "frame_interval": 1.0,
+    "min_quality": 0.4,
+    "detect_bodies": true
+  },
+  "inputs": {
+    "video": "3efd64202bacc9bc2a5034d053475dd74447e472d7cb916a9cd93948085a3eec"
+  }
+}

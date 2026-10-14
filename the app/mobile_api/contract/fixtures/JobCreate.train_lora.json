@@ -1,0 +1,16 @@
+{
+  "type": "train_lora",
+  "params": {
+    "output_name": "sara_v1",
+    "base_checkpoint": "sd15_realistic_base",
+    "epochs": 10,
+    "network_dim": 32,
+    "network_alpha": 16,
+    "learning_rate": 0.0001,
+    "batch_size": 1,
+    "max_resolution": 512
+  },
+  "inputs": {
+    "dataset": "8dee9a22fc514e1c4a3548df7f481401fa832e7686b183824da66b3ef58e8419"
+  }
+}

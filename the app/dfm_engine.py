@@ -79,6 +79,7 @@ class DFMEngine:
         self.model_path: Optional[Path] = None
         self.session: Optional[ort.InferenceSession] = None
         self.resolution: int = 128
+        self.morph: float = 1.0   # AMP morph factor (FaceFusion's default 100%); SAEHD ignores it
         self.model_info: Optional[DFMModelInfo] = None
         
         # ONNX execution providers (prefer GPU)
@@ -123,8 +124,10 @@ class DFMEngine:
                 providers=self.providers
             )
             
-            # Get model metadata
-            input_info = self.session.get_inputs()[0]
+            # Get model metadata. AMP models also take 'morph_value:0' (1-D), which
+            # may come first, so look for the 4-D face input.
+            input_info = next((i for i in self.session.get_inputs() if len(i.shape) == 4),
+                              self.session.get_inputs()[0])
             input_shape = input_info.shape
             
             # Detect resolution from input shape
@@ -216,7 +219,10 @@ class DFMEngine:
                 )
             
             # Preprocess: normalize to 0-1 float
-            face_input = aligned_face.astype(np.float32) / 255.0
+            # FaceFusion sharpens the crop first: warped video frames are softer
+            # than the extracted JPEGs the model was trained on.
+            sharpened = cv2.addWeighted(aligned_face, 1.75, cv2.GaussianBlur(aligned_face, (0, 0), 2), -0.75, 0)
+            face_input = sharpened.astype(np.float32) / 255.0
             
             # Add batch dimension: (H, W, C) -> (1, H, W, C)
             face_input = face_input[np.newaxis, ...]
@@ -229,8 +235,18 @@ class DFMEngine:
             #   - 'out_celeb_face:0' (swapped face)
             #   - 'out_celeb_face_mask:0' (source/celeb face mask)
             
-            input_name = self.session.get_inputs()[0].name
-            outputs = self.session.run(None, {input_name: face_input})
+            feeds = {}
+            for inp in self.session.get_inputs():
+                if inp.name == "morph_value:0":      # AMP models; 1.0 = fully the trained person
+                    feeds[inp.name] = np.array([self.morph], np.float32)
+                else:
+                    feeds[inp.name] = face_input
+            names = [o.name for o in self.session.get_outputs()]
+            outputs = self.session.run(None, feeds)
+            by_name = dict(zip(names, outputs))
+            if {"out_celeb_face:0", "out_face_mask:0"} <= set(by_name):
+                outputs = [by_name["out_face_mask:0"], by_name["out_celeb_face:0"],
+                           by_name.get("out_celeb_face_mask:0", by_name["out_face_mask:0"])]
             
             # Parse outputs based on count
             if len(outputs) >= 3:
@@ -432,77 +448,40 @@ class DFMEngine:
 
 # Utility functions for face alignment (DFL-compatible)
 
+# FaceFusion's WARP_TEMPLATE_SET['dfl_whole_face']: where DeepFaceLab's whole-face
+# alignment puts the 5 landmarks, normalised. A DFM model only sees faces aligned
+# like its training set, so this has to match - the 3-point guess that used to be
+# here (eyes at 35%/65%, nose at 55%) fed the model faces it was never trained on.
+DFL_WHOLE_FACE = np.array([[0.35342266, 0.39285716],
+                           [0.62797622, 0.39285716],
+                           [0.48660713, 0.54017860],
+                           [0.38839287, 0.68750011],
+                           [0.59821427, 0.68750011]], np.float32)
+
+
+def _five_points(landmarks: np.ndarray) -> np.ndarray:
+    lm = np.asarray(landmarks, np.float32)
+    if len(lm) == 5:
+        return lm
+    if len(lm) >= 106:   # insightface 2d106
+        return np.float32([lm[33:42].mean(0), lm[87:96].mean(0), lm[86], lm[52], lm[61]])
+    if len(lm) >= 68:    # dlib 68
+        return np.float32([lm[36:42].mean(0), lm[42:48].mean(0), lm[30], lm[48], lm[54]])
+    raise ValueError(f"Unsupported landmark count: {len(lm)}")
+
+
 def get_transform_matrix(
     landmarks: np.ndarray,
     output_size: int = 128,
     face_type: str = 'whole_face'
 ) -> np.ndarray:
-    """
-    Calculate the transformation matrix for face alignment.
-    
-    This creates a DFL-compatible alignment matrix from facial landmarks.
-    
-    Args:
-        landmarks: 5-point or 106-point facial landmarks
-        output_size: Target size for aligned face
-        face_type: Type of face crop ('whole_face', 'full_face', 'head')
-        
-    Returns:
-        2x3 affine transformation matrix
-    """
-    # Standard 5-point landmark positions for alignment
-    # These are the target positions for: left eye, right eye, nose, left mouth, right mouth
-    
-    if face_type == 'whole_face':
-        # Whole face includes more area
-        scale = 1.0
-        padding = 0.1
-    elif face_type == 'full_face':
-        scale = 0.8
-        padding = 0.1
-    else:  # head
-        scale = 1.5
-        padding = 0.2
-    
-    # Extract key points from landmarks
-    if len(landmarks) >= 106:
-        # InsightFace 106-point landmarks
-        left_eye = np.mean(landmarks[33:42], axis=0)
-        right_eye = np.mean(landmarks[87:96], axis=0)
-        nose = landmarks[86]
-        left_mouth = landmarks[52]
-        right_mouth = landmarks[61]
-    elif len(landmarks) >= 68:
-        # Dlib 68-point landmarks
-        left_eye = np.mean(landmarks[36:42], axis=0)
-        right_eye = np.mean(landmarks[42:48], axis=0)
-        nose = landmarks[30]
-        left_mouth = landmarks[48]
-        right_mouth = landmarks[54]
-    elif len(landmarks) == 5:
-        # 5-point landmarks
-        left_eye = landmarks[0]
-        right_eye = landmarks[1]
-        nose = landmarks[2]
-        left_mouth = landmarks[3]
-        right_mouth = landmarks[4]
-    else:
-        raise ValueError(f"Unsupported landmark count: {len(landmarks)}")
-    
-    # Source points
-    src_pts = np.float32([left_eye, right_eye, nose])
-    
-    # Target points (normalized positions)
-    eye_dist = 0.3 * output_size
-    dst_pts = np.float32([
-        [output_size * 0.35, output_size * 0.35],  # Left eye
-        [output_size * 0.65, output_size * 0.35],  # Right eye
-        [output_size * 0.5, output_size * 0.55],   # Nose
-    ])
-    
-    # Calculate affine transform
-    matrix = cv2.getAffineTransform(src_pts, dst_pts)
-    
+    """frame->crop similarity transform onto DeepFaceLab's whole-face template
+    (FaceFusion's estimate_matrix_by_face_landmark_5 with 'dfl_whole_face')."""
+    src = _five_points(landmarks)
+    matrix, _ = cv2.estimateAffinePartial2D(src, DFL_WHOLE_FACE * output_size,
+                                            method=cv2.RANSAC, ransacReprojThreshold=100)
+    if matrix is None:
+        raise ValueError("degenerate landmarks")
     return matrix
 
 

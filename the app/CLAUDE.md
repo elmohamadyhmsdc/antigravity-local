@@ -23,10 +23,16 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 - `python test_gallery.py` — quality scoring, grouping/linking, storage, scanner (uses temp data dirs, never the real `data/`)
 - `python test_gallery_ui.py` — runs the Gallery page headlessly via `streamlit.testing.v1.AppTest` against a fixture library
 - `python test_reface_v2.py`
-- `python test_compositor.py` (one pre-existing failure: `test_feather_mask_keeps_a_solid_centre`)
+- `python test_compositor.py` — compositing core, V3 engine helpers (face_changed, frame rate, identity selection, identity boost), ROI paste parity, V3 part joining
+- `python test_analysis.py` — `analysis.analyze_frame` with fake models
+- `python test_identity_builder.py` — identity builder: picks the person (not the detector's first face), filters, pose-diverse video picks, save/load (fake faces, no models)
+- `python test_grouping_core.py` — `grouping_core` vs the embedded pre-refactor `gallery_grouping` (identical end states on every library / strictness / flag combination), the phone's 3-round orchestration, golden GroupingPlan fixtures, request validation
+- `python test_mobile_api_contract.py` / `python test_mobile_stateless.py` — the mobile API (needs `requirements_mobile_api.txt` in `venv`; fake engines, no GPU)
 
 **Check grouping accuracy against your own curated people** (read-only):
 - `python eval_grouping.py`
+- `python eval_member_cap.py [data_dir]` — how many member faces per person the phone must send to `/v1/grouping/plan` (smaller payload vs accuracy)
+- `python eval_reface.py [--stage swappers|restorers|occluders] [--people a,b] [--seconds 3]` — **Reface quality harness** (GPU, read-only): builds an identity from half of each `lora_datasets/<person>` photo set, swaps it onto the DeepFaceLab sample videos, and scores identity against the held-out half with an *independent* recogniser (`models/eval/glintr100.onnx`, antelopev2), plus target leak, flicker, identity wobble, sharpness and ms/frame. `SWAPPER_PREFERENCE` / `DEFAULT_RESTORER` in `reface_engine_v3.py` come from it. Writes `reface_output/eval/<ts>/`
 
 ## Architecture
 
@@ -49,22 +55,29 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 | `database.py` | JsonDatabase singleton, all CRUD + vector search |
 | `ffmpeg_utils.py` | Shared FFmpeg discovery, audio muxing, and segment concat commands |
 | `library_scanner.py` | **Gallery ingest** — multi-scale face detection + body detection per photo/video, writes faces/bodies/media records. Resumable and incremental (skips files whose size+mtime are unchanged) |
+| `analysis.py` | **Frame analysis core** — pure `analyze_frame(face_app, body, img, options)`: multi-scale face detection → embedding → quality v2 + gate → bodies + outfit descriptor → face↔body pairs, plus the shared face/body crop helpers. `library_scanner.py` and `mobile_api` both call it; no database, no files |
 | `face_quality.py` | Calibrated face quality score (embedding norm, size, sharpness, pose). Pure CPU maths |
 | `body_detector.py` | YOLOX-m person detection + RTMPose-m 17-keypoint bodies, ONNX only. Auto-downloads ~145 MB into `models/body/` on first use |
 | `person_linking.py` | **Grouping brain** — face↔body association, face→person matching, clustering, duplicate-person and outfit-based body suggestions. No models, no I/O |
-| `gallery_grouping.py` | Runs person_linking over the database: `group_library()` (the "sort my gallery" action) and `review_state()` (what the Review tab shows) |
+| `grouping_core.py` | **DB-free grouping step** — `plan(snapshot, mode, stages, strictness)` over people models + unsorted faces + bodies: match -> cluster -> duplicates -> bodies, `apply` (confident decisions) or `review` (everything needing a decision). The JSON wrapper `plan_request()` is what `POST /v1/grouping/plan` and `make_fixtures.py` run. Never imports `database` |
+| `gallery_grouping.py` | Thin wrapper: builds a `grouping_core.Snapshot` from the JSON database and applies the result — `group_library()` (the "sort my gallery" action) and `review_state()` (what the Review tab shows). Behaviour is unchanged (proved by `test_grouping_core.py`) |
 | `gallery_page.py` | The whole Gallery page UI (People / Review / Media / Insights) |
 | `eval_grouping.py` | Measures grouping accuracy against the people you've already curated (read-only) |
+| `mobile_api/` | **Mobile API** (FastAPI, HTTPS) — stateless compute server for the Flutter phone app: bearer-token auth + pairing, pinned self-signed TLS, content-addressed blob cache, `POST /v1/analyze/image`, GPU guard over both job queues. Never imports `database`, never reads `data/` (`test_mobile_stateless.py` enforces it). Also `POST /v1/grouping/plan` (CPU only, gzip in/out, size-capped). Run with `run_mobile_api.bat`; see the root `CLAUDE.md` and `contract/openapi.yaml` |
 | `face_miner.py` | Legacy face extraction (standalone CLI). The dashboard now ingests through `library_scanner.py` |
 | `reface_engine.py` | Face swap engine V1 |
 | `reface_engine_v2.py` | Face swap engine V2 (legacy fallback) |
-| `reface_engine_v3.py` | **Face swap engine V3 (HD, recommended)** — ONNX CodeFormer restore + BiSeNet parser/XSeg occluder masks + averaged identity; stable video |
-| `face_compositor.py` | **Compositing core** — align → restore → mask → harmonize → paste, plus per-track temporal state. Takes the swapper's affine matrix as a parameter, so inswapper, DFM and future swappers share one realism path |
+| `reface_engine_v3.py` | **Face swap engine V3 (HD, recommended)** — ONNX CodeFormer restore + BiSeNet parser/XSeg occluder masks + averaged identity; stable video. Detects with det_10g only (`_detect`; recognition runs on demand), finds the faces ticked in the UI by identity per track (`FaceSelector`, not by detection index), keeps fractional frame rates (`video_fps`/`rate_arg`), and judges "did the swap land" inside the face box (`face_changed`) - a whole-frame mean used to discard the HD composite for every face under ~430px in 1080p |
+| `face_compositor.py` | **Compositing core** — align → restore → mask → harmonize → paste, plus per-track temporal state. Takes the swapper's affine matrix as a parameter, so inswapper, DFM and future swappers share one realism path. Place/paste warp only the face's frame box (`frame_roi`), the gain map is measured at 1/4 resolution, and the restorer runs on a worker thread while the original-crop masks are built |
 | `face_harmonize.py` | Pure image math used by the compositor: noise estimation, lighting gain, focus matching, skin detail transfer, grain synthesis. No models, no state — unit-testable on CPU |
 | `identity.py` | Averaged source identity embedding for inswapper |
+| `identity_builder.py` | **"A model of a person"** from photos/videos: picks the person in every picture by identity (the old `build_faceset_from_media` took `faces[0]`, often someone else), drops small/blurry/duplicate/outlier faces, spreads video frames over head poses, reports kept/dropped/coverage/consistency/grade. Saves `identities/<slug>/` (manifest, embeddings, FFHQ-512 crops) + `facesets/<slug>.pkl`. Used by Build Faceset, V3 uploads and V3 jobs |
+| `face_swappers.py` | Swappers besides insightface's inswapper_128 behind the same `.get()` call: FaceFusion HyperSwap 1b/1c (256 px, arcface_128 template, same identity embedding). `RefaceEngineV3(swapper=...)`, "auto" = `SWAPPER_PREFERENCE` |
+| `dfl_bridge.py` / `dfl_runner.py` | **Per-person DeepFaceLab video model** (job type `train_dfl`): frames -> DFL S3FD extract -> keep only the person's sharp faces -> generic XSeg -> SAEHD vs the RTM WF faceset (headless, answers from `BASE_OPTIONS`/`PHASES`, OOM fallbacks) -> `.dfm` in `models/dfm/<slug>.dfm`. `dfl_runner.py` runs inside DFL's own Python 3.6 (keep it 3.6-compatible); a stop file makes it save and exit. Workspaces in `dfl_work/<slug>/` (state.json, dfl.log). TF 2.6 JIT-compiles kernels for the 40-series on first start |
 | `face_restore.py` | ONNX face restoration (CodeFormer / GFPGAN / GPEN) on the face crop |
 | `face_masking.py` | ONNX face parser + occluder paste masks |
-| `download_models.py` | Fetch reface ONNX models into `models/` (run once) |
+| `download_models.py` | Fetch reface ONNX models into `models/` (run once; `--extras` adds HyperSwap, GPEN 512/1024, GFPGAN, RestoreFormer++, XSeg 2). Tries FaceFusion's Hugging Face mirror first (20-40x faster here than GitHub) and resumes partial files |
+| `dfm_engine.py` | Runs exported `.dfm` models: aligns with DeepFaceLab's whole-face template (FaceFusion's `dfl_whole_face`), sharpens the crop like FaceFusion, reads outputs by name. V3's `dfm_path` composites the result through the same realism core |
 | `undress_core.py` | Shared Magic Undress helpers (mask matting, tile planning, IPC, venv_ai worker client) |
 | `undress_engine.py` | SD 1.5 inpaint worker (runs inside venv_ai). Native-res crop + tiled refine pass + optional IP-Adapter references. No ControlNet — it does not fit in 6 GB alongside the UNet and CLIP image encoder |
 | `job_manager.py` | Background job queue (file-based persistence, sequential execution) |
@@ -89,7 +102,7 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 - Jobs stored as JSON files in `jobs/` directory
 - Sequential queue — one job runs at a time
 - Statuses: `pending → queued → running → completed/failed/paused`
-- Supports video resume via `last_frame` field
+- Supports video resume via `last_frame` field (V2 and V3). V3 background jobs render silent x264 parts (`finalize=False`, `resume_from_frame=frames_done`); `finish_v3_video` joins them with stream copy and muxes the audio once
 - `train_lora` jobs train into `models/loras/runs/{job_id}/` (per-epoch LoRA snapshots + sd-scripts `--save_state` folders). The LoRA Train tab's Resume button re-queues a failed/interrupted job; `lora_trainer.run_training` continues from the newest fully saved epoch state (via `--resume` + `--initial_epoch`), then moves the finished LoRA up to `models/loras/` and deletes the states. While it runs, `run_training` folds sd-scripts' output into `job.details` (stage, epoch/step, loss, s/step — see `update_training_state`) and appends it to `runs/{job_id}/train.log`; the Train tab polls both every 2 s via an `st.fragment` only while a worker is alive and a training job is queued/running
 - `generate_lora_images` jobs (Character LoRA → Generate tab): `lora_generate_job.run_generation` runs `lora_generate.py` inside venv_ai, one image at a time, each saved to `lora_output/{person}/reference_{job_id}_NN_seed{seed}.png` as soon as it's done. Progress comes back as `@@lora_generate {json}` lines on stdout and is folded into `job.details` (stage + per-stage startup timings, GPU, image/step, s/step, seeds); log in `jobs/{job_id}.log`. The tab polls it with the same `st.fragment` pattern as the Train tab and has Stop/Cancel. `lora_generate.py` keeps torch/diffusers imports inside `main()` because the dashboard imports its prompt defaults from the main venv, and loads the LoRA via `load_person_lora` (kohya text-encoder keys renamed for transformers 5's CLIPTextModel layout). An optional reference image (saved to `lora_uploads/_generate_references/`) is followed via img2img ("Pose & composition"; only `int(steps * strength)` steps run, which `denoising_steps` mirrors for progress/ETA), IP-Adapter plus from `models/undress` ("Style & look"), or both
 - Character LoRA → Dataset → Upload New stages photos **and videos** in `lora_uploads/{slug}/` via `lora_staging.py`; that folder *is* the staged list (not session state), so refreshes/reconnects keep it. "From a folder on this PC" imports straight from disk (hard link on the same drive, else copy) and is the path for big batches — Streamlit's uploader holds a whole batch in RAM and rejects the rest of it with `400 Invalid session_id` once the websocket drops. Both paths skip already-staged files (size + first/last MiB fingerprint) and never overwrite. `build_dataset_from_uploads` samples up to 12 frames per video into `_frames/{video}/`. `.streamlit/config.toml` raises `maxUploadSize` to 2048 MB

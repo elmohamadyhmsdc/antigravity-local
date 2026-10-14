@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "gpu_busy",
+    "message": "A reface_video_v3 job is running on the GPU.",
+    "retryable": true
+  }
+}

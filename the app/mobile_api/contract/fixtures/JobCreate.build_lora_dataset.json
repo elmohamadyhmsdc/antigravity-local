@@ -1,0 +1,14 @@
+{
+  "type": "build_lora_dataset",
+  "params": {
+    "trigger_word": "sks_sara",
+    "repeats": 10
+  },
+  "inputs": {
+    "images": [
+      "4565512f6f7e64f98a4a519536e69c3b078d04389def4f6b707065e0ccb7ff03",
+      "151e37f266d507a36f8bb3f6fa034396d9e7f87e78e64e34b4c4301d0ed6ab32",
+      "403ee49e0105fb60951dcddba2ef895041c5459993211b07a3c1e93b841c3bb1"
+    ]
+  }
+}

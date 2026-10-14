@@ -6,14 +6,17 @@ already have, group what's left into new people, and tie faceless bodies to a
 person when the evidence is strong. Anything less than certain is left for
 review_state(), which is what the Gallery's Review tab shows.
 
-Nothing here decides thresholds; those live in person_linking.STRICTNESS.
+The decisions themselves are made by grouping_core.plan() - the same DB-free
+code the mobile API serves - over a snapshot of this JSON database. This module
+only builds that snapshot and applies the result, so the Streamlit gallery and
+the phone can never drift apart. Nothing here decides thresholds; those live in
+person_linking.STRICTNESS.
 """
 
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-import numpy as np
-
+import grouping_core as gc
 import person_linking as pl
 from database import JsonDatabase, norm_path
 
@@ -39,14 +42,6 @@ def face_quality_of(face: Dict) -> float:
     return float(face.get("quality_score") or 0.0)
 
 
-def _arrays(db: JsonDatabase, faces: Sequence[Dict]):
-    e = pl.normalize_rows(db.get_embeddings_for([f["id"] for f in faces]))
-    q = np.array([face_quality_of(f) for f in faces], dtype=np.float32)
-    keys = [frame_key(f) for f in faces]
-    rejected = [set(f.get("rejected_person_ids") or ()) for f in faces]
-    return e, q, keys, rejected
-
-
 def person_models(db: JsonDatabase, person_ids: Optional[Sequence[int]] = None) -> Dict[int, pl.PersonModel]:
     faces = [f for f in db.faces.values()
              if f.get("person_id") is not None and (person_ids is None or f["person_id"] in person_ids)]
@@ -54,6 +49,28 @@ def person_models(db: JsonDatabase, person_ids: Optional[Sequence[int]] = None) 
         return {}
     e = db.get_embeddings_for([f["id"] for f in faces])
     return pl.build_person_models(e, [f["person_id"] for f in faces], [face_quality_of(f) for f in faces])
+
+
+# ---------------------------------------------------------------------------
+# The database as a grouping_core snapshot
+# ---------------------------------------------------------------------------
+
+def _pending_faces(db: JsonDatabase):
+    """(faces that belong to nobody, their snapshot form, the ones dismissed from review)."""
+    unassigned = [f for f in db.faces.values() if f.get("person_id") is None]
+    vectors = db.get_embeddings_for([f["id"] for f in unassigned])
+    pending = [gc.PendingFace(f["id"], vec, face_quality_of(f), frame_key(f),
+                              set(f.get("rejected_person_ids") or ()))
+               for f, vec in zip(unassigned, vectors)]
+    return unassigned, pending, {f["id"] for f in unassigned if f.get("review_dismissed")}
+
+
+def _body_inputs(db: JsonDatabase) -> List[gc.BodyInput]:
+    return [gc.BodyInput(id=b["id"], media_id=b.get("media_id"), frame_number=b.get("frame_number"),
+                         anchor_person_id=db.body_person_id(b), appearance=b.get("appearance"),
+                         weak_face_embedding=b.get("weak_face_embedding"),
+                         rejected_person_ids=set(b.get("rejected_person_ids") or ()))
+            for b in db.bodies.values()]
 
 
 @dataclass
@@ -85,33 +102,31 @@ def group_library(db: Optional[JsonDatabase] = None, strictness: str = "balanced
     summary = GroupingSummary()
 
     with db.batch():
-        unassigned = [f for f in db.faces.values() if f.get("person_id") is None]
+        unassigned, pending, _ = _pending_faces(db)
+        stages = [s for s, wanted in (("match", match_existing), ("cluster", create_new)) if wanted]
 
-        if match_existing and unassigned:
-            models = person_models(db)
-            if models:
-                e, q, keys, rejected = _arrays(db, unassigned)
-                for m in pl.match_faces(e, models, params, keys, rejected):
-                    if m.decision == "auto":
-                        db.assign_face_to_person(unassigned[m.index]["id"], m.person_id)
-                        summary.assigned_to_existing += 1
-                unassigned = [f for f in unassigned if f.get("person_id") is None]
+        if stages and unassigned:
+            models = person_models(db) if match_existing else {}
+            plan = gc.plan(gc.Snapshot(models=models, pending=pending), "apply", stages, params)
+
+            for a in plan.assignments:  # apply mode: confident matches only
+                db.assign_face_to_person(a.face_id, a.person_id)
+                summary.assigned_to_existing += 1
+            if match_existing and models:
                 log(f"[grouping] {summary.assigned_to_existing} faces matched to existing people")
 
-        if create_new and unassigned:
-            e, q, keys, _ = _arrays(db, unassigned)
-            for cluster in pl.cluster_faces(e, q, params, keys):
-                if not pl.should_auto_create(cluster, params):
-                    continue
-                face_ids = [unassigned[i]["id"] for i in cluster.indices]
-                pid = db.create_person()
-                db.update_person(pid, {"name": f"Person {pid}", "auto_created": True})
-                db.batch_assign_faces(face_ids, pid)
-                best = max((db.get_face(fid) for fid in face_ids), key=face_quality_of)
-                db.set_person_avatar(pid, best["id"])
-                summary.new_people += 1
-                summary.faces_in_new_people += len(face_ids)
-            log(f"[grouping] {summary.new_people} new people created")
+            if create_new and len(unassigned) > len(plan.assignments):
+                for group in plan.groups:
+                    if not group.auto_create:
+                        continue
+                    pid = db.create_person()
+                    db.update_person(pid, {"name": f"Person {pid}", "auto_created": True})
+                    db.batch_assign_faces(group.face_ids, pid)
+                    best = max((db.get_face(fid) for fid in group.face_ids), key=face_quality_of)
+                    db.set_person_avatar(pid, best["id"])
+                    summary.new_people += 1
+                    summary.faces_in_new_people += len(group.face_ids)
+                log(f"[grouping] {summary.new_people} new people created")
 
         if link_bodies and db.bodies:
             summary.bodies_linked = relink_bodies(db, params)
@@ -133,7 +148,8 @@ def relink_bodies(db: JsonDatabase, params: pl.GroupingParams) -> int:
         models = person_models(db)
         if not models:
             return 0
-        for link in pl.link_faceless_bodies(list(db.bodies.values()), db.body_person_id, models, params):
+        plan = gc.plan(gc.Snapshot(models=models, bodies=_body_inputs(db)), "apply", ["bodies"], params)
+        for link in plan.body_links:
             if link.decision == "auto":
                 db.link_body_to_person(link.body_id, link.person_id, link.method, link.confidence)
                 linked += 1
@@ -181,41 +197,18 @@ def review_state(db: Optional[JsonDatabase] = None, strictness: str = "balanced"
     """Everything the gallery wants a decision on. Pure read - nothing is changed."""
     db = db or JsonDatabase()
     params = pl.params_for(strictness)
+    _, pending, dismissed = _pending_faces(db)
+    snapshot = gc.Snapshot(models=person_models(db), pending=pending, bodies=_body_inputs(db),
+                           distinct_pairs=db.distinct_pairs(), dismissed_face_ids=dismissed)
+    plan = gc.plan(snapshot, "review", gc.STAGES, params, max_suggestions_per_person)
+
     state = ReviewState()
-    unassigned = [f for f in db.faces.values() if f.get("person_id") is None]
-    models = person_models(db)
-
-    claimed = set()
-    if unassigned and models:
-        e, q, keys, rejected = _arrays(db, unassigned)
-        for m in pl.match_faces(e, models, params, keys, rejected):
-            if m.decision in ("auto", "suggest"):
-                face = unassigned[m.index]
-                state.suggestions.setdefault(m.person_id, []).append(
-                    FaceSuggestion(face["id"], m.person_id, round(m.score, 3)))
-                claimed.add(face["id"])
-    for pid, items in state.suggestions.items():
-        items.sort(key=lambda s: -s.score)
-        del items[max_suggestions_per_person:]
-
-    rest = [f for f in unassigned if f["id"] not in claimed and not f.get("review_dismissed")]
-    if rest:
-        e, q, keys, _ = _arrays(db, rest)
-        for cluster in pl.cluster_faces(e, q, params, keys):
-            face_ids = [rest[i]["id"] for i in cluster.indices]
-            state.groups.append(GroupSuggestion(face_ids, round(cluster.cohesion, 3),
-                                                round(cluster.quality, 3)))
-            claimed.update(face_ids)
-
-    if len(models) > 1:
-        state.duplicates = pl.suggest_merges(models, params, db.distinct_pairs())
-
-    if db.bodies and models:
-        state.body_links = [l for l in pl.link_faceless_bodies(list(db.bodies.values()), db.body_person_id,
-                                                              models, params)
-                            if l.decision == "suggest"]
-
-    state.unsorted_face_ids = [f["id"] for f in unassigned if f["id"] not in claimed]
+    for a in plan.assignments:  # already best-first per person and capped
+        state.suggestions.setdefault(a.person_id, []).append(FaceSuggestion(a.face_id, a.person_id, a.score))
+    state.groups = [GroupSuggestion(g.face_ids, g.cohesion, g.quality) for g in plan.groups]
+    state.duplicates = [(d.person_a, d.person_b, d.score) for d in plan.duplicates]
+    state.body_links = list(plan.body_links)
+    state.unsorted_face_ids = list(plan.unsorted_face_ids)
     return state
 
 

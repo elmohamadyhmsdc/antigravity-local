@@ -293,6 +293,44 @@ class JobManager:
         return jobs
 
 
+def finish_v3_video(job, last_part: Optional[str], last_part_frames: int,
+                    source_path: str, start_time: float = 0.0,
+                    end_time: Optional[float] = None) -> Path:
+    """Join a V3 job's rendered parts into one mp4 and put the source audio on it.
+
+    The parts come from one engine configuration (same codec, size and rate),
+    so the concat demuxer joins them with stream copy - no second encode.
+    Mutates `job` (part_files, frames_done); returns the final path.
+    """
+    if last_part and last_part_frames > 0:
+        p = Path(last_part)
+        if p.exists() and p.stat().st_size > 0 and str(p) not in job.part_files:
+            job.part_files.append(str(p))
+    job.frames_done += last_part_frames
+
+    parts = [Path(p) for p in job.part_files if Path(p).exists()]
+    if not parts:
+        raise Exception("No video parts were rendered")
+
+    final_mp4 = parts[0].parent / f"refaced_v3_{job.id}.mp4"
+    if len(parts) == 1:
+        parts[0].replace(final_mp4)
+    else:
+        list_file = parts[0].parent / f"concat_{job.id}.txt"
+        res = subprocess.run(build_concat_command(parts, list_file, final_mp4), capture_output=True)
+        list_file.unlink(missing_ok=True)
+        if res.returncode != 0 or not final_mp4.exists():
+            err = res.stderr.decode("utf-8", errors="ignore")
+            raise Exception(f"Video segment concatenation failed: {err}. Parts preserved at: {job.part_files}")
+        for p in parts:
+            p.unlink(missing_ok=True)
+
+    if mux_audio(final_mp4, source_path, start_time, end_time):
+        print(f"[JOB {job.id}] V3 video: original audio preserved")
+    job.part_files = []
+    return final_mp4
+
+
 def run_single_job(job_id: str, jobs_dir: str):
     """Execute a single reface, LoRA-training, LoRA-image-generation, or undress job."""
     manager = JobManager(jobs_dir)
@@ -338,6 +376,23 @@ def run_single_job(job_id: str, jobs_dir: str):
             print(traceback.format_exc())
             return False
 
+    if job.job_type == "train_dfl":
+        # Per-person DeepFaceLab video model: days of training, resumable (dfl_bridge.py).
+        from dfl_bridge import run_dfl_job
+        try:
+            return run_dfl_job(job, manager)
+        except Exception as e:
+            import traceback
+            job = manager.load_job(job_id) or job
+            job.status = JobStatus.FAILED
+            job.message = f"❌ Error: {e}"
+            job.error = traceback.format_exc()
+            job.completed_at = datetime.now().isoformat()
+            manager.save_job(job)
+            print(f"[JOB {job_id}] ❌ ERROR: {e}")
+            print(traceback.format_exc())
+            return False
+
     if job.job_type == "undress_image":
         from undress_core import run_undress_job
         try:
@@ -380,13 +435,16 @@ def run_single_job(job_id: str, jobs_dir: str):
             # Initialize V3 (HD) engine; DFM "pro" mode if a .dfm path is supplied
             from reface_engine_v3 import RefaceEngineV3
             engine = RefaceEngineV3(
-                restorer=params.get('restorer', 'codeformer'),
+                restorer=params.get('restorer'),
                 restorer_weight=params.get('restorer_weight', 0.5),
                 use_parser=params.get('use_parser', True),
                 use_occluder=params.get('use_occluder', True),
                 dfm_path=params.get('dfm_path') if is_dfm else None,
                 realism_preset=params.get('realism_preset', 'natural'),
                 realism_overrides=params.get('realism_overrides') or None,
+                swapper=params.get('swapper', 'auto'),
+                identity_boost=params.get('identity_boost'),
+                occluders=params.get('occluders') or None,
             )
         elif is_v2:
             # Build V2 engine WITH its configs (these are constructor args, NOT swap kwargs)
@@ -420,11 +478,17 @@ def run_single_job(job_id: str, jobs_dir: str):
                 manager.save_job(job)
                 print(f"[JOB {job_id}] {int(pct*100)}% - Building faceset: {current}/{total}")
             
-            faceset = engine.build_faceset_from_media(
-                params['source_paths'],
-                faceset_name="temp_job",
-                progress_callback=build_progress
-            )
+            if is_v3:
+                # V3 finds the person in each photo/frame instead of taking the
+                # detector's first face, and filters the faces (identity_builder.py).
+                from identity_builder import faceset_from_media
+                faceset = faceset_from_media(params['source_paths'], engine.app, name="temp_job")
+            else:
+                faceset = engine.build_faceset_from_media(
+                    params['source_paths'],
+                    faceset_name="temp_job",
+                    progress_callback=build_progress
+                )
         
         if not is_dfm and (not faceset or not faceset.faces):
             raise Exception("No faces found in source media!")
@@ -470,13 +534,18 @@ def run_single_job(job_id: str, jobs_dir: str):
             video_end_time = params.get('end_time', None)
             
             if is_v3:
+                # Rendered as silent parts so a paused job resumes where it
+                # stopped; the parts are joined and the audio muxed below.
                 result = engine.reface_video_v3(
                     target_path,
                     faceset,
                     target_face_indices=target_face_indices,
+                    target_face_embeddings=params.get('target_face_embeddings'),
                     progress_callback=swap_progress,
                     start_time=video_start_time,
                     end_time=video_end_time,
+                    resume_from_frame=job.frames_done,
+                    finalize=False,
                 )
             elif is_v2:
                 result = engine.reface_video_with_faceset_v2(
@@ -508,6 +577,7 @@ def run_single_job(job_id: str, jobs_dir: str):
                     target_path,
                     faceset,
                     target_face_indices=target_face_indices,
+                    target_face_embeddings=params.get('target_face_embeddings'),
                 )
             elif is_v2:
                 result = engine.reface_with_faceset_v2(
@@ -528,7 +598,7 @@ def run_single_job(job_id: str, jobs_dir: str):
         
         # Check if stopped
         if stop_requested[0]:
-            part_path = result.output_path if (is_v2 and is_video and result and result.success) else None
+            part_path = result.output_path if ((is_v2 or is_v3) and is_video and result and result.success) else None
             manager.pause_job(job_id, current_frame[0], part_file=part_path)
             print(f"\n[JOB {job_id}] ⏸️ PAUSED at frame {job.frames_done}")
             return False  # Not complete, paused
@@ -594,7 +664,17 @@ def run_single_job(job_id: str, jobs_dir: str):
             result.output_path = str(final_mp4)
             job.result_path = str(final_mp4)
             job.part_files = []
-        
+
+        # For V3 video: the parts are already x264 at one rate and size, so
+        # they join losslessly with stream copy; then the audio goes on once.
+        if is_v3 and is_video:
+            if not result or not result.success:
+                raise Exception(result.message if result else "V3 video processing failed")
+            final_mp4 = finish_v3_video(job, result.output_path, current_frame[0],
+                                        target_path, video_start_time, video_end_time)
+            result.output_path = str(final_mp4)
+            job.result_path = str(final_mp4)
+
         # Complete
         job.status = JobStatus.COMPLETED
         job.progress = 1.0
@@ -721,7 +801,7 @@ def start_background_job(job_id: str, jobs_dir: str):
 # A generation/training/undress job and a foreground swap can both reach for the GPU at once;
 # nothing serializes that today. Reface V2 uses this to disable foreground/identity-build actions
 # while one of these is running (see docs/plans/2026-09-17-lora-in-reface-v2-design.md section 7).
-GPU_HEAVY_JOB_TYPES = {"generate_lora_images", "train_lora", "undress_image"}
+GPU_HEAVY_JOB_TYPES = {"generate_lora_images", "train_lora", "undress_image", "train_dfl"}
 
 
 def gpu_heavy_job_running(manager: JobManager) -> Optional[Job]:

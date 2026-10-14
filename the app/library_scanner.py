@@ -32,6 +32,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
+import analysis
 import face_quality
 import person_linking as pl
 from database import JsonDatabase, norm_path
@@ -165,40 +166,19 @@ class LibraryScanner:
 
     # --- detection --------------------------------------------------------
 
+    # The detection logic lives in analysis.py (shared with the mobile API); these
+    # stay as methods because tests and callers override them per instance.
+
     @staticmethod
     def det_sizes(img) -> List[Tuple[int, int]]:
-        """Small scale catches faces that fill the frame, large ones catch small
-        faces in big photos."""
-        long_side = max(img.shape[:2])
-        sizes = [(128, 128), (640, 640)]
-        if long_side >= 1600:
-            sizes.append((1280, 1280))
-        return sizes
+        return analysis.det_sizes(img)
 
     def detect_faces(self, img) -> list:
         """insightface's FaceAnalysis.get, but with per-image detector scales."""
-        from insightface.app.common import Face
-        app = self.face_app
-        bboxes, kpss = app.det_model.detect(img, input_size=self.det_sizes(img), max_num=0)
-        faces = []
-        for i in range(bboxes.shape[0]):
-            face = Face(bbox=bboxes[i, 0:4], kps=kpss[i] if kpss is not None else None,
-                        det_score=bboxes[i, 4])
-            for taskname, model in app.models.items():
-                if taskname != "detection":
-                    model.get(img, face)
-            faces.append(face)
-        return faces
+        return analysis.detect_faces(self.face_app, img)
 
     def assess_face(self, img, face) -> Dict:
-        from insightface.utils import face_align
-        aligned = None
-        if face.kps is not None:
-            try:
-                aligned = face_align.norm_crop(img, face.kps, 112)
-            except Exception:
-                aligned = None
-        return face_quality.assess(face, aligned)
+        return analysis.assess_face(img, face)
 
     # --- public API -------------------------------------------------------
 
@@ -332,20 +312,15 @@ class LibraryScanner:
     def _scan_frame(self, img, state: "_FileState", frame_number: Optional[int],
                     timestamp: Optional[float], summary: ScanSummary) -> List[list]:
         detections: List[list] = []
-        faces = self.detect_faces(img)
-        quality = [self.assess_face(img, f) for f in faces]
-
-        bodies = []
-        if self.options.detect_bodies and self.body is not None and self.body.available:
-            bodies = self.body.analyze(img, score_thr=self.options.body_score)
-        pairs = pl.associate_faces_bodies([f.bbox for f in faces], bodies,
-                                          face_kps=[f.kps for f in faces]) if bodies else []
-        body_of_face = {fi: bi for fi, bi, _ in pairs}
-        face_of_body = {bi: fi for fi, bi, _ in pairs}
+        # detect/assess go through the overridable methods above (the tests stub them)
+        result = analysis.analyze_frame(self._face_app, self.body, img, self.options,
+                                        detect=self.detect_faces, assess=self.assess_face)
+        faces, quality, bodies = result.faces, result.quality, result.bodies
+        face_of_body = result.face_of_body
 
         face_ids: Dict[int, Optional[int]] = {}
         for i, (face, q) in enumerate(zip(faces, quality)):
-            if not face_quality.passes_gate(face, self.options.min_face_quality, q["quality_score"]):
+            if not result.passes_gate[i]:
                 face_ids[i] = None
                 continue
             fid, kind = state.store_face(self, img, face, q, frame_number, timestamp)
@@ -365,7 +340,7 @@ class LibraryScanner:
             weak = None
             if fi is not None and fid is None and faces[fi].embedding is not None:
                 weak = (faces[fi].normed_embedding, quality[fi]["quality_score"])
-            bid = state.store_body(self, img, body, fid, weak, frame_number, timestamp)
+            bid = state.store_body(self, img, body, result.appearances[bi], fid, weak, frame_number, timestamp)
             if bid is None:
                 continue
             summary.bodies_new += 1
@@ -470,19 +445,13 @@ class _FileState:
         self._remember(fid, emb)
         return fid, "new"
 
-    @staticmethod
-    def _face_crop(img, face, pad_ratio: float = 0.2):
-        h, w = img.shape[:2]
-        x1, y1, x2, y2 = [int(v) for v in face.bbox[:4]]
-        pad = int(max(x2 - x1, y2 - y1) * pad_ratio)
-        return img[max(0, y1 - pad):min(h, y2 + pad), max(0, x1 - pad):min(w, x2 + pad)].copy()
+    _face_crop = staticmethod(analysis.face_crop)
 
     # -- bodies --
 
-    def store_body(self, scanner: "LibraryScanner", img, body, face_id: Optional[int],
-                   weak: Optional[Tuple[np.ndarray, float]], frame_number: Optional[int],
-                   timestamp: Optional[float]) -> Optional[int]:
-        appearance = pl.appearance_descriptor(img, body.bbox, body.kpts, body.kpt_scores)
+    def store_body(self, scanner: "LibraryScanner", img, body, appearance: Optional[np.ndarray],
+                   face_id: Optional[int], weak: Optional[Tuple[np.ndarray, float]],
+                   frame_number: Optional[int], timestamp: Optional[float]) -> Optional[int]:
         if face_id is None:
             # Faceless bodies: only keep ones that look different from what we
             # already kept for this file, so a static video doesn't fill up with
@@ -525,13 +494,4 @@ class _FileState:
         suffix = "" if frame_number is None else f"_f{frame_number}"
         return scanner.body_crop_dir / f"body_{stamp}{suffix}.jpg"
 
-    @staticmethod
-    def _body_crop(img, bbox, max_height: int = 512):
-        h, w = img.shape[:2]
-        x1, y1, x2, y2 = [int(v) for v in bbox[:4]]
-        pad_x, pad_y = int((x2 - x1) * 0.06), int((y2 - y1) * 0.04)
-        crop = img[max(0, y1 - pad_y):min(h, y2 + pad_y), max(0, x1 - pad_x):min(w, x2 + pad_x)].copy()
-        if crop.shape[0] > max_height:
-            scale = max_height / crop.shape[0]
-            crop = cv2.resize(crop, (max(1, int(crop.shape[1] * scale)), max_height), interpolation=cv2.INTER_AREA)
-        return crop
+    _body_crop = staticmethod(analysis.body_crop)

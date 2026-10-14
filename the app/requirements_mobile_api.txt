@@ -1,0 +1,13 @@
+# Antigravity Mobile API (the app/mobile_api/) - extra packages on top of requirements.txt.
+#
+# The main venv already provides starlette, uvicorn, python-multipart, httpx, numpy, opencv,
+# insightface, onnxruntime-gpu, jsonschema and PyYAML. Only these are missing:
+#
+#   venv\Scripts\python -m pip install -r requirements_mobile_api.txt
+#
+# Install them deliberately - venv carries a fragile CUDA/onnxruntime setup.
+
+fastapi>=0.115        # routing + the multipart/validation layer (pulls in pydantic)
+cryptography>=43      # self-signed TLS certificate (tls.py)
+zeroconf>=0.132       # mDNS advertisement _antigravity._tcp (discovery.py); optional - phones can use the IP
+qrcode>=7.4           # pairing QR on the localhost page (uses Pillow, already installed)

@@ -1,0 +1,51 @@
+{
+  "mode": "review",
+  "assignments": [
+    {
+      "face_id": 101,
+      "person_id": 1,
+      "score": 0.684,
+      "margin": 0.118,
+      "decision": "auto"
+    },
+    {
+      "face_id": 102,
+      "person_id": 2,
+      "score": 0.671,
+      "margin": 0.648,
+      "decision": "auto"
+    }
+  ],
+  "groups": [
+    {
+      "face_ids": [
+        103,
+        104,
+        105
+      ],
+      "cohesion": 0.629,
+      "quality": 0.721,
+      "auto_create": true
+    }
+  ],
+  "duplicates": [
+    {
+      "person_a": 1,
+      "person_b": 4,
+      "score": 0.6776
+    }
+  ],
+  "body_links": [
+    {
+      "body_id": 3,
+      "person_id": 1,
+      "method": "appearance",
+      "confidence": 0.82,
+      "decision": "suggest"
+    }
+  ],
+  "unsorted_face_ids": [
+    106,
+    107
+  ]
+}
