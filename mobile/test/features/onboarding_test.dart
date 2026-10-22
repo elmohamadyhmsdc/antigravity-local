@@ -260,7 +260,7 @@ void main() {
       await tester.tap(find.byKey(Key('scan:${codes[0]}')));
       await tester.pump();
       expect(
-        find.text('That is not an Antigravity pairing code.'),
+        find.text('That is not a Your Gallery pairing code.'),
         findsOneWidget,
       );
       await tester.tap(find.byKey(Key('scan:${codes[1]}')));

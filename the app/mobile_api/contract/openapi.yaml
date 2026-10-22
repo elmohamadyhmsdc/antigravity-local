@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
-  title: Antigravity Mobile API
+  title: Your Gallery Mobile API
   version: 1.0.0
   description: |
-    Stateless GPU compute API used by the Antigravity Mobile app (Flutter).
+    Stateless GPU compute API used by the Your Gallery app (Flutter).
     The phone is the source of truth for ALL user data; this server keeps no
     user database. See docs/plans/2026-10-11-mobile-app-plan.md.
 

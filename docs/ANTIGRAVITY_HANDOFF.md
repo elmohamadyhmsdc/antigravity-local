@@ -254,3 +254,16 @@ preserving existing changes and updating this handoff with actual outcomes
 before finishing. All three rule headers and references were checked; the
 existing terminal policy was preserved. This was a documentation/rules change;
 no application tests were rerun and no phone/server state was changed.
+
+## Application rebranding to "Your Gallery" — 2026-10-22
+
+At the user's request ("اسم الابليكيشن Your Gallery مش antigravity.. شيل antigravity دي من كل حتة وخليها Your Gallery"), all user-facing application titles, labels, and branding were renamed from "Antigravity" to "Your Gallery":
+
+- **Android App & Manifest**: `android:label="Your Gallery"` in `mobile/android/app/src/main/AndroidManifest.xml`.
+- **Flutter UI Strings**: Updated `appTitle` and all 9 user-facing UI messages in `mobile/lib/l10n/app_en.arb`, `mobile/lib/l10n/app_localizations_en.dart`, and `mobile/lib/l10n/app_localizations.dart` (`welcomeBody`, `scanNotPairingCode`, `permissionsIntro`, `startupErrorTitle`, `backupShareSubject`, `noPhotoAccessBody`, `privateResultsHint`, `appLockHint`, `unlockApp`).
+- **Foreground & Background Notifications**: Updated `mobile/lib/domain/jobs/job_tracker.dart` (`Your Gallery Studio`) and `mobile/lib/data/platform/foreground_keep_alive.dart` (`Your Gallery`).
+- **Error Messages**: Updated `mobile/lib/domain/backup/backup_service.dart` (backup inspection error strings) and `mobile/lib/data/api/pinned_http.dart` (handshake error string).
+- **Mobile Tests**: Updated assertions in `mobile/test/widget_test.dart`, `mobile/test/features/privacy_and_lora_test.dart`, `mobile/test/features/onboarding_test.dart`, and `mobile/test/domain/backup_service_test.dart`.
+- **Desktop Dashboard & Mobile API**: Updated page title, sidebar brand, mobile bar, and footer in `the app/dashboard.py`; updated instructions and caption in `the app/mobile_devices_page.py`; updated QR hint in `the app/mobile_api/pairing.py`; updated FastAPI title in `the app/mobile_api/app.py`; updated contract title/description in `the app/mobile_api/contract/openapi.yaml`; updated module docstrings and server banner in `the app/mobile_api/__init__.py`, `server.py`, `workspace.py`, `tls.py`, `auth.py`, `discovery.py`, and `the app/README.md`.
+- **Preserved Internals**: Preserved `applicationId "com.antigravity.antigravity_mobile"` to prevent breaking existing phone installations, SQLCipher database keys, or package imports. Preserved internal admin header (`X-Antigravity-Admin`), environment variable (`ANTIGRAVITY_FFMPEG`), and mDNS service type (`_antigravity._tcp.local.`).
+- **State & Verification**: Verified zero remaining user-facing references to "Antigravity" in `mobile/lib/` and `the app/` UI layers. Preserved terminal policy; provided test execution commands to the user. No phone or server state altered.

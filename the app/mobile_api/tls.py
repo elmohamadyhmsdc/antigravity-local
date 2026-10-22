@@ -45,7 +45,7 @@ def fingerprint_of_pem_file(path) -> str:
 def _generate(cert_path: Path, key_path: Path, common_name: str, hosts: Iterable[str]) -> None:
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name[:64]),
-                      x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Antigravity Mobile")])
+                      x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Your Gallery")])
     sans: List[x509.GeneralName] = [x509.DNSName("localhost")]
     for h in dict.fromkeys(hosts):
         try:
@@ -85,6 +85,6 @@ def ensure_cert(tls_dir, hosts: Iterable[str] = (), common_name: str = "") -> Ce
     cert_path, key_path = tls_dir / CERT_NAME, tls_dir / KEY_NAME
     if not (cert_path.is_file() and key_path.is_file() and _usable(cert_path, key_path)):
         hostname = socket.gethostname()
-        _generate(cert_path, key_path, common_name or hostname or "Antigravity PC",
+        _generate(cert_path, key_path, common_name or hostname or "Your Gallery PC",
                   ["127.0.0.1", "::1", "10.0.2.2", hostname, *hosts])  # 10.0.2.2 = Android emulator -> host
     return CertInfo(cert_path, key_path, fingerprint_of_pem_file(cert_path))

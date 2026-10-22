@@ -149,7 +149,7 @@ class ForegroundServiceCoordinator {
         } else {
           final title = _leases.length == 1
               ? _leases.values.first.title
-              : 'Antigravity';
+              : 'Your Gallery';
           final text = _leases.values.map((lease) => lease.text).join(' • ');
           if (running) {
             await backend.update(title, text);

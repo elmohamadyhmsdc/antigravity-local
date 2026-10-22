@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Antigravity';
+  String get appTitle => 'Your Gallery';
 
   @override
   String get navHome => 'Home';
@@ -67,7 +67,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get welcomeBody =>
-      'Antigravity does the heavy AI work on your Windows PC. Your photos, faces and results stay on this phone - the PC only computes.';
+      'Your Gallery does the heavy AI work on your Windows PC. Your photos, faces and results stay on this phone - the PC only computes.';
 
   @override
   String get welcomeSameWifi => 'Your phone and PC must be on the same Wi-Fi.';
@@ -90,7 +90,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Point the camera at the QR code on your PC\'s pairing page.';
 
   @override
-  String get scanNotPairingCode => 'That is not an Antigravity pairing code.';
+  String get scanNotPairingCode => 'That is not a Your Gallery pairing code.';
 
   @override
   String get scanCameraDenied =>
@@ -178,7 +178,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get permissionsIntro =>
-      'Antigravity asks only for what it needs. You can change these later in Android settings.';
+      'Your Gallery asks only for what it needs. You can change these later in Android settings.';
 
   @override
   String get permMediaTitle => 'Photos and videos';
@@ -400,7 +400,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get analyzeFailed => 'Analysis failed';
 
   @override
-  String get startupErrorTitle => 'Antigravity could not open its database';
+  String get startupErrorTitle => 'Your Gallery could not open its database';
 
   @override
   String get startupErrorBody =>
@@ -514,7 +514,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupSettingsHint => 'Save or restore your whole library';
 
   @override
-  String get backupShareSubject => 'Antigravity backup';
+  String get backupShareSubject => 'Your Gallery backup';
 
   @override
   String get backupStageCrops => 'Saving face pictures…';
@@ -828,7 +828,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noPhotoAccessBody =>
-      'Antigravity needs permission to read your photos before it can scan them.';
+      'Your Gallery needs permission to read your photos before it can scan them.';
 
   @override
   String get noPhotoAccessTitle => 'No photo access';
@@ -1426,7 +1426,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privateResultsHint =>
-      'Outputs stay inside Antigravity until you choose to share them.';
+      'Outputs stay inside Your Gallery until you choose to share them.';
 
   @override
   String get refaceTarget => 'Target';
@@ -1871,10 +1871,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appLockHint =>
-      'Use your phone’s screen lock when opening Antigravity.';
+      'Use your phone’s screen lock when opening Your Gallery.';
 
   @override
-  String get unlockApp => 'Unlock Antigravity';
+  String get unlockApp => 'Unlock Your Gallery';
 
   @override
   String get unlockBody =>

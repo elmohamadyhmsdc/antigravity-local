@@ -478,7 +478,7 @@ void main() {
         b.backup.inspect(junk),
         throwsA(isA<BackupException>()),
       );
-      await expectRefused(junk, contains('not an Antigravity backup'));
+      await expectRefused(junk, contains('not a Your Gallery backup'));
     });
 
     test('a zip without a manifest', () async {
@@ -486,7 +486,7 @@ void main() {
         'nomanifest',
         drop: (n) => n == 'manifest.json',
       );
-      await expectRefused(file, contains('not an Antigravity backup'));
+      await expectRefused(file, contains('not a Your Gallery backup'));
     });
 
     test(

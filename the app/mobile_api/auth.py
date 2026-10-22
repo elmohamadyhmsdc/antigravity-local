@@ -46,7 +46,7 @@ class AuthStore:
             self._data["server_name"] = server_name
             changed = True
         if not self._data.get("server_name"):
-            self._data["server_name"] = (socket.gethostname() or "Antigravity PC")[:64]
+            self._data["server_name"] = (socket.gethostname() or "Your Gallery PC")[:64]
             changed = True
         self._data.setdefault("devices", [])
         if changed:

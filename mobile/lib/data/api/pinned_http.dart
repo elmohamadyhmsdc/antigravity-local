@@ -119,7 +119,7 @@ Future<String> probeCertificateFingerprint(
     throw ApiException.network(_explain(e, host, port));
   } on HandshakeException {
     throw ApiException.badResponse(
-      '$host:$port is not an Antigravity server (TLS handshake failed)',
+      '$host:$port is not a Your Gallery server (TLS handshake failed)',
     );
   } finally {
     socket?.destroy();

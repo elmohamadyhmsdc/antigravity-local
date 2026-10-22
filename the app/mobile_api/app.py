@@ -86,7 +86,7 @@ def create_app(ctx: ServerContext) -> FastAPI:
             if hasattr(ctx.engines, 'unload'):
                 await run_in_threadpool(ctx.engines.unload)
 
-    app = FastAPI(title="Antigravity Mobile API", version=ctx.api_version,
+    app = FastAPI(title="Your Gallery Mobile API", version=ctx.api_version,
                   docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
     async def require_device(authorization: Optional[str] = Header(default=None)) -> dict:

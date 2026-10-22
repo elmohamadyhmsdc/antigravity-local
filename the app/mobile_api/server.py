@@ -127,7 +127,7 @@ def serve(args,api_socket,pair_socket):
     pair_url = f"http://127.0.0.1:{args.pair_port}/pair"
 
     print("=" * 64)
-    print(f" Antigravity Mobile API {API_VERSION} - {ctx.auth.server_name} ({ctx.auth.server_id})")
+    print(f" Your Gallery Mobile API {API_VERSION} - {ctx.auth.server_name} ({ctx.auth.server_id})")
     print(f" API            https://{(ctx.host_addresses or ['127.0.0.1'])[0]}:{args.port}")
     print(f" Pairing page   {pair_url}   (only reachable from this PC)")
     print(f" Pairing code   {issued.code}   (valid {issued.ttl // 60} min, single use)")

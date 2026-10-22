@@ -15,7 +15,7 @@ void main() {
     for (final label in ['Home', 'People', 'Library', 'Studio', 'Jobs']) {
       expect(find.widgetWithText(NavigationDestination, label), findsOneWidget);
     }
-    expect(find.text('Antigravity'), findsWidgets);
+    expect(find.text('Your Gallery'), findsWidgets);
 
     await tester.tap(find.widgetWithText(NavigationDestination, 'People'));
     await tester.pumpAndSettle();

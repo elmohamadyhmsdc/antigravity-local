@@ -18,7 +18,7 @@
     <!-- The library (faces of real people) never leaves the phone through Android backups either:
          allowBackup=false, and the extraction rules exclude every domain from cloud backup and device transfer. -->
     <application
-        android:label="Antigravity"
+        android:label="Your Gallery"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"

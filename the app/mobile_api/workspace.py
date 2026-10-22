@@ -75,7 +75,7 @@ class Workspace:
             if any(self.root.iterdir()):
                 raise WorkspaceError(
                     f"{self.root} is not empty and was not created by the mobile API; refusing to use it")
-            marker.write_text("Created by Antigravity Mobile API. Everything here except devices.json and tls/ "
+            marker.write_text("Created by Your Gallery Mobile API. Everything here except devices.json and tls/ "
                               "is a cache and is deleted when the server starts.\n", encoding="utf-8")
         if wipe:
             for entry in self.root.iterdir():

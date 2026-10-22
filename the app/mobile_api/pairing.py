@@ -130,7 +130,7 @@ def render_pair_page(*, payload: str, qr_png_b64: str, code: Optional[IssuedCode
         body = f"""
         <img class="qr" alt="Pairing QR code" src="data:image/png;base64,{qr_png_b64}">
         <p class="code">{e(code.code)}</p>
-        <p class="hint">Scan with Antigravity on your phone, or choose <b>Enter manually</b> and type
+        <p class="hint">Scan with Your Gallery on your phone, or choose <b>Enter manually</b> and type
         <b>{e(host)}</b>, port <b>{port}</b> and this code. Valid for <span id="left">{code.ttl}</span> s.</p>"""
     else:
         body = "<p class='hint'>No active code (it expired, was used, or was burned by wrong guesses).</p>"

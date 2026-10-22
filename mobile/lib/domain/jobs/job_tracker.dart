@@ -77,7 +77,7 @@ class JobTracker {
           .toList();
       if (active.isNotEmpty) {
         await keepAlive.start(
-          title: 'Antigravity Studio',
+          title: 'Your Gallery Studio',
           text: '${active.length} active jobs',
         );
       }

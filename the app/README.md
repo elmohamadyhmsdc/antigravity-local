@@ -1,4 +1,4 @@
-# Antigravity Local
+# Your Gallery
 
 **Biometric Gallery & Dataset Curation Tool**
 

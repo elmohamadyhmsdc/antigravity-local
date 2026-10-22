@@ -97,7 +97,7 @@ abstract class AppLocalizations {
   /// App name shown in the title bar and task switcher.
   ///
   /// In en, this message translates to:
-  /// **'Antigravity'**
+  /// **'Your Gallery'**
   String get appTitle;
 
   /// No description provided for @navHome.
@@ -199,7 +199,7 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeBody.
   ///
   /// In en, this message translates to:
-  /// **'Antigravity does the heavy AI work on your Windows PC. Your photos, faces and results stay on this phone - the PC only computes.'**
+  /// **'Your Gallery does the heavy AI work on your Windows PC. Your photos, faces and results stay on this phone - the PC only computes.'**
   String get welcomeBody;
 
   /// No description provided for @welcomeSameWifi.
@@ -241,7 +241,7 @@ abstract class AppLocalizations {
   /// No description provided for @scanNotPairingCode.
   ///
   /// In en, this message translates to:
-  /// **'That is not an Antigravity pairing code.'**
+  /// **'That is not a Your Gallery pairing code.'**
   String get scanNotPairingCode;
 
   /// No description provided for @scanCameraDenied.
@@ -391,7 +391,7 @@ abstract class AppLocalizations {
   /// No description provided for @permissionsIntro.
   ///
   /// In en, this message translates to:
-  /// **'Antigravity asks only for what it needs. You can change these later in Android settings.'**
+  /// **'Your Gallery asks only for what it needs. You can change these later in Android settings.'**
   String get permissionsIntro;
 
   /// No description provided for @permMediaTitle.
@@ -721,7 +721,7 @@ abstract class AppLocalizations {
   /// No description provided for @startupErrorTitle.
   ///
   /// In en, this message translates to:
-  /// **'Antigravity could not open its database'**
+  /// **'Your Gallery could not open its database'**
   String get startupErrorTitle;
 
   /// No description provided for @startupErrorBody.
@@ -865,7 +865,7 @@ abstract class AppLocalizations {
   /// No description provided for @backupShareSubject.
   ///
   /// In en, this message translates to:
-  /// **'Antigravity backup'**
+  /// **'Your Gallery backup'**
   String get backupShareSubject;
 
   /// No description provided for @backupStageCrops.
@@ -1279,7 +1279,7 @@ abstract class AppLocalizations {
   /// No description provided for @noPhotoAccessBody.
   ///
   /// In en, this message translates to:
-  /// **'Antigravity needs permission to read your photos before it can scan them.'**
+  /// **'Your Gallery needs permission to read your photos before it can scan them.'**
   String get noPhotoAccessBody;
 
   /// No description provided for @noPhotoAccessTitle.
@@ -2221,7 +2221,7 @@ abstract class AppLocalizations {
   /// No description provided for @privateResultsHint.
   ///
   /// In en, this message translates to:
-  /// **'Outputs stay inside Antigravity until you choose to share them.'**
+  /// **'Outputs stay inside Your Gallery until you choose to share them.'**
   String get privateResultsHint;
 
   /// No description provided for @refaceTarget.
@@ -3061,13 +3061,13 @@ abstract class AppLocalizations {
   /// No description provided for @appLockHint.
   ///
   /// In en, this message translates to:
-  /// **'Use your phone’s screen lock when opening Antigravity.'**
+  /// **'Use your phone’s screen lock when opening Your Gallery.'**
   String get appLockHint;
 
   /// No description provided for @unlockApp.
   ///
   /// In en, this message translates to:
-  /// **'Unlock Antigravity'**
+  /// **'Unlock Your Gallery'**
   String get unlockApp;
 
   /// No description provided for @unlockBody.

@@ -44,7 +44,7 @@ def format_seen(value):
 
 def render_mobile_devices(controller=None, *, local_access=None):
     st.header('📱 Mobile Devices')
-    st.caption('Pair Antigravity Mobile with this PC and manage each phone’s access.')
+    st.caption('Pair Your Gallery with this PC and manage each phone’s access.')
     if not (local_dashboard_session() if local_access is None else local_access):
         st.info('Open this dashboard on the PC at http://localhost:8501/?page=mobile to manage phones.')
         return
@@ -113,7 +113,7 @@ def render_mobile_devices(controller=None, *, local_access=None):
             else:
                 st.info('No active QR code. Generate a new code to pair another phone.')
         with instructions:
-            st.write('1. Open Antigravity Mobile on your phone.')
+            st.write('1. Open Your Gallery on your phone.')
             st.write('2. Choose Scan QR and point the camera at this code.')
             st.write('3. The phone connects to this PC for GPU processing.')
             if pairing:

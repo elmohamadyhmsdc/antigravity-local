@@ -1,5 +1,5 @@
 """
-Antigravity Mobile API - a STATELESS compute server for the phone app.
+Your Gallery Mobile API - a STATELESS compute server for the phone app.
 
 The phone owns every piece of user data. This package keeps only:
   * paired devices + its own TLS certificate (mobile_workspace/devices.json, tls/)

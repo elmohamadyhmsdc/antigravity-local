@@ -59,7 +59,7 @@ def address_labels():
 
 
 def _instance_name(name: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9 _\-]", "", name).strip() or "Antigravity PC"
+    cleaned = re.sub(r"[^A-Za-z0-9 _\-]", "", name).strip() or "Your Gallery PC"
     return cleaned[:48]
 
 

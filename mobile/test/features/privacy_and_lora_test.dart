@@ -38,11 +38,11 @@ void main() {
           initialLocationProvider.overrideWithValue('/lora'),
         ],
       );
-      expect(find.text('Unlock Antigravity'), findsOneWidget);
+      expect(find.text('Unlock Your Gallery'), findsOneWidget);
       expect(find.text('Build dataset'), findsNothing);
       await tester.tap(find.byKey(const Key('unlock-app')));
       await tester.pumpAndSettle();
-      expect(find.text('Unlock Antigravity'), findsOneWidget);
+      expect(find.text('Unlock Your Gallery'), findsOneWidget);
       privacy.granted = true;
       await tester.tap(find.byKey(const Key('unlock-app')));
       await tester.pumpAndSettle();
@@ -50,7 +50,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
-      expect(find.text('Unlock Antigravity'), findsOneWidget);
+      expect(find.text('Unlock Your Gallery'), findsOneWidget);
     },
     session: testSession,
   );

@@ -243,7 +243,7 @@ class BackupService {
     final entry = archive.findFile('manifest.json');
     if (entry == null) {
       throw BackupException(
-        'This is not an Antigravity backup (manifest.json is missing).',
+        'This is not a Your Gallery backup (manifest.json is missing).',
       );
     }
     final Map<String, dynamic> m;
@@ -255,7 +255,7 @@ class BackupService {
       );
     }
     if (m['format'] != backupFormat) {
-      throw BackupException('This is not an Antigravity backup.');
+      throw BackupException('This is not a Your Gallery backup.');
     }
     final version = m['format_version'];
     if (version is! int || version > backupFormatVersion) {

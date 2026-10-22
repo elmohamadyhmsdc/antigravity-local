@@ -1,5 +1,5 @@
 """
-Antigravity Local - Streamlit Dashboard
+Your Gallery - Streamlit Dashboard
 Interactive gallery for face management and LoRA export
 """
 
@@ -200,7 +200,7 @@ def detect_undress_subject(image_rgb: Image.Image):
 
 # Page configuration
 st.set_page_config(
-    page_title="Antigravity Local",
+    page_title="Your Gallery",
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -387,7 +387,7 @@ def navigate_to(page_or_route: str):
 with st.sidebar:
     st.markdown("""
     <div class="sidebar-brand-box">
-        <div class="sidebar-brand-title">🔬 Antigravity</div>
+        <div class="sidebar-brand-title">🔬 Your Gallery</div>
         <div style="display: flex; justify-content: center; gap: 8px; margin-top: 4px;">
             <span class="sidebar-status-pill">● Studio v1.2</span>
         </div>
@@ -427,7 +427,7 @@ st.markdown(f"""
 <div class="mobile-app-bar">
     <div class="mobile-app-brand">
         <span class="mobile-brand-icon">🔬</span>
-        <span class="mobile-brand-name">Antigravity</span>
+        <span class="mobile-brand-name">Your Gallery</span>
     </div>
     <div class="mobile-page-badge">
         <span>{page}</span>
@@ -4590,7 +4590,7 @@ DUPLICATE_THRESHOLD = {os.getenv('DUPLICATE_THRESHOLD', '0.05')}
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: var(--text-muted); font-size: 12px; padding: 12px 0 24px; font-weight: 500;'>"
-    "🔬 Antigravity Local Studio v1.2 • Biometric Gallery & Creative AI Suite"
+    "🔬 Your Gallery Studio v1.2 • Biometric Gallery & Creative AI Suite"
     "</div>",
     unsafe_allow_html=True
 )
