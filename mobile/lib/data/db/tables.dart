@@ -22,6 +22,28 @@ class Persons extends Table {
   IntColumn get createdAt => integer()(); // epoch ms
 }
 
+/// A reusable choice of real source faces. Deleting a person/face cannot leave
+/// dangling references, and selecting a set revalidates current assignments.
+@DataClassName('IdentitySetRow')
+class IdentitySets extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get personId =>
+      integer().references(Persons, #id, onDelete: KeyAction.cascade)();
+  TextColumn get name => text().withLength(min: 1, max: 80)();
+  TextColumn get modelId => text()();
+  IntColumn get createdAt => integer()();
+}
+
+@DataClassName('IdentitySetFaceRow')
+class IdentitySetFaces extends Table {
+  IntColumn get setId =>
+      integer().references(IdentitySets, #id, onDelete: KeyAction.cascade)();
+  IntColumn get faceId =>
+      integer().references(Faces, #id, onDelete: KeyAction.cascade)();
+  @override
+  Set<Column> get primaryKey => {setId, faceId};
+}
+
 @TableIndex(name: 'media_scan_status', columns: {#scanStatus})
 @DataClassName('MediaRow')
 class Media extends Table {
@@ -331,6 +353,16 @@ class Jobs extends Table {
 
   @override
   Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('JobEventRow')
+class JobEvents extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get jobId =>
+      text().references(Jobs, #id, onDelete: KeyAction.cascade)();
+  TextColumn get status => text()();
+  TextColumn get message => text().nullable()();
+  IntColumn get createdAt => integer()();
 }
 
 @TableIndex(name: 'results_created_at', columns: {#createdAt})

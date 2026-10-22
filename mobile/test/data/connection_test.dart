@@ -23,7 +23,7 @@ void main() {
           initialSessionProvider.overrideWithValue(testSession),
         ],
       );
-      final subscription = container.listen(serverStatusProvider, (_, __) {});
+      final subscription = container.listen(serverStatusProvider, (_, _) {});
       await Future<void>.delayed(Duration.zero);
       container.invalidate(serverStatusProvider);
       await Future<void>.delayed(const Duration(milliseconds: 10));

@@ -14,6 +14,7 @@ import '../../data/media/media_library.dart';
 import '../../data/repositories/app_settings.dart';
 import '../../data/repositories/library_repository.dart';
 import 'photo_result_store.dart';
+import 'video_hash.dart';
 
 class VideoScanPaused implements Exception {
   const VideoScanPaused();
@@ -88,7 +89,7 @@ class VideoScan {
     for (var restart = 0; restart < 3; restart++) {
       checkPause();
       if (saved == null) {
-        report('upload', 0);
+        report('prepare', 0);
         final file = await library.videoFile(media.assetId);
         if (file == null || !await file.exists()) {
           throw ApiException.badResponse(
@@ -96,7 +97,16 @@ class VideoScan {
           );
         }
         final path = file.path;
-        final hash = await isolatedFileSha256(path);
+        final String hash;
+        try {
+          hash = await videoFileHash(
+            File(path),
+            cancelled: paused,
+            onProgress: (progress) => report('prepare', progress),
+          );
+        } on VideoHashCancelled {
+          throw const VideoScanPaused();
+        }
         checkPause();
         final current = await LibraryRepository(db).mediaById(media.id);
         if (current == null) throw const VideoScanPaused();

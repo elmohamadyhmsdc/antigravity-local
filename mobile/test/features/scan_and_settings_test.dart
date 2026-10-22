@@ -375,7 +375,7 @@ void main() {
       );
       expect(
         find.text(
-          'The backup file is not encrypted. Keep it somewhere private - it contains the faces of the people in your photos.',
+          'Backups are encrypted by default. Keep the password safe; it is never stored by the app. Older unencrypted backups can still be restored.',
         ),
         findsOneWidget,
       );

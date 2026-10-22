@@ -490,7 +490,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupKeepSafe =>
-      'The backup file is not encrypted. Keep it somewhere private - it contains the faces of the people in your photos.';
+      'Backups are encrypted by default. Keep the password safe; it is never stored by the app. Older unencrypted backups can still be restored.';
 
   @override
   String backupLibrarySummary(int people, int faces, int photos) {
@@ -536,7 +536,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupWhatIsIncludedBody =>
-      'People, faces and their pictures, body links, which photos each person is in, your corrections and your grouping settings. Not included: your original photos (they stay in your gallery), the pairing with your PC and anything stored on the PC.';
+      'People, faces, body links, media records, corrections, grouping settings, saved identity sets, private results, datasets, captions and trained LoRAs. Your original gallery photos, PC connections and active jobs are excluded.';
 
   @override
   String get bodyBox => 'Body';
@@ -1312,6 +1312,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String videoPreparing(int percent) {
+    return 'Preparing video · $percent%';
+  }
+
+  @override
   String videoUploading(int percent) {
     return 'Uploading video · $percent%';
   }
@@ -2032,4 +2037,112 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get backgroundLimits =>
       'A force stop, phone shutdown or Android background time limit can stop phone work. Open the app to resume its saved queue. Some phones also require allowing auto-start in the manufacturer\'s battery settings. The PC must stay on and connected to the phone.';
+
+  @override
+  String get identitySaved => 'Saved identity sets';
+
+  @override
+  String get identitySave => 'Save selected faces';
+
+  @override
+  String get identityName => 'Identity set name';
+
+  @override
+  String get identityDelete => 'Delete identity set';
+
+  @override
+  String get identityDeleteBody =>
+      'Remove this saved selection? The person and source faces will be kept.';
+
+  @override
+  String get backupEncryption => 'Encrypt backup';
+
+  @override
+  String get backupEncryptionHint =>
+      'Protect this backup with a password. You will need it to restore on any phone.';
+
+  @override
+  String get backupPlaintextHint =>
+      'This backup will be readable without a password. Keep it in a private location.';
+
+  @override
+  String get backupPasswordCreate => 'Protect your backup';
+
+  @override
+  String get backupPasswordEnter => 'Unlock backup';
+
+  @override
+  String get backupPasswordReminder =>
+      'Keep your password somewhere safe. A forgotten password cannot be recovered.';
+
+  @override
+  String get backupPassword => 'Password';
+
+  @override
+  String get backupPasswordConfirm => 'Confirm password';
+
+  @override
+  String get backupPasswordVisibility => 'Show or hide password';
+
+  @override
+  String get backupPasswordLength => 'Use 12–1024 characters.';
+
+  @override
+  String get backupPasswordMismatch => 'The passwords do not match.';
+
+  @override
+  String get backupUnlock => 'Unlock';
+
+  @override
+  String get backupStageEncrypting => 'Encrypting backup…';
+
+  @override
+  String get backupStageDecrypting => 'Unlocking backup…';
+
+  @override
+  String get jobStage => 'Stage';
+
+  @override
+  String get jobEpoch => 'Epoch';
+
+  @override
+  String get jobTotalEpochs => 'Total epochs';
+
+  @override
+  String get jobStep => 'Step';
+
+  @override
+  String get jobTotalSteps => 'Total steps';
+
+  @override
+  String get jobLoss => 'Loss';
+
+  @override
+  String get jobSecondsPerStep => 'Seconds per step';
+
+  @override
+  String get jobHistory => 'Activity history';
+
+  @override
+  String jobTimeRemaining(String time) {
+    return 'About $time remaining';
+  }
+
+  @override
+  String jobHoursMinutes(int hours, int minutes) {
+    return '$hours hr $minutes min';
+  }
+
+  @override
+  String jobMinutes(int minutes) {
+    return '$minutes min';
+  }
+
+  @override
+  String get restyleRefineUnavailable =>
+      'Optional SDXL refinement is not installed on this PC. Basic Restyle can run without it.';
+
+  @override
+  String get backupShareCancelled =>
+      'Backup sharing was cancelled. Choose a destination to keep a copy outside this app.';
 }

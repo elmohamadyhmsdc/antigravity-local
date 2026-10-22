@@ -143,7 +143,7 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
               'seed': seed,
               'strength': _strength,
               'steps': _steps,
-              'refine': _refine,
+              'refine': _refine && caps.engines.restyleRefine,
               if (_protected != null) 'face_bbox': _protected!.toJson(),
             },
             inputs: {
@@ -280,8 +280,13 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
               ),
               SwitchListTile(
                 title: Text(l.refineOutput),
-                value: _refine,
-                onChanged: (v) => setState(() => _refine = v),
+                subtitle: caps?.engines.restyleRefine == false
+                    ? Text(l.restyleRefineUnavailable)
+                    : null,
+                value: _refine && (caps?.engines.restyleRefine ?? false),
+                onChanged: caps?.engines.restyleRefine != true
+                    ? null
+                    : (v) => setState(() => _refine = v),
               ),
             ],
           ),

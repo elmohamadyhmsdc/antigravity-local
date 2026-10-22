@@ -71,6 +71,8 @@ def validate_artifact(body, caps):
         bounded(params, 'controlnet_scale', 0, 0, 1)
         if 'refine' in params and not isinstance(params['refine'], bool):
             raise bad_request('refine must be true or false.')
+        if params.get('refine', True) and not caps['engines'].get('restyle_refine', caps['engines']['undress']):
+            raise ApiError(409, 'engine_unavailable', 'SDXL refinement weights are unavailable. Turn off refinement to use basic Restyle.')
         box = params.get('face_bbox')
         if box is not None and (not isinstance(box, dict) or set(box) != {'x','y','w','h'} or any(
                 isinstance(v, bool) or not isinstance(v, (float,int)) or not math.isfinite(v) or v < 0
@@ -239,6 +241,10 @@ def run_artifact(job, directory, report, stopped, ctx):
         def line(raw):
             update_training_state(state,raw,resume[0] if resume else 0)
             safe = {k:v for k,v in state.items() if k in ('stage','epoch','total_epochs','step','total_steps','loss','seconds_per_step')}
+            # sd-scripts' parser uses sec_per_step; publish the stable wire name.
+            speed = state.get('sec_per_step')
+            if isinstance(speed, (int, float)) and math.isfinite(speed) and speed > 0:
+                safe['seconds_per_step'] = speed
             progress = min(.99,state.get('step',0)/max(state.get('total_steps',1),1))
             report(progress,'Training character LoRA',details=safe)
         code = run_process([str(VENV_LORA_PYTHON),str(SD_SCRIPTS_TRAIN_SCRIPT),*args],directory,stopped,line,cwd=SD_SCRIPTS_DIR)

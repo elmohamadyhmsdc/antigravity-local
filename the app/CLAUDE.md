@@ -1,5 +1,15 @@
 # Antigravity Local — Project Guide for Claude
 
+## Read first — current handoff (2026-10-19)
+
+Read [the Antigravity handoff](../docs/ANTIGRAVITY_HANDOFF.md) before planning or
+editing. It covers desktop/mobile, environments, model paths, uncommitted work,
+tests and remaining acceptance. All configured shared model weights, including
+SDXL FP16, are installed; SDXL GPU inference remains untested. Current source
+uses SD1.5 + OpenPose ControlNet followed by optional SDXL. Older “no ControlNet”
+and tiled-refinement descriptions below are historical. Follow actual functions
+and preserve existing changes. Update the handoff after material changes.
+
 ## What This Is
 A **local, single-user biometric gallery and dataset curation tool** built in Python.
 It mines faces from videos/photos, deduplicates them, groups them by person, and supports:
@@ -81,7 +91,7 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 | `download_models.py` | Fetch reface ONNX models into `models/` (run once; `--extras` adds HyperSwap, GPEN 512/1024, GFPGAN, RestoreFormer++, XSeg 2). Tries FaceFusion's Hugging Face mirror first (20-40x faster here than GitHub) and resumes partial files |
 | `dfm_engine.py` | Runs exported `.dfm` models: aligns with DeepFaceLab's whole-face template (FaceFusion's `dfl_whole_face`), sharpens the crop like FaceFusion, reads outputs by name. V3's `dfm_path` composites the result through the same realism core |
 | `undress_core.py` | Shared Magic Undress helpers (mask matting, tile planning, IPC, venv_ai worker client) |
-| `undress_engine.py` | SD 1.5 inpaint worker (runs inside venv_ai). Native-res crop + tiled refine pass + optional IP-Adapter references. No ControlNet — it does not fit in 6 GB alongside the UNet and CLIP image encoder |
+| `undress_engine.py` | Runs in venv_ai: current source uses SD1.5 inpaint + OpenPose ControlNet with CPU offload and optional IP-Adapter, followed by optional SDXL. SDXL weights are installed; GPU refinement acceptance is outstanding. See the handoff before changing memory or attention settings |
 | `job_manager.py` | Background job queue (file-based persistence, sequential execution) |
 | `dashboard.py` | Streamlit UI (~3750 lines), all 9 pages |
 | `dfm_engine.py` | DeepFaceLab model support — scans `../DeepFaceLab_NVIDIA_RTX3000_series/workspace` (hardcoded, one level above this folder) for trained `.dfm` files |
@@ -123,8 +133,8 @@ Manual: `venv\Scripts\activate && streamlit run dashboard.py`
 ## GPU Setup Notes
 - ONNX Runtime GPU: requires CUDA DLLs on PATH — `cuda_dll_dirs.add_nvidia_dll_dirs()` registers the `venv/.../nvidia/*/bin` dirs (called by `dashboard.py`, the reface engines, `face_restore.py`, `face_masking.py`); `face_miner.py` separately adds the CUDA Toolkit bin. Registration must stay once-per-process: `dashboard.py` re-runs on every Streamlit rerun, and repeated `os.add_dll_directory` calls exhaust the DLL search list (~150 reruns) → `[WinError 206]` on `import torch`
 - `NvOptimusEnablement=1` env var set for Advanced Optimus/MUX laptops
-- Magic Undress downloads ~5 GB of models on first run, plus ~1 GB for the optional IP-Adapter + CLIP image encoder
-- Undress pipeline targets a 6 GB card: `enable_model_cpu_offload()` stays ON, generation caps at 768, and the high-res refine pass is tiled so VRAM stays flat regardless of photo size
+- Restyle's required local model files, including optional SDXL FP16 weights, are already installed. Do not trigger a first-run download based on older setup notes
+- Base SD1.5 targets a 6 GB card with `enable_model_cpu_offload()` and a 768-pixel working cap. Current SDXL uses a separate pipeline moved to the device; GPU memory and inference at its target size remain unverified. Do not assume tile helpers imply the active SDXL path is tiled
 
 ## Data Directories (gitignored)
 - `data/` — persons.json, faces.json, bodies.json, media.json

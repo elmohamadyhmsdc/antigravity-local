@@ -32,6 +32,8 @@ class MainActivity : FlutterActivity() {
             it.setMethodCallHandler(security::handle)
         }
         val appContext = applicationContext
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/backup")
+            .setMethodCallHandler(BackupBridge(appContext)::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/network")
             .setMethodCallHandler(NetworkBridge()::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/studio_notifications")

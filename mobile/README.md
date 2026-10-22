@@ -9,6 +9,12 @@ Contract with the PC: [`the app/mobile_api/contract/openapi.yaml`](../the%20app/
 
 ## Status
 
+Current continuation guide: [Antigravity handoff](../docs/ANTIGRAVITY_HANDOFF.md)
+(2026-10-19). Read before changes; it supersedes historical status paragraphs
+below. All configured shared weights are installed, including SDXL FP16. SDXL
+GPU inference/phone refinement still require acceptance. Latest recorded Flutter
+run: 373 tests passed. No dependency or Python/CUDA installation was performed.
+
 | Phase | State |
 |---|---|
 | P0 Foundations | done |
@@ -16,9 +22,9 @@ Contract with the PC: [`the app/mobile_api/contract/openapi.yaml`](../the%20app/
 | P2 Library & People | built - photo scan with foreground service, People / Person / Face picker / Review / Merge, photo viewer with boxes, Settings (grouping strictness, quality gate), backup & restore; awaiting verification on the phone |
 | P3 Videos & bodies | implemented - resumable video uploads, device-owned analysis jobs, frame checkpoints, local video playback with sampled detection boxes, photo/video filters, body-only person sightings, offline Insights; automated checks pass, real-phone acceptance still required |
 | P4 Reface | implemented - photo face selection, V3/V2/available DFM, video trim and checkpoints, durable uploads, Jobs with SSE/polling, private Results with comparison, favourites, share and explicit gallery export |
-| P5 Clothes restyle | implemented - protected face, prompts, references, strength/seed/refine; this PC needs complete local model weights before runtime acceptance |
+| P5 Clothes restyle | implemented - protected face, prompts, references, strength/seed/refine; base and SDXL weights installed and hash-verified; base CUDA smoke and phone round trip passed; SDXL offline loading passed, GPU/phone refinement untested |
 | P6 Character LoRA | implemented - identity-matched photo/video datasets, caption/include editor, zip export, epoch-resumable training, safetensors import, portrait generation and LoRA identity augmentation for Reface |
-| P7 Hardening | app lock using phone credentials, FLAG_SECURE viewers, completion notifications, storage cleanup and expanded backup implemented; device performance/acceptance and production signing pending |
+| P7 Hardening | app lock using phone credentials, FLAG_SECURE viewers, completion notifications, storage cleanup and expanded backup implemented; release signing configured; device performance/acceptance pending |
 
 ## Layout
 
@@ -76,7 +82,7 @@ Scan inference now runs in a disposable local process, with bounded JSON/pixel p
 
 Uploads use 4 MB chunks and the PC's authoritative `Upload-Offset`. A stable client job ID is saved before submission. Closing the app resumes the existing job; if the PC restarted, the phone creates a new job beginning at the next uncommitted sample. Every imported frame and its checkpoint commit together. The complete NDJSON download is size/SHA-256 checked before importing; crops are inline in each frame response. The phone ACKs/purges the PC job only after local storage succeeds.
 
-Video scan reuses the existing frame/timestamp/checkpoint columns. Schema v5 also stores Studio Jobs, Results, Datasets, DatasetItems and LoRAs, including per-input recovery and model-stamped generated identities. Ephemeral video job references live under private `video.job.*` settings and never enter backups. Scan preferences do travel in backups. Studio progress uses SSE with polling as a fallback.
+Video scan reuses the existing frame/timestamp/checkpoint columns. Schema v6 stores Studio Jobs, Results, Datasets, DatasetItems, LoRAs, reusable identity sets and bounded local job activity history, including per-input recovery and model-stamped generated identities. Ephemeral video job references live under private `video.job.*` settings and never enter backups. Scan preferences do travel in backups. Studio progress uses SSE with polling as a fallback.
 
 Restoring a backup also clears stale video job references on the destination phone. An older restored checkpoint therefore starts a fresh PC job rather than skipping ahead to a newer job's starting point.
 
@@ -92,14 +98,24 @@ pair with address `127.0.0.1`. The Android emulator reaches the PC at `10.0.2.2`
 - A tapped `agmobile://pair` link never pairs silently; it shows the address and asks.
 - `allowBackup=false` plus data-extraction rules exclude everything from Android backups. Cleartext traffic is disabled.
 - Settings → App lock uses the phone's PIN/pattern/password and relocks when the app backgrounds. Media/result viewers block screenshots. The database is SQLCipher encrypted; result files remain in private app storage until explicitly shared or saved.
-- Backups include saved results, datasets, captions and models, and omit active jobs, scratch inputs and PC credentials. Backup/restore waits for scan and Studio writes to settle. The `.agbackup` archive itself is not encrypted.
+- Backups include saved results, datasets, captions and models, and omit active jobs, scratch inputs and PC credentials. Backup/restore waits for scan and Studio writes to settle. Backup exports are password-encrypted by default, with an explicit unencrypted option and compatibility with older ZIP backups. Passwords are never stored or sent to the PC.
 
 ## Studio verification and remaining acceptance
 
 On 2026-10-14: zero analyzer issues and 343 Flutter tests passed. CPU suites cover Studio lifecycle, artifacts, video jobs, API contract and statelessness; fixtures validate against OpenAPI. Real GPU API round trips passed for V3 Reface, identity-matched dataset building/captioning, a tiny one-epoch LoRA train, and generation with an existing LoRA. Each round trip verified the returned file before ACK/purge. A tiny training run verifies the integration, not production identity quality.
 
-Both installed secondary environments have CUDA. Restyle is disabled by the PC capabilities probe while required weights are incomplete. No downloads are authorized on the current metered connection. See [the local model audit](../docs/local-model-audit-2026-10-14.md). `venv\Scripts\python -m mobile_api --check-models` is read-only and local.
+Both installed secondary environments have CUDA. Base Restyle models were installed and hash-verified on 2026-10-18; an offline CUDA smoke test passed with the local parser, OpenPose and IP-Adapter. On 2026-10-19, the remaining SDXL FP16 files (6.941 GB) were downloaded with separate user authorization, hash-verified and loaded offline through the application loader on CPU. Readiness reports `restyle_refine: true` and no missing Restyle models. SDXL GPU inference and phone refinement are not yet verified. No package or Python/CUDA changes were made. See [the current installation report](../docs/local-model-installation-2026-10-19.md). Run the read-only model probe from `the app/`, as shown in the handoff.
 
-Still requiring phone acceptance: Android export/notifications/device credential UI, long-video interruption recovery and foreground/background behaviour. Video Reface currently swaps all detected faces; photo targets support individual selection. LoRA training resumes at the last saved epoch, not an arbitrary step. Named identity presets, encrypted backups and per-person video tracking are possible follow-ups.
+Still requiring phone acceptance: Android export/notifications/device credential UI, long-video interruption recovery and foreground/background behaviour. Video Reface currently swaps all detected faces; photo targets support individual selection. LoRA training resumes at the last saved epoch, not an arbitrary step. Named identity sets and password-encrypted backups are implemented. Per-person video tracking remains future engine work.
 
-The current APK is a debug build. A production release key/signing configuration and device performance measurements are still required before distribution.
+Release signing uses a local private RSA key, with no debug-key fallback. Keep `android/upload-keystore.jks` and `android/key.properties` backed up together and out of Git. Device acceptance and performance measurements remain required before distribution. See [the completion report](../docs/mobile-completion-2026-10-18.md) for implementation and validation details.
+
+## October 18 completion
+
+Backup exports now prompt for a password by default; encrypted restores authenticate before changing the library, and older unencrypted archives still work. Reface source faces can be saved as named identity sets. Studio jobs retain the latest 100 activity changes locally and show approximate training time remaining when measured speed is available. The optional SDXL refinement stage is independent of basic Restyle readiness. See [completion and validation](../docs/mobile-completion-2026-10-18.md).
+
+Validation on 2026-10-18: 370 Flutter tests, 77 server regression cases, valid OpenAPI fixtures, zero analyzer issues, 16 native backup-cipher cases plus independent Python verification, and offline Debug/Release APK builds. Release signature verification passed with the local RSA-3072 key. The signed APK is `build/app/outputs/flutter-apk/app-release.apk` (98.90 MB); no phone installation was performed.
+
+Base-model follow-up on 2026-10-18: 3,731,511,233 bytes of missing files installed, existing OpenPose body/hand files reused, all published hashes matched, and a two-step synthetic GPU inference passed on the RTX 4050 Laptop GPU. A separate legacy Restyle CPU suite passed 58/65 tests; seven assertions about masks, previews, skin matching and edge alignment fail in unchanged existing engine/test code. They are recorded in the completion report and are not represented as passing. Phone acceptance remains deferred.
+
+Real-phone follow-up on 2026-10-18: the Samsung A72 / Android 14 Debug app was updated in place with its existing library preserved. USB endpoint recovery, screen-off/task-removal upload continuation, interrupted-upload recovery, encrypted export/cancelled sharing, private-file crypto checks, video playback/seeking, FLAG_SECURE, device-credential app lock, gallery export and a complete synthetic Restyle job passed. A 2 GB video exposed misleading upload text and slow Pause during hashing; preparation now reports progress and cancels cooperatively (283 ms on the device fixture). All 373 Flutter tests pass and the analyzer reports no issues. See [device acceptance and its remaining limits](../docs/mobile-device-acceptance-2026-10-18.md).

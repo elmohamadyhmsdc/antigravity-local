@@ -19,6 +19,7 @@ import '../../providers.dart';
 import '../../studio_providers.dart';
 import '../shared/crop_image.dart';
 import '../shared/person_picker.dart';
+import '../shared/empty_state.dart';
 import '../settings/background_screen.dart';
 
 final studioVideoPickerProvider = Provider<Future<File?> Function()>(
@@ -45,6 +46,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   List<FaceRow> _faces = [];
   int? _person;
   String? _personName;
+  int? _identitySet;
   var _engine = 'v3';
   String? _dfm;
   var _restorer = 'auto';
@@ -81,11 +83,104 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       if (!mounted) return;
       setState(() {
         _person = id;
+        _identitySet = null;
         _personName = name;
         _faces = faces;
         _sources.clear();
         _sources.addAll(faces.take(20).map((f) => f.id));
       });
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    }
+  }
+
+  Future<void> _saveIdentity() async {
+    final l = AppLocalizations.of(context);
+    var draft = '';
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l.identitySave),
+        content: TextField(
+          key: const Key('identity-name'),
+          onChanged: (value) => draft = value,
+          autofocus: true,
+          maxLength: 80,
+          decoration: InputDecoration(labelText: l.identityName),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, draft),
+            child: Text(l.save),
+          ),
+        ],
+      ),
+    );
+    if (name == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final id = await ref
+          .read(identityRepositoryProvider)
+          .save(name: name, personId: _person!, faceIds: _sources);
+      if (mounted) {
+        setState(() {
+          _identitySet = id;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _useIdentity(int id) async {
+    setState(() => _busy = true);
+    try {
+      final faces = await ref.read(identityRepositoryProvider).faces(id);
+      if (!mounted) return;
+      setState(() {
+        // Include saved faces even if they are outside the person's top 100.
+        final byId = {
+          for (final f in _faces) f.id: f,
+          for (final f in faces) f.id: f,
+        };
+        _faces = byId.values.toList();
+        _sources
+          ..clear()
+          ..addAll(faces.map((f) => f.id));
+        _identitySet = id;
+        _error = null;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deleteIdentity() async {
+    final l = AppLocalizations.of(context);
+    final id = _identitySet;
+    if (id == null ||
+        !await confirm(
+          context,
+          title: l.identityDelete,
+          body: l.identityDeleteBody,
+          confirmLabel: l.identityDelete,
+          cancelLabel: l.cancel,
+          destructive: true,
+        )) {
+      return;
+    }
+    try {
+      await ref.read(identityRepositoryProvider).delete(id);
+      if (mounted) setState(() => _identitySet = null);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     }
@@ -215,8 +310,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       final source = _engine == 'dfm'
           ? <Map<String, dynamic>>[]
           : StudioRepository.encodeFaces(
-              _faces
-                  .where((f) => _sources.contains(f.id))
+              (await ref
+                      .read(identityRepositoryProvider)
+                      .selection(
+                        personId: _person!,
+                        faceIds: _sources,
+                        modelId: caps.embeddingModelId,
+                      ))
                   .take(_loraIdentity ? 60 : 100),
               caps.embeddingModelId,
             );
@@ -282,6 +382,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final caps = _caps(ref.watch(serverStatusProvider).value);
+    final identitySets =
+        (ref.watch(identitySetsProvider).value ?? const <IdentitySetRow>[])
+            .where((set) => set.personId == _person)
+            .toList();
+    final savedIdentity = identitySets.any((s) => s.id == _identitySet)
+        ? _identitySet
+        : null;
     final available = <String>[
       if (caps?.engines.refaceV3 == true) 'v3',
       if (caps?.engines.refaceV2 == true) 'v2',
@@ -514,6 +621,47 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                         child: Text(_personName ?? l10n.selectSourcePerson),
                       ),
                       Text(l10n.sourceFacesHint),
+                      if (_person != null && _engine != 'dfm') ...[
+                        if (identitySets.isNotEmpty)
+                          DropdownButtonFormField<int>(
+                            key: ValueKey('identity-set-$savedIdentity'),
+                            initialValue: savedIdentity,
+                            decoration: InputDecoration(
+                              labelText: l10n.identitySaved,
+                            ),
+                            items: [
+                              for (final set in identitySets)
+                                DropdownMenuItem(
+                                  value: set.id,
+                                  child: Text(set.name),
+                                ),
+                            ],
+                            onChanged: _busy
+                                ? null
+                                : (id) {
+                                    if (id != null) _useIdentity(id);
+                                  },
+                          ),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            TextButton.icon(
+                              key: const Key('identity-save'),
+                              onPressed: _busy || _sources.isEmpty
+                                  ? null
+                                  : _saveIdentity,
+                              icon: const Icon(Icons.bookmark_add_outlined),
+                              label: Text(l10n.identitySave),
+                            ),
+                            if (savedIdentity != null)
+                              TextButton.icon(
+                                onPressed: _busy ? null : _deleteIdentity,
+                                icon: const Icon(Icons.delete_outline),
+                                label: Text(l10n.identityDelete),
+                              ),
+                          ],
+                        ),
+                      ],
                       if ((ref.watch(lorasProvider).value ?? const <LoraRow>[])
                           .any(
                             (m) =>
@@ -543,6 +691,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                     key: Key('source-face-${face.id}'),
                                     value: _sources.contains(face.id),
                                     onChanged: (_) => setState(() {
+                                      _identitySet = null;
                                       if (!_sources.remove(face.id)) {
                                         _sources.add(face.id);
                                       }

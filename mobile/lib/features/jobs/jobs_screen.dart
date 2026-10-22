@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +6,8 @@ import '../../core/router.dart';
 import '../../data/db/app_database.dart';
 import '../../l10n/app_localizations.dart';
 import '../../studio_providers.dart';
+import '../../domain/jobs/job_progress.dart';
+import 'package:intl/intl.dart';
 import '../shared/empty_state.dart';
 
 String jobStatusLabel(AppLocalizations l10n, String status) => switch (status) {
@@ -168,6 +168,17 @@ class JobDetailScreen extends ConsumerWidget {
                 );
               }
               final tracker = ref.read(jobTrackerProvider);
+              final progress = JobProgress(job.detailsJson);
+              final remaining = progress.remaining(job.status);
+              final detailLabels = {
+                'stage': l10n.jobStage,
+                'epoch': l10n.jobEpoch,
+                'total_epochs': l10n.jobTotalEpochs,
+                'step': l10n.jobStep,
+                'total_steps': l10n.jobTotalSteps,
+                'loss': l10n.jobLoss,
+                'seconds_per_step': l10n.jobSecondsPerStep,
+              };
               return ListView(
                 padding: const EdgeInsets.all(24),
                 children: [
@@ -183,22 +194,62 @@ class JobDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   LinearProgressIndicator(value: job.progress),
                   Text('${(job.progress * 100).round()}%'),
-                  if (job.detailsJson != '{}') ...[
+                  if (job.message?.isNotEmpty == true) Text(job.message!),
+                  if (remaining != null)
+                    Text(
+                      l10n.jobTimeRemaining(
+                        remaining.inHours > 0
+                            ? l10n.jobHoursMinutes(
+                                remaining.inHours,
+                                remaining.inMinutes % 60,
+                              )
+                            : l10n.jobMinutes(
+                                remaining.inMinutes +
+                                    (remaining.inSeconds % 60 > 0 ? 1 : 0),
+                              ),
+                      ),
+                      key: const Key('job-eta'),
+                    ),
+                  if (progress.details.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text(l10n.trainingDetails),
-                    for (final entry
-                        in (jsonDecode(job.detailsJson) as Map).entries)
-                      if (const [
-                        'stage',
-                        'epoch',
-                        'total_epochs',
-                        'step',
-                        'total_steps',
-                        'loss',
-                        'seconds_per_step',
-                      ].contains(entry.key))
-                        Text('${entry.key}: ${entry.value}'),
+                    for (final entry in progress.details.entries)
+                      if (detailLabels.containsKey(entry.key))
+                        Text('${detailLabels[entry.key]}: ${entry.value}'),
                   ],
+                  ref
+                      .watch(jobEventsProvider(id))
+                      .when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, _) => const SizedBox.shrink(),
+                        data: (events) => events.isEmpty
+                            ? const SizedBox.shrink()
+                            : ExpansionTile(
+                                key: const Key('job-history'),
+                                tilePadding: EdgeInsets.zero,
+                                title: Text(l10n.jobHistory),
+                                children: [
+                                  for (final event in events)
+                                    ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                        jobStatusLabel(l10n, event.status),
+                                      ),
+                                      subtitle: Text(
+                                        [
+                                          DateFormat.yMd().add_Hms().format(
+                                            DateTime.fromMillisecondsSinceEpoch(
+                                              event.createdAt,
+                                            ),
+                                          ),
+                                          if (event.message?.isNotEmpty == true)
+                                            event.message!,
+                                        ].join('\n'),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                      ),
                   if (job.error != null) ...[
                     const SizedBox(height: 16),
                     Text(job.error!),

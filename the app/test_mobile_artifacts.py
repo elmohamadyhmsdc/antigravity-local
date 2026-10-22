@@ -98,6 +98,18 @@ class ArtifactTests(unittest.TestCase):
         self.assertIn(INPAINT_MODEL_ID,missing)
         self.assertIn('lllyasviel/Annotators',missing)
 
+    def test_basic_restyle_does_not_require_optional_sdxl_weights(self):
+        caps = self.ctx.probe.snapshot()
+        caps['engines']['undress'] = True
+        caps['engines']['restyle_refine'] = False
+        basic = {'type': 'undress_image', 'params': {'prompt': 'A blue coat', 'refine': False},
+                 'inputs': {'image': 'a' * 64}}
+        validate_artifact(basic, caps)
+        for params in ({'prompt': 'A blue coat'}, {'prompt': 'A blue coat', 'refine': True}):
+            with self.assertRaises(ApiError) as error:
+                validate_artifact({**basic, 'params': params}, caps)
+            self.assertEqual(error.exception.code, 'engine_unavailable')
+
     def test_caption_tagger_is_not_offered_as_a_dfm_face_model(self):
         from mobile_api.engines import available_dfm_models
         def model(path): return SimpleNamespace(path=path,model_type='Unknown')

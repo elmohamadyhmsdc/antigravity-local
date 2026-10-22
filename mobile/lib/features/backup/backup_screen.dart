@@ -12,11 +12,13 @@ import '../../data/db/app_database.dart';
 import '../../data/index/index_loader.dart';
 import '../../data/repositories/app_settings.dart';
 import '../../domain/backup/backup_service.dart';
+import '../../data/platform/backup_crypto.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
 import '../shared/empty_state.dart';
+import 'password_dialog.dart';
 
 /// S26 - the phone holds the ONLY copy of the library, so this is where it is protected: export one
 /// `.agbackup` file (share sheet / Files), restore it later, replacing the library.
@@ -31,14 +33,22 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   BackupProgress? _progress;
   String? _message;
   var _busy = false;
+  var _encrypt = true;
 
   Future<void> _export() async {
     final l10n = AppLocalizations.of(context);
+    final encrypted = _encrypt;
+    final password = encrypted
+        ? await backupPassword(context, creating: true)
+        : null;
+    if (!mounted || (encrypted && password == null)) return;
     final service = ref.read(backupServiceProvider);
+    final settings = ref.read(appSettingsProvider);
     final tracker = ref.read(jobTrackerProvider);
     final engine = ref.read(scanEngineProvider);
     final scanWasRunning = engine.isRunning;
     bool? wasActive;
+    File? plaintext;
     setState(() {
       _busy = true;
       _message = null;
@@ -49,30 +59,55 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       final tmp = await getTemporaryDirectory();
       final dir = Directory('${tmp.path}/backups');
       if (await dir.exists()) await dir.delete(recursive: true);
-      final file = await service.export(
+      var file = await service.export(
         dir,
+        recordBackup: false,
         onProgress: (p) {
           if (mounted) setState(() => _progress = p);
         },
       );
+      if (encrypted) {
+        plaintext = file;
+        final target = File(
+          '${file.path.substring(0, file.path.length - backupExtension.length)}encrypted.$backupExtension',
+        );
+        if (mounted) {
+          setState(() => _progress = const BackupProgress('encrypting', 0, 0));
+        }
+        await ref.read(backupCryptoProvider).encrypt(file, target, password!);
+        file = target;
+        await plaintext.delete();
+        plaintext = null;
+      }
       if (!mounted) return;
-      setState(() => _message = l10n.backupDone);
-      await SharePlus.instance.share(
+      final shared = await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path)],
           subject: l10n.backupShareSubject,
         ),
       );
+      if (shared.status == ShareResultStatus.dismissed) {
+        if (mounted) setState(() => _message = l10n.backupShareCancelled);
+      } else {
+        await settings.setLastBackupAt(DateTime.now());
+        if (mounted) setState(() => _message = l10n.backupDone);
+      }
     } on Object catch (e) {
       if (mounted) setState(() => _message = l10n.backupFailed('$e'));
     } finally {
-      if (wasActive != null) tracker.resumeAfterMaintenance(wasActive);
-      if (scanWasRunning) unawaited(engine.start(enumerate: false));
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _progress = null;
-        });
+      try {
+        if (plaintext != null && await plaintext.exists()) {
+          await plaintext.delete();
+        }
+      } finally {
+        if (wasActive != null) tracker.resumeAfterMaintenance(wasActive);
+        if (scanWasRunning) unawaited(engine.start(enumerate: false));
+        if (mounted) {
+          setState(() {
+            _busy = false;
+            _progress = null;
+          });
+        }
       }
     }
   }
@@ -87,8 +122,30 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     );
     final path = picked?.path;
     if (path == null || !mounted) return;
-    final file = File(path);
+    var file = File(path);
+    Directory? decrypted;
     try {
+      if (await AndroidBackupCrypto.isEncrypted(file)) {
+        if (!mounted) return;
+        final password = await backupPassword(context, creating: false);
+        if (password == null || !mounted) return;
+        setState(() {
+          _busy = true;
+          _progress = const BackupProgress('decrypting', 0, 0);
+        });
+        decrypted = await (await getTemporaryDirectory()).createTemp(
+          'ag-restore-',
+        );
+        // File pickers can return external paths; native crypto accepts private files only.
+        final encryptedInput = await file.copy(
+          '${decrypted.path}/encrypted.agbackup',
+        );
+        final target = File('${decrypted.path}/backup.zip');
+        await ref
+            .read(backupCryptoProvider)
+            .decrypt(encryptedInput, target, password);
+        file = target;
+      }
       final info = await service.inspect(file);
       if (!mounted) return;
       final ok = await confirm(
@@ -130,12 +187,18 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     } on Object catch (e) {
       if (mounted) setState(() => _message = l10n.backupFailed('$e'));
     } finally {
-      if (wasActive != null) tracker.resumeAfterMaintenance(wasActive);
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _progress = null;
-        });
+      try {
+        if (decrypted != null && await decrypted.exists()) {
+          await decrypted.delete(recursive: true);
+        }
+      } finally {
+        if (wasActive != null) tracker.resumeAfterMaintenance(wasActive);
+        if (mounted) {
+          setState(() {
+            _busy = false;
+            _progress = null;
+          });
+        }
       }
     }
   }
@@ -180,6 +243,16 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          SwitchListTile(
+            key: const Key('backup-encryption'),
+            contentPadding: EdgeInsets.zero,
+            value: _encrypt,
+            title: Text(l10n.backupEncryption),
+            subtitle: Text(
+              _encrypt ? l10n.backupEncryptionHint : l10n.backupPlaintextHint,
+            ),
+            onChanged: _busy ? null : (v) => setState(() => _encrypt = v),
+          ),
           FilledButton.icon(
             key: const Key('backup-export'),
             icon: const Icon(Icons.upload_file),
@@ -203,6 +276,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               'database' => l10n.backupStageDatabase,
               'crops' => l10n.backupStageCrops,
               'restoring' => l10n.backupStageRestoring,
+              'encrypting' => l10n.backupStageEncrypting,
+              'decrypting' => l10n.backupStageDecrypting,
               _ => l10n.backupStageFinishing,
             }, style: text.bodySmall),
           ],

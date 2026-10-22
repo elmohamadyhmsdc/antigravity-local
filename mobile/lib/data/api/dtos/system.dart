@@ -47,6 +47,7 @@ class Engines {
     required this.refaceV2,
     required this.dfmModels,
     required this.undress,
+    this.restyleRefine = true,
     required this.loraTrain,
     required this.loraGenerate,
     required this.bodyDetection,
@@ -56,6 +57,7 @@ class Engines {
   final bool refaceV2;
   final List<String> dfmModels;
   final bool undress;
+  final bool restyleRefine;
   final bool loraTrain;
   final bool loraGenerate;
   final bool bodyDetection;
@@ -65,6 +67,9 @@ class Engines {
     refaceV2: field<bool>(json, 'reface_v2', 'engines'),
     dfmModels: list(json['dfm_models'], 'engines.dfm_models').cast<String>(),
     undress: field<bool>(json, 'undress', 'engines'),
+    restyleRefine:
+        json['restyle_refine'] as bool? ??
+        field<bool>(json, 'undress', 'engines'),
     loraTrain: field<bool>(json, 'lora_train', 'engines'),
     loraGenerate: field<bool>(json, 'lora_generate', 'engines'),
     bodyDetection: field<bool>(json, 'body_detection', 'engines'),

@@ -422,6 +422,9 @@ components:
               type: array
               items: { type: string }
             undress: { type: boolean }
+            restyle_refine:
+              type: boolean
+              description: Optional SDXL refinement readiness, independently of basic Restyle. Older servers omit this field.
             lora_train: { type: boolean }
             lora_generate: { type: boolean }
             body_detection: { type: boolean }

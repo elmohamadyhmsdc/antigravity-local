@@ -823,7 +823,7 @@ abstract class AppLocalizations {
   /// No description provided for @backupKeepSafe.
   ///
   /// In en, this message translates to:
-  /// **'The backup file is not encrypted. Keep it somewhere private - it contains the faces of the people in your photos.'**
+  /// **'Backups are encrypted by default. Keep the password safe; it is never stored by the app. Older unencrypted backups can still be restored.'**
   String get backupKeepSafe;
 
   /// No description provided for @backupLibrarySummary.
@@ -907,7 +907,7 @@ abstract class AppLocalizations {
   /// No description provided for @backupWhatIsIncludedBody.
   ///
   /// In en, this message translates to:
-  /// **'People, faces and their pictures, body links, which photos each person is in, your corrections and your grouping settings. Not included: your original photos (they stay in your gallery), the pairing with your PC and anything stored on the PC.'**
+  /// **'People, faces, body links, media records, corrections, grouping settings, saved identity sets, private results, datasets, captions and trained LoRAs. Your original gallery photos, PC connections and active jobs are excluded.'**
   String get backupWhatIsIncludedBody;
 
   /// No description provided for @bodyBox.
@@ -2025,6 +2025,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Every {seconds} s'**
   String videoEverySeconds(String seconds);
+
+  /// No description provided for @videoPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing video · {percent}%'**
+  String videoPreparing(int percent);
 
   /// No description provided for @videoUploading.
   ///
@@ -3345,6 +3351,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'A force stop, phone shutdown or Android background time limit can stop phone work. Open the app to resume its saved queue. Some phones also require allowing auto-start in the manufacturer\'s battery settings. The PC must stay on and connected to the phone.'**
   String get backgroundLimits;
+
+  /// No description provided for @identitySaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved identity sets'**
+  String get identitySaved;
+
+  /// No description provided for @identitySave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save selected faces'**
+  String get identitySave;
+
+  /// No description provided for @identityName.
+  ///
+  /// In en, this message translates to:
+  /// **'Identity set name'**
+  String get identityName;
+
+  /// No description provided for @identityDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete identity set'**
+  String get identityDelete;
+
+  /// No description provided for @identityDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this saved selection? The person and source faces will be kept.'**
+  String get identityDeleteBody;
+
+  /// No description provided for @backupEncryption.
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypt backup'**
+  String get backupEncryption;
+
+  /// No description provided for @backupEncryptionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Protect this backup with a password. You will need it to restore on any phone.'**
+  String get backupEncryptionHint;
+
+  /// No description provided for @backupPlaintextHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This backup will be readable without a password. Keep it in a private location.'**
+  String get backupPlaintextHint;
+
+  /// No description provided for @backupPasswordCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Protect your backup'**
+  String get backupPasswordCreate;
+
+  /// No description provided for @backupPasswordEnter.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock backup'**
+  String get backupPasswordEnter;
+
+  /// No description provided for @backupPasswordReminder.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your password somewhere safe. A forgotten password cannot be recovered.'**
+  String get backupPasswordReminder;
+
+  /// No description provided for @backupPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get backupPassword;
+
+  /// No description provided for @backupPasswordConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm password'**
+  String get backupPasswordConfirm;
+
+  /// No description provided for @backupPasswordVisibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Show or hide password'**
+  String get backupPasswordVisibility;
+
+  /// No description provided for @backupPasswordLength.
+  ///
+  /// In en, this message translates to:
+  /// **'Use 12–1024 characters.'**
+  String get backupPasswordLength;
+
+  /// No description provided for @backupPasswordMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The passwords do not match.'**
+  String get backupPasswordMismatch;
+
+  /// No description provided for @backupUnlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock'**
+  String get backupUnlock;
+
+  /// No description provided for @backupStageEncrypting.
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypting backup…'**
+  String get backupStageEncrypting;
+
+  /// No description provided for @backupStageDecrypting.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlocking backup…'**
+  String get backupStageDecrypting;
+
+  /// No description provided for @jobStage.
+  ///
+  /// In en, this message translates to:
+  /// **'Stage'**
+  String get jobStage;
+
+  /// No description provided for @jobEpoch.
+  ///
+  /// In en, this message translates to:
+  /// **'Epoch'**
+  String get jobEpoch;
+
+  /// No description provided for @jobTotalEpochs.
+  ///
+  /// In en, this message translates to:
+  /// **'Total epochs'**
+  String get jobTotalEpochs;
+
+  /// No description provided for @jobStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Step'**
+  String get jobStep;
+
+  /// No description provided for @jobTotalSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'Total steps'**
+  String get jobTotalSteps;
+
+  /// No description provided for @jobLoss.
+  ///
+  /// In en, this message translates to:
+  /// **'Loss'**
+  String get jobLoss;
+
+  /// No description provided for @jobSecondsPerStep.
+  ///
+  /// In en, this message translates to:
+  /// **'Seconds per step'**
+  String get jobSecondsPerStep;
+
+  /// No description provided for @jobHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity history'**
+  String get jobHistory;
+
+  /// No description provided for @jobTimeRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'About {time} remaining'**
+  String jobTimeRemaining(String time);
+
+  /// No description provided for @jobHoursMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours} hr {minutes} min'**
+  String jobHoursMinutes(int hours, int minutes);
+
+  /// No description provided for @jobMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min'**
+  String jobMinutes(int minutes);
+
+  /// No description provided for @restyleRefineUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional SDXL refinement is not installed on this PC. Basic Restyle can run without it.'**
+  String get restyleRefineUnavailable;
+
+  /// No description provided for @backupShareCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup sharing was cancelled. Choose a destination to keep a copy outside this app.'**
+  String get backupShareCancelled;
 }
 
 class _AppLocalizationsDelegate

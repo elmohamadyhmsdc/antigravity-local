@@ -143,7 +143,8 @@ class CapabilityProbe:
             "reface_v3": has_swapper and bool(self.restorers()),
             "reface_v2": has_swapper,
             "dfm_models": self.dfm_models(),
-            "undress": venv_ai and not restyle_missing_models(self.app_dir),
+            "undress": venv_ai and not restyle_missing_models(self.app_dir, refine=False),
+            "restyle_refine": venv_ai and not restyle_missing_models(self.app_dir, refine=True),
             "lora_train": self._has("venv_lora", "Scripts", "python.exe") and self._has("sd-scripts"),
             "lora_generate": venv_ai and bool(self.lora_base_checkpoints()),
             "body_detection": self._has("models", "body", "yolox_m_humanart.onnx")

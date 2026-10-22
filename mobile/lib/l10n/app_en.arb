@@ -311,7 +311,7 @@
     }
   },
   "backupIntro": "Your library, private results, datasets and trained LoRAs live on this phone. Export a backup to keep another copy; PC connections and active jobs are excluded.",
-  "backupKeepSafe": "The backup file is not encrypted. Keep it somewhere private - it contains the faces of the people in your photos.",
+  "backupKeepSafe": "Backups are encrypted by default. Keep the password safe; it is never stored by the app. Older unencrypted backups can still be restored.",
   "backupLibrarySummary": "{people} people · {faces} faces · {photos} photos",
   "@backupLibrarySummary": {
     "placeholders": {
@@ -338,7 +338,7 @@
   "backupStageRestoring": "Restoring your library…",
   "backupTitle": "Backup & restore",
   "backupWhatIsIncluded": "What is in a backup",
-  "backupWhatIsIncludedBody": "People, faces and their pictures, body links, which photos each person is in, your corrections and your grouping settings. Not included: your original photos (they stay in your gallery), the pairing with your PC and anything stored on the PC.",
+  "backupWhatIsIncludedBody": "People, faces, body links, media records, corrections, grouping settings, saved identity sets, private results, datasets, captions and trained LoRAs. Your original gallery photos, PC connections and active jobs are excluded.",
   "bodyBox": "Body",
   "bodyLinkDetail": "{method} · {percent}% sure",
   "@bodyLinkDetail": {
@@ -925,6 +925,10 @@
   "includeVideosHint": "Videos upload to your paired PC. Progress resumes after interruptions.",
   "videoFrameInterval": "Sample video frames",
   "videoEverySeconds": "Every {seconds} s",
+  "videoPreparing": "Preparing video · {percent}%",
+  "@videoPreparing": {
+    "placeholders": {"percent": {"type": "int"}}
+  },
   "videoUploading": "Uploading video · {percent}%",
   "videoAnalyzing": "Analyzing video · {percent}%",
   "videoDownloading": "Downloading video detections…",
@@ -1199,5 +1203,61 @@
   "backgroundOpenSettings": "Open Android app settings",
   "backgroundAndroidOnly": "Background permissions are available on Android.",
   "backgroundServiceFailed": "Android could not start the background service. Keep the app open and check notifications and battery settings.",
-  "backgroundLimits": "A force stop, phone shutdown or Android background time limit can stop phone work. Open the app to resume its saved queue. Some phones also require allowing auto-start in the manufacturer's battery settings. The PC must stay on and connected to the phone."
+  "backgroundLimits": "A force stop, phone shutdown or Android background time limit can stop phone work. Open the app to resume its saved queue. Some phones also require allowing auto-start in the manufacturer's battery settings. The PC must stay on and connected to the phone.",
+  "identitySaved": "Saved identity sets",
+  "identitySave": "Save selected faces",
+  "identityName": "Identity set name",
+  "identityDelete": "Delete identity set",
+  "identityDeleteBody": "Remove this saved selection? The person and source faces will be kept.",
+  "backupEncryption": "Encrypt backup",
+  "backupEncryptionHint": "Protect this backup with a password. You will need it to restore on any phone.",
+  "backupPlaintextHint": "This backup will be readable without a password. Keep it in a private location.",
+  "backupPasswordCreate": "Protect your backup",
+  "backupPasswordEnter": "Unlock backup",
+  "backupPasswordReminder": "Keep your password somewhere safe. A forgotten password cannot be recovered.",
+  "backupPassword": "Password",
+  "backupPasswordConfirm": "Confirm password",
+  "backupPasswordVisibility": "Show or hide password",
+  "backupPasswordLength": "Use 12–1024 characters.",
+  "backupPasswordMismatch": "The passwords do not match.",
+  "backupUnlock": "Unlock",
+  "backupStageEncrypting": "Encrypting backup…",
+  "backupStageDecrypting": "Unlocking backup…",
+  "jobStage": "Stage",
+  "jobEpoch": "Epoch",
+  "jobTotalEpochs": "Total epochs",
+  "jobStep": "Step",
+  "jobTotalSteps": "Total steps",
+  "jobLoss": "Loss",
+  "jobSecondsPerStep": "Seconds per step",
+  "jobHistory": "Activity history",
+  "jobTimeRemaining": "About {time} remaining",
+  "@jobTimeRemaining": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "jobHoursMinutes": "{hours} hr {minutes} min",
+  "@jobHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "jobMinutes": "{minutes} min",
+  "@jobMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "restyleRefineUnavailable": "Optional SDXL refinement is not installed on this PC. Basic Restyle can run without it.",
+  "backupShareCancelled": "Backup sharing was cancelled. Choose a destination to keep a copy outside this app."
 }

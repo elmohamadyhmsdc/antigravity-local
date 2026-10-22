@@ -8,6 +8,7 @@ import 'dart:ui';
 import 'l10n/app_localizations.dart';
 import 'data/repositories/studio_repository.dart';
 import 'data/repositories/lora_repository.dart';
+import 'data/repositories/identity_repository.dart';
 import 'domain/jobs/job_tracker.dart';
 import 'domain/scan/scan_state.dart';
 import 'library_providers.dart';
@@ -22,6 +23,12 @@ final studioRepositoryProvider = Provider<StudioRepository>(
     ref.watch(databaseProvider),
     ref.watch(fileStoreProvider),
   ),
+);
+final identityRepositoryProvider = Provider<IdentityRepository>(
+  (ref) => IdentityRepository(ref.watch(databaseProvider)),
+);
+final identitySetsProvider = StreamProvider<List<IdentitySetRow>>(
+  (ref) => ref.watch(identityRepositoryProvider).watch(),
 );
 final studioKeepAliveProvider = Provider<ScanKeepAlive>(
   (ref) => const ForegroundServiceKeepAlive(
@@ -52,6 +59,10 @@ final jobsProvider = StreamProvider<List<JobRow>>(
 final jobProvider = StreamProvider.autoDispose.family<JobRow?, String>(
   (ref, id) => ref.watch(studioRepositoryProvider).watchJob(id),
 );
+final jobEventsProvider = StreamProvider.autoDispose
+    .family<List<JobEventRow>, String>(
+      (ref, id) => ref.watch(studioRepositoryProvider).watchEvents(id),
+    );
 final resultsProvider = StreamProvider<List<ResultRow>>(
   (ref) => ref.watch(studioRepositoryProvider).watchResults(),
 );

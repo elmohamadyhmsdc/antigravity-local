@@ -10411,6 +10411,929 @@ class LorasCompanion extends UpdateCompanion<LoraRow> {
   }
 }
 
+class $IdentitySetsTable extends IdentitySets
+    with TableInfo<$IdentitySetsTable, IdentitySetRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $IdentitySetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 1,
+      maxTextLength: 80,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _modelIdMeta = const VerificationMeta(
+    'modelId',
+  );
+  @override
+  late final GeneratedColumn<String> modelId = GeneratedColumn<String>(
+    'model_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    personId,
+    name,
+    modelId,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'identity_sets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<IdentitySetRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_personIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('model_id')) {
+      context.handle(
+        _modelIdMeta,
+        modelId.isAcceptableOrUnknown(data['model_id']!, _modelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_modelIdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  IdentitySetRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return IdentitySetRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      modelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model_id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $IdentitySetsTable createAlias(String alias) {
+    return $IdentitySetsTable(attachedDatabase, alias);
+  }
+}
+
+class IdentitySetRow extends DataClass implements Insertable<IdentitySetRow> {
+  final int id;
+  final int personId;
+  final String name;
+  final String modelId;
+  final int createdAt;
+  const IdentitySetRow({
+    required this.id,
+    required this.personId,
+    required this.name,
+    required this.modelId,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['person_id'] = Variable<int>(personId);
+    map['name'] = Variable<String>(name);
+    map['model_id'] = Variable<String>(modelId);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  IdentitySetsCompanion toCompanion(bool nullToAbsent) {
+    return IdentitySetsCompanion(
+      id: Value(id),
+      personId: Value(personId),
+      name: Value(name),
+      modelId: Value(modelId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory IdentitySetRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return IdentitySetRow(
+      id: serializer.fromJson<int>(json['id']),
+      personId: serializer.fromJson<int>(json['personId']),
+      name: serializer.fromJson<String>(json['name']),
+      modelId: serializer.fromJson<String>(json['modelId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'personId': serializer.toJson<int>(personId),
+      'name': serializer.toJson<String>(name),
+      'modelId': serializer.toJson<String>(modelId),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  IdentitySetRow copyWith({
+    int? id,
+    int? personId,
+    String? name,
+    String? modelId,
+    int? createdAt,
+  }) => IdentitySetRow(
+    id: id ?? this.id,
+    personId: personId ?? this.personId,
+    name: name ?? this.name,
+    modelId: modelId ?? this.modelId,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  IdentitySetRow copyWithCompanion(IdentitySetsCompanion data) {
+    return IdentitySetRow(
+      id: data.id.present ? data.id.value : this.id,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      name: data.name.present ? data.name.value : this.name,
+      modelId: data.modelId.present ? data.modelId.value : this.modelId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IdentitySetRow(')
+          ..write('id: $id, ')
+          ..write('personId: $personId, ')
+          ..write('name: $name, ')
+          ..write('modelId: $modelId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, personId, name, modelId, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is IdentitySetRow &&
+          other.id == this.id &&
+          other.personId == this.personId &&
+          other.name == this.name &&
+          other.modelId == this.modelId &&
+          other.createdAt == this.createdAt);
+}
+
+class IdentitySetsCompanion extends UpdateCompanion<IdentitySetRow> {
+  final Value<int> id;
+  final Value<int> personId;
+  final Value<String> name;
+  final Value<String> modelId;
+  final Value<int> createdAt;
+  const IdentitySetsCompanion({
+    this.id = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.modelId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  IdentitySetsCompanion.insert({
+    this.id = const Value.absent(),
+    required int personId,
+    required String name,
+    required String modelId,
+    required int createdAt,
+  }) : personId = Value(personId),
+       name = Value(name),
+       modelId = Value(modelId),
+       createdAt = Value(createdAt);
+  static Insertable<IdentitySetRow> custom({
+    Expression<int>? id,
+    Expression<int>? personId,
+    Expression<String>? name,
+    Expression<String>? modelId,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (personId != null) 'person_id': personId,
+      if (name != null) 'name': name,
+      if (modelId != null) 'model_id': modelId,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  IdentitySetsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? personId,
+    Value<String>? name,
+    Value<String>? modelId,
+    Value<int>? createdAt,
+  }) {
+    return IdentitySetsCompanion(
+      id: id ?? this.id,
+      personId: personId ?? this.personId,
+      name: name ?? this.name,
+      modelId: modelId ?? this.modelId,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (modelId.present) {
+      map['model_id'] = Variable<String>(modelId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IdentitySetsCompanion(')
+          ..write('id: $id, ')
+          ..write('personId: $personId, ')
+          ..write('name: $name, ')
+          ..write('modelId: $modelId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $IdentitySetFacesTable extends IdentitySetFaces
+    with TableInfo<$IdentitySetFacesTable, IdentitySetFaceRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $IdentitySetFacesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _setIdMeta = const VerificationMeta('setId');
+  @override
+  late final GeneratedColumn<int> setId = GeneratedColumn<int>(
+    'set_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES identity_sets (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _faceIdMeta = const VerificationMeta('faceId');
+  @override
+  late final GeneratedColumn<int> faceId = GeneratedColumn<int>(
+    'face_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES faces (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [setId, faceId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'identity_set_faces';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<IdentitySetFaceRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('set_id')) {
+      context.handle(
+        _setIdMeta,
+        setId.isAcceptableOrUnknown(data['set_id']!, _setIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_setIdMeta);
+    }
+    if (data.containsKey('face_id')) {
+      context.handle(
+        _faceIdMeta,
+        faceId.isAcceptableOrUnknown(data['face_id']!, _faceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_faceIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {setId, faceId};
+  @override
+  IdentitySetFaceRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return IdentitySetFaceRow(
+      setId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}set_id'],
+      )!,
+      faceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}face_id'],
+      )!,
+    );
+  }
+
+  @override
+  $IdentitySetFacesTable createAlias(String alias) {
+    return $IdentitySetFacesTable(attachedDatabase, alias);
+  }
+}
+
+class IdentitySetFaceRow extends DataClass
+    implements Insertable<IdentitySetFaceRow> {
+  final int setId;
+  final int faceId;
+  const IdentitySetFaceRow({required this.setId, required this.faceId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['set_id'] = Variable<int>(setId);
+    map['face_id'] = Variable<int>(faceId);
+    return map;
+  }
+
+  IdentitySetFacesCompanion toCompanion(bool nullToAbsent) {
+    return IdentitySetFacesCompanion(
+      setId: Value(setId),
+      faceId: Value(faceId),
+    );
+  }
+
+  factory IdentitySetFaceRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return IdentitySetFaceRow(
+      setId: serializer.fromJson<int>(json['setId']),
+      faceId: serializer.fromJson<int>(json['faceId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'setId': serializer.toJson<int>(setId),
+      'faceId': serializer.toJson<int>(faceId),
+    };
+  }
+
+  IdentitySetFaceRow copyWith({int? setId, int? faceId}) => IdentitySetFaceRow(
+    setId: setId ?? this.setId,
+    faceId: faceId ?? this.faceId,
+  );
+  IdentitySetFaceRow copyWithCompanion(IdentitySetFacesCompanion data) {
+    return IdentitySetFaceRow(
+      setId: data.setId.present ? data.setId.value : this.setId,
+      faceId: data.faceId.present ? data.faceId.value : this.faceId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IdentitySetFaceRow(')
+          ..write('setId: $setId, ')
+          ..write('faceId: $faceId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(setId, faceId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is IdentitySetFaceRow &&
+          other.setId == this.setId &&
+          other.faceId == this.faceId);
+}
+
+class IdentitySetFacesCompanion extends UpdateCompanion<IdentitySetFaceRow> {
+  final Value<int> setId;
+  final Value<int> faceId;
+  final Value<int> rowid;
+  const IdentitySetFacesCompanion({
+    this.setId = const Value.absent(),
+    this.faceId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  IdentitySetFacesCompanion.insert({
+    required int setId,
+    required int faceId,
+    this.rowid = const Value.absent(),
+  }) : setId = Value(setId),
+       faceId = Value(faceId);
+  static Insertable<IdentitySetFaceRow> custom({
+    Expression<int>? setId,
+    Expression<int>? faceId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (setId != null) 'set_id': setId,
+      if (faceId != null) 'face_id': faceId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  IdentitySetFacesCompanion copyWith({
+    Value<int>? setId,
+    Value<int>? faceId,
+    Value<int>? rowid,
+  }) {
+    return IdentitySetFacesCompanion(
+      setId: setId ?? this.setId,
+      faceId: faceId ?? this.faceId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (setId.present) {
+      map['set_id'] = Variable<int>(setId.value);
+    }
+    if (faceId.present) {
+      map['face_id'] = Variable<int>(faceId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IdentitySetFacesCompanion(')
+          ..write('setId: $setId, ')
+          ..write('faceId: $faceId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $JobEventsTable extends JobEvents
+    with TableInfo<$JobEventsTable, JobEventRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $JobEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _jobIdMeta = const VerificationMeta('jobId');
+  @override
+  late final GeneratedColumn<String> jobId = GeneratedColumn<String>(
+    'job_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES jobs (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _messageMeta = const VerificationMeta(
+    'message',
+  );
+  @override
+  late final GeneratedColumn<String> message = GeneratedColumn<String>(
+    'message',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, jobId, status, message, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'job_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<JobEventRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('job_id')) {
+      context.handle(
+        _jobIdMeta,
+        jobId.isAcceptableOrUnknown(data['job_id']!, _jobIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_jobIdMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('message')) {
+      context.handle(
+        _messageMeta,
+        message.isAcceptableOrUnknown(data['message']!, _messageMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  JobEventRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return JobEventRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      jobId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}job_id'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      message: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $JobEventsTable createAlias(String alias) {
+    return $JobEventsTable(attachedDatabase, alias);
+  }
+}
+
+class JobEventRow extends DataClass implements Insertable<JobEventRow> {
+  final int id;
+  final String jobId;
+  final String status;
+  final String? message;
+  final int createdAt;
+  const JobEventRow({
+    required this.id,
+    required this.jobId,
+    required this.status,
+    this.message,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['job_id'] = Variable<String>(jobId);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || message != null) {
+      map['message'] = Variable<String>(message);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  JobEventsCompanion toCompanion(bool nullToAbsent) {
+    return JobEventsCompanion(
+      id: Value(id),
+      jobId: Value(jobId),
+      status: Value(status),
+      message: message == null && nullToAbsent
+          ? const Value.absent()
+          : Value(message),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory JobEventRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return JobEventRow(
+      id: serializer.fromJson<int>(json['id']),
+      jobId: serializer.fromJson<String>(json['jobId']),
+      status: serializer.fromJson<String>(json['status']),
+      message: serializer.fromJson<String?>(json['message']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'jobId': serializer.toJson<String>(jobId),
+      'status': serializer.toJson<String>(status),
+      'message': serializer.toJson<String?>(message),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  JobEventRow copyWith({
+    int? id,
+    String? jobId,
+    String? status,
+    Value<String?> message = const Value.absent(),
+    int? createdAt,
+  }) => JobEventRow(
+    id: id ?? this.id,
+    jobId: jobId ?? this.jobId,
+    status: status ?? this.status,
+    message: message.present ? message.value : this.message,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  JobEventRow copyWithCompanion(JobEventsCompanion data) {
+    return JobEventRow(
+      id: data.id.present ? data.id.value : this.id,
+      jobId: data.jobId.present ? data.jobId.value : this.jobId,
+      status: data.status.present ? data.status.value : this.status,
+      message: data.message.present ? data.message.value : this.message,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('JobEventRow(')
+          ..write('id: $id, ')
+          ..write('jobId: $jobId, ')
+          ..write('status: $status, ')
+          ..write('message: $message, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, jobId, status, message, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is JobEventRow &&
+          other.id == this.id &&
+          other.jobId == this.jobId &&
+          other.status == this.status &&
+          other.message == this.message &&
+          other.createdAt == this.createdAt);
+}
+
+class JobEventsCompanion extends UpdateCompanion<JobEventRow> {
+  final Value<int> id;
+  final Value<String> jobId;
+  final Value<String> status;
+  final Value<String?> message;
+  final Value<int> createdAt;
+  const JobEventsCompanion({
+    this.id = const Value.absent(),
+    this.jobId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.message = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  JobEventsCompanion.insert({
+    this.id = const Value.absent(),
+    required String jobId,
+    required String status,
+    this.message = const Value.absent(),
+    required int createdAt,
+  }) : jobId = Value(jobId),
+       status = Value(status),
+       createdAt = Value(createdAt);
+  static Insertable<JobEventRow> custom({
+    Expression<int>? id,
+    Expression<String>? jobId,
+    Expression<String>? status,
+    Expression<String>? message,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (jobId != null) 'job_id': jobId,
+      if (status != null) 'status': status,
+      if (message != null) 'message': message,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  JobEventsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? jobId,
+    Value<String>? status,
+    Value<String?>? message,
+    Value<int>? createdAt,
+  }) {
+    return JobEventsCompanion(
+      id: id ?? this.id,
+      jobId: jobId ?? this.jobId,
+      status: status ?? this.status,
+      message: message ?? this.message,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (jobId.present) {
+      map['job_id'] = Variable<String>(jobId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (message.present) {
+      map['message'] = Variable<String>(message.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('JobEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('jobId: $jobId, ')
+          ..write('status: $status, ')
+          ..write('message: $message, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -10441,6 +11364,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DatasetsTable datasets = $DatasetsTable(this);
   late final $DatasetItemsTable datasetItems = $DatasetItemsTable(this);
   late final $LorasTable loras = $LorasTable(this);
+  late final $IdentitySetsTable identitySets = $IdentitySetsTable(this);
+  late final $IdentitySetFacesTable identitySetFaces = $IdentitySetFacesTable(
+    this,
+  );
+  late final $JobEventsTable jobEvents = $JobEventsTable(this);
   late final Index mediaScanStatus = Index(
     'media_scan_status',
     'CREATE INDEX media_scan_status ON media (scan_status)',
@@ -10511,6 +11439,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     datasets,
     datasetItems,
     loras,
+    identitySets,
+    identitySetFaces,
+    jobEvents,
     mediaScanStatus,
     facesPersonId,
     facesMediaId,
@@ -10685,6 +11616,34 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('loras', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('identity_sets', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'identity_sets',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('identity_set_faces', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'faces',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('identity_set_faces', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'jobs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('job_events', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -10962,6 +11921,24 @@ final class $$PersonsTableReferences
     ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_lorasRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$IdentitySetsTable, List<IdentitySetRow>>
+  _identitySetsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.identitySets,
+    aliasName: 'persons__id__identity_sets__person_id',
+  );
+
+  $$IdentitySetsTableProcessedTableManager get identitySetsRefs {
+    final manager = $$IdentitySetsTableTableManager(
+      $_db,
+      $_db.identitySets,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_identitySetsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -11338,6 +12315,31 @@ class $$PersonsTableFilterComposer
           }) => $$LorasTableFilterComposer(
             $db: $db,
             $table: $db.loras,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> identitySetsRefs(
+    Expression<bool> Function($$IdentitySetsTableFilterComposer f) f,
+  ) {
+    final $$IdentitySetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.identitySets,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentitySetsTableFilterComposer(
+            $db: $db,
+            $table: $db.identitySets,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11750,6 +12752,31 @@ class $$PersonsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> identitySetsRefs<T extends Object>(
+    Expression<T> Function($$IdentitySetsTableAnnotationComposer a) f,
+  ) {
+    final $$IdentitySetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.identitySets,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentitySetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.identitySets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PersonsTableTableManager
@@ -11780,6 +12807,7 @@ class $$PersonsTableTableManager
             bool resultsRefs,
             bool datasetsRefs,
             bool lorasRefs,
+            bool identitySetsRefs,
           })
         > {
   $$PersonsTableTableManager(_$AppDatabase db, $PersonsTable table)
@@ -11841,6 +12869,7 @@ class $$PersonsTableTableManager
                 resultsRefs = false,
                 datasetsRefs = false,
                 lorasRefs = false,
+                identitySetsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -11859,6 +12888,7 @@ class $$PersonsTableTableManager
                     if (resultsRefs) db.results,
                     if (datasetsRefs) db.datasets,
                     if (lorasRefs) db.loras,
+                    if (identitySetsRefs) db.identitySets,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -12145,6 +13175,27 @@ class $$PersonsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (identitySetsRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          IdentitySetRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._identitySetsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).identitySetsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -12180,6 +13231,7 @@ typedef $$PersonsTableProcessedTableManager =
         bool resultsRefs,
         bool datasetsRefs,
         bool lorasRefs,
+        bool identitySetsRefs,
       })
     >;
 typedef $$MediaTableCreateCompanionBuilder =
@@ -13018,6 +14070,26 @@ final class $$FacesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$IdentitySetFacesTable, List<IdentitySetFaceRow>>
+  _identitySetFacesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.identitySetFaces,
+    aliasName: 'faces__id__identity_set_faces__face_id',
+  );
+
+  $$IdentitySetFacesTableProcessedTableManager get identitySetFacesRefs {
+    final manager = $$IdentitySetFacesTableTableManager(
+      $_db,
+      $_db.identitySetFaces,
+    ).filter((f) => f.faceId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _identitySetFacesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$FacesTableFilterComposer extends Composer<_$AppDatabase, $FacesTable> {
@@ -13250,6 +14322,31 @@ class $$FacesTableFilterComposer extends Composer<_$AppDatabase, $FacesTable> {
           }) => $$ReviewMatchesTableFilterComposer(
             $db: $db,
             $table: $db.reviewMatches,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> identitySetFacesRefs(
+    Expression<bool> Function($$IdentitySetFacesTableFilterComposer f) f,
+  ) {
+    final $$IdentitySetFacesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.identitySetFaces,
+      getReferencedColumn: (t) => t.faceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentitySetFacesTableFilterComposer(
+            $db: $db,
+            $table: $db.identitySetFaces,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -13633,6 +14730,31 @@ class $$FacesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> identitySetFacesRefs<T extends Object>(
+    Expression<T> Function($$IdentitySetFacesTableAnnotationComposer a) f,
+  ) {
+    final $$IdentitySetFacesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.identitySetFaces,
+      getReferencedColumn: (t) => t.faceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentitySetFacesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.identitySetFaces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$FacesTableTableManager
@@ -13654,6 +14776,7 @@ class $$FacesTableTableManager
             bool bodiesRefs,
             bool faceRejectionsRefs,
             bool reviewMatchesRefs,
+            bool identitySetFacesRefs,
           })
         > {
   $$FacesTableTableManager(_$AppDatabase db, $FacesTable table)
@@ -13786,6 +14909,7 @@ class $$FacesTableTableManager
                 bodiesRefs = false,
                 faceRejectionsRefs = false,
                 reviewMatchesRefs = false,
+                identitySetFacesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -13793,6 +14917,7 @@ class $$FacesTableTableManager
                     if (bodiesRefs) db.bodies,
                     if (faceRejectionsRefs) db.faceRejections,
                     if (reviewMatchesRefs) db.reviewMatches,
+                    if (identitySetFacesRefs) db.identitySetFaces,
                   ],
                   addJoins:
                       <
@@ -13900,6 +15025,27 @@ class $$FacesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (identitySetFacesRefs)
+                        await $_getPrefetchedData<
+                          FaceRow,
+                          $FacesTable,
+                          IdentitySetFaceRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FacesTableReferences
+                              ._identitySetFacesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FacesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).identitySetFacesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.faceId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -13926,6 +15072,7 @@ typedef $$FacesTableProcessedTableManager =
         bool bodiesRefs,
         bool faceRejectionsRefs,
         bool reviewMatchesRefs,
+        bool identitySetFacesRefs,
       })
     >;
 typedef $$BodiesTableCreateCompanionBuilder =
@@ -18707,6 +19854,24 @@ final class $$JobsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<$JobEventsTable, List<JobEventRow>>
+  _jobEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.jobEvents,
+    aliasName: 'jobs__id__job_events__job_id',
+  );
+
+  $$JobEventsTableProcessedTableManager get jobEventsRefs {
+    final manager = $$JobEventsTableTableManager(
+      $_db,
+      $_db.jobEvents,
+    ).filter((f) => f.jobId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_jobEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$JobsTableFilterComposer extends Composer<_$AppDatabase, $JobsTable> {
@@ -18823,6 +19988,31 @@ class $$JobsTableFilterComposer extends Composer<_$AppDatabase, $JobsTable> {
           ),
     );
     return composer;
+  }
+
+  Expression<bool> jobEventsRefs(
+    Expression<bool> Function($$JobEventsTableFilterComposer f) f,
+  ) {
+    final $$JobEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.jobEvents,
+      getReferencedColumn: (t) => t.jobId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JobEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.jobEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -19037,6 +20227,31 @@ class $$JobsTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> jobEventsRefs<T extends Object>(
+    Expression<T> Function($$JobEventsTableAnnotationComposer a) f,
+  ) {
+    final $$JobEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.jobEvents,
+      getReferencedColumn: (t) => t.jobId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JobEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.jobEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$JobsTableTableManager
@@ -19052,7 +20267,7 @@ class $$JobsTableTableManager
           $$JobsTableUpdateCompanionBuilder,
           (JobRow, $$JobsTableReferences),
           JobRow,
-          PrefetchHooks Function({bool personId})
+          PrefetchHooks Function({bool personId, bool jobEventsRefs})
         > {
   $$JobsTableTableManager(_$AppDatabase db, $JobsTable table)
     : super(
@@ -19157,10 +20372,10 @@ class $$JobsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({personId = false}) {
+          prefetchHooksCallback: ({personId = false, jobEventsRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [],
+              explicitlyWatchedTables: [if (jobEventsRefs) db.jobEvents],
               addJoins:
                   <
                     T extends TableManagerState<
@@ -19194,7 +20409,19 @@ class $$JobsTableTableManager
                     return state;
                   },
               getPrefetchedDataCallback: (items) async {
-                return [];
+                return [
+                  if (jobEventsRefs)
+                    await $_getPrefetchedData<JobRow, $JobsTable, JobEventRow>(
+                      currentTable: table,
+                      referencedTable: $$JobsTableReferences
+                          ._jobEventsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$JobsTableReferences(db, table, p0).jobEventsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.jobId == item.id),
+                      typedResults: items,
+                    ),
+                ];
               },
             );
           },
@@ -19214,7 +20441,7 @@ typedef $$JobsTableProcessedTableManager =
       $$JobsTableUpdateCompanionBuilder,
       (JobRow, $$JobsTableReferences),
       JobRow,
-      PrefetchHooks Function({bool personId})
+      PrefetchHooks Function({bool personId, bool jobEventsRefs})
     >;
 typedef $$ResultsTableCreateCompanionBuilder =
     ResultsCompanion Function({
@@ -20692,6 +21919,1088 @@ typedef $$LorasTableProcessedTableManager =
       LoraRow,
       PrefetchHooks Function({bool personId})
     >;
+typedef $$IdentitySetsTableCreateCompanionBuilder =
+    IdentitySetsCompanion Function({
+      Value<int> id,
+      required int personId,
+      required String name,
+      required String modelId,
+      required int createdAt,
+    });
+typedef $$IdentitySetsTableUpdateCompanionBuilder =
+    IdentitySetsCompanion Function({
+      Value<int> id,
+      Value<int> personId,
+      Value<String> name,
+      Value<String> modelId,
+      Value<int> createdAt,
+    });
+
+final class $$IdentitySetsTableReferences
+    extends BaseReferences<_$AppDatabase, $IdentitySetsTable, IdentitySetRow> {
+  $$IdentitySetsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('identity_sets__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager get personId {
+    final $_column = $_itemColumn<int>('person_id')!;
+
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$IdentitySetFacesTable, List<IdentitySetFaceRow>>
+  _identitySetFacesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.identitySetFaces,
+    aliasName: 'identity_sets__id__identity_set_faces__set_id',
+  );
+
+  $$IdentitySetFacesTableProcessedTableManager get identitySetFacesRefs {
+    final manager = $$IdentitySetFacesTableTableManager(
+      $_db,
+      $_db.identitySetFaces,
+    ).filter((f) => f.setId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _identitySetFacesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$IdentitySetsTableFilterComposer
+    extends Composer<_$AppDatabase, $IdentitySetsTable> {
+  $$IdentitySetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> identitySetFacesRefs(
+    Expression<bool> Function($$IdentitySetFacesTableFilterComposer f) f,
+  ) {
+    final $$IdentitySetFacesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.identitySetFaces,
+      getReferencedColumn: (t) => t.setId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentitySetFacesTableFilterComposer(
+            $db: $db,
+            $table: $db.identitySetFaces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$IdentitySetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $IdentitySetsTable> {
+  $$IdentitySetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$IdentitySetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $IdentitySetsTable> {
+  $$IdentitySetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get modelId =>
+      $composableBuilder(column: $table.modelId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> identitySetFacesRefs<T extends Object>(
+    Expression<T> Function($$IdentitySetFacesTableAnnotationComposer a) f,
+  ) {
+    final $$IdentitySetFacesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.identitySetFaces,
+      getReferencedColumn: (t) => t.setId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentitySetFacesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.identitySetFaces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$IdentitySetsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $IdentitySetsTable,
+          IdentitySetRow,
+          $$IdentitySetsTableFilterComposer,
+          $$IdentitySetsTableOrderingComposer,
+          $$IdentitySetsTableAnnotationComposer,
+          $$IdentitySetsTableCreateCompanionBuilder,
+          $$IdentitySetsTableUpdateCompanionBuilder,
+          (IdentitySetRow, $$IdentitySetsTableReferences),
+          IdentitySetRow,
+          PrefetchHooks Function({bool personId, bool identitySetFacesRefs})
+        > {
+  $$IdentitySetsTableTableManager(_$AppDatabase db, $IdentitySetsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$IdentitySetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$IdentitySetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$IdentitySetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> personId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> modelId = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => IdentitySetsCompanion(
+                id: id,
+                personId: personId,
+                name: name,
+                modelId: modelId,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int personId,
+                required String name,
+                required String modelId,
+                required int createdAt,
+              }) => IdentitySetsCompanion.insert(
+                id: id,
+                personId: personId,
+                name: name,
+                modelId: modelId,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$IdentitySetsTable, IdentitySetRow>(table),
+                  $$IdentitySetsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({personId = false, identitySetFacesRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (identitySetFacesRefs) db.identitySetFaces,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (personId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.personId,
+                                    referencedTable:
+                                        $$IdentitySetsTableReferences
+                                            ._personIdTable(db),
+                                    referencedColumn:
+                                        $$IdentitySetsTableReferences
+                                            ._personIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (identitySetFacesRefs)
+                        await $_getPrefetchedData<
+                          IdentitySetRow,
+                          $IdentitySetsTable,
+                          IdentitySetFaceRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$IdentitySetsTableReferences
+                              ._identitySetFacesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$IdentitySetsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).identitySetFacesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.setId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$IdentitySetsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $IdentitySetsTable,
+      IdentitySetRow,
+      $$IdentitySetsTableFilterComposer,
+      $$IdentitySetsTableOrderingComposer,
+      $$IdentitySetsTableAnnotationComposer,
+      $$IdentitySetsTableCreateCompanionBuilder,
+      $$IdentitySetsTableUpdateCompanionBuilder,
+      (IdentitySetRow, $$IdentitySetsTableReferences),
+      IdentitySetRow,
+      PrefetchHooks Function({bool personId, bool identitySetFacesRefs})
+    >;
+typedef $$IdentitySetFacesTableCreateCompanionBuilder =
+    IdentitySetFacesCompanion Function({
+      required int setId,
+      required int faceId,
+      Value<int> rowid,
+    });
+typedef $$IdentitySetFacesTableUpdateCompanionBuilder =
+    IdentitySetFacesCompanion Function({
+      Value<int> setId,
+      Value<int> faceId,
+      Value<int> rowid,
+    });
+
+final class $$IdentitySetFacesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $IdentitySetFacesTable,
+          IdentitySetFaceRow
+        > {
+  $$IdentitySetFacesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $IdentitySetsTable _setIdTable(_$AppDatabase db) => db.identitySets
+      .createAlias('identity_set_faces__set_id__identity_sets__id');
+
+  $$IdentitySetsTableProcessedTableManager get setId {
+    final $_column = $_itemColumn<int>('set_id')!;
+
+    final manager = $$IdentitySetsTableTableManager(
+      $_db,
+      $_db.identitySets,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_setIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $FacesTable _faceIdTable(_$AppDatabase db) =>
+      db.faces.createAlias('identity_set_faces__face_id__faces__id');
+
+  $$FacesTableProcessedTableManager get faceId {
+    final $_column = $_itemColumn<int>('face_id')!;
+
+    final manager = $$FacesTableTableManager(
+      $_db,
+      $_db.faces,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_faceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$IdentitySetFacesTableFilterComposer
+    extends Composer<_$AppDatabase, $IdentitySetFacesTable> {
+  $$IdentitySetFacesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$IdentitySetsTableFilterComposer get setId {
+    final $$IdentitySetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.setId,
+      referencedTable: $db.identitySets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentitySetsTableFilterComposer(
+            $db: $db,
+            $table: $db.identitySets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FacesTableFilterComposer get faceId {
+    final $$FacesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.faceId,
+      referencedTable: $db.faces,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FacesTableFilterComposer(
+            $db: $db,
+            $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$IdentitySetFacesTableOrderingComposer
+    extends Composer<_$AppDatabase, $IdentitySetFacesTable> {
+  $$IdentitySetFacesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$IdentitySetsTableOrderingComposer get setId {
+    final $$IdentitySetsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.setId,
+      referencedTable: $db.identitySets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentitySetsTableOrderingComposer(
+            $db: $db,
+            $table: $db.identitySets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FacesTableOrderingComposer get faceId {
+    final $$FacesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.faceId,
+      referencedTable: $db.faces,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FacesTableOrderingComposer(
+            $db: $db,
+            $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$IdentitySetFacesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $IdentitySetFacesTable> {
+  $$IdentitySetFacesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$IdentitySetsTableAnnotationComposer get setId {
+    final $$IdentitySetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.setId,
+      referencedTable: $db.identitySets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentitySetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.identitySets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$FacesTableAnnotationComposer get faceId {
+    final $$FacesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.faceId,
+      referencedTable: $db.faces,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FacesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$IdentitySetFacesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $IdentitySetFacesTable,
+          IdentitySetFaceRow,
+          $$IdentitySetFacesTableFilterComposer,
+          $$IdentitySetFacesTableOrderingComposer,
+          $$IdentitySetFacesTableAnnotationComposer,
+          $$IdentitySetFacesTableCreateCompanionBuilder,
+          $$IdentitySetFacesTableUpdateCompanionBuilder,
+          (IdentitySetFaceRow, $$IdentitySetFacesTableReferences),
+          IdentitySetFaceRow,
+          PrefetchHooks Function({bool setId, bool faceId})
+        > {
+  $$IdentitySetFacesTableTableManager(
+    _$AppDatabase db,
+    $IdentitySetFacesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$IdentitySetFacesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$IdentitySetFacesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$IdentitySetFacesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> setId = const Value.absent(),
+                Value<int> faceId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => IdentitySetFacesCompanion(
+                setId: setId,
+                faceId: faceId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int setId,
+                required int faceId,
+                Value<int> rowid = const Value.absent(),
+              }) => IdentitySetFacesCompanion.insert(
+                setId: setId,
+                faceId: faceId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$IdentitySetFacesTable, IdentitySetFaceRow>(
+                    table,
+                  ),
+                  $$IdentitySetFacesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({setId = false, faceId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (setId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.setId,
+                                referencedTable:
+                                    $$IdentitySetFacesTableReferences
+                                        ._setIdTable(db),
+                                referencedColumn:
+                                    $$IdentitySetFacesTableReferences
+                                        ._setIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (faceId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.faceId,
+                                referencedTable:
+                                    $$IdentitySetFacesTableReferences
+                                        ._faceIdTable(db),
+                                referencedColumn:
+                                    $$IdentitySetFacesTableReferences
+                                        ._faceIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$IdentitySetFacesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $IdentitySetFacesTable,
+      IdentitySetFaceRow,
+      $$IdentitySetFacesTableFilterComposer,
+      $$IdentitySetFacesTableOrderingComposer,
+      $$IdentitySetFacesTableAnnotationComposer,
+      $$IdentitySetFacesTableCreateCompanionBuilder,
+      $$IdentitySetFacesTableUpdateCompanionBuilder,
+      (IdentitySetFaceRow, $$IdentitySetFacesTableReferences),
+      IdentitySetFaceRow,
+      PrefetchHooks Function({bool setId, bool faceId})
+    >;
+typedef $$JobEventsTableCreateCompanionBuilder =
+    JobEventsCompanion Function({
+      Value<int> id,
+      required String jobId,
+      required String status,
+      Value<String?> message,
+      required int createdAt,
+    });
+typedef $$JobEventsTableUpdateCompanionBuilder =
+    JobEventsCompanion Function({
+      Value<int> id,
+      Value<String> jobId,
+      Value<String> status,
+      Value<String?> message,
+      Value<int> createdAt,
+    });
+
+final class $$JobEventsTableReferences
+    extends BaseReferences<_$AppDatabase, $JobEventsTable, JobEventRow> {
+  $$JobEventsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $JobsTable _jobIdTable(_$AppDatabase db) =>
+      db.jobs.createAlias('job_events__job_id__jobs__id');
+
+  $$JobsTableProcessedTableManager get jobId {
+    final $_column = $_itemColumn<String>('job_id')!;
+
+    final manager = $$JobsTableTableManager(
+      $_db,
+      $_db.jobs,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_jobIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$JobEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $JobEventsTable> {
+  $$JobEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get message => $composableBuilder(
+    column: $table.message,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$JobsTableFilterComposer get jobId {
+    final $$JobsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.jobId,
+      referencedTable: $db.jobs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JobsTableFilterComposer(
+            $db: $db,
+            $table: $db.jobs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$JobEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $JobEventsTable> {
+  $$JobEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get message => $composableBuilder(
+    column: $table.message,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$JobsTableOrderingComposer get jobId {
+    final $$JobsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.jobId,
+      referencedTable: $db.jobs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JobsTableOrderingComposer(
+            $db: $db,
+            $table: $db.jobs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$JobEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $JobEventsTable> {
+  $$JobEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get message =>
+      $composableBuilder(column: $table.message, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$JobsTableAnnotationComposer get jobId {
+    final $$JobsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.jobId,
+      referencedTable: $db.jobs,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JobsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.jobs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$JobEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $JobEventsTable,
+          JobEventRow,
+          $$JobEventsTableFilterComposer,
+          $$JobEventsTableOrderingComposer,
+          $$JobEventsTableAnnotationComposer,
+          $$JobEventsTableCreateCompanionBuilder,
+          $$JobEventsTableUpdateCompanionBuilder,
+          (JobEventRow, $$JobEventsTableReferences),
+          JobEventRow,
+          PrefetchHooks Function({bool jobId})
+        > {
+  $$JobEventsTableTableManager(_$AppDatabase db, $JobEventsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$JobEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$JobEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$JobEventsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> jobId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> message = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => JobEventsCompanion(
+                id: id,
+                jobId: jobId,
+                status: status,
+                message: message,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String jobId,
+                required String status,
+                Value<String?> message = const Value.absent(),
+                required int createdAt,
+              }) => JobEventsCompanion.insert(
+                id: id,
+                jobId: jobId,
+                status: status,
+                message: message,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$JobEventsTable, JobEventRow>(table),
+                  $$JobEventsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({jobId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (jobId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.jobId,
+                                referencedTable: $$JobEventsTableReferences
+                                    ._jobIdTable(db),
+                                referencedColumn: $$JobEventsTableReferences
+                                    ._jobIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$JobEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $JobEventsTable,
+      JobEventRow,
+      $$JobEventsTableFilterComposer,
+      $$JobEventsTableOrderingComposer,
+      $$JobEventsTableAnnotationComposer,
+      $$JobEventsTableCreateCompanionBuilder,
+      $$JobEventsTableUpdateCompanionBuilder,
+      (JobEventRow, $$JobEventsTableReferences),
+      JobEventRow,
+      PrefetchHooks Function({bool jobId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -20737,4 +23046,10 @@ class $AppDatabaseManager {
       $$DatasetItemsTableTableManager(_db, _db.datasetItems);
   $$LorasTableTableManager get loras =>
       $$LorasTableTableManager(_db, _db.loras);
+  $$IdentitySetsTableTableManager get identitySets =>
+      $$IdentitySetsTableTableManager(_db, _db.identitySets);
+  $$IdentitySetFacesTableTableManager get identitySetFaces =>
+      $$IdentitySetFacesTableTableManager(_db, _db.identitySetFaces);
+  $$JobEventsTableTableManager get jobEvents =>
+      $$JobEventsTableTableManager(_db, _db.jobEvents);
 }

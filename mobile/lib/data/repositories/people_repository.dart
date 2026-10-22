@@ -466,6 +466,9 @@ class PeopleRepository {
         variables: [t, s],
         updates: {_db.faces},
       );
+      await (_db.update(_db.identitySets)
+            ..where((set) => set.personId.equals(sourceId)))
+          .write(IdentitySetsCompanion(personId: Value(targetId)));
       await _db.customUpdate(
         'INSERT OR IGNORE INTO face_rejections (face_id, person_id) SELECT face_id, ? FROM face_rejections WHERE person_id = ?',
         variables: [t, s],

@@ -20,6 +20,12 @@ class StudioRepository {
       (db.select(db.jobs)..where((j) => j.id.equals(id))).watchSingleOrNull();
   Future<JobRow?> job(String id) =>
       (db.select(db.jobs)..where((j) => j.id.equals(id))).getSingleOrNull();
+  Stream<List<JobEventRow>> watchEvents(String id) =>
+      (db.select(db.jobEvents)
+            ..where((e) => e.jobId.equals(id))
+            ..orderBy([(e) => OrderingTerm.desc(e.id)])
+            ..limit(100))
+          .watch();
   Stream<List<ResultRow>> watchResults() => (db.select(
     db.results,
   )..orderBy([(r) => OrderingTerm.desc(r.createdAt)])).watch();
@@ -147,8 +153,42 @@ class StudioRepository {
     }
   }
 
-  Future<void> update(String id, JobsCompanion row) =>
-      (db.update(db.jobs)..where((j) => j.id.equals(id))).write(row);
+  Future<void> update(String id, JobsCompanion row) => db.transaction(() async {
+    final before = await job(id);
+    if (before == null) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await (db.update(db.jobs)..where((j) => j.id.equals(id))).write(
+      row.copyWith(
+        updatedAt: row.updatedAt.present ? row.updatedAt : Value(now),
+      ),
+    );
+    final status = row.status.present ? row.status.value : before.status;
+    final message = row.message.present ? row.message.value : before.message;
+    final error = row.error.present ? row.error.value : before.error;
+    if (status != before.status ||
+        (message != null && message != before.message) ||
+        (error != null && error != before.error)) {
+      final text = error ?? message;
+      await db
+          .into(db.jobEvents)
+          .insert(
+            JobEventsCompanion.insert(
+              jobId: id,
+              status: status,
+              message: Value(
+                text?.substring(0, min(text.length, 512)),
+              ),
+              createdAt: now,
+            ),
+          );
+      await db.customUpdate(
+        'DELETE FROM job_events WHERE job_id = ? AND id NOT IN '
+        '(SELECT id FROM job_events WHERE job_id = ? ORDER BY id DESC LIMIT 100)',
+        variables: [Variable.withString(id), Variable.withString(id)],
+        updates: {db.jobEvents},
+      );
+    }
+  });
 
   Future<void> favourite(ResultRow row) =>
       (db.update(db.results)..where((r) => r.id.equals(row.id))).write(

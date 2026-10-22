@@ -13,13 +13,14 @@ import '../../data/repositories/app_settings.dart';
 /// The phone holds the ONLY copy of the user's library, so a backup must be able to rebuild it
 /// exactly: every person, face, body, photo record, rejection, detection and crop.
 ///
-/// An `.agbackup` file is a plain zip:
+/// The archive inside an `.agbackup` is a ZIP. The UI encrypts this private
+/// temporary archive by default before sharing it using BackupCrypto.
 ///   manifest.json                 format, versions, row counts, sha-256 of every db file
 ///   db/`table`.`n`.jsonl          one JSON object per row (blobs as {"$b64": ...}), 2000 rows per file
 ///   crops/faces/`id`.jpg, crops/bodies/`id`.jpg
 ///
-/// It is NOT encrypted (the database on the phone is): keep it somewhere you trust - see the Backup
-/// screen. It never contains the PC pairing, tokens, results or anything of the PC.
+/// This service reads/writes the inner archive, including saved results, datasets,
+/// identity sets and LoRAs. PC pairing, tokens and active work never travel.
 const backupFormat = 'agbackup';
 const backupFormatVersion = 1;
 const backupExtension = 'agbackup';
@@ -34,6 +35,8 @@ const backupTables = [
   BackupTable('persons'),
   BackupTable('media'),
   BackupTable('faces'),
+  BackupTable('identity_sets'),
+  BackupTable('identity_set_faces'),
   BackupTable('bodies'),
   BackupTable('face_rejections'),
   BackupTable('body_rejections'),
@@ -104,6 +107,7 @@ class BackupService {
   Future<File> export(
     Directory dir, {
     void Function(BackupProgress)? onProgress,
+    bool recordBackup = true,
   }) async {
     await dir.create(recursive: true);
     final now = _clock();
@@ -195,7 +199,7 @@ class BackupService {
       if (await out.exists()) await out.delete();
       rethrow;
     }
-    await _settings.setLastBackupAt(now);
+    if (recordBackup) await _settings.setLastBackupAt(now);
     return out;
   }
 

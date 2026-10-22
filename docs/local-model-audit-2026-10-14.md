@@ -1,5 +1,10 @@
 # Local model audit — 2026-10-14
 
+> Historical audit. Base weights were installed on October 18 and remaining
+> SDXL FP16 weights on October 19. The missing-model list below is superseded.
+> Current context: [Antigravity handoff](ANTIGRAVITY_HANDOFF.md) and
+> [October 19 installation](local-model-installation-2026-10-19.md).
+
 The user requested a search of **all of `D:\AndroidScan`** and prohibited Internet downloads on the current mobile connection. This audit used local filenames, file sizes, bounded safetensors headers, archive directory inspection and restricted tensor loading. It did not modify, move or delete model files. No weight downloads or package installation were performed.
 
 The search enumerated 256,812 files, including hidden files and followed directory links. It covered `Comfy Desktop`, `DeepFaceLab`, `gallary`, `gallaryData` and `generative-models`. Recognized weight extensions were searched even inside environments; files without recognized extensions and partial downloads were also inspected outside package/install directories.

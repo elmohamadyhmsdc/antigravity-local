@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Current continuation context — 2026-10-19
+
+Read [the Antigravity handoff](docs/ANTIGRAVITY_HANDOFF.md) before planning or
+editing. It records current models/environments, uncommitted work, actual
+validation, known failures, phone state and focused checks. All configured shared
+model weights, including SDXL, are installed; SDXL GPU inference remains untested.
+The latest recorded Flutter run passed 373 tests. Earlier reports/descriptions
+below may describe older behaviour; use the handoff and current implementation,
+and update the handoff after material changes.
+
 ## Repository layout
 
 This is a monorepo of five independent, loosely-coupled projects — there is no shared build system, dependency file, or test runner across them. (`mobile/` talks to `the app/` only through the HTTP contract in `the app/mobile_api/contract/`.)
@@ -12,7 +22,7 @@ This is a monorepo of five independent, loosely-coupled projects — there is no
 | `python-services/` | A standalone FastAPI service that re-implements face detection/clustering/swap as an HTTP API. | Runs independently — **not called by `the app/`**; treat as a separate codebase unless asked to wire them together |
 | `DeepFaceLab_NVIDIA_RTX3000_series/` | A vendored, portable DeepFaceLab distribution (third-party tool), driven by numbered `.bat` files. | Not a codebase to edit — a tool the workflow depends on |
 | `RTM WF faceset/` | DeepFaceLab workspace data (aligned face frames) for an in-progress model. | Data, not code |
-| `mobile/` | **Antigravity Mobile** — Flutter (Android) phone app exposing the same features. **All user data lives on the phone**; the PC is a stateless GPU server reached over the same Wi-Fi. | P0/P1 device-verified; P2–P6 implemented, with Studio/Jobs/Results, Reface and Character LoRA. P7 app lock, private viewers and storage manager implemented. GPU acceptance passed for Reface, dataset build, training and generation; Restyle needs complete local weights. Phone acceptance, performance and release signing remain. See the plan and `docs/local-model-audit-2026-10-14.md`. |
+| `mobile/` | **Antigravity Mobile** — Flutter (Android) phone app exposing the same features. **All user data lives on the phone**; the PC is a stateless GPU server reached over the same Wi-Fi. | P0–P7 features implemented; signing configured and partial real-device acceptance passed. Base Restyle and SDXL weights installed. SDXL GPU inference and remaining phone/performance acceptance are outstanding; see `docs/ANTIGRAVITY_HANDOFF.md`. |
 
 Older docs (root `.gitignore`, `the app/.agent/dependencies.md.resolved`) refer to `the app/` by its former folder name, `antigravity-local/`. That folder no longer exists — everything is under `the app/` now.
 
@@ -108,7 +118,7 @@ The server never changes Windows Firewall rules: a phone on the Wi-Fi needs pyth
 
 Studio uses a serial, device-owned queue (`studio_jobs.py`) over the existing Reface engines and the stateless wrappers in `artifact_jobs.py`. Phone schema v5 persists stable requests and private inputs before submission; it verifies result size/SHA-256, imports datasets/models/portraits transactionally, and ACKs the PC only after local commit. SSE supplements polling. Video swaps currently affect every detected face in the trim range. Training resumes from completed epoch state. No uploaded pickle is accepted; generation loads explicitly named local safetensors weights.
 
-On 2026-10-14 the user authorized analysis/tests/APK building without package installation or Python/CUDA changes, and then explicitly prohibited Internet downloads on the current mobile connection. Preserve that session constraint. Both `venv_ai` and `venv_lora` exist and have working CUDA. Restyle model configuration folders alone do not mean the engine is ready; the local audit records reusable and incomplete weights.
+The October 14 Internet-download restriction was later superseded by explicit authorization for base models (October 18) and remaining SDXL weights (October 19); those installations are complete. This does not authorize further downloads or package/Python/CUDA changes. Both `venv_ai` and `venv_lora` exist and have working CUDA. Readiness now lists no missing Restyle models; see the current handoff for the distinction between installed weights and tested inference.
 
 Scan inference is isolated by `mobile_api/scan_worker.py`: local JSON/raw-pixel anonymous-pipe IPC, no executable serialization or stored input photos. `InsightEngines.analyze` uses this persistent worker by default; direct `.load()` remains available for the existing dataset adapters. Worker exit/timeout yields retryable HTTP 503 and the next scan recreates it, preserving server/device controls. Unload/shutdown closes the worker. Mobile face/body loading requires local weights and refuses downloads. `test_mobile_scan_worker.py` checks failure/recovery/serialization; `test_mobile_scan_gpu.py --source <local-photo> [--live]` checks real GPU faces+bodies+pose (live uses an isolated pinned HTTPS server). The controller records exit status and exposes diagnostic logs for failed servers. Android background setup lives in `background_execution.dart` / `features/settings/background_screen.dart`; the main Flutter engine is retained across Activity removal and scan/Studio foreground-service leases are serialized. Current validation is 348 Flutter tests and zero analyzer issues; phone background acceptance still needs a device run.
 

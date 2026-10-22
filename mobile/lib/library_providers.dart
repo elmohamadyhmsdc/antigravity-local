@@ -8,6 +8,7 @@ import 'data/index/index_loader.dart';
 import 'data/media/media_library.dart';
 import 'data/media/thumbnail_service.dart';
 import 'data/platform/foreground_keep_alive.dart';
+import 'data/platform/backup_crypto.dart';
 import 'data/repositories/app_settings.dart';
 import 'data/repositories/library_repository.dart';
 import 'data/repositories/media_queries.dart';
@@ -40,6 +41,9 @@ final appSettingsProvider = Provider<AppSettings>(
 
 final settingsProvider = StreamProvider<SettingsSnapshot>(
   (ref) => ref.watch(appSettingsProvider).watch(),
+);
+final backupCryptoProvider = Provider<BackupCrypto>(
+  (ref) => const AndroidBackupCrypto(),
 );
 
 // ---- the phone's photo library ---------------------------------------------------------
@@ -153,6 +157,7 @@ final scanEngineProvider = Provider<ScanEngine>((ref) {
       settings: ref.watch(appSettingsProvider),
     ),
     describeVideo: (stage, progress) => switch (stage) {
+      'prepare' => _en.videoPreparing((progress * 100).round()),
       'upload' => _en.videoUploading((progress * 100).round()),
       'analyze' => _en.videoAnalyzing((progress * 100).round()),
       'download' => _en.videoDownloading,

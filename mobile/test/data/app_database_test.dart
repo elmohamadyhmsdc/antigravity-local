@@ -361,7 +361,7 @@ void main() {
       await fresh.close();
       final legacy = raw.sqlite3.open(file.path);
       legacy.execute(
-        'DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results;',
+        'DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results;',
       );
       legacy.execute('''
         DROP TABLE review_body_links; DROP TABLE review_duplicates; DROP TABLE review_groups;
@@ -516,7 +516,7 @@ void main() {
       await before.close();
       final legacy = raw.sqlite3.open(file.path);
       legacy.execute(
-        'DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results; PRAGMA user_version = 3;',
+        'DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results; PRAGMA user_version = 3;',
       );
       legacy.close();
       final after = AppDatabase(NativeDatabase(file));
@@ -529,7 +529,37 @@ void main() {
         isEmpty,
       );
     });
-    test('v4 -> v5 preserves Studio jobs and adds artifact tables', () async {
+    test(
+      'v5 upgrade keeps the library and adds identity sets and local job history',
+      () async {
+        final file = File(p.join(dir.path, 'v5.db'));
+        final before = AppDatabase(NativeDatabase(file));
+        final person = await before
+            .into(before.persons)
+            .insert(
+              PersonsCompanion.insert(name: const Value('Sara'), createdAt: 1),
+            );
+        await _addFace(before, personId: person);
+        await before.close();
+        final legacy = raw.sqlite3.open(file.path);
+        legacy.execute(
+          'DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; PRAGMA user_version = 5;',
+        );
+        legacy.close();
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
+        expect((await after.select(after.persons).get()).single.name, 'Sara');
+        expect((await after.select(after.faces).get()).single.personId, person);
+        expect(await after.select(after.identitySets).get(), isEmpty);
+        expect(await after.select(after.identitySetFaces).get(), isEmpty);
+        expect(await after.select(after.jobEvents).get(), isEmpty);
+        expect(
+          await after.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+      },
+    );
+    test('v4 upgrade preserves Studio jobs and adds artifact tables', () async {
       final file = File(p.join(dir.path, 'v4.db'));
       final before = AppDatabase(NativeDatabase(file));
       await before
@@ -551,7 +581,7 @@ void main() {
       await before.close();
       final legacy = raw.sqlite3.open(file.path);
       legacy.execute(
-        'DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; ALTER TABLE jobs DROP COLUMN input_files; ALTER TABLE jobs DROP COLUMN details_json; PRAGMA user_version = 4;',
+        'DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; ALTER TABLE jobs DROP COLUMN input_files; ALTER TABLE jobs DROP COLUMN details_json; PRAGMA user_version = 4;',
       );
       legacy.close();
       final after = AppDatabase(NativeDatabase(file));
