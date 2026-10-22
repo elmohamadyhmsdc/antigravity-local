@@ -267,3 +267,11 @@ At the user's request ("اسم الابليكيشن Your Gallery مش antigravit
 - **Desktop Dashboard & Mobile API**: Updated page title, sidebar brand, mobile bar, and footer in `the app/dashboard.py`; updated instructions and caption in `the app/mobile_devices_page.py`; updated QR hint in `the app/mobile_api/pairing.py`; updated FastAPI title in `the app/mobile_api/app.py`; updated contract title/description in `the app/mobile_api/contract/openapi.yaml`; updated module docstrings and server banner in `the app/mobile_api/__init__.py`, `server.py`, `workspace.py`, `tls.py`, `auth.py`, `discovery.py`, and `the app/README.md`.
 - **Preserved Internals**: Preserved `applicationId "com.antigravity.antigravity_mobile"` to prevent breaking existing phone installations, SQLCipher database keys, or package imports. Preserved internal admin header (`X-Antigravity-Admin`), environment variable (`ANTIGRAVITY_FFMPEG`), and mDNS service type (`_antigravity._tcp.local.`).
 - **State & Verification**: Verified zero remaining user-facing references to "Antigravity" in `mobile/lib/` and `the app/` UI layers. Preserved terminal policy; provided test execution commands to the user. No phone or server state altered.
+
+## Fix: qrcode save() unexpected keyword argument `format` — 2026-10-22
+
+- **Issue**: Static analysis and runtime error `Unexpected keyword argument format in function qrcode.image.pure.PyPNGImage.save` in `the app/mobile_devices_page.py:L35` (and identical pattern in `the app/mobile_api/pair_ui.py:L26`).
+- **Root Cause**: `qrcode.make()` returns a `BaseImage` instance (`PilImage` or `PyPNGImage`). Unlike PIL's raw `Image.save(fp, format="PNG")`, `BaseImage.save(stream, kind=None)` and `PyPNGImage.save(stream, kind=None)` do not accept a `format` keyword argument. Furthermore, `PilImage` already defaults its format to `self.kind = "PNG"`, making `format='PNG'` redundant for PIL and invalid for `PyPNGImage`.
+- **Changes**: Removed `format='PNG'` argument from `.save()` calls in `the app/mobile_devices_page.py` and `the app/mobile_api/pair_ui.py`.
+- **Verification**: Code statically inspects clean; preserved terminal policy to provide the verification command (`python -m unittest test_mobile_dashboard.py`) to the user. No phone or server state altered.
+
