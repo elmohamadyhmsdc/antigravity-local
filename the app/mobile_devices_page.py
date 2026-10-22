@@ -32,7 +32,7 @@ def local_dashboard_session():
 def pairing_qr(payload):
     import qrcode
     output = io.BytesIO()
-    qrcode.make(payload,box_size=8,border=4).save(output,format='PNG')
+    qrcode.make(payload,box_size=8,border=4).save(output)
     return output.getvalue()
 
 

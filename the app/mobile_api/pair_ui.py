@@ -23,7 +23,7 @@ def qr_png_b64(text: str) -> str:
     import qrcode
     img = qrcode.make(text, box_size=8, border=1)
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    img.save(buf)
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
