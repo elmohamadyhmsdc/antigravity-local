@@ -5,11 +5,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/router.dart';
 import '../../data/api/dtos/analyze.dart';
+import '../../data/api/dtos/embedding.dart';
 import '../../data/api/dtos/system.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repositories/studio_repository.dart';
@@ -21,13 +21,8 @@ import '../shared/crop_image.dart';
 import '../shared/person_picker.dart';
 import '../shared/empty_state.dart';
 import '../settings/background_screen.dart';
-
-final studioVideoPickerProvider = Provider<Future<File?> Function()>(
-  (ref) => () async {
-    final picked = await ImagePicker().pickVideo(source: ImageSource.gallery);
-    return picked == null ? null : File(picked.path);
-  },
-);
+import 'reface_media.dart';
+import 'reface_video_trimmer.dart';
 
 class RefaceScreen extends ConsumerStatefulWidget {
   const RefaceScreen({super.key, this.personId});
@@ -53,9 +48,10 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   var _preset = 'natural';
   bool _parser = true, _occluder = true, _busy = false;
   bool _loraIdentity = false;
+  double _identityBoost = .5;
   String? _error;
-  final _start = TextEditingController(text: '0');
-  final _end = TextEditingController();
+  VideoTrimSelection? _videoTrim;
+  int _targetRevision = 0;
 
   @override
   void initState() {
@@ -65,11 +61,18 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _start.dispose();
-    _end.dispose();
-    super.dispose();
+  void _chooseEngine(String value) {
+    setState(() {
+      _engine = value;
+      _restorer = 'auto';
+      _preset = 'natural';
+      _parser = true;
+      if (value == 'v2' && _video != null) {
+        _photo = null;
+        _analysis = null;
+        _targets.clear();
+      }
+    });
   }
 
   Future<void> _loadPerson(int id) async {
@@ -186,7 +189,10 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     }
   }
 
-  Future<void> _pickPhoto() async {
+  Future<void> _pickPhoto({
+    bool asReference = false,
+    Uint8List? selectedBytes,
+  }) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -194,12 +200,16 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     try {
       final api = ref.read(mobileApiProvider);
       if (api == null) return;
-      final bytes = await ref.read(photoPickerProvider).pickPhoto();
+      final bytes =
+          selectedBytes ?? await ref.read(photoPickerProvider).pickPhoto();
       if (bytes == null) return;
       if (mounted) {
         setState(() {
           _photo = bytes;
-          _video = null;
+          if (!asReference) {
+            _video = null;
+            _videoTrim = null;
+          }
           _analysis = null;
           _targets.clear();
         });
@@ -220,16 +230,21 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     }
   }
 
-  Future<void> _pickVideo() async {
+  Future<void> _pickTarget() async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final file = await ref.read(studioVideoPickerProvider)();
-      if (file != null && mounted) {
+      final target = await ref.read(refaceTargetPickerProvider)();
+      if (target == null || !mounted) return;
+      if (target.photo != null) {
+        await _pickPhoto(selectedBytes: target.photo);
+      } else if (target.video != null) {
         setState(() {
-          _video = file;
+          _video = target.video;
+          _videoTrim = null;
+          _targetRevision++;
           _photo = null;
           _analysis = null;
           _targets.clear();
@@ -256,19 +271,15 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       } else if (_video == null && _targets.isEmpty) {
         error = l10n.selectFaceRequired;
       } else if (_video != null) {
-        final start = double.tryParse(_start.text.trim());
-        final end = _end.text.trim().isEmpty
-            ? null
-            : double.tryParse(_end.text.trim());
-        if (start == null ||
-            !start.isFinite ||
-            start < 0 ||
-            start > 86400 ||
-            (_end.text.trim().isNotEmpty &&
-                (end == null ||
-                    !end.isFinite ||
-                    end <= start ||
-                    end > 86400))) {
+        if (_analysis != null && (_targets.isEmpty || _engine == 'v2')) {
+          error = l10n.selectFaceRequired;
+        }
+        final trim = _videoTrim;
+        if (trim == null) {
+          error = l10n.refaceTrimLoading;
+        } else if (trim.startSeconds < 0 ||
+            trim.endSeconds <= trim.startSeconds ||
+            trim.endSeconds > 86400) {
           error = l10n.invalidTrimRange;
         }
       }
@@ -282,7 +293,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     return error == null;
   }
 
-  Future<void> _submit(Capabilities caps) async {
+  Future<void> _submit(Capabilities caps, {bool preview = false}) async {
     await prepareBackgroundForWork(context, ref);
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
@@ -336,25 +347,40 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           source.addAll(
             (identity['faces'] as List)
                 .take(40)
-                .map((e) => Map<String, dynamic>.from(e as Map)),
+                .map(
+                  (e) => <String, dynamic>{
+                    ...Map<String, dynamic>.from(e as Map),
+                    'generated': true,
+                  },
+                ),
           );
         }
       }
       final params = <String, dynamic>{
         'source_faces': source,
         'model_id': caps.embeddingModelId,
-        'restorer': _restorer,
-        'use_parser': _parser,
+        if (_engine != 'dfm') 'restorer': _restorer,
+        if (_engine != 'v2') 'use_parser': _parser,
         'use_occluder': _occluder,
-        'realism_preset': _preset,
+        if (_engine != 'v2') 'realism_preset': _preset,
+        if (_engine == 'v3') 'identity_boost': _identityBoost,
+        'preview': preview,
         if (_engine == 'dfm') 'dfm_model': _dfm,
         if (_video == null)
           'target_faces': [
             for (final i in _targets) _analysis!.faces[i].bbox.toJson(),
           ],
-        if (_video != null) 'start_time': double.parse(_start.text.trim()),
-        if (_video != null && _end.text.trim().isNotEmpty)
-          'end_time': double.parse(_end.text.trim()),
+        if (_video != null && _analysis != null) ...{
+          'target_embeddings': [
+            for (final face in _analysis!.faces)
+              encodeEmbedding(face.embedding),
+          ],
+          'target_indices': _targets.toList()..sort(),
+        },
+        if (_video != null) ...{
+          'start_time': _videoTrim!.startSeconds,
+          'end_time': _videoTrim!.endSeconds,
+        },
       };
       final id = await ref
           .read(studioRepositoryProvider)
@@ -367,7 +393,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
             personId: _person,
           );
       ref.read(jobTrackerProvider).start();
-      if (mounted) context.pushReplacement('${Routes.jobs}/$id');
+      if (mounted) {
+        if (preview) {
+          await context.push('${Routes.jobs}/$id');
+        } else {
+          context.pushReplacement('${Routes.jobs}/$id');
+        }
+      }
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
@@ -463,23 +495,11 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (caps == null) Text(l10n.studioNeedsPc),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton(
-                            key: const Key('reface-photo'),
-                            onPressed: _busy || caps == null
-                                ? null
-                                : _pickPhoto,
-                            child: Text(l10n.chooseTargetPhoto),
-                          ),
-                          OutlinedButton(
-                            key: const Key('reface-video'),
-                            onPressed: _busy ? null : _pickVideo,
-                            child: Text(l10n.chooseTargetVideo),
-                          ),
-                        ],
+                      OutlinedButton.icon(
+                        key: const Key('reface-target'),
+                        onPressed: _busy || caps == null ? null : _pickTarget,
+                        icon: const Icon(Icons.perm_media_outlined),
+                        label: Text(l10n.chooseTargetMedia),
                       ),
                       if (_photo != null && _analysis != null) ...[
                         const SizedBox(height: 12),
@@ -553,25 +573,38 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                       ],
                       if (_video != null) ...[
                         Text(_video!.uri.pathSegments.last),
-                        Text(l10n.videoSwapsAllFaces),
-                        TextField(
-                          controller: _start,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: l10n.videoTrimStart,
-                          ),
+                        const SizedBox(height: 12),
+                        RefaceVideoTrimmer(
+                          key: ValueKey('reface-trimmer-$_targetRevision'),
+                          file: _video!,
+                          active: _step == 0,
+                          enabled: !_busy,
+                          onChanged: (trim) {
+                            if (mounted) setState(() => _videoTrim = trim);
+                          },
                         ),
-                        TextField(
-                          controller: _end,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
+                        if (_analysis == null) Text(l10n.videoSwapsAllFaces),
+                        if (_engine != 'v2') ...[
+                          OutlinedButton(
+                            key: const Key('reface-reference'),
+                            onPressed: _busy || caps == null
+                                ? null
+                                : () => _pickPhoto(asReference: true),
+                            child: Text(l10n.refaceReference),
                           ),
-                          decoration: InputDecoration(
-                            labelText: l10n.videoTrimEnd,
-                          ),
-                        ),
+                          Text(l10n.refaceReferenceHint),
+                          if (_analysis != null)
+                            TextButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => setState(() {
+                                      _photo = null;
+                                      _analysis = null;
+                                      _targets.clear();
+                                    }),
+                              child: Text(l10n.refaceAllVideoFaces),
+                            ),
+                        ],
                       ],
                     ],
                   ),
@@ -602,7 +635,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                 ),
                               ),
                           ],
-                          onChanged: (v) => setState(() => _engine = v!),
+                          onChanged: (v) => _chooseEngine(v!),
                         ),
                       OutlinedButton(
                         key: const Key('reface-person'),
@@ -714,6 +747,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                       if (available.isEmpty) Text(l10n.studioNoEngine),
                       if (available.isNotEmpty)
                         DropdownButtonFormField<String>(
+                          key: ValueKey('quality-engine-$_engine'),
                           initialValue: _engine,
                           decoration: InputDecoration(
                             labelText: l10n.refaceEngine,
@@ -731,7 +765,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                 ),
                               ),
                           ],
-                          onChanged: (v) => setState(() => _engine = v!),
+                          onChanged: (v) => _chooseEngine(v!),
                         ),
                       if (_engine == 'dfm' && caps != null)
                         DropdownButtonFormField<String>(
@@ -743,52 +777,74 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                           ],
                           onChanged: (v) => setState(() => _dfm = v),
                         ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _restorer,
-                        decoration: InputDecoration(
-                          labelText: l10n.refaceRestorer,
+                      if (_engine != 'dfm')
+                        DropdownButtonFormField<String>(
+                          key: ValueKey('restorer-$_engine'),
+                          initialValue: _restorer,
+                          decoration: InputDecoration(
+                            labelText: l10n.refaceRestorer,
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                              value: 'auto',
+                              child: Text(l10n.restorerAuto),
+                            ),
+                            DropdownMenuItem(
+                              value: 'none',
+                              child: Text(l10n.restorerNone),
+                            ),
+                            for (final r
+                                in _engine == 'v3'
+                                    ? caps?.restorers ?? <String>[]
+                                    : <String>[])
+                              DropdownMenuItem(value: r, child: Text(r)),
+                          ],
+                          onChanged: (v) => setState(() => _restorer = v!),
                         ),
-                        items: [
-                          DropdownMenuItem(
-                            value: 'auto',
-                            child: Text(l10n.restorerAuto),
+                      if (_engine != 'v2')
+                        DropdownButtonFormField<String>(
+                          initialValue: _preset,
+                          decoration: InputDecoration(
+                            labelText: l10n.refacePreset,
                           ),
-                          DropdownMenuItem(
-                            value: 'none',
-                            child: Text(l10n.restorerNone),
-                          ),
-                          for (final r in caps?.restorers ?? <String>[])
-                            DropdownMenuItem(value: r, child: Text(r)),
-                        ],
-                        onChanged: (v) => setState(() => _restorer = v!),
-                      ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _preset,
-                        decoration: InputDecoration(
-                          labelText: l10n.refacePreset,
+                          items: [
+                            DropdownMenuItem(
+                              value: 'natural',
+                              child: Text(l10n.presetNatural),
+                            ),
+                            DropdownMenuItem(
+                              value: 'maximum_detail',
+                              child: Text(l10n.presetDetail),
+                            ),
+                            DropdownMenuItem(
+                              value: 'clean',
+                              child: Text(l10n.presetClean),
+                            ),
+                          ],
+                          onChanged: (v) => setState(() => _preset = v!),
                         ),
-                        items: [
-                          DropdownMenuItem(
-                            value: 'natural',
-                            child: Text(l10n.presetNatural),
-                          ),
-                          DropdownMenuItem(
-                            value: 'maximum_detail',
-                            child: Text(l10n.presetDetail),
-                          ),
-                          DropdownMenuItem(
-                            value: 'clean',
-                            child: Text(l10n.presetClean),
-                          ),
-                        ],
-                        onChanged: (v) => setState(() => _preset = v!),
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(l10n.useFaceParser),
-                        value: _parser,
-                        onChanged: (v) => setState(() => _parser = v),
-                      ),
+                      if (_engine != 'v2')
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(l10n.useFaceParser),
+                          value: _parser,
+                          onChanged: (v) => setState(() => _parser = v),
+                        ),
+                      if (_engine == 'v3') ...[
+                        Text(l10n.refaceIdentityBoost),
+                        Slider(
+                          key: const Key('reface-identity-boost'),
+                          value: _identityBoost,
+                          min: 0,
+                          max: 1,
+                          divisions: 20,
+                          label: _identityBoost.toStringAsFixed(2),
+                          onChanged: (value) =>
+                              setState(() => _identityBoost = value),
+                        ),
+                      ],
+                      if (_engine == 'v2') Text(l10n.refaceLegacyHint),
+                      if (_engine == 'dfm') Text(l10n.refaceDfmHint),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(l10n.protectOcclusions),
@@ -813,6 +869,19 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                         ),
                       const SizedBox(height: 12),
                       Text(l10n.refaceReviewHint),
+                      if (_videoTrim case final trim?)
+                        Text(
+                          '${l10n.refaceTrimStart}: ${trimTime(trim.start)} · ${l10n.refaceTrimEnd}: ${trimTime(trim.end)}',
+                        ),
+                      const SizedBox(height: 12),
+                      Text(l10n.refacePreviewHint),
+                      OutlinedButton(
+                        key: const Key('reface-preview'),
+                        onPressed: _busy || caps == null
+                            ? null
+                            : () => _submit(caps, preview: true),
+                        child: Text(l10n.refacePreview),
+                      ),
                     ],
                   ),
                 ),

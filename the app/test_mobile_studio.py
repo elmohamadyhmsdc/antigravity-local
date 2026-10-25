@@ -81,6 +81,7 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/v1/jobs/{id}/result/input.target", headers=self.headers).status_code, 404)
         self.assertEqual(self.client.delete(f"/v1/jobs/{id}", headers=self.headers).status_code, 204)
         self.assertFalse(self.ctx.workspace.job_dir(id).exists())
+        self.assertFalse(self.ctx.workspace.has_blob(self.sha))
 
 
     def test_real_adapter_uses_embedding_sources_and_bbox_selection(self):
@@ -108,11 +109,12 @@ class StudioTests(unittest.TestCase):
             face_data = lambda path, embedding, pose, bbox, quality: SimpleNamespace(embedding=embedding, quality=quality, pose=pose)
             modules = {'reface_engine': SimpleNamespace(Faceset=Faceset, FaceData=face_data),
                        'reface_engine_v3': SimpleNamespace(RefaceEngineV3=Engine)}
-            job = {'type': 'reface_image_v3', 'params': {'source_faces': [{'embedding': encode_embedding(unit(9)), 'quality': .8}],
+            job = {'type': 'reface_image_v3', 'params': {'source_faces': [{'embedding': encode_embedding(unit(9)), 'quality': .8, 'generated': True}],
                    'target_faces': [dict(x=0, y=0, w=20, h=20)]}}
             with patch.dict('sys.modules', modules):
-                self.assertEqual(run_reface(job, directory, lambda *a, **k: None, lambda: False), {'faces_swapped': 1})
+                self.assertEqual(run_reface(job, directory, lambda *a, **k: None, lambda: False), {'faces_swapped': 1, 'preview': False})
             self.assertEqual(seen['selected'], [1])
+            self.assertEqual(seen['faces'][0].generated, job['params']['source_faces'][0].get('generated', False))
             np.testing.assert_allclose(seen['faces'][0].embedding, unit(9))
             self.assertIsNone(seen['config']['restorer'])  # use the engine's evaluated default
             self.assertTrue((directory / 'result.png').exists())
@@ -142,7 +144,7 @@ class StudioTests(unittest.TestCase):
                     kwargs['progress_callback'](3, 6 - base)
                     path = directory / f'part-{base}.mp4'
                     path.write_bytes(b'part')
-                    return SimpleNamespace(success=True, output_path=str(path), message='Rendered')
+                    return SimpleNamespace(success=True, output_path=str(path), message='Rendered', faces_swapped=1)
 
             modules = {'reface_engine': SimpleNamespace(Faceset=Faceset, FaceData=lambda *args: None),
                        'reface_engine_v3': SimpleNamespace(RefaceEngineV3=Engine)}
@@ -151,7 +153,7 @@ class StudioTests(unittest.TestCase):
                 Path(command[-1]).write_bytes(b'joined-parts')
                 return SimpleNamespace(returncode=0)
             with patch.dict('sys.modules', modules), patch('mobile_api.reface_runner.cv2.VideoCapture', return_value=Capture()), \
-                    patch('mobile_api.reface_runner.subprocess.run', side_effect=concatenate), patch('ffmpeg_utils.mux_audio', return_value=True):
+                    patch('mobile_api.reface_runner.subprocess.run', side_effect=concatenate), patch('ffmpeg_utils.mux_audio', return_value=True), patch('reface_video_io.validate_video'):
                 self.assertIsNone(run_reface(job, directory, lambda *a, **k: None, stopped.is_set))
                 self.assertEqual(job['_frames_done'], 3)
                 stopped.clear()
@@ -185,7 +187,7 @@ class StudioTests(unittest.TestCase):
                 out.release();return SimpleNamespace(returncode=0)
             modules={'reface_engine':SimpleNamespace(Faceset=Faceset,FaceData=lambda *args:None),
                      'reface_engine_v3':SimpleNamespace(RefaceEngineV3=None),
-                     'reface_engine_v2':SimpleNamespace(RefaceEngineV2=Legacy)}
+                     'reface_engine_v2':SimpleNamespace(RefaceEngineV2=Legacy, EnhancementConfig=lambda **k:k, OcclusionConfig=lambda **k:k)}
             job={'type':'reface_video_v2','params':{'source_faces':[]}}
             with patch.dict('sys.modules',modules),patch('mobile_api.reface_runner.subprocess.run',side_effect=encode),patch('ffmpeg_utils.mux_audio',return_value=True):
                 meta=run_reface(job,directory,lambda *a,**k:None,lambda:False)
@@ -255,6 +257,84 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(missing.status_code, 409)
         self.assertEqual(missing.json()["missing"], ["a" * 64])
 
+    def test_video_reference_selection_validation(self):
+        from mobile_api.studio_jobs import validate_reface
+        from mobile_api.errors import ApiError
+        caps = self.ctx.probe.snapshot()
+        body = {**self.body, "type": "reface_video_v3", "params": {**self.body["params"],
+                "target_embeddings": [encode_embedding(unit(1)), encode_embedding(unit(2))], "target_indices": [0]}}
+        validate_reface(body, caps)
+        for change in ({"target_indices": []}, {"target_indices": [True]}, {"target_indices": [2]},
+                       {"target_indices": [0,0]}, {"target_embeddings": ["invalid"]},
+                       {"target_embeddings": [encode_embedding(np.full(512, np.nan))]}, {"preview": "yes"}):
+            with self.assertRaises(ApiError):
+                validate_reface({**body, "params": {**body["params"], **change}}, caps)
+        with self.assertRaises(ApiError):
+            validate_reface({**body, "type": "reface_video_v2"}, caps)
+
+    def test_legacy_rejects_unsupported_quality_options(self):
+        from mobile_api.studio_jobs import validate_reface
+        from mobile_api.errors import ApiError
+        body = {**self.body, "type": "reface_image_v2"}
+        for change in ({"restorer": "codeformer"}, {"realism_preset": "clean"}, {"use_parser": False}):
+            with self.assertRaises(ApiError):
+                validate_reface({**body, "params": {**body["params"], **change}}, self.ctx.probe.snapshot())
+        validate_reface({**body, "params": {**body["params"], "restorer": "none", "use_occluder": False}}, self.ctx.probe.snapshot())
+
+    def test_preview_video_passes_reference_selection_and_limits_duration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            seen = {}
+            class Faceset:
+                def __init__(self, name): self.faces = []
+                def add_face(self, face): self.faces.append(face)
+            class Capture:
+                def get(self, key): return 10 if key == cv2.CAP_PROP_FPS else 200
+                def release(self): pass
+            class Engine:
+                def __init__(self, **kwargs): pass
+                def reface_video_v3(self, target, faceset, **kwargs):
+                    seen.update(kwargs)
+                    kwargs['progress_callback'](30,30)
+                    output = directory/'part.mp4'
+                    output.write_bytes(b'part')
+                    return SimpleNamespace(success=True,output_path=str(output),faces_swapped=2)
+            modules = {'reface_engine': SimpleNamespace(Faceset=Faceset, FaceData=lambda *a:None),
+                       'reface_engine_v3': SimpleNamespace(RefaceEngineV3=Engine)}
+            job = {'type':'reface_video_v3','params':{'source_faces':[],'preview':True,'start_time':2,
+                   'target_embeddings':[encode_embedding(unit(1))],'target_indices':[0]}}
+            with patch.dict('sys.modules',modules), patch('mobile_api.reface_runner.cv2.VideoCapture',return_value=Capture()), \
+                 patch('reface_video_io.validate_video'), patch('ffmpeg_utils.mux_audio',return_value=True):
+                meta = run_reface(job,directory,lambda *a,**k:None,lambda:False)
+            self.assertEqual(seen['start_time'],2)
+            self.assertEqual(seen['end_time'],5)
+            self.assertEqual(seen['target_face_indices'],[0])
+            np.testing.assert_allclose(seen['target_face_embeddings'][0],unit(1))
+            self.assertTrue(meta['preview'])
+            self.assertEqual(meta['frames_done'],30)
+            self.assertNotIn('end_time',job['params'])
+
+    def test_legacy_disable_controls_reach_engine(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            seen = {}
+            class Faceset:
+                def __init__(self, name): self.faces = []
+            class Engine:
+                def __init__(self, **kwargs): seen.update(kwargs)
+                def reface_with_faceset_v2(self,*args):
+                    output = directory/'legacy.png'
+                    cv2.imwrite(str(output),np.ones((8,8,3),np.uint8))
+                    return SimpleNamespace(success=True,output_path=str(output),faces_swapped=1)
+            modules = {'reface_engine':SimpleNamespace(Faceset=Faceset,FaceData=lambda *a:None),
+                       'reface_engine_v3':SimpleNamespace(RefaceEngineV3=None),
+                       'reface_engine_v2':SimpleNamespace(RefaceEngineV2=Engine,
+                           EnhancementConfig=lambda **k:k,OcclusionConfig=lambda **k:k)}
+            job={'type':'reface_image_v2','params':{'source_faces':[],'restorer':'none','use_occluder':False}}
+            with patch.dict('sys.modules',modules): run_reface(job,directory,lambda *a,**k:None,lambda:False)
+            self.assertEqual(seen['enhancement_config']['enhancer_type'],'none')
+            self.assertFalse(seen['occlusion_config']['enabled'])
+
     def test_bbox_matching_is_one_to_one_and_order_independent(self):
         a, b = FakeFace((0, 0, 20, 20), unit(1)), FakeFace((40, 40, 60, 60), unit(2))
         boxes = [dict(x=0, y=0, w=20, h=20)]
@@ -263,6 +343,8 @@ class StudioTests(unittest.TestCase):
             match_boxes(boxes * 2, [a])
         with self.assertRaises(ValueError):
             match_boxes(boxes, [b])
+        with self.assertRaises(ValueError):
+            match_boxes(boxes, [a, FakeFace((0, 0, 20, 20), unit(3))])
 
     def test_failure_is_reported_and_expiry_purges_private_workspace(self):
         def fail(*args):

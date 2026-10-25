@@ -14,6 +14,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <!-- Android TV compatibility: touchscreen not required, leanback optional -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+    <uses-feature android:name="android.software.leanback" android:required="false"/>
 
     <!-- The library (faces of real people) never leaves the phone through Android backups either:
          allowBackup=false, and the extraction rules exclude every domain from cloud backup and device transfer. -->
@@ -46,6 +49,11 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Enables app icon on Android TV launcher -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
             </intent-filter>
             <!-- agmobile://pair?h=..&p=..&fp=..&c=.. - the link next to the QR on the PC's pairing page.
                  The app never pairs from it silently: it shows the address and asks (welcome_screen.dart). -->

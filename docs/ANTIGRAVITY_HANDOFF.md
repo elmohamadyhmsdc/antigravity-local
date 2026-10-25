@@ -125,9 +125,10 @@ jobs/results; Reface; base Restyle; Character LoRA datasets/training/generation;
 named identity sets; bounded job history/ETA; encrypted backups; app lock/private
 viewers; connectivity recovery; private release signing.
 
-- Latest recorded Flutter run: **373 tests passed**, analyzer clean, after the
-  phone hashing fix. Evidence: `mobile/build/device-fix-tests.log`, device report.
-  Earlier 348/370 counts are historical.
+- Latest recorded Flutter run: **395 tests passed**, analyzer clean, after the
+  Reface picker/trimmer, temporary-file cleanup and transfer improvements.
+  Evidence: `mobile/build/reface-transfer-final-{tests,analyze}.log`. Earlier
+  348/370/373/377 counts and phone hashing/device reports are historical.
 - October 18 completion: 44 server unittest cases, API contract 28/28,
   statelessness 5/5, OpenAPI/fixtures validation, native crypto and independent
   verification passed. See `mobile/build/completion-*.log` and completion report.
@@ -179,11 +180,12 @@ Outstanding acceptance/work; choose the user's requested task:
 - Phone Reface/LoRA job round trips beyond previously opened forms.
 - Restore using a disposable library. No destructive real-library restore was
   attempted; back up before any explicitly requested real-library replacement.
-- Per-person video tracking and arbitrary-step training resume are future engine
-  work. Current video Reface swaps all detected faces; training resumes at epochs.
+- V3/DFM video Reface supports per-person reference selection and identity-aware
+  tracking (October 25). Legacy video still swaps all detected faces. Arbitrary-step
+  training resume remains future work; training currently resumes at epochs.
 
 Latest documented APKs: `mobile/build/app/outputs/flutter-apk/app-release.apk`
-(98,903,598 bytes) and `app-debug.apk` (225,517,671 bytes). Check current files
+(98,903,598 bytes, historical) and `app-debug.apk` (225,544,259 bytes, October 25). Check current files
 before relying on historical sizes. Release uses a private RSA-3072 key and
 cannot update the differently signed installed Debug app. Do not uninstall to
 solve that mismatch or lose the library. No Release installation occurred.
@@ -275,3 +277,37 @@ At the user's request ("اسم الابليكيشن Your Gallery مش antigravit
 - **Changes**: Removed `format='PNG'` argument from `.save()` calls in `the app/mobile_devices_page.py` and `the app/mobile_api/pair_ui.py`.
 - **Verification**: Code statically inspects clean; preserved terminal policy to provide the verification command (`python -m unittest test_mobile_dashboard.py`) to the user. No phone or server state altered.
 
+## Android TV Support & Network ADB Installation — 2026-10-22
+
+- **Request**: Install the TV version on the TV connected to the local network ("اعمل انستول لفيجن التي في على التليفزيون اللي متوصل معانا في النتورك").
+- **Changes**:
+  - Configured Android TV compatibility in `mobile/android/app/src/main/AndroidManifest.xml`:
+    - Added `<uses-feature android:name="android.hardware.touchscreen" android:required="false"/>` and `<uses-feature android:name="android.software.leanback" android:required="false"/>` so Android TV does not reject the application due to missing touch input hardware.
+    - Added `<category android:name="android.intent.category.LEANBACK_LAUNCHER"/>` intent filter to `MainActivity` so the app is recognized by the Android TV Leanback launcher and shows up on the TV home screen.
+- **Terminal Policy & Verification**: Preserved terminal policy; provided exact step-by-step ADB network connection and installation commands (`adb connect <TV_IP>:5555` and `adb install`) for the user to run. No phone, server, or TV state altered.
+
+
+
+## Reface correctness, previews and identity improvements — 2026-10-25
+
+- User requested all fixes/improvements from the Reface review. Implemented the seven findings: encoder failure/timeout and decode checks; identity-aware assignment and per-frame selection; current-frame occlusion protection; safe local full-frame compatibility; actual per-face outcomes; engine-specific phone controls. Added shared robust identity filtering, bounded generated-portrait influence, desktop/phone previews, reference-photo selection for V3/DFM phone video, effective quality reports, and stronger evaluation coverage/scenario splits.
+- New shared helpers: the app/reface_tracking.py and reface_video_io.py. New regression scripts: test_reface_quality.py and opt-in test_reface_gpu_acceptance.py. Shared ffmpeg_utils concat lists accept exact part durations; this fixes fractional-rate drift in short MP4 segments. Contract/fixture/localizations and affected Flutter tests were updated.
+- Actual verification: Flutter **377 tests passed**, analyzer **no issues**. Python: correctness **22/22**, compositor **52/52**, legacy **41/41**, identity builder **7/7**, desktop LoRA identity/persistence **7/7**, Studio **13/13**, API contract **28/28**, statelessness **5/5**; OpenAPI + **30 fixtures**/negative cases passed, changed Python modules compiled. Real CUDA image API round trip passed; a two-person PNG changed only the selected person, and a 3+6 frame pause/resume video joined to **9 frames at 29.97002997 fps**.
+- Important: phone V3/DFM video can now select people using reference embeddings/indices; older statements that all video Reface always swaps every face are superseded for those engines. Legacy video still swaps all faces. Preview renders up to three seconds. Resumed V3 segments warm up preceding frames to restore temporal state.
+- Evidence, usage, changed behaviour and limits: [Reface implementation report](reface-improvements-2026-10-25.md). Logs: mobile/build/reface-*.log; GPU report: mobile/build/reface-acceptance/gpu-report.json. Initial sandbox access failures were resolved with local temp paths/runtime access before reporting passes.
+- No downloads, dependency/CUDA changes, phone/server deployment or real library/queue mutations. Existing unrelated handoff/Android TV manifest edits were preserved. Broad visual A/B evaluation, long-video/phone acceptance, LoRA inpainting refinement and new identity-specific DFM training remain unverified/separate model experiments. Previously recorded Restyle failures remain recorded.
+
+- Final Android verification for this change: Gradle **offline assembleDebug succeeded** in 2m 11s. Updated Debug APK: mobile/build/app/outputs/flutter-apk/app-debug.apk (**225,524,452 bytes**), also at build/app/outputs/apk/debug/app-debug.apk. Log: mobile/build/reface-debug-build.log. No device installation was performed.
+
+## Reface mobile selection, stateless cleanup and Wi-Fi transfer performance — 2026-10-25
+
+- User requested verification from a fresh phone/empty server with no personal payload retained after return, then one photo/video target picker, visible video range selection and faster transfers on the same Wi-Fi. Previously authorized tests/checks were run using existing environments. The user did not supply an identity for custom LoRA/DFM experiments; no identity-specific training or new model download was attempted.
+- Phone UI: reface_media.dart uses the existing combined system picker and detects the selected type. reface_video_trimmer.dart shows video, range handles, readable times, playback and one-second boundary nudges. RefaceScreen submits the selected range automatically; raw seconds fields are gone. Six focused regressions cover selection/dragging/seeking/playback on a narrow viewport. Native phone picker/codec acceptance remains untested this session.
+- Server retention: Workspace registers pinned job input hashes, removes input-cache blobs only after their last registered job is deleted, and fails ACK on deletion errors so cleanup retries safely. Studio/video managers register references and release personal request/detail state on deletion. ScratchJanitor expires abandoned uploads/partials after six hours and inactive jobs after 24 hours, sweeps every 60 seconds without polling and protects active jobs. Startup wipes ephemeral workspace files. Multipart analysis files close before inference; ordinary API access logging is disabled. TLS/device pairing and generic model weights persist.
+- Phone cleanup: JobTracker retains completed results/pending ACK on cleanup errors and closes SSE safely. StudioRepository preserves cleanup when local outputs are deleted. A completed result is never re-downloaded just because ACK failed.
+- Transfers: binary upload streams use zero-copy 256 KiB views instead of Dio's copied 1 KiB blocks, preserving 4 MiB resumable requests. ResultFileResponse reads 1 MiB blocks and keeps authenticated byte ranges/no-store. The phone batches disk writes, resumes partial Studio downloads, safely handles ignored/invalid ranges and preserves auth/retry errors. TCP_NODELAY is set on pinned connections. Original media bytes/quality and SHA-256/commit-before-ACK are preserved.
+- Measured, three-run median with identical synthetic 32 MiB transfers over real pinned HTTPS **on desktop loopback**: upload 0.878141 → 0.682083 seconds (**22.3% less time**); download 0.919255 → 0.795932 seconds (**13.4% less time**). These are not phone/Wi-Fi throughput measurements. Benchmark: mobile/tools/transfer_benchmark_test.dart; logs mobile/build/transfer-{baseline,optimized}.log. Selected video ranges still upload the full source video before server-side trimming.
+- Actual final checks: **395 Flutter tests passed**, analyzer **no issues**; server Studio 13 + video 9 + retention 6 = **28 passed**; stateless database/data isolation **5/5**; OpenAPI + 30 fixtures/negative cases passed; changed Python modules compiled. The real Flutter HTTPS/GPU test was repeated after transfer changes: verified local commit followed by ACK left **zero server payload files**. Logs: mobile/build/reface-transfer-final-{tests,analyze}.log, transfer-server-tests.log, stateless-transfer-live-gpu.log and transfer-stateless-isolation.log.
+- The new network tests include abrupt TLS interruption, persisted partial resume, full binary integrity, range fallbacks, invalid ranges and HTTP auth/retry errors. Early disconnect simulation errors were test-fixture misuse of HTTP socket detachment; corrected to a deliberately truncated raw response. Initial analyzer findings were fixed; no findings were suppressed. Previously recorded unrelated Restyle failures remain unmodified/unrerun.
+- Reports: [stateless workflow and target UI](mobile-stateless-workflow-2026-10-25.md), [transfer changes/measurements](mobile-transfer-performance-2026-10-25.md). No physical device was attached, no installation/deployment occurred, and the user's library/paused scan/checkpoints and unrelated Android TV manifest edits were preserved. Isolated test servers shut down; no user server was stopped or restarted.
+- Final offline Debug APK build succeeded in **1m 26s** (498 tasks; 26 executed). Both mobile/build/app/outputs/flutter-apk/app-debug.apk and mobile/build/app/outputs/apk/debug/app-debug.apk are **225,544,259 bytes**, SHA-256 **353497f1806b848e85a83384a590f9573065148f5999dde29d9d098cf4888446**. Log: mobile/build/reface-transfer-debug-build.log. It has not been installed. Apply both the updated APK and backend code for all transfer/retention improvements to take effect; no running user server was restarted during this task.

@@ -39,6 +39,7 @@ Iterable<String> embeddingsIn(Object? node, [String? key]) sync* {
     }
   } else if (node is String &&
       (key == 'embedding' ||
+          key == 'target_embeddings' ||
           key == 'proto' ||
           key == 'weak_face_embedding' ||
           key == 'members')) {

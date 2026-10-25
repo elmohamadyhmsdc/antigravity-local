@@ -240,7 +240,7 @@ paths:
               schema: { $ref: "#/components/schemas/JobStatus" }
         "404": { $ref: "#/components/responses/Error" }
     delete:
-      summary: ACK the results and purge the job directory
+      summary: ACK the results and purge job files and unshared input cache copies
       responses:
         "204": { description: Purged }
 
@@ -752,6 +752,7 @@ components:
       properties:
         embedding: { $ref: "#/components/schemas/Embedding" }
         quality: { type: number }
+        generated: { type: boolean, default: false, description: "Generated portraits have a bounded contribution when real identity faces are available." }
         pose:
           oneOf:
             - { $ref: "#/components/schemas/Pose" }
@@ -763,9 +764,11 @@ components:
         reface_image_* / reface_video_*. Inputs: `target` (image or video blob).
         `target_faces` are matched to detections by IoU on the server (indices
         are not stable across runs). `dfm_model` is required for *_dfm and then
-        `source_faces` may be empty. P4 target-face selection is photo-only:
-        videos swap all detected faces in the trim range. Empty target_faces
-        is invalid; omit it to swap all faces. P4 rejects unknown options.
+        `source_faces` may be empty. Photo selections use boxes. V3/DFM video
+        selections use `target_embeddings` from a reference photo and nonempty
+        `target_indices`. Omit selection to swap all faces. Empty selections
+        are invalid. Preview videos render at most three seconds of the trim range.
+        Legacy supports automatic/disabled enhancement and its occlusion option.
       required: [source_faces]
       properties:
         source_faces:
@@ -778,6 +781,19 @@ components:
           description: Boxes (pixels of the target image/first frame) to swap; omit for all faces
           items: { $ref: "#/components/schemas/BBox" }
         restorer: { type: string, default: auto, description: "auto uses the V3 engine's evaluated default; none disables restoration." }
+        target_embeddings:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items: { $ref: "#/components/schemas/Embedding" }
+        target_indices:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: integer, minimum: 0, maximum: 31 }
+        preview: { type: boolean, default: false }
+        identity_boost: { type: number, minimum: 0, maximum: 1, default: 0.5 }
+        swapper: { type: string, enum: [auto, inswapper_128, hyperswap_1b_256, hyperswap_1c_256], default: auto }
         restorer_weight: { type: number, default: 0.5 }
         use_parser: { type: boolean, default: true }
         use_occluder: { type: boolean, default: true }

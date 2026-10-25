@@ -21,6 +21,8 @@ Why this is sharper/more stable than V1/V2:
 import os
 import sys
 import subprocess
+import tempfile
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from fractions import Fraction
 from pathlib import Path
 from typing import List, Optional, Sequence
@@ -30,10 +32,12 @@ import cv2
 import numpy as np
 
 from reface_engine import RefaceEngine, RefaceResult, Faceset, FaceData  # noqa: F401
-from identity import AveragedSource, build_source_from_faceset
+from identity import AveragedSource, build_source_from_faceset, select_identity_faces
 from face_restore import FaceRestorer, resolve_restorer_name
 from face_masking import FaceMasker, DEFAULT_REGIONS
-from face_compositor import CompositeConfig, FaceCompositor, config_from_preset
+from face_compositor import CompositeConfig, FaceCompositor, config_from_preset, alignment_matrix
+from reface_tracking import FaceTracker
+from reface_video_io import validate_video
 from face_swappers import SWAPPERS, available_swappers, load_swapper
 
 # Order tried by swapper="auto": the first one that is downloaded wins.
@@ -149,7 +153,7 @@ def rate_arg(fps: float) -> str:
 # --- picking the faces the user ticked, by identity ----------------------------
 
 SELECT_MIN_SIMILARITY = 0.35   # nearest reference face must be at least this close
-SELECT_RECHECK_FRAMES = 12     # re-identify a track this often
+SELECT_RECHECK_FRAMES = 12     # compatibility constant; selection now verifies every frame
 
 
 def match_reference(embedding, references: np.ndarray, selected: set,
@@ -168,6 +172,8 @@ def match_reference(embedding, references: np.ndarray, selected: set,
         return False
     sims = references @ (e / n)
     best = int(np.argmax(sims))
+    if len(sims) > 1 and float(np.partition(sims, -2)[-1] - np.partition(sims, -2)[-2]) < .05:
+        return False
     return best in selected and float(sims[best]) >= min_similarity
 
 
@@ -176,13 +182,16 @@ class FaceSelector:
 
     insightface orders faces by detector score, so an index picked on the
     first frame can point at somebody else a few frames later. Each track is
-    matched to the reference faces by identity instead, and the decision is
-    cached per track for SELECT_RECHECK_FRAMES frames.
+    matched to the reference faces by identity on every frame, including crossings.
     """
 
     def __init__(self, reference_embeddings: Sequence, selected_indices: Sequence[int]):
         refs = np.asarray(reference_embeddings, np.float32).reshape(len(reference_embeddings), -1)
+        if refs.shape[1] != 512 or not np.isfinite(refs).all():
+            raise ValueError("Invalid reference identity vectors")
         norms = np.linalg.norm(refs, axis=1, keepdims=True)
+        if np.any(norms < 1e-8) or not selected_indices or any(i < 0 or i >= len(refs) for i in selected_indices):
+            raise ValueError("Invalid reference selection")
         self.references = refs / np.maximum(norms, 1e-8)
         self.selected = {int(i) for i in selected_indices}
         self._decisions = {}
@@ -191,12 +200,9 @@ class FaceSelector:
         self._decisions.clear()
 
     def wants(self, track_id: int, frame_no: int, embed) -> bool:
-        """`embed` is called only when the track needs (re-)identifying."""
-        hit = self._decisions.get(track_id)
-        if hit is not None and frame_no - hit[1] < SELECT_RECHECK_FRAMES:
-            return hit[0]
+        """Verify the current face, including when a tracker ID was reassigned."""
+        # Recognition is already available for tracking: verify every frame.
         decision = match_reference(embed(), self.references, self.selected)
-        self._decisions[track_id] = (decision, frame_no)
         return decision
 
 
@@ -355,140 +361,104 @@ class RefaceEngineV3(RefaceEngine):
         return AveragedSource(np.asarray(source.normed_embedding, np.float32) * (1.0 + c)
                               - np.asarray(target, np.float32) * c)
 
-    def _process_face(self, result, original, target_face, source, track_id: int = 0) -> np.ndarray:
-        """Swap one face and composite it onto `result`.
+    def _record_face(self, track_id, status, reason="", degraded=False):
+        if not hasattr(self, "_frame_outcomes"):
+            self._frame_outcomes = []
+        self._frame_outcomes.append(dict(track_id=int(track_id), status=status, reason=reason, degraded=degraded))
 
-        The swap is always computed from `original`, never from the running
-        `result`, so multiple faces in one frame don't feed each other. Note
-        paste_back=False: insightface's own paste uses a plain rectangle mask
-        with no idea occluders exist, which is what used to paint over hands.
-        """
-        if self.dfm is not None:
-            return self._process_face_dfm(result, original, target_face, track_id)
-
-        source = self.boosted_source(source, original, target_face)
+    def _process_face(self, result, original, target_face, source, track_id=0):
+        """Generate from original pixels; merge only through the protected compositor."""
         try:
-            aligned_swap, m_swap = unpack_swap_result(
-                self.swapper.get(original, target_face, source, paste_back=False)
-            )
-        except Exception as e:
-            print(f"[V3] swap failed: {e}")
+            restore = self.dfm is None
+            if not restore:
+                aligned, matrix = align_face(original, np.asarray(target_face.kps, np.float32),
+                                             output_size=self.dfm.resolution, face_type="whole_face")
+                swapped = self.dfm.swap_face(aligned)
+                if not swapped.success or swapped.swapped_face is None:
+                    raise ValueError("DFM did not produce a face")
+                crop = cv2.resize(swapped.swapped_face, (aligned.shape[1], aligned.shape[0]))
+            else:
+                boosted = self.boosted_source(source, original, target_face)
+                crop, matrix = unpack_swap_result(self.swapper.get(original, target_face, boosted, paste_back=False))
+                if matrix is None:
+                    if not isinstance(crop, np.ndarray) or crop.shape != original.shape:
+                        raise ValueError("swapper returned no crop affine")
+                    # Compatibility with a full-frame return: extract just this face,
+                    # then use exactly the same protected compositor as a crop swap.
+                    size = self.compositor.config.restore_size
+                    matrix = alignment_matrix(target_face.kps, size)
+                    if matrix is None:
+                        raise ValueError("invalid face landmarks")
+                    crop = cv2.warpAffine(crop, matrix, (size, size), borderMode=cv2.BORDER_REPLICATE)
+            updated = self.compositor.composite(result, crop, matrix, target_face.kps,
+                                                track_id=track_id, native_px=_face_height(target_face),
+                                                restore=restore, original_frame=original)
+            status = getattr(self.compositor, "last_status", "swapped")
+            reason = getattr(self.compositor, "last_reason", "")
+            if status == "swapped" and not face_changed(updated, result, target_face):
+                status, reason = "skipped", "no visible change"
+            degradations = getattr(self.compositor, "last_degraded", [])
+            self._record_face(track_id, status, reason or "; ".join(degradations), bool(degradations))
+            return updated
+        except Exception as exc:
+            self._record_face(track_id, "failed", str(exc))
+            self.compositor._log_once(f"face swap failed: {exc}")
             return result
 
-        # Older insightface: paste_back is ignored and we get a full-frame paste.
-        # Keep it — throwing it away is how the pipeline used to return the input.
-        if m_swap is None:
-            if (isinstance(aligned_swap, np.ndarray)
-                    and aligned_swap.ndim == 3
-                    and aligned_swap.shape[:2] == result.shape[:2]):
-                print("[V3] swapper returned a full-frame paste; compositor skipped")
-                return aligned_swap
-            print("[V3] swap failed: no crop affine from swapper")
-            return result
+    def _process_face_dfm(self, result, original, target_face, track_id=0):
+        return self._process_face(result, original, target_face, None, track_id)
 
-        updated = self.compositor.composite(
-            result, aligned_swap, m_swap, target_face.kps,
-            track_id=track_id, native_px=_face_height(target_face),
-        )
-        if not face_changed(updated, result, target_face):
-            self.compositor._log_once("compositor left the face unchanged; "
-                                      "falling back to insightface paste_back")
-            try:
-                pasted = self.swapper.get(original, target_face, source, paste_back=True)
-                if isinstance(pasted, np.ndarray) and pasted.shape[:2] == result.shape[:2]:
-                    return pasted
-            except Exception as e:
-                print(f"[V3] paste_back fallback failed: {e}", flush=True)
-        return updated
+    def effective_settings(self):
+        from dataclasses import asdict
+        return dict(swapper="dfm" if self.dfm else self.swapper_name,
+                    restorer=getattr(self.restorer, "model_name", "none") if self.restorer.available else "none",
+                    identity_boost=self.identity_boost,
+                    parser=bool(self.use_parser and self.masker.parser is not None),
+                    occluder=bool(self.use_occluder and self.masker.occluder is not None),
+                    composite=asdict(self.compositor.config))
 
-    def _process_face_dfm(self, result, original, target_face, track_id: int = 0) -> np.ndarray:
-        """DeepFaceLab DFM swap, composited through the same realism core.
-
-        DFM output is already HD, so restoration is skipped. The DFM's own
-        celeb_mask is not used: the parser mask computed on the DFM output is
-        both cleaner at the hairline and consistent with the inswapper path.
-        """
-        # The detector's 5 points (EMA-smoothed in video) onto DeepFaceLab's
-        # whole-face template - the alignment FaceFusion uses for DFM models.
-        try:
-            aligned, m_swap = align_face(original, np.asarray(target_face.kps, np.float32),
-                                         output_size=self.dfm.resolution,
-                                         face_type="whole_face")
-        except Exception as e:
-            print(f"[V3] DFM align failed: {e}")
-            return result
-
-        dres = self.dfm.swap_face(aligned)
-        if not dres.success or dres.swapped_face is None:
-            return result
-
-        face = dres.swapped_face
-        if face.shape[:2] != aligned.shape[:2]:
-            face = cv2.resize(face, (aligned.shape[1], aligned.shape[0]))
-
-        return self.compositor.composite(
-            result, face, m_swap, target_face.kps,
-            track_id=track_id, native_px=_face_height(target_face), restore=False,
-        )
+    def _result_details(self, outcomes, **extra):
+        if isinstance(outcomes, dict):
+            counts = {key: outcomes[key] for key in ("faces_swapped", "faces_skipped", "faces_failed")}
+            counts["faces_degraded"] = outcomes["faces_degraded"]
+            warnings = sorted(outcomes["warnings"])
+        else:
+            counts = {f"faces_{status}": sum(f["status"] == status for f in outcomes)
+                      for status in ("swapped", "skipped", "failed")}
+            counts["faces_degraded"] = sum(f.get("degraded", False) for f in outcomes)
+            warnings = sorted({f["reason"] for f in outcomes if f["reason"]})
+        return dict(settings=self.effective_settings(), identity=getattr(self, "_identity_report", {}),
+                    **counts, warnings=warnings, **extra)
 
     # ----------------------------------------------------------- landmark EMA
 
     def _reset_tracks(self):
-        self._tracks = []
-        self._track_ids = []
+        self._tracker = FaceTracker()
+        self._tracks, self._track_ids = [], []
         self._next_track_id = 0
+        self._previous_scene = None
 
-    def _new_track_id(self) -> int:
+    def _new_track_id(self):
         self._next_track_id += 1
         return self._next_track_id
 
     def _smooth(self, faces):
-        """Match faces to previous tracks by centroid, EMA-smooth their kps in
-        place, and return (faces, track_ids).
+        if not hasattr(self, "_tracker"):
+            self._reset_tracks()
+        ids = self._tracker.update(faces, self.smooth_alpha, self.smooth_landmarks)
+        self._tracks = [np.asarray(f.kps).copy() if f.kps is not None else None for f in faces]
+        self._track_ids = ids
+        return faces, ids
 
-        The ids let the compositor keep per-face temporal state. Tracking runs
-        even when smooth_landmarks is off, because the compositor still needs
-        stable ids for its gain/grain/mask smoothing.
-        """
-        if not faces:
-            self._tracks, self._track_ids = [], []
-            return faces, []
-
-        a = self.smooth_alpha
-        used = [False] * len(self._tracks)
-        new_tracks, new_ids = [], []
-
-        for f in faces:
-            if f.kps is None:
-                new_tracks.append(None)
-                new_ids.append(self._new_track_id())
-                continue
-
-            c = np.asarray(f.kps, np.float32).mean(0)
-            best, best_d = -1, 1e9
-            for i, t in enumerate(self._tracks):
-                if used[i] or t is None:
-                    continue
-                d = np.linalg.norm(t.mean(0) - c)
-                if d < best_d:
-                    best, best_d = i, d
-
-            # accept a match only if reasonably close (about inter-eye distance)
-            thr = np.linalg.norm(np.asarray(f.kps[0]) - np.asarray(f.kps[1])) * 2.0 + 1e-3
-
-            if best >= 0 and best_d < thr:
-                used[best] = True
-                sm = a * np.asarray(f.kps, np.float32) + (1 - a) * self._tracks[best]
-                if self.smooth_landmarks:
-                    f.kps = sm
-                new_tracks.append(sm)
-                new_ids.append(self._track_ids[best])
-            else:
-                new_tracks.append(np.asarray(f.kps, np.float32))
-                new_ids.append(self._new_track_id())
-
-        self._tracks, self._track_ids = new_tracks, new_ids
-        return faces, new_ids
+    def _check_scene(self, frame, selector=None):
+        small = cv2.resize(frame, (32, 18), interpolation=cv2.INTER_AREA).astype(np.float32)
+        previous = self._previous_scene
+        self._previous_scene = small
+        if previous is not None and float(np.mean(np.abs(previous - small))) > 65:
+            self._tracker.clear()
+            self.compositor.reset()
+            if selector is not None:
+                selector.reset()
 
     # ---------------------------------------------------------------- images
 
@@ -514,27 +484,31 @@ class RefaceEngineV3(RefaceEngine):
         swap and composite. Returns (frame, swaps, faces). Call begin_video()
         before the first frame. eval_reface.py drives this same method."""
         original = frame
-        faces, track_ids = self._smooth(self._detect(frame))
+        self._check_scene(frame, selector)
+        faces = self._detect(frame)
+        for face in faces:
+            self._embed(frame, face)
+        faces, track_ids = self._smooth(faces)
         self.compositor.begin_frame()
+        self._frame_outcomes = []
         swaps = 0
         if faces:
             result = frame
             for tf, tid in self._pick_faces(frame, faces, track_ids, frame_no,
                                             target_face_indices, selector):
                 result = self._process_face(result, original, tf, source, track_id=tid)
-                swaps += 1
+            swaps = sum(item["status"] == "swapped" for item in self._frame_outcomes)
             frame = result
         return frame, swaps, faces
 
     @staticmethod
     def _make_selector(target_face_indices, target_face_embeddings):
-        if target_face_indices is None or not target_face_embeddings:
+        if target_face_indices is None or target_face_embeddings is None or len(target_face_embeddings) == 0:
             return None
         try:
             return FaceSelector(target_face_embeddings, target_face_indices)
         except Exception as e:
-            print(f"[V3] reference faces unusable ({e}); selecting by index")
-            return None
+            raise ValueError("Reference identities are invalid; detect the targets again") from e
 
     def reface_image_v3(
         self,
@@ -546,11 +520,12 @@ class RefaceEngineV3(RefaceEngine):
     ) -> RefaceResult:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         try:
-            if self.swapper is None:
+            if self.swapper is None and self.dfm is None:
                 return RefaceResult(False, None, "Inswapper model not loaded")
             target = cv2.imread(target_image_path)
             if target is None:
                 return RefaceResult(False, None, f"Could not load: {target_image_path}")
+            _, self._identity_report = select_identity_faces(faceset)
             source = build_source_from_faceset(faceset) if faceset is not None else None
             if source is None and self.dfm is None:
                 return RefaceResult(False, None, "Faceset has no usable source faces")
@@ -568,20 +543,20 @@ class RefaceEngineV3(RefaceEngine):
                 return RefaceResult(False, None, "None of the selected faces were found in the target")
 
             self.compositor.reset()
+            self.compositor.config.temporal = False
             self.compositor.begin_frame()
+            self._frame_outcomes = []
             for tf, tid in chosen:
                 result = self._process_face(result, original, tf, source, track_id=tid)
 
             out = self.output_dir / f"refaced_v3_{ts}.png"  # PNG: no JPEG softening
-            cv2.imwrite(str(out), result)
-            if not any(face_changed(result, original, tf) for tf, _ in chosen):
-                return RefaceResult(
-                    False, str(out),
-                    "Swap produced no visible change (paste mask or placement failed — "
-                    "check [COMPOSITE] logs)",
-                    0,
-                )
-            return RefaceResult(True, str(out), f"V3 swap complete ({len(chosen)} faces)", len(chosen))
+            details = self._result_details(self._frame_outcomes, faces=self._frame_outcomes)
+            count = details["faces_swapped"]
+            if not count:
+                return RefaceResult(False, None, "No faces were swapped: " + "; ".join(details["warnings"]), 0, details)
+            if not cv2.imwrite(str(out), result):
+                raise OSError("Could not save the result photo")
+            return RefaceResult(True, str(out), f"V3 swap complete ({count}/{len(chosen)} faces)", count, details)
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -609,7 +584,8 @@ class RefaceEngineV3(RefaceEngine):
         for the job manager to concatenate; the audio is muxed once, onto the
         joined result.
         """
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        cap = writer = proc = None
         try:
             if self.swapper is None and self.dfm is None:
                 return RefaceResult(False, None, "Inswapper model not loaded")
@@ -642,10 +618,17 @@ class RefaceEngineV3(RefaceEngine):
 
             self.begin_video()
             selector = self._make_selector(target_face_indices, target_face_embeddings)
+            warmup = min(12, first) if resume_from_frame else 0
             if first > 0:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, first)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, first - warmup)
+            for offset in range(warmup):
+                ok, context = cap.read()
+                if not ok:
+                    raise ValueError("Could not restore video context before the checkpoint")
+                self.render_frame(context, source, first - warmup + offset, target_face_indices, selector)
 
             processed, swaps, cur = 0, 0, first
+            outcomes = dict(faces_swapped=0, faces_skipped=0, faces_failed=0, faces_degraded=0, warnings=set())
             stopped = False
             while cur < end_frame:
                 ret, frame = cap.read()
@@ -656,6 +639,11 @@ class RefaceEngineV3(RefaceEngine):
                     writer, proc = self._open_writer(out_path, fps, frame.shape[1], frame.shape[0])
                 frame, n, _ = self.render_frame(frame, source, cur, target_face_indices, selector)
                 swaps += n
+                for outcome in self._frame_outcomes:
+                    outcomes["faces_" + outcome["status"]] += 1
+                    outcomes["faces_degraded"] += bool(outcome.get("degraded"))
+                    if outcome["reason"] and len(outcomes["warnings"]) < 16:
+                        outcomes["warnings"].add(outcome["reason"])
 
                 self._write(writer, proc, frame)
                 processed += 1
@@ -669,9 +657,15 @@ class RefaceEngineV3(RefaceEngine):
 
             cap.release()
             self._close_writer(writer, proc)
+            writer = proc = None
             if processed == 0:
                 return RefaceResult(False, None, "Could not read any frame of the video")
 
+            if not stopped and total != 10 ** 9 and processed != n_target:
+                raise ValueError("The source video ended before the requested range was rendered")
+            validate_video(out_path, processed, fps)
+            if finalize and swaps == 0:
+                raise ValueError("No faces were swapped in this video")
             if finalize and self._mux_audio(out_path, target_video_path, start_time, end_time):
                 print("[INFO] V3 video: original audio preserved")
 
@@ -680,51 +674,104 @@ class RefaceEngineV3(RefaceEngine):
             if progress_callback and not stopped:
                 progress_callback(processed, processed)
 
+            if finalize:
+                validate_video(out_path, processed, fps)
             msg = f"V3 video {'stopped' if stopped else 'complete'} ({swaps} swaps in {processed} frames)"
-            return RefaceResult(True, str(out_path), msg, swaps)
+            return RefaceResult(True, str(out_path), msg, swaps, self._result_details(outcomes, frames_done=processed))
         except Exception as e:
             import traceback
             traceback.print_exc()
             return RefaceResult(False, None, f"Error: {e}")
+        finally:
+            if cap is not None:
+                cap.release()
+            self._abort_writer(writer, proc)
 
-    # --------------------------------------------------------- writer helpers
-
-    def _open_writer(self, out_path: Path, fps: float, w: int, h: int):
-        """Return (cv2_writer_or_None, ffmpeg_proc_or_None)."""
+    def _open_writer(self, out_path, fps, w, h):
+        log = tempfile.TemporaryFile()
         try:
-            cmd = [
-                _ffmpeg_exe(), "-y", "-loglevel", "error",
-                "-f", "rawvideo", "-pix_fmt", "bgr24",
-                "-s", f"{w}x{h}", "-r", rate_arg(fps), "-i", "-",
-                "-an", "-c:v", "libx264", "-preset", "medium",
-                "-crf", "16", "-pix_fmt", "yuv420p", str(out_path),
-            ]
-            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            command = [_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "rawvideo",
+                       "-pix_fmt", "bgr24", "-s", f"{w}x{h}", "-r", rate_arg(fps), "-i", "-",
+                       "-an", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-c:v", "libx264",
+                       "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", str(out_path)]
+            proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=log)
+            proc._reface_log = log
+            proc._reface_writer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="encode")
             return None, proc
-        except Exception as e:
-            print(f"[WARN] ffmpeg pipe unavailable ({e}); using cv2.VideoWriter")
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            return cv2.VideoWriter(str(out_path), fourcc, fps, (w, h)), None
+        except OSError:
+            log.close()
+            if w % 2 or h % 2:
+                raise ValueError("FFmpeg is required for video frames with odd dimensions")
+            writer = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+            if not writer.isOpened():
+                writer.release()
+                raise OSError("Could not open the video encoder")
+            return writer, None
 
     def _write(self, writer, proc, frame):
         if proc is not None:
+            if proc.poll() is not None:
+                raise OSError("FFmpeg stopped before the video was rendered")
+            pixels = np.ascontiguousarray(frame).tobytes()
+            def send():
+                written = proc.stdin.write(pixels)
+                proc.stdin.flush()
+                return written
+            pool = getattr(proc, "_reface_writer", None)
             try:
-                proc.stdin.write(np.ascontiguousarray(frame).tobytes())
-            except Exception:
-                pass
-        elif writer is not None:
+                written = pool.submit(send).result(timeout=getattr(self, "writer_timeout", 60)) if pool else send()
+            except FutureTimeout as exc:
+                proc.kill()
+                proc.wait(timeout=10)
+                raise OSError("The video encoder stopped accepting frames") from exc
+            if written != len(pixels):
+                raise OSError("The encoder accepted an incomplete video frame")
+        elif writer is not None and writer.isOpened():
             writer.write(frame)
+        else:
+            raise OSError("The video encoder is not open")
 
     def _close_writer(self, writer, proc):
-        if proc is not None:
-            try:
-                proc.stdin.close()
-                proc.wait()
-            except Exception:
-                pass
-        elif writer is not None:
+        if proc is None:
+            if writer is not None:
+                writer.release()
+            return
+        try:
+            proc.stdin.close()
+            code = proc.wait(timeout=60)
+            if code:
+                log = getattr(proc, "_reface_log", None)
+                error = ""
+                if log is not None:
+                    log.seek(0, 2)
+                    log.seek(max(0, log.tell() - 4096))
+                    error = log.read().decode("utf-8", errors="replace")
+                raise OSError(f"Video encoder failed ({code}): {error}")
+        finally:
+            self._abort_writer(None, proc)
+
+    @staticmethod
+    def _abort_writer(writer, proc):
+        if writer is not None:
             writer.release()
+        if proc is not None:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=10)
+            try:
+                if proc.stdin and not proc.stdin.closed:
+                    proc.stdin.close()
+            except (OSError, ValueError):
+                pass
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=10)
+            pool = getattr(proc, "_reface_writer", None)
+            if pool is not None:
+                pool.shutdown(wait=True)
+            log = getattr(proc, "_reface_log", None)
+            if log is not None:
+                log.close()
 
     def _mux_audio(self, video_path: Path, source_path: str,
                    start_time: float = 0.0, end_time: Optional[float] = None) -> bool:

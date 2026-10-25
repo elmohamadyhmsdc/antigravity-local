@@ -88,6 +88,7 @@ class VideoTests(unittest.TestCase):
         self.assertEqual(partial.status_code, 206)
         self.assertEqual(partial.content, content[:10])
         self.assertEqual(self.client.delete(f"/v1/jobs/{job_id}", headers=self.headers).status_code, 204)
+        self.assertFalse(self.ctx.workspace.has_blob(self.sha))
         self.assertFalse(self.ctx.workspace.job_dir(job_id).exists())
 
     def test_repeated_create_is_idempotent_and_conflicts_are_refused(self):

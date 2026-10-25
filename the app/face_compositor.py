@@ -198,6 +198,8 @@ class FaceCompositor:
     def _log_once(self, msg: str):
         """Log a degradation once per run. Per-frame logging buries the output
         on a 10,000-frame video."""
+        if hasattr(self, "last_degraded"):
+            self.last_degraded.append(msg)
         if msg not in self._logged:
             self._logged.add(msg)
             print(f"[COMPOSITE] {msg}", flush=True)
@@ -338,19 +340,12 @@ class FaceCompositor:
 
         mask = feather_mask(region, self.config.mask_erode, self.config.mask_feather)
 
+        # A valid zero matte means a covered face, not a model failure.
         if occ is not None:
-            hardened = harden_occlusion(occ)
-            masked = mask * hardened
-            if self._mask_area(masked) < floor:
-                self._log_once("occluder wiped the paste mask; ignoring occluder")
-            else:
-                mask = masked
-
-        if self._mask_area(mask) < floor:
-            self._log_once("paste mask collapsed; using box fallback")
-            mask = box_mask(h, w)
-            region_orig = np.maximum(region_orig, mask)
-            skin = np.maximum(skin, mask)
+            occ = np.asarray(occ, np.float32)
+            if occ.shape != (h, w) or not np.isfinite(occ).all():
+                raise ValueError("invalid occlusion matte")
+            mask *= harden_occlusion(np.clip(occ, 0.0, 1.0))
 
         return np.clip(mask, 0.0, 1.0), region_orig, skin
 
@@ -423,8 +418,10 @@ class FaceCompositor:
 
     def composite(self, frame, aligned_swap, m_swap, kps,
                   track_id: int = 0, native_px: float = None,
-                  restore: bool = True) -> np.ndarray:
+                  restore: bool = True, original_frame=None) -> np.ndarray:
         """Composite one swapped face onto `frame`. Returns the updated frame."""
+        self.last_degraded = []
+        self.last_status, self.last_reason = "failed", "alignment failed"
         size = self.config.restore_size
         m_ffhq = alignment_matrix(kps, size)
         if m_ffhq is None:
@@ -432,10 +429,10 @@ class FaceCompositor:
             return frame
 
         try:
-            orig_aligned = cv2.warpAffine(frame, m_ffhq, (size, size),
+            orig_aligned = cv2.warpAffine(frame if original_frame is None else original_frame, m_ffhq, (size, size),
                                           borderMode=cv2.BORDER_REPLICATE)
             base = self._place_swap(aligned_swap, m_swap, m_ffhq, orig_aligned,
-                                    size, frame=frame)
+                                    size, frame=frame if original_frame is None else original_frame)
         except Exception as e:
             self._log_once(f"alignment failed ({e}); face skipped")
             return frame
@@ -450,18 +447,28 @@ class FaceCompositor:
             if base.shape[:2] != (size, size):
                 base = cv2.resize(base, (size, size), interpolation=cv2.INTER_LINEAR)
 
-        mask, region_orig, skin = self._guard(
-            "mask", lambda: self._build_mask(base, orig_aligned, orig_masks),
-            (box_mask(size, size), np.ones((size, size), np.float32),
-             np.ones((size, size), np.float32)),
-        )
+        try:
+            mask, region_orig, skin = self._build_mask(base, orig_aligned, orig_masks)
+        except Exception as exc:
+            self.last_reason = f"mask failed: {exc}"
+            self._log_once(self.last_reason)
+            return frame
+        if not np.any(mask > 0.01):
+            self.last_status, self.last_reason = "skipped", "face is occluded"
+            return frame
 
         out = self._harmonize(base, orig_aligned, mask, region_orig, skin,
                               track_id, native_px)
-        mask = self._ema(track_id, "mask", mask, self.config.temporal_alpha)
+        current_mask = mask
+        mask = np.minimum(self._ema(track_id, "mask", mask, self.config.temporal_alpha), current_mask)
+        # Newly protected pixels take effect immediately, including mouth/hair.
+        if self.config.temporal:
+            self._tracks[track_id]["mask"] = mask
         self._touch(track_id)
 
-        return self._paste(frame, out, mask, m_ffhq, native_px)
+        result = self._paste(frame, out, mask, m_ffhq, native_px)
+        self.last_status, self.last_reason = "swapped", ""
+        return result
 
     def _paste(self, frame, crop, mask, m_ffhq, native_px):
         size = crop.shape[0]

@@ -350,6 +350,14 @@ def job_fixtures():
         "meta": {"faces_swapped": 1},
     })
 
+    write("JobCreate.reface_video_selected_preview", {
+        "client_job_id": "fixture-video-selected-preview", "type": "reface_video_v3",
+        "params": {"source_faces": [src(.85,0)], "target_embeddings": [src(.9,0)["embedding"]],
+                   "target_indices": [0], "preview": True, "start_time": 2,
+                   "identity_boost": .5, "swapper": "auto", "restorer": "none"},
+        "inputs": {"target": sha("target-video")},
+    })
+
 
 if __name__ == "__main__":
     system_fixtures()

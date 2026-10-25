@@ -148,7 +148,8 @@ def faceset_from_detections(name: str, detections: List[FaceData]) -> Faceset:
     faceset = Faceset(name=name)
     for d in detections:
         faceset.add_face(FaceData(image_path=d.image_path, embedding=np.asarray(d.embedding, dtype=np.float32),
-                                  pose=tuple(d.pose), bbox=list(d.bbox), quality=float(d.quality)))
+                                  pose=tuple(d.pose), bbox=list(d.bbox), quality=float(d.quality),
+                                  generated=getattr(d, "generated", False)))
     return faceset
 
 
@@ -192,6 +193,7 @@ def build_lora_faceset(person: dict, mode: str, selected_paths: List[str], face_
             if face is None:
                 portraits_no_face += 1
             else:
+                face.generated = True
                 detected.append(face)
         gated, dropped = filter_by_anchor(detected, anchor)
         kept_faces.extend(gated)

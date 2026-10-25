@@ -5,6 +5,7 @@ import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/studio_providers.dart';
+import 'package:antigravity_mobile/features/reface/reface_media.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -46,7 +47,7 @@ void main() {
       );
       expect(
         tester
-            .widget<OutlinedButton>(find.byKey(const Key('reface-photo')))
+            .widget<OutlinedButton>(find.byKey(const Key('reface-target')))
             .onPressed,
         isNull,
       );
@@ -60,7 +61,7 @@ void main() {
   ) async {
     env.picker.photo = tinyPng;
     await open(tester, env, '/reface');
-    await tester.tap(find.byKey(const Key('reface-photo')));
+    await tester.tap(find.byKey(const Key('reface-target')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('target-face-0')), findsOneWidget);
     for (final i in [0, 1]) {
@@ -78,7 +79,7 @@ void main() {
       await seedFace(env.db, personId: person, seed: 1);
       env.picker.photo = tinyPng;
       await open(tester, env, '/reface?person=$person');
-      await tester.tap(find.byKey(const Key('reface-photo')));
+      await tester.tap(find.byKey(const Key('reface-target')));
       await tester.pumpAndSettle();
       await next(tester);
       expect(find.text('Sara'), findsOneWidget);
@@ -158,6 +159,72 @@ void main() {
     },
     session: testSession,
   );
+
+  appTest('Legacy hides unsupported mask and realism options', (
+    tester,
+    env,
+  ) async {
+    final person = await seedPerson(env.db, name: 'Sara');
+    await seedFace(env.db, personId: person, seed: 1);
+    env.picker.photo = tinyPng;
+    await open(tester, env, '/reface?person=$person');
+    await tester.tap(find.byKey(const Key('reface-target')));
+    await tester.pumpAndSettle();
+    await next(tester);
+    await next(tester);
+    final engine = find.byKey(const ValueKey('quality-engine-v3'));
+    await tester.ensureVisible(engine);
+    await tester.tap(engine);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Legacy').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Realism preset'), findsNothing);
+    expect(find.text('Use face region mask'), findsNothing);
+    expect(find.byKey(const Key('reface-identity-boost')), findsNothing);
+    expect(find.text('Face restoration'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, session: testSession);
+
+  appTest(
+    'video reference photo keeps the video target and allows face selection',
+    (tester, env) async {
+      final file = File('${env.tmp.path}/target.mp4');
+      await tester.runAsync(() => file.writeAsBytes([1, 2, 3]));
+      env.targetPicker = () async => RefaceTarget.video(file);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/reface')],
+      );
+      await tester.tap(find.byKey(const Key('reface-target')));
+      await tester.pumpAndSettle();
+      env.picker.photo = tinyPng;
+      await tester.ensureVisible(find.byKey(const Key('reface-reference')));
+      await tester.tap(find.byKey(const Key('reface-reference')));
+      await tester.pumpAndSettle();
+      expect(find.text('target.mp4'), findsOneWidget);
+      expect(find.byKey(const Key('target-face-0')), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('target-face-0')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('target-face-0')).hitTestable(), findsOneWidget);
+      await tester.tap(find.byKey(const Key('target-face-0')));
+      expect(tester.takeException(), isNull);
+    },
+    session: testSession,
+  );
+
+  appTest('review offers a preview before full rendering', (tester, env) async {
+    final person = await seedPerson(env.db, name: 'Sara');
+    await seedFace(env.db, personId: person, seed: 1);
+    env.picker.photo = tinyPng;
+    await open(tester, env, '/reface?person=$person');
+    await tester.tap(find.byKey(const Key('reface-target')));
+    await tester.pumpAndSettle();
+    await next(tester);
+    await next(tester);
+    await next(tester);
+    expect(find.byKey(const Key('reface-preview')), findsOneWidget);
+    expect(find.text('Render a preview'), findsOneWidget);
+  }, session: testSession);
 
   appTest('Studio preview renders at phone size', (tester, env) async {
     const key = Key('preview');

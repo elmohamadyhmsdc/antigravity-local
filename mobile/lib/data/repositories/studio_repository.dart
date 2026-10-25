@@ -175,9 +175,7 @@ class StudioRepository {
             JobEventsCompanion.insert(
               jobId: id,
               status: status,
-              message: Value(
-                text?.substring(0, min(text.length, 512)),
-              ),
+              message: Value(text?.substring(0, min(text.length, 512))),
               createdAt: now,
             ),
           );
@@ -201,8 +199,9 @@ class StudioRepository {
     )..where((i) => i.datasetId.equals(row.id))).get();
     await db.transaction(() async {
       await (db.delete(db.results)..where((r) => r.id.equals(row.id))).go();
-      // A removed result must never be silently downloaded again by an ACK retry.
-      await update(row.id, const JobsCompanion(acknowledged: Value(true)));
+      // A pending server cleanup must still be retried after the local result
+      // is deleted. Completed jobs retry ACK only; they never download again.
+      await update(row.id, const JobsCompanion(status: Value('completed')));
       await (db.delete(db.loras)..where((l) => l.id.equals(row.id))).go();
       await (db.delete(db.datasets)..where((d) => d.id.equals(row.id))).go();
     });

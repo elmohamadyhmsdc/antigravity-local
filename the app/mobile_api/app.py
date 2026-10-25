@@ -30,6 +30,7 @@ from .routes_system import build_system_router
 from .routes_jobs import build_jobs_router
 from .video_jobs import VideoJobs
 from .studio_jobs import StudioJobs
+from .cleanup import ScratchJanitor
 from .tls import CertInfo
 from .workspace import Workspace
 
@@ -72,15 +73,18 @@ def create_app(ctx: ServerContext) -> FastAPI:
     ctx.video_jobs = VideoJobs(ctx)
     ctx.studio_jobs = StudioJobs(ctx)
     ctx.gpu.mobile_busy = lambda: ctx.video_jobs.busy() or ctx.studio_jobs.busy()
+    ctx.scratch_janitor = ScratchJanitor(ctx)
 
     @asynccontextmanager
     async def lifespan(app):
         ctx.api_ready = True
+        ctx.scratch_janitor.start()
         try:
             yield
         finally:
             ctx.api_ready = False
             from starlette.concurrency import run_in_threadpool
+            await run_in_threadpool(ctx.scratch_janitor.close)
             await run_in_threadpool(ctx.video_jobs.close)
             await run_in_threadpool(ctx.studio_jobs.close)
             if hasattr(ctx.engines, 'unload'):

@@ -91,7 +91,7 @@ for needed in ("/v1/health", "/v1/capabilities", "/v1/pair/complete", "/v1/blobs
 
 # --------------------------------------------------------------------------- 2 + 3. fixtures
 
-EMBEDDING_KEYS = {"embedding", "proto", "weak_face_embedding"}
+EMBEDDING_KEYS = {"embedding", "proto", "weak_face_embedding", "target_embeddings"}
 
 
 def embeddings_in(node, key=None):
@@ -155,6 +155,10 @@ must_fail("JobCreate", "reface_image_v3", lambda d: d["params"].pop("source_face
           "reface_image_v3 without source_faces")
 must_fail("JobCreate", "reface_image_v3", lambda d: d.__setitem__("type", "format_c_drive"),
           "an unknown job type")
+must_fail("JobCreate", "reface_video_selected_preview", lambda d: d["params"].__setitem__("target_indices", []),
+          "a video reference selection without an index")
+must_fail("JobCreate", "reface_video_selected_preview", lambda d: d["params"].__setitem__("preview", "yes"),
+          "a nonboolean preview flag")
 must_fail("JobStatus", "running", lambda d: d.__setitem__("status", "exploded"), "an unknown job status")
 must_fail("GroupingPlanRequest", "apply_basic", lambda d: d["stages"].append("telepathy"), "an unknown grouping stage")
 must_fail("GroupingPlanResponse", "apply_basic",

@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import 'api_exception.dart';
+import 'bulk_transfer.dart';
 import 'dtos/analyze.dart';
 import 'dtos/grouping.dart';
 import 'dtos/system.dart';
@@ -207,10 +208,11 @@ class HttpMobileApi implements MobileApi, VideoApi, StudioApi {
   ) => _guard(() async {
     final r = await _dio.put(
       '/v1/blobs/$sha256',
-      data: bytes,
+      data: binaryUploadBody(bytes),
       options: Options(
         contentType: 'application/octet-stream',
         headers: {
+          Headers.contentLengthHeader: bytes.length,
           'Content-Range': 'bytes $offset-${offset + bytes.length - 1}/$total',
         },
         validateStatus: (s) => s == 201 || s == 202 || s == 204 || s == 409,
@@ -268,10 +270,10 @@ class HttpMobileApi implements MobileApi, VideoApi, StudioApi {
 
   @override
   Future<void> downloadVideoResult(String id, File target) => _guard(() async {
-    await _dio.download(
+    await downloadResumableFile(
+      _dio,
       '/v1/jobs/${Uri.encodeComponent(id)}/result/detections.ndjson',
-      target.path,
-      options: Options(receiveTimeout: const Duration(minutes: 10)),
+      target,
     );
   });
 
@@ -361,10 +363,10 @@ class HttpMobileApi implements MobileApi, VideoApi, StudioApi {
     String name,
     File target,
   ) => _guard(() async {
-    await _dio.download(
+    await downloadResumableFile(
+      _dio,
       '/v1/jobs/${Uri.encodeComponent(id)}/result/${Uri.encodeComponent(name)}',
-      target.path,
-      options: Options(receiveTimeout: const Duration(minutes: 10)),
+      target,
     );
   });
 

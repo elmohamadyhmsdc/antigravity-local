@@ -2389,7 +2389,7 @@ abstract class AppLocalizations {
   /// No description provided for @refaceReviewHint.
   ///
   /// In en, this message translates to:
-  /// **'The target is copied to private storage so this request survives closing the app. The PC keeps it only while processing.'**
+  /// **'The target is copied to private phone storage so this request survives closing the app. The PC uses temporary files and deletes them after this phone confirms the result is saved.'**
   String get refaceReviewHint;
 
   /// No description provided for @selectFaceRequired.
@@ -3543,6 +3543,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Backup sharing was cancelled. Choose a destination to keep a copy outside this app.'**
   String get backupShareCancelled;
+
+  /// No description provided for @refaceReference.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a photo of the person to replace'**
+  String get refaceReference;
+
+  /// No description provided for @refaceReferenceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select their face in a reference photo. Only matching people in the video will be replaced.'**
+  String get refaceReferenceHint;
+
+  /// No description provided for @refaceAllVideoFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace all video faces instead'**
+  String get refaceAllVideoFaces;
+
+  /// No description provided for @refacePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Render a preview'**
+  String get refacePreview;
+
+  /// No description provided for @refacePreviewHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Try these settings first. Video previews render up to 3 seconds; return here to adjust settings or start the full job.'**
+  String get refacePreviewHint;
+
+  /// No description provided for @refaceLegacyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy uses automatic OpenCV enhancement and its own occlusion protection.'**
+  String get refaceLegacyHint;
+
+  /// No description provided for @refaceDfmHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The trained model supplies face detail; restoration is not applied.'**
+  String get refaceDfmHint;
+
+  /// No description provided for @refaceIdentityBoost.
+  ///
+  /// In en, this message translates to:
+  /// **'Identity strength'**
+  String get refaceIdentityBoost;
+
+  /// No description provided for @refaceSwapped.
+  ///
+  /// In en, this message translates to:
+  /// **'Successful face swaps'**
+  String get refaceSwapped;
+
+  /// No description provided for @refaceSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Skipped faces'**
+  String get refaceSkipped;
+
+  /// No description provided for @refaceFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed faces'**
+  String get refaceFailed;
+
+  /// No description provided for @chooseTargetMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose photo or video'**
+  String get chooseTargetMedia;
+
+  /// No description provided for @refaceTrimHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag the two handles to choose your clip. The preview follows the handle you move.'**
+  String get refaceTrimHint;
+
+  /// No description provided for @refaceTrimStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get refaceTrimStart;
+
+  /// No description provided for @refaceTrimEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'End'**
+  String get refaceTrimEnd;
+
+  /// No description provided for @refaceTrimDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected clip'**
+  String get refaceTrimDuration;
+
+  /// No description provided for @refaceTrimEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Move one second earlier'**
+  String get refaceTrimEarlier;
+
+  /// No description provided for @refaceTrimLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Move one second later'**
+  String get refaceTrimLater;
+
+  /// No description provided for @refaceTrimLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for the video preview to load, then choose your clip.'**
+  String get refaceTrimLoading;
 }
 
 class _AppLocalizationsDelegate

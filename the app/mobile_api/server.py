@@ -141,7 +141,7 @@ def serve(args,api_socket,pair_socket):
     api_app = create_app(ctx)
     api_server = uvicorn.Server(uvicorn.Config(api_app,host=args.bind,port=args.port,
                     ssl_certfile=str(ctx.cert.cert_path),ssl_keyfile=str(ctx.cert.key_path),
-                    timeout_keep_alive=75,log_level='info'))
+                    timeout_keep_alive=75,log_level='info',access_log=False))
     ctx.shutdown = lambda: setattr(api_server,'should_exit',True)
     pair_server = uvicorn.Server(uvicorn.Config(create_pair_app(ctx), host="127.0.0.1", port=args.pair_port,
                                                 log_level="info", access_log=False))

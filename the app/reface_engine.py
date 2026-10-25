@@ -38,6 +38,7 @@ class RefaceResult:
     output_path: Optional[str]
     message: str
     faces_swapped: int = 0
+    details: Dict = field(default_factory=dict)
 
 
 @dataclass
@@ -48,6 +49,7 @@ class FaceData:
     pose: Tuple[float, float, float]  # yaw, pitch, roll
     bbox: List[int]
     quality: float = 0.0
+    generated: bool = False
 
 
 class FaceEnhancer:
@@ -316,7 +318,8 @@ class Faceset:
                 'embedding': face.embedding,
                 'pose': face.pose,
                 'bbox': face.bbox,
-                'quality': face.quality
+                'quality': face.quality,
+                'generated': getattr(face, 'generated', False)
             })
         
         data = {
@@ -345,7 +348,8 @@ class Faceset:
                 embedding=face_dict['embedding'],
                 pose=face_dict['pose'],
                 bbox=face_dict['bbox'],
-                quality=face_dict.get('quality', 0.0)
+                quality=face_dict.get('quality', 0.0),
+                generated=face_dict.get('generated', False)
             ))
         
         return faceset

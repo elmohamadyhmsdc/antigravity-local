@@ -29,7 +29,10 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
                            f"This server embeds with {ctx.engines.model_id}, not {opts.model_id}.")
         ctx.gpu.require_free()
 
-        data = await image.read(ctx.max_image_upload_bytes + 1)
+        try:
+            data = await image.read(ctx.max_image_upload_bytes + 1)
+        finally:
+            await image.close()  # remove any multipart spool before GPU work starts
         if len(data) > ctx.max_image_upload_bytes:
             raise ApiError(413, "too_large", "The image is larger than the server accepts.")
         img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)

@@ -107,6 +107,7 @@ class VideoJobs:
                         os.link(ws.blob_path(sha), directory / "input.video")
                     except OSError:
                         shutil.copyfile(ws.blob_path(sha), directory / "input.video")
+                    ws.pin_job_inputs(job_id, [sha])
                 except Exception:
                     ws.purge_job(job_id)
                     raise
@@ -233,6 +234,8 @@ class VideoJobs:
             self.ctx.workspace.purge_job(job_id)
             del self.jobs[job_id]
             self.threads.pop(job_id, None)
+            for key in ("params", "request", "details"):
+                job.pop(key, None)
 
     def close(self):
         with self.lock:

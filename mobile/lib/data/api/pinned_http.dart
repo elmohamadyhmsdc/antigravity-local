@@ -51,6 +51,7 @@ HttpClientAdapter pinnedHttpAdapter(String fingerprint) {
           plain = connected;
           try {
             if (cancelled) throw const SocketException('Connection cancelled');
+            connected.setOption(SocketOption.tcpNoDelay, true);
             final tls = await SecureSocket.secure(
               connected,
               host: uri.host,

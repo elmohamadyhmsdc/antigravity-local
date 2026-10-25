@@ -18,6 +18,8 @@ import 'package:antigravity_mobile/data/secrets/secret_store.dart';
 import 'package:antigravity_mobile/domain/scan/scan_state.dart';
 import 'package:antigravity_mobile/library_providers.dart';
 import 'package:antigravity_mobile/providers.dart';
+import 'package:antigravity_mobile/features/reface/reface_media.dart';
+import 'package:antigravity_mobile/features/reface/reface_video_trimmer.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +27,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fixtures.dart';
+import 'fake_video_controller.dart';
 
 /// A valid 1x1 PNG, so Image.memory has something decodable in widget tests.
 final tinyPng = Uint8List.fromList([
@@ -366,6 +369,7 @@ class TestEnv {
   final FakeMediaLibrary library;
   final InMemoryEmbeddingIndex index;
   late final FileStore files;
+  Future<RefaceTarget?> Function()? targetPicker;
 
   List<Override> get overrides => [
     databaseProvider.overrideWithValue(db),
@@ -377,6 +381,14 @@ class TestEnv {
     ),
     permissionsServiceProvider.overrideWithValue(permissions),
     photoPickerProvider.overrideWithValue(picker),
+    refaceTargetPickerProvider.overrideWithValue(() async {
+      if (targetPicker != null) return targetPicker!();
+      final photo = await picker.pickPhoto();
+      return photo == null ? null : RefaceTarget.photo(photo);
+    }),
+    refaceVideoControllerProvider.overrideWithValue(
+      (file) => FakeTrimVideoController(file),
+    ),
     deviceNameProvider.overrideWith((ref) async => 'Test phone'),
     fileStoreProvider.overrideWithValue(files),
     mediaLibraryProvider.overrideWithValue(library),

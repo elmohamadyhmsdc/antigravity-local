@@ -3,9 +3,10 @@
 import asyncio
 import json
 from fastapi import APIRouter, Depends, Request, Response
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from .errors import ApiError, bad_request, not_found
+from .transfers import ResultFileResponse
 
 
 def build_jobs_router(ctx, require_device):
@@ -97,7 +98,8 @@ def build_jobs_router(ctx, require_device):
         entry = next((f for f in manifest["files"] if f["name"] == name), None)
         if entry is None or name not in ("detections.ndjson", "result.png", "result.mp4", 'dataset.zip', 'portraits.zip', 'lora.safetensors'):
             raise not_found()
-        return FileResponse(directory / name, media_type=entry["mime"], filename=name)
+        return ResultFileResponse(directory / name, media_type=entry["mime"], filename=name,
+                                  headers={"Cache-Control": "no-store"})
 
     @router.delete("/v1/jobs/{job_id}", status_code=204)
     def delete(job_id: str, device=Depends(require_device)):

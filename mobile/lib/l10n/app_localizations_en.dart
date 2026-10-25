@@ -1513,7 +1513,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get refaceReviewHint =>
-      'The target is copied to private storage so this request survives closing the app. The PC keeps it only while processing.';
+      'The target is copied to private phone storage so this request survives closing the app. The PC uses temporary files and deletes them after this phone confirms the result is saved.';
 
   @override
   String get selectFaceRequired => 'Select at least one target face.';
@@ -2145,4 +2145,67 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get backupShareCancelled =>
       'Backup sharing was cancelled. Choose a destination to keep a copy outside this app.';
+
+  @override
+  String get refaceReference => 'Choose a photo of the person to replace';
+
+  @override
+  String get refaceReferenceHint =>
+      'Select their face in a reference photo. Only matching people in the video will be replaced.';
+
+  @override
+  String get refaceAllVideoFaces => 'Replace all video faces instead';
+
+  @override
+  String get refacePreview => 'Render a preview';
+
+  @override
+  String get refacePreviewHint =>
+      'Try these settings first. Video previews render up to 3 seconds; return here to adjust settings or start the full job.';
+
+  @override
+  String get refaceLegacyHint =>
+      'Legacy uses automatic OpenCV enhancement and its own occlusion protection.';
+
+  @override
+  String get refaceDfmHint =>
+      'The trained model supplies face detail; restoration is not applied.';
+
+  @override
+  String get refaceIdentityBoost => 'Identity strength';
+
+  @override
+  String get refaceSwapped => 'Successful face swaps';
+
+  @override
+  String get refaceSkipped => 'Skipped faces';
+
+  @override
+  String get refaceFailed => 'Failed faces';
+
+  @override
+  String get chooseTargetMedia => 'Choose photo or video';
+
+  @override
+  String get refaceTrimHint =>
+      'Drag the two handles to choose your clip. The preview follows the handle you move.';
+
+  @override
+  String get refaceTrimStart => 'Start';
+
+  @override
+  String get refaceTrimEnd => 'End';
+
+  @override
+  String get refaceTrimDuration => 'Selected clip';
+
+  @override
+  String get refaceTrimEarlier => 'Move one second earlier';
+
+  @override
+  String get refaceTrimLater => 'Move one second later';
+
+  @override
+  String get refaceTrimLoading =>
+      'Wait for the video preview to load, then choose your clip.';
 }

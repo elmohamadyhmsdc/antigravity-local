@@ -92,6 +92,16 @@ class JobTracker {
         } on _Paused {
           // The pause is durable; the next run excludes this row.
         } catch (error) {
+          final current = await repository.job(job.id);
+          if (current?.status == 'completed') {
+            // The result is already committed locally. Retry cleanup only,
+            // including server-side file deletion failures, without redownloading.
+            await repository.update(
+              job.id,
+              JobsCompanion(error: Value('$error')),
+            );
+            continue;
+          }
           final lost = error is ApiException && error.statusCode == 404;
           final refused =
               error is ApiException &&
@@ -178,10 +188,11 @@ class JobTracker {
     if (remote.status == 'completed') {
       await repository.update(
         job.id,
-        const JobsCompanion(
-          status: Value('downloading'),
-          progress: Value(1),
-          error: Value(null),
+        JobsCompanion(
+          status: const Value('downloading'),
+          progress: const Value(1),
+          error: const Value(null),
+          detailsJson: Value(jsonEncode(remote.details)),
         ),
       );
       await _download(job, client);
@@ -313,6 +324,7 @@ class JobTracker {
   }
 
   Future<void> _ack(JobRow job, StudioApi client) async {
+    await _closeEvents(job.id);
     try {
       await client.deleteVideoJob(job.remoteId!);
     } on ApiException catch (e) {
@@ -322,6 +334,14 @@ class JobTracker {
       job.id,
       const JobsCompanion(acknowledged: Value(true), error: Value(null)),
     );
+  }
+
+  Future<void> _closeEvents(String id) async {
+    try {
+      await _events.remove(id)?.cancel();
+    } on Object {
+      // SSE is optional; closing a dead connection must not fail result cleanup.
+    }
   }
 
   Future<void> _upload(
@@ -363,7 +383,7 @@ class JobTracker {
 
   Future<void> pause(JobRow job) async {
     _paused.add(job.id);
-    await _events.remove(job.id)?.cancel();
+    await _closeEvents(job.id);
     await repository.update(
       job.id,
       const JobsCompanion(status: Value('paused')),
@@ -447,7 +467,7 @@ class JobTracker {
     _disposed = true;
     _timer?.cancel();
     for (final event in _events.values) {
-      event.cancel();
+      unawaited(event.cancel().catchError((Object _) {}));
     }
     _events.clear();
     keepAlive.stop();
@@ -460,7 +480,11 @@ class JobTracker {
     _timer?.cancel();
     _timer = null;
     for (final event in _events.values.toList()) {
-      await event.cancel();
+      try {
+        await event.cancel();
+      } on Object {
+        // File/DB writes below still settle even if the SSE socket is gone.
+      }
     }
     _events.clear();
     await Future.wait(_eventWrites.toList());

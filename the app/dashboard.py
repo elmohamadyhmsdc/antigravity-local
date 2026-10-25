@@ -3734,8 +3734,11 @@ elif page == "🎭 Reface V2":
                      (st.session_state.get('v2_data_source_mode') == 'upload' and st.session_state.get('v2_source_paths'))
 
         if has_source and st.session_state.get('v2_target_path'):
-            if st.button("🚀 Process with V2 Engine", type="primary", use_container_width=True,
-                        disabled=bool(_v2_gpu_job) and not run_in_background):
+            process_requested = st.button("🚀 Process Reface", type="primary", use_container_width=True,
+                                          disabled=bool(_v2_gpu_job) and not run_in_background)
+            preview_requested = st.button("Render preview (up to 3 seconds for video)",
+                                          disabled=bool(_v2_gpu_job) and not run_in_background)
+            if process_requested or preview_requested:
                 with st.spinner("Processing with Reface V2..."):
                     try:
                         # Build configuration
@@ -3758,6 +3761,8 @@ elif page == "🎭 Reface V2":
                         
                         target_path = st.session_state['v2_target_path']
                         is_video = st.session_state.get('v2_is_video', False)
+                        if preview_requested and is_video:
+                            end_time_sec = min(end_time_sec if end_time_sec > start_time_sec else start_time_sec + 3, start_time_sec + 3)
                         selected_indices = st.session_state.get('v2_selected_target_faces', [])
                         target_face_indices = selected_indices if len(selected_indices) > 0 else None
                         # Every detected face's embedding (not just the ticked ones): V3 assigns
@@ -3934,6 +3939,9 @@ elif page == "🎭 Reface V2":
                             
                             if result.success:
                                 st.success(f"✅ {result.message}")
+                                if getattr(result, "details", None):
+                                    with st.expander("Result settings and quality report"):
+                                        st.json(result.details)
                                 
                                 # Display result
                                 if is_video and result.output_path:

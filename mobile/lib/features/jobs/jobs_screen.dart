@@ -210,7 +210,34 @@ class JobDetailScreen extends ConsumerWidget {
                       ),
                       key: const Key('job-eta'),
                     ),
-                  if (progress.details.isNotEmpty) ...[
+                  if (job.type.startsWith('reface_') &&
+                      progress.details.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(l10n.refaceQuality),
+                    if (progress.details['preview'] == true)
+                      Text(l10n.refacePreview),
+                    for (final entry in {
+                      'faces_swapped': l10n.refaceSwapped,
+                      'faces_skipped': l10n.refaceSkipped,
+                      'faces_failed': l10n.refaceFailed,
+                    }.entries)
+                      if (progress.details[entry.key] != null)
+                        Text('${entry.value}: ${progress.details[entry.key]}'),
+                    if (progress.details['settings']
+                        case final Map settings) ...[
+                      Text('${l10n.refaceEngine}: ${settings['swapper']}'),
+                      Text('${l10n.refaceRestorer}: ${settings['restorer']}'),
+                    ],
+                    if (progress.details['identity'] case final Map identity)
+                      if (identity['kept'] != null)
+                        Text(
+                          '${l10n.refaceIdentity}: ${identity['kept']}/${identity['input']}',
+                        ),
+                    if (progress.details['warnings'] case final List warnings)
+                      for (final warning in warnings) Text('$warning'),
+                  ],
+                  if (!job.type.startsWith('reface_') &&
+                      progress.details.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text(l10n.trainingDetails),
                     for (final entry in progress.details.entries)

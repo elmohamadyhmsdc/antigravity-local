@@ -1,7 +1,7 @@
 """
 The server's scratch space: the app/mobile_workspace/ (gitignored).
 
-  blobs/<ab>/<sha256>   content-addressed upload cache, size-capped, evicted least-recently-used
+  blobs/<ab>/<sha256>   temporary upload cache, removed after the last using job is ACKed
   uploads/<sha256>.part partial (resumable) uploads
   jobs/<job_id>/        per-job scratch + results (phase P4)
   tls/                  PERSISTENT - the self-signed certificate
@@ -9,6 +9,8 @@ The server's scratch space: the app/mobile_workspace/ (gitignored).
 
 Everything except the two persistent entries is wiped when the server starts: the
 phone is the source of truth, so a blob that is gone is just a 409 "upload it again".
+Unclaimed uploads expire after six idle hours. Registered jobs protect shared inputs;
+inactive unacknowledged jobs expire after 24 hours. The app runs a periodic cleaner.
 """
 
 import os
@@ -27,6 +29,7 @@ GB = 1024 ** 3
 DEFAULT_BLOB_CACHE_BYTES = 20 * GB
 DEFAULT_MAX_UPLOAD_BYTES = 2 * GB
 PARTIAL_MAX_AGE_SECONDS = 6 * 3600
+BLOB_MAX_AGE_SECONDS = 6 * 3600
 
 
 class WorkspaceError(RuntimeError):
@@ -40,6 +43,7 @@ class Workspace:
         self.blob_cache_bytes = int(blob_cache_bytes)
         self.max_upload_bytes = int(max_upload_bytes)
         self._lock = threading.RLock()
+        self._job_inputs = {}  # registered job id -> input hashes; guarded by _lock
 
     # --- layout -----------------------------------------------------------
 
@@ -82,9 +86,10 @@ class Workspace:
                 if entry.name in PERSISTENT:
                     continue
                 if entry.is_dir() and not entry.is_symlink():
-                    shutil.rmtree(entry, ignore_errors=True)
+                    shutil.rmtree(entry)
                 else:
                     entry.unlink(missing_ok=True)
+            self._job_inputs.clear()
         for d in (self.blobs_dir, self.uploads_dir, self.jobs_dir, self.tls_dir):
             d.mkdir(parents=True, exist_ok=True)
 
@@ -195,6 +200,21 @@ class Workspace:
                 pass
         return n
 
+    def purge_stale_blobs(self, now=None, max_age=BLOB_MAX_AGE_SECONDS) -> int:
+        """Expire abandoned uploads, keeping every registered job's input cache."""
+        now = time.time() if now is None else now
+        removed = 0
+        with self._lock:
+            protected = set().union(*self._job_inputs.values())
+            for path in self.blobs_dir.glob("*/*"):
+                try:
+                    if path.name not in protected and path.is_file() and now - path.stat().st_mtime > max_age:
+                        path.unlink()
+                        removed += 1
+                except FileNotFoundError:
+                    pass
+        return removed
+
     # --- job dirs ---------------------------------------------------------
 
     def job_dir(self, job_id: str, create: bool = False) -> Path:
@@ -205,12 +225,38 @@ class Workspace:
             d.mkdir(parents=True, exist_ok=True)
         return d
 
+    def pin_job_inputs(self, job_id: str, hashes: Iterable[str]) -> None:
+        """Register inputs only after this job has pinned its own copies.
+
+        References include queued, running, paused and unacknowledged jobs.
+        Deleting one job must not evict a blob referenced by any other job.
+        """
+        directory = self.job_dir(job_id)
+        hashes = set(hashes)
+        if not directory.is_dir() or any(not self.valid_sha(sha) for sha in hashes):
+            raise WorkspaceError("Invalid job input registration")
+        with self._lock:
+            self._job_inputs[job_id] = hashes
+
     def purge_job(self, job_id: str) -> bool:
-        d = self.job_dir(job_id)
-        if d.exists():
-            shutil.rmtree(d, ignore_errors=True)
-            return True
-        return False
+        with self._lock:
+            d = self.job_dir(job_id)
+            existed = d.exists()
+            if existed:
+                # An unsuccessful deletion must fail the ACK so the phone retries.
+                shutil.rmtree(d)
+            inputs = self._job_inputs.get(job_id, set())
+            others = set().union(*(hashes for key, hashes in self._job_inputs.items() if key != job_id))
+            for sha in inputs - others:
+                path = self.blob_path(sha)
+                path.unlink(missing_ok=True)
+                try:
+                    path.parent.rmdir()
+                except OSError:
+                    pass  # this prefix may still contain other cached inputs
+            # Keep the registration if a deletion raises; the same ACK can retry.
+            self._job_inputs.pop(job_id, None)
+            return existed
 
     def purge_expired_jobs(self, ttl_seconds: float = 24 * 3600, now: Optional[float] = None) -> List[str]:
         """Remove job dirs untouched for ttl_seconds (the phone never ACKed the download)."""
@@ -218,8 +264,8 @@ class Workspace:
         removed = []
         for d in self.jobs_dir.iterdir():
             try:
-                if d.is_dir() and now - d.stat().st_mtime > ttl_seconds:
-                    shutil.rmtree(d, ignore_errors=True)
+                if d.name not in self._job_inputs and d.is_dir() and now - d.stat().st_mtime > ttl_seconds:
+                    shutil.rmtree(d)
                     removed.append(d.name)
             except OSError:
                 pass

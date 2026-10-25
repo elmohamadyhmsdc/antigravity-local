@@ -66,30 +66,37 @@ def mux_audio(video_path: Path, source_path: str,
     return False
 
 
-def concat_list_text(part_paths: List[Path]) -> str:
+def concat_list_text(part_paths: List[Path], durations=None) -> str:
     """Body of an ffmpeg concat demuxer list file, in the given order."""
+    if durations is not None and len(durations) != len(part_paths):
+        raise ValueError("Every video part needs its exact duration")
     lines = []
-    for p in part_paths:
+    for index, p in enumerate(part_paths):
         # Escape single quotes for ffmpeg concat demuxer: file 'path'
         clean_path = str(Path(p).resolve()).replace("'", "'\\''")
         lines.append(f"file '{clean_path}'")
+        if durations is not None:
+            duration = float(durations[index])
+            if not 0 < duration < float("inf"):
+                raise ValueError("Invalid video part duration")
+            lines.append(f"duration {duration:.9f}")
     return "\n".join(lines) + "\n"
 
 
-def write_concat_list(part_paths: List[Path], list_file: Path) -> Path:
+def write_concat_list(part_paths: List[Path], list_file: Path, durations=None) -> Path:
     """Write the concat list file ffmpeg reads, and return its path."""
-    Path(list_file).write_text(concat_list_text(part_paths), encoding="utf-8")
+    Path(list_file).write_text(concat_list_text(part_paths, durations), encoding="utf-8")
     return Path(list_file)
 
 
-def build_concat_command(part_paths: List[Path], list_file: Path, out_path: Path) -> list:
+def build_concat_command(part_paths: List[Path], list_file: Path, out_path: Path, durations=None) -> list:
     """Concat demuxer args. Every part must share codec and resolution,
     which they do because one engine instance rendered them all.
 
     This also writes the list file, because the returned command is useless
     without it. Use concat_list_text() when only the contents are wanted.
     """
-    write_concat_list(part_paths, list_file)
+    write_concat_list(part_paths, list_file, durations)
 
     return [
         _ffmpeg_exe(), "-y", "-loglevel", "error",

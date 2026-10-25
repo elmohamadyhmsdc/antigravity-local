@@ -30,7 +30,8 @@ def validate_reface(body, capabilities):
     if set(inputs) != {"target"}:
         raise bad_request("Reface requires exactly one target blob.")
     allowed = {"source_faces", "model_id", "target_faces", "restorer", "restorer_weight", "use_parser",
-               "use_occluder", "realism_preset", "dfm_model", "start_time", "end_time"}
+               "use_occluder", "realism_preset", "dfm_model", "start_time", "end_time",
+               "target_embeddings", "target_indices", "preview", "identity_boost", "swapper"}
     if set(params) - allowed:
         raise bad_request("An unsupported Reface option was supplied.")
     if params.get("model_id", "buffalo_l@1") != "buffalo_l@1":
@@ -43,6 +44,8 @@ def validate_reface(body, capabilities):
         try:
             embedding = decode_embedding(face["embedding"])
             quality = face["quality"]
+            if "generated" in face and not isinstance(face["generated"], bool):
+                raise ValueError()
             if not np.all(np.isfinite(embedding)) or np.linalg.norm(embedding) < 1e-8:
                 raise ValueError()
             if isinstance(quality, bool) or not isinstance(quality, (int, float)) or not 0 <= quality <= 1:
@@ -79,10 +82,40 @@ def validate_reface(body, capabilities):
         raise bad_request("The trim end must be after the start.")
     if params.get("realism_preset", "natural") not in ("natural", "maximum_detail", "clean"):
         raise bad_request("Choose a supported realism preset.")
+    if "preview" in params and not isinstance(params["preview"], bool):
+        raise bad_request("preview must be true or false.")
+    boost = params.get("identity_boost", .5)
+    if isinstance(boost, bool) or not isinstance(boost, (int, float)) or not 0 <= boost <= 1:
+        raise bad_request("identity_boost must be between zero and one.")
+    if params.get("swapper", "auto") not in ("auto", "inswapper_128", "hyperswap_1b_256", "hyperswap_1c_256"):
+        raise bad_request("Choose a supported swapper.")
+    legacy = kind.endswith("_v2")
+    if legacy and (params.get("restorer", "auto") not in ("auto", "none") or
+                   params.get("realism_preset", "natural") != "natural" or
+                   params.get("use_parser", True) is not True):
+        raise bad_request("Legacy supports automatic/disabled enhancement and occlusion protection only.")
+    if (legacy or dfm) and any(key in params for key in ("identity_boost", "swapper")):
+        raise bad_request("Swapper and identity strength options apply to V3 only.")
+    refs, picks = params.get("target_embeddings"), params.get("target_indices")
+    if refs is not None or picks is not None:
+        if legacy or not kind.startswith("reface_video") or "target_faces" in params:
+            raise bad_request("Reference identities are supported for V3/DFM video only.")
+        if not isinstance(refs, list) or not 1 <= len(refs) <= 32 or not isinstance(picks, list) or not picks:
+            raise bad_request("Provide reference embeddings and selected reference indices.")
+        if len(picks) != len(set(p for p in picks if isinstance(p, int) and not isinstance(p, bool))) or any(
+                isinstance(p, bool) or not isinstance(p, int) or not 0 <= p < len(refs) for p in picks):
+            raise bad_request("Selected reference indices are invalid.")
+        try:
+            for ref in refs:
+                vector = decode_embedding(ref)
+                if not np.isfinite(vector).all() or np.linalg.norm(vector) < 1e-8:
+                    raise ValueError()
+        except (ValueError, TypeError):
+            raise bad_request("A target identity embedding is invalid.")
     boxes = params.get("target_faces")
     if boxes is not None:
         if kind.startswith("reface_video"):
-            raise bad_request("Video Reface currently swaps all faces; target boxes are photo-only.")
+            raise bad_request("Target boxes are photo-only. Use reference identities to select video faces.")
         if not isinstance(boxes, list) or not 1 <= len(boxes) <= 32:
             raise bad_request("Select at least one target face.")
         for box in boxes:
@@ -165,6 +198,7 @@ class StudioJobs:
                             os.link(ws.blob_path(sha), directory / name)
                         except OSError:
                             shutil.copyfile(ws.blob_path(sha), directory / name)
+                    ws.pin_job_inputs(job_id, (sha for _, sha in blobs))
                 except Exception:
                     ws.purge_job(job_id)
                     raise
@@ -267,6 +301,9 @@ class StudioJobs:
                 raise ApiError(409, "job_running", "Pause the job before removing it.", retryable=True)
             self.ctx.workspace.purge_job(job_id)
             del self.jobs[job_id]
+            # The idle worker may still hold this dict after its loop iteration.
+            for key in ("params", "request", "details"):
+                job.pop(key, None)
 
     def close(self):
         self.closing.set()

@@ -32,6 +32,7 @@ Nothing in data/, facesets/ or identities/ is touched.
 """
 
 import argparse
+import hashlib
 import contextlib
 import gc
 import io
@@ -77,6 +78,62 @@ def dataset_people(only: Optional[List[str]] = None) -> Dict[str, List[str]]:
         if len(photos) >= 8:
             people[d.name] = photos
     return people
+
+
+def split_reference_photos(photos):
+    """Keep identical/near-identical shots in one side of the split."""
+    paths, signatures = [], []
+    for path in photos:
+        img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            continue
+        small = cv2.resize(img, (9, 8), interpolation=cv2.INTER_AREA)
+        paths.append(path)
+        signatures.append((small[:, 1:] > small[:, :-1]).ravel())
+    parents = list(range(len(paths)))
+    def find(i):
+        while parents[i] != i:
+            parents[i] = parents[parents[i]]
+            i = parents[i]
+        return i
+    for i, signature in enumerate(signatures):
+        for j in range(i):
+            if np.count_nonzero(signature != signatures[j]) <= 4:
+                parents[find(i)] = find(j)
+    groups = {}
+    for i, path in enumerate(paths):
+        groups.setdefault(find(i), []).append(path)
+    grouped = list(groups.values())
+    return ([p for g in grouped[::2] for p in g], [p for g in grouped[1::2] for p in g])
+
+
+def load_cases(path):
+    """Optional explicit session-separated people and labelled scenario clips."""
+    path = Path(path).resolve()
+    cases = json.loads(path.read_text(encoding="utf-8"))
+    def local(value):
+        item = Path(value)
+        item = item if item.is_absolute() else path.parent / item
+        if not item.is_file():
+            raise ValueError(f"Benchmark input does not exist: {item}")
+        return str(item.resolve())
+    people = {}
+    for name, data in cases.get("people", {}).items():
+        build, held = ([local(p) for p in data[key]] for key in ("build", "held_out"))
+        if not build or not held:
+            raise ValueError("Every benchmark identity needs build and held-out sessions")
+        hashes = lambda paths: {hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in paths}
+        if hashes(build) & hashes(held):
+            raise ValueError("Build and held-out photos must not contain identical inputs")
+        people[name] = (build, held)
+    clips = {}
+    for data in cases.get("clips", []):
+        label = data["name"] + ":" + data["scenario"]
+        start, seconds = float(data.get("start", 0)), float(data.get("seconds", 3))
+        if not np.isfinite(start) or not np.isfinite(seconds) or start < 0 or not 0 < seconds <= 30:
+            raise ValueError("Benchmark clips must be between zero and 30 seconds")
+        clips[label] = (local(data["path"]), start, seconds)
+    return people, clips
 
 
 def clip_frames(path: Path, start_s: float, seconds: float, max_side: int = 1920) -> List[np.ndarray]:
@@ -160,17 +217,25 @@ def run_clip(engine, source, frames, judge: Judge, reference: np.ndarray) -> Dic
     ids, leaks, sharp, d_out, d_src, times = [], [], [], [], [], []
     prev_out = prev_src = None
     keep = None
+    eligible, attempted, failed, skipped, degraded = 0, 0, 0, 0, 0
     for i, frame in enumerate(frames):
         t0 = time.perf_counter()
         with quiet():
             out, _, faces = engine.render_frame(frame.copy(), source, i)
         times.append((time.perf_counter() - t0) * 1000)
+        for outcome in getattr(engine, "_frame_outcomes", []):
+            attempted += 1
+            failed += outcome["status"] == "failed"
+            skipped += outcome["status"] == "skipped"
+            degraded += bool(outcome.get("degraded"))
         if not faces:
             prev_out = prev_src = None
             continue
+        eligible += 1
         target = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
         swapped = nearest(judge.faces(out), target.bbox)
         if swapped is None:
+            prev_out = prev_src = None
             continue
         e_out = judge.embed(out, swapped)
         e_src = judge.embed(frame, target)
@@ -186,6 +251,9 @@ def run_clip(engine, source, frames, judge: Judge, reference: np.ndarray) -> Dic
             keep = (frame, out, target.bbox)
     return {
         "frames": len(frames), "scored": len(ids),
+        "score_coverage": len(ids) / max(eligible, 1),
+        "failure_rate": failed / max(attempted, 1), "skip_rate": skipped / max(attempted, 1),
+        "fallback_rate": degraded / max(attempted, 1),
         "identity": float(np.mean(ids)) if ids else None,
         "id_wobble": float(np.std(ids)) if ids else None,
         "leak": float(np.mean(leaks)) if leaks else None,
@@ -240,7 +308,7 @@ def summarise(rows) -> Dict:
     def mean(k):
         v = [r[k] for r in rows if r.get(k) is not None]
         return float(np.mean(v)) if v else None
-    return {k: mean(k) for k in ("identity", "id_wobble", "leak", "flicker", "sharpness", "ms_per_frame")}
+    return {k: mean(k) for k in ("identity", "id_wobble", "leak", "flicker", "sharpness", "ms_per_frame", "score_coverage", "failure_rate", "skip_rate", "fallback_rate")}
 
 
 def rank(results) -> List[Dict]:
@@ -255,6 +323,10 @@ def rank(results) -> List[Dict]:
     ok = [r for r in results if r["summary"]["identity"] is not None]
     if not ok:
         return results
+    reliable = [r for r in ok if r["summary"].get("score_coverage", 0) >= .9 and
+                r["summary"].get("failure_rate", 1) <= .05]
+    if reliable:
+        ok = reliable
     best = max(r["summary"]["identity"] for r in ok)
     close = [r for r in ok if r["summary"]["identity"] >= best - 0.015]
     # Sharpness and leak rounded to 2 places: third-decimal differences are
@@ -265,7 +337,8 @@ def rank(results) -> List[Dict]:
                               round(r["summary"]["leak"] or 9, 2),
                               r["summary"]["id_wobble"] or 9))
     rest = sorted([r for r in ok if r not in close], key=lambda r: -r["summary"]["identity"])
-    return close + rest
+    rejected = [r for r in results if all(r is not candidate for candidate in ok)]
+    return close + rest + rejected
 
 
 def contact_sheet(stage_results, path: Path):
@@ -294,6 +367,7 @@ def contact_sheet(stage_results, path: Path):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--stage", default="all", choices=["all", "swappers", "restorers", "occluders", "boost"])
+    ap.add_argument("--cases", help="JSON with explicit held-out sessions and labelled local scenario clips")
     ap.add_argument("--people", default="", help="comma-separated lora_datasets names (default: all)")
     ap.add_argument("--seconds", type=float, default=3.0, help="seconds of each test clip")
     ap.add_argument("--swapper", default="inswapper_128", help="base swapper for a restorers/occluders-only run")
@@ -312,8 +386,9 @@ def main(argv=None):
     providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
     judge = Judge(providers)
 
-    clips = {}
-    for name in ("data_dst", "data_src"):
+    case_people, case_clips = load_cases(args.cases) if args.cases else ({}, {})
+    clips = {label: clip_frames(Path(path), start, seconds) for label, (path, start, seconds) in case_clips.items()}
+    for name in (() if case_clips else ("data_dst", "data_src")):
         p = DFL_WORKSPACE / f"{name}.mp4"
         if p.exists():
             clips[name] = clip_frames(p, 5.0, args.seconds)
@@ -328,8 +403,11 @@ def main(argv=None):
 
     people = {}
     only = [p for p in args.people.split(",") if p] or None
-    for person, photos in dataset_people(only).items():
-        build, held = photos[0::2], photos[1::2]
+    splits = case_people or {name: split_reference_photos(photos) for name, photos in dataset_people(only).items()}
+    for person, (build, held) in splits.items():
+        if not build or not held:
+            print(f"skip {person}: insufficient independent reference groups")
+            continue
         with quiet():
             identity, report = build_identity(person, build, full)
         reference = judge.reference(held)
@@ -387,6 +465,7 @@ def main(argv=None):
     report = {"people": {k: {kk: vv for kk, vv in v.items() if kk not in ("faceset", "reference")}
                          for k, v in people.items()},
               "clips": {k: len(v) for k, v in clips.items()},
+              "case_manifest": args.cases,
               "stages": {n: [{"label": r["label"], "kwargs": r["kwargs"], "summary": r["summary"],
                               "rows": [{k: v for k, v in row.items() if k != "_sample"} for row in r["rows"]]}
                              for r in rs] for n, rs in stages.items()},
@@ -397,12 +476,12 @@ def main(argv=None):
              "Ceiling (a real photo of the person vs their held-out photos): "
              + ", ".join(f"{k} {v['real_vs_real']:.3f}" for k, v in report["people"].items()), ""]
     for n, rs in stages.items():
-        lines += [f"## {n}", "", "| config | identity | leak | flicker | id wobble | sharpness | ms/frame |",
-                  "|---|---|---|---|---|---|---|"]
+        lines += [f"## {n}", "", "| config | identity | leak | flicker | id wobble | sharpness | ms/frame | coverage | failures | skipped | fallbacks |",
+                  "|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in rs:
             s = r["summary"]
             lines.append(f"| {r['label']} | {_f(s['identity'])} | {_f(s['leak'])} | {_f(s['flicker'])} | "
-                         f"{_f(s['id_wobble'])} | {_f(s['sharpness'])} | {s['ms_per_frame']:.0f} |")
+                         f"{_f(s['id_wobble'])} | {_f(s['sharpness'])} | {s['ms_per_frame']:.0f} | {_f(s['score_coverage'])} | {_f(s['failure_rate'])} | {_f(s['skip_rate'])} | {_f(s['fallback_rate'])} |")
         lines.append("")
     lines.append(f"Winner: `{best}`")
     (out_dir / "report.md").write_text("\n".join(lines), encoding="utf-8")

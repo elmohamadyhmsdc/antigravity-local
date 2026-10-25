@@ -47,6 +47,7 @@ def test_faceset_round_trip():
                  pose=(float(i), -1.0, 2.5), bbox=[i, i, i + 10, i + 10], quality=0.5 + i * 0.1)
         for i in range(4)
     ]
+    detections[1].generated = True
     faceset = faceset_from_detections("rt_test", detections)
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -57,6 +58,7 @@ def test_faceset_round_trip():
     check(len(loaded.faces) == 4, f"expected 4 faces after the round trip, got {len(loaded.faces)}")
     for original, restored in zip(detections, loaded.faces):
         check(restored.quality == original.quality, "quality should survive the round trip")
+        check(restored.generated == original.generated, "generated origin should survive the round trip")
         check(list(restored.bbox) == list(original.bbox), "bbox should survive the round trip")
         check(tuple(restored.pose) == tuple(original.pose), "pose should survive the round trip")
 

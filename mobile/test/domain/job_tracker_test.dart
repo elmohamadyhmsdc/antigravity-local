@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -27,6 +28,8 @@ class FakeStudioApi extends FakeMobileApi implements StudioApi {
   final requests = <String, String>{};
   Future<void> Function()? beforeDelete;
   Future<void> Function()? duringPost;
+  ApiException? deleteError;
+  Stream<StudioJobStatus>? eventStream;
 
   StudioJobStatus state(String id) => StudioJobStatus.fromJson({
     'job_id': id,
@@ -71,7 +74,8 @@ class FakeStudioApi extends FakeMobileApi implements StudioApi {
   }
 
   @override
-  Stream<StudioJobStatus> studioEvents(String id) => const Stream.empty();
+  Stream<StudioJobStatus> studioEvents(String id) =>
+      eventStream ?? const Stream.empty();
   @override
   Future<StudioResultFile> studioResult(String id) async =>
       StudioResultFile.fromJson({
@@ -89,6 +93,7 @@ class FakeStudioApi extends FakeMobileApi implements StudioApi {
   Future<void> deleteVideoJob(String id) async {
     await beforeDelete?.call();
     deletes++;
+    if (deleteError != null) throw deleteError!;
     if (loseAck) {
       loseAck = false;
       throw ApiException.network('ACK response lost');
@@ -208,6 +213,63 @@ void main() {
       expect(api.deletes, 2);
       expect(api.creates, 1);
       expect((await db.select(db.results).get()).length, 1);
+    },
+  );
+
+  test(
+    'server cleanup failure preserves the local result and retries ACK only',
+    () async {
+      final id = await enqueue();
+      api.deleteError = const ApiException(
+        code: 'internal',
+        message: 'Cleanup failed',
+        statusCode: 500,
+      );
+      await tracker.synchronizeOnce();
+      expect((await repository.job(id))!.status, 'completed');
+      expect((await repository.job(id))!.acknowledged, isFalse);
+      expect(await db.select(db.results).get(), hasLength(1));
+      api.deleteError = null;
+      await tracker.synchronizeOnce();
+      expect(api.creates, 1);
+      expect(api.deletes, 2);
+      expect((await repository.job(id))!.acknowledged, isTrue);
+    },
+  );
+
+  test(
+    'deleting a private result does not abandon a pending server cleanup',
+    () async {
+      final id = await enqueue();
+      api.loseAck = true;
+      await tracker.synchronizeOnce();
+      final result = (await db.select(db.results).get()).single;
+      await repository.deleteResult(result);
+      expect((await repository.job(id))!.acknowledged, isFalse);
+      await tracker.synchronizeOnce();
+      expect((await repository.job(id))!.acknowledged, isTrue);
+      expect(await db.select(db.results).get(), isEmpty);
+      expect(api.creates, 1);
+      expect(api.deletes, 2);
+    },
+  );
+
+  test(
+    'a failed SSE cancellation does not fail a saved result or ACK',
+    () async {
+      final events = StreamController<StudioJobStatus>(
+        onCancel: () => throw ApiException.network('SSE socket closed'),
+      );
+      api.eventStream = events.stream;
+      api.status = 'running';
+      final id = await enqueue();
+      await tracker.synchronizeOnce();
+      api.status = 'completed';
+      await tracker.synchronizeOnce();
+      expect((await repository.job(id))!.status, 'completed');
+      expect((await repository.job(id))!.acknowledged, isTrue);
+      expect(await db.select(db.results).get(), hasLength(1));
+      await events.close();
     },
   );
 

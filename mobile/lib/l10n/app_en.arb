@@ -927,7 +927,11 @@
   "videoEverySeconds": "Every {seconds} s",
   "videoPreparing": "Preparing video · {percent}%",
   "@videoPreparing": {
-    "placeholders": {"percent": {"type": "int"}}
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
   },
   "videoUploading": "Uploading video · {percent}%",
   "videoAnalyzing": "Analyzing video · {percent}%",
@@ -1043,7 +1047,7 @@
   "protectOcclusions": "Protect glasses and occlusions",
   "useFaceParser": "Use face region mask",
   "submitReface": "Create Reface job",
-  "refaceReviewHint": "The target is copied to private storage so this request survives closing the app. The PC keeps it only while processing.",
+  "refaceReviewHint": "The target is copied to private phone storage so this request survives closing the app. The PC uses temporary files and deletes them after this phone confirms the result is saved.",
   "selectFaceRequired": "Select at least one target face.",
   "selectIdentityRequired": "Choose a source person and at least one face.",
   "chooseTargetRequired": "Choose and detect a photo, or choose a video.",
@@ -1259,5 +1263,24 @@
     }
   },
   "restyleRefineUnavailable": "Optional SDXL refinement is not installed on this PC. Basic Restyle can run without it.",
-  "backupShareCancelled": "Backup sharing was cancelled. Choose a destination to keep a copy outside this app."
+  "backupShareCancelled": "Backup sharing was cancelled. Choose a destination to keep a copy outside this app.",
+  "refaceReference": "Choose a photo of the person to replace",
+  "refaceReferenceHint": "Select their face in a reference photo. Only matching people in the video will be replaced.",
+  "refaceAllVideoFaces": "Replace all video faces instead",
+  "refacePreview": "Render a preview",
+  "refacePreviewHint": "Try these settings first. Video previews render up to 3 seconds; return here to adjust settings or start the full job.",
+  "refaceLegacyHint": "Legacy uses automatic OpenCV enhancement and its own occlusion protection.",
+  "refaceDfmHint": "The trained model supplies face detail; restoration is not applied.",
+  "refaceIdentityBoost": "Identity strength",
+  "refaceSwapped": "Successful face swaps",
+  "refaceSkipped": "Skipped faces",
+  "refaceFailed": "Failed faces",
+  "chooseTargetMedia": "Choose photo or video",
+  "refaceTrimHint": "Drag the two handles to choose your clip. The preview follows the handle you move.",
+  "refaceTrimStart": "Start",
+  "refaceTrimEnd": "End",
+  "refaceTrimDuration": "Selected clip",
+  "refaceTrimEarlier": "Move one second earlier",
+  "refaceTrimLater": "Move one second later",
+  "refaceTrimLoading": "Wait for the video preview to load, then choose your clip."
 }

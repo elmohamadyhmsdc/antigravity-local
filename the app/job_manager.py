@@ -313,20 +313,26 @@ def finish_v3_video(job, last_part: Optional[str], last_part_frames: int,
         raise Exception("No video parts were rendered")
 
     final_mp4 = parts[0].parent / f"refaced_v3_{job.id}.mp4"
+    import shutil
+    from reface_video_io import validate_video
+    timings = [validate_video(part) for part in parts]
+    fps = timings[0]["fps"]
     if len(parts) == 1:
-        parts[0].replace(final_mp4)
+        shutil.copyfile(parts[0], final_mp4)
     else:
         list_file = parts[0].parent / f"concat_{job.id}.txt"
-        res = subprocess.run(build_concat_command(parts, list_file, final_mp4), capture_output=True)
-        list_file.unlink(missing_ok=True)
-        if res.returncode != 0 or not final_mp4.exists():
-            err = res.stderr.decode("utf-8", errors="ignore")
-            raise Exception(f"Video segment concatenation failed: {err}. Parts preserved at: {job.part_files}")
-        for p in parts:
-            p.unlink(missing_ok=True)
-
+        try:
+            subprocess.run(build_concat_command(parts, list_file, final_mp4,
+                                                durations=[info["duration"] for info in timings]), capture_output=True,
+                           check=True, timeout=600)
+        finally:
+            list_file.unlink(missing_ok=True)
+    validate_video(final_mp4, job.frames_done, fps)
     if mux_audio(final_mp4, source_path, start_time, end_time):
         print(f"[JOB {job.id}] V3 video: original audio preserved")
+    validate_video(final_mp4, job.frames_done)
+    for part in parts:
+        part.unlink(missing_ok=True)
     job.part_files = []
     return final_mp4
 
@@ -596,6 +602,15 @@ def run_single_job(job_id: str, jobs_dir: str):
                 )
             swap_progress(1, 1)
         
+        if is_v3 and (not result or not result.success):
+            raise RuntimeError(result.message if result else "V3 did not produce a result")
+        if is_v3:
+            details = getattr(result, "details", {})
+            for key in ("faces_swapped", "faces_failed", "faces_skipped", "faces_degraded"):
+                job.details[key] = job.details.get(key, 0) + details.get(key, 0)
+            for key in ("settings", "identity", "warnings"):
+                if key in details:
+                    job.details[key] = details[key]
         # Check if stopped
         if stop_requested[0]:
             part_path = result.output_path if ((is_v2 or is_v3) and is_video and result and result.success) else None
@@ -670,6 +685,8 @@ def run_single_job(job_id: str, jobs_dir: str):
         if is_v3 and is_video:
             if not result or not result.success:
                 raise Exception(result.message if result else "V3 video processing failed")
+            if job.details.get("faces_swapped") == 0 and getattr(result, "details", None):
+                raise ValueError("No faces were swapped in this video")
             final_mp4 = finish_v3_video(job, result.output_path, current_frame[0],
                                         target_path, video_start_time, video_end_time)
             result.output_path = str(final_mp4)

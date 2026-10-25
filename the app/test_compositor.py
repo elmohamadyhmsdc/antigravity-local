@@ -607,9 +607,8 @@ def test_composite_still_swaps_when_parser_region_is_empty():
 
 
 @test
-def test_composite_still_swaps_when_occluder_wipes_the_mask():
-    """harden_occlusion maps values below 0.5 to 0. A miscalibrated occluder
-    that outputs ~0.4 everywhere used to zero the whole paste mask."""
+def test_composite_skips_a_fully_occluded_face():
+    """A finite matte that protects every pixel must preserve the original."""
     import numpy as np
     from face_compositor import CompositeConfig, FaceCompositor
 
@@ -620,8 +619,8 @@ def test_composite_still_swaps_when_occluder_wipes_the_mask():
     frame, swap, kps, m_swap = _swap_inputs()
 
     out = comp.composite(frame, swap, m_swap, kps, native_px=160.0)
-    check(not np.array_equal(out, frame),
-          "a collapsed occluder must be ignored rather than skipping the swap")
+    check(np.array_equal(out, frame), "fully covered face must remain unchanged")
+    check(comp.last_status == "skipped", "occlusion is a skip, not a swap")
 
 
 @test
@@ -888,7 +887,7 @@ def test_match_reference_keeps_a_lookalike_bystander_out():
 
 
 @test
-def test_face_selector_reidentifies_tracks_periodically():
+def test_face_selector_verifies_identity_on_every_frame():
     import numpy as np
     from reface_engine_v3 import FaceSelector, SELECT_RECHECK_FRAMES
 
@@ -902,9 +901,9 @@ def test_face_selector_reidentifies_tracks_periodically():
 
     for frame_no in range(SELECT_RECHECK_FRAMES):
         check(sel.wants(7, frame_no, embed), "the selected person must be swapped")
-    check(len(calls) == 1, f"one embedding per recheck window, got {len(calls)}")
+    check(len(calls) == SELECT_RECHECK_FRAMES, "each frame must verify the selected identity")
     sel.wants(7, SELECT_RECHECK_FRAMES, embed)
-    check(len(calls) == 2, "the track must be re-identified after the window")
+    check(len(calls) == SELECT_RECHECK_FRAMES + 1, "verification must continue after the old cache window")
 
 
 @test
