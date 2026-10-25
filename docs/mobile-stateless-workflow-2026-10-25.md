@@ -8,7 +8,9 @@ Android phone was not connected during this task.
 
 ## Target selection and trimming
 
-- One **Choose photo or video** button opens the system's combined media picker.
+- One **Choose photo or video** button opens the system's **Files/document
+  browser**, filtered to images and videos. It uses FilePicker's custom filter
+  (Android ACTION_OPEN_DOCUMENT), replacing the gallery/Google Photos picker.
   The chosen media type determines the next controls.
 - Videos show a playable preview and a two-handle range bar. Dragging either end
   seeks the preview to that boundary. Time appears as minutes:seconds or
@@ -21,8 +23,9 @@ Android phone was not connected during this task.
   uploaded in full; trimming currently happens on the server.
 
 Implementation starts at mobile/lib/features/reface/{reface_media,
-reface_video_trimmer,reface_screen}.dart. Existing video_player/image_picker
-dependencies are reused. No media compression or video re-encoding was added.
+reface_video_trimmer,reface_screen}.dart. Existing file_picker/video_player
+dependencies are reused. Files are read from the picker-provided local copy;
+videos are not re-encoded.
 
 ## Commit and deletion order
 

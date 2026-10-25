@@ -3657,6 +3657,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Wait for the video preview to load, then choose your clip.'**
   String get refaceTrimLoading;
+
+  /// No description provided for @refaceGallerySource.
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get refaceGallerySource;
+
+  /// No description provided for @refaceGallerySourceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a gallery app on this device'**
+  String get refaceGallerySourceHint;
+
+  /// No description provided for @refaceFilesSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get refaceFilesSource;
+
+  /// No description provided for @refaceFilesSourceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse device folders and downloads'**
+  String get refaceFilesSourceHint;
 }
 
 class _AppLocalizationsDelegate

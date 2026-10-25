@@ -31,3 +31,14 @@ Finder textContaining(String part) => find.byWidgetPredicate(
       w is Text && (w.data ?? w.textSpan?.toPlainText() ?? '').contains(part),
   description: 'Text containing "$part"',
 );
+
+Future<void> pickRefaceTarget(
+  WidgetTester tester, {
+  String source = 'files',
+}) async {
+  await tester.ensureVisible(find.byKey(const Key('reface-target')));
+  await tester.tap(find.byKey(const Key('reface-target')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('reface-source-$source')));
+  await tester.pumpAndSettle();
+}

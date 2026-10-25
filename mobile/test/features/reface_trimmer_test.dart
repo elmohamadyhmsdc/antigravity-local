@@ -79,7 +79,7 @@ void main() {
   );
 
   appTest(
-    'one target button accepts either photo or video from the same picker',
+    'one target button offers Gallery and Files, preserving the target on cancellation',
     (tester, env) async {
       final file = File('${env.tmp.path}/clip.mp4');
       await tester.runAsync(() => file.writeAsBytes([1, 2, 3]));
@@ -94,12 +94,22 @@ void main() {
       expect(find.text('Choose photo or video'), findsOneWidget);
       expect(find.text('Choose a photo'), findsNothing);
       expect(find.text('Choose a video'), findsNothing);
-      await tester.tap(find.byKey(const Key('reface-target')));
+      await pickRefaceTarget(tester, source: 'gallery');
       await tester.pumpAndSettle();
+      expect(env.lastTargetSource, RefaceMediaSource.gallery);
       expect(find.byKey(const Key('target-face-0')), findsOneWidget);
       await tester.ensureVisible(find.byKey(const Key('reface-target')));
       await tester.tap(find.byKey(const Key('reface-target')));
       await tester.pumpAndSettle();
+      expect(find.text('Gallery'), findsOneWidget);
+      expect(find.text('Files'), findsOneWidget);
+      expect(picks, 1);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(picks, 1);
+      expect(find.byKey(const Key('target-face-0')), findsOneWidget);
+      await pickRefaceTarget(tester);
+      expect(env.lastTargetSource, RefaceMediaSource.files);
       expect(picks, 2);
       expect(find.byKey(const Key('reface-trim-range')), findsOneWidget);
       expect(find.byType(TextField), findsNothing);

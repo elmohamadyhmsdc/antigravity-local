@@ -2208,4 +2208,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get refaceTrimLoading =>
       'Wait for the video preview to load, then choose your clip.';
+
+  @override
+  String get refaceGallerySource => 'Gallery';
+
+  @override
+  String get refaceGallerySourceHint => 'Choose a gallery app on this device';
+
+  @override
+  String get refaceFilesSource => 'Files';
+
+  @override
+  String get refaceFilesSourceHint => 'Browse device folders and downloads';
 }

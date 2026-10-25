@@ -1,8 +1,42 @@
 import 'dart:io';
-import 'dart:typed_data';
-
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../../l10n/app_localizations.dart';
+
+enum RefaceMediaSource { gallery, files }
+
+Future<RefaceMediaSource?> chooseRefaceMediaSource(BuildContext context) {
+  final l = AppLocalizations.of(context);
+  return showModalBottomSheet<RefaceMediaSource>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            key: const Key('reface-source-gallery'),
+            leading: const Icon(Icons.photo_library_outlined),
+            title: Text(l.refaceGallerySource),
+            subtitle: Text(l.refaceGallerySourceHint),
+            onTap: () => Navigator.pop(context, RefaceMediaSource.gallery),
+          ),
+          ListTile(
+            key: const Key('reface-source-files'),
+            leading: const Icon(Icons.folder_open_outlined),
+            title: Text(l.refaceFilesSource),
+            subtitle: Text(l.refaceFilesSourceHint),
+            onTap: () => Navigator.pop(context, RefaceMediaSource.files),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 class RefaceTarget {
   const RefaceTarget.photo(Uint8List bytes) : photo = bytes, video = null;
@@ -11,7 +45,7 @@ class RefaceTarget {
   final File? video;
 }
 
-/// image_picker's combined Android picker does not always supply a MIME type.
+/// Picked files do not always supply a MIME type.
 /// Read only a small header when the cached filename has no useful extension.
 Future<bool> isVideoTarget(XFile media) async {
   final mime = media.mimeType;
@@ -75,17 +109,64 @@ Future<bool> isVideoTarget(XFile media) async {
   }
 }
 
-final refaceTargetPickerProvider = Provider<Future<RefaceTarget?> Function()>(
-  (ref) => () async {
-    final media = await ImagePicker().pickMedia(
-      maxWidth: 2560,
-      maxHeight: 2560,
-      imageQuality: 92,
-      requestFullMetadata: false,
+final refaceTargetPickerProvider =
+    Provider<Future<RefaceTarget?> Function(RefaceMediaSource)>(
+      (ref) => (source) async {
+        if (source == RefaceMediaSource.gallery) {
+          XFile? media;
+          if (Platform.isAndroid) {
+            final result = await const MethodChannel(
+              'antigravity/media_picker',
+            ).invokeMapMethod<String, dynamic>('pickGalleryMedia');
+            if (result == null) return null;
+            media = XFile(
+              result['path'] as String,
+              mimeType: result['mimeType'] as String?,
+            );
+          } else {
+            media = await ImagePicker().pickMedia(
+              maxWidth: 2560,
+              maxHeight: 2560,
+              imageQuality: 92,
+              requestFullMetadata: false,
+            );
+          }
+          if (media == null) return null;
+          return await isVideoTarget(media)
+              ? RefaceTarget.video(File(media.path))
+              : RefaceTarget.photo(await media.readAsBytes());
+        }
+        // Custom filters use Android ACTION_OPEN_DOCUMENT (Files), whereas the
+        // plugin's media/image/video types can open a gallery provider instead.
+        final picked = await FilePicker.pickFile(
+          type: FileType.custom,
+          allowedExtensions: const [
+            'jpg',
+            'jpeg',
+            'png',
+            'webp',
+            'gif',
+            'heic',
+            'heif',
+            'avif',
+            'bmp',
+            'mp4',
+            'mov',
+            'm4v',
+            'webm',
+            'mkv',
+            'avi',
+            '3gp',
+            '3g2',
+            'mpg',
+            'mpeg',
+            'ts',
+          ],
+        );
+        if (picked == null) return null;
+        final media = picked.xFile;
+        return await isVideoTarget(media)
+            ? RefaceTarget.video(File(media.path))
+            : RefaceTarget.photo(await media.readAsBytes());
+      },
     );
-    if (media == null) return null;
-    return await isVideoTarget(media)
-        ? RefaceTarget.video(File(media.path))
-        : RefaceTarget.photo(await media.readAsBytes());
-  },
-);

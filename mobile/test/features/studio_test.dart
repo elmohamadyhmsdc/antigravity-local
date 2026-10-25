@@ -61,7 +61,7 @@ void main() {
   ) async {
     env.picker.photo = tinyPng;
     await open(tester, env, '/reface');
-    await tester.tap(find.byKey(const Key('reface-target')));
+    await pickRefaceTarget(tester);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('target-face-0')), findsOneWidget);
     for (final i in [0, 1]) {
@@ -79,7 +79,7 @@ void main() {
       await seedFace(env.db, personId: person, seed: 1);
       env.picker.photo = tinyPng;
       await open(tester, env, '/reface?person=$person');
-      await tester.tap(find.byKey(const Key('reface-target')));
+      await pickRefaceTarget(tester);
       await tester.pumpAndSettle();
       await next(tester);
       expect(find.text('Sara'), findsOneWidget);
@@ -168,7 +168,7 @@ void main() {
     await seedFace(env.db, personId: person, seed: 1);
     env.picker.photo = tinyPng;
     await open(tester, env, '/reface?person=$person');
-    await tester.tap(find.byKey(const Key('reface-target')));
+    await pickRefaceTarget(tester);
     await tester.pumpAndSettle();
     await next(tester);
     await next(tester);
@@ -195,7 +195,7 @@ void main() {
         tester,
         extra: [initialLocationProvider.overrideWithValue('/reface')],
       );
-      await tester.tap(find.byKey(const Key('reface-target')));
+      await pickRefaceTarget(tester);
       await tester.pumpAndSettle();
       env.picker.photo = tinyPng;
       await tester.ensureVisible(find.byKey(const Key('reface-reference')));
@@ -205,7 +205,10 @@ void main() {
       expect(find.byKey(const Key('target-face-0')), findsOneWidget);
       await tester.ensureVisible(find.byKey(const Key('target-face-0')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('target-face-0')).hitTestable(), findsOneWidget);
+      expect(
+        find.byKey(const Key('target-face-0')).hitTestable(),
+        findsOneWidget,
+      );
       await tester.tap(find.byKey(const Key('target-face-0')));
       expect(tester.takeException(), isNull);
     },
@@ -217,7 +220,7 @@ void main() {
     await seedFace(env.db, personId: person, seed: 1);
     env.picker.photo = tinyPng;
     await open(tester, env, '/reface?person=$person');
-    await tester.tap(find.byKey(const Key('reface-target')));
+    await pickRefaceTarget(tester);
     await tester.pumpAndSettle();
     await next(tester);
     await next(tester);

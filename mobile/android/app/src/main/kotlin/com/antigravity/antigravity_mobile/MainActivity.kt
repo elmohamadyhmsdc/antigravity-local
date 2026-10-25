@@ -18,6 +18,8 @@ class MainActivity : FlutterActivity() {
     companion object { private const val ENGINE_ID = "antigravity_work_engine" }
     private val security by lazy { SecurityBridge(this) }
     private var securityChannel: MethodChannel? = null
+    private val mediaPicker by lazy { MediaPickerBridge(this) }
+    private var mediaPickerChannel: MethodChannel? = null
     // The foreground service protects the process; retain the actual Dart work
     // as well when Android removes the Activity (for example, a task swipe).
     override fun provideFlutterEngine(context: Context): FlutterEngine? =
@@ -32,6 +34,9 @@ class MainActivity : FlutterActivity() {
             it.setMethodCallHandler(security::handle)
         }
         val appContext = applicationContext
+        mediaPickerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/media_picker").also {
+            it.setMethodCallHandler(mediaPicker::handle)
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/backup")
             .setMethodCallHandler(BackupBridge(appContext)::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/network")
@@ -70,11 +75,15 @@ class MainActivity : FlutterActivity() {
         security.cancelPending()
         securityChannel?.setMethodCallHandler(null)
         securityChannel = null
+        mediaPicker.close()
+        mediaPickerChannel?.setMethodCallHandler(null)
+        mediaPickerChannel = null
         super.onDestroy()
     }
 
     @Deprecated("Android credential confirmation result")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (!security.onActivityResult(requestCode, resultCode)) super.onActivityResult(requestCode, resultCode, data)
+        if (!mediaPicker.onActivityResult(requestCode, resultCode, data) &&
+            !security.onActivityResult(requestCode, resultCode)) super.onActivityResult(requestCode, resultCode, data)
     }
 }

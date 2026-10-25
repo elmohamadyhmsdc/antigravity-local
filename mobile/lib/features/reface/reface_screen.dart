@@ -231,12 +231,14 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   }
 
   Future<void> _pickTarget() async {
+    final source = await chooseRefaceMediaSource(context);
+    if (source == null || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final target = await ref.read(refaceTargetPickerProvider)();
+      final target = await ref.read(refaceTargetPickerProvider)(source);
       if (target == null || !mounted) return;
       if (target.photo != null) {
         await _pickPhoto(selectedBytes: target.photo);

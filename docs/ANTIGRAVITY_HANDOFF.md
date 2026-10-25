@@ -185,7 +185,7 @@ Outstanding acceptance/work; choose the user's requested task:
   training resume remains future work; training currently resumes at epochs.
 
 Latest documented APKs: `mobile/build/app/outputs/flutter-apk/app-release.apk`
-(98,903,598 bytes, historical) and `app-debug.apk` (225,544,259 bytes, October 25). Check current files
+(98,903,598 bytes, historical) and `app-debug.apk` (225,543,839 bytes, October 25 Files picker build). Check current files
 before relying on historical sizes. Release uses a private RSA-3072 key and
 cannot update the differently signed installed Debug app. Do not uninstall to
 solve that mismatch or lose the library. No Release installation occurred.
@@ -311,3 +311,9 @@ At the user's request ("اسم الابليكيشن Your Gallery مش antigravit
 - The new network tests include abrupt TLS interruption, persisted partial resume, full binary integrity, range fallbacks, invalid ranges and HTTP auth/retry errors. Early disconnect simulation errors were test-fixture misuse of HTTP socket detachment; corrected to a deliberately truncated raw response. Initial analyzer findings were fixed; no findings were suppressed. Previously recorded unrelated Restyle failures remain unmodified/unrerun.
 - Reports: [stateless workflow and target UI](mobile-stateless-workflow-2026-10-25.md), [transfer changes/measurements](mobile-transfer-performance-2026-10-25.md). No physical device was attached, no installation/deployment occurred, and the user's library/paused scan/checkpoints and unrelated Android TV manifest edits were preserved. Isolated test servers shut down; no user server was stopped or restarted.
 - Final offline Debug APK build succeeded in **1m 26s** (498 tasks; 26 executed). Both mobile/build/app/outputs/flutter-apk/app-debug.apk and mobile/build/app/outputs/apk/debug/app-debug.apk are **225,544,259 bytes**, SHA-256 **353497f1806b848e85a83384a590f9573065148f5999dde29d9d098cf4888446**. Log: mobile/build/reface-transfer-debug-build.log. It has not been installed. Apply both the updated APK and backend code for all transfer/retention improvements to take effect; no running user server was restarted during this task.
+
+## Reface target opens Files instead of Google Photos — 2026-10-25
+
+- User requested the device file explorer directly. Changed mobile/lib/features/reface/reface_media.dart from ImagePicker.pickMedia to existing FilePicker.pickFile with FileType.custom and image/video extension filters. Inspection of the installed Android plugin confirms custom filters use ACTION_OPEN_DOCUMENT; media/image/video picker modes can use ACTION_GET_CONTENT and open gallery providers. The single target button, automatic type detection and video preview/trimmer are preserved. No dependencies or Android permissions were changed.
+- Existing Reface trimmer + Studio tests: **16 passed** (mobile/build/reface-files-picker-tests.log). The previous 395-test full-suite/GPU evidence remains historical; backend/transfer code was not changed or retested for this picker-only task. Physical Android picker acceptance remains a device check; no installation or real phone/library/server mutation was performed. Existing unrelated handoff/manifest changes were preserved.
+- Flutter analyzer: **no issues** (mobile/build/reface-files-picker-analyze.log). Offline Debug build: **successful in 52s**, 498 tasks/29 executed (mobile/build/reface-files-picker-build.log). Updated APK at mobile/build/app/outputs/flutter-apk/app-debug.apk, also build/app/outputs/apk/debug/app-debug.apk: **225,543,839 bytes**. This supersedes the earlier APK size; it has not been installed on a device.

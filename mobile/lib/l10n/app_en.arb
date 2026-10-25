@@ -1282,5 +1282,9 @@
   "refaceTrimDuration": "Selected clip",
   "refaceTrimEarlier": "Move one second earlier",
   "refaceTrimLater": "Move one second later",
-  "refaceTrimLoading": "Wait for the video preview to load, then choose your clip."
+  "refaceTrimLoading": "Wait for the video preview to load, then choose your clip.",
+  "refaceGallerySource": "Gallery",
+  "refaceGallerySourceHint": "Choose a gallery app on this device",
+  "refaceFilesSource": "Files",
+  "refaceFilesSourceHint": "Browse device folders and downloads"
 }

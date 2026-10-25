@@ -370,6 +370,7 @@ class TestEnv {
   final InMemoryEmbeddingIndex index;
   late final FileStore files;
   Future<RefaceTarget?> Function()? targetPicker;
+  RefaceMediaSource? lastTargetSource;
 
   List<Override> get overrides => [
     databaseProvider.overrideWithValue(db),
@@ -381,7 +382,8 @@ class TestEnv {
     ),
     permissionsServiceProvider.overrideWithValue(permissions),
     photoPickerProvider.overrideWithValue(picker),
-    refaceTargetPickerProvider.overrideWithValue(() async {
+    refaceTargetPickerProvider.overrideWithValue((source) async {
+      lastTargetSource = source;
       if (targetPicker != null) return targetPicker!();
       final photo = await picker.pickPhoto();
       return photo == null ? null : RefaceTarget.photo(photo);
