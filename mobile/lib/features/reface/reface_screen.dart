@@ -1,15 +1,15 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/router.dart';
 import '../../data/api/dtos/analyze.dart';
-import '../../data/api/dtos/embedding.dart';
 import '../../data/api/dtos/system.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repositories/studio_repository.dart';
@@ -23,6 +23,8 @@ import '../shared/empty_state.dart';
 import '../settings/background_screen.dart';
 import 'reface_media.dart';
 import 'reface_video_trimmer.dart';
+import 'reface_faces.dart';
+import 'reface_face_choices.dart';
 
 class RefaceScreen extends ConsumerStatefulWidget {
   const RefaceScreen({super.key, this.personId});
@@ -52,6 +54,222 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   String? _error;
   VideoTrimSelection? _videoTrim;
   int _targetRevision = 0;
+  Timer? _targetScanTimer;
+  int _targetScanGeneration = 0;
+  bool _detectingTarget = false;
+  double _targetScanProgress = 0;
+  String? _targetScanError;
+  Duration _previewPosition = Duration.zero;
+  List<RefaceFaceGroup> _videoFaces = [];
+  String? _targetModelId;
+  bool _useImportedSource = false;
+  final List<RefaceFaceGroup> _importedSources = [];
+  int? _importedSource;
+  String? _importedModelId;
+  int _importedMediaCount = 0;
+
+  @override
+  void dispose() {
+    _targetScanGeneration++;
+    _targetScanTimer?.cancel();
+    super.dispose();
+  }
+
+  void _trimChanged(VideoTrimSelection trim) {
+    if (!mounted ||
+        (_videoTrim?.start == trim.start && _videoTrim?.end == trim.end)) {
+      return;
+    }
+    final generation = ++_targetScanGeneration;
+    _targetScanTimer?.cancel();
+    setState(() {
+      _videoTrim = trim;
+      _videoFaces = [];
+      _targets.clear();
+      _detectingTarget = true;
+      _targetScanProgress = 0;
+      _targetScanError = null;
+    });
+    _targetScanTimer = Timer(
+      const Duration(milliseconds: 500),
+      () => _detectVideoFaces(generation, trim),
+    );
+  }
+
+  Future<void> _detectVideoFaces(
+    int generation,
+    VideoTrimSelection trim, {
+    bool append = false,
+    int count = 12,
+  }) async {
+    if (!mounted || generation != _targetScanGeneration) return;
+    final l10n = AppLocalizations.of(context);
+    bool current() => mounted && generation == _targetScanGeneration;
+    try {
+      final api = ref.read(mobileApiProvider);
+      if (api == null || _video == null) {
+        throw FormatException(l10n.studioNeedsPc);
+      }
+      final frames = await ref.read(refaceVideoFramesProvider)(
+        _video!,
+        start: trim.start,
+        end: trim.end,
+        count: count,
+      );
+      if (!current()) return;
+      if (frames.isEmpty) {
+        throw FormatException(l10n.videoUnavailableBody);
+      }
+      final groups = append
+          ? _videoFaces.map(RefaceFaceGroup.copy).toList()
+          : <RefaceFaceGroup>[];
+      final selection = append ? Set<int>.of(_targets) : <int>{};
+      String? model = append ? _targetModelId : null;
+      for (var i = 0; i < frames.length; i++) {
+        if (!current()) return;
+        final result = await api.analyzeImage(
+          frames[i],
+          options: const AnalyzeOptions(minQuality: 0, detectBodies: false),
+        );
+        if (!current()) return;
+        if (model != null && model != result.modelId) {
+          throw const FormatException(
+            'The face model changed. Detect the target again.',
+          );
+        }
+        model = result.modelId;
+        mergeRefaceFaces(groups, result.faces, selected: selection);
+        setState(() => _targetScanProgress = (i + 1) / frames.length);
+      }
+      if (current()) {
+        setState(() {
+          _videoFaces = groups;
+          _targetModelId = model;
+          _targets
+            ..clear()
+            ..addAll(selection);
+          if (groups.length == 1) _targets.add(0);
+          _error = null;
+        });
+      }
+    } catch (error) {
+      if (current()) {
+        setState(() {
+          _targetScanError = error is PlatformException
+              ? (error.message ?? l10n.videoUnavailableBody)
+              : error is TimeoutException
+              ? l10n.refaceVideoReadTimeout
+              : '$error';
+          _error = _targetScanError;
+        });
+      }
+    } finally {
+      if (current()) setState(() => _detectingTarget = false);
+    }
+  }
+
+  void _detectShownFrame() {
+    final trim = _videoTrim;
+    if (trim == null) return;
+    _targetScanTimer?.cancel();
+    final generation = ++_targetScanGeneration;
+    final position = Duration(
+      microseconds: _previewPosition.inMicroseconds.clamp(
+        trim.start.inMicroseconds,
+        trim.end.inMicroseconds - 1000,
+      ),
+    );
+    setState(() {
+      _detectingTarget = true;
+      _targetScanProgress = 0;
+      _targetScanError = null;
+      _error = null;
+    });
+    _detectVideoFaces(
+      generation,
+      VideoTrimSelection(
+        start: position,
+        end: position + const Duration(milliseconds: 1),
+        duration: trim.duration,
+      ),
+      append: true,
+      count: 1,
+    );
+  }
+
+  Future<void> _addSourceMedia() async {
+    final l10n = AppLocalizations.of(context);
+    final location = await chooseRefaceMediaSource(context);
+    if (location == null || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(mobileApiProvider);
+      if (api == null) {
+        throw FormatException(l10n.studioNeedsPc);
+      }
+      final media = await ref.read(refaceSourcePickerProvider)(location);
+      if (media.isEmpty || !mounted) return;
+      // Work on a copy: cancellation/failure cannot leave a half-imported identity.
+      final groups = [
+        for (final group in _importedSources) RefaceFaceGroup.copy(group),
+      ];
+      var model = _importedModelId;
+      for (final file in media) {
+        final frames = await isVideoTarget(file)
+            ? await ref.read(refaceVideoFramesProvider)(
+                File(file.path),
+                count: 12,
+              )
+            : [await file.readAsBytes()];
+        if (!mounted) return;
+        if (frames.isEmpty) {
+          throw FormatException(l10n.videoUnavailableBody);
+        }
+        for (final frame in frames) {
+          final result = await api.analyzeImage(
+            frame,
+            options: const AnalyzeOptions(minQuality: 0, detectBodies: false),
+          );
+          if (!mounted) return;
+          if (model != null && model != result.modelId) {
+            throw const FormatException(
+              'The face model changed. Clear the source photos and choose them again.',
+            );
+          }
+          model = result.modelId;
+          mergeRefaceFaces(
+            groups,
+            result.faces
+                .where((face) => face.quality.score > 0 && face.detScore >= .5)
+                .toList(),
+          );
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _importedSources
+          ..clear()
+          ..addAll(groups);
+        _importedModelId = model;
+        _importedMediaCount += media.length;
+        _importedSource = groups.length == 1 ? 0 : null;
+        _useImportedSource = true;
+        _person = null;
+        _personName = null;
+        _identitySet = null;
+        _sources.clear();
+        _faces = [];
+        _loraIdentity = false;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   void initState() {
@@ -67,11 +285,6 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       _restorer = 'auto';
       _preset = 'natural';
       _parser = true;
-      if (value == 'v2' && _video != null) {
-        _photo = null;
-        _analysis = null;
-        _targets.clear();
-      }
     });
   }
 
@@ -86,6 +299,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       if (!mounted) return;
       setState(() {
         _person = id;
+        _useImportedSource = false;
+        _loraIdentity = false;
         _identitySet = null;
         _personName = name;
         _faces = faces;
@@ -189,10 +404,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     }
   }
 
-  Future<void> _pickPhoto({
-    bool asReference = false,
-    Uint8List? selectedBytes,
-  }) async {
+  Future<void> _pickPhoto(Uint8List bytes) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -200,16 +412,11 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     try {
       final api = ref.read(mobileApiProvider);
       if (api == null) return;
-      final bytes =
-          selectedBytes ?? await ref.read(photoPickerProvider).pickPhoto();
-      if (bytes == null) return;
       if (mounted) {
         setState(() {
           _photo = bytes;
-          if (!asReference) {
-            _video = null;
-            _videoTrim = null;
-          }
+          _video = null;
+          _videoTrim = null;
           _analysis = null;
           _targets.clear();
         });
@@ -221,6 +428,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       if (!mounted) return;
       setState(() {
         _analysis = result;
+        _targetModelId = result.modelId;
         _targets.addAll(List.generate(result.faces.length, (i) => i));
       });
     } catch (e) {
@@ -240,8 +448,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     try {
       final target = await ref.read(refaceTargetPickerProvider)(source);
       if (target == null || !mounted) return;
+      _targetScanGeneration++;
+      _targetScanTimer?.cancel();
+      _detectingTarget = false;
+      _targetScanError = null;
+      _videoFaces = [];
       if (target.photo != null) {
-        await _pickPhoto(selectedBytes: target.photo);
+        await _pickPhoto(target.photo!);
       } else if (target.video != null) {
         setState(() {
           _video = target.video;
@@ -273,7 +486,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       } else if (_video == null && _targets.isEmpty) {
         error = l10n.selectFaceRequired;
       } else if (_video != null) {
-        if (_analysis != null && (_targets.isEmpty || _engine == 'v2')) {
+        if (_detectingTarget) {
+          error = l10n.refaceFindingFaces;
+        } else if (_videoFaces.isEmpty || _targets.isEmpty) {
           error = l10n.selectFaceRequired;
         }
         final trim = _videoTrim;
@@ -288,7 +503,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     }
     if (_step == 1 &&
         _engine != 'dfm' &&
-        (_person == null || _sources.isEmpty)) {
+        (_useImportedSource
+            ? _importedSource == null
+            : (_person == null || _sources.isEmpty))) {
       error = l10n.selectIdentityRequired;
     }
     setState(() => _error = error);
@@ -308,6 +525,18 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       if (ref.read(studioApiProvider) == null) {
         throw FormatException(l10n.studioNeedsPc);
       }
+      if (_targetModelId != caps.embeddingModelId ||
+          (_useImportedSource &&
+              _engine != 'dfm' &&
+              _importedModelId != caps.embeddingModelId)) {
+        throw const FormatException(
+          'The face model changed. Detect the target and source again.',
+        );
+      }
+      if (_video != null &&
+          (_engine == 'v2' || _videoFaces.isEmpty || _targets.isEmpty)) {
+        throw FormatException(l10n.selectFaceRequired);
+      }
       var file = _video;
       if (file == null) {
         final tmp = await getTemporaryDirectory();
@@ -322,6 +551,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       }
       final source = _engine == 'dfm'
           ? <Map<String, dynamic>>[]
+          : _useImportedSource
+          ? _importedSources[_importedSource!].encode()
           : StudioRepository.encodeFaces(
               (await ref
                       .read(identityRepositoryProvider)
@@ -372,13 +603,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           'target_faces': [
             for (final i in _targets) _analysis!.faces[i].bbox.toJson(),
           ],
-        if (_video != null && _analysis != null) ...{
-          'target_embeddings': [
-            for (final face in _analysis!.faces)
-              encodeEmbedding(face.embedding),
-          ],
-          'target_indices': _targets.toList()..sort(),
-        },
+        if (_video != null)
+          ...encodeVideoTargetSelection(_videoFaces, _targets),
         if (_video != null) ...{
           'start_time': _videoTrim!.startSeconds,
           'end_time': _videoTrim!.endSeconds,
@@ -425,7 +651,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         : null;
     final available = <String>[
       if (caps?.engines.refaceV3 == true) 'v3',
-      if (caps?.engines.refaceV2 == true) 'v2',
+      if (caps?.engines.refaceV2 == true && _video == null) 'v2',
       if (caps?.engines.dfmModels.isNotEmpty == true) 'dfm',
     ];
     if (available.isNotEmpty && !available.contains(_engine)) {
@@ -571,6 +797,18 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                           ),
                         ),
                         Text(l10n.selectedTargetFaces),
+                        RefaceFaceChoices(
+                          groups: [
+                            for (final face in _analysis!.faces)
+                              RefaceFaceGroup(face),
+                          ],
+                          selected: _targets,
+                          keyPrefix: 'photo-target-face',
+                          enabled: !_busy,
+                          onToggle: (index) => setState(() {
+                            if (!_targets.remove(index)) _targets.add(index);
+                          }),
+                        ),
                         if (_analysis!.faces.isEmpty) Text(l10n.analyzeNoFaces),
                       ],
                       if (_video != null) ...[
@@ -581,31 +819,77 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                           file: _video!,
                           active: _step == 0,
                           enabled: !_busy,
-                          onChanged: (trim) {
-                            if (mounted) setState(() => _videoTrim = trim);
-                          },
+                          onChanged: _trimChanged,
+                          onPositionChanged: (position) =>
+                              _previewPosition = position,
                         ),
-                        if (_analysis == null) Text(l10n.videoSwapsAllFaces),
-                        if (_engine != 'v2') ...[
-                          OutlinedButton(
-                            key: const Key('reface-reference'),
-                            onPressed: _busy || caps == null
+                        const SizedBox(height: 12),
+                        Text(l10n.refaceTargetPeopleHint),
+                        if (_detectingTarget) ...[
+                          LinearProgressIndicator(
+                            value: _targetScanProgress == 0
                                 ? null
-                                : () => _pickPhoto(asReference: true),
-                            child: Text(l10n.refaceReference),
+                                : _targetScanProgress,
                           ),
-                          Text(l10n.refaceReferenceHint),
-                          if (_analysis != null)
-                            TextButton(
-                              onPressed: _busy
-                                  ? null
-                                  : () => setState(() {
-                                      _photo = null;
-                                      _analysis = null;
-                                      _targets.clear();
-                                    }),
-                              child: Text(l10n.refaceAllVideoFaces),
+                          Text(
+                            _targetScanProgress == 0
+                                ? l10n.refaceReadingVideo
+                                : l10n.refaceFindingFaces,
+                            key: const Key('reface-video-scan-status'),
+                          ),
+                        ] else ...[
+                          if (_targetScanError != null)
+                            Text(
+                              _targetScanError!,
+                              key: const Key('reface-video-scan-error'),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            )
+                          else if (_videoFaces.isEmpty && _videoTrim != null)
+                            Text(l10n.analyzeNoFaces)
+                          else if (_videoFaces.isNotEmpty)
+                            Text(
+                              l10n.refaceVideoPeopleFound(_videoFaces.length),
                             ),
+                          RefaceFaceChoices(
+                            groups: _videoFaces,
+                            selected: _targets,
+                            keyPrefix: 'video-target-face',
+                            enabled: !_busy,
+                            onToggle: (index) => setState(() {
+                              if (!_targets.remove(index)) _targets.add(index);
+                            }),
+                          ),
+                          TextButton.icon(
+                            key: const Key('reface-detect-video-faces'),
+                            onPressed:
+                                _busy || caps == null || _videoTrim == null
+                                ? null
+                                : () {
+                                    _targetScanTimer?.cancel();
+                                    final generation = ++_targetScanGeneration;
+                                    setState(() {
+                                      _detectingTarget = true;
+                                      _targetScanProgress = 0;
+                                      _targetScanError = null;
+                                      _error = null;
+                                    });
+                                    _detectVideoFaces(generation, _videoTrim!);
+                                  },
+                            icon: const Icon(Icons.face_outlined),
+                            label: Text(l10n.refaceDetectVideoFaces),
+                          ),
+                          TextButton.icon(
+                            key: const Key('reface-detect-current-frame'),
+                            onPressed:
+                                _busy || caps == null || _videoTrim == null
+                                ? null
+                                : _detectShownFrame,
+                            icon: const Icon(Icons.center_focus_strong),
+                            label: Text(l10n.refaceDetectShownFrame),
+                          ),
+                          if (caps == null) Text(l10n.studioNeedsPc),
                         ],
                       ],
                     ],
@@ -655,6 +939,62 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                               },
                         child: Text(_personName ?? l10n.selectSourcePerson),
                       ),
+                      if (_engine != 'dfm') ...[
+                        OutlinedButton.icon(
+                          key: const Key('reface-source-media'),
+                          onPressed: _busy || caps == null
+                              ? null
+                              : _addSourceMedia,
+                          icon: const Icon(Icons.add_photo_alternate_outlined),
+                          label: Text(l10n.refaceAddSourceMedia),
+                        ),
+                        Text(l10n.refaceSourceMediaHint),
+                        if (_busy)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: LinearProgressIndicator(),
+                          ),
+                        if (_importedMediaCount > 0) ...[
+                          Text(
+                            l10n.refaceSourceMediaCount(_importedMediaCount),
+                          ),
+                          if (_importedSources.isEmpty)
+                            Text(l10n.analyzeNoFaces),
+                          RefaceFaceChoices(
+                            groups: _importedSources,
+                            selected: {
+                              _useImportedSource && _importedSource != null
+                                  ? _importedSource!
+                                  : -1,
+                            },
+                            keyPrefix: 'imported-source-face',
+                            enabled: !_busy,
+                            onToggle: (index) => setState(() {
+                              _useImportedSource = true;
+                              _importedSource = index;
+                              _person = null;
+                              _personName = null;
+                              _identitySet = null;
+                              _loraIdentity = false;
+                              _sources.clear();
+                              _faces = [];
+                            }),
+                          ),
+                          TextButton(
+                            key: const Key('reface-clear-source-media'),
+                            onPressed: _busy
+                                ? null
+                                : () => setState(() {
+                                    _importedSources.clear();
+                                    _importedSource = null;
+                                    _importedModelId = null;
+                                    _importedMediaCount = 0;
+                                    _useImportedSource = false;
+                                  }),
+                            child: Text(l10n.refaceClearSourceMedia),
+                          ),
+                        ],
+                      ],
                       Text(l10n.sourceFacesHint),
                       if (_person != null && _engine != 'dfm') ...[
                         if (identitySets.isNotEmpty)
@@ -697,11 +1037,14 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                           ],
                         ),
                       ],
-                      if ((ref.watch(lorasProvider).value ?? const <LoraRow>[])
-                          .any(
-                            (m) =>
-                                m.personId == _person && m.identityJson != null,
-                          ))
+                      if (!_useImportedSource &&
+                          _person != null &&
+                          (ref.watch(lorasProvider).value ?? const <LoraRow>[])
+                              .any(
+                                (m) =>
+                                    m.personId == _person &&
+                                    m.identityJson != null,
+                              ))
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(l10n.loraIdentity),
@@ -867,7 +1210,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                       ),
                       if (_engine != 'dfm')
                         Text(
-                          '${_personName ?? l10n.refaceIdentity} · ${_sources.length}',
+                          '${_useImportedSource ? l10n.refaceSourceMedia : (_personName ?? l10n.refaceIdentity)} · ${_useImportedSource && _importedSource != null ? _importedSources[_importedSource!].samples.length : _sources.length}',
                         ),
                       const SizedBox(height: 12),
                       Text(l10n.refaceReviewHint),

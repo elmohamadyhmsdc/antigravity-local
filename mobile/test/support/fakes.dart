@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'fixtures.dart';
 import 'fake_video_controller.dart';
@@ -371,6 +372,11 @@ class TestEnv {
   late final FileStore files;
   Future<RefaceTarget?> Function()? targetPicker;
   RefaceMediaSource? lastTargetSource;
+  List<XFile> sourceMedia = [];
+  final sampledVideoRanges =
+      <({String path, Duration? start, Duration? end, int count})>[];
+  FakeTrimVideoController? trimController;
+  Future<List<Uint8List>> Function(File, Duration?, Duration?)? videoSampler;
 
   List<Override> get overrides => [
     databaseProvider.overrideWithValue(db),
@@ -389,8 +395,23 @@ class TestEnv {
       return photo == null ? null : RefaceTarget.photo(photo);
     }),
     refaceVideoControllerProvider.overrideWithValue(
-      (file) => FakeTrimVideoController(file),
+      (file) => trimController = FakeTrimVideoController(file),
     ),
+    refaceSourcePickerProvider.overrideWithValue((_) async => sourceMedia),
+    refaceVideoFramesProvider.overrideWithValue((
+      file, {
+      start,
+      end,
+      count = 12,
+    }) async {
+      sampledVideoRanges.add((
+        path: file.path,
+        start: start,
+        end: end,
+        count: count,
+      ));
+      return videoSampler == null ? [tinyPng] : videoSampler!(file, start, end);
+    }),
     deviceNameProvider.overrideWith((ref) async => 'Test phone'),
     fileStoreProvider.overrideWithValue(files),
     mediaLibraryProvider.overrideWithValue(library),

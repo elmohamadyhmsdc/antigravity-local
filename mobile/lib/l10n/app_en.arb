@@ -1286,5 +1286,21 @@
   "refaceGallerySource": "Gallery",
   "refaceGallerySourceHint": "Choose a gallery app on this device",
   "refaceFilesSource": "Files",
-  "refaceFilesSourceHint": "Browse device folders and downloads"
+  "refaceFilesSourceHint": "Browse device folders and downloads",
+  "refaceTargetPeopleHint": "Choose the people in this clip whose faces you want to replace. Faces are found in sampled frames; adjust the clip and scan again if someone is missing.",
+  "refaceFindingFaces": "Finding faces in the selected clip…",
+  "refaceDetectVideoFaces": "Find faces in this clip again",
+  "refaceAddSourceMedia": "Add source photos or videos",
+  "refaceSourceMediaHint": "Choose photos and videos of the person whose face you want to use. If several people are found, select one person below. You can add more files.",
+  "refaceSourceMedia": "Selected source media",
+  "refaceClearSourceMedia": "Clear selected source media",
+  "refaceSourceMediaCount": "{count} source files analysed",
+  "@refaceSourceMediaCount": { "placeholders": { "count": { "type": "int" } } },
+  "refaceReadingVideo": "Reading video frames…",
+  "refaceDetectShownFrame": "Find faces in the frame shown",
+  "refaceFaceAppearances": "{count, plural, =1{1 appearance} other{{count} appearances}}",
+  "@refaceFaceAppearances": { "placeholders": { "count": { "type": "int" } } },
+  "refaceVideoReadTimeout": "Reading this video took too long. Try a shorter clip or choose the video again.",
+  "refaceVideoPeopleFound": "{count, plural, =1{1 person found in this clip} other{{count} people found in this clip}}",
+  "@refaceVideoPeopleFound": { "placeholders": { "count": { "type": "int" } } }
 }

@@ -4,17 +4,24 @@ The phone can submit Reface inputs to a server without a desktop library, receiv
 the processed result and keep the only durable personal copy locally. This was
 verified using the actual Flutter HTTP client, pinned HTTPS, a fresh phone test
 database, an empty server workspace and the installed GPU models. A physical
-Android phone was not connected during this task.
+Android phone was not connected during that round-trip acceptance. A later
+picker follow-up used read-only package queries on a connected Samsung A55.
 
 ## Target selection and trimming
 
-- One **Choose photo or video** button opens the system's **Files/document
-  browser**, filtered to images and videos. It uses FilePicker's custom filter
-  (Android ACTION_OPEN_DOCUMENT), replacing the gallery/Google Photos picker.
-  The chosen media type determines the next controls.
+- One **Choose photo or video** button offers **Gallery** and **Files**. Gallery
+  launches an explicit Android app chooser for image/video GET_CONTENT requests,
+  allowing the installed device gallery instead of silently using a saved Photos
+  default. Files uses the document browser with custom image/video filters.
+  Cancelling the source menu preserves the previous selection. The chosen media
+  type determines the next controls.
 - Videos show a playable preview and a two-handle range bar. Dragging either end
   seeks the preview to that boundary. Time appears as minutes:seconds or
   hours:minutes:seconds; one-second adjustment buttons help with long videos.
+- Target people are now detected directly from video frames and grouped by
+  identity. A current-preview-frame action can add a person missed by interval
+  sampling. Source identity can come from multiple gallery photos/videos without
+  creating a library person. See the [direct media identity report](reface-direct-media-identities-2026-10-25.md).
 - Playback stays within the chosen range and pauses when leaving the step or
   backgrounding the app. Invalid/empty videos show an error. The form waits for
   the video duration before accepting the selection.
@@ -25,7 +32,8 @@ Android phone was not connected during this task.
 Implementation starts at mobile/lib/features/reface/{reface_media,
 reface_video_trimmer,reface_screen}.dart. Existing file_picker/video_player
 dependencies are reused. Files are read from the picker-provided local copy;
-videos are not re-encoded.
+videos are not re-encoded. Android Gallery uses MediaPickerBridge.kt and copies
+the selected URI into private cache on a worker thread with a bounded buffer.
 
 ## Commit and deletion order
 
@@ -82,3 +90,11 @@ that deleted disk blocks, OS paging or external backups are securely erased.
 No existing phone library, paused queue, desktop database or running user server
 was changed. The isolated test servers shut down and remove their temporary roots.
 Native Android gallery/codec acceptance and real Wi-Fi speed remain device checks.
+
+Latest picker follow-up: **16 focused tests passed**, analyzer **no issues**, and
+the native Android bridge compiled in an offline Debug build (**46 seconds**).
+On the connected SM-A556E / Android API 36, a read-only package-manager query
+confirmed Samsung Gallery's exported GalleryExternalActivity handles the exact
+GET_CONTENT + OPENABLE + image/video MIME selection. The new APK was not installed
+or opened on that phone; this query does not establish visual on-device acceptance.
+Logs: mobile/build/reface-gallery-chooser-{tests,analyze,build}.log.

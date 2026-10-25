@@ -3681,6 +3681,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Browse device folders and downloads'**
   String get refaceFilesSourceHint;
+
+  /// No description provided for @refaceTargetPeopleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the people in this clip whose faces you want to replace. Faces are found in sampled frames; adjust the clip and scan again if someone is missing.'**
+  String get refaceTargetPeopleHint;
+
+  /// No description provided for @refaceFindingFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Finding faces in the selected clip…'**
+  String get refaceFindingFaces;
+
+  /// No description provided for @refaceDetectVideoFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Find faces in this clip again'**
+  String get refaceDetectVideoFaces;
+
+  /// No description provided for @refaceAddSourceMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Add source photos or videos'**
+  String get refaceAddSourceMedia;
+
+  /// No description provided for @refaceSourceMediaHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose photos and videos of the person whose face you want to use. If several people are found, select one person below. You can add more files.'**
+  String get refaceSourceMediaHint;
+
+  /// No description provided for @refaceSourceMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected source media'**
+  String get refaceSourceMedia;
+
+  /// No description provided for @refaceClearSourceMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selected source media'**
+  String get refaceClearSourceMedia;
+
+  /// No description provided for @refaceSourceMediaCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} source files analysed'**
+  String refaceSourceMediaCount(int count);
+
+  /// No description provided for @refaceReadingVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading video frames…'**
+  String get refaceReadingVideo;
+
+  /// No description provided for @refaceDetectShownFrame.
+  ///
+  /// In en, this message translates to:
+  /// **'Find faces in the frame shown'**
+  String get refaceDetectShownFrame;
+
+  /// No description provided for @refaceFaceAppearances.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 appearance} other{{count} appearances}}'**
+  String refaceFaceAppearances(int count);
+
+  /// No description provided for @refaceVideoReadTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading this video took too long. Try a shorter clip or choose the video again.'**
+  String get refaceVideoReadTimeout;
+
+  /// No description provided for @refaceVideoPeopleFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 person found in this clip} other{{count} people found in this clip}}'**
+  String refaceVideoPeopleFound(int count);
 }
 
 class _AppLocalizationsDelegate

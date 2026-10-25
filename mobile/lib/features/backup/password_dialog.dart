@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../privacy/app_lock.dart';
 
 Future<String?> backupPassword(
   BuildContext context, {
   required bool creating,
 }) => showDialog<String>(
   context: context,
-  builder: (_) => SensitiveSurface(child: _PasswordDialog(creating: creating)),
+  builder: (_) => _PasswordDialog(creating: creating),
 );
 
 class _PasswordDialog extends StatefulWidget {

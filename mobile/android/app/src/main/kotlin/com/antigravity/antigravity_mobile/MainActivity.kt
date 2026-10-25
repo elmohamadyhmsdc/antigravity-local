@@ -29,7 +29,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         FlutterEngineCache.getInstance().put(ENGINE_ID, flutterEngine)
-        security.restoreWindow()
+        security.allowScreenCapture()
         securityChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/security").also {
             it.setMethodCallHandler(security::handle)
         }

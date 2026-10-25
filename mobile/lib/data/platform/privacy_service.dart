@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 
 abstract interface class PrivacyService {
   Future<bool> authenticate(String title, String body);
-  Future<void> secure(bool enabled);
   Future<bool> exportMedia(File file, String mime);
 }
 
@@ -18,15 +17,6 @@ class AndroidPrivacyService implements PrivacyService {
         'body': body,
       }) ??
       false;
-  @override
-  Future<void> secure(bool enabled) async {
-    try {
-      await _channel.invokeMethod<bool>('secure', {'enabled': enabled});
-    } on MissingPluginException {
-      /* widget tests / unsupported platform */
-    }
-  }
-
   @override
   Future<bool> exportMedia(File file, String mime) async =>
       await _channel.invokeMethod<bool>('exportMedia', {

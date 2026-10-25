@@ -73,7 +73,13 @@ def det_sizes(img) -> List[Tuple[int, int]]:
 def detect_faces(face_app, img) -> list:
     """insightface's FaceAnalysis.get, but with per-image detector scales."""
     from insightface.app.common import Face
-    bboxes, kpss = face_app.det_model.detect(img, input_size=det_sizes(img), max_num=0)
+    sizes = det_sizes(img)
+    bboxes, kpss = face_app.det_model.detect(img, input_size=sizes, max_num=0)
+    # Preview frames may be smaller than 1600 px. If the ordinary passes found
+    # nothing, try the finer detector grid before declaring the frame faceless.
+    # Keep the same confidence threshold and avoid repeating an existing pass.
+    if bboxes.shape[0] == 0 and (1280, 1280) not in sizes:
+        bboxes, kpss = face_app.det_model.detect(img, input_size=[(1280, 1280)], max_num=0)
     faces = []
     for i in range(bboxes.shape[0]):
         face = Face(bbox=bboxes[i, 0:4], kps=kpss[i] if kpss is not None else None,

@@ -125,33 +125,3 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     );
   }
 }
-
-/// Route leases keep FLAG_SECURE enabled while any private viewer remains mounted.
-class SensitiveSurface extends ConsumerStatefulWidget {
-  const SensitiveSurface({super.key, required this.child});
-  final Widget child;
-  @override
-  ConsumerState<SensitiveSurface> createState() => _SensitiveSurfaceState();
-}
-
-class _SensitiveSurfaceState extends ConsumerState<SensitiveSurface> {
-  static int _leases = 0;
-  late final PrivacyService _service;
-  @override
-  void initState() {
-    super.initState();
-    _service = ref.read(privacyServiceProvider);
-    _leases++;
-    _service.secure(true);
-  }
-
-  @override
-  void dispose() {
-    _leases--;
-    if (_leases == 0) _service.secure(false);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
-}

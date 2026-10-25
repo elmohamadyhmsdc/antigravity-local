@@ -2220,4 +2220,64 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get refaceFilesSourceHint => 'Browse device folders and downloads';
+
+  @override
+  String get refaceTargetPeopleHint =>
+      'Choose the people in this clip whose faces you want to replace. Faces are found in sampled frames; adjust the clip and scan again if someone is missing.';
+
+  @override
+  String get refaceFindingFaces => 'Finding faces in the selected clip…';
+
+  @override
+  String get refaceDetectVideoFaces => 'Find faces in this clip again';
+
+  @override
+  String get refaceAddSourceMedia => 'Add source photos or videos';
+
+  @override
+  String get refaceSourceMediaHint =>
+      'Choose photos and videos of the person whose face you want to use. If several people are found, select one person below. You can add more files.';
+
+  @override
+  String get refaceSourceMedia => 'Selected source media';
+
+  @override
+  String get refaceClearSourceMedia => 'Clear selected source media';
+
+  @override
+  String refaceSourceMediaCount(int count) {
+    return '$count source files analysed';
+  }
+
+  @override
+  String get refaceReadingVideo => 'Reading video frames…';
+
+  @override
+  String get refaceDetectShownFrame => 'Find faces in the frame shown';
+
+  @override
+  String refaceFaceAppearances(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count appearances',
+      one: '1 appearance',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get refaceVideoReadTimeout =>
+      'Reading this video took too long. Try a shorter clip or choose the video again.';
+
+  @override
+  String refaceVideoPeopleFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count people found in this clip',
+      one: '1 person found in this clip',
+    );
+    return '$_temp0';
+  }
 }

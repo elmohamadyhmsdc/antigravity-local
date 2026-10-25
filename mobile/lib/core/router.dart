@@ -26,7 +26,6 @@ import '../features/jobs/jobs_screen.dart';
 import '../features/results/results_screen.dart';
 import '../features/restyle/restyle_screen.dart';
 import '../features/lora/lora_screens.dart';
-import '../features/privacy/app_lock.dart';
 import '../features/storage/storage_screen.dart';
 import '../features/shell/app_shell.dart';
 
@@ -122,8 +121,7 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.restyle,
-        builder: (context, state) =>
-            const SensitiveSurface(child: RestyleScreen()),
+        builder: (context, state) => const RestyleScreen(),
       ),
       GoRoute(
         path: Routes.lora,
@@ -150,10 +148,8 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.reface,
-        builder: (context, state) => SensitiveSurface(
-          child: RefaceScreen(
-            personId: int.tryParse(state.uri.queryParameters['person'] ?? ''),
-          ),
+        builder: (context, state) => RefaceScreen(
+          personId: int.tryParse(state.uri.queryParameters['person'] ?? ''),
         ),
       ),
       GoRoute(
@@ -167,9 +163,8 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: '${Routes.results}/:id',
-        builder: (context, state) => SensitiveSurface(
-          child: ResultDetailScreen(id: state.pathParameters['id']!),
-        ),
+        builder: (context, state) =>
+            ResultDetailScreen(id: state.pathParameters['id']!),
       ),
       GoRoute(
         path: Routes.insights,
@@ -211,9 +206,8 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: '${Routes.media}/:id',
-        builder: (context, state) => SensitiveSurface(
-          child: MediaScreen(mediaId: int.parse(state.pathParameters['id']!)),
-        ),
+        builder: (context, state) =>
+            MediaScreen(mediaId: int.parse(state.pathParameters['id']!)),
       ),
       GoRoute(
         path: '${Routes.merge}/:a/:b',

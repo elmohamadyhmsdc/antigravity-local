@@ -41,11 +41,13 @@ class RefaceVideoTrimmer extends ConsumerStatefulWidget {
     super.key,
     required this.file,
     required this.onChanged,
+    this.onPositionChanged,
     this.active = true,
     this.enabled = true,
   });
   final File file;
   final ValueChanged<VideoTrimSelection> onChanged;
+  final ValueChanged<Duration>? onPositionChanged;
   final bool active, enabled;
 
   @override
@@ -136,6 +138,9 @@ class _RefaceVideoTrimmerState extends ConsumerState<RefaceVideoTrimmer>
   }
 
   void _tick() {
+    if (mounted && _player.value.isInitialized) {
+      widget.onPositionChanged?.call(_player.value.position);
+    }
     final range = _range;
     if (!mounted ||
         range == null ||

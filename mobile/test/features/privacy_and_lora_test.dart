@@ -20,8 +20,6 @@ class FakePrivacy implements PrivacyService {
   }
 
   @override
-  Future<void> secure(bool enabled) async {}
-  @override
   Future<bool> exportMedia(File file, String mime) async => true;
 }
 

@@ -9,6 +9,86 @@ import '../../l10n/app_localizations.dart';
 
 enum RefaceMediaSource { gallery, files }
 
+const _mediaExtensions = [
+  'jpg',
+  'jpeg',
+  'png',
+  'webp',
+  'gif',
+  'heic',
+  'heif',
+  'avif',
+  'bmp',
+  'mp4',
+  'mov',
+  'm4v',
+  'webm',
+  'mkv',
+  'avi',
+  '3gp',
+  '3g2',
+  'mpg',
+  'mpeg',
+  'ts',
+];
+
+typedef RefaceVideoFrames =
+    Future<List<Uint8List>> Function(
+      File file, {
+      Duration? start,
+      Duration? end,
+      int count,
+    });
+
+final refaceVideoFramesProvider = Provider<RefaceVideoFrames>(
+  (ref) => (file, {start, end, count = 12}) async {
+    final frames = await const MethodChannel('antigravity/media_picker')
+        .invokeListMethod<Uint8List>('sampleVideoFrames', {
+          'path': file.path,
+          'startMs': start?.inMilliseconds ?? 0,
+          if (end != null) 'endMs': end.inMilliseconds,
+          'count': count,
+        })
+        .timeout(const Duration(seconds: 90));
+    return frames ?? const [];
+  },
+);
+
+final refaceSourcePickerProvider =
+    Provider<Future<List<XFile>> Function(RefaceMediaSource)>(
+      (ref) => (source) async {
+        if (source == RefaceMediaSource.gallery) {
+          if (Platform.isAndroid) {
+            final results = await const MethodChannel(
+              'antigravity/media_picker',
+            ).invokeListMethod<dynamic>('pickGalleryMedia', {'multiple': true});
+            return [
+              for (final result in results ?? const [])
+                XFile(
+                  result['path'] as String,
+                  mimeType: result['mimeType'] as String?,
+                ),
+            ];
+          }
+          return ImagePicker().pickMultipleMedia(
+            maxWidth: 2560,
+            maxHeight: 2560,
+            imageQuality: 92,
+            requestFullMetadata: false,
+            limit: 20,
+          );
+        }
+        final files = await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: _mediaExtensions,
+        );
+        if (files.length > 20) {
+          throw const FormatException('Choose at most 20 files at a time.');
+        }
+        return files.map((file) => file.xFile).toList();
+      },
+    );
+
 Future<RefaceMediaSource?> chooseRefaceMediaSource(BuildContext context) {
   final l = AppLocalizations.of(context);
   return showModalBottomSheet<RefaceMediaSource>(
@@ -140,28 +220,7 @@ final refaceTargetPickerProvider =
         // plugin's media/image/video types can open a gallery provider instead.
         final picked = await FilePicker.pickFile(
           type: FileType.custom,
-          allowedExtensions: const [
-            'jpg',
-            'jpeg',
-            'png',
-            'webp',
-            'gif',
-            'heic',
-            'heif',
-            'avif',
-            'bmp',
-            'mp4',
-            'mov',
-            'm4v',
-            'webm',
-            'mkv',
-            'avi',
-            '3gp',
-            '3g2',
-            'mpg',
-            'mpeg',
-            'ts',
-          ],
+          allowedExtensions: _mediaExtensions,
         );
         if (picked == null) return null;
         final media = picked.xFile;

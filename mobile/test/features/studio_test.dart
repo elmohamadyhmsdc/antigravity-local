@@ -20,7 +20,9 @@ import '../support/seed.dart';
 Future<void> open(WidgetTester tester, TestEnv env, String route) =>
     env.pump(tester, extra: [initialLocationProvider.overrideWithValue(route)]);
 Future<void> next(WidgetTester tester) async {
+  await tester.pumpAndSettle();
   await tester.ensureVisible(find.byKey(const Key('reface-next')));
+  await tester.pumpAndSettle();
   await tester.tap(find.byKey(const Key('reface-next')));
   await tester.pumpAndSettle();
 }
@@ -186,7 +188,7 @@ void main() {
   }, session: testSession);
 
   appTest(
-    'video reference photo keeps the video target and allows face selection',
+    'video finds its own people and allows target face selection without a reference photo',
     (tester, env) async {
       final file = File('${env.tmp.path}/target.mp4');
       await tester.runAsync(() => file.writeAsBytes([1, 2, 3]));
@@ -197,19 +199,20 @@ void main() {
       );
       await pickRefaceTarget(tester);
       await tester.pumpAndSettle();
-      env.picker.photo = tinyPng;
-      await tester.ensureVisible(find.byKey(const Key('reface-reference')));
-      await tester.tap(find.byKey(const Key('reface-reference')));
+      await tester.pump(const Duration(milliseconds: 600));
       await tester.pumpAndSettle();
       expect(find.text('target.mp4'), findsOneWidget);
-      expect(find.byKey(const Key('target-face-0')), findsOneWidget);
-      await tester.ensureVisible(find.byKey(const Key('target-face-0')));
+      expect(find.byKey(const Key('reface-reference')), findsNothing);
+      expect(find.byKey(const Key('video-target-face-0')), findsOneWidget);
+      expect(find.byKey(const Key('video-target-face-1')), findsOneWidget);
+      expect(env.sampledVideoRanges, hasLength(1));
+      await tester.ensureVisible(find.byKey(const Key('video-target-face-0')));
       await tester.pumpAndSettle();
       expect(
-        find.byKey(const Key('target-face-0')).hitTestable(),
+        find.byKey(const Key('video-target-face-0')).hitTestable(),
         findsOneWidget,
       );
-      await tester.tap(find.byKey(const Key('target-face-0')));
+      await tester.tap(find.byKey(const Key('video-target-face-0')));
       expect(tester.takeException(), isNull);
     },
     session: testSession,

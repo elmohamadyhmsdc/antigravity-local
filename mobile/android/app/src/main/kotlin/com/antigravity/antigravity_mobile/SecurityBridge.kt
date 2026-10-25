@@ -13,13 +13,11 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class SecurityBridge(private val activity: Activity) {
-    companion object { private var secureEnabled = false }
     private var pending: MethodChannel.Result? = null
     private val requestCode = 18842
 
-    fun restoreWindow() {
-        if (secureEnabled) activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        else activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    fun allowScreenCapture() {
+        activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 
     fun cancelPending() {
@@ -30,9 +28,9 @@ class SecurityBridge(private val activity: Activity) {
     fun handle(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "secure" -> {
-                secureEnabled = call.argument<Boolean>("enabled") == true
-                restoreWindow()
-                result.success(true)
+                // Compatibility with older Dart code: capture stays allowed.
+                allowScreenCapture()
+                result.success(false)
             }
             "authenticate" -> {
                 val manager = activity.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager

@@ -147,5 +147,50 @@ def main(argv):
     return 1 if failed else 0
 
 
+@test
+def test_empty_preview_detection_retries_finer_grid_and_keeps_original_coordinates():
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    import analysis
+
+    image = _img(1280, 720)
+    calls = []
+    seen_images = []
+    def detect(img, input_size, max_num):
+        check(img is image and max_num == 0, "the original pixels are reused")
+        calls.append(input_size)
+        if input_size == [(1280, 1280)]:
+            return np.array([[10, 20, 40, 60, .9]], dtype=np.float32), None
+        return np.empty((0, 5)), None
+    def recognize(img, face):
+        seen_images.append(img)
+        face.embedding = np.ones(512, dtype=np.float32)
+    app = SimpleNamespace(det_model=SimpleNamespace(detect=detect),
+                          models={"recognition": SimpleNamespace(get=recognize)})
+    with patch.dict(sys.modules, {"insightface.app.common": SimpleNamespace(Face=lambda **kw: SimpleNamespace(**kw))}):
+        faces = analysis.detect_faces(app, image)
+    check(calls == [[(128, 128), (640, 640)], [(1280, 1280)]], "one bounded high-resolution retry")
+    check(len(faces) == 1 and list(faces[0].bbox) == [10, 20, 40, 60], "boxes stay in original frame coordinates")
+    check(len(seen_images) == 1 and seen_images[0] is image, "recognition still receives original frame pixels")
+
+
+@test
+def test_finer_grid_retry_is_skipped_for_found_faces_and_already_detailed_frames():
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    import analysis
+
+    for width, found in [(1280, True), (1920, False), (1280, False)]:
+        calls = []
+        def detect(img, input_size, max_num):
+            calls.append(input_size)
+            return (np.array([[1, 2, 30, 40, .9]]) if found else np.empty((0, 5))), None
+        app = SimpleNamespace(det_model=SimpleNamespace(detect=detect), models={})
+        with patch.dict(sys.modules, {"insightface.app.common": SimpleNamespace(Face=lambda **kw: SimpleNamespace(**kw))}):
+            faces = analysis.detect_faces(app, _img(width, 720))
+        check(len(calls) == (2 if width == 1280 and not found else 1), "no redundant detector work or retry loop")
+        check(len(faces) == int(found), "an empty frame stays empty; no fabricated detections")
+
+
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
