@@ -67,6 +67,8 @@ class LibraryStats {
     IdentitySets,
     IdentitySetFaces,
     JobEvents,
+    CharacterIdentities,
+    CharacterSamples,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -74,7 +76,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 7;
+  static const currentSchemaVersion = 8;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -134,6 +136,12 @@ class AppDatabase extends _$AppDatabase {
       if (from < 7) {
         await m.createTable(faceSuppressions);
         await m.createIndex(faceSuppressionsAsset);
+      }
+      if (from < 8) {
+        await m.createTable(characterIdentities);
+        await m.createTable(characterSamples);
+        await m.createIndex(characterSamplesIdentity);
+        await m.createIndex(characterSamplesMedia);
       }
     },
     beforeOpen: (details) async {

@@ -32,16 +32,19 @@ class InsightEngines:
 
     @property
     def loaded(self) -> bool:
-        return self._face_app is not None or (self._scan_worker is not None and self._scan_worker.loaded)
+        return (self._face_app is not None or getattr(self._body, "detector", None) is not None
+                or (self._scan_worker is not None and self._scan_worker.loaded))
 
-    def load(self) -> None:
+    def load(self, *, faces=True) -> None:
         """Idempotent; called under the lock by analyze() or eagerly by `--preload`."""
-        if self._face_app is not None:
-            return
         from cuda_dll_dirs import add_nvidia_dll_dirs
         add_nvidia_dll_dirs()
-        from insightface.app import FaceAnalysis
         from body_detector import BodyAnalyzer
+        if self._body is None or (faces and not self._body.use_pose):
+            self._body = BodyAnalyzer(log=self._log, allow_downloads=False, use_pose=faces)
+        if not faces or self._face_app is not None:
+            return
+        from insightface.app import FaceAnalysis
         face_dir = Path.home()/'.insightface/models/buffalo_l'
         if not all((face_dir/name).is_file() for name in ('det_10g.onnx', 'w600k_r50.onnx', '1k3d68.onnx')):
             raise FileNotFoundError('Local buffalo_l face models are incomplete. Downloads are disabled.')
@@ -50,14 +53,13 @@ class InsightEngines:
                            providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
         app.prepare(ctx_id=0, det_size=[(128, 128), (640, 640)])
         self._face_app = app
-        self._body = BodyAnalyzer(log=self._log, allow_downloads=False)
         self._log(f"[engines] face models ready in {time.time() - started:.1f}s")
 
     def analyze(self, img, options) -> analysis.FrameAnalysis:
         with self._lock:
             if self._scan_worker is not None:
                 return self._scan_worker.analyze(img, options)
-            self.load()
+            self.load(faces=not getattr(options, "detect_characters", False))
             return analysis.analyze_frame(self._face_app, self._body, img, options)
 
     def unload(self):
@@ -150,6 +152,7 @@ class CapabilityProbe:
             "lora_generate": venv_ai and bool(self.lora_base_checkpoints()),
             "body_detection": self._has("models", "body", "yolox_m_humanart.onnx")
                               and self._has("models", "body", "rtmpose_m_body7.onnx"),
+            "character_detection": self._has("models", "body", "yolox_m_humanart.onnx"),
         }
 
     def snapshot(self) -> Dict:

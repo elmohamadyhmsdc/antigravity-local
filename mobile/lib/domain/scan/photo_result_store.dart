@@ -9,6 +9,7 @@ import '../../data/db/app_database.dart';
 import '../../data/files/file_store.dart';
 import '../../data/index/embedding_index.dart';
 import '../../data/repositories/library_repository.dart';
+import '../../data/repositories/character_repository.dart';
 import '../../data/repositories/face_suppression_store.dart';
 import 'scan_math.dart';
 
@@ -18,12 +19,14 @@ class StoreOutcome {
     this.newFaceIds = const [],
     this.linkedFaces = 0,
     this.newBodies = 0,
+    this.newCharacters = 0,
   });
 
   final int facesSeen; // faces that passed the quality gate
   final List<int> newFaceIds;
   final int linkedFaces; // seen again: linked to a face the library already had
   final int newBodies;
+  final int newCharacters;
 
   int get newFaces => newFaceIds.length;
 }
@@ -77,7 +80,7 @@ class PhotoResultStore {
 
     final newIds = <int>[];
     final newVectors = <(int, Float32List)>[];
-    var linked = 0, newBodies = 0;
+    var linked = 0, newBodies = 0, newCharacters = 0;
 
     await _db.transaction(() async {
       final inFile = await _facesOfMedia(media.id, frameNumber);
@@ -312,6 +315,12 @@ class PhotoResultStore {
         }
       }
 
+      newCharacters = await CharacterRepository(_db, _files).store(
+        media,
+        analysis,
+        frameNumber: frameNumber,
+        timestampMs: timestampMs,
+      );
       await (_db.update(_db.media)..where((m) => m.id.equals(media.id))).write(
         MediaCompanion(
           scanStatus: Value(complete ? 'done' : 'scanning'),
@@ -331,6 +340,7 @@ class PhotoResultStore {
       newFaceIds: newIds,
       linkedFaces: linked,
       newBodies: newBodies,
+      newCharacters: newCharacters,
     );
   }
 

@@ -179,6 +179,8 @@ void main() {
             'media',
             'faces',
             'face_suppressions',
+            'character_identities',
+            'character_samples',
             'bodies',
             'face_rejections',
             'body_rejections',
@@ -352,6 +354,35 @@ void main() {
 
   group('migrations', () {
     test(
+      'v7 upgrade keeps the human library and adds isolated character storage',
+      () async {
+        final file = File(p.join(dir.path, 'v7.db'));
+        final before = AppDatabase(NativeDatabase(file));
+        await before
+            .into(before.persons)
+            .insert(
+              PersonsCompanion.insert(name: const Value('Keep'), createdAt: 1),
+            );
+        await _addFace(before, personId: 1);
+        await before.close();
+        final legacy = raw.sqlite3.open(file.path);
+        legacy.execute(
+          'DROP TABLE character_samples; DROP TABLE character_identities; PRAGMA user_version = 7;',
+        );
+        legacy.close();
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
+        expect((await after.select(after.faces).get()).single.personId, 1);
+        expect((await after.select(after.persons).get()).single.name, 'Keep');
+        expect(await after.select(after.characterIdentities).get(), isEmpty);
+        expect(await after.select(after.characterSamples).get(), isEmpty);
+        expect(
+          await after.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+      },
+    );
+    test(
       'v6 upgrade preserves faces and creates persistent deletion storage',
       () async {
         final file = File(p.join(dir.path, 'v6.db'));
@@ -365,7 +396,7 @@ void main() {
         await before.close();
         final legacy = raw.sqlite3.open(file.path);
         legacy.execute(
-          'DROP TABLE face_suppressions; PRAGMA user_version = 6;',
+          'DROP TABLE character_samples; DROP TABLE character_identities; DROP TABLE face_suppressions; PRAGMA user_version = 6;',
         );
         legacy.close();
         final after = AppDatabase(NativeDatabase(file));
@@ -390,7 +421,7 @@ void main() {
       await fresh.close();
       final legacy = raw.sqlite3.open(file.path);
       legacy.execute(
-        'DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results;',
+        'DROP TABLE character_samples; DROP TABLE character_identities; DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results;',
       );
       legacy.execute('''
         DROP TABLE review_body_links; DROP TABLE review_duplicates; DROP TABLE review_groups;
@@ -545,7 +576,7 @@ void main() {
       await before.close();
       final legacy = raw.sqlite3.open(file.path);
       legacy.execute(
-        'DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results; PRAGMA user_version = 3;',
+        'DROP TABLE character_samples; DROP TABLE character_identities; DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results; PRAGMA user_version = 3;',
       );
       legacy.close();
       final after = AppDatabase(NativeDatabase(file));
@@ -572,7 +603,7 @@ void main() {
         await before.close();
         final legacy = raw.sqlite3.open(file.path);
         legacy.execute(
-          'DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; PRAGMA user_version = 5;',
+          'DROP TABLE character_samples; DROP TABLE character_identities; DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; PRAGMA user_version = 5;',
         );
         legacy.close();
         final after = AppDatabase(NativeDatabase(file));
@@ -610,7 +641,7 @@ void main() {
       await before.close();
       final legacy = raw.sqlite3.open(file.path);
       legacy.execute(
-        'DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; ALTER TABLE jobs DROP COLUMN input_files; ALTER TABLE jobs DROP COLUMN details_json; PRAGMA user_version = 4;',
+        'DROP TABLE character_samples; DROP TABLE character_identities; DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; ALTER TABLE jobs DROP COLUMN input_files; ALTER TABLE jobs DROP COLUMN details_json; PRAGMA user_version = 4;',
       );
       legacy.close();
       final after = AppDatabase(NativeDatabase(file));

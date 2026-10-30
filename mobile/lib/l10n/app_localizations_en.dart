@@ -2629,4 +2629,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get resourcesUpdated => 'Last sample';
+
+  @override
+  String get charactersTitle => 'Cartoon & anime characters';
+
+  @override
+  String get charactersScan => 'Scan illustrated characters';
+
+  @override
+  String get charactersScanHint =>
+      'For cartoon or anime albums. Scan bodies, hair, clothing and visual details instead of human faces. Select illustrated albums before scanning.';
+
+  @override
+  String get charactersEmpty => 'No characters yet';
+
+  @override
+  String get charactersEmptyHint =>
+      'Choose cartoon or anime albums in Scan sources and enable illustrated character scanning. Detection runs on the PC; your character library and appearance matching stay on this phone.';
+
+  @override
+  String get charactersAccuracyHint =>
+      'Grouped by visual appearance. Different outfits, hidden bodies or similar designs can need correction. Open a group to name it or separate a mistaken match.';
+
+  @override
+  String get characterSeparate => 'Separate this character';
+
+  @override
+  String get characterName => 'Character name';
+
+  @override
+  String get characterOpenSource => 'Open source';
+
+  @override
+  String get charactersTestPhoto => 'Test a character photo';
+
+  @override
+  String get charactersTestHint =>
+      'Test one illustration on the PC without saving it to your library. Bodies, hair, clothing and visual details are analysed; no human face is needed.';
+
+  @override
+  String characterFallback(int id) {
+    return 'Character $id';
+  }
+
+  @override
+  String characterSamples(int count) {
+    return '$count appearances';
+  }
+
+  @override
+  String charactersFound(int count) {
+    return '$count character appearances found';
+  }
 }

@@ -272,7 +272,7 @@ def test_view_switcher_offers_every_view():
     controls = [c for c in app.get("button_group") if c.label == "View"]
     check(controls, "the view switcher should render")
     options = [str(o) for o in controls[0].options]
-    check([o.split(" (")[0] for o in options] == ["People", "Review", "Media", "Insights"],
+    check([o.split(" (")[0] for o in options] == ["People", "Characters", "Review", "Media", "Insights"],
           f"unexpected views: {options}")
 
 

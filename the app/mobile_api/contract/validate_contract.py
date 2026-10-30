@@ -147,6 +147,10 @@ must_fail("AnalyzeImageResponse", "two_faces_one_body", lambda d: d["faces"][0].
           "a truncated embedding")
 must_fail("AnalyzeImageResponse", "two_faces_one_body", lambda d: d["bodies"][0].__setitem__("appearance", [0.1] * 79),
           "an 79-float outfit descriptor")
+must_fail("AnalyzeImageResponse", "character_no_face", lambda d: d["characters"][0].__setitem__("descriptor", [0.1] * 159),
+          "a truncated character descriptor")
+must_fail("AnalyzeImageResponse", "character_no_face", lambda d: d["characters"][0].__setitem__("model_id", "buffalo_l@1"),
+          "a human embedding model in a character detection")
 must_fail("JobCreate", "train_lora", lambda d: d["inputs"].pop("dataset"),
           "train_lora without the dataset blob")
 must_fail("JobCreate", "train_lora", lambda d: d["params"].__setitem__("output_name", "../evil"),

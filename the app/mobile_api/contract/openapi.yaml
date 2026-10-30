@@ -452,6 +452,7 @@ components:
             lora_train: { type: boolean }
             lora_generate: { type: boolean }
             body_detection: { type: boolean }
+            character_detection: { type: boolean, default: false }
         restorers:
           type: array
           items: { type: string }
@@ -559,6 +560,10 @@ components:
       type: object
       properties:
         detect_bodies: { type: boolean, default: true }
+        detect_characters:
+          type: boolean
+          default: false
+          description: Illustrated-source mode. Uses HumanArt body detections and character appearance instead of human face/body identity. No face model is required.
         min_quality: { type: number, default: 0.40 }
         return_crops: { type: boolean, default: true }
         body_score: { type: number, default: 0.5 }
@@ -643,6 +648,24 @@ components:
         body_index: { type: integer, minimum: 0 }
         score: { type: number }
 
+    Character:
+      type: object
+      required: [bbox, score, model_id, descriptor]
+      properties:
+        bbox: { $ref: "#/components/schemas/BBox" }
+        score: { type: number, minimum: 0, maximum: 1 }
+        model_id: { type: string, enum: ["character-appearance@1"] }
+        descriptor:
+          type: array
+          minItems: 160
+          maxItems: 160
+          items: { type: number, minimum: 0, maximum: 1 }
+          description: Versioned head/hair, upper/lower clothing, edge detail and silhouette descriptor; never an ArcFace embedding.
+        crop_jpeg:
+          oneOf:
+            - { $ref: "#/components/schemas/Base64Jpeg" }
+            - { type: "null" }
+
     AnalyzeImageResponse:
       type: object
       required: [model_id, image_w, image_h, faces, bodies, pairs]
@@ -656,6 +679,10 @@ components:
         bodies:
           type: array
           items: { $ref: "#/components/schemas/Body" }
+        characters:
+          type: array
+          default: []
+          items: { $ref: "#/components/schemas/Character" }
         pairs:
           type: array
           items: { $ref: "#/components/schemas/FaceBodyPair" }

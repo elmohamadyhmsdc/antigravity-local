@@ -1,5 +1,6 @@
 {
   "detect_bodies": true,
+  "detect_characters": false,
   "min_quality": 0.4,
   "return_crops": true,
   "body_score": 0.5,

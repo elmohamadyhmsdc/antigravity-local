@@ -44,13 +44,15 @@ QualityTier qualityTier(double score) {
 /// Pick one photo, send it to the PC, show what came back. (The P1 end-to-end check; the
 /// library scan in P2 uses the same endpoint for every photo.)
 class AnalyzeController extends Notifier<AnalyzeState> {
+  bool _characters = false;
   @override
   AnalyzeState build() => const AnalyzeIdle();
 
-  Future<void> pickAndAnalyze() async {
+  Future<void> pickAndAnalyze({bool characters = false}) async {
     if (state is AnalyzeWorking) return;
     final photo = await ref.read(photoPickerProvider).pickPhoto();
     if (photo == null) return; // cancelled
+    _characters = characters;
     await _analyze(photo);
   }
 
@@ -64,7 +66,21 @@ class AnalyzeController extends Notifier<AnalyzeState> {
     if (api == null) return;
     state = AnalyzeWorking(photo);
     try {
-      final result = await api.analyzeImage(photo);
+      if (_characters &&
+          !(await api.capabilities()).engines.characterDetection) {
+        throw const ApiException(
+          code: 'update_required',
+          message:
+              'Update the PC server to test illustrated character detection.',
+        );
+      }
+      final result = await api.analyzeImage(
+        photo,
+        options: AnalyzeOptions(
+          detectCharacters: _characters,
+          detectBodies: !_characters,
+        ),
+      );
       state = AnalyzeDone(photo, result);
     } on ApiException catch (e) {
       state = AnalyzeFailed(e, photo);

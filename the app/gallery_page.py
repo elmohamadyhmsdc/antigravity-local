@@ -27,12 +27,13 @@ import face_quality
 import gallery_grouping as gg
 import person_linking as pl
 from database import JsonDatabase, norm_path
+from character_gallery import render_characters
 
-VIEWS = ["People", "Review", "Media", "Insights"]
-VIEW_SLUGS = {"People": "people", "Review": "unassigned", "Media": "media", "Insights": "insights"}
+VIEWS = ["People", "Characters", "Review", "Media", "Insights"]
+VIEW_SLUGS = {"People": "people", "Characters": "characters", "Review": "unassigned", "Media": "media", "Insights": "insights"}
 SLUG_VIEWS = {"people": "People", "person": "People", "unassigned": "Review", "review": "Review",
               "triage": "Review", "media": "Media", "all": "Media", "photos": "Media",
-              "insights": "Insights", "analytics": "Insights", "stats": "Insights"}
+              "insights": "Insights", "analytics": "Insights", "stats": "Insights", "characters": "Characters"}
 
 FACES_PER_PAGE = 48
 MEDIA_PER_PAGE = 24
@@ -47,18 +48,21 @@ LINK_LABELS = {"appearance": "same outfit", "weak_face": "partial face", "manual
 # ---------------------------------------------------------------------------
 
 @st.cache_resource(show_spinner=False)
-def _scanner_models(detect_bodies: bool):
+def _scanner_models(detect_bodies: bool, detect_characters: bool = False):
     """Face analyzer + body analyzer, loaded once per session."""
     from cuda_dll_dirs import add_nvidia_dll_dirs
     add_nvidia_dll_dirs()
-    from insightface.app import FaceAnalysis
-    app = FaceAnalysis(name="buffalo_l", allowed_modules=["detection", "recognition", "landmark_3d_68"],
-                       providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
-    app.prepare(ctx_id=0, det_size=[(128, 128), (640, 640)])
+    app = None
+    if not detect_characters:
+        from insightface.app import FaceAnalysis
+        app = FaceAnalysis(name="buffalo_l", allowed_modules=["detection", "recognition", "landmark_3d_68"],
+                           providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+        app.prepare(ctx_id=0, det_size=[(128, 128), (640, 640)])
     body = None
-    if detect_bodies:
+    if detect_bodies or detect_characters:
         from body_detector import BodyAnalyzer
-        body = BodyAnalyzer(log=lambda m: st.session_state.setdefault("gal_model_log", []).append(m))
+        body = BodyAnalyzer(log=lambda m: st.session_state.setdefault("gal_model_log", []).append(m),
+                            allow_downloads=False, use_pose=not detect_characters)
     return app, body
 
 
@@ -528,7 +532,8 @@ def _source_files(ctx: GalleryContext) -> List[str]:
 
 
 def scan_with_ui(db: JsonDatabase, paths: Sequence[str], strictness: str = "balanced",
-                 detect_bodies: bool = True, rescan: bool = False, regroup: bool = True):
+                 detect_bodies: bool = True, rescan: bool = False, regroup: bool = True,
+                 detect_characters: bool = False):
     """Scan files with a live progress panel, then group. Returns
     (ScanSummary, GroupingSummary | None). Used by the Gallery and by
     Data Sources, so both ingest media exactly the same way."""
@@ -539,10 +544,12 @@ def scan_with_ui(db: JsonDatabase, paths: Sequence[str], strictness: str = "bala
         current = st.empty()
         tally = st.empty()
         current.caption("Loading models…")
-        face_app, body = _scanner_models(detect_bodies)
+        face_app, body = (_scanner_models(detect_bodies, True) if detect_characters
+                          else _scanner_models(detect_bodies))
         if detect_bodies and body is not None and not body.available:
             st.warning(f"Body detection is off: {body.error}")
-        options = ScanOptions.from_env(detect_bodies=detect_bodies, rescan=rescan)
+        options = ScanOptions.from_env(detect_bodies=detect_bodies, rescan=rescan,
+                                       detect_characters=detect_characters)
         scanner = LibraryScanner(db=db, options=options, face_app=face_app, body=body,
                                  log=lambda m: current.caption(m))
 
@@ -554,7 +561,7 @@ def scan_with_ui(db: JsonDatabase, paths: Sequence[str], strictness: str = "bala
 
         summary = scanner.scan_paths(paths, progress=progress)
         grouping = None
-        if regroup:
+        if regroup and not detect_characters:
             status.update(label="Grouping people…")
             grouping = gg.group_library(db, strictness, log=lambda m: current.caption(m))
         status.update(label=f"Done · {summary.as_text()}", state="complete", expanded=False)
@@ -571,7 +578,8 @@ def run_scan(ctx: GalleryContext, paths: Sequence[str], rescan: bool = False, re
     if not paths:
         st.warning("No photos or videos found. Add a folder under **Data Sources** first.")
         return
-    summary, grouping = scan_with_ui(ctx.db, paths, ctx.strictness, ctx.detect_bodies, rescan, regroup)
+    summary, grouping = scan_with_ui(ctx.db, paths, ctx.strictness, ctx.detect_bodies, rescan, regroup,
+                                     detect_characters=st.session_state.get("gal_detect_characters", False))
     st.session_state["gal_last_scan"] = summary.as_text() + (f" — {grouping.as_text()}" if grouping else "")
     st.rerun()
 
@@ -607,6 +615,9 @@ def render_header(ctx: GalleryContext, stats: Dict, review: gg.ReviewState):
                 st.toggle("Detect bodies", value=ctx.detect_bodies, key="gal_detect_bodies",
                           help="Also find people's bodies, so photos where the face is turned away "
                                "still get linked to them (downloads ~145 MB of models once).")
+                st.toggle("Cartoon / anime sources", key="gal_detect_characters",
+                          help="Scan illustrated sources by bodies, hair, clothing and visual details instead of human faces. "
+                               "Choose illustrated sources before scanning. Uses installed HumanArt models.")
                 if st.button("♻️ Group again now", width="stretch"):
                     run_grouping(ctx)
                 st.divider()
@@ -1288,6 +1299,10 @@ def _annotated_body_context(db: JsonDatabase, path: str, media_id: Optional[int]
             face = db.get_face(ref)
             person = db.get_person(face.get("person_id")) if face and face.get("person_id") else None
             label = (person or {}).get("name") or "Face"
+        elif kind == "c":
+            character = db.character_samples.get(ref, {})
+            identity = db.character_identities.get(character.get("identity_id"), {})
+            label = identity.get("name") or f"Character {character.get('identity_id', ref)}"
         else:
             body = db.get_body(ref)
             pid = db.body_person_id(body) if body else None
@@ -1638,6 +1653,10 @@ def _annotated(ctx: GalleryContext, path: str, media_id: Optional[int]):
             face = db.get_face(ref)
             person = db.get_person(face.get("person_id")) if face and face.get("person_id") else None
             label = (person or {}).get("name") or "Unassigned"
+        elif kind == "c":
+            character = db.character_samples.get(ref, {})
+            identity = db.character_identities.get(character.get("identity_id"), {})
+            label = identity.get("name") or f"Character {character.get('identity_id', ref)}"
         else:
             body = db.get_body(ref)
             pid = db.body_person_id(body) if body else None
@@ -1758,7 +1777,7 @@ def render(db: JsonDatabase, navigate_to: Callable[[str], None], data_sources: L
     review = ctx.review()
     render_header(ctx, stats, review)
 
-    labels = {"People": f"👥 People ({stats['total_persons']})",
+    labels = {"People": f"👥 People ({stats['total_persons']})", "Characters": "✨ Characters",
               "Review": f"🔎 Review ({review.total})" if review.total else "🔎 Review",
               "Media": f"🎬 Media ({stats['total_media']})", "Insights": "📊 Insights"}
     view = st.segmented_control("View", VIEWS, default=st.session_state["gal_view"],
@@ -1778,6 +1797,8 @@ def render(db: JsonDatabase, navigate_to: Callable[[str], None], data_sources: L
             render_person(ctx, person_id)
         else:
             render_people(ctx)
+    elif view == "Characters":
+        render_characters(ctx)
     elif view == "Review":
         render_review(ctx)
     elif view == "Media":

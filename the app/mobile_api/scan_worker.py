@@ -30,7 +30,9 @@ def encode_result(result):
         quality=result.quality, passes_gate=result.passes_gate,
         bodies=[dict(bbox=b.bbox, score=b.score, kpts=b.kpts, kpt_scores=b.kpt_scores) for b in result.bodies],
         appearances=result.appearances, pairs=result.pairs, image_w=result.image_w,
-        image_h=result.image_h, timings_ms=result.timings_ms))
+        image_h=result.image_h, timings_ms=result.timings_ms,
+        characters=[dict(bbox=c.bbox, score=c.score, descriptor=c.descriptor, model_id=c.model_id)
+                    for c in result.characters]))
 
 
 def decode_result(value):
@@ -42,6 +44,10 @@ def decode_result(value):
             if body[key] is not None: body[key] = np.asarray(body[key], dtype=np.float32)
     value['faces'] = [SimpleNamespace(**f) for f in value['faces']]
     value['bodies'] = [SimpleNamespace(**b) for b in value['bodies']]
+    from character_detection import Character
+    value['characters'] = [Character(np.asarray(c['bbox'], np.float32), c['score'],
+                                     np.asarray(c['descriptor'], np.float32), c['model_id'])
+                           for c in value.get('characters', [])]
     return FrameAnalysis(**value)
 
 

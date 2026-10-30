@@ -133,6 +133,7 @@ def system_fixtures():
         "engines": {
             "reface": True, "reface_v3": True, "reface_v2": True, "dfm_models": ["RTM_WF_224"],
             "undress": True, "lora_train": True, "lora_generate": True, "body_detection": True,
+            "character_detection": True,
         },
         "restorers": ["codeformer"],
         "reface_profiles": {"fast": {"restorer": "none", "restore_size": 512, "use_parser": False},
@@ -149,7 +150,7 @@ def system_fixtures():
     write("Error.gpu_busy", {"error": {"code": "gpu_busy", "message": "A reface_video_v3 job is running on the GPU.", "retryable": True}})
     write("Error.invalid_code", {"error": {"code": "invalid_code", "message": "Wrong pairing code (4 attempts left).", "retryable": False}})
     write("PairRequest.ok", {"code": "K7QM-3XRD", "device_name": "Pixel 8"})
-    write("AnalyzeImageOptions.default", {"detect_bodies": True, "min_quality": 0.4, "return_crops": True,
+    write("AnalyzeImageOptions.default", {"detect_bodies": True, "detect_characters": False, "min_quality": 0.4, "return_crops": True,
                                           "body_score": 0.5, "model_id": "buffalo_l@1"})
     write("MissingBlobsError.reface", {
         "error": {"code": "missing_blobs", "message": "1 input blob is not cached on the server.", "retryable": True},
@@ -194,12 +195,26 @@ def analyze_fixture():
         "image_h": 960,
         "faces": [face_a, face_b],
         "bodies": [body],
+        "characters": [],
         "pairs": [{"face_index": 0, "body_index": 0, "score": 0.82}],
         "timings_ms": {"detect": 41.2, "embed": 18.7, "body": 63.9},
     })
     write("AnalyzeImageResponse.no_faces", {
         "model_id": "buffalo_l@1", "image_w": 640, "image_h": 480,
+        "faces": [], "bodies": [], "pairs": [], "characters": [],
+    })
+    from character_detection import describe
+    illustration = np.full((256, 128, 3), 245, np.uint8)
+    cv2.rectangle(illustration, (40, 10), (88, 72), (0, 220, 255), -1)
+    cv2.rectangle(illustration, (24, 74), (104, 164), (230, 80, 20), -1)
+    cv2.rectangle(illustration, (36, 166), (92, 244), (30, 35, 45), -1)
+    descriptor = describe(illustration, [0, 0, 128, 256])
+    write("AnalyzeImageResponse.character_no_face", {
+        "model_id": "buffalo_l@1", "image_w": 128, "image_h": 256,
         "faces": [], "bodies": [], "pairs": [],
+        "characters": [{"bbox": {"x": 0, "y": 0, "w": 128, "h": 256}, "score": .95,
+                        "model_id": "character-appearance@1", "descriptor": [round(float(v), 6) for v in descriptor],
+                        "crop_jpeg": None}],
     })
 
 

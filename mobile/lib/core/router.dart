@@ -9,6 +9,7 @@ import '../features/library/library_screen.dart';
 import '../features/media/media_screen.dart';
 import '../features/merge/merge_screen.dart';
 import '../features/people/people_screen.dart';
+import '../features/characters/characters_screen.dart';
 import '../features/people/person_detail_screen.dart';
 import '../features/people/unsorted_screen.dart';
 import '../features/onboarding/manual_pair_screen.dart';
@@ -33,6 +34,7 @@ abstract final class Routes {
   static const home = '/home';
   static const insights = '/insights';
   static const people = '/people';
+  static const characters = '/characters';
   static const library = '/library';
   static const studio = '/studio';
   static const jobs = '/jobs';
@@ -107,6 +109,10 @@ GoRouter createRouter({
       return null;
     },
     routes: [
+      GoRoute(
+        path: Routes.characters,
+        builder: (context, state) => const CharactersScreen(),
+      ),
       GoRoute(
         path: Routes.connection,
         builder: (context, state) => const ConnectionScreen(),
@@ -192,7 +198,9 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.analyze,
-        builder: (context, state) => const AnalyzeScreen(),
+        builder: (context, state) => AnalyzeScreen(
+          characters: state.uri.queryParameters['characters'] == 'true',
+        ),
       ),
       GoRoute(
         path: Routes.unsorted,

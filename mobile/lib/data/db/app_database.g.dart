@@ -11698,6 +11698,1063 @@ class JobEventsCompanion extends UpdateCompanion<JobEventRow> {
   }
 }
 
+class $CharacterIdentitiesTable extends CharacterIdentities
+    with TableInfo<$CharacterIdentitiesTable, CharacterIdentityRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CharacterIdentitiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'character_identities';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CharacterIdentityRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CharacterIdentityRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CharacterIdentityRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CharacterIdentitiesTable createAlias(String alias) {
+    return $CharacterIdentitiesTable(attachedDatabase, alias);
+  }
+}
+
+class CharacterIdentityRow extends DataClass
+    implements Insertable<CharacterIdentityRow> {
+  final int id;
+  final String? name;
+  final int createdAt;
+  const CharacterIdentityRow({
+    required this.id,
+    this.name,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || name != null) {
+      map['name'] = Variable<String>(name);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  CharacterIdentitiesCompanion toCompanion(bool nullToAbsent) {
+    return CharacterIdentitiesCompanion(
+      id: Value(id),
+      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory CharacterIdentityRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CharacterIdentityRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String?>(json['name']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String?>(name),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  CharacterIdentityRow copyWith({
+    int? id,
+    Value<String?> name = const Value.absent(),
+    int? createdAt,
+  }) => CharacterIdentityRow(
+    id: id ?? this.id,
+    name: name.present ? name.value : this.name,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  CharacterIdentityRow copyWithCompanion(CharacterIdentitiesCompanion data) {
+    return CharacterIdentityRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CharacterIdentityRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CharacterIdentityRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.createdAt == this.createdAt);
+}
+
+class CharacterIdentitiesCompanion
+    extends UpdateCompanion<CharacterIdentityRow> {
+  final Value<int> id;
+  final Value<String?> name;
+  final Value<int> createdAt;
+  const CharacterIdentitiesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  CharacterIdentitiesCompanion.insert({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    required int createdAt,
+  }) : createdAt = Value(createdAt);
+  static Insertable<CharacterIdentityRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  CharacterIdentitiesCompanion copyWith({
+    Value<int>? id,
+    Value<String?>? name,
+    Value<int>? createdAt,
+  }) {
+    return CharacterIdentitiesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CharacterIdentitiesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CharacterSamplesTable extends CharacterSamples
+    with TableInfo<$CharacterSamplesTable, CharacterSampleRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CharacterSamplesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _identityIdMeta = const VerificationMeta(
+    'identityId',
+  );
+  @override
+  late final GeneratedColumn<int> identityId = GeneratedColumn<int>(
+    'identity_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES character_identities (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
+    'mediaId',
+  );
+  @override
+  late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
+    'media_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES media (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _modelIdMeta = const VerificationMeta(
+    'modelId',
+  );
+  @override
+  late final GeneratedColumn<String> modelId = GeneratedColumn<String>(
+    'model_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptorMeta = const VerificationMeta(
+    'descriptor',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> descriptor = GeneratedColumn<Uint8List>(
+    'descriptor',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bboxXMeta = const VerificationMeta('bboxX');
+  @override
+  late final GeneratedColumn<double> bboxX = GeneratedColumn<double>(
+    'bbox_x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bboxYMeta = const VerificationMeta('bboxY');
+  @override
+  late final GeneratedColumn<double> bboxY = GeneratedColumn<double>(
+    'bbox_y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bboxWMeta = const VerificationMeta('bboxW');
+  @override
+  late final GeneratedColumn<double> bboxW = GeneratedColumn<double>(
+    'bbox_w',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bboxHMeta = const VerificationMeta('bboxH');
+  @override
+  late final GeneratedColumn<double> bboxH = GeneratedColumn<double>(
+    'bbox_h',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scoreMeta = const VerificationMeta('score');
+  @override
+  late final GeneratedColumn<double> score = GeneratedColumn<double>(
+    'score',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _frameNumberMeta = const VerificationMeta(
+    'frameNumber',
+  );
+  @override
+  late final GeneratedColumn<int> frameNumber = GeneratedColumn<int>(
+    'frame_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _timestampMsMeta = const VerificationMeta(
+    'timestampMs',
+  );
+  @override
+  late final GeneratedColumn<int> timestampMs = GeneratedColumn<int>(
+    'timestamp_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cropPathMeta = const VerificationMeta(
+    'cropPath',
+  );
+  @override
+  late final GeneratedColumn<String> cropPath = GeneratedColumn<String>(
+    'crop_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    identityId,
+    mediaId,
+    modelId,
+    descriptor,
+    bboxX,
+    bboxY,
+    bboxW,
+    bboxH,
+    score,
+    frameNumber,
+    timestampMs,
+    cropPath,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'character_samples';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CharacterSampleRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('identity_id')) {
+      context.handle(
+        _identityIdMeta,
+        identityId.isAcceptableOrUnknown(data['identity_id']!, _identityIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_identityIdMeta);
+    }
+    if (data.containsKey('media_id')) {
+      context.handle(
+        _mediaIdMeta,
+        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_mediaIdMeta);
+    }
+    if (data.containsKey('model_id')) {
+      context.handle(
+        _modelIdMeta,
+        modelId.isAcceptableOrUnknown(data['model_id']!, _modelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_modelIdMeta);
+    }
+    if (data.containsKey('descriptor')) {
+      context.handle(
+        _descriptorMeta,
+        descriptor.isAcceptableOrUnknown(data['descriptor']!, _descriptorMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_descriptorMeta);
+    }
+    if (data.containsKey('bbox_x')) {
+      context.handle(
+        _bboxXMeta,
+        bboxX.isAcceptableOrUnknown(data['bbox_x']!, _bboxXMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bboxXMeta);
+    }
+    if (data.containsKey('bbox_y')) {
+      context.handle(
+        _bboxYMeta,
+        bboxY.isAcceptableOrUnknown(data['bbox_y']!, _bboxYMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bboxYMeta);
+    }
+    if (data.containsKey('bbox_w')) {
+      context.handle(
+        _bboxWMeta,
+        bboxW.isAcceptableOrUnknown(data['bbox_w']!, _bboxWMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bboxWMeta);
+    }
+    if (data.containsKey('bbox_h')) {
+      context.handle(
+        _bboxHMeta,
+        bboxH.isAcceptableOrUnknown(data['bbox_h']!, _bboxHMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bboxHMeta);
+    }
+    if (data.containsKey('score')) {
+      context.handle(
+        _scoreMeta,
+        score.isAcceptableOrUnknown(data['score']!, _scoreMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scoreMeta);
+    }
+    if (data.containsKey('frame_number')) {
+      context.handle(
+        _frameNumberMeta,
+        frameNumber.isAcceptableOrUnknown(
+          data['frame_number']!,
+          _frameNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('timestamp_ms')) {
+      context.handle(
+        _timestampMsMeta,
+        timestampMs.isAcceptableOrUnknown(
+          data['timestamp_ms']!,
+          _timestampMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('crop_path')) {
+      context.handle(
+        _cropPathMeta,
+        cropPath.isAcceptableOrUnknown(data['crop_path']!, _cropPathMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CharacterSampleRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CharacterSampleRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      identityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}identity_id'],
+      )!,
+      mediaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}media_id'],
+      )!,
+      modelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model_id'],
+      )!,
+      descriptor: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}descriptor'],
+      )!,
+      bboxX: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}bbox_x'],
+      )!,
+      bboxY: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}bbox_y'],
+      )!,
+      bboxW: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}bbox_w'],
+      )!,
+      bboxH: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}bbox_h'],
+      )!,
+      score: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}score'],
+      )!,
+      frameNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}frame_number'],
+      ),
+      timestampMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}timestamp_ms'],
+      ),
+      cropPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}crop_path'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CharacterSamplesTable createAlias(String alias) {
+    return $CharacterSamplesTable(attachedDatabase, alias);
+  }
+}
+
+class CharacterSampleRow extends DataClass
+    implements Insertable<CharacterSampleRow> {
+  final int id;
+  final int identityId;
+  final int mediaId;
+  final String modelId;
+  final Uint8List descriptor;
+  final double bboxX;
+  final double bboxY;
+  final double bboxW;
+  final double bboxH;
+  final double score;
+  final int? frameNumber;
+  final int? timestampMs;
+  final String? cropPath;
+  final int createdAt;
+  const CharacterSampleRow({
+    required this.id,
+    required this.identityId,
+    required this.mediaId,
+    required this.modelId,
+    required this.descriptor,
+    required this.bboxX,
+    required this.bboxY,
+    required this.bboxW,
+    required this.bboxH,
+    required this.score,
+    this.frameNumber,
+    this.timestampMs,
+    this.cropPath,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['identity_id'] = Variable<int>(identityId);
+    map['media_id'] = Variable<int>(mediaId);
+    map['model_id'] = Variable<String>(modelId);
+    map['descriptor'] = Variable<Uint8List>(descriptor);
+    map['bbox_x'] = Variable<double>(bboxX);
+    map['bbox_y'] = Variable<double>(bboxY);
+    map['bbox_w'] = Variable<double>(bboxW);
+    map['bbox_h'] = Variable<double>(bboxH);
+    map['score'] = Variable<double>(score);
+    if (!nullToAbsent || frameNumber != null) {
+      map['frame_number'] = Variable<int>(frameNumber);
+    }
+    if (!nullToAbsent || timestampMs != null) {
+      map['timestamp_ms'] = Variable<int>(timestampMs);
+    }
+    if (!nullToAbsent || cropPath != null) {
+      map['crop_path'] = Variable<String>(cropPath);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  CharacterSamplesCompanion toCompanion(bool nullToAbsent) {
+    return CharacterSamplesCompanion(
+      id: Value(id),
+      identityId: Value(identityId),
+      mediaId: Value(mediaId),
+      modelId: Value(modelId),
+      descriptor: Value(descriptor),
+      bboxX: Value(bboxX),
+      bboxY: Value(bboxY),
+      bboxW: Value(bboxW),
+      bboxH: Value(bboxH),
+      score: Value(score),
+      frameNumber: frameNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(frameNumber),
+      timestampMs: timestampMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timestampMs),
+      cropPath: cropPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cropPath),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory CharacterSampleRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CharacterSampleRow(
+      id: serializer.fromJson<int>(json['id']),
+      identityId: serializer.fromJson<int>(json['identityId']),
+      mediaId: serializer.fromJson<int>(json['mediaId']),
+      modelId: serializer.fromJson<String>(json['modelId']),
+      descriptor: serializer.fromJson<Uint8List>(json['descriptor']),
+      bboxX: serializer.fromJson<double>(json['bboxX']),
+      bboxY: serializer.fromJson<double>(json['bboxY']),
+      bboxW: serializer.fromJson<double>(json['bboxW']),
+      bboxH: serializer.fromJson<double>(json['bboxH']),
+      score: serializer.fromJson<double>(json['score']),
+      frameNumber: serializer.fromJson<int?>(json['frameNumber']),
+      timestampMs: serializer.fromJson<int?>(json['timestampMs']),
+      cropPath: serializer.fromJson<String?>(json['cropPath']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'identityId': serializer.toJson<int>(identityId),
+      'mediaId': serializer.toJson<int>(mediaId),
+      'modelId': serializer.toJson<String>(modelId),
+      'descriptor': serializer.toJson<Uint8List>(descriptor),
+      'bboxX': serializer.toJson<double>(bboxX),
+      'bboxY': serializer.toJson<double>(bboxY),
+      'bboxW': serializer.toJson<double>(bboxW),
+      'bboxH': serializer.toJson<double>(bboxH),
+      'score': serializer.toJson<double>(score),
+      'frameNumber': serializer.toJson<int?>(frameNumber),
+      'timestampMs': serializer.toJson<int?>(timestampMs),
+      'cropPath': serializer.toJson<String?>(cropPath),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  CharacterSampleRow copyWith({
+    int? id,
+    int? identityId,
+    int? mediaId,
+    String? modelId,
+    Uint8List? descriptor,
+    double? bboxX,
+    double? bboxY,
+    double? bboxW,
+    double? bboxH,
+    double? score,
+    Value<int?> frameNumber = const Value.absent(),
+    Value<int?> timestampMs = const Value.absent(),
+    Value<String?> cropPath = const Value.absent(),
+    int? createdAt,
+  }) => CharacterSampleRow(
+    id: id ?? this.id,
+    identityId: identityId ?? this.identityId,
+    mediaId: mediaId ?? this.mediaId,
+    modelId: modelId ?? this.modelId,
+    descriptor: descriptor ?? this.descriptor,
+    bboxX: bboxX ?? this.bboxX,
+    bboxY: bboxY ?? this.bboxY,
+    bboxW: bboxW ?? this.bboxW,
+    bboxH: bboxH ?? this.bboxH,
+    score: score ?? this.score,
+    frameNumber: frameNumber.present ? frameNumber.value : this.frameNumber,
+    timestampMs: timestampMs.present ? timestampMs.value : this.timestampMs,
+    cropPath: cropPath.present ? cropPath.value : this.cropPath,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  CharacterSampleRow copyWithCompanion(CharacterSamplesCompanion data) {
+    return CharacterSampleRow(
+      id: data.id.present ? data.id.value : this.id,
+      identityId: data.identityId.present
+          ? data.identityId.value
+          : this.identityId,
+      mediaId: data.mediaId.present ? data.mediaId.value : this.mediaId,
+      modelId: data.modelId.present ? data.modelId.value : this.modelId,
+      descriptor: data.descriptor.present
+          ? data.descriptor.value
+          : this.descriptor,
+      bboxX: data.bboxX.present ? data.bboxX.value : this.bboxX,
+      bboxY: data.bboxY.present ? data.bboxY.value : this.bboxY,
+      bboxW: data.bboxW.present ? data.bboxW.value : this.bboxW,
+      bboxH: data.bboxH.present ? data.bboxH.value : this.bboxH,
+      score: data.score.present ? data.score.value : this.score,
+      frameNumber: data.frameNumber.present
+          ? data.frameNumber.value
+          : this.frameNumber,
+      timestampMs: data.timestampMs.present
+          ? data.timestampMs.value
+          : this.timestampMs,
+      cropPath: data.cropPath.present ? data.cropPath.value : this.cropPath,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CharacterSampleRow(')
+          ..write('id: $id, ')
+          ..write('identityId: $identityId, ')
+          ..write('mediaId: $mediaId, ')
+          ..write('modelId: $modelId, ')
+          ..write('descriptor: $descriptor, ')
+          ..write('bboxX: $bboxX, ')
+          ..write('bboxY: $bboxY, ')
+          ..write('bboxW: $bboxW, ')
+          ..write('bboxH: $bboxH, ')
+          ..write('score: $score, ')
+          ..write('frameNumber: $frameNumber, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('cropPath: $cropPath, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    identityId,
+    mediaId,
+    modelId,
+    $driftBlobEquality.hash(descriptor),
+    bboxX,
+    bboxY,
+    bboxW,
+    bboxH,
+    score,
+    frameNumber,
+    timestampMs,
+    cropPath,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CharacterSampleRow &&
+          other.id == this.id &&
+          other.identityId == this.identityId &&
+          other.mediaId == this.mediaId &&
+          other.modelId == this.modelId &&
+          $driftBlobEquality.equals(other.descriptor, this.descriptor) &&
+          other.bboxX == this.bboxX &&
+          other.bboxY == this.bboxY &&
+          other.bboxW == this.bboxW &&
+          other.bboxH == this.bboxH &&
+          other.score == this.score &&
+          other.frameNumber == this.frameNumber &&
+          other.timestampMs == this.timestampMs &&
+          other.cropPath == this.cropPath &&
+          other.createdAt == this.createdAt);
+}
+
+class CharacterSamplesCompanion extends UpdateCompanion<CharacterSampleRow> {
+  final Value<int> id;
+  final Value<int> identityId;
+  final Value<int> mediaId;
+  final Value<String> modelId;
+  final Value<Uint8List> descriptor;
+  final Value<double> bboxX;
+  final Value<double> bboxY;
+  final Value<double> bboxW;
+  final Value<double> bboxH;
+  final Value<double> score;
+  final Value<int?> frameNumber;
+  final Value<int?> timestampMs;
+  final Value<String?> cropPath;
+  final Value<int> createdAt;
+  const CharacterSamplesCompanion({
+    this.id = const Value.absent(),
+    this.identityId = const Value.absent(),
+    this.mediaId = const Value.absent(),
+    this.modelId = const Value.absent(),
+    this.descriptor = const Value.absent(),
+    this.bboxX = const Value.absent(),
+    this.bboxY = const Value.absent(),
+    this.bboxW = const Value.absent(),
+    this.bboxH = const Value.absent(),
+    this.score = const Value.absent(),
+    this.frameNumber = const Value.absent(),
+    this.timestampMs = const Value.absent(),
+    this.cropPath = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  CharacterSamplesCompanion.insert({
+    this.id = const Value.absent(),
+    required int identityId,
+    required int mediaId,
+    required String modelId,
+    required Uint8List descriptor,
+    required double bboxX,
+    required double bboxY,
+    required double bboxW,
+    required double bboxH,
+    required double score,
+    this.frameNumber = const Value.absent(),
+    this.timestampMs = const Value.absent(),
+    this.cropPath = const Value.absent(),
+    required int createdAt,
+  }) : identityId = Value(identityId),
+       mediaId = Value(mediaId),
+       modelId = Value(modelId),
+       descriptor = Value(descriptor),
+       bboxX = Value(bboxX),
+       bboxY = Value(bboxY),
+       bboxW = Value(bboxW),
+       bboxH = Value(bboxH),
+       score = Value(score),
+       createdAt = Value(createdAt);
+  static Insertable<CharacterSampleRow> custom({
+    Expression<int>? id,
+    Expression<int>? identityId,
+    Expression<int>? mediaId,
+    Expression<String>? modelId,
+    Expression<Uint8List>? descriptor,
+    Expression<double>? bboxX,
+    Expression<double>? bboxY,
+    Expression<double>? bboxW,
+    Expression<double>? bboxH,
+    Expression<double>? score,
+    Expression<int>? frameNumber,
+    Expression<int>? timestampMs,
+    Expression<String>? cropPath,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (identityId != null) 'identity_id': identityId,
+      if (mediaId != null) 'media_id': mediaId,
+      if (modelId != null) 'model_id': modelId,
+      if (descriptor != null) 'descriptor': descriptor,
+      if (bboxX != null) 'bbox_x': bboxX,
+      if (bboxY != null) 'bbox_y': bboxY,
+      if (bboxW != null) 'bbox_w': bboxW,
+      if (bboxH != null) 'bbox_h': bboxH,
+      if (score != null) 'score': score,
+      if (frameNumber != null) 'frame_number': frameNumber,
+      if (timestampMs != null) 'timestamp_ms': timestampMs,
+      if (cropPath != null) 'crop_path': cropPath,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  CharacterSamplesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? identityId,
+    Value<int>? mediaId,
+    Value<String>? modelId,
+    Value<Uint8List>? descriptor,
+    Value<double>? bboxX,
+    Value<double>? bboxY,
+    Value<double>? bboxW,
+    Value<double>? bboxH,
+    Value<double>? score,
+    Value<int?>? frameNumber,
+    Value<int?>? timestampMs,
+    Value<String?>? cropPath,
+    Value<int>? createdAt,
+  }) {
+    return CharacterSamplesCompanion(
+      id: id ?? this.id,
+      identityId: identityId ?? this.identityId,
+      mediaId: mediaId ?? this.mediaId,
+      modelId: modelId ?? this.modelId,
+      descriptor: descriptor ?? this.descriptor,
+      bboxX: bboxX ?? this.bboxX,
+      bboxY: bboxY ?? this.bboxY,
+      bboxW: bboxW ?? this.bboxW,
+      bboxH: bboxH ?? this.bboxH,
+      score: score ?? this.score,
+      frameNumber: frameNumber ?? this.frameNumber,
+      timestampMs: timestampMs ?? this.timestampMs,
+      cropPath: cropPath ?? this.cropPath,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (identityId.present) {
+      map['identity_id'] = Variable<int>(identityId.value);
+    }
+    if (mediaId.present) {
+      map['media_id'] = Variable<int>(mediaId.value);
+    }
+    if (modelId.present) {
+      map['model_id'] = Variable<String>(modelId.value);
+    }
+    if (descriptor.present) {
+      map['descriptor'] = Variable<Uint8List>(descriptor.value);
+    }
+    if (bboxX.present) {
+      map['bbox_x'] = Variable<double>(bboxX.value);
+    }
+    if (bboxY.present) {
+      map['bbox_y'] = Variable<double>(bboxY.value);
+    }
+    if (bboxW.present) {
+      map['bbox_w'] = Variable<double>(bboxW.value);
+    }
+    if (bboxH.present) {
+      map['bbox_h'] = Variable<double>(bboxH.value);
+    }
+    if (score.present) {
+      map['score'] = Variable<double>(score.value);
+    }
+    if (frameNumber.present) {
+      map['frame_number'] = Variable<int>(frameNumber.value);
+    }
+    if (timestampMs.present) {
+      map['timestamp_ms'] = Variable<int>(timestampMs.value);
+    }
+    if (cropPath.present) {
+      map['crop_path'] = Variable<String>(cropPath.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CharacterSamplesCompanion(')
+          ..write('id: $id, ')
+          ..write('identityId: $identityId, ')
+          ..write('mediaId: $mediaId, ')
+          ..write('modelId: $modelId, ')
+          ..write('descriptor: $descriptor, ')
+          ..write('bboxX: $bboxX, ')
+          ..write('bboxY: $bboxY, ')
+          ..write('bboxW: $bboxW, ')
+          ..write('bboxH: $bboxH, ')
+          ..write('score: $score, ')
+          ..write('frameNumber: $frameNumber, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('cropPath: $cropPath, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -11736,6 +12793,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $JobEventsTable jobEvents = $JobEventsTable(this);
+  late final $CharacterIdentitiesTable characterIdentities =
+      $CharacterIdentitiesTable(this);
+  late final $CharacterSamplesTable characterSamples = $CharacterSamplesTable(
+    this,
+  );
   late final Index mediaScanStatus = Index(
     'media_scan_status',
     'CREATE INDEX media_scan_status ON media (scan_status)',
@@ -11784,6 +12846,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'results_created_at',
     'CREATE INDEX results_created_at ON results (created_at)',
   );
+  late final Index characterSamplesIdentity = Index(
+    'character_samples_identity',
+    'CREATE INDEX character_samples_identity ON character_samples (identity_id)',
+  );
+  late final Index characterSamplesMedia = Index(
+    'character_samples_media',
+    'CREATE INDEX character_samples_media ON character_samples (media_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -11814,6 +12884,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     identitySets,
     identitySetFaces,
     jobEvents,
+    characterIdentities,
+    characterSamples,
     mediaScanStatus,
     facesPersonId,
     facesMediaId,
@@ -11826,6 +12898,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     mediaDetectionsRef,
     jobsStatus,
     resultsCreatedAt,
+    characterSamplesIdentity,
+    characterSamplesMedia,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -12017,6 +13091,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('job_events', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'character_identities',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('character_samples', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'media',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('character_samples', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -13705,6 +14793,26 @@ final class $$MediaTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$CharacterSamplesTable, List<CharacterSampleRow>>
+  _characterSamplesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.characterSamples,
+    aliasName: 'media__id__character_samples__media_id',
+  );
+
+  $$CharacterSamplesTableProcessedTableManager get characterSamplesRefs {
+    final manager = $$CharacterSamplesTableTableManager(
+      $_db,
+      $_db.characterSamples,
+    ).filter((f) => f.mediaId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _characterSamplesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$MediaTableFilterComposer extends Composer<_$AppDatabase, $MediaTable> {
@@ -13856,6 +14964,31 @@ class $$MediaTableFilterComposer extends Composer<_$AppDatabase, $MediaTable> {
           }) => $$MediaDetectionsTableFilterComposer(
             $db: $db,
             $table: $db.mediaDetections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> characterSamplesRefs(
+    Expression<bool> Function($$CharacterSamplesTableFilterComposer f) f,
+  ) {
+    final $$CharacterSamplesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.characterSamples,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CharacterSamplesTableFilterComposer(
+            $db: $db,
+            $table: $db.characterSamples,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14091,6 +15224,31 @@ class $$MediaTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> characterSamplesRefs<T extends Object>(
+    Expression<T> Function($$CharacterSamplesTableAnnotationComposer a) f,
+  ) {
+    final $$CharacterSamplesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.characterSamples,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CharacterSamplesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.characterSamples,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MediaTableTableManager
@@ -14110,6 +15268,7 @@ class $$MediaTableTableManager
             bool facesRefs,
             bool bodiesRefs,
             bool mediaDetectionsRefs,
+            bool characterSamplesRefs,
           })
         > {
   $$MediaTableTableManager(_$AppDatabase db, $MediaTable table)
@@ -14204,6 +15363,7 @@ class $$MediaTableTableManager
                 facesRefs = false,
                 bodiesRefs = false,
                 mediaDetectionsRefs = false,
+                characterSamplesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -14211,6 +15371,7 @@ class $$MediaTableTableManager
                     if (facesRefs) db.faces,
                     if (bodiesRefs) db.bodies,
                     if (mediaDetectionsRefs) db.mediaDetections,
+                    if (characterSamplesRefs) db.characterSamples,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -14270,6 +15431,27 @@ class $$MediaTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (characterSamplesRefs)
+                        await $_getPrefetchedData<
+                          MediaRow,
+                          $MediaTable,
+                          CharacterSampleRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MediaTableReferences
+                              ._characterSamplesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MediaTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).characterSamplesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.mediaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -14294,6 +15476,7 @@ typedef $$MediaTableProcessedTableManager =
         bool facesRefs,
         bool bodiesRefs,
         bool mediaDetectionsRefs,
+        bool characterSamplesRefs,
       })
     >;
 typedef $$FacesTableCreateCompanionBuilder =
@@ -23591,6 +24774,880 @@ typedef $$JobEventsTableProcessedTableManager =
       JobEventRow,
       PrefetchHooks Function({bool jobId})
     >;
+typedef $$CharacterIdentitiesTableCreateCompanionBuilder =
+    CharacterIdentitiesCompanion Function({
+      Value<int> id,
+      Value<String?> name,
+      required int createdAt,
+    });
+typedef $$CharacterIdentitiesTableUpdateCompanionBuilder =
+    CharacterIdentitiesCompanion Function({
+      Value<int> id,
+      Value<String?> name,
+      Value<int> createdAt,
+    });
+
+final class $$CharacterIdentitiesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $CharacterIdentitiesTable,
+          CharacterIdentityRow
+        > {
+  $$CharacterIdentitiesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<$CharacterSamplesTable, List<CharacterSampleRow>>
+  _characterSamplesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.characterSamples,
+    aliasName: 'character_identities__id__character_samples__identity_id',
+  );
+
+  $$CharacterSamplesTableProcessedTableManager get characterSamplesRefs {
+    final manager = $$CharacterSamplesTableTableManager(
+      $_db,
+      $_db.characterSamples,
+    ).filter((f) => f.identityId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _characterSamplesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$CharacterIdentitiesTableFilterComposer
+    extends Composer<_$AppDatabase, $CharacterIdentitiesTable> {
+  $$CharacterIdentitiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> characterSamplesRefs(
+    Expression<bool> Function($$CharacterSamplesTableFilterComposer f) f,
+  ) {
+    final $$CharacterSamplesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.characterSamples,
+      getReferencedColumn: (t) => t.identityId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CharacterSamplesTableFilterComposer(
+            $db: $db,
+            $table: $db.characterSamples,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$CharacterIdentitiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CharacterIdentitiesTable> {
+  $$CharacterIdentitiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CharacterIdentitiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CharacterIdentitiesTable> {
+  $$CharacterIdentitiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  Expression<T> characterSamplesRefs<T extends Object>(
+    Expression<T> Function($$CharacterSamplesTableAnnotationComposer a) f,
+  ) {
+    final $$CharacterSamplesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.characterSamples,
+      getReferencedColumn: (t) => t.identityId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CharacterSamplesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.characterSamples,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$CharacterIdentitiesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CharacterIdentitiesTable,
+          CharacterIdentityRow,
+          $$CharacterIdentitiesTableFilterComposer,
+          $$CharacterIdentitiesTableOrderingComposer,
+          $$CharacterIdentitiesTableAnnotationComposer,
+          $$CharacterIdentitiesTableCreateCompanionBuilder,
+          $$CharacterIdentitiesTableUpdateCompanionBuilder,
+          (CharacterIdentityRow, $$CharacterIdentitiesTableReferences),
+          CharacterIdentityRow,
+          PrefetchHooks Function({bool characterSamplesRefs})
+        > {
+  $$CharacterIdentitiesTableTableManager(
+    _$AppDatabase db,
+    $CharacterIdentitiesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CharacterIdentitiesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CharacterIdentitiesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CharacterIdentitiesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> name = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => CharacterIdentitiesCompanion(
+                id: id,
+                name: name,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String?> name = const Value.absent(),
+                required int createdAt,
+              }) => CharacterIdentitiesCompanion.insert(
+                id: id,
+                name: name,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CharacterIdentitiesTable, CharacterIdentityRow>(
+                    table,
+                  ),
+                  $$CharacterIdentitiesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({characterSamplesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (characterSamplesRefs) db.characterSamples,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (characterSamplesRefs)
+                    await $_getPrefetchedData<
+                      CharacterIdentityRow,
+                      $CharacterIdentitiesTable,
+                      CharacterSampleRow
+                    >(
+                      currentTable: table,
+                      referencedTable: $$CharacterIdentitiesTableReferences
+                          ._characterSamplesRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$CharacterIdentitiesTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).characterSamplesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.identityId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$CharacterIdentitiesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CharacterIdentitiesTable,
+      CharacterIdentityRow,
+      $$CharacterIdentitiesTableFilterComposer,
+      $$CharacterIdentitiesTableOrderingComposer,
+      $$CharacterIdentitiesTableAnnotationComposer,
+      $$CharacterIdentitiesTableCreateCompanionBuilder,
+      $$CharacterIdentitiesTableUpdateCompanionBuilder,
+      (CharacterIdentityRow, $$CharacterIdentitiesTableReferences),
+      CharacterIdentityRow,
+      PrefetchHooks Function({bool characterSamplesRefs})
+    >;
+typedef $$CharacterSamplesTableCreateCompanionBuilder =
+    CharacterSamplesCompanion Function({
+      Value<int> id,
+      required int identityId,
+      required int mediaId,
+      required String modelId,
+      required Uint8List descriptor,
+      required double bboxX,
+      required double bboxY,
+      required double bboxW,
+      required double bboxH,
+      required double score,
+      Value<int?> frameNumber,
+      Value<int?> timestampMs,
+      Value<String?> cropPath,
+      required int createdAt,
+    });
+typedef $$CharacterSamplesTableUpdateCompanionBuilder =
+    CharacterSamplesCompanion Function({
+      Value<int> id,
+      Value<int> identityId,
+      Value<int> mediaId,
+      Value<String> modelId,
+      Value<Uint8List> descriptor,
+      Value<double> bboxX,
+      Value<double> bboxY,
+      Value<double> bboxW,
+      Value<double> bboxH,
+      Value<double> score,
+      Value<int?> frameNumber,
+      Value<int?> timestampMs,
+      Value<String?> cropPath,
+      Value<int> createdAt,
+    });
+
+final class $$CharacterSamplesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $CharacterSamplesTable,
+          CharacterSampleRow
+        > {
+  $$CharacterSamplesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CharacterIdentitiesTable _identityIdTable(_$AppDatabase db) => db
+      .characterIdentities
+      .createAlias('character_samples__identity_id__character_identities__id');
+
+  $$CharacterIdentitiesTableProcessedTableManager get identityId {
+    final $_column = $_itemColumn<int>('identity_id')!;
+
+    final manager = $$CharacterIdentitiesTableTableManager(
+      $_db,
+      $_db.characterIdentities,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_identityIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $MediaTable _mediaIdTable(_$AppDatabase db) =>
+      db.media.createAlias('character_samples__media_id__media__id');
+
+  $$MediaTableProcessedTableManager get mediaId {
+    final $_column = $_itemColumn<int>('media_id')!;
+
+    final manager = $$MediaTableTableManager(
+      $_db,
+      $_db.media,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_mediaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$CharacterSamplesTableFilterComposer
+    extends Composer<_$AppDatabase, $CharacterSamplesTable> {
+  $$CharacterSamplesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get descriptor => $composableBuilder(
+    column: $table.descriptor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get bboxX => $composableBuilder(
+    column: $table.bboxX,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get bboxY => $composableBuilder(
+    column: $table.bboxY,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get bboxW => $composableBuilder(
+    column: $table.bboxW,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get bboxH => $composableBuilder(
+    column: $table.bboxH,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get frameNumber => $composableBuilder(
+    column: $table.frameNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cropPath => $composableBuilder(
+    column: $table.cropPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CharacterIdentitiesTableFilterComposer get identityId {
+    final $$CharacterIdentitiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.identityId,
+      referencedTable: $db.characterIdentities,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CharacterIdentitiesTableFilterComposer(
+            $db: $db,
+            $table: $db.characterIdentities,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$MediaTableFilterComposer get mediaId {
+    final $$MediaTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableFilterComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CharacterSamplesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CharacterSamplesTable> {
+  $$CharacterSamplesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get descriptor => $composableBuilder(
+    column: $table.descriptor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get bboxX => $composableBuilder(
+    column: $table.bboxX,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get bboxY => $composableBuilder(
+    column: $table.bboxY,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get bboxW => $composableBuilder(
+    column: $table.bboxW,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get bboxH => $composableBuilder(
+    column: $table.bboxH,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get frameNumber => $composableBuilder(
+    column: $table.frameNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cropPath => $composableBuilder(
+    column: $table.cropPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CharacterIdentitiesTableOrderingComposer get identityId {
+    final $$CharacterIdentitiesTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.identityId,
+          referencedTable: $db.characterIdentities,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$CharacterIdentitiesTableOrderingComposer(
+                $db: $db,
+                $table: $db.characterIdentities,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$MediaTableOrderingComposer get mediaId {
+    final $$MediaTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableOrderingComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CharacterSamplesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CharacterSamplesTable> {
+  $$CharacterSamplesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get modelId =>
+      $composableBuilder(column: $table.modelId, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get descriptor => $composableBuilder(
+    column: $table.descriptor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get bboxX =>
+      $composableBuilder(column: $table.bboxX, builder: (column) => column);
+
+  GeneratedColumn<double> get bboxY =>
+      $composableBuilder(column: $table.bboxY, builder: (column) => column);
+
+  GeneratedColumn<double> get bboxW =>
+      $composableBuilder(column: $table.bboxW, builder: (column) => column);
+
+  GeneratedColumn<double> get bboxH =>
+      $composableBuilder(column: $table.bboxH, builder: (column) => column);
+
+  GeneratedColumn<double> get score =>
+      $composableBuilder(column: $table.score, builder: (column) => column);
+
+  GeneratedColumn<int> get frameNumber => $composableBuilder(
+    column: $table.frameNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get cropPath =>
+      $composableBuilder(column: $table.cropPath, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$CharacterIdentitiesTableAnnotationComposer get identityId {
+    final $$CharacterIdentitiesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.identityId,
+          referencedTable: $db.characterIdentities,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$CharacterIdentitiesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.characterIdentities,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$MediaTableAnnotationComposer get mediaId {
+    final $$MediaTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableAnnotationComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CharacterSamplesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CharacterSamplesTable,
+          CharacterSampleRow,
+          $$CharacterSamplesTableFilterComposer,
+          $$CharacterSamplesTableOrderingComposer,
+          $$CharacterSamplesTableAnnotationComposer,
+          $$CharacterSamplesTableCreateCompanionBuilder,
+          $$CharacterSamplesTableUpdateCompanionBuilder,
+          (CharacterSampleRow, $$CharacterSamplesTableReferences),
+          CharacterSampleRow,
+          PrefetchHooks Function({bool identityId, bool mediaId})
+        > {
+  $$CharacterSamplesTableTableManager(
+    _$AppDatabase db,
+    $CharacterSamplesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CharacterSamplesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CharacterSamplesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CharacterSamplesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> identityId = const Value.absent(),
+                Value<int> mediaId = const Value.absent(),
+                Value<String> modelId = const Value.absent(),
+                Value<Uint8List> descriptor = const Value.absent(),
+                Value<double> bboxX = const Value.absent(),
+                Value<double> bboxY = const Value.absent(),
+                Value<double> bboxW = const Value.absent(),
+                Value<double> bboxH = const Value.absent(),
+                Value<double> score = const Value.absent(),
+                Value<int?> frameNumber = const Value.absent(),
+                Value<int?> timestampMs = const Value.absent(),
+                Value<String?> cropPath = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => CharacterSamplesCompanion(
+                id: id,
+                identityId: identityId,
+                mediaId: mediaId,
+                modelId: modelId,
+                descriptor: descriptor,
+                bboxX: bboxX,
+                bboxY: bboxY,
+                bboxW: bboxW,
+                bboxH: bboxH,
+                score: score,
+                frameNumber: frameNumber,
+                timestampMs: timestampMs,
+                cropPath: cropPath,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int identityId,
+                required int mediaId,
+                required String modelId,
+                required Uint8List descriptor,
+                required double bboxX,
+                required double bboxY,
+                required double bboxW,
+                required double bboxH,
+                required double score,
+                Value<int?> frameNumber = const Value.absent(),
+                Value<int?> timestampMs = const Value.absent(),
+                Value<String?> cropPath = const Value.absent(),
+                required int createdAt,
+              }) => CharacterSamplesCompanion.insert(
+                id: id,
+                identityId: identityId,
+                mediaId: mediaId,
+                modelId: modelId,
+                descriptor: descriptor,
+                bboxX: bboxX,
+                bboxY: bboxY,
+                bboxW: bboxW,
+                bboxH: bboxH,
+                score: score,
+                frameNumber: frameNumber,
+                timestampMs: timestampMs,
+                cropPath: cropPath,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CharacterSamplesTable, CharacterSampleRow>(
+                    table,
+                  ),
+                  $$CharacterSamplesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({identityId = false, mediaId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (identityId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.identityId,
+                                referencedTable:
+                                    $$CharacterSamplesTableReferences
+                                        ._identityIdTable(db),
+                                referencedColumn:
+                                    $$CharacterSamplesTableReferences
+                                        ._identityIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (mediaId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.mediaId,
+                                referencedTable:
+                                    $$CharacterSamplesTableReferences
+                                        ._mediaIdTable(db),
+                                referencedColumn:
+                                    $$CharacterSamplesTableReferences
+                                        ._mediaIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$CharacterSamplesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CharacterSamplesTable,
+      CharacterSampleRow,
+      $$CharacterSamplesTableFilterComposer,
+      $$CharacterSamplesTableOrderingComposer,
+      $$CharacterSamplesTableAnnotationComposer,
+      $$CharacterSamplesTableCreateCompanionBuilder,
+      $$CharacterSamplesTableUpdateCompanionBuilder,
+      (CharacterSampleRow, $$CharacterSamplesTableReferences),
+      CharacterSampleRow,
+      PrefetchHooks Function({bool identityId, bool mediaId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -23644,4 +25701,8 @@ class $AppDatabaseManager {
       $$IdentitySetFacesTableTableManager(_db, _db.identitySetFaces);
   $$JobEventsTableTableManager get jobEvents =>
       $$JobEventsTableTableManager(_db, _db.jobEvents);
+  $$CharacterIdentitiesTableTableManager get characterIdentities =>
+      $$CharacterIdentitiesTableTableManager(_db, _db.characterIdentities);
+  $$CharacterSamplesTableTableManager get characterSamples =>
+      $$CharacterSamplesTableTableManager(_db, _db.characterSamples);
 }

@@ -32,6 +32,7 @@ class ScanProgress {
     this.facesFound = 0,
     this.facesLinked = 0,
     this.bodiesFound = 0,
+    this.charactersFound = 0,
     this.eta,
     this.startedAt,
     this.grouping = false,
@@ -47,6 +48,7 @@ class ScanProgress {
   final int facesFound; // new faces stored during this run
   final int facesLinked; // faces recognised as ones the library already had
   final int bodiesFound;
+  final int charactersFound;
   final Duration? eta;
   final DateTime? startedAt;
   final bool grouping; // the PC is sorting faces into people right now
@@ -72,6 +74,7 @@ class ScanProgress {
     int? facesFound,
     int? facesLinked,
     int? bodiesFound,
+    int? charactersFound,
     Duration? eta,
     bool clearEta = false,
     DateTime? startedAt,
@@ -87,6 +90,7 @@ class ScanProgress {
     facesFound: facesFound ?? this.facesFound,
     facesLinked: facesLinked ?? this.facesLinked,
     bodiesFound: bodiesFound ?? this.bodiesFound,
+    charactersFound: charactersFound ?? this.charactersFound,
     eta: clearEta ? null : (eta ?? this.eta),
     startedAt: startedAt ?? this.startedAt,
     grouping: grouping ?? this.grouping,

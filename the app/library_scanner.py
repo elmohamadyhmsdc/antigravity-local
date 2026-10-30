@@ -98,6 +98,7 @@ class ScanOptions:
     frame_interval: float = 1.0          # seconds between sampled video frames
     min_face_quality: float = face_quality.DEFAULT_MIN_QUALITY
     detect_bodies: bool = True
+    detect_characters: bool = False
     body_score: float = 0.5
     duplicate_distance: float = 0.05     # same face crop already in the gallery
     video_similar_distance: float = 0.08  # near-identical face from the same video
@@ -120,6 +121,7 @@ class ScanSummary:
     faces_linked: int = 0
     faces_updated: int = 0
     bodies_new: int = 0
+    characters_new: int = 0
     frames: int = 0
     errors: List[str] = field(default_factory=list)
     seconds: float = 0.0
@@ -127,7 +129,7 @@ class ScanSummary:
     def as_text(self) -> str:
         return (f"{self.files_scanned} files scanned ({self.files_skipped} already up to date) - "
                 f"{self.faces_new} new faces, {self.faces_linked} linked to faces already in the gallery, "
-                f"{self.bodies_new} bodies")
+                f"{self.bodies_new} bodies, {self.characters_new} character samples")
 
 
 class LibraryScanner:
@@ -159,9 +161,10 @@ class LibraryScanner:
 
     @property
     def body(self):
-        if self._body is None and self.options.detect_bodies:
+        if self._body is None and (self.options.detect_bodies or self.options.detect_characters):
             from body_detector import BodyAnalyzer
-            self._body = BodyAnalyzer(log=self.log)
+            self._body = BodyAnalyzer(log=self.log, use_pose=not self.options.detect_characters,
+                                      allow_downloads=not self.options.detect_characters)
         return self._body
 
     # --- detection --------------------------------------------------------
@@ -220,6 +223,7 @@ class LibraryScanner:
         record = self.db.get_media_by_path(str(path))
         if (record and not self.options.rescan
                 and record.get("scan_version") == SCAN_VERSION
+                and record.get("character_scan", False) == self.options.detect_characters
                 and record.get("scan_status") == "done"
                 and record.get("size") == sig["size"] and record.get("mtime") == sig["mtime"]):
             summary.files_skipped += 1
@@ -239,6 +243,7 @@ class LibraryScanner:
             raise IOError("could not read image")
         h, w = img.shape[:2]
         media_id = self.db.upsert_media(str(path), {
+            "character_scan": self.options.detect_characters,
             "type": "image", "width": w, "height": h, **sig,
             "scan_version": SCAN_VERSION, "scan_status": "scanning",
             "scanned_at": datetime.utcnow().isoformat(), "detections": [],
@@ -269,12 +274,14 @@ class LibraryScanner:
             resume_from = 0
             detections: List[list] = []
             same_file = (record and record.get("size") == sig["size"] and record.get("mtime") == sig["mtime"])
-            if same_file and not self.options.rescan and record.get("scan_status") == "scanning":
+            if (same_file and not self.options.rescan and record.get("scan_status") == "scanning"
+                    and record.get("character_scan", False) == self.options.detect_characters):
                 resume_from = int(record.get("last_frame") or 0)
                 detections = list(record.get("detections") or [])
                 self.log(f"[scan] resuming {path.name} at frame {resume_from}")
 
             media_id = self.db.upsert_media(str(path), {
+                "character_scan": self.options.detect_characters,
                 "type": "video", "width": w, "height": h, "fps": round(fps, 3),
                 "frame_count": total, "duration": round(total / fps, 2) if fps else None, **sig,
                 "scan_version": SCAN_VERSION, "scan_status": "scanning",
@@ -315,6 +322,14 @@ class LibraryScanner:
         # detect/assess go through the overridable methods above (the tests stub them)
         result = analysis.analyze_frame(self._face_app, self.body, img, self.options,
                                         detect=self.detect_faces, assess=self.assess_face)
+        used_characters = set()
+        for character in result.characters:
+            from character_library import store_character
+            cid, added = store_character(self.db, character, state.media_id, frame_number, timestamp,
+                                         self.body_crop_dir.parent / 'extracted_characters', img, used_characters)
+            summary.characters_new += int(added)
+            x1, y1, x2, y2 = [int(v) for v in character.bbox]
+            detections.append([frame_number, timestamp, "c", cid, x1, y1, x2-x1, y2-y1])
         faces, quality, bodies = result.faces, result.quality, result.bodies
         face_of_body = result.face_of_body
 

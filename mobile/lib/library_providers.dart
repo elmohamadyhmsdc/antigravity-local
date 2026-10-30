@@ -13,6 +13,7 @@ import 'data/repositories/app_settings.dart';
 import 'data/repositories/library_repository.dart';
 import 'data/repositories/media_queries.dart';
 import 'data/repositories/people_repository.dart';
+import 'data/repositories/character_repository.dart';
 import 'data/repositories/review_repository.dart';
 import 'domain/backup/backup_service.dart';
 import 'domain/grouping/grouping_runner.dart';
@@ -92,6 +93,16 @@ final peopleRepositoryProvider = Provider<PeopleRepository>(
     ref.watch(fileStoreProvider),
     index: ref.watch(embeddingIndexProvider),
   ),
+);
+
+final characterRepositoryProvider = Provider<CharacterRepository>(
+  (ref) => CharacterRepository(
+    ref.watch(databaseProvider),
+    ref.watch(fileStoreProvider),
+  ),
+);
+final charactersProvider = StreamProvider.autoDispose<List<CharacterSummary>>(
+  (ref) => ref.watch(characterRepositoryProvider).watch(),
 );
 
 final reviewRepositoryProvider = Provider<ReviewRepository>(

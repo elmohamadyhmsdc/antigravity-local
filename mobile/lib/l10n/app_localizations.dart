@@ -4377,6 +4377,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Last sample'**
   String get resourcesUpdated;
+
+  /// No description provided for @charactersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cartoon & anime characters'**
+  String get charactersTitle;
+
+  /// No description provided for @charactersScan.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan illustrated characters'**
+  String get charactersScan;
+
+  /// No description provided for @charactersScanHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For cartoon or anime albums. Scan bodies, hair, clothing and visual details instead of human faces. Select illustrated albums before scanning.'**
+  String get charactersScanHint;
+
+  /// No description provided for @charactersEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No characters yet'**
+  String get charactersEmpty;
+
+  /// No description provided for @charactersEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose cartoon or anime albums in Scan sources and enable illustrated character scanning. Detection runs on the PC; your character library and appearance matching stay on this phone.'**
+  String get charactersEmptyHint;
+
+  /// No description provided for @charactersAccuracyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Grouped by visual appearance. Different outfits, hidden bodies or similar designs can need correction. Open a group to name it or separate a mistaken match.'**
+  String get charactersAccuracyHint;
+
+  /// No description provided for @characterSeparate.
+  ///
+  /// In en, this message translates to:
+  /// **'Separate this character'**
+  String get characterSeparate;
+
+  /// No description provided for @characterName.
+  ///
+  /// In en, this message translates to:
+  /// **'Character name'**
+  String get characterName;
+
+  /// No description provided for @characterOpenSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Open source'**
+  String get characterOpenSource;
+
+  /// No description provided for @charactersTestPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Test a character photo'**
+  String get charactersTestPhoto;
+
+  /// No description provided for @charactersTestHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Test one illustration on the PC without saving it to your library. Bodies, hair, clothing and visual details are analysed; no human face is needed.'**
+  String get charactersTestHint;
+
+  /// No description provided for @characterFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Character {id}'**
+  String characterFallback(int id);
+
+  /// No description provided for @characterSamples.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} appearances'**
+  String characterSamples(int count);
+
+  /// No description provided for @charactersFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} character appearances found'**
+  String charactersFound(int count);
 }
 
 class _AppLocalizationsDelegate

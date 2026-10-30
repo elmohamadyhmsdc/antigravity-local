@@ -81,6 +81,7 @@ class AnalyzeRequestOptions:
     body_score: float = 0.5
     return_crops: bool = True
     model_id: Optional[str] = None
+    detect_characters: bool = False
 
 
 def _number(opts: dict, key: str, default: float, lo: float, hi: float) -> float:
@@ -111,6 +112,7 @@ def parse_analyze_options(raw: Optional[str]) -> AnalyzeRequestOptions:
         raise bad_request("options.model_id must be a string")
     return AnalyzeRequestOptions(
         detect_bodies=_flag(opts, "detect_bodies", True),
+        detect_characters=_flag(opts, "detect_characters", False),
         min_face_quality=_number(opts, "min_quality", face_quality.DEFAULT_MIN_QUALITY, 0.0, 1.0),
         body_score=_number(opts, "body_score", 0.5, 0.0, 1.0),
         return_crops=_flag(opts, "return_crops", True),
@@ -160,6 +162,12 @@ def analysis_to_response(result: FrameAnalysis, img: np.ndarray, options: Analyz
              for fi, bi, s in result.pairs]
     out = {"model_id": model_id, "image_w": int(result.image_w), "image_h": int(result.image_h),
            "faces": faces, "bodies": bodies, "pairs": pairs}
+    out["characters"] = [{"bbox": bbox_xywh(c.bbox), "score": round(float(c.score), 4),
+                           "model_id": c.model_id,
+                           "descriptor": [round(float(v), 6) for v in c.descriptor],
+                           "crop_jpeg": jpeg_b64(body_crop(img, c.bbox, BODY_CROP_MAX_HEIGHT),
+                                                  10 ** 6) if options.return_crops else None}
+                          for c in result.characters]
     if result.timings_ms:
         out["timings_ms"] = py(result.timings_ms)
     return out

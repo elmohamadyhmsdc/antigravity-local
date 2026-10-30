@@ -35,7 +35,7 @@ Workspace: `D:\AndroidScan\gallary` (Windows / PowerShell).
 | `DeepFaceLab_NVIDIA_RTX3000_series/` | Vendored tool, not application source |
 
 Desktop storage: local JSON via `the app/database.py` (`JsonDatabase`).
-Phone storage: Drift + SQLCipher, schema **6**, keys in Android Keystore.
+Phone storage: Drift + SQLCipher, schema **8**, keys in Android Keystore.
 These are separate systems. Do not reintroduce PostgreSQL or use the desktop
 JSON database in mobile API request/job paths.
 
@@ -445,3 +445,82 @@ At the user's request ("اسم الابليكيشن Your Gallery مش antigravit
 - Fix 2 (safety net): `mobile_api/supervisor.py`. `python -m mobile_api` (dashboard Start and `run_mobile_api.bat`) is now a stdlib-only parent that runs the real server as a child and restarts it after any non-clean exit, with backoff 2/5/10/30/60 s that resets after 5 min of healthy uptime. Clean exits (Stop/Ctrl+C) are never restarted. Neither is a first launch that never came up (port clash, broken env), so that failure is still reported. "Came up" means the child wrote `control.json` with its per-launch token (`launch` field). Restarts reuse devices.json/tls, so phones reconnect. Work running inside the crashed process is lost, the scratch workspace is wiped as on any start, and helper workers exit on stdin EOF. The admin status adds `recovery` (restart count, last code/time), which the Mobile Devices page shows as a caption. Stop is now enabled while the server is starting. If no server answers (between a crash and its restart), the controller terminates the supervisor it started and removes the stale control file, and that is recorded as a requested stop. `--check-models`/`--help` and child processes (`AG_MOBILE_API_CHILD=1`) bypass supervision.
 - Known limit: if a dashboard-started supervisor is killed mid-restart, a just-spawned child can outlive it. The venv launcher's job allows breakaway, so the child is not killed with it.
 - New `test_mobile_supervisor.py` (fake children, CPU only): clean stop, Ctrl+C code, never-came-up failure, crash restart with recovery env/`--no-browser`/fresh token, crash-loop backoff, backoff reset, stale control file, entry-point selection, stdlib-only imports, control-file token, controller Stop fallback. **Only `py_compile` was run on the changed files. No test, server start/restart or GPU run was executed** (standing user rule). The user should run `test_mobile_supervisor.py`, `test_mobile_dashboard.py` (real lifecycle through the supervisor), `test_mobile_stateless.py` and `test_mobile_connectivity.py`, then restart the mobile server from the dashboard so the new launcher is used.
+
+## Cartoon/anime characters, full phone corpus and in-place upgrade — 2026-10-30
+
+- User requested character detection using bodies, stable visual details,
+  clothing and hair, confirmed PC inference with mobile support, and explicitly
+  requested upgrading the connected phone and isolated acceptance. The user then
+  selected **all** images in phone Pictures/Anime Wallpaper, background and Pins.
+- Added face-independent HumanArt character mode and `character-appearance@1`
+  (160 floats: head/hair, upper/lower clothing, edge details and silhouette).
+  It is an appearance heuristic, not a trained character identity embedding or
+  automatic character-name classifier. Character mode is explicit for illustrated
+  sources, starts off, skips human face extraction and never enters the human
+  identity index. A fresh character worker also skips pose inference. Existing
+  local weights are reused; no models/dependencies/CUDA were installed or changed.
+- Shared Python analysis, worker IPC, image/video API options/serialization and
+  OpenAPI/fixtures now carry characters. Desktop JSON collections/scanner and a
+  Characters gallery support naming/separating and source access. Phone schema
+  **8**, DTOs, local appearance matching, transactional photo/video import,
+  backup/crops, scan options/progress and a Characters screen are implemented.
+  Same-frame identities cannot merge; model versions stay separate. Rescans
+  preserve corrections. Test a character photo performs stateless single-image
+  analysis without library writes.
+- Actual checks: **167 affected Flutter tests passed**, full analyzer **no
+  issues**. Python: character **12**, analysis **7**, worker/video **11**, API
+  contract **28**, statelessness **5**, gallery **33**, desktop UI **9**, all
+  passed; OpenAPI + **33 fixtures**/negative cases passed. Old fixture/view
+  expectations were updated for added fields/Characters; the portrait photo-test
+  regression scrolls to its below-preview summary. Native/sandbox access failures
+  were rerun successfully with appropriate isolated working directories. The
+  historical seven unrelated Restyle failures were not changed or rerun.
+- All **328 selected phone images** decoded and were tested through the real
+  detector/API worker: **251 character detections in 183 images**, no errors.
+  Three built-in imagegen samples were also detected (rear views without visible
+  faces, plus different hair with the same uniform). Overall **331 images, 254
+  detections in 186 images**, PC batch **67.40 seconds** including startup/API.
+  These unlabelled counts are not accuracy/recall. The generated red-haired pose
+  pair scored **0.8768**, below conservative auto-merge (0.93); red versus green
+  hair scored **0**. View/outfit changes and similar designs still need review.
+- Physical **Samsung A72** acceptance used a separately packaged QA app, fresh
+  pinned HTTPS loopback server over USB port 8447, production DTO/store/matching
+  code, SQLCipher and an in-memory library. Every one of the **331** results was
+  stored twice: **254 detections, 186 images with detections, zero errors, zero
+  duplicate imports, zero same-frame identity conflicts, zero human face rows**;
+  **246 appearance groups**, not verified distinct characters. No production
+  library or pairing was opened by the QA app. QA app/server/USB mapping were
+  removed afterward; copied personal inputs and temporary credentials were
+  removed. Original phone images were not changed. Synthetic samples/prompts and
+  aggregate reports remain under mobile/build/character-acceptance/.
+- Offline Debug QA and signed Release builds succeeded. **Version 1.1.0 (2)**
+  was verified against the installed release certificate and **installed with
+  adb install -r** on the connected phone. Package manager confirmed the upgrade;
+  production app was never uninstalled or cleared. Real-library migration runs
+  on its next normal launch; it was validated with v1-v7 migrations and separate
+  phone SQLCipher storage, not by inspecting the user's encrypted database.
+  QA-only Debug outputs were removed so they cannot be mistaken for the normal
+  app; a new ordinary Debug APK was not built.
+- Latest production APK: **mobile/build/character-detection-1.1.0.apk**; matching
+  copies at build/app/outputs/apk/release/app-release.apk and
+  build/app/outputs/flutter-apk/app-release.apk. **46,277,863 bytes**, SHA-256
+  **40a80328c73286ca91d970eb5d78ac824b6faae867452aa8b62039ce77765055**.
+  Dart AOT targets the connected arm64 phone; app ID and signing key are unchanged.
+- Original PC server was already **failed/stopped** with **3 job directories and
+  3 blob files** before acceptance and had the same counts afterward. It was
+  deliberately not started/wiped/restarted; its saved jobs, TLS/pairing and phone
+  scan/queue state were preserved. No test server remains on 8447. Updated backend
+  code takes effect on the original server's next start.
+- Details, usage, implementation boundaries, logs and opt-in reproduction tools:
+  [Character detection and acceptance](character-detection-2026-10-30.md).
+
+## Latest phone release reapplied — 2026-10-30
+
+- User explicitly requested updating the currently installed phone version again.
+  Read-only inspection confirmed the connected Samsung A72 already had 1.1.0 (2).
+  Verified the latest APK's package/version and SHA-256 against the preceding
+  release, then reapplied it successfully with `adb install -r`.
+- Package manager confirmed version **1.1.0**, code **2**, and a new installation
+  update timestamp. No uninstall, app-data clear, app launch, server restart or
+  library/queue operation was performed. No source change or new build was
+  needed; earlier test results remain historical and were not rerun.

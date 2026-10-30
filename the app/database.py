@@ -35,6 +35,8 @@ _COLLECTIONS = (
     ("faces", "faces.json", None),
     ("bodies", "bodies.json", None),
     ("media", "media.json", None),
+    ("character_identities", "character_identities.json", 2),
+    ("character_samples", "character_samples.json", None),
 )
 
 
@@ -74,6 +76,10 @@ class JsonDatabase:
         self._suppression_by_path = None
         self.bodies: Dict[int, Dict[str, Any]] = {}
         self.media: Dict[int, Dict[str, Any]] = {}
+        self.character_identities = {}
+        self.character_samples = {}
+        self.next_character_identity_id = 1
+        self.next_character_sample_id = 1
 
         self.next_person_id = 1
         self.next_face_id = 1
@@ -128,6 +134,7 @@ class JsonDatabase:
                         logger.error(f"Failed to load {name}: {e}")
                 setattr(self, attr, items)
                 id_attr = {"persons": "next_person_id", "faces": "next_face_id",
+                           "character_identities": "next_character_identity_id", "character_samples": "next_character_sample_id",
                            "bodies": "next_body_id", "media": "next_media_id"}[attr]
                 setattr(self, id_attr, max(next_id, max(items, default=0) + 1))
             self._media_by_path = {norm_path(m["path"]): mid for mid, m in self.media.items() if m.get("path")}
@@ -157,9 +164,10 @@ class JsonDatabase:
             for attr, name, indent in _COLLECTIONS:
                 items = getattr(self, attr)
                 path = self._file(name)
-                if attr in ("bodies", "media") and not items and not path.exists():
+                if attr in ("bodies", "media", "character_identities", "character_samples") and not items and not path.exists():
                     continue  # don't create empty files for stores that never used them
                 id_attr = {"persons": "next_person_id", "faces": "next_face_id",
+                           "character_identities": "next_character_identity_id", "character_samples": "next_character_sample_id",
                            "bodies": "next_body_id", "media": "next_media_id"}[attr]
                 try:
                     temp_file = path.with_suffix('.tmp')
@@ -995,6 +1003,10 @@ class JsonDatabase:
         self._media_by_path.pop(norm_path(record.get("path", "")), None)
         with self.batch():
             if delete_children:
+                for cid in [c["id"] for c in self.character_samples.values() if c.get("media_id") == media_id]:
+                    crop = self.character_samples.pop(cid).get("crop_path")
+                    if crop:
+                        Path(crop).unlink(missing_ok=True)
                 for bid in [b["id"] for b in self.bodies.values() if b.get("media_id") == media_id]:
                     self.delete_body(bid)
                 for fid in [f["id"] for f in self.faces.values() if f.get("media_id") == media_id]:

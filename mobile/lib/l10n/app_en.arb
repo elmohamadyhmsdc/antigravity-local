@@ -1440,5 +1440,22 @@
   "resourcesWaiting": "Waiting for PC resources",
   "resourcesScopeHint": "These readings describe the PC, not this phone. Shared RAM pages may be counted more than once. Whole GPU usage includes other apps; application VRAM may be unavailable with the PC driver. Updates every 5 seconds while this panel is visible.",
   "resourcesLimitsHint": "Set optional admission thresholds in PC Settings → PC resources & protection. They delay new compute work; they are not hard memory caps for running tasks.",
-  "resourcesUpdated": "Last sample"
+  "resourcesUpdated": "Last sample",
+  "charactersTitle": "Cartoon & anime characters",
+  "charactersScan": "Scan illustrated characters",
+  "charactersScanHint": "For cartoon or anime albums. Scan bodies, hair, clothing and visual details instead of human faces. Select illustrated albums before scanning.",
+  "charactersEmpty": "No characters yet",
+  "charactersEmptyHint": "Choose cartoon or anime albums in Scan sources and enable illustrated character scanning. Detection runs on the PC; your character library and appearance matching stay on this phone.",
+  "charactersAccuracyHint": "Grouped by visual appearance. Different outfits, hidden bodies or similar designs can need correction. Open a group to name it or separate a mistaken match.",
+  "characterSeparate": "Separate this character",
+  "characterName": "Character name",
+  "characterOpenSource": "Open source",
+  "charactersTestPhoto": "Test a character photo",
+  "charactersTestHint": "Test one illustration on the PC without saving it to your library. Bodies, hair, clothing and visual details are analysed; no human face is needed.",
+  "characterFallback": "Character {id}",
+  "@characterFallback": { "placeholders": { "id": { "type": "int" } } },
+  "characterSamples": "{count} appearances",
+  "@characterSamples": { "placeholders": { "count": { "type": "int" } } },
+  "charactersFound": "{count} character appearances found",
+  "@charactersFound": { "placeholders": { "count": { "type": "int" } } }
 }

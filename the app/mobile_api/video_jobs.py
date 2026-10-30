@@ -81,7 +81,7 @@ class VideoJobs:
         if isinstance(start_time, bool) or not isinstance(start_time, (int, float)) or not 0 <= start_time <= 86400:
             raise bad_request("start_time must be between 0 and 86400 seconds.")
         opts = parse_analyze_options(json.dumps(params))
-        if opts.model_id is not None and opts.model_id != self.ctx.engines.model_id:
+        if not opts.detect_characters and opts.model_id is not None and opts.model_id != self.ctx.engines.model_id:
             raise ApiError(409, "model_mismatch", "The video's embedding model differs from this PC.")
         client_id = body.get("client_job_id")
         if client_id is not None and (not isinstance(client_id, str) or not 1 <= len(client_id) <= 128):
@@ -152,6 +152,7 @@ class VideoJobs:
             frame_no = origin + ((lower_bound - origin + step - 1) // step) * step
             opts = parse_analyze_options(json.dumps(params))
             engine_opts = AnalyzeOptions(min_face_quality=opts.min_face_quality,
+                                         detect_characters=opts.detect_characters,
                                          detect_bodies=opts.detect_bodies, body_score=opts.body_score)
             with self.lock:
                 job.update(status="running", started_at=job["started_at"] or stamp(),

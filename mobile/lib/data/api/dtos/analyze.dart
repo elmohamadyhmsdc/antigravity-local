@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import '../../../domain/scan/character_descriptor.dart';
 
 import 'embedding.dart';
 import 'json_util.dart';
@@ -184,6 +185,43 @@ class DetectedBody {
   }
 }
 
+class DetectedCharacter {
+  const DetectedCharacter({
+    required this.bbox,
+    required this.score,
+    required this.descriptor,
+    this.modelId = characterModelId,
+    this.cropJpeg,
+  });
+
+  final BBox bbox;
+  final double score;
+  final String modelId;
+  final List<double> descriptor;
+  final Uint8List? cropJpeg;
+
+  factory DetectedCharacter.fromJson(Map<String, dynamic> json) {
+    final descriptor = numbers(json['descriptor'], 'characters[].descriptor');
+    if (descriptor.length != characterDescriptorDim ||
+        descriptor.any((v) => !v.isFinite || v < 0 || v > 1)) {
+      throw const FormatException('Invalid character appearance descriptor');
+    }
+    final model = field<String>(json, 'model_id', 'characters[]');
+    if (model != characterModelId) {
+      throw FormatException('Unsupported character model: $model');
+    }
+    return DetectedCharacter(
+      bbox: BBox.fromJson(map(json['bbox'], 'characters[].bbox')),
+      score: number(json, 'score', 'characters[]'),
+      descriptor: descriptor,
+      modelId: model,
+      cropJpeg: json['crop_jpeg'] is String
+          ? base64Decode(json['crop_jpeg'] as String)
+          : null,
+    );
+  }
+}
+
 class FaceBodyPair {
   const FaceBodyPair({
     required this.faceIndex,
@@ -211,6 +249,7 @@ class AnalyzeImageResponse {
     required this.bodies,
     required this.pairs,
     this.timingsMs = const {},
+    this.characters = const [],
   });
 
   final String modelId;
@@ -220,6 +259,7 @@ class AnalyzeImageResponse {
   final List<DetectedBody> bodies;
   final List<FaceBodyPair> pairs;
   final Map<String, double> timingsMs;
+  final List<DetectedCharacter> characters;
 
   factory AnalyzeImageResponse.fromJson(Map<String, dynamic> json) {
     final faces = list(json['faces'], 'faces');
@@ -229,6 +269,10 @@ class AnalyzeImageResponse {
       modelId: field<String>(json, 'model_id'),
       imageW: integer(json, 'image_w'),
       imageH: integer(json, 'image_h'),
+      characters: [
+        for (final c in list(json['characters'] ?? [], 'characters'))
+          DetectedCharacter.fromJson(map(c, 'characters[]')),
+      ],
       faces: [
         for (var i = 0; i < faces.length; i++)
           DetectedFace.fromJson(map(faces[i], 'faces[$i]'), 'faces[$i]'),
@@ -263,6 +307,7 @@ class AnalyzeOptions {
     this.returnCrops = true,
     this.bodyScore = 0.5,
     this.modelId,
+    this.detectCharacters = false,
   });
 
   final bool detectBodies;
@@ -270,9 +315,11 @@ class AnalyzeOptions {
   final bool returnCrops;
   final double bodyScore;
   final String? modelId;
+  final bool detectCharacters;
 
   Map<String, dynamic> toJson() => {
     'detect_bodies': detectBodies,
+    'detect_characters': detectCharacters,
     'min_quality': minQuality,
     'return_crops': returnCrops,
     'body_score': bodyScore,

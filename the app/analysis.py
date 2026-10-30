@@ -35,6 +35,7 @@ class AnalyzeOptions:
     min_face_quality: float = face_quality.DEFAULT_MIN_QUALITY
     detect_bodies: bool = True
     body_score: float = 0.5
+    detect_characters: bool = False
 
 
 @dataclass
@@ -48,6 +49,7 @@ class FrameAnalysis:
     image_w: int = 0
     image_h: int = 0
     timings_ms: Dict[str, float] = field(default_factory=dict)
+    characters: list = field(default_factory=list)
 
     @property
     def body_of_face(self) -> Dict[int, int]:
@@ -120,9 +122,10 @@ def analyze_frame(face_app, body, img, options,
     detect = detect or (lambda im: detect_faces(face_app, im))
     assess = assess or assess_face
     timings: Dict[str, float] = {}
+    want_characters = getattr(options, "detect_characters", False)
 
     t = time.perf_counter()
-    faces = detect(img)
+    faces = [] if want_characters else detect(img)
     timings["detect"] = (time.perf_counter() - t) * 1000.0
     t = time.perf_counter()
     quality = [assess(img, f) for f in faces]
@@ -131,17 +134,27 @@ def analyze_frame(face_app, body, img, options,
               for f, q in zip(faces, quality)]
 
     bodies: list = []
-    if options.detect_bodies and body is not None and body.available:
+    if want_characters and (body is None or not body.available):
+        raise RuntimeError("Character detection requires the installed HumanArt body models.")
+    if (options.detect_bodies or want_characters) and body is not None and body.available:
         t = time.perf_counter()
         bodies = body.analyze(img, score_thr=options.body_score)
         timings["body"] = (time.perf_counter() - t) * 1000.0
+    characters = []
+    if want_characters:
+        from character_detection import detect_characters
+        t = time.perf_counter()
+        characters = detect_characters(img, bodies)
+        timings["characters"] = (time.perf_counter() - t) * 1000.0
+        # Illustrated characters never become human face/body identities.
+        faces, quality, passes, bodies = [], [], [], []
     appearances = [pl.appearance_descriptor(img, b.bbox, b.kpts, b.kpt_scores) for b in bodies]
     pairs = pl.associate_faces_bodies([f.bbox for f in faces], bodies,
                                       face_kps=[f.kps for f in faces]) if bodies else []
 
     h, w = img.shape[:2]
     return FrameAnalysis(faces=faces, quality=quality, passes_gate=passes, bodies=bodies,
-                         appearances=appearances, pairs=list(pairs), image_w=w, image_h=h,
+                         appearances=appearances, pairs=list(pairs), image_w=w, image_h=h, characters=characters,
                          timings_ms={k: round(v, 1) for k, v in timings.items()})
 
 

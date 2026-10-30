@@ -48,6 +48,12 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
         title: Text(l10n.navPeople),
         actions: [
           IconButton(
+            key: const Key('open-characters'),
+            tooltip: l10n.charactersTitle,
+            onPressed: () => context.push(Routes.characters),
+            icon: const Icon(Icons.auto_awesome_outlined),
+          ),
+          IconButton(
             key: const Key('open-review'),
             tooltip: l10n.reviewTitle,
             onPressed: () => context.push(Routes.review),

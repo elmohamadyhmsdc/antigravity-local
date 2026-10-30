@@ -196,6 +196,14 @@ class ScanEngine {
     }
     final prefs = await _settings.load();
     _emit(const ScanProgress(phase: ScanPhase.preparing));
+    if (prefs.scanCharacters &&
+        !(await api.capabilities()).engines.characterDetection) {
+      await _pause(
+        PauseReason.error,
+        'Character detection is unavailable. Update the PC server and check its body models.',
+      );
+      return;
+    }
 
     if (!await _media.requestAccess()) {
       await _pause(PauseReason.noAccess);
@@ -235,7 +243,12 @@ class ScanEngine {
 
     var modelId = prefs.modelId;
     final started = _clock();
-    var done = 0, failed = 0, facesFound = 0, linked = 0, bodies = 0;
+    var done = 0,
+        failed = 0,
+        facesFound = 0,
+        linked = 0,
+        bodies = 0,
+        characters = 0;
     var sinceGroupingPhotos = 0, sinceGroupingFaces = 0;
     final durations = Queue<double>();
 
@@ -260,6 +273,7 @@ class ScanEngine {
         facesFound: facesFound,
         facesLinked: linked,
         bodiesFound: bodies,
+        charactersFound: characters,
         eta: eta,
         startedAt: started,
       );
@@ -278,6 +292,7 @@ class ScanEngine {
     }
 
     Future<void> groupNow() async {
+      if (prefs.scanCharacters) return;
       if (_api() == null) return;
       _emit(_progress.copyWith(grouping: true));
       try {
@@ -321,6 +336,7 @@ class ScanEngine {
           facesFound += outcome.newFaces;
           linked += outcome.linkedFaces;
           bodies += outcome.newBodies;
+          characters += outcome.newCharacters;
           sinceGroupingFaces += outcome.newFaces;
       }
       sinceGroupingPhotos++;
@@ -407,14 +423,19 @@ class ScanEngine {
           bytes!,
           options: AnalyzeOptions(
             detectBodies: prefs.scanBodies,
+            detectCharacters: prefs.scanCharacters,
             minQuality: prefs.qualityGate,
             modelId: modelId,
           ),
         );
-        if (modelId != null && response.modelId != modelId) {
+        if (!prefs.scanCharacters &&
+            modelId != null &&
+            response.modelId != modelId) {
           return _stop(row.id, PauseReason.modelMismatch, response.modelId);
         }
-        if (modelId == null) await _settings.setModelId(response.modelId);
+        if (!prefs.scanCharacters && modelId == null) {
+          await _settings.setModelId(response.modelId);
+        }
         final media = await _repo.mediaById(row.id);
         if (media == null) {
           return const _Failed(); // deleted from the library while it was being analysed

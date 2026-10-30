@@ -12,6 +12,7 @@
     "vram_free_mb": 5320
   },
   "engines": {
+    "reface": true,
     "reface_v3": true,
     "reface_v2": true,
     "dfm_models": [
@@ -21,20 +22,11 @@
     "lora_train": true,
     "lora_generate": true,
     "body_detection": true,
-    "reface": true
+    "character_detection": true
   },
   "restorers": [
     "codeformer"
   ],
-  "lora_base_checkpoints": [
-    "sd15_realistic_base"
-  ],
-  "limits": {
-    "max_image_px": 4096,
-    "max_upload_mb": 2048,
-    "blob_cache_mb": 20480
-  },
-  "busy": null,
   "reface_profiles": {
     "fast": {
       "restorer": "none",
@@ -51,5 +43,14 @@
       "restore_size": 512,
       "use_parser": true
     }
-  }
+  },
+  "lora_base_checkpoints": [
+    "sd15_realistic_base"
+  ],
+  "limits": {
+    "max_image_px": 4096,
+    "max_upload_mb": 2048,
+    "blob_cache_mb": 20480
+  },
+  "busy": null
 }

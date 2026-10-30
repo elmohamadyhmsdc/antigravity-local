@@ -24,7 +24,7 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
     async def analyze_image(image: UploadFile = File(...), options: str = Form(default=""),
                             _: dict = Depends(require_device)):
         opts = parse_analyze_options(options)
-        if opts.model_id is not None and opts.model_id != ctx.engines.model_id:
+        if not opts.detect_characters and opts.model_id is not None and opts.model_id != ctx.engines.model_id:
             raise ApiError(409, "model_mismatch",
                            f"This server embeds with {ctx.engines.model_id}, not {opts.model_id}.")
         ctx.gpu.require_free()
@@ -44,6 +44,7 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
                            "Downscale it on the phone first.")
 
         engine_options = AnalyzeOptions(min_face_quality=opts.min_face_quality,
+                                        detect_characters=opts.detect_characters,
                                         detect_bodies=opts.detect_bodies, body_score=opts.body_score)
         try:
             def compute():

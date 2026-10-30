@@ -11,7 +11,8 @@ import 'analyze_controller.dart';
 
 /// "Detect faces in a photo": the first screen that round-trips a real photo through the PC.
 class AnalyzeScreen extends ConsumerWidget {
-  const AnalyzeScreen({super.key});
+  const AnalyzeScreen({super.key, this.characters = false});
+  final bool characters;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,14 +21,20 @@ class AnalyzeScreen extends ConsumerWidget {
     final controller = ref.read(analyzeControllerProvider.notifier);
     final serverName = ref.watch(sessionProvider)?.name ?? '';
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.analyzeTitle)),
+      appBar: AppBar(
+        title: Text(characters ? l10n.charactersTestPhoto : l10n.analyzeTitle),
+      ),
       body: switch (state) {
         AnalyzeIdle() => _Centered(
           children: [
-            ScreenIntro(title: l10n.analyzeHeadline, body: l10n.analyzeIdle),
+            ScreenIntro(
+              title: characters ? l10n.charactersTitle : l10n.analyzeHeadline,
+              body: characters ? l10n.charactersTestHint : l10n.analyzeIdle,
+            ),
             FilledButton.icon(
               key: const Key('pick-photo'),
-              onPressed: controller.pickAndAnalyze,
+              onPressed: () =>
+                  controller.pickAndAnalyze(characters: characters),
               icon: const Icon(Icons.add_photo_alternate_outlined),
               label: Text(l10n.analyzePick),
             ),
@@ -76,7 +83,8 @@ class AnalyzeScreen extends ConsumerWidget {
               child: Text(l10n.retry),
             ),
             TextButton(
-              onPressed: controller.pickAndAnalyze,
+              onPressed: () =>
+                  controller.pickAndAnalyze(characters: characters),
               child: Text(l10n.analyzePickAnother),
             ),
           ],
@@ -84,7 +92,9 @@ class AnalyzeScreen extends ConsumerWidget {
         AnalyzeDone(:final photo, :final result) => _Result(
           photo: photo,
           result: result,
-          onPickAnother: controller.pickAndAnalyze,
+          onPickAnother: () =>
+              controller.pickAndAnalyze(characters: characters),
+          characters: characters,
         ),
       },
     );
@@ -110,11 +120,13 @@ class _Result extends StatelessWidget {
     required this.photo,
     required this.result,
     required this.onPickAnother,
+    this.characters = false,
   });
 
   final Uint8List photo;
   final AnalyzeImageResponse result;
   final VoidCallback onPickAnother;
+  final bool characters;
 
   @override
   Widget build(BuildContext context) {
@@ -148,24 +160,37 @@ class _Result extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          l10n.analyzeSummary(
-            l10n.analyzeFacesFound(result.faces.length),
-            l10n.analyzeBodiesFound(result.bodies.length),
-            result.imageW,
-            result.imageH,
-            totalMs,
-          ),
+          characters
+              ? l10n.charactersFound(result.characters.length)
+              : l10n.analyzeSummary(
+                  l10n.analyzeFacesFound(result.faces.length),
+                  l10n.analyzeBodiesFound(result.bodies.length),
+                  result.imageW,
+                  result.imageH,
+                  totalMs,
+                ),
           key: const Key('analyze-summary'),
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 8),
-        if (result.faces.isEmpty)
+        if (result.faces.isEmpty && !characters)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text(l10n.analyzeNoFaces),
           ),
         for (var i = 0; i < result.faces.length; i++)
           _FaceTile(index: i, face: result.faces[i]),
+        for (var i = 0; i < result.characters.length; i++)
+          ListTile(
+            title: Text(l10n.characterFallback(i + 1)),
+            leading: result.characters[i].cropJpeg == null
+                ? const Icon(Icons.auto_awesome_outlined)
+                : Image.memory(
+                    result.characters[i].cropJpeg!,
+                    width: 56,
+                    fit: BoxFit.contain,
+                  ),
+          ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: onPickAnother,
@@ -294,6 +319,9 @@ class DetectionsPainter extends CustomPainter {
       ..color = bodyColor.withValues(alpha: 0.8);
     for (final b in result.bodies) {
       canvas.drawRect(_rect(b.bbox, size), body);
+    }
+    for (final c in result.characters) {
+      canvas.drawRect(_rect(c.bbox, size), body);
     }
     for (var i = 0; i < result.faces.length; i++) {
       final f = result.faces[i];

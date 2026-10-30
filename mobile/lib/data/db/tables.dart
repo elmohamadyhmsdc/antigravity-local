@@ -14,6 +14,38 @@
 
 import 'package:drift/drift.dart';
 
+@DataClassName('CharacterIdentityRow')
+class CharacterIdentities extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().nullable()();
+  IntColumn get createdAt => integer()();
+}
+
+@TableIndex(name: 'character_samples_identity', columns: {#identityId})
+@TableIndex(name: 'character_samples_media', columns: {#mediaId})
+@DataClassName('CharacterSampleRow')
+class CharacterSamples extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get identityId => integer().references(
+    CharacterIdentities,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get mediaId =>
+      integer().references(Media, #id, onDelete: KeyAction.cascade)();
+  TextColumn get modelId => text()();
+  BlobColumn get descriptor => blob()(); // 160 float32, character-appearance@1
+  RealColumn get bboxX => real()();
+  RealColumn get bboxY => real()();
+  RealColumn get bboxW => real()();
+  RealColumn get bboxH => real()();
+  RealColumn get score => real()();
+  IntColumn get frameNumber => integer().nullable()();
+  IntColumn get timestampMs => integer().nullable()();
+  TextColumn get cropPath => text().nullable()();
+  IntColumn get createdAt => integer()();
+}
+
 @DataClassName('PersonRow')
 class Persons extends Table {
   IntColumn get id => integer().autoIncrement()();

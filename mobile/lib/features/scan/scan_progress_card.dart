@@ -132,6 +132,9 @@ class ScanProgressCard extends ConsumerWidget {
         }
     }
 
+    if (progress.charactersFound > 0) {
+      lines.add(l10n.charactersFound(progress.charactersFound));
+    }
     return Card(
       key: const Key('scan-progress-card'),
       margin: compact

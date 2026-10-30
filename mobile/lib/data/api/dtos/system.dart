@@ -52,6 +52,7 @@ class Engines {
     required this.loraTrain,
     required this.loraGenerate,
     required this.bodyDetection,
+    this.characterDetection = false,
   });
 
   final bool reface;
@@ -63,6 +64,7 @@ class Engines {
   final bool loraTrain;
   final bool loraGenerate;
   final bool bodyDetection;
+  final bool characterDetection;
 
   factory Engines.fromJson(Map<String, dynamic> json) => Engines(
     reface: json['reface'] as bool? ?? false,
@@ -76,6 +78,7 @@ class Engines {
     loraTrain: field<bool>(json, 'lora_train', 'engines'),
     loraGenerate: field<bool>(json, 'lora_generate', 'engines'),
     bodyDetection: field<bool>(json, 'body_detection', 'engines'),
+    characterDetection: json['character_detection'] as bool? ?? false,
   );
 }
 

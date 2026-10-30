@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:drift/drift.dart' show Value;
 
 import '../db/app_database.dart';
 
@@ -7,6 +8,7 @@ abstract final class SettingKeys {
   static const qualityGate = 'quality.gate';
   static const albumIds = 'scan.albums';
   static const scanBodies = 'scan.bodies';
+  static const scanCharacters = 'scan.characters';
   static const scanVideos = 'scan.videos';
   static const frameInterval = 'scan.frame_interval';
   static const maxSide = 'scan.max_side';
@@ -21,6 +23,7 @@ abstract final class SettingKeys {
     qualityGate,
     albumIds,
     scanBodies,
+    scanCharacters,
     scanVideos,
     frameInterval,
     maxSide,
@@ -43,6 +46,7 @@ class SettingsSnapshot {
     this.qualityGate = defaultQualityGate,
     this.albumIds = const [],
     this.scanBodies = true,
+    this.scanCharacters = false,
     this.scanVideos = true,
     this.frameInterval = 1.0,
     this.maxSide = defaultMaxSide,
@@ -72,6 +76,7 @@ class SettingsSnapshot {
           : gate.clamp(minQualityGate, maxQualityGate).toDouble(),
       albumIds: albums,
       scanBodies: (m[SettingKeys.scanBodies] ?? '1') != '0',
+      scanCharacters: m[SettingKeys.scanCharacters] == '1',
       scanVideos: (m[SettingKeys.scanVideos] ?? '1') != '0',
       frameInterval:
           (double.tryParse(m[SettingKeys.frameInterval] ?? '') ?? 1.0).clamp(
@@ -93,6 +98,7 @@ class SettingsSnapshot {
   final List<String>
   albumIds; // MediaStore bucket ids chosen on the Sources screen
   final bool scanBodies;
+  final bool scanCharacters;
   final bool scanVideos;
   final double frameInterval;
   final int maxSide; // long side of the picture sent to the PC
@@ -141,6 +147,18 @@ class AppSettings {
 
   Future<void> setScanBodies(bool value) =>
       _put(SettingKeys.scanBodies, value ? '1' : '0');
+
+  Future<void> setScanCharacters(bool value) => _db.transaction(() async {
+    if ((await load()).scanCharacters == value) return;
+    await _put(SettingKeys.scanCharacters, value ? '1' : '0');
+    // The next explicit scan can revisit completed assets in the chosen albums.
+    // Paused/in-flight video requests retain their original options/checkpoint.
+    await (_db.update(
+      _db.media,
+    )..where((m) => m.scanStatus.equals('done'))).write(
+      const MediaCompanion(scanVersion: Value(0), lastScannedFrame: Value(0)),
+    );
+  });
 
   Future<void> setScanVideos(bool value) =>
       _put(SettingKeys.scanVideos, value ? '1' : '0');

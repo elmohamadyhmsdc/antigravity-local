@@ -33,7 +33,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.antigravity.antigravity_mobile"
+        applicationId = if (project.findProperty("characterAcceptance") == "true")
+            "com.antigravity.antigravity_mobile.characterqa" else "com.antigravity.antigravity_mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = maxOf(26, flutter.minSdkVersion) // plan section 11: Android 8+

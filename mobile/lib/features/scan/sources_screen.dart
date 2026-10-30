@@ -151,6 +151,20 @@ class SourcesScreen extends ConsumerWidget {
                   subtitle: Text(l10n.optionBodiesHint),
                   onChanged: settingsStore.setScanBodies,
                 ),
+                SwitchListTile(
+                  key: const Key('scan-characters'),
+                  value: settings.scanCharacters,
+                  title: Text(l10n.charactersScan),
+                  subtitle: Text(l10n.charactersScanHint),
+                  onChanged: progress.isActive
+                      ? null
+                      : settingsStore.setScanCharacters,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome_outlined),
+                  title: Text(l10n.charactersTitle),
+                  onTap: () => context.push(Routes.characters),
+                ),
                 ListTile(
                   title: Text(l10n.optionImageSize),
                   subtitle: Text(l10n.optionImageSizeHint),

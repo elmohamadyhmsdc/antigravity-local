@@ -128,6 +128,7 @@ class VideoScan {
               'frame_interval': prefs.frameInterval,
               'min_quality': prefs.qualityGate,
               'detect_bodies': prefs.scanBodies,
+              'detect_characters': prefs.scanCharacters,
               'model_id': prefs.modelId,
               'start_frame': current.lastScannedFrame,
             },
@@ -244,14 +245,20 @@ class VideoScan {
             if (frame < nextFrame) continue;
             final analysis = AnalyzeImageResponse.fromJson(json);
             final model = (await settings.load()).modelId;
-            if (model != null && analysis.modelId != model) {
+            final characterScan =
+                ((saved['request'] as Map?)?['params']
+                    as Map?)?['detect_characters'] ==
+                true;
+            if (!characterScan && model != null && analysis.modelId != model) {
               throw const ApiException(
                 code: 'model_mismatch',
                 message: 'The video uses a different embedding model.',
                 retryable: false,
               );
             }
-            if (model == null) await settings.setModelId(analysis.modelId);
+            if (!characterScan && model == null) {
+              await settings.setModelId(analysis.modelId);
+            }
             final stored = await store.store(
               media,
               analysis,
@@ -264,6 +271,7 @@ class VideoScan {
               newFaceIds: [...outcome.newFaceIds, ...stored.newFaceIds],
               linkedFaces: outcome.linkedFaces + stored.linkedFaces,
               newBodies: outcome.newBodies + stored.newBodies,
+              newCharacters: outcome.newCharacters + stored.newCharacters,
             );
             nextFrame = frame + 1;
             report('import', 0);

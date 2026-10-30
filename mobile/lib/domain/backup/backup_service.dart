@@ -34,6 +34,8 @@ class BackupTable {
 const backupTables = [
   BackupTable('persons'),
   BackupTable('media'),
+  BackupTable('character_identities'),
+  BackupTable('character_samples'),
   BackupTable('faces'),
   BackupTable('face_suppressions'),
   BackupTable('identity_sets'),

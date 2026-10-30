@@ -148,6 +148,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
     String categoryLabel(String category) => switch (category) {
       'faces' => l.navPeople,
       'bodies' => l.tabBodies,
+      'characters' => l.charactersTitle,
       'datasets' => l.loraDatasetTitle,
       'portraits' => l.loraGenerate,
       'results' => l.privateResults,
