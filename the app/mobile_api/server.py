@@ -71,7 +71,7 @@ def remove_control(ctx):
 
 
 def build_context(workspace_dir=DEFAULT_WORKSPACE, *, name=None, host_ip=None, port=DEFAULT_PORT,
-                  pair_port=DEFAULT_PAIR_PORT, wipe=True, engines=None, probe=None) -> ServerContext:
+                  pair_port=DEFAULT_PAIR_PORT, wipe=False, engines=None, probe=None) -> ServerContext:
     ws = Workspace(workspace_dir)
     ws.prepare(wipe=wipe)
     auth = AuthStore(ws.devices_path, server_name=name)

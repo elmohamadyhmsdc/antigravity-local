@@ -9,6 +9,22 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get videoAdaptiveSampling => 'Automatic video sampling';
+
+  @override
+  String get videoAdaptiveSamplingHint =>
+      'Short clips use closer samples; longer videos use wider intervals. About 0.5 s for a short clip and 5 s for a 40-minute video.';
+
+  @override
+  String get scanCurrentPhoto => 'Current photo';
+
+  @override
+  String get scanCurrentVideo => 'Current video frame';
+
+  @override
+  String get scanPreviewUnavailable => 'Preview unavailable';
+
+  @override
   String get appTitle => 'Your Gallery';
 
   @override

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 enum ScanPhase {
   idle, // nothing running
   preparing, // listing the photos of the chosen albums
@@ -36,6 +38,10 @@ class ScanProgress {
     this.eta,
     this.startedAt,
     this.grouping = false,
+    this.currentAssetId,
+    this.currentKind,
+    this.previewBytes,
+    this.previewTimestampMs,
   });
 
   final ScanPhase phase;
@@ -52,6 +58,10 @@ class ScanProgress {
   final Duration? eta;
   final DateTime? startedAt;
   final bool grouping; // the PC is sorting faces into people right now
+  final String? currentAssetId;
+  final String? currentKind;
+  final Uint8List? previewBytes;
+  final int? previewTimestampMs;
 
   bool get isActive =>
       phase == ScanPhase.preparing ||
@@ -79,6 +89,11 @@ class ScanProgress {
     bool clearEta = false,
     DateTime? startedAt,
     bool? grouping,
+    String? currentAssetId,
+    String? currentKind,
+    Uint8List? previewBytes,
+    int? previewTimestampMs,
+    bool clearPreview = false,
   }) => ScanProgress(
     phase: phase ?? this.phase,
     pauseReason: clearPauseReason ? null : (pauseReason ?? this.pauseReason),
@@ -94,6 +109,14 @@ class ScanProgress {
     eta: clearEta ? null : (eta ?? this.eta),
     startedAt: startedAt ?? this.startedAt,
     grouping: grouping ?? this.grouping,
+    currentAssetId: clearPreview
+        ? null
+        : (currentAssetId ?? this.currentAssetId),
+    currentKind: clearPreview ? null : (currentKind ?? this.currentKind),
+    previewBytes: clearPreview ? null : (previewBytes ?? this.previewBytes),
+    previewTimestampMs: clearPreview
+        ? null
+        : (previewTimestampMs ?? this.previewTimestampMs),
   );
 }
 

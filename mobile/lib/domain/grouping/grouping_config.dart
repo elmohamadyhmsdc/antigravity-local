@@ -17,5 +17,5 @@ const round2Stages = ['bodies'];
 const round3Stages = ['match', 'cluster', 'duplicates', 'bodies'];
 
 /// A scan asks the PC to group after this many new faces / photos (and always when it ends).
-const groupEveryNewFaces = 25;
-const groupEveryPhotos = 60;
+const groupEveryNewFaces = 100;
+const groupEveryPhotos = 200;

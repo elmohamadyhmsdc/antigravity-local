@@ -107,6 +107,60 @@ void main() {
   tearDown(() => rig.dispose());
 
   test(
+    'prepares only the next photo while the current photo is being analysed',
+    () async {
+      await rig.choose();
+      final entered = Completer<void>(), release = Completer<void>();
+      var call = 0;
+      rig.api.analyzeHandler = (bytes, options) async {
+        if (call++ == 0) {
+          entered.complete();
+          await release.future;
+        }
+        return analysis(faces: [], modelId: 'buffalo_l@1');
+      };
+      final running = rig.engine().start();
+      await entered.future;
+      for (
+        var attempt = 0;
+        attempt < 100 && !rig.library.reads.contains('asset-2');
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(rig.library.reads, ['asset-1', 'asset-2']);
+      final current = await rig.media();
+      expect(current.map((m) => m.scanStatus), [
+        'scanning',
+        'pending',
+        'pending',
+      ]);
+      release.complete();
+      await running;
+      expect(rig.library.reads, ['asset-1', 'asset-2', 'asset-3']);
+    },
+  );
+
+  test(
+    'preview follows the claimed photo and clears when the queue finishes',
+    () async {
+      await rig.choose();
+      final engine = rig.engine();
+      final seen = <String>[];
+      rig.api.analyzeHandler = (bytes, options) async {
+        expect(engine.progress.currentKind, 'photo');
+        expect(engine.progress.previewBytes, same(bytes));
+        seen.add(engine.progress.currentAssetId!);
+        return analysis(faces: [], modelId: 'buffalo_l@1');
+      };
+      await engine.start();
+      expect(seen, ['asset-1', 'asset-2', 'asset-3']);
+      expect(engine.progress.currentAssetId, isNull);
+      expect(engine.progress.previewBytes, isNull);
+    },
+  );
+
+  test(
     'network recovery cannot restart a scan while backup maintenance owns the library',
     () async {
       await rig.choose();
@@ -797,7 +851,7 @@ void main() {
     test(
       'faces are sorted into people every so often, not only at the end',
       () async {
-        rig.library.setAlbum('cam', syntheticAssets(30));
+        rig.library.setAlbum('cam', syntheticAssets(101));
         await rig.choose();
         rig.everyPhotoHasANewFace();
         await rig.engine().start();
@@ -806,10 +860,17 @@ void main() {
             .length;
         expect(
           reviews,
-          greaterThanOrEqualTo(2),
-          reason: 'once after 25 new faces, once at the end',
+          1,
+          reason:
+              'review is deferred to the end; the in-scan pass only matches/clusters',
         );
-        expect(await rig.faces(), 30);
+        expect(
+          rig.api.groupingCalls
+              .where((c) => c.mode == 'apply' && c.stages.contains('match'))
+              .length,
+          greaterThanOrEqualTo(2),
+        );
+        expect(await rig.faces(), 101);
       },
     );
 

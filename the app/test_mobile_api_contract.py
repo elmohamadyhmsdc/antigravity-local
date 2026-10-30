@@ -107,6 +107,8 @@ class Env:
         return self
 
     def __exit__(self, *exc):
+        self.ctx.image_decoder.close()
+        self.client.close()
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def pair(self, name="Test phone"):

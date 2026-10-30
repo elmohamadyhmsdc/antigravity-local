@@ -94,6 +94,36 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[Locale('en')];
 
+  /// No description provided for @videoAdaptiveSampling.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic video sampling'**
+  String get videoAdaptiveSampling;
+
+  /// No description provided for @videoAdaptiveSamplingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Short clips use closer samples; longer videos use wider intervals. About 0.5 s for a short clip and 5 s for a 40-minute video.'**
+  String get videoAdaptiveSamplingHint;
+
+  /// No description provided for @scanCurrentPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Current photo'**
+  String get scanCurrentPhoto;
+
+  /// No description provided for @scanCurrentVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Current video frame'**
+  String get scanCurrentVideo;
+
+  /// No description provided for @scanPreviewUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview unavailable'**
+  String get scanPreviewUnavailable;
+
   /// App name shown in the title bar and task switcher.
   ///
   /// In en, this message translates to:

@@ -360,6 +360,14 @@ class ResourceMonitor:
             return ["Resource limits could not be read. Check PC Settings."]
         return admission_reasons(self.snapshot(), limits) if limits.enabled else []
 
+    def scan_admission_reasons(self):
+        """Keep a small RAM reserve for the API even with custom limits disabled."""
+        reasons = self.admission_reasons()
+        ram = self.snapshot().get('ram')
+        if ram and (ram['available_bytes'] < 1024 * MIB or ram['used_percent'] >= 97):
+            reasons.append('System RAM is critically low. Scanning is paused to keep the server online.')
+        return reasons
+
 
 _monitor = None
 _monitor_lock = threading.Lock()

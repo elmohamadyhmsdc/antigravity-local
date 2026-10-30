@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
+
 import 'json_util.dart';
 
 class VideoJobStatus {
@@ -6,11 +10,26 @@ class VideoJobStatus {
     required this.status,
     required this.progress,
     this.error,
+    this.previewBytes,
+    this.previewTimestampMs,
+    this.warning,
+    this.message,
+    this.incrementalResults = false,
   });
 
   factory VideoJobStatus.fromJson(Map<String, dynamic> json) {
     final progress = number(json, 'progress');
     final status = field<String>(json, 'status');
+    final preview = json['preview_jpeg'] as String?;
+    final timestamp = json['preview_timestamp_ms'] == null
+        ? null
+        : integer(json, 'preview_timestamp_ms');
+    if ((preview != null && preview.length > 256 * 1024) ||
+        (timestamp != null && timestamp < 0)) {
+      throw const FormatException('Invalid video preview');
+    }
+    final details = json['details'] as Map? ?? const {};
+    final skipped = details['skipped_frames'] as int? ?? 0;
     if (!progress.isFinite ||
         progress < 0 ||
         progress > 1 ||
@@ -29,6 +48,15 @@ class VideoJobStatus {
       status: status,
       progress: progress,
       error: json['error'] as String?,
+      message: json['message'] as String?,
+      incrementalResults: json['incremental_results'] == true,
+      previewBytes: preview == null ? null : base64Decode(preview),
+      previewTimestampMs: timestamp,
+      warning:
+          details['warning'] as String? ??
+          (skipped > 0
+              ? '$skipped unreadable video samples were skipped.'
+              : null),
     );
   }
 
@@ -36,6 +64,44 @@ class VideoJobStatus {
   final String status;
   final double progress;
   final String? error;
+  final String? message;
+  final Uint8List? previewBytes;
+  final int? previewTimestampMs;
+  final String? warning;
+  final bool incrementalResults;
+}
+
+class VideoFrameBatch {
+  VideoFrameBatch.fromJson(Map<String, dynamic> json, {required int cursor})
+    : nextCursor = integer(json, 'next_cursor'),
+      hasMore = field<bool>(json, 'has_more'),
+      completed = field<bool>(json, 'completed') {
+    final raw = field<String>(json, 'ndjson');
+    if (raw.length > 16 * 1024 * 1024) {
+      throw const FormatException('Video frame batch is too large');
+    }
+    final bytes = utf8.encode(raw);
+    if (nextCursor < cursor ||
+        nextCursor - cursor != bytes.length ||
+        sha256.convert(bytes).toString() != field<String>(json, 'sha256') ||
+        (hasMore && nextCursor == cursor) ||
+        (completed && hasMore) ||
+        (raw.isNotEmpty && !raw.endsWith('\n'))) {
+      throw const FormatException(
+        'Invalid video frame batch integrity or cursor',
+      );
+    }
+    frames = [
+      for (final line in const LineSplitter().convert(raw))
+        if (line.isNotEmpty) map(jsonDecode(line), 'video frame'),
+    ];
+    if (frames.length > 8) throw const FormatException('Too many video frames');
+  }
+
+  final int nextCursor;
+  final bool hasMore;
+  final bool completed;
+  late final List<Map<String, dynamic>> frames;
 }
 
 class VideoResultFile {

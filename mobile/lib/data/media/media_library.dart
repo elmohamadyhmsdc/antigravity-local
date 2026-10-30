@@ -171,22 +171,35 @@ class PhotoManagerLibrary implements MediaLibrary, VideoMediaLibrary {
   }) async {
     final entity = await AssetEntity.fromId(assetId);
     if (entity == null) return null;
-    final file = await entity.originFile;
-    if (file == null) return null;
     // flutter_image_compress scales so that the result is at least minWidth x minHeight (cover);
     // asking for exactly the target size on both axes gives "long side <= maxSide" for any ratio.
     final w = entity.width > 0 ? entity.width : width;
     final h = entity.height > 0 ? entity.height : height;
     final scale = math.min(1.0, maxSide / math.max(w, h));
+    final targetW = math.max(1, (w * scale).round());
+    final targetH = math.max(1, (h * scale).round());
     try {
-      return await FlutterImageCompress.compressWithFile(
-        file.path,
-        minWidth: math.max(1, (w * scale).round()),
-        minHeight: math.max(1, (h * scale).round()),
+      final file = await entity.originFile;
+      if (file != null) {
+        final bytes = await FlutterImageCompress.compressWithFile(
+          file.path,
+          minWidth: targetW,
+          minHeight: targetH,
+          quality: 90,
+          format: CompressFormat.jpeg,
+          autoCorrectionAngle: true,
+          keepExif: false,
+        );
+        if (bytes != null && bytes.isNotEmpty) return bytes;
+      }
+    } on Exception {
+      // MediaStore/ImageDecoder supports some HEIF, AVIF, GIF and WebP assets
+      // that the original-file compressor cannot convert on this Android version.
+    }
+    try {
+      return await entity.thumbnailDataWithSize(
+        ThumbnailSize(targetW, targetH),
         quality: 90,
-        format: CompressFormat.jpeg,
-        autoCorrectionAngle: true,
-        keepExif: false,
       );
     } on Exception {
       return null;

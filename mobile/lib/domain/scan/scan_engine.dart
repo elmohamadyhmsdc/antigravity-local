@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:typed_data';
 
 import '../../data/api/api_exception.dart';
 import '../../data/api/dtos/analyze.dart';
@@ -95,6 +96,7 @@ class ScanEngine {
   bool _allowReconnectResume = true;
   bool _keepAliveOn = false;
   DateTime _lastNotification = DateTime.fromMillisecondsSinceEpoch(0);
+  Future<(String, Uint8List?)?>? _preparedPhoto;
 
   ScanProgress get progress => _progress;
   Stream<ScanProgress> get stream => _controller.stream;
@@ -162,6 +164,8 @@ class ScanEngine {
       await _pause(PauseReason.error, '$e');
     } finally {
       try {
+        await _preparedPhoto;
+        _preparedPhoto = null;
         if (_keepAliveOn) {
           _keepAliveOn = false;
           await _keepAlive.stop();
@@ -251,6 +255,29 @@ class ScanEngine {
         characters = 0;
     var sinceGroupingPhotos = 0, sinceGroupingFaces = 0;
     final durations = Queue<double>();
+    MediaRow? current;
+    Uint8List? previewBytes;
+    int? previewTimestampMs;
+
+    void prepareNextPhoto() {
+      _preparedPhoto = () async {
+        try {
+          final next = await _repo.nextPending();
+          if (next == null || next.kind != 'photo' || _pauseRequested) {
+            return null;
+          }
+          final bytes = await _media.downscaledJpeg(
+            next.assetId,
+            width: next.width ?? 0,
+            height: next.height ?? 0,
+            maxSide: prefs.maxSide,
+          );
+          return (next.assetId, bytes);
+        } on Exception {
+          return null;
+        }
+      }();
+    }
 
     ScanProgress snapshot({
       ScanPhase phase = ScanPhase.running,
@@ -276,6 +303,10 @@ class ScanEngine {
         charactersFound: characters,
         eta: eta,
         startedAt: started,
+        currentAssetId: current?.assetId,
+        currentKind: current?.kind,
+        previewBytes: previewBytes,
+        previewTimestampMs: previewTimestampMs,
       );
     }
 
@@ -291,12 +322,12 @@ class ScanEngine {
       await _keepAlive.update(_describe(_progress));
     }
 
-    Future<void> groupNow() async {
+    Future<void> groupNow({bool incremental = false}) async {
       if (prefs.scanCharacters) return;
       if (_api() == null) return;
       _emit(_progress.copyWith(grouping: true));
       try {
-        await _grouping.run();
+        await _grouping.run(incremental: incremental);
       } on ApiException catch (e) {
         // grouping is repeatable at any time (Review has a "Sort now" button): never fail the scan for it
         _emit(_progress.copyWith(message: e.message));
@@ -313,8 +344,14 @@ class ScanEngine {
         await _pause(PauseReason.user);
         return;
       }
+      final prepared = await _preparedPhoto;
+      _preparedPhoto = null;
       final row = await _repo.claimNext();
       if (row == null) break;
+      current = row;
+      previewBytes = null;
+      previewTimestampMs = null;
+      _emit(snapshot());
       final watch = Stopwatch()..start();
 
       final result = await _scanOne(
@@ -323,6 +360,13 @@ class ScanEngine {
         prefs: prefs,
         modelId: modelId,
         snapshot: snapshot,
+        preparedPhoto: prepared?.$1 == row.assetId ? prepared?.$2 : null,
+        prepareNextPhoto: prepareNextPhoto,
+        preview: (bytes, timestamp) {
+          previewBytes = bytes;
+          previewTimestampMs = timestamp;
+          _emit(snapshot());
+        },
       );
       switch (result) {
         case _Paused():
@@ -340,17 +384,21 @@ class ScanEngine {
           sinceGroupingFaces += outcome.newFaces;
       }
       sinceGroupingPhotos++;
+      current = null;
+      previewBytes = null;
+      previewTimestampMs = null;
       durations.addLast(watch.elapsedMilliseconds / 1000.0);
       if (durations.length > 15) durations.removeFirst();
       _emit(snapshot());
       await notify();
       if ((done + failed) % _policy.cacheClearEvery == 0) {
+        await _preparedPhoto;
         await _media.clearCache();
       }
 
       if (sinceGroupingFaces >= groupEveryNewFaces ||
           sinceGroupingPhotos >= groupEveryPhotos) {
-        await groupNow();
+        await groupNow(incremental: true);
         _emit(snapshot());
       }
     }
@@ -371,15 +419,34 @@ class ScanEngine {
     required SettingsSnapshot prefs,
     required String? modelId,
     required ScanProgress Function({ScanPhase phase, String? message}) snapshot,
+    required void Function(Uint8List bytes, int? timestampMs) preview,
+    Uint8List? preparedPhoto,
+    required void Function() prepareNextPhoto,
   }) async {
-    final bytes = row.kind == 'video'
-        ? null
-        : await _media.downscaledJpeg(
-            row.assetId,
-            width: row.width ?? 0,
-            height: row.height ?? 0,
-            maxSide: prefs.maxSide,
-          );
+    Uint8List? bytes;
+    try {
+      if (row.kind == 'video') {
+        final thumb = await _media.thumbnail(
+          row.assetId,
+          width: row.width ?? 0,
+          height: row.height ?? 0,
+          size: 480,
+        );
+        if (thumb != null) preview(thumb, null);
+      } else {
+        bytes =
+            preparedPhoto ??
+            await _media.downscaledJpeg(
+              row.assetId,
+              width: row.width ?? 0,
+              height: row.height ?? 0,
+              maxSide: prefs.maxSide,
+            );
+        if (bytes != null) preview(bytes, null);
+      }
+    } on Exception {
+      // A missing/corrupt file must not pause every remaining item in the queue.
+    }
     if (bytes == null && row.kind != 'video') {
       await _repo.markFailed(
         row.id,
@@ -388,6 +455,7 @@ class ScanEngine {
       return const _Failed();
     }
 
+    prepareNextPhoto();
     var busy = 0, offline = 0, serverErrors = 0;
     while (true) {
       try {
@@ -413,6 +481,7 @@ class ScanEngine {
               _emit(snapshot(message: _describeVideo(stage, progress)));
               unawaited(_keepAlive.update(_describe(_progress)));
             },
+            onPreview: preview,
           );
           return _Scanned(
             outcome,
@@ -445,6 +514,9 @@ class ScanEngine {
       } on VideoScanPaused {
         return _stop(row.id, PauseReason.user);
       } on ApiException catch (e) {
+        if (e.code == 'engine_unavailable' && !e.retryable) {
+          return _stop(row.id, PauseReason.error, e.message);
+        }
         if (e.isGpuBusy || e.isResourcePressure) {
           busy++;
           if (busy > _policy.busyRetries) {

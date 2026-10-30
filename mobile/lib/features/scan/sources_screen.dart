@@ -122,6 +122,16 @@ class SourcesScreen extends ConsumerWidget {
                       : settingsStore.setScanVideos,
                 ),
                 if (settings.scanVideos)
+                  SwitchListTile(
+                    key: const Key('adaptive-video-sampling'),
+                    value: settings.adaptiveVideoSampling,
+                    title: Text(l10n.videoAdaptiveSampling),
+                    subtitle: Text(l10n.videoAdaptiveSamplingHint),
+                    onChanged: progress.isActive
+                        ? null
+                        : settingsStore.setAdaptiveVideoSampling,
+                  ),
+                if (settings.scanVideos && !settings.adaptiveVideoSampling)
                   ListTile(
                     title: Text(l10n.videoFrameInterval),
                     trailing: DropdownButton<double>(

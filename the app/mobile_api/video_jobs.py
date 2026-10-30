@@ -5,6 +5,7 @@ Crops travel inline, so a verified result file can be imported frame by frame on
 """
 
 import hashlib
+import base64
 import json
 import logging
 import math
@@ -21,6 +22,9 @@ from analysis import AnalyzeOptions
 from .errors import ApiError, bad_request, not_found
 from .gpu_guard import Busy
 from .schemas import analysis_to_response, parse_analyze_options
+from .media_decode import IsolatedCapture
+from . import video_journal
+from .video_sampling import adaptive_interval
 
 log = logging.getLogger("mobile_api")
 
@@ -30,11 +34,11 @@ def stamp():
 
 
 class VideoJobs:
-    def __init__(self, ctx, capture_factory=cv2.VideoCapture):
+    def __init__(self, ctx, capture_factory=None):
         self.ctx = ctx
-        self.capture = capture_factory
+        self.capture = capture_factory or (lambda path: IsolatedCapture(path, ctx.max_image_px))
         self.lock = threading.RLock()
-        self.jobs = {}
+        self.jobs = video_journal.recover(ctx)
         self.threads = {}
 
     def busy(self):
@@ -52,7 +56,7 @@ class VideoJobs:
 
     @staticmethod
     def public(job):
-        return {k: v for k, v in job.items() if not k.startswith("_") and
+        return {k: dict(v) if k == 'details' else v for k, v in job.items() if not k.startswith("_") and
                 k not in ("owner", "params", "input_sha", "request", "touched")}
 
     def _expire(self):
@@ -74,6 +78,9 @@ class VideoJobs:
         interval = params.get("frame_interval", 1.0)
         start = params.get("start_frame", 0)
         start_time = params.get("start_time", 0)
+        sampling_mode = params.get('sampling_mode', 'fixed')
+        if sampling_mode not in ('fixed', 'adaptive'):
+            raise bad_request('sampling_mode must be fixed or adaptive.')
         if isinstance(interval, bool) or not isinstance(interval, (float, int)) or not 0.25 <= interval <= 60:
             raise bad_request("frame_interval must be between 0.25 and 60 seconds.")
         if type(start) is not int or not 0 <= start <= 2**31 - 1:
@@ -115,8 +122,12 @@ class VideoJobs:
                        progress=0.0, message="Preparing video", queue_position=0, created_at=stamp(),
                        started_at=None, completed_at=None, error=None, last_frame=-1, frames_done=0,
                        details={}, has_result=False, owner=device["id"], params=dict(params), input_sha=sha,
-                       request=body, touched=time.time(), _stop=threading.Event(), _next_frame=start)
+                       preview_jpeg=None, preview_timestamp_ms=None,
+                       incremental_results=True, request=body, touched=time.time(), _stop=threading.Event(),
+                       _next_frame=start, _result_bytes=0, _offsets=[0], _saved_at=0)
+            job['_committed_next_frame'] = start
             self.jobs[job_id] = job
+            video_journal.save(self.ctx, job)
             self._launch(job)
             return self.public(job)
 
@@ -126,6 +137,18 @@ class VideoJobs:
         thread = threading.Thread(target=self._run, args=(job,), name=job["job_id"], daemon=True)
         self.threads[job["job_id"]] = thread
         thread.start()
+
+    def _checkpoint(self, job, output, force=False):
+        if (not force and job['_result_bytes'] > 0 and (len(job['_offsets']) - 1) % 8
+                and time.monotonic() - job.get('_flushed_at', 0) < 3):
+            return
+        output.flush()
+        os.fsync(output.fileno())
+        with self.lock:
+            job['_result_bytes'] = output.tell()
+            job['_committed_next_frame'] = job['_next_frame']
+            job['_flushed_at'] = time.monotonic()
+            video_journal.save(self.ctx, job)
 
     def _run(self, job):
         cap = None
@@ -144,7 +167,11 @@ class VideoJobs:
             if not math.isfinite(fps) or not 0 < fps <= 1000 or total <= 0:
                 raise ValueError("The video has no readable frame count or frame rate.")
             params = job["params"]
-            step = max(1, round(fps * params.get("frame_interval", 1.0)))
+            # Preserve the same FPS and grid after worker/process recovery.
+            fps = job['details'].get('fps', fps)
+            interval = (adaptive_interval(total / fps) if params.get('sampling_mode') == 'adaptive'
+                        else params.get('frame_interval', 1.0))
+            step = job['details'].get('sample_step', max(1, round(fps * interval)))
             origin = round(params.get("start_time", 0) * fps)
             lower_bound = max(job["_next_frame"], origin)
             # start_frame is the phone's first uncommitted frame, not a new sampling
@@ -156,12 +183,25 @@ class VideoJobs:
                                          detect_bodies=opts.detect_bodies, body_score=opts.body_score)
             with self.lock:
                 job.update(status="running", started_at=job["started_at"] or stamp(),
-                           details={"fps": fps, "total_frames": total, "frame_interval": step / fps})
-            with open(directory / "detections.ndjson", "a", encoding="utf-8") as out:
+                           error=None, details={**job['details'], "fps": fps, "total_frames": total,
+                                                "frame_interval": step / fps, 'sample_step': step,
+                                                'sampling_mode': params.get('sampling_mode', 'fixed')})
+            consecutive_errors = 0
+            with open(directory / "detections.ndjson", "ab") as out:
                 while frame_no < total:
                     if job["_stop"].is_set():
                         with self.lock:
                             job.update(status="paused", message="Paused", touched=time.time())
+                        return
+                    reasons = self.ctx.gpu.resource_check()
+                    if reasons:
+                        # Drop the disposable model process to release its RAM/VRAM.
+                        with self.ctx.compute_lock:
+                            if hasattr(self.ctx.engines, 'unload'):
+                                self.ctx.engines.unload()
+                        with self.lock:
+                            job.update(status='paused', message='Resource protection: ' + ' '.join(reasons),
+                                       touched=time.time())
                         return
                     # Respect heavy dashboard work that started while this job was running.
                     dashboard = self.ctx.gpu.dashboard_busy()
@@ -171,23 +211,56 @@ class VideoJobs:
                         return
                     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_no)
                     ok, img = cap.read()
-                    if not ok:
-                        raise ValueError(f"Could not decode video frame {frame_no}.")
+                    if not ok or img is None or not img.size:
+                        consecutive_errors += 1
+                        with self.lock:
+                            details = job['details']
+                            details['skipped_frames'] = details.get('skipped_frames', 0) + 1
+                            details['last_skipped_frame'] = frame_no
+                            job.update(progress=min(1.0, (frame_no + 1) / total),
+                                       message=f'Skipping unreadable frame {frame_no}',
+                                       _next_frame=frame_no + step, touched=time.time())
+                        log.warning('Skipping unreadable video frame %s in %s', frame_no, job['job_id'])
+                        if consecutive_errors >= 8:
+                            if not job['frames_done']:
+                                raise ValueError('No sampled video frames could be decoded. The file may be damaged or its codec unavailable.')
+                            with self.lock:
+                                job['details']['incomplete'] = True
+                                job['details']['warning'] = 'Stopped after 8 consecutive unreadable samples; earlier detections were saved.'
+                            break
+                        frame_no += step
+                        self._checkpoint(job, out)
+                        continue
+                    consecutive_errors = 0
                     h, w = img.shape[:2]
                     if max(w, h) > self.ctx.max_image_px:
                         scale = self.ctx.max_image_px / max(w, h)
                         img = cv2.resize(img, (max(1, round(w * scale)), max(1, round(h * scale))))
+                    scale = min(1.0, 480 / max(img.shape[:2]))
+                    preview = cv2.resize(img, (max(1, round(img.shape[1] * scale)),
+                                               max(1, round(img.shape[0] * scale))))
+                    encoded, jpeg = cv2.imencode('.jpg', preview, [cv2.IMWRITE_JPEG_QUALITY, 65])
+                    with self.lock:
+                        job.update(preview_jpeg=base64.b64encode(jpeg).decode('ascii') if encoded else None,
+                                   preview_timestamp_ms=round(frame_no * 1000 / fps))
                     with self.ctx.compute_lock:
                         result = self.ctx.engines.analyze(img, engine_opts)
                     line = analysis_to_response(result, img, opts, self.ctx.engines.model_id)
                     line.update(frame_number=frame_no, timestamp_ms=round(frame_no * 1000 / fps))
-                    out.write(json.dumps(line, separators=(",", ":"), allow_nan=False) + "\n")
-                    out.flush()
+                    encoded_line = (json.dumps(line, separators=(",", ":"), allow_nan=False) + '\n').encode('utf-8')
+                    if len(encoded_line) > video_journal.MAX_LINE:
+                        raise ValueError('A video frame result exceeded the safe transfer size.')
+                    out.write(encoded_line)
                     with self.lock:
+                        job['_offsets'].append(out.tell())
                         job.update(last_frame=frame_no, frames_done=job["frames_done"] + 1,
                                    progress=min(1.0, (frame_no + 1) / total), message="Analyzing video",
                                    _next_frame=frame_no + step, touched=time.time())
                     frame_no += step
+                    self._checkpoint(job, out)
+                self._checkpoint(job, out, force=True)
+            if not job['frames_done'] and lower_bound < total:
+                raise ValueError('No sampled video frames could be decoded. The file may be damaged or its codec unavailable.')
             path = directory / "detections.ndjson"
             with open(path, "rb") as source:
                 digest = hashlib.file_digest(source, "sha256").hexdigest()
@@ -195,28 +268,55 @@ class VideoJobs:
                         "sha256": digest, "mime": "application/x-ndjson"}], "meta": dict(job["details"])}
             (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
             with self.lock:
-                job.update(status="completed", progress=1.0, message="Ready to download", has_result=True,
+                skipped = job['details'].get('skipped_frames', 0)
+                message = 'Ready to download' + (f' ({skipped} unreadable samples skipped)' if skipped else '')
+                job.update(status="completed", progress=1.0, message=message, has_result=True,
                            completed_at=stamp(), touched=time.time())
-        except Exception:
+        except ApiError as error:
+            log.exception('Video analysis interrupted: %s', job['job_id'])
+            with self.lock:
+                job.update(status='paused' if error.retryable else 'failed', error=error.message,
+                           message=error.message, touched=time.time())
+        except Exception as error:
             log.exception("Video analysis failed: %s", job["job_id"])
             with self.lock:
-                job.update(status="failed", error="The PC could not analyze this video. Check the server log.",
+                job.update(status="failed", error=str(error) if isinstance(error, ValueError) else
+                           "The PC could not analyze this video. Check the server log.",
                            message="Video analysis failed", touched=time.time())
         finally:
             if cap is not None:
                 cap.release()
+            with self.lock:
+                path = self.ctx.workspace.job_dir(job['job_id']) / 'detections.ndjson'
+                if path.is_file():
+                    with open(path, 'ab') as output:
+                        self._checkpoint(job, output, force=True)
+                else:
+                    video_journal.save(self.ctx, job)
 
     def get(self, job_id, device):
         with self.lock:
             self._expire()
             job = self._owned(job_id, device)
             job["touched"] = time.time()
+            if time.monotonic() - job['_saved_at'] >= 30:
+                video_journal.save(self.ctx, job)
             return self.public(job)
+
+    def frames(self, job_id, device, cursor=0, limit=8):
+        with self.lock:
+            job = self._owned(job_id, device)
+            job['touched'] = time.time()
+            return video_journal.batch(self.ctx, job, cursor, limit)
 
     def control(self, job_id, device, resume=False):
         with self.lock:
             job = self._owned(job_id, device)
             if resume and job["status"] == "paused":
+                thread = self.threads.get(job_id)
+                if thread is not None and thread.is_alive():
+                    raise ApiError(503, 'gpu_busy', 'The video worker is still pausing.', retryable=True,
+                                   headers={'Retry-After': '2'})
                 self.ctx.gpu.require_free()
                 self._launch(job)
             elif not resume and job["status"] in ("queued", "running"):

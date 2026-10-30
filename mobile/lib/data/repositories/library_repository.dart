@@ -172,7 +172,19 @@ class LibraryRepository {
     });
   }
 
-  /// Takes the next waiting photo (newest first) and marks it as being scanned.
+  /// Looks ahead by one item without claiming it; used for bounded JPEG preparation.
+  Future<MediaRow?> nextPending() =>
+      (_db.select(_db.media)
+            ..where(
+              (m) =>
+                  m.scanStatus.equals('pending') &
+                  m.kind.isIn(['photo', 'video']),
+            )
+            ..orderBy([(m) => OrderingTerm.asc(m.id)])
+            ..limit(1))
+          .getSingleOrNull();
+
+  /// Takes the next waiting item and marks it as being scanned.
   Future<MediaRow?> claimNext() => _db.transaction(() async {
     final row =
         await (_db.select(_db.media)

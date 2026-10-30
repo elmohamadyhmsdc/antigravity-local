@@ -20,3 +20,8 @@ abstract interface class VideoApi {
   Future<void> downloadVideoResult(String id, File target);
   Future<void> deleteVideoJob(String id);
 }
+
+/// Optional extension; older PCs keep using the verified final-result download.
+abstract interface class VideoFrameApi {
+  Future<VideoFrameBatch> videoFrames(String id, {required int cursor});
+}

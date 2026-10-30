@@ -19,6 +19,18 @@ from mobile_api.contract.resource_fixture import resource_fixture
 
 
 class LimitsTests(unittest.TestCase):
+    def test_scans_keep_a_ram_reserve_without_enabling_custom_limits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            monitor = rm.ResourceMonitor(tmp)
+            sample = resource_fixture()
+            sample['ram']['available_bytes'] = 512 * rm.MIB
+            with patch.object(monitor, 'snapshot', return_value=sample):
+                self.assertEqual(monitor.admission_reasons(), [])
+                self.assertIn('critically low', monitor.scan_admission_reasons()[0])
+            sample['ram'] = None
+            with patch.object(monitor, 'snapshot', return_value=sample):
+                self.assertEqual(monitor.scan_admission_reasons(), [])
+
     def test_defaults_are_monitoring_only(self):
         with tempfile.TemporaryDirectory() as tmp:
             monitor = rm.ResourceMonitor(tmp)

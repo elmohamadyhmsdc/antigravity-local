@@ -11,3 +11,5 @@ fastapi>=0.115        # routing + the multipart/validation layer (pulls in pydan
 cryptography>=43      # self-signed TLS certificate (tls.py)
 zeroconf>=0.132       # mDNS advertisement _antigravity._tcp (discovery.py); optional - phones can use the IP
 qrcode>=7.4           # pairing QR on the localhost page (uses Pillow, already installed)
+Pillow>=12.0          # AVIF, WebP, GIF, TIFF and EXIF-aware image decoding
+pillow-heif>=1.8.1    # HEIC/HEIF phone photos, inside the disposable decoder process

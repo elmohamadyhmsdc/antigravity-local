@@ -50,7 +50,7 @@ def build_system_router(ctx, require_device: Callable) -> APIRouter:
     @router.get("/v1/resources")
     async def resources(_: dict = Depends(require_device)):
         snapshot = await run_in_threadpool(ctx.resources.snapshot)
-        reasons = await run_in_threadpool(ctx.resources.admission_reasons)
+        reasons = await run_in_threadpool(ctx.gpu.resource_check)
         return JSONResponse({**snapshot, "admission_blocked": bool(reasons), "admission_reasons": reasons,
                              "storage_scope": "server_scratch"}, headers={"Cache-Control": "no-store"})
 

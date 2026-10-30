@@ -77,6 +77,11 @@ def build_jobs_router(ctx, require_device):
         return StreamingResponse(stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+    @router.get('/v1/jobs/{job_id}/frames')
+    def frames(job_id: str, cursor: int = 0, limit: int = 8, device=Depends(require_device)):
+        return JSONResponse(ctx.video_jobs.frames(job_id, device, cursor, limit),
+                            headers={'Cache-Control': 'no-store'})
+
     @router.post("/v1/jobs/{job_id}/stop")
     def stop(job_id: str, device=Depends(require_device)):
         with ctx.jobs_lock:

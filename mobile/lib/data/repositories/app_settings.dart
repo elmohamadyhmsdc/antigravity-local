@@ -11,6 +11,7 @@ abstract final class SettingKeys {
   static const scanCharacters = 'scan.characters';
   static const scanVideos = 'scan.videos';
   static const frameInterval = 'scan.frame_interval';
+  static const adaptiveVideoSampling = 'scan.adaptive_video_sampling';
   static const maxSide = 'scan.max_side';
   static const scanActive = 'scan.active';
   static const modelId = 'library.model_id';
@@ -26,6 +27,7 @@ abstract final class SettingKeys {
     scanCharacters,
     scanVideos,
     frameInterval,
+    adaptiveVideoSampling,
     maxSide,
     modelId,
   ];
@@ -49,6 +51,7 @@ class SettingsSnapshot {
     this.scanCharacters = false,
     this.scanVideos = true,
     this.frameInterval = 1.0,
+    this.adaptiveVideoSampling = true,
     this.maxSide = defaultMaxSide,
     this.scanActive = false,
     this.modelId,
@@ -78,6 +81,7 @@ class SettingsSnapshot {
       scanBodies: (m[SettingKeys.scanBodies] ?? '1') != '0',
       scanCharacters: m[SettingKeys.scanCharacters] == '1',
       scanVideos: (m[SettingKeys.scanVideos] ?? '1') != '0',
+      adaptiveVideoSampling: m[SettingKeys.adaptiveVideoSampling] != '0',
       frameInterval:
           (double.tryParse(m[SettingKeys.frameInterval] ?? '') ?? 1.0).clamp(
             0.25,
@@ -101,6 +105,7 @@ class SettingsSnapshot {
   final bool scanCharacters;
   final bool scanVideos;
   final double frameInterval;
+  final bool adaptiveVideoSampling;
   final int maxSide; // long side of the picture sent to the PC
   final bool
   scanActive; // a scan was started and not finished/paused: resume it after a restart
@@ -165,6 +170,9 @@ class AppSettings {
 
   Future<void> setFrameInterval(double value) =>
       _put(SettingKeys.frameInterval, value.clamp(0.25, 60).toString());
+
+  Future<void> setAdaptiveVideoSampling(bool value) =>
+      _put(SettingKeys.adaptiveVideoSampling, value ? '1' : '0');
 
   Future<void> setMaxSide(int value) => _put(SettingKeys.maxSide, '$value');
 

@@ -106,6 +106,20 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
             if (!d.isFace) d,
         ];
         return Scaffold(
+          bottomNavigationBar: media.scanError == null
+              ? null
+              : SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(media.scanError!)),
+                      ],
+                    ),
+                  ),
+                ),
           appBar: AppBar(
             title: Text(
               taken ??

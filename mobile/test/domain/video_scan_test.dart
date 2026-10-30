@@ -15,6 +15,7 @@ import 'package:antigravity_mobile/data/repositories/library_repository.dart';
 import 'package:antigravity_mobile/data/repositories/media_queries.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
 import 'package:antigravity_mobile/domain/scan/video_scan.dart';
+import 'package:antigravity_mobile/domain/scan/video_sampling.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -39,6 +40,7 @@ class VideoPc implements VideoApi {
   bool corrupt = false;
   bool loseCreateResponse = false;
   bool missingJob = false;
+  VideoJobStatus? liveStatus;
   int uploadedOffset = 0;
   int deleted = 0;
   void Function()? afterDownload;
@@ -81,12 +83,15 @@ class VideoPc implements VideoApi {
         statusCode: 404,
       );
     }
-    return VideoJobStatus(id: id, status: 'completed', progress: 1);
+    return liveStatus ??
+        VideoJobStatus(id: id, status: 'completed', progress: 1);
   }
 
   @override
   Future<VideoJobStatus> controlVideoJob(String id, {required bool resume}) =>
-      videoJob(id);
+      resume && liveStatus?.status == 'paused'
+      ? Future.value(VideoJobStatus(id: id, status: 'queued', progress: 0))
+      : videoJob(id);
   @override
   Future<VideoResultFile> videoResult(String id) async =>
       VideoResultFile.fromJson({
@@ -106,7 +111,48 @@ class VideoPc implements VideoApi {
   }
 }
 
+class StreamingPc extends VideoPc implements VideoFrameApi {
+  int visibleFrames = 1;
+  bool complete = false;
+  bool breakIntegrity = false;
+  final cursors = <int>[];
+  @override
+  Future<VideoJobStatus> videoJob(String id) async => VideoJobStatus(
+    id: id,
+    status: complete ? 'completed' : 'running',
+    progress: visibleFrames / 3,
+    incrementalResults: true,
+  );
+
+  @override
+  Future<VideoFrameBatch> videoFrames(String id, {required int cursor}) async {
+    cursors.add(cursor);
+    final lines = const LineSplitter().convert(utf8.decode(result));
+    final raw = '${lines.take(visibleFrames).join('\n')}\n';
+    final available = utf8.encode(raw);
+    final chunk = available.sublist(cursor);
+    return VideoFrameBatch.fromJson({
+      'ndjson': utf8.decode(chunk),
+      'sha256': breakIntegrity ? '0' * 64 : sha256.convert(chunk).toString(),
+      'next_cursor': available.length,
+      'has_more': false,
+      'completed': complete,
+    }, cursor: cursor);
+  }
+
+  @override
+  Future<void> downloadVideoResult(String id, File target) =>
+      throw StateError('Incremental jobs must not redownload the full result');
+}
+
 void main() {
+  test('adaptive intervals depend on video duration', () {
+    expect(adaptiveVideoInterval(20000), 0.5);
+    expect(adaptiveVideoInterval(60000), 0.5);
+    expect(adaptiveVideoInterval(40 * 60000), 5);
+    expect(adaptiveVideoInterval(2 * 3600000), 10);
+    expect(adaptiveVideoInterval(null), 1);
+  });
   late AppDatabase db;
   late Directory temp;
   late VideoLibrary library;
@@ -171,6 +217,7 @@ void main() {
   Future<StoreOutcome> run({
     bool Function()? paused,
     void Function(String, double)? report,
+    void Function(Uint8List, int?)? onPreview,
   }) => scanner.run(
     row,
     api: pc,
@@ -178,6 +225,157 @@ void main() {
     prefs: const SettingsSnapshot(),
     paused: paused ?? () => false,
     report: report ?? (_, _) {},
+    onPreview: onPreview,
+  );
+
+  test(
+    'live frames commit before completion and replay after an interrupted cursor is idempotent',
+    () async {
+      final streaming = StreamingPc()..result = pc.result;
+      pc = streaming;
+      var pause = false;
+      await expectLater(
+        run(
+          paused: () => pause,
+          report: (stage, _) {
+            if (stage == 'import') pause = true;
+          },
+        ),
+        throwsA(isA<VideoScanPaused>()),
+      );
+      expect((await db.select(db.faces).get()).length, 1);
+      expect((await db.select(db.media).get()).single.lastScannedFrame, 1);
+      expect(pc.deleted, 0);
+      final key = 'video.job.${row.id}';
+      final checkpoint =
+          jsonDecode((await db.setting(key))!) as Map<String, dynamic>;
+      expect(checkpoint['cursor'], greaterThan(0));
+      // Simulate a kill after the media transaction but before saving its byte cursor.
+      checkpoint['cursor'] = 0;
+      await db.putSetting(key, jsonEncode(checkpoint));
+      streaming
+        ..visibleFrames = 3
+        ..complete = true;
+      await run();
+      expect((await db.select(db.faces).get()).length, 3);
+      expect((await db.select(db.mediaDetections).get()).length, 3);
+      expect((await db.select(db.media).get()).single.scanStatus, 'done');
+      expect(pc.requests.length, 1);
+      expect(pc.deleted, 1);
+    },
+  );
+
+  test(
+    'a corrupt live batch cannot advance the imported-frame checkpoint',
+    () async {
+      pc = StreamingPc()
+        ..result = pc.result
+        ..breakIntegrity = true;
+      await expectLater(run(), throwsFormatException);
+      expect(await db.select(db.faces).get(), isEmpty);
+      expect((await db.select(db.media).get()).single.lastScannedFrame, 0);
+      expect(pc.deleted, 0);
+    },
+  );
+
+  test(
+    'video frame preview reaches the scan and skipped-frame warnings are stored',
+    () async {
+      final bytes = Uint8List.fromList([1, 2, 3]);
+      pc.liveStatus = VideoJobStatus(
+        id: 'video-1',
+        status: 'completed',
+        progress: 1,
+        previewBytes: bytes,
+        previewTimestampMs: 12000,
+        warning: '1 unreadable video sample was skipped.',
+      );
+      int? timestamp;
+      Uint8List? preview;
+      await run(
+        onPreview: (value, time) {
+          preview = value;
+          timestamp = time;
+        },
+      );
+      expect(preview, same(bytes));
+      expect(timestamp, 12000);
+      expect(
+        (await db.select(db.media).get()).single.scanError,
+        contains('unreadable'),
+      );
+    },
+  );
+
+  test(
+    'repeated worker crashes pause the scan with its resumable job intact',
+    () async {
+      pc.liveStatus = const VideoJobStatus(
+        id: 'video-1',
+        status: 'paused',
+        progress: 0,
+        error: 'Worker exited',
+      );
+      await expectLater(
+        run(),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.code,
+            'code',
+            'engine_unavailable',
+          ),
+        ),
+      );
+      expect(await db.setting('video.job.${row.id}'), isNotNull);
+      expect(pc.deleted, 0);
+    },
+  );
+
+  test(
+    'video previews are optional for older servers and payloads are bounded',
+    () {
+      final json = <String, dynamic>{
+        'job_id': 'v',
+        'status': 'running',
+        'progress': 0.5,
+      };
+      expect(VideoJobStatus.fromJson(json).previewBytes, isNull);
+      json.addAll({
+        'preview_jpeg': base64Encode([1, 2, 3]),
+        'preview_timestamp_ms': 2000,
+        'details': {'skipped_frames': 2},
+      });
+      final status = VideoJobStatus.fromJson(json);
+      expect(status.previewBytes, [1, 2, 3]);
+      expect(status.previewTimestampMs, 2000);
+      expect(status.warning, contains('2 unreadable'));
+      json['preview_jpeg'] = 'a' * (256 * 1024 + 1);
+      expect(() => VideoJobStatus.fromJson(json), throwsFormatException);
+    },
+  );
+
+  test(
+    'a failed video does not retain a permanently failed server job for the next scan',
+    () async {
+      pc.liveStatus = const VideoJobStatus(
+        id: 'video-1',
+        status: 'failed',
+        progress: 0,
+        error: 'The codec is unavailable.',
+      );
+      await expectLater(
+        run(),
+        throwsA(isA<ApiException>().having((e) => e.code, 'code', 'bad_video')),
+      );
+      expect(await db.setting('video.job.${row.id}'), isNull);
+      pc.liveStatus = null;
+      await run();
+      expect(pc.requests.length, 2);
+      expect(
+        pc.requests[0]['client_job_id'],
+        isNot(pc.requests[1]['client_job_id']),
+      );
+    },
   );
 
   test(

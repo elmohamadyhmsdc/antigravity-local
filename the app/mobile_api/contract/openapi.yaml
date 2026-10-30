@@ -313,6 +313,21 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ResultManifest" }
 
+  /v1/jobs/{job_id}/frames:
+    parameters:
+      - { name: job_id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Verified bounded batches of committed video frames, available while scanning
+      parameters:
+        - { name: cursor, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 8, default: 8 } }
+      responses:
+        "200":
+          description: Complete NDJSON records; advance the cursor only after committing all records locally
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VideoFrameBatch" }
+
   /v1/jobs/{job_id}/result/{name}:
     parameters:
       - { name: job_id, in: path, required: true, schema: { type: string } }
@@ -932,6 +947,11 @@ components:
       description: "Inputs: `video` blob. Result: detections.ndjson, one AnalyzeImageResponse per sampled frame with frame_number and timestamp_ms; crops are inline base64. P3 uses progress polling (SSE arrives with P4)."
       properties:
         frame_interval: { type: number, default: 1.0, minimum: 0.25, maximum: 60 }
+        sampling_mode:
+          type: string
+          enum: [fixed, adaptive]
+          default: fixed
+          description: Adaptive uses duration/480 seconds, bounded to 0.5–10 seconds; the actual grid is retained on resume.
         min_quality: { type: number, default: 0.40, minimum: 0, maximum: 1 }
         detect_bodies: { type: boolean, default: true }
         start_time: { type: number, default: 0, minimum: 0, maximum: 86400 }
@@ -1080,11 +1100,27 @@ components:
         error: { type: [string, "null"] }
         last_frame: { type: integer }
         frames_done: { type: integer }
+        incremental_results: { type: boolean, description: Verified frame batches can be imported while this video is running. }
+        preview_jpeg:
+          type: [string, "null"]
+          contentEncoding: base64
+          description: Latest sampled video frame, JPEG with longest side at most 480px; device-owned and ephemeral.
+        preview_timestamp_ms: { type: [integer, "null"], minimum: 0 }
         details:
           type: object
           description: Engine-specific live state (LoRA stage/epoch/step/loss, generation seeds, ...)
           additionalProperties: true
         has_result: { type: boolean }
+
+    VideoFrameBatch:
+      type: object
+      required: [ndjson, sha256, next_cursor, has_more, completed]
+      properties:
+        ndjson: { type: string, description: At most eight complete analysis records, normally at most 4 MiB; one large record may be up to 16 MiB. }
+        sha256: { $ref: "#/components/schemas/Sha256" }
+        next_cursor: { type: integer, minimum: 0 }
+        has_more: { type: boolean }
+        completed: { type: boolean, description: Analysis has completed and this batch drains all committed records. }
 
     ResultFile:
       type: object

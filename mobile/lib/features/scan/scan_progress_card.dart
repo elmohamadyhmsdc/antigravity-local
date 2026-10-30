@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -172,6 +173,15 @@ class ScanProgressCard extends ConsumerWidget {
                   ),
               ],
             ),
+            if (progress.currentAssetId != null && !progress.grouping)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: _ScanMediaPreview(
+                  key: ValueKey(progress.currentAssetId),
+                  progress: progress,
+                  height: compact ? 140 : 180,
+                ),
+              ),
             if (progress.phase != ScanPhase.paused || (progress.total > 0))
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
@@ -190,6 +200,76 @@ class ScanProgressCard extends ConsumerWidget {
   }
 }
 
+class _ScanMediaPreview extends ConsumerWidget {
+  const _ScanMediaPreview({
+    super.key,
+    required this.progress,
+    required this.height,
+  });
+
+  final ScanProgress progress;
+  final double height;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final video = progress.currentKind == 'video';
+    final milliseconds = progress.previewTimestampMs;
+    final seconds = (milliseconds ?? 0) ~/ 1000;
+    final timestamp = milliseconds == null
+        ? ''
+        : ' · ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+    final label =
+        '${video ? l10n.scanCurrentVideo : l10n.scanCurrentPhoto}$timestamp';
+    Widget image(List<int>? bytes) => bytes == null
+        ? Center(
+            child: Icon(video ? Icons.movie_outlined : Icons.photo_outlined),
+          )
+        : Image.memory(
+            // Both the phone JPEG and the server frame stay in memory only.
+            bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+            fit: BoxFit.contain,
+            cacheWidth: 480,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) =>
+                Center(child: Text(l10n.scanPreviewUnavailable)),
+          );
+    return Semantics(
+      label: label,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              key: const Key('scan-media-preview'),
+              height: height,
+              child: ColoredBox(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: progress.previewBytes != null
+                    ? image(progress.previewBytes)
+                    : FutureBuilder(
+                        future: ref
+                            .read(thumbnailServiceProvider)
+                            .get(progress.currentAssetId!, size: 480),
+                        builder: (context, snapshot) => image(snapshot.data),
+                      ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// The progress as a sheet (Home's "Scanning..." tile opens it).
 Future<void> showScanProgressSheet(BuildContext context) =>
     showModalBottomSheet<void>(
@@ -197,9 +277,11 @@ Future<void> showScanProgressSheet(BuildContext context) =>
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) => const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: ScanProgressCard(compact: true),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: ScanProgressCard(compact: true),
+          ),
         ),
       ),
     );

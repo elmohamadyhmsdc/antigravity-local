@@ -3,8 +3,6 @@
 import logging
 from typing import Callable
 
-import cv2
-import numpy as np
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
@@ -13,6 +11,7 @@ from analysis import AnalyzeOptions
 
 from .errors import ApiError, bad_request
 from .schemas import analysis_to_response, parse_analyze_options
+from .media_decode import ImageTooLarge, MediaDecodeError
 
 log = logging.getLogger("mobile_api")
 
@@ -35,14 +34,6 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
             await image.close()  # remove any multipart spool before GPU work starts
         if len(data) > ctx.max_image_upload_bytes:
             raise ApiError(413, "too_large", "The image is larger than the server accepts.")
-        img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-        if img is None:
-            raise bad_request("The file is not a readable image.", code="bad_image")
-        if max(img.shape[:2]) > ctx.max_image_px:
-            raise ApiError(413, "too_large",
-                           f"The image is {img.shape[1]}x{img.shape[0]}; the longest side may be {ctx.max_image_px}px. "
-                           "Downscale it on the phone first.")
-
         engine_options = AnalyzeOptions(min_face_quality=opts.min_face_quality,
                                         detect_characters=opts.detect_characters,
                                         detect_bodies=opts.detect_bodies, body_score=opts.body_score)
@@ -50,8 +41,15 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
             def compute():
                 with ctx.compute_lock:
                     ctx.gpu.require_free()
-                    return ctx.engines.analyze(img, engine_options)
-            result = await run_in_threadpool(compute)
+                    # Decode under the same admission lock as inference: concurrent
+                    # uploads must not allocate several full-resolution images at once.
+                    img = ctx.image_decoder.image(data, ctx.max_image_px)
+                    return img, ctx.engines.analyze(img, engine_options)
+            img, result = await run_in_threadpool(compute)
+        except ImageTooLarge as error:
+            raise ApiError(413, 'too_large', str(error)) from error
+        except MediaDecodeError as error:
+            raise bad_request(str(error), code='bad_image') from error
         except ApiError:
             raise
         except Exception:  # noqa: BLE001

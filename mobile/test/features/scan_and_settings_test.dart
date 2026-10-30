@@ -43,6 +43,27 @@ Future<void> _open(
 
 void main() {
   group('the scan progress card (every state of the scan)', () {
+    appTest(
+      'shows the media currently being scanned and a video frame timestamp',
+      (tester, env) async {
+        await _open(
+          tester,
+          env,
+          '/sources',
+          progress: const ScanProgress(
+            phase: ScanPhase.running,
+            total: 1,
+            currentAssetId: 'video-current',
+            currentKind: 'video',
+            previewTimestampMs: 65000,
+          ),
+        );
+        expect(find.byKey(const Key('scan-media-preview')), findsOneWidget);
+        expect(find.text('Current video frame · 1:05'), findsOneWidget);
+      },
+      session: testSession,
+    );
+
     appTest('preparing: counts the photos found so far', (tester, env) async {
       await _open(
         tester,
@@ -306,15 +327,27 @@ void main() {
         syntheticAssets(3),
       );
       await _open(tester, env, '/sources');
-      await tester.dragUntilVisible(
-        find.byKey(const Key('scan-bodies')),
-        find.byType(ListView),
-        const Offset(0, -200),
-      );
+      await revealForTap(tester, find.byKey(const Key('scan-bodies')));
       await tester.tap(find.byKey(const Key('scan-bodies')));
       await _settle(tester);
       expect((await env.settingsSnapshot()).scanBodies, isFalse);
     }, session: testSession);
+
+    appTest(
+      'adaptive video sampling is enabled by default and manual sampling is optional',
+      (tester, env) async {
+        await _open(tester, env, '/sources');
+        expect((await env.settingsSnapshot()).adaptiveVideoSampling, isTrue);
+        expect(find.byKey(const Key('video-frame-interval')), findsNothing);
+        final automatic = find.byKey(const Key('adaptive-video-sampling'));
+        await revealForTap(tester, automatic);
+        await tester.tap(automatic);
+        await _settle(tester);
+        expect((await env.settingsSnapshot()).adaptiveVideoSampling, isFalse);
+        expect(find.byKey(const Key('video-frame-interval')), findsOneWidget);
+      },
+      session: testSession,
+    );
   });
 
   group('S24 Settings', () {

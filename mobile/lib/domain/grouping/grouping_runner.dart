@@ -52,15 +52,28 @@ class GroupingRunner {
   final int _memberCap;
 
   Future<GroupingRun>? _running;
+  bool _runningIncremental = false;
 
   /// Runs the three rounds (a second call while one is running joins it).
-  Future<GroupingRun> run() =>
-      _running ??= _run().whenComplete(() => _running = null);
+  Future<GroupingRun> run({bool incremental = false}) {
+    final running = _running;
+    // A final/manual full pass must not silently join a smaller in-scan pass.
+    if (running != null) {
+      return incremental || !_runningIncremental
+          ? running
+          : running.then((_) => run());
+    }
+    _runningIncremental = incremental;
+    return _running = _run(incremental: incremental).whenComplete(() {
+      _running = null;
+      _runningIncremental = false;
+    });
+  }
 
   Future<int> _count(String sql) async =>
       (await _db.customSelect(sql).getSingle()).read<int>('n');
 
-  Future<GroupingRun> _run() async {
+  Future<GroupingRun> _run({required bool incremental}) async {
     final api = _api();
     if (api == null) return const GroupingRun(skipped: true);
     final strictness = (await _settings.load()).strictness;
@@ -79,6 +92,14 @@ class GroupingRunner {
         ),
       );
       result = await _applier.applyFacePlan(plan);
+    }
+
+    if (incremental) {
+      return GroupingRun(
+        assigned: result.assigned,
+        newPeople: result.newPeople,
+        facesInNewPeople: result.facesInNewPeople,
+      );
     }
 
     var bodiesLinked = 0;

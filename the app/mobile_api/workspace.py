@@ -7,8 +7,9 @@ The server's scratch space: the app/mobile_workspace/ (gitignored).
   tls/                  PERSISTENT - the self-signed certificate
   devices.json          PERSISTENT - paired devices (hashed tokens) + server identity
 
-Everything except the two persistent entries is wiped when the server starts: the
-phone is the source of truth, so a blob that is gone is just a 409 "upload it again".
+Normal server startup preserves expiring scratch so video checkpoints and uploads
+can resume. Explicit prepare(wipe=True) resets scratch while keeping identity.
+The phone is the source of truth; an expired blob returns 409 "upload it again".
 Unclaimed uploads expire after six idle hours. Registered jobs protect shared inputs;
 inactive unacknowledged jobs expire after 24 hours. The app runs a periodic cleaner.
 """

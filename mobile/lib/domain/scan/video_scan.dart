@@ -15,6 +15,7 @@ import '../../data/repositories/app_settings.dart';
 import '../../data/repositories/library_repository.dart';
 import 'photo_result_store.dart';
 import 'video_hash.dart';
+import 'video_sampling.dart';
 
 class VideoScanPaused implements Exception {
   const VideoScanPaused();
@@ -51,6 +52,7 @@ class VideoScan {
     required SettingsSnapshot prefs,
     required bool Function() paused,
     required void Function(String stage, double progress) report,
+    void Function(Uint8List bytes, int? timestampMs)? onPreview,
   }) async {
     void checkPause() {
       if (paused()) throw const VideoScanPaused();
@@ -86,6 +88,52 @@ class VideoScan {
     }
 
     var outcome = const StoreOutcome();
+    String? warning;
+    var workerRetries = 0;
+    var nextFrame =
+        (await LibraryRepository(db).mediaById(media.id))?.lastScannedFrame ??
+        0;
+    Future<void> importFrame(Map<String, dynamic> json) async {
+      checkPause();
+      final frame = json['frame_number'] as int;
+      final timestamp = json['timestamp_ms'] as int;
+      if (frame < 0 || timestamp < 0) {
+        throw ApiException.badResponse('Invalid video frame position.');
+      }
+      if (frame < nextFrame) return;
+      final analysis = AnalyzeImageResponse.fromJson(json);
+      final model = (await settings.load()).modelId;
+      final characterScan =
+          ((saved?['request'] as Map?)?['params']
+              as Map?)?['detect_characters'] ==
+          true;
+      if (!characterScan && model != null && analysis.modelId != model) {
+        throw const ApiException(
+          code: 'model_mismatch',
+          message: 'The video uses a different embedding model.',
+        );
+      }
+      if (!characterScan && model == null) {
+        await settings.setModelId(analysis.modelId);
+      }
+      final stored = await store.store(
+        media,
+        analysis,
+        frameNumber: frame,
+        timestampMs: timestamp,
+        complete: false,
+      );
+      outcome = StoreOutcome(
+        facesSeen: outcome.facesSeen + stored.facesSeen,
+        newFaceIds: [...outcome.newFaceIds, ...stored.newFaceIds],
+        linkedFaces: outcome.linkedFaces + stored.linkedFaces,
+        newBodies: outcome.newBodies + stored.newBodies,
+        newCharacters: outcome.newCharacters + stored.newCharacters,
+      );
+      nextFrame = frame + 1;
+      report('import', 0);
+    }
+
     for (var restart = 0; restart < 3; restart++) {
       checkPause();
       if (saved == null) {
@@ -125,7 +173,12 @@ class VideoScan {
                 '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32)}',
             'inputs': {'video': hash},
             'params': {
-              'frame_interval': prefs.frameInterval,
+              'frame_interval': prefs.adaptiveVideoSampling
+                  ? adaptiveVideoInterval(media.durationMs)
+                  : prefs.frameInterval,
+              'sampling_mode': prefs.adaptiveVideoSampling
+                  ? 'adaptive'
+                  : 'fixed',
               'min_quality': prefs.qualityGate,
               'detect_bodies': prefs.scanBodies,
               'detect_characters': prefs.scanCharacters,
@@ -186,6 +239,7 @@ class VideoScan {
           saved['id'] = id;
           await persist();
         }
+        var streamed = false;
         while (true) {
           if (paused()) {
             try {
@@ -196,95 +250,122 @@ class VideoScan {
             throw const VideoScanPaused();
           }
           var job = await api.videoJob(id);
+          if (job.previewBytes case final bytes?) {
+            onPreview?.call(bytes, job.previewTimestampMs);
+          }
+          warning = job.warning;
+          if (job.incrementalResults && api is VideoFrameApi) {
+            streamed = true;
+            final state = saved!;
+            var more = true;
+            var complete = false;
+            while (more) {
+              final batch = await (api as VideoFrameApi).videoFrames(
+                id,
+                cursor: state['cursor'] as int? ?? 0,
+              );
+              var previous = -1;
+              for (final frame in batch.frames) {
+                final number = frame['frame_number'] as int;
+                if (number <= previous) {
+                  throw ApiException.badResponse(
+                    'Video frames are out of order.',
+                  );
+                }
+                previous = number;
+                await importFrame(frame);
+              }
+              // Cursor follows committed frame writes. A kill before this setting
+              // is saved safely replays the batch against lastScannedFrame.
+              state['cursor'] = batch.nextCursor;
+              await persist();
+              more = batch.hasMore;
+              complete = batch.completed;
+            }
+            if (complete) {
+              warning = (await api.videoJob(id)).warning;
+              break;
+            }
+          }
           if (job.status == 'paused') {
+            if (job.error != null && ++workerRetries > 2) {
+              throw ApiException(
+                code: 'engine_unavailable',
+                message:
+                    'The PC analysis worker stopped repeatedly. Resume the scan to retry.',
+              );
+            }
             job = await api.controlVideoJob(id, resume: true);
+            if (job.status == 'paused') {
+              throw ApiException(
+                code: 'resource_pressure',
+                message: job.message ?? 'The PC paused video analysis.',
+                retryable: true,
+                retryAfter: pollInterval,
+              );
+            }
           }
           report('analyze', job.progress);
           if (job.status == 'failed') {
-            throw ApiException.badResponse(
-              job.error ?? 'Video analysis failed on the PC.',
+            try {
+              await api.deleteVideoJob(id);
+            } on ApiException {
+              // The next scan gets a fresh request even if this PC disconnects now.
+            }
+            saved = null;
+            await persist();
+            throw ApiException(
+              code: 'bad_video',
+              message: job.error ?? 'Video analysis failed on the PC.',
             );
           }
           if (job.status == 'completed') break;
           await delay(pollInterval);
         }
         checkPause();
-        final manifest = await api.videoResult(id);
-        final temp = await Directory.systemTemp.createTemp('ag_video_');
-        try {
-          final result = File('${temp.path}/detections.ndjson');
-          report('download', 0);
-          await api.downloadVideoResult(id, result);
-          final path = result.path;
-          if (await result.length() != manifest.size ||
-              await isolatedFileSha256(path) != manifest.sha256) {
-            throw ApiException.badResponse(
-              'The downloaded video result failed its integrity check.',
-            );
-          }
-          var nextFrame =
-              (await LibraryRepository(
-                db,
-              ).mediaById(media.id))?.lastScannedFrame ??
-              0;
-          var previous = -1;
-          await for (final line
-              in result
-                  .openRead()
-                  .transform(utf8.decoder)
-                  .transform(const LineSplitter())) {
-            checkPause();
-            if (line.trim().isEmpty) continue;
-            final json = jsonDecode(line) as Map<String, dynamic>;
-            final frame = json['frame_number'] as int;
-            final timestamp = json['timestamp_ms'] as int;
-            if (frame <= previous || frame < 0 || timestamp < 0) {
-              throw ApiException.badResponse('Video frames are out of order.');
-            }
-            previous = frame;
-            if (frame < nextFrame) continue;
-            final analysis = AnalyzeImageResponse.fromJson(json);
-            final model = (await settings.load()).modelId;
-            final characterScan =
-                ((saved['request'] as Map?)?['params']
-                    as Map?)?['detect_characters'] ==
-                true;
-            if (!characterScan && model != null && analysis.modelId != model) {
-              throw const ApiException(
-                code: 'model_mismatch',
-                message: 'The video uses a different embedding model.',
-                retryable: false,
+        if (!streamed) {
+          final manifest = await api.videoResult(id);
+          final temp = await Directory.systemTemp.createTemp('ag_video_');
+          try {
+            final result = File('${temp.path}/detections.ndjson');
+            report('download', 0);
+            await api.downloadVideoResult(id, result);
+            final path = result.path;
+            if (await result.length() != manifest.size ||
+                await isolatedFileSha256(path) != manifest.sha256) {
+              throw ApiException.badResponse(
+                'The downloaded video result failed its integrity check.',
               );
             }
-            if (!characterScan && model == null) {
-              await settings.setModelId(analysis.modelId);
+            var previous = -1;
+            await for (final line
+                in result
+                    .openRead()
+                    .transform(utf8.decoder)
+                    .transform(const LineSplitter())) {
+              checkPause();
+              if (line.trim().isEmpty) continue;
+              final json = jsonDecode(line) as Map<String, dynamic>;
+              final frame = json['frame_number'] as int;
+              final timestamp = json['timestamp_ms'] as int;
+              if (frame <= previous || frame < 0 || timestamp < 0) {
+                throw ApiException.badResponse(
+                  'Video frames are out of order.',
+                );
+              }
+              previous = frame;
+              await importFrame(json);
             }
-            final stored = await store.store(
-              media,
-              analysis,
-              frameNumber: frame,
-              timestampMs: timestamp,
-              complete: false,
-            );
-            outcome = StoreOutcome(
-              facesSeen: outcome.facesSeen + stored.facesSeen,
-              newFaceIds: [...outcome.newFaceIds, ...stored.newFaceIds],
-              linkedFaces: outcome.linkedFaces + stored.linkedFaces,
-              newBodies: outcome.newBodies + stored.newBodies,
-              newCharacters: outcome.newCharacters + stored.newCharacters,
-            );
-            nextFrame = frame + 1;
-            report('import', 0);
+          } finally {
+            await temp.delete(recursive: true);
           }
-        } finally {
-          await temp.delete(recursive: true);
         }
         await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
           MediaCompanion(
             scanStatus: const Value('done'),
             scanVersion: const Value(scanVersion),
             scannedAt: Value(DateTime.now().millisecondsSinceEpoch),
-            scanError: const Value(null),
+            scanError: Value(warning),
           ),
         );
         // ACK only after every frame committed locally. A failed ACK is safe to retry later.
@@ -295,6 +376,16 @@ class VideoScan {
         }
         await (db.delete(db.settings)..where((s) => s.key.equals(key))).go();
         return outcome;
+      } on VideoScanPaused {
+        final id = saved?['id'] as String?;
+        if (id != null) {
+          try {
+            await api.controlVideoJob(id, resume: false);
+          } on ApiException {
+            /* resume later */
+          }
+        }
+        rethrow;
       } on ApiException catch (e) {
         if (e.statusCode == 404 || e.code == 'missing_blobs') {
           saved = null;

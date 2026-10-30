@@ -144,7 +144,8 @@ Map<String, dynamic> _json(Response<dynamic> response) {
   throw ApiException.badResponse('expected a JSON object');
 }
 
-class HttpMobileApi implements MobileApi, VideoApi, StudioApi, ResourceApi {
+class HttpMobileApi
+    implements MobileApi, VideoApi, VideoFrameApi, StudioApi, ResourceApi {
   HttpMobileApi(
     this.session, {
     Dio? dio,
@@ -247,6 +248,20 @@ class HttpMobileApi implements MobileApi, VideoApi, StudioApi, ResourceApi {
       _json(await _dio.get('/v1/jobs/${Uri.encodeComponent(id)}')),
     ),
   );
+
+  @override
+  Future<VideoFrameBatch> videoFrames(String id, {required int cursor}) =>
+      _guard(
+        () async => VideoFrameBatch.fromJson(
+          _json(
+            await _dio.get(
+              '/v1/jobs/${Uri.encodeComponent(id)}/frames',
+              queryParameters: {'cursor': cursor, 'limit': 8},
+            ),
+          ),
+          cursor: cursor,
+        ),
+      );
 
   @override
   Future<VideoJobStatus> controlVideoJob(

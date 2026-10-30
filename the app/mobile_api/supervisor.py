@@ -3,8 +3,8 @@ Keeps the Mobile API up: the server runs in a child process and is started again
 
 A native crash (an access violation inside a GPU/DLL library) cannot be caught by Python, so the
 only defence is a parent that notices the exit and starts a new server. The new server keeps the
-same identity (devices.json + tls/), so paired phones reconnect on their own; work that was running
-inside the crashed process is lost and the phone resubmits it.
+same identity (devices.json + tls/), so paired phones reconnect on their own. Video scans restore
+their expiring checkpoints; the phone resubmits work whose temporary state is unavailable.
 
 Supervision ends on a clean exit (the dashboard's Stop, Ctrl+C), and when the very first launch
 fails before the server ever came up - a port clash or a broken environment is reported instead of

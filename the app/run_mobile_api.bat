@@ -15,7 +15,7 @@ call venv\Scripts\activate.bat
 
 if not exist logs mkdir logs
 
-REM Same logging approach as run_dashboard.bat: tee into logs\ so a closed console keeps its trace.
-powershell -NoProfile -Command "python -m mobile_api | Tee-Object -FilePath logs\mobile_api.log"
+REM Capture stderr (native crash tracebacks included) and append UTF-8 for the dashboard log viewer.
+powershell -NoProfile -Command "python -u -X faulthandler -m mobile_api 2>&1 | ForEach-Object { $line = $_.ToString(); Add-Content -LiteralPath logs\mobile_api.log -Value $line -Encoding UTF8; Write-Output $line }"
 
 pause

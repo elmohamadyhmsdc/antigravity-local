@@ -40,6 +40,13 @@ def main():
                             blob_cache_bytes=256*1024*1024, **options)
     ctx.cert = ensure_cert(ctx.workspace.tls_dir, hosts=["127.0.0.1"])
     device = ctx.auth.add_device("Flutter stateless acceptance")
+    if not args.gpu:
+        # Fixture compute must stay independent of unrelated host RAM/GPU load.
+        # Resource protection has its own tests; --gpu retains real admission.
+        from types import SimpleNamespace
+        from mobile_api.contract.resource_fixture import resource_fixture
+        ctx.resources = SimpleNamespace(start=lambda: None, close=lambda: None,
+            admission_reasons=lambda: [], snapshot=resource_fixture)
     app = create_app(ctx)
     if not args.gpu:
         def compute(job, directory, report, stopped):

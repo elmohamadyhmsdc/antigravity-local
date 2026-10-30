@@ -74,9 +74,11 @@ def create_app(ctx: ServerContext) -> FastAPI:
         app_dir = ctx.gpu.dashboard_jobs_dir.parent if ctx.gpu.dashboard_jobs_dir else ctx.workspace.root.parent
         # Only scratch metadata is scanned here; never traverse the desktop library.
         ctx.resources = ResourceMonitor(app_dir, storage_root=ctx.workspace.root)
-    ctx.gpu.resource_check = ctx.resources.admission_reasons
+    ctx.gpu.resource_check = getattr(ctx.resources, 'scan_admission_reasons', ctx.resources.admission_reasons)
     ctx.jobs_lock = threading.RLock()
     ctx.compute_lock = threading.RLock()
+    from .media_decode import DecoderProcess
+    ctx.image_decoder = DecoderProcess()
     ctx.video_jobs = VideoJobs(ctx)
     ctx.studio_jobs = StudioJobs(ctx)
     ctx.gpu.mobile_busy = lambda: ctx.video_jobs.busy() or ctx.studio_jobs.busy()
@@ -94,6 +96,7 @@ def create_app(ctx: ServerContext) -> FastAPI:
             from starlette.concurrency import run_in_threadpool
             await run_in_threadpool(ctx.scratch_janitor.close)
             await run_in_threadpool(ctx.video_jobs.close)
+            await run_in_threadpool(ctx.image_decoder.close)
             await run_in_threadpool(ctx.studio_jobs.close)
             if hasattr(ctx.engines, 'unload'):
                 await run_in_threadpool(ctx.engines.unload)
