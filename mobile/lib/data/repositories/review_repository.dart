@@ -132,6 +132,9 @@ class ReviewRepository {
           _db.faces,
           _db.persons,
           _db.bodies,
+          _db.faceRejections,
+          _db.bodyRejections,
+          _db.personDistinct,
         ]),
       )
       .map((_) {});
@@ -157,7 +160,7 @@ class ReviewRepository {
       for (final r
           in await _db
               .customSelect(
-                'SELECT id FROM faces WHERE person_id IS NULL',
+                'SELECT id FROM faces WHERE person_id IS NULL AND review_dismissed = 0',
                 readsFrom: {_db.faces},
               )
               .get())
@@ -170,11 +173,25 @@ class ReviewRepository {
               .get())
         r.read<int>('id'),
     };
+    final rejected = {
+      for (final row in await _db.select(_db.faceRejections).get())
+        '${row.faceId}:${row.personId}',
+    };
+    final distinct = {
+      for (final row in await _db.select(_db.personDistinct).get())
+        '${row.personA}:${row.personB}',
+    };
+    final rejectedBodies = {
+      for (final row in await _db.select(_db.bodyRejections).get())
+        '${row.bodyId}:${row.personId}',
+    };
 
     await _db.batch((b) {
       b.insertAll(_db.reviewMatches, [
         for (final a in review.assignments)
-          if (persons.contains(a.personId) && unassigned.contains(a.faceId))
+          if (persons.contains(a.personId) &&
+              unassigned.contains(a.faceId) &&
+              !rejected.contains('${a.faceId}:${a.personId}'))
             ReviewMatchesCompanion.insert(
               faceId: Value(a.faceId),
               personId: a.personId,
@@ -197,7 +214,11 @@ class ReviewRepository {
       ]);
       b.insertAll(_db.reviewDuplicates, [
         for (final d in review.duplicates)
-          if (persons.contains(d.personA) && persons.contains(d.personB))
+          if (persons.contains(d.personA) &&
+              persons.contains(d.personB) &&
+              !distinct.contains(
+                '${d.personA < d.personB ? d.personA : d.personB}:${d.personA < d.personB ? d.personB : d.personA}',
+              ))
             ReviewDuplicatesCompanion.insert(
               personA: d.personA < d.personB ? d.personA : d.personB,
               personB: d.personA < d.personB ? d.personB : d.personA,
@@ -208,7 +229,8 @@ class ReviewRepository {
         for (final l in review.bodyLinks)
           if (!l.isAuto &&
               persons.contains(l.personId) &&
-              bodies.contains(l.bodyId))
+              bodies.contains(l.bodyId) &&
+              !rejectedBodies.contains('${l.bodyId}:${l.personId}'))
             ReviewBodyLinksCompanion.insert(
               bodyId: Value(l.bodyId),
               personId: l.personId,
@@ -225,8 +247,8 @@ class ReviewRepository {
     final matches =
         (await _db
                 .customSelect(
-                  'SELECT COUNT(*) AS n FROM review_matches m JOIN faces f ON f.id = m.face_id WHERE f.person_id IS NULL',
-                  readsFrom: {_db.reviewMatches, _db.faces},
+                  'SELECT COUNT(*) AS n FROM review_matches m JOIN faces f ON f.id = m.face_id WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)',
+                  readsFrom: {_db.reviewMatches, _db.faces, _db.faceRejections},
                 )
                 .getSingle())
             .read<int>('n');
@@ -234,8 +256,8 @@ class ReviewRepository {
     final duplicates =
         (await _db
                 .customSelect(
-                  'SELECT COUNT(*) AS n FROM review_duplicates',
-                  readsFrom: {_db.reviewDuplicates},
+                  'SELECT COUNT(*) AS n FROM review_duplicates d WHERE NOT EXISTS (SELECT 1 FROM person_distinct p WHERE p.person_a = d.person_a AND p.person_b = d.person_b)',
+                  readsFrom: {_db.reviewDuplicates, _db.personDistinct},
                 )
                 .getSingle())
             .read<int>('n');
@@ -246,6 +268,7 @@ class ReviewRepository {
           SELECT COUNT(*) AS n FROM review_body_links l JOIN bodies b ON b.id = l.body_id
           LEFT JOIN faces f ON f.id = b.face_id
           WHERE f.person_id IS NULL AND b.person_id IS NULL
+            AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = l.person_id)
           ''',
                   readsFrom: {_db.reviewBodyLinks, _db.bodies, _db.faces},
                 )
@@ -276,9 +299,11 @@ class ReviewRepository {
           '''
           SELECT m.face_id, m.person_id, m.score, m.decision, f.crop_path
           FROM review_matches m JOIN faces f ON f.id = m.face_id
-          WHERE f.person_id IS NULL ORDER BY m.person_id, m.score DESC
+          WHERE f.person_id IS NULL AND f.review_dismissed = 0
+            AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)
+          ORDER BY m.person_id, m.score DESC
           ''',
-          readsFrom: {_db.reviewMatches, _db.faces},
+          readsFrom: {_db.reviewMatches, _db.faces, _db.faceRejections},
         )
         .get();
     final byPerson = <int, List<ReviewMatchFace>>{};
@@ -351,12 +376,18 @@ class ReviewRepository {
 
   Future<List<ReviewDuplicateItem>> duplicates() async {
     final people = {for (final p in await _people.people()) p.id: p};
+    final distinct = {
+      for (final row in await _db.select(_db.personDistinct).get())
+        (row.personA, row.personB),
+    };
     final rows = await (_db.select(
       _db.reviewDuplicates,
     )..orderBy([(d) => OrderingTerm.desc(d.score)])).get();
     return [
       for (final r in rows)
-        if (people[r.personA] != null && people[r.personB] != null)
+        if (people[r.personA] != null &&
+            people[r.personB] != null &&
+            !distinct.contains((r.personA, r.personB)))
           ReviewDuplicateItem(
             a: people[r.personA]!,
             b: people[r.personB]!,
@@ -367,6 +398,7 @@ class ReviewRepository {
 
   /// The PC's score for a pair, if it flagged it.
   Future<double?> duplicateScore(int a, int b) async {
+    if (await _people.areDistinct(a, b)) return null;
     final x = a < b ? a : b;
     final y = a < b ? b : a;
     final row =
@@ -390,6 +422,7 @@ class ReviewRepository {
           FROM review_body_links l JOIN bodies b ON b.id = l.body_id
           LEFT JOIN faces f ON f.id = b.face_id
           WHERE f.person_id IS NULL AND b.person_id IS NULL
+            AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = l.person_id)
           ORDER BY l.confidence DESC
           ''',
           readsFrom: {_db.reviewBodyLinks, _db.bodies, _db.faces},

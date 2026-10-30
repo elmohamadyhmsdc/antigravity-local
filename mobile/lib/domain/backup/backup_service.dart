@@ -35,6 +35,7 @@ const backupTables = [
   BackupTable('persons'),
   BackupTable('media'),
   BackupTable('faces'),
+  BackupTable('face_suppressions'),
   BackupTable('identity_sets'),
   BackupTable('identity_set_faces'),
   BackupTable('bodies'),
@@ -394,7 +395,23 @@ class BackupService {
       onProgress?.call(const BackupProgress('finishing', 0, 0));
       if (await _files.root.exists()) await _files.root.delete(recursive: true);
       if (await staging.exists()) {
-        await staging.rename(_files.root.path);
+        // Windows may briefly keep a handle to the just-deleted crop folder.
+        // Give that handle time to close before installing the restored folder.
+        for (var attempt = 0; ; attempt++) {
+          try {
+            await staging.rename(_files.root.path);
+            break;
+          } on FileSystemException catch (error) {
+            if (!Platform.isWindows ||
+                attempt >= 4 ||
+                ![5, 32].contains(error.osError?.errorCode)) {
+              rethrow;
+            }
+            await Future<void>.delayed(
+              Duration(milliseconds: 50 * (attempt + 1)),
+            );
+          }
+        }
       } else {
         await _files.root.create(recursive: true);
       }

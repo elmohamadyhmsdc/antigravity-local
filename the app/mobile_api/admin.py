@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .pairing import pair_payload
+from .supervisor import recovery_info
 
 PROTOCOL = 'antigravity-mobile-control-v1'
 CONTROL_FILE = 'control.json'
@@ -75,6 +76,7 @@ def build_admin_router(ctx):
                 'fingerprint':ctx.cert.fingerprint if ctx.cert else '',
                 'network':{'bind':ctx.bind_address,'discovery_port':ctx.discovery_port,
                     'discovery_ready':ctx.lan_discovery_ready,'labels':address_labels()},
+                'recovery':recovery_info(),
                 'devices':devices,'pairing':None if current is None else {
                     'code':current.code,'expires_at':current.expires_at,
                     'remaining_seconds':max(0,int(current.expires_at-ctx.pairing._clock())),

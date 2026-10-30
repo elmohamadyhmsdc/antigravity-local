@@ -14,6 +14,8 @@ import 'pinned_http.dart';
 import 'dtos/jobs.dart';
 import 'video_api.dart';
 import 'studio_api.dart';
+import 'resource_api.dart';
+import 'dtos/resources.dart';
 
 /// The PC a phone is paired with, and the secret that proves it.
 class ServerSession {
@@ -142,7 +144,7 @@ Map<String, dynamic> _json(Response<dynamic> response) {
   throw ApiException.badResponse('expected a JSON object');
 }
 
-class HttpMobileApi implements MobileApi, VideoApi, StudioApi {
+class HttpMobileApi implements MobileApi, VideoApi, StudioApi, ResourceApi {
   HttpMobileApi(
     this.session, {
     Dio? dio,
@@ -161,6 +163,12 @@ class HttpMobileApi implements MobileApi, VideoApi, StudioApi {
   final Dio _dio;
 
   void close() => _dio.close(force: false);
+
+  @override
+  Future<ResourceSnapshot> resources() => _guard(() async {
+    final response = await _dio.get('/v1/resources');
+    return ResourceSnapshot.fromJson(_json(response));
+  });
 
   void resetTransport() {
     final old = _dio.httpClientAdapter;

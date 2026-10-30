@@ -21,6 +21,7 @@ from .video_jobs import stamp
 
 log = logging.getLogger("mobile_api")
 REFACE_TYPES = {f"reface_{kind}_{engine}" for kind in ("image", "video") for engine in ("v3", "v2", "dfm")}
+REFACE_TYPES.update(("reface_image", "reface_video"))
 
 
 def validate_reface(body, capabilities):
@@ -31,13 +32,14 @@ def validate_reface(body, capabilities):
         raise bad_request("Reface requires exactly one target blob.")
     allowed = {"source_faces", "model_id", "target_faces", "restorer", "restorer_weight", "use_parser",
                "use_occluder", "realism_preset", "dfm_model", "start_time", "end_time",
-               "target_embeddings", "target_indices", "preview", "identity_boost", "swapper"}
+               "target_embeddings", "target_indices", "preview", "identity_boost", "swapper", "quality_profile"}
     if set(params) - allowed:
         raise bad_request("An unsupported Reface option was supplied.")
     if params.get("model_id", "buffalo_l@1") != "buffalo_l@1":
         raise ApiError(409, "model_mismatch", "The source identity uses a different embedding model.")
     faces = params.get("source_faces")
-    dfm = kind.endswith("_dfm")
+    unified = kind in ("reface_image", "reface_video")
+    dfm = kind.endswith("_dfm") or (unified and "dfm_model" in params)
     if not isinstance(faces, list) or len(faces) > 100 or (not faces and not dfm):
         raise bad_request("Choose between 1 and 100 source faces (DFM may omit them).")
     for face in faces:
@@ -67,7 +69,7 @@ def validate_reface(body, capabilities):
             raise bad_request("Choose an available DFM model.")
     elif "dfm_model" in params:
         raise bad_request("A DFM model is only valid with the DFM engine.")
-    elif not engines["reface_v2" if kind.endswith("_v2") else "reface_v3"]:
+    elif not (engines.get("reface", False) if unified else engines["reface_v2" if kind.endswith("_v2") else "reface_v3"]):
         raise ApiError(409, "engine_unavailable", "This Reface engine is not available on the PC.")
     if params.get("restorer", "auto") not in ["auto", "none", *capabilities["restorers"]]:
         raise bad_request("Choose an available restorer.")
@@ -90,16 +92,20 @@ def validate_reface(body, capabilities):
     if params.get("swapper", "auto") not in ("auto", "inswapper_128", "hyperswap_1b_256", "hyperswap_1c_256"):
         raise bad_request("Choose a supported swapper.")
     legacy = kind.endswith("_v2")
+    if "quality_profile" in params:
+        from reface_config import QUALITY_PROFILES
+        if not unified or params["quality_profile"] not in QUALITY_PROFILES:
+            raise bad_request("Quality profiles require unified Reface and must be fast, balanced or detail.")
     if legacy and (params.get("restorer", "auto") not in ("auto", "none") or
                    params.get("realism_preset", "natural") != "natural" or
                    params.get("use_parser", True) is not True):
         raise bad_request("Legacy supports automatic/disabled enhancement and occlusion protection only.")
     if (legacy or dfm) and any(key in params for key in ("identity_boost", "swapper")):
-        raise bad_request("Swapper and identity strength options apply to V3 only.")
+        raise bad_request("Swapper and identity strength do not apply to legacy or trained-identity jobs.")
     refs, picks = params.get("target_embeddings"), params.get("target_indices")
     if refs is not None or picks is not None:
-        if legacy or not kind.startswith("reface_video") or "target_faces" in params:
-            raise bad_request("Reference identities are supported for V3/DFM video only.")
+        if not kind.startswith("reface_video") or "target_faces" in params:
+            raise bad_request("Reference identities are supported for video only.")
         if not isinstance(refs, list) or not 1 <= len(refs) <= 32 or not isinstance(picks, list) or not picks:
             raise bad_request("Provide reference embeddings and selected reference indices.")
         if len(picks) != len(set(p for p in picks if isinstance(p, int) and not isinstance(p, bool))) or any(
@@ -227,6 +233,10 @@ class StudioJobs:
                 job = waiting[0]
                 if self.ctx.video_jobs.busy() or self.ctx.gpu.dashboard_busy():
                     continue
+                reasons = self.ctx.gpu.resource_check()
+                if reasons:
+                    job.update(message="Waiting for resources: " + " ".join(reasons))
+                    continue
                 job.update(status="running", started_at=job["started_at"] or stamp(), message="Preparing engine")
             directory = self.ctx.workspace.job_dir(job["job_id"])
 
@@ -239,6 +249,15 @@ class StudioJobs:
 
             try:
                 with self.ctx.compute_lock:
+                    # Recheck after acquiring compute access; a scan may have run
+                    # since the queue's preflight. Keep the request queued.
+                    reasons = self.ctx.gpu.resource_check()
+                    if reasons:
+                        with self.lock:
+                            paused = job["_stop"].is_set()
+                            job.update(status="paused" if paused else "queued",
+                                       message="Paused" if paused else "Waiting for resources: " + " ".join(reasons))
+                        continue
                     meta = self.runner(job, directory, report, stopped)
                 with self.lock:
                     if meta is None:

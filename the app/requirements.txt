@@ -21,6 +21,7 @@ scikit-learn>=1.3.2
 streamlit>=1.30.0
 plotly>=5.18.0
 pandas>=2.0.0
+psutil>=5.9.0
 
 # Optional: pycuda for Advanced Optimus/MUX switch GPU activation
 # pip install pycuda  # Only if you have CUDA Toolkit installed

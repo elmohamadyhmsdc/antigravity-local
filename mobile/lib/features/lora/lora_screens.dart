@@ -14,6 +14,7 @@ import '../../library_providers.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
 import '../shared/empty_state.dart';
+import '../shared/screen_layout.dart';
 import '../shared/person_picker.dart';
 import '../studio/studio_helpers.dart';
 import '../settings/background_screen.dart';
@@ -41,15 +42,16 @@ class LoraScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final datasets = ref.watch(datasetsProvider).value ?? const <DatasetRow>[];
-    final models = ref.watch(lorasProvider).value ?? const <LoraRow>[];
+    final datasetState = ref.watch(datasetsProvider);
+    final modelState = ref.watch(lorasProvider);
+    final datasets = datasetState.value ?? const <DatasetRow>[];
+    final models = modelState.value ?? const <LoraRow>[];
     return Scaffold(
       appBar: AppBar(title: Text(l.loraTitle)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(l.loraHint, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 16),
+          ScreenIntro(title: l.studioLoraAction, body: l.studioLoraDescription),
           FilledButton.icon(
             key: const Key('lora-build'),
             onPressed: () => context.push(Routes.loraBuild),
@@ -61,7 +63,12 @@ class LoraScreen extends ConsumerWidget {
             l.loraDatasetTitle,
             style: Theme.of(context).textTheme.titleLarge,
           ),
-          if (datasets.isEmpty)
+          if (datasetState.isLoading) const LoadingBox(),
+          if (datasetState.hasError)
+            RetryState(onRetry: () => ref.invalidate(datasetsProvider)),
+          if (!datasetState.isLoading &&
+              !datasetState.hasError &&
+              datasets.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(l.loraNoDatasets),
@@ -77,7 +84,10 @@ class LoraScreen extends ConsumerWidget {
             ),
           const SizedBox(height: 24),
           Text(l.loraModel, style: Theme.of(context).textTheme.titleLarge),
-          if (models.isEmpty)
+          if (modelState.isLoading) const LoadingBox(),
+          if (modelState.hasError)
+            RetryState(onRetry: () => ref.invalidate(lorasProvider)),
+          if (!modelState.isLoading && !modelState.hasError && models.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(l.loraNoModels),
@@ -244,10 +254,17 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
     final l = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(l.loraDatasetBuild)),
+      bottomNavigationBar: StickyActionBar(
+        child: FilledButton(
+          key: const Key('dataset-submit'),
+          onPressed: _busy ? null : _submit,
+          child: Text(l.loraDatasetBuild),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(l.loraPhotoHint),
+          ScreenIntro(title: l.loraDatasetTitle, body: l.loraPhotoHint),
           if (_error != null)
             Text(
               _error!,
@@ -320,12 +337,41 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
             runSpacing: 8,
             children: [
               for (final file in _photos.take(12))
-                Image.file(
-                  file,
-                  width: 72,
-                  height: 72,
-                  fit: BoxFit.cover,
-                  cacheWidth: 144,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 72,
+                    height: 72,
+                    child:
+                        [
+                          '.mp4',
+                          '.mov',
+                          '.mkv',
+                          '.webm',
+                          '.avi',
+                          '.m4v',
+                          '.3gp',
+                          '.ts',
+                          '.mts',
+                          '.m2ts',
+                        ].any(
+                          (extension) =>
+                              file.path.toLowerCase().endsWith(extension),
+                        )
+                        ? ColoredBox(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainer,
+                            child: const Icon(Icons.play_circle_outline),
+                          )
+                        : Image.file(
+                            file,
+                            fit: BoxFit.cover,
+                            cacheWidth: 144,
+                            errorBuilder: (_, _, _) =>
+                                const Icon(Icons.broken_image_outlined),
+                          ),
+                  ),
                 ),
             ],
           ),
@@ -339,11 +385,6 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
                 ? null
                 : (v) => setState(() => _repeats = v.round()),
           ),
-          FilledButton(
-            key: const Key('dataset-submit'),
-            onPressed: _busy ? null : _submit,
-            child: Text(l.loraDatasetBuild),
-          ),
         ],
       ),
     );
@@ -353,136 +394,154 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
 class DatasetScreen extends ConsumerWidget {
   const DatasetScreen({super.key, required this.id});
   final String id;
+  Widget _actions(
+    BuildContext context,
+    WidgetRef ref,
+    List<DatasetItemRow> items,
+  ) {
+    final l = AppLocalizations.of(context);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilledButton(
+          onPressed: items.where((i) => i.included).length < 5
+              ? null
+              : () => context.push('${Routes.loraTrain}?dataset=$id'),
+          child: Text(l.loraTrain),
+        ),
+        OutlinedButton(
+          onPressed: () async {
+            try {
+              final zip = await ref
+                  .read(loraRepositoryProvider)
+                  .exportDataset(id);
+              await SharePlus.instance.share(
+                ShareParams(files: [XFile(zip.path)]),
+              );
+            } catch (e) {
+              if (context.mounted) {
+                studioError(context, e);
+              }
+            }
+          },
+          child: Text(l.loraExport),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    final itemState = ref.watch(datasetItemsProvider(id));
+    final currentItems = itemState.value;
     return Scaffold(
       appBar: AppBar(title: Text(l.loraDatasetEditor)),
-      body: ref
-          .watch(datasetItemsProvider(id))
-          .when(
-            loading: () => const LoadingBox(),
-            error: (e, _) => Center(child: Text('$e')),
-            data: (items) {
-              if (items.isEmpty) {
-                return EmptyState(
-                  icon: Icons.photo_library_outlined,
-                  title: l.loraNoDatasets,
-                );
-              }
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Text(
-                    '${items.where((i) => i.included).length}/${items.length} · ${l.loraIncluded}',
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      FilledButton(
-                        onPressed: items.where((i) => i.included).length < 5
-                            ? null
-                            : () => context.push(
-                                '${Routes.loraTrain}?dataset=$id',
-                              ),
-                        child: Text(l.loraTrain),
-                      ),
-                      OutlinedButton(
-                        onPressed: () async {
-                          try {
-                            final zip = await ref
-                                .read(loraRepositoryProvider)
-                                .exportDataset(id);
-                            await SharePlus.instance.share(
-                              ShareParams(files: [XFile(zip.path)]),
-                            );
-                          } catch (e) {
-                            if (context.mounted) {
-                              studioError(context, e);
-                            }
-                          }
-                        },
-                        child: Text(l.loraExport),
-                      ),
-                    ],
-                  ),
-                  for (final item in items)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+      bottomNavigationBar: currentItems != null && currentItems.isNotEmpty
+          ? StickyActionBar(child: _actions(context, ref, currentItems))
+          : null,
+      body: itemState.when(
+        loading: () => const LoadingBox(),
+        error: (_, _) =>
+            RetryState(onRetry: () => ref.invalidate(datasetItemsProvider(id))),
+        data: (items) {
+          if (items.isEmpty) {
+            return EmptyState(
+              icon: Icons.photo_library_outlined,
+              title: l.loraNoDatasets,
+            );
+          }
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              ScreenIntro(
+                title: l.datasetEditorIntro,
+                body: l.datasetEditorHint,
+              ),
+              SurfaceSection(
+                child: Text(
+                  '${items.where((i) => i.included).length}/${items.length} · ${l.loraIncluded}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              const SizedBox(height: 16),
+              for (final item in items)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
                           children: [
-                            Row(
-                              children: [
-                                Image.file(
-                                  ref
-                                      .read(fileStoreProvider)
-                                      .resolve(item.path),
-                                  width: 112,
-                                  height: 112,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: 224,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: CheckboxListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(l.loraIncluded),
-                                    value: item.included,
-                                    onChanged: (v) => ref
-                                        .read(loraRepositoryProvider)
-                                        .updateItem(item, included: v),
-                                  ),
-                                ),
-                              ],
+                            Image.file(
+                              ref.read(fileStoreProvider).resolve(item.path),
+                              width: 112,
+                              height: 112,
+                              fit: BoxFit.cover,
+                              cacheWidth: 224,
                             ),
-                            TextButton(
-                              onPressed: () async {
-                                var caption = item.caption;
-                                final saved = await showDialog<String>(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: Text(l.loraCaption),
-                                    content: TextFormField(
-                                      initialValue: caption,
-                                      maxLines: 6,
-                                      maxLength: 8192,
-                                      onChanged: (v) => caption = v,
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: Text(l.cancel),
-                                      ),
-                                      FilledButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, caption),
-                                        child: Text(l.save),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (saved != null && saved.trim().isNotEmpty) {
-                                  await ref
-                                      .read(loraRepositoryProvider)
-                                      .updateItem(item, caption: saved.trim());
-                                }
-                              },
-                              child: Text(
-                                item.caption,
-                                textAlign: TextAlign.start,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: CheckboxListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(l.loraIncluded),
+                                value: item.included,
+                                onChanged: (v) => ref
+                                    .read(loraRepositoryProvider)
+                                    .updateItem(item, included: v),
                               ),
                             ),
                           ],
                         ),
-                      ),
+                        TextButton(
+                          onPressed: () async {
+                            var caption = item.caption;
+                            final saved = await showDialog<String>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text(l.loraCaption),
+                                content: TextFormField(
+                                  initialValue: caption,
+                                  maxLines: 6,
+                                  maxLength: 8192,
+                                  onChanged: (v) => caption = v,
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: Text(l.cancel),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, caption),
+                                    child: Text(l.save),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (saved != null && saved.trim().isNotEmpty) {
+                              await ref
+                                  .read(loraRepositoryProvider)
+                                  .updateItem(item, caption: saved.trim());
+                            }
+                          },
+                          child: Text(
+                            item.caption,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.start,
+                          ),
+                        ),
+                      ],
                     ),
-                ],
-              );
-            },
-          ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -587,10 +646,23 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
     if (!bases.contains(_base)) _base = bases.firstOrNull;
     return Scaffold(
       appBar: AppBar(title: Text(l.loraTrain)),
+      bottomNavigationBar: StickyActionBar(
+        child: FilledButton(
+          key: const Key('train-submit'),
+          onPressed:
+              _busy ||
+                  _dataset == null ||
+                  _base == null ||
+                  caps?.engines.loraTrain != true
+              ? null
+              : _submit,
+          child: Text(l.loraTrain),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(l.loraTrainHint),
+          ScreenIntro(title: l.loraTrainHeadline, body: l.loraTrainHint),
           if (_error != null)
             Text(
               _error!,
@@ -602,6 +674,7 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
             Text(l.loraNoDatasets)
           else
             DropdownButtonFormField<String>(
+              isExpanded: true,
               key: ValueKey('train-dataset-$_dataset'),
               initialValue: _dataset,
               decoration: InputDecoration(labelText: l.loraChooseDataset),
@@ -615,6 +688,7 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
             Text(l.loraNoBase)
           else
             DropdownButtonFormField<String>(
+              isExpanded: true,
               key: ValueKey('train-base-$_base'),
               initialValue: _base,
               decoration: InputDecoration(labelText: l.loraBase),
@@ -632,41 +706,42 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
             divisions: 49,
             onChanged: (v) => setState(() => _epochs = v.round()),
           ),
-          DropdownButtonFormField<int>(
-            initialValue: _dim,
-            decoration: InputDecoration(labelText: l.loraDim),
-            items: [
-              for (final d in [4, 8, 16, 32, 64, 128])
-                DropdownMenuItem(value: d, child: Text('$d')),
+          ExpansionTile(
+            key: const Key('train-advanced'),
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 16),
+            title: Text(l.advancedOptions),
+            children: [
+              DropdownButtonFormField<int>(
+                isExpanded: true,
+                initialValue: _dim,
+                decoration: InputDecoration(labelText: l.loraDim),
+                items: [
+                  for (final d in [4, 8, 16, 32, 64, 128])
+                    DropdownMenuItem(value: d, child: Text('$d')),
+                ],
+                onChanged: (v) => setState(() => _dim = v!),
+              ),
+              DropdownButtonFormField<int>(
+                isExpanded: true,
+                initialValue: _resolution,
+                decoration: InputDecoration(labelText: l.loraResolution),
+                items: [
+                  for (final r in [512, 768])
+                    DropdownMenuItem(value: r, child: Text('$r')),
+                ],
+                onChanged: (v) => setState(() => _resolution = v!),
+              ),
+              TextField(
+                controller: _lr,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(labelText: l.loraLearningRate),
+              ),
             ],
-            onChanged: (v) => setState(() => _dim = v!),
-          ),
-          DropdownButtonFormField<int>(
-            initialValue: _resolution,
-            decoration: InputDecoration(labelText: l.loraResolution),
-            items: [
-              for (final r in [512, 768])
-                DropdownMenuItem(value: r, child: Text('$r')),
-            ],
-            onChanged: (v) => setState(() => _resolution = v!),
-          ),
-          TextField(
-            controller: _lr,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(labelText: l.loraLearningRate),
           ),
           const SizedBox(height: 16),
-          FilledButton(
-            key: const Key('train-submit'),
-            onPressed:
-                _busy ||
-                    _dataset == null ||
-                    _base == null ||
-                    caps?.engines.loraTrain != true
-                ? null
-                : _submit,
-            child: Text(l.loraTrain),
-          ),
         ],
       ),
     );
@@ -778,9 +853,23 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
     if (!bases.contains(_base)) _base = bases.firstOrNull;
     return Scaffold(
       appBar: AppBar(title: Text(l.loraGenerate)),
+      bottomNavigationBar: StickyActionBar(
+        child: FilledButton(
+          key: const Key('generate-submit'),
+          onPressed:
+              _busy ||
+                  selected == null ||
+                  _base == null ||
+                  caps?.engines.loraGenerate != true
+              ? null
+              : () => _submit(selected),
+          child: Text(l.loraGenerate),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          ScreenIntro(title: l.loraGenerateHeadline),
           if (_error != null)
             Text(
               _error!,
@@ -792,6 +881,7 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
             Text(l.loraNoModels)
           else
             DropdownButtonFormField<String>(
+              isExpanded: true,
               key: ValueKey('generate-model-$_model'),
               initialValue: _model,
               decoration: InputDecoration(labelText: l.loraModel),
@@ -805,6 +895,7 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
             Text(l.loraNoBase)
           else
             DropdownButtonFormField<String>(
+              isExpanded: true,
               key: ValueKey('generate-base-$_base'),
               initialValue: _base,
               decoration: InputDecoration(labelText: l.loraBase),
@@ -857,6 +948,7 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
           if (_reference != null) ...[
             Image.file(_reference!, height: 160, cacheWidth: 320),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _referenceMode,
               decoration: InputDecoration(labelText: l.loraReferenceMode),
               items: [
@@ -872,17 +964,6 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
           ],
           const SizedBox(height: 16),
           Text(l.privateResultsHint),
-          FilledButton(
-            key: const Key('generate-submit'),
-            onPressed:
-                _busy ||
-                    selected == null ||
-                    _base == null ||
-                    caps?.engines.loraGenerate != true
-                ? null
-                : () => _submit(selected),
-            child: Text(l.loraGenerate),
-          ),
         ],
       ),
     );

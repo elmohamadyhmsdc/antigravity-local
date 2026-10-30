@@ -130,6 +130,11 @@ class VideoJobs:
     def _run(self, job):
         cap = None
         try:
+            reasons = self.ctx.gpu.resource_check()
+            if reasons:
+                with self.lock:
+                    job.update(status="paused", message="Resource protection: " + " ".join(reasons), touched=time.time())
+                return
             directory = self.ctx.workspace.job_dir(job["job_id"])
             cap = self.capture(str(directory / "input.video"))
             if not cap.isOpened():

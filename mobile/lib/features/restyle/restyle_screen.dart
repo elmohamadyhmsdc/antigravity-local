@@ -11,6 +11,7 @@ import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
 import '../studio/studio_helpers.dart';
+import '../shared/screen_layout.dart';
 import '../settings/background_screen.dart';
 
 class RestyleScreen extends ConsumerStatefulWidget {
@@ -170,11 +171,19 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
     final box = _protected;
     return Scaffold(
       appBar: AppBar(title: Text(l.restyleTitle)),
+      bottomNavigationBar: StickyActionBar(
+        child: FilledButton(
+          key: const Key('restyle-submit'),
+          onPressed: _busy || _analysis == null || caps?.engines.undress != true
+              ? null
+              : _submit,
+          child: Text(l.restyleCreate),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(l.restyleHint, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 16),
+          ScreenIntro(title: l.studioRestyleAction, body: l.restyleHint),
           if (caps == null)
             Text(l.studioNeedsPc)
           else if (!caps.engines.undress)
@@ -219,6 +228,7 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
             ),
           if (_analysis?.faces.isNotEmpty == true) ...[
             DropdownButtonFormField<int>(
+              isExpanded: true,
               initialValue: _face,
               decoration: InputDecoration(labelText: l.restyleFace),
               items: [
@@ -310,14 +320,6 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
           ),
           const SizedBox(height: 16),
           Text(l.privateResultsHint),
-          FilledButton(
-            key: const Key('restyle-submit'),
-            onPressed:
-                _busy || _analysis == null || caps?.engines.undress != true
-                ? null
-                : _submit,
-            child: Text(l.restyleCreate),
-          ),
         ],
       ),
     );

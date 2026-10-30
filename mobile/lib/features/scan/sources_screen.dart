@@ -8,6 +8,7 @@ import '../../domain/scan/scan_state.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../shared/empty_state.dart';
+import '../shared/screen_layout.dart';
 import 'scan_progress_card.dart';
 
 /// S05 - choose which albums to scan, the scan options, start / pause / resume, and watch progress.
@@ -37,6 +38,16 @@ class SourcesScreen extends ConsumerWidget {
           ),
         ],
       ),
+      bottomNavigationBar: StickyActionBar(
+        child: FilledButton.icon(
+          key: const Key('scan-start'),
+          icon: const Icon(Icons.play_arrow),
+          label: Text(chosen.isEmpty ? l10n.chooseAlbumsFirst : l10n.scanNow),
+          onPressed: progress.isActive || chosen.isEmpty
+              ? null
+              : () => startScan(ref),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -64,7 +75,8 @@ class SourcesScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           albums.when(
             loading: () => const LoadingBox(),
-            error: (e, _) => Text('$e'),
+            error: (_, _) =>
+                RetryState(onRetry: () => ref.invalidate(albumsProvider)),
             data: (list) {
               if (list.isEmpty) {
                 return EmptyState(
@@ -161,15 +173,6 @@ class SourcesScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            key: const Key('scan-start'),
-            icon: const Icon(Icons.play_arrow),
-            label: Text(chosen.isEmpty ? l10n.chooseAlbumsFirst : l10n.scanNow),
-            onPressed: progress.isActive || chosen.isEmpty
-                ? null
-                : () => startScan(ref),
-          ),
-          const SizedBox(height: 8),
           Text(l10n.scanFootnote, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),

@@ -29,12 +29,15 @@ def test_all_pages_have_primary_slugs():
     print("PASS: test_all_pages_have_primary_slugs")
 
 def test_numeric_indices():
-    for idx, page in enumerate(NAV_PAGES, start=1):
+    # Bookmarked numeric routes retain their original positions, including the
+    # retired second Reface entry and the Mobile Devices page added later.
+    legacy_pages = NAV_PAGES[:4] + ["🎭 Reface"] + NAV_PAGES[4:]
+    for idx, page in enumerate(legacy_pages, start=1):
         assert resolve_route(idx) == page, f"Numeric int {idx} failed to resolve to {page}"
         assert resolve_route(str(idx)) == page, f"Numeric str '{idx}' failed to resolve to {page}"
     # Out of bounds
     assert resolve_route("0") is None
-    assert resolve_route("10") is None
+    assert resolve_route("11") is None
     print("PASS: test_numeric_indices")
 
 def test_slug_aliases():
@@ -48,9 +51,12 @@ def test_slug_aliases():
         "photos": "👥 Gallery",
         "reface": "🎭 Reface",
         "swap": "🎭 Reface",
-        "reface_v2": "🎭 Reface V2",
-        "reface-v2": "🎭 Reface V2",
-        "v2": "🎭 Reface V2",
+        "reface_v2": "🎭 Reface",
+        "reface-v2": "🎭 Reface",
+        "v2": "🎭 Reface",
+        "v3": "🎭 Reface",
+        "reface_v3": "🎭 Reface",
+        "🎭 Reface V2": "🎭 Reface",
         "undress": "✨ Magic Undress",
         "magic_undress": "✨ Magic Undress",
         "restyle": "✨ Magic Undress",
@@ -67,6 +73,8 @@ def test_slug_aliases():
         # Test case insensitivity
         res_upper = resolve_route(slug.upper())
         assert res_upper == expected, f"Upper slug '{slug.upper()}' failed to resolve"
+        if expected == "🎭 Reface":
+            assert get_primary_slug(slug) == "reface", f"Old Reface route '{slug}' has no canonical slug"
     print("PASS: test_slug_aliases")
 
 def test_arabic_aliases():
@@ -78,7 +86,7 @@ def test_arabic_aliases():
         "المعرض": "👥 Gallery",
         "تبديل_الوجه": "🎭 Reface",
         "ريفيس": "🎭 Reface",
-        "ريفيس_v2": "🎭 Reface V2",
+        "ريفيس_v2": "🎭 Reface",
         "الملابس": "✨ Magic Undress",
         "تغيير_الملابس": "✨ Magic Undress",
         "دمج": "🔀 Merge People",

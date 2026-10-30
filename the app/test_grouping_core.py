@@ -132,7 +132,9 @@ def legacy_relink_bodies(db, params):
 def legacy_review_state(db, strictness="balanced", max_suggestions_per_person=60):
     params = pl.params_for(strictness)
     state = gg.ReviewState()
-    unassigned = [f for f in db.faces.values() if f.get("person_id") is None]
+    # Intentional correction to the old policy: a hidden face stays outside
+    # every automatic suggestion, including matches and the unsorted review list.
+    unassigned = [f for f in db.faces.values() if f.get("person_id") is None and not f.get("review_dismissed")]
     models = gg.person_models(db)
 
     claimed = set()

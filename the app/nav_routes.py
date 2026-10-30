@@ -10,7 +10,6 @@ NAV_PAGES: List[str] = [
     "📁 Data Sources",
     "👥 Gallery",
     "🎭 Reface",
-    "🎭 Reface V2",
     "✨ Magic Undress",
     "🔀 Merge People",
     "🧬 Character LoRA",
@@ -24,7 +23,6 @@ PAGE_TO_PRIMARY_SLUG: Dict[str, str] = {
     "📁 Data Sources": "sources",
     "👥 Gallery": "gallery",
     "🎭 Reface": "reface",
-    "🎭 Reface V2": "reface_v2",
     "✨ Magic Undress": "undress",
     "🔀 Merge People": "merge",
     "🧬 Character LoRA": "lora",
@@ -72,14 +70,14 @@ ROUTE_MAP: Dict[str, str] = {
     "ريفيس": "🎭 Reface",
 
     # 5. Reface V2
-    "reface_v2": "🎭 Reface V2",
-    "reface-v2": "🎭 Reface V2",
-    "refacev2": "🎭 Reface V2",
-    "v2": "🎭 Reface V2",
-    "v3": "🎭 Reface V2",
-    "5": "🎭 Reface V2",
-    "ريفيس_v2": "🎭 Reface V2",
-    "ريفيس-v2": "🎭 Reface V2",
+    "reface_v2": "🎭 Reface",
+    "reface-v2": "🎭 Reface",
+    "refacev2": "🎭 Reface",
+    "v2": "🎭 Reface",
+    "v3": "🎭 Reface",
+    "5": "🎭 Reface",
+    "ريفيس_v2": "🎭 Reface",
+    "ريفيس-v2": "🎭 Reface",
 
     # 6. Magic Undress
     "undress": "✨ Magic Undress",
@@ -129,6 +127,12 @@ ROUTE_MAP: Dict[str, str] = {
     "الأجهزة": "📱 Mobile Devices",
 }
 
+# Keep old bookmarks pointing to the single Reface page. Numeric aliases above
+# retain their original meanings even though the duplicate menu item is gone.
+for alias in ("🎭 reface v1", "🎭 reface v2", "🎭 reface v3", "reface v1", "reface v2", "reface v3", "reface_v1", "reface-v1", "refacev1",
+              "reface_v3", "reface-v3", "refacev3", "v1"):
+    ROUTE_MAP[alias] = "🎭 Reface"
+
 # Auto-register full titles and stripped title variations
 for _title in NAV_PAGES:
     ROUTE_MAP[_title.lower()] = _title
@@ -170,7 +174,7 @@ def resolve_route(route_input: Optional[Any]) -> Optional[str]:
 
 def get_primary_slug(page_title: str) -> str:
     """Returns the primary URL slug for a canonical page title."""
-    return PAGE_TO_PRIMARY_SLUG.get(page_title, "dashboard")
+    return PAGE_TO_PRIMARY_SLUG.get(resolve_route(page_title) or page_title, "dashboard")
 
 
 def get_url_route(st_module: Any) -> Optional[str]:

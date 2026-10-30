@@ -70,6 +70,7 @@ class ApiException implements Exception {
   final List<String> missing;
 
   bool get isGpuBusy => code == 'gpu_busy';
+  bool get isResourcePressure => code == 'resource_pressure';
   bool get isUnauthorized => code == 'unauthorized';
   bool get isOffline => code == networkCode || code == timeoutCode;
 

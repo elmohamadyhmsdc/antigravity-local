@@ -1009,7 +1009,7 @@ abstract class AppLocalizations {
   /// No description provided for @deletePersonBody.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{Their 1 face becomes unsorted.} other{Their {count} faces become unsorted.}} Nothing else is deleted.'**
+  /// **'{count, plural, =1{Their 1 face becomes unsorted and stays out of automatic groups.} other{Their {count} faces become unsorted and stay out of automatic groups.}} You can still assign them manually. Nothing else is deleted.'**
   String deletePersonBody(int count);
 
   /// No description provided for @deletePersonTitle.
@@ -2299,13 +2299,13 @@ abstract class AppLocalizations {
   /// No description provided for @refaceHd.
   ///
   /// In en, this message translates to:
-  /// **'HD'**
+  /// **'V3 · HD'**
   String get refaceHd;
 
   /// No description provided for @refaceLegacy.
   ///
   /// In en, this message translates to:
-  /// **'Legacy'**
+  /// **'V2'**
   String get refaceLegacy;
 
   /// No description provided for @refacePro.
@@ -3562,6 +3562,216 @@ abstract class AppLocalizations {
   /// **'Replace all video faces instead'**
   String get refaceAllVideoFaces;
 
+  /// No description provided for @refaceAllFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace all faces'**
+  String get refaceAllFaces;
+
+  /// No description provided for @refaceQualityProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Quality & processing time'**
+  String get refaceQualityProfile;
+
+  /// No description provided for @refaceFast.
+  ///
+  /// In en, this message translates to:
+  /// **'Fast'**
+  String get refaceFast;
+
+  /// No description provided for @refaceFastSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Less extra processing · no restoration by default'**
+  String get refaceFastSummary;
+
+  /// No description provided for @refaceFastDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses the same Reface pipeline with restoration and face parsing off by default. A good starting point for long videos; fine face detail can be softer. Occlusion protection stays on.'**
+  String get refaceFastDescription;
+
+  /// No description provided for @refaceBalanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Balanced'**
+  String get refaceBalanced;
+
+  /// No description provided for @refaceBalancedSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Detail and processing cost · recommended starting point'**
+  String get refaceBalancedSummary;
+
+  /// No description provided for @refaceBalancedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds face restoration and face-region blending. Automatic prefers GPEN 512 when installed, then an available alternative. More processing than Fast, with more restored detail.'**
+  String get refaceBalancedDescription;
+
+  /// No description provided for @refaceDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'More detail'**
+  String get refaceDetail;
+
+  /// No description provided for @refaceDetailSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Larger face crops when available · more processing'**
+  String get refaceDetailSummary;
+
+  /// No description provided for @refaceDetailDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic prefers GPEN 1024 when installed, otherwise an available alternative. Useful for large close-up faces; higher resolution costs more processing and does not guarantee a closer likeness.'**
+  String get refaceDetailDescription;
+
+  /// No description provided for @refaceAutoSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses the chosen quality profile'**
+  String get refaceAutoSummary;
+
+  /// No description provided for @refaceAutoStartsWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts with {model} on this PC'**
+  String refaceAutoStartsWith(String model);
+
+  /// No description provided for @refaceAutoDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses the available default for the selected quality profile. Fast skips restoration; Balanced prefers GPEN 512; More detail prefers GPEN 1024. If needed, the PC uses another installed model.'**
+  String get refaceAutoDescription;
+
+  /// No description provided for @refaceOffSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Least restoration work · raw swap detail'**
+  String get refaceOffSummary;
+
+  /// No description provided for @refaceOffDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Skips the restoration stage while still swapping faces. Reduces processing and keeps the raw swapped face; fine details can be softer.'**
+  String get refaceOffDescription;
+
+  /// No description provided for @refaceGpen512Summary.
+  ///
+  /// In en, this message translates to:
+  /// **'Balanced face detail · 512 px crop'**
+  String get refaceGpen512Summary;
+
+  /// No description provided for @refaceGpen512Description.
+  ///
+  /// In en, this message translates to:
+  /// **'A balanced starting point for restored face detail and processing cost in this app. Works on a 512 px face crop and generally needs less processing than GPEN 1024.'**
+  String get refaceGpen512Description;
+
+  /// No description provided for @refaceGpen1024Summary.
+  ///
+  /// In en, this message translates to:
+  /// **'Higher face resolution · heavier processing'**
+  String get refaceGpen1024Summary;
+
+  /// No description provided for @refaceGpen1024Description.
+  ///
+  /// In en, this message translates to:
+  /// **'Restores a 1024 px face crop. Can help large close-up faces, with more processing and memory than the 512 model. Higher resolution does not guarantee a better likeness.'**
+  String get refaceGpen1024Description;
+
+  /// No description provided for @refaceCodeformerSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild degraded detail · extra AI processing'**
+  String get refaceCodeformerSummary;
+
+  /// No description provided for @refaceCodeformerDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Repairs degraded facial detail with a tradeoff between reconstructed detail and fidelity. It can change fine facial features, so compare a preview when likeness matters.'**
+  String get refaceCodeformerDescription;
+
+  /// No description provided for @refaceGfpganSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'General face restoration · extra AI processing'**
+  String get refaceGfpganSummary;
+
+  /// No description provided for @refaceGfpganDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Restores blurry or degraded facial detail using learned face patterns. Useful as an alternative look; compare a preview for both texture and likeness.'**
+  String get refaceGfpganDescription;
+
+  /// No description provided for @refaceRestoreformerSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Alternative face restoration · extra AI processing'**
+  String get refaceRestoreformerSummary;
+
+  /// No description provided for @refaceRestoreformerDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconstructs degraded facial detail using learned face information. Try it when other restorers do not suit the face; processing time and likeness depend on the input and PC.'**
+  String get refaceRestoreformerDescription;
+
+  /// No description provided for @refaceOtherModelSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'PC-provided restoration model'**
+  String get refaceOtherModelSummary;
+
+  /// No description provided for @refaceOtherModelDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This model is available on the PC. No speed or likeness comparison is defined here; use a short preview to compare it.'**
+  String get refaceOtherModelDescription;
+
+  /// No description provided for @refaceRestorationIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Restoration improves face detail after swapping. Model sizes describe face crops, not the output photo or video resolution.'**
+  String get refaceRestorationIntro;
+
+  /// No description provided for @refaceSpeedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing time depends on the PC, frame size and number of faces. Compare a short preview for both detail and likeness.'**
+  String get refaceSpeedNote;
+
+  /// No description provided for @refacePhotosIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Source photos & videos'**
+  String get refacePhotosIdentity;
+
+  /// No description provided for @refaceTrainedIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Trained identity model'**
+  String get refaceTrainedIdentity;
+
+  /// No description provided for @refaceIdentityMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'Identity source'**
+  String get refaceIdentityMethod;
+
+  /// No description provided for @refaceUnifiedUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unified Reface is unavailable. Update the PC server and check its face-swap model.'**
+  String get refaceUnifiedUnavailable;
+
+  /// No description provided for @refaceAllFacesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the source identity for everyone in this photo or video, including people who appear later. No target face selection is needed.'**
+  String get refaceAllFacesHint;
+
   /// No description provided for @refacePreview.
   ///
   /// In en, this message translates to:
@@ -3577,7 +3787,7 @@ abstract class AppLocalizations {
   /// No description provided for @refaceLegacyHint.
   ///
   /// In en, this message translates to:
-  /// **'Legacy uses automatic OpenCV enhancement and its own occlusion protection.'**
+  /// **'V2 processes every video frame and keeps the selected people matched by identity. It uses automatic OpenCV enhancement and occlusion protection.'**
   String get refaceLegacyHint;
 
   /// No description provided for @refaceDfmHint.
@@ -3759,6 +3969,414 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 person found in this clip} other{{count} people found in this clip}}'**
   String refaceVideoPeopleFound(int count);
+
+  /// No description provided for @homeIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'A little more organized.'**
+  String get homeIntro;
+
+  /// No description provided for @homeIntroHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Find your people. Make something new.'**
+  String get homeIntroHint;
+
+  /// No description provided for @homeOrganize.
+  ///
+  /// In en, this message translates to:
+  /// **'Your library'**
+  String get homeOrganize;
+
+  /// No description provided for @homeCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Make something yours'**
+  String get homeCreate;
+
+  /// No description provided for @homeActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick up where you left off'**
+  String get homeActivity;
+
+  /// No description provided for @studioIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'What would you like to create?'**
+  String get studioIntro;
+
+  /// No description provided for @studioTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a tool'**
+  String get studioTools;
+
+  /// No description provided for @studioSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Your creations'**
+  String get studioSaved;
+
+  /// No description provided for @studioRefaceAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace a face'**
+  String get studioRefaceAction;
+
+  /// No description provided for @studioRestyleAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Try a new look'**
+  String get studioRestyleAction;
+
+  /// No description provided for @studioLoraAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a character'**
+  String get studioLoraAction;
+
+  /// No description provided for @studioRefaceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a photo or clip, then the person to replace.'**
+  String get studioRefaceDescription;
+
+  /// No description provided for @studioRestyleDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe a new look for a photo.'**
+  String get studioRestyleDescription;
+
+  /// No description provided for @studioLoraDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Build a character from photos, train it, then create.'**
+  String get studioLoraDescription;
+
+  /// No description provided for @clearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear filters'**
+  String get clearFilters;
+
+  /// No description provided for @peopleNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No people match your search'**
+  String get peopleNoMatches;
+
+  /// No description provided for @clearSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get clearSearch;
+
+  /// No description provided for @jobsInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get jobsInProgress;
+
+  /// No description provided for @workflowProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String workflowProgress(int current, int total);
+
+  /// No description provided for @settingsLibrarySection.
+  ///
+  /// In en, this message translates to:
+  /// **'Library & scanning'**
+  String get settingsLibrarySection;
+
+  /// No description provided for @settingsPrivacySection.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy & storage'**
+  String get settingsPrivacySection;
+
+  /// No description provided for @settingsDeviceSection.
+  ///
+  /// In en, this message translates to:
+  /// **'PC & background activity'**
+  String get settingsDeviceSection;
+
+  /// No description provided for @resultsNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No results match these filters'**
+  String get resultsNoMatches;
+
+  /// No description provided for @storageSavedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved on your phone'**
+  String get storageSavedTitle;
+
+  /// No description provided for @storageCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage by category'**
+  String get storageCategories;
+
+  /// No description provided for @storageManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage saved files'**
+  String get storageManage;
+
+  /// No description provided for @storageModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Character models'**
+  String get storageModels;
+
+  /// No description provided for @storageOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other files'**
+  String get storageOther;
+
+  /// No description provided for @storageTemporary.
+  ///
+  /// In en, this message translates to:
+  /// **'Temporary files'**
+  String get storageTemporary;
+
+  /// No description provided for @storageOriginalsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your original photos and videos stay in the device gallery.'**
+  String get storageOriginalsHint;
+
+  /// No description provided for @reviewIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Help your library recognize the right people.'**
+  String get reviewIntro;
+
+  /// No description provided for @permissionsHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'Make it work for you'**
+  String get permissionsHeadline;
+
+  /// No description provided for @manualHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect by address'**
+  String get manualHeadline;
+
+  /// No description provided for @connectionHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'Find your PC'**
+  String get connectionHeadline;
+
+  /// No description provided for @backgroundHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your work moving'**
+  String get backgroundHeadline;
+
+  /// No description provided for @backupHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your library safe'**
+  String get backupHeadline;
+
+  /// No description provided for @mergeHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'The same person?'**
+  String get mergeHeadline;
+
+  /// No description provided for @mergeIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare the faces, then choose which profile to keep.'**
+  String get mergeIntro;
+
+  /// No description provided for @datasetEditorIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the photos to train with'**
+  String get datasetEditorIntro;
+
+  /// No description provided for @datasetEditorHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep clear, varied views of the same person. Include at least 5 photos to start training.'**
+  String get datasetEditorHint;
+
+  /// No description provided for @loraTrainHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'Train your character'**
+  String get loraTrainHeadline;
+
+  /// No description provided for @loraGenerateHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'Create with your character'**
+  String get loraGenerateHeadline;
+
+  /// No description provided for @analyzeHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'Who is in this photo?'**
+  String get analyzeHeadline;
+
+  /// No description provided for @loadFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load this screen'**
+  String get loadFailedTitle;
+
+  /// No description provided for @loadFailedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your saved data has not changed. Try loading this screen again.'**
+  String get loadFailedBody;
+
+  /// No description provided for @mediaPeopleHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a face to see or change who it belongs to.'**
+  String get mediaPeopleHint;
+
+  /// No description provided for @jobProgressTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Progress'**
+  String get jobProgressTitle;
+
+  /// No description provided for @jobDetailsAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing details'**
+  String get jobDetailsAdvanced;
+
+  /// No description provided for @resultsBrowseHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your creations, saved on this phone.'**
+  String get resultsBrowseHint;
+
+  /// No description provided for @selectFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Select faces'**
+  String get selectFaces;
+
+  /// No description provided for @storageRemoveSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove saved files'**
+  String get storageRemoveSaved;
+
+  /// No description provided for @resourcesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'PC resources'**
+  String get resourcesTitle;
+
+  /// No description provided for @resourcesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'RAM, GPU memory and storage on the PC doing your AI work.'**
+  String get resourcesSubtitle;
+
+  /// No description provided for @resourcesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read PC resources. Connect to the PC and make sure its server supports resource monitoring.'**
+  String get resourcesUnavailable;
+
+  /// No description provided for @resourcesUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get resourcesUnknown;
+
+  /// No description provided for @resourcesAppRam.
+  ///
+  /// In en, this message translates to:
+  /// **'Application RAM (all PC workers)'**
+  String get resourcesAppRam;
+
+  /// No description provided for @resourcesRamAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'System RAM available'**
+  String get resourcesRamAvailable;
+
+  /// No description provided for @resourcesSystemRam.
+  ///
+  /// In en, this message translates to:
+  /// **'System RAM usage'**
+  String get resourcesSystemRam;
+
+  /// No description provided for @resourcesGpuTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Whole GPU VRAM used'**
+  String get resourcesGpuTotal;
+
+  /// No description provided for @resourcesAppVram.
+  ///
+  /// In en, this message translates to:
+  /// **'Application compute VRAM'**
+  String get resourcesAppVram;
+
+  /// No description provided for @resourcesDiskAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'PC workspace disk available'**
+  String get resourcesDiskAvailable;
+
+  /// No description provided for @resourcesScratch.
+  ///
+  /// In en, this message translates to:
+  /// **'Server temporary files'**
+  String get resourcesScratch;
+
+  /// No description provided for @resourcesStoragePartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder size is still counting or partially unavailable.'**
+  String get resourcesStoragePartial;
+
+  /// No description provided for @resourcesProcessPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Some application processes could not be measured.'**
+  String get resourcesProcessPartial;
+
+  /// No description provided for @resourcesWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for PC resources'**
+  String get resourcesWaiting;
+
+  /// No description provided for @resourcesScopeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These readings describe the PC, not this phone. Shared RAM pages may be counted more than once. Whole GPU usage includes other apps; application VRAM may be unavailable with the PC driver. Updates every 5 seconds while this panel is visible.'**
+  String get resourcesScopeHint;
+
+  /// No description provided for @resourcesLimitsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Set optional admission thresholds in PC Settings → PC resources & protection. They delay new compute work; they are not hard memory caps for running tasks.'**
+  String get resourcesLimitsHint;
+
+  /// No description provided for @resourcesUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Last sample'**
+  String get resourcesUpdated;
 }
 
 class _AppLocalizationsDelegate

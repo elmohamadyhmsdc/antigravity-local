@@ -6,6 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/router.dart';
 import '../../data/api/pairing_payload.dart';
 import '../../l10n/app_localizations.dart';
+import '../shared/screen_layout.dart';
 import 'pairing_controller.dart';
 import 'pairing_scope.dart';
 
@@ -104,9 +105,17 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
         appBar: AppBar(title: Text(l10n.scanTitle)),
         body: Column(
           children: [
-            Expanded(child: scanner(context, _onCode)),
-            Padding(
-              padding: const EdgeInsets.all(16),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: scanner(context, _onCode),
+                ),
+              ),
+            ),
+            StickyActionBar(
+              avoidKeyboard: false,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

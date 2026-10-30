@@ -34,6 +34,7 @@ class MobileDashboardController:
         self._lock = threading.RLock()
         self._process = None
         self._exit_thread = None
+        self._terminated = None
         self._stopping = False
         self._http = build_opener(ProxyHandler({}),NoRedirect())
 
@@ -87,7 +88,7 @@ class MobileDashboardController:
                 self._stopping = False
                 if self._port_busy(self.pair_port) or self._port_busy(self.api_port):
                     return {'state':'external','message':'These ports are already in use. Stop the older mobile server before starting this version.'}
-                if self._process is not None and self._process.returncode:
+                if self._process is not None and self._process.returncode and self._terminated is not self._process:
                     code = self._process.returncode
                     return {'state':'failed','message':f'Mobile server exited with code {code} (0x{code & 0xffffffff:08X}). See server diagnostics below.'}
                 try:
@@ -126,6 +127,7 @@ class MobileDashboardController:
                 code = process.wait()
                 with self._lock:
                     if self._process is not process: return
+                    if self._terminated is process: code = 0  # stopped on request, not a failure
                     record = {'code':code,'pid':process.pid,'api_port':self.api_port,'pair_port':self.pair_port,
                               'at':datetime.now(timezone.utc).isoformat()}
                     path = self.log_dir/'mobile_api_exit.json'
@@ -139,7 +141,17 @@ class MobileDashboardController:
 
     def stop(self):
         with self._lock:
-            self.request('shutdown',{})
+            try:
+                self.request('shutdown',{})
+            except ControlError:
+                # Between a crash and the supervisor's restart there is no server to ask; stop the
+                # supervisor this dashboard started instead, so Stop always works.
+                if self._process is None or self._process.poll() is not None: raise
+                self._terminated = self._process
+                self._process.terminate()
+                # The crashed server could not remove its control file; it would read as a failure.
+                try: (self.workspace/'control.json').unlink()
+                except OSError: pass
             self._stopping = True
 
     def wait_stopped(self, timeout=15):

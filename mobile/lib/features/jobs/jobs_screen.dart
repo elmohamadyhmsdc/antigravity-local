@@ -9,6 +9,7 @@ import '../../studio_providers.dart';
 import '../../domain/jobs/job_progress.dart';
 import 'package:intl/intl.dart';
 import '../shared/empty_state.dart';
+import '../shared/screen_layout.dart';
 
 String jobStatusLabel(AppLocalizations l10n, String status) => switch (status) {
   'uploading' => l10n.statusUploading,
@@ -26,11 +27,7 @@ String jobTypeLabel(AppLocalizations l10n, String type) => switch (type) {
   'train_lora' => l10n.loraTrain,
   'generate_lora_images' => l10n.loraGenerate,
   _ =>
-    '${l10n.refaceTitle} · ${type.contains('video') ? l10n.resultVideo : l10n.resultPhoto} · ${type.endsWith('v2')
-        ? l10n.refaceLegacy
-        : type.endsWith('dfm')
-        ? l10n.refacePro
-        : l10n.refaceHd}',
+    '${l10n.refaceTitle} · ${type.contains('video') ? l10n.resultVideo : l10n.resultPhoto}',
 };
 
 class JobsScreen extends ConsumerWidget {
@@ -43,6 +40,11 @@ class JobsScreen extends ConsumerWidget {
         title: Text(l10n.navJobs),
         actions: [
           IconButton(
+            tooltip: l10n.privateResults,
+            onPressed: () => context.push(Routes.results),
+            icon: const Icon(Icons.photo_library_outlined),
+          ),
+          IconButton(
             tooltip: l10n.jobSync,
             onPressed: () => ref.read(jobTrackerProvider).start(),
             icon: const Icon(Icons.sync),
@@ -53,7 +55,8 @@ class JobsScreen extends ConsumerWidget {
           .watch(jobsProvider)
           .when(
             loading: () => const LoadingBox(),
-            error: (e, _) => Center(child: Text('$e')),
+            error: (_, _) =>
+                RetryState(onRetry: () => ref.invalidate(jobsProvider)),
             data: (jobs) => jobs.isEmpty
                 ? EmptyState(
                     icon: Icons.pending_actions_outlined,
@@ -76,7 +79,9 @@ class JobsScreen extends ConsumerWidget {
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             child: Text(
-                              jobStatusLabel(l10n, states.first),
+                              states.first == 'uploading'
+                                  ? l10n.jobsInProgress
+                                  : jobStatusLabel(l10n, states.first),
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
@@ -150,210 +155,216 @@ class JobDetailScreen extends ConsumerWidget {
     }
   }
 
+  Widget _controls(BuildContext context, WidgetRef ref, JobRow job) {
+    final l10n = AppLocalizations.of(context);
+    final tracker = ref.read(jobTrackerProvider);
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        if (const [
+          'uploading',
+          'running',
+          'queued',
+          'downloading',
+        ].contains(job.status))
+          OutlinedButton.icon(
+            key: const Key('job-pause'),
+            onPressed: () => _action(context, () => tracker.pause(job)),
+            icon: const Icon(Icons.pause),
+            label: Text(l10n.jobPause),
+          ),
+        if (const ['paused', 'failed', 'lost'].contains(job.status))
+          FilledButton.icon(
+            key: const Key('job-resume'),
+            onPressed: () => _action(context, () => tracker.resume(job)),
+            icon: const Icon(Icons.play_arrow),
+            label: Text(
+              job.status == 'paused' ? l10n.jobResume : l10n.jobRetry,
+            ),
+          ),
+        if (job.status == 'completed')
+          FilledButton.icon(
+            key: const Key('job-result'),
+            onPressed: () => context.push('${Routes.results}/${job.id}'),
+            icon: const Icon(Icons.photo),
+            label: Text(l10n.jobResult),
+          ),
+        if (const [
+          'completed',
+          'paused',
+          'failed',
+          'lost',
+        ].contains(job.status))
+          TextButton.icon(
+            onPressed: () => _action(context, () async {
+              if (!await confirm(
+                context,
+                title: l10n.jobRemove,
+                body: l10n.jobRemoveBody,
+                confirmLabel: l10n.jobRemove,
+                cancelLabel: l10n.cancel,
+                destructive: true,
+              )) {
+                return;
+              }
+              await tracker.remove(job);
+              if (context.mounted) leave(context, Routes.jobs);
+            }),
+            icon: const Icon(Icons.delete_outline),
+            label: Text(l10n.jobRemove),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final jobState = ref.watch(jobProvider(id));
+    final currentJob = jobState.value;
     return Scaffold(
       appBar: AppBar(title: Text(l10n.jobDetails)),
-      body: ref
-          .watch(jobProvider(id))
-          .when(
-            loading: () => const LoadingBox(),
-            error: (e, _) => Center(child: Text('$e')),
-            data: (job) {
-              if (job == null) {
-                return EmptyState(
-                  icon: Icons.pending_actions_outlined,
-                  title: l10n.jobsEmpty,
-                );
-              }
-              final tracker = ref.read(jobTrackerProvider);
-              final progress = JobProgress(job.detailsJson);
-              final remaining = progress.remaining(job.status);
-              final detailLabels = {
-                'stage': l10n.jobStage,
-                'epoch': l10n.jobEpoch,
-                'total_epochs': l10n.jobTotalEpochs,
-                'step': l10n.jobStep,
-                'total_steps': l10n.jobTotalSteps,
-                'loss': l10n.jobLoss,
-                'seconds_per_step': l10n.jobSecondsPerStep,
-              };
-              return ListView(
-                padding: const EdgeInsets.all(24),
-                children: [
-                  Text(
-                    jobTypeLabel(l10n, job.type),
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    jobStatusLabel(l10n, job.status),
-                    key: const Key('job-status'),
-                  ),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(value: job.progress),
-                  Text('${(job.progress * 100).round()}%'),
-                  if (job.message?.isNotEmpty == true) Text(job.message!),
-                  if (remaining != null)
+      bottomNavigationBar: currentJob == null
+          ? null
+          : StickyActionBar(child: _controls(context, ref, currentJob)),
+      body: jobState.when(
+        loading: () => const LoadingBox(),
+        error: (_, _) =>
+            RetryState(onRetry: () => ref.invalidate(jobProvider(id))),
+        data: (job) {
+          if (job == null) {
+            return EmptyState(
+              icon: Icons.pending_actions_outlined,
+              title: l10n.jobsEmpty,
+            );
+          }
+          final progress = JobProgress(job.detailsJson);
+          final remaining = progress.remaining(job.status);
+          final detailLabels = {
+            'stage': l10n.jobStage,
+            'epoch': l10n.jobEpoch,
+            'total_epochs': l10n.jobTotalEpochs,
+            'step': l10n.jobStep,
+            'total_steps': l10n.jobTotalSteps,
+            'loss': l10n.jobLoss,
+            'seconds_per_step': l10n.jobSecondsPerStep,
+          };
+          return ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              ScreenIntro(title: jobTypeLabel(l10n, job.type)),
+              SurfaceSection(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Text(
-                      l10n.jobTimeRemaining(
-                        remaining.inHours > 0
-                            ? l10n.jobHoursMinutes(
-                                remaining.inHours,
-                                remaining.inMinutes % 60,
-                              )
-                            : l10n.jobMinutes(
-                                remaining.inMinutes +
-                                    (remaining.inSeconds % 60 > 0 ? 1 : 0),
-                              ),
-                      ),
-                      key: const Key('job-eta'),
+                      jobStatusLabel(l10n, job.status),
+                      key: const Key('job-status'),
                     ),
-                  if (job.type.startsWith('reface_') &&
-                      progress.details.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(l10n.refaceQuality),
-                    if (progress.details['preview'] == true)
-                      Text(l10n.refacePreview),
-                    for (final entry in {
-                      'faces_swapped': l10n.refaceSwapped,
-                      'faces_skipped': l10n.refaceSkipped,
-                      'faces_failed': l10n.refaceFailed,
-                    }.entries)
-                      if (progress.details[entry.key] != null)
-                        Text('${entry.value}: ${progress.details[entry.key]}'),
-                    if (progress.details['settings']
-                        case final Map settings) ...[
-                      Text('${l10n.refaceEngine}: ${settings['swapper']}'),
-                      Text('${l10n.refaceRestorer}: ${settings['restorer']}'),
-                    ],
-                    if (progress.details['identity'] case final Map identity)
-                      if (identity['kept'] != null)
-                        Text(
-                          '${l10n.refaceIdentity}: ${identity['kept']}/${identity['input']}',
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(value: job.progress),
+                    Text('${(job.progress * 100).round()}%'),
+                    if (job.message?.isNotEmpty == true) Text(job.message!),
+                    if (remaining != null)
+                      Text(
+                        l10n.jobTimeRemaining(
+                          remaining.inHours > 0
+                              ? l10n.jobHoursMinutes(
+                                  remaining.inHours,
+                                  remaining.inMinutes % 60,
+                                )
+                              : l10n.jobMinutes(
+                                  remaining.inMinutes +
+                                      (remaining.inSeconds % 60 > 0 ? 1 : 0),
+                                ),
                         ),
-                    if (progress.details['warnings'] case final List warnings)
-                      for (final warning in warnings) Text('$warning'),
-                  ],
-                  if (!job.type.startsWith('reface_') &&
-                      progress.details.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(l10n.trainingDetails),
-                    for (final entry in progress.details.entries)
-                      if (detailLabels.containsKey(entry.key))
-                        Text('${detailLabels[entry.key]}: ${entry.value}'),
-                  ],
-                  ref
-                      .watch(jobEventsProvider(id))
-                      .when(
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, _) => const SizedBox.shrink(),
-                        data: (events) => events.isEmpty
-                            ? const SizedBox.shrink()
-                            : ExpansionTile(
-                                key: const Key('job-history'),
-                                tilePadding: EdgeInsets.zero,
-                                title: Text(l10n.jobHistory),
-                                children: [
-                                  for (final event in events)
-                                    ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      title: Text(
-                                        jobStatusLabel(l10n, event.status),
-                                      ),
-                                      subtitle: Text(
-                                        [
-                                          DateFormat.yMd().add_Hms().format(
-                                            DateTime.fromMillisecondsSinceEpoch(
-                                              event.createdAt,
-                                            ),
-                                          ),
-                                          if (event.message?.isNotEmpty == true)
-                                            event.message!,
-                                        ].join('\n'),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                        key: const Key('job-eta'),
                       ),
-                  if (job.error != null) ...[
-                    const SizedBox(height: 16),
-                    Text(job.error!),
-                    Text(l10n.jobErrorHint),
                   ],
-                  const SizedBox(height: 24),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      if (const [
-                        'uploading',
-                        'running',
-                        'queued',
-                        'downloading',
-                      ].contains(job.status))
-                        OutlinedButton.icon(
-                          key: const Key('job-pause'),
-                          onPressed: () =>
-                              _action(context, () => tracker.pause(job)),
-                          icon: const Icon(Icons.pause),
-                          label: Text(l10n.jobPause),
-                        ),
-                      if (const [
-                        'paused',
-                        'failed',
-                        'lost',
-                      ].contains(job.status))
-                        FilledButton.icon(
-                          key: const Key('job-resume'),
-                          onPressed: () =>
-                              _action(context, () => tracker.resume(job)),
-                          icon: const Icon(Icons.play_arrow),
-                          label: Text(
-                            job.status == 'paused'
-                                ? l10n.jobResume
-                                : l10n.jobRetry,
-                          ),
-                        ),
-                      if (job.status == 'completed')
-                        FilledButton.icon(
-                          key: const Key('job-result'),
-                          onPressed: () =>
-                              context.push('${Routes.results}/${job.id}'),
-                          icon: const Icon(Icons.photo),
-                          label: Text(l10n.jobResult),
-                        ),
-                      if (const [
-                        'completed',
-                        'paused',
-                        'failed',
-                        'lost',
-                      ].contains(job.status))
-                        TextButton.icon(
-                          onPressed: () => _action(context, () async {
-                            if (!await confirm(
-                              context,
-                              title: l10n.jobRemove,
-                              body: l10n.jobRemoveBody,
-                              confirmLabel: l10n.jobRemove,
-                              cancelLabel: l10n.cancel,
-                              destructive: true,
-                            )) {
-                              return;
-                            }
-                            await tracker.remove(job);
-                            if (context.mounted) leave(context, Routes.jobs);
-                          }),
-                          icon: const Icon(Icons.delete_outline),
-                          label: Text(l10n.jobRemove),
-                        ),
-                    ],
-                  ),
+                ),
+              ),
+              if (job.type.startsWith('reface_') &&
+                  progress.details.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(l10n.refaceQuality),
+                if (progress.details['preview'] == true)
+                  Text(l10n.refacePreview),
+                for (final entry in {
+                  'faces_swapped': l10n.refaceSwapped,
+                  'faces_skipped': l10n.refaceSkipped,
+                  'faces_failed': l10n.refaceFailed,
+                }.entries)
+                  if (progress.details[entry.key] != null)
+                    Text('${entry.value}: ${progress.details[entry.key]}'),
+                if (progress.details['settings'] case final Map settings) ...[
+                  Text('${l10n.refaceEngine}: ${settings['swapper']}'),
+                  Text('${l10n.refaceRestorer}: ${settings['restorer']}'),
                 ],
-              );
-            },
-          ),
+                if (progress.details['identity'] case final Map identity)
+                  if (identity['kept'] != null)
+                    Text(
+                      '${l10n.refaceIdentity}: ${identity['kept']}/${identity['input']}',
+                    ),
+                if (progress.details['warnings'] case final List warnings)
+                  for (final warning in warnings) Text('$warning'),
+              ],
+              if (!job.type.startsWith('reface_') &&
+                  progress.details.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(l10n.trainingDetails),
+                for (final entry in progress.details.entries)
+                  if (detailLabels.containsKey(entry.key))
+                    Text('${detailLabels[entry.key]}: ${entry.value}'),
+              ],
+              ref
+                  .watch(jobEventsProvider(id))
+                  .when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, _) => const SizedBox.shrink(),
+                    data: (events) => events.isEmpty
+                        ? const SizedBox.shrink()
+                        : ExpansionTile(
+                            key: const Key('job-history'),
+                            tilePadding: EdgeInsets.zero,
+                            title: Text(l10n.jobHistory),
+                            children: [
+                              for (final event in events)
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    jobStatusLabel(l10n, event.status),
+                                  ),
+                                  subtitle: Text(
+                                    [
+                                      DateFormat.yMd().add_Hms().format(
+                                        DateTime.fromMillisecondsSinceEpoch(
+                                          event.createdAt,
+                                        ),
+                                      ),
+                                      if (event.message?.isNotEmpty == true)
+                                        event.message!,
+                                    ].join('\n'),
+                                  ),
+                                ),
+                            ],
+                          ),
+                  ),
+              if (job.error != null) ...[
+                const SizedBox(height: 16),
+                StatusNotice(
+                  message: job.error!,
+                  icon: Icons.error_outline,
+                  isError: true,
+                ),
+                const SizedBox(height: 8),
+                Text(l10n.jobErrorHint),
+              ],
+              const SizedBox(height: 24),
+            ],
+          );
+        },
+      ),
     );
   }
 }

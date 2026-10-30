@@ -257,7 +257,7 @@ class GroupingInputs {
       pending: stages.contains('match') || stages.contains('cluster')
           ? await pending()
           : const [],
-      dismissedFaceIds: mode == 'review' ? await dismissedFaceIds() : const [],
+      dismissedFaceIds: await dismissedFaceIds(),
       distinctPairs: stages.contains('duplicates')
           ? await distinctPairs()
           : const [],

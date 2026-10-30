@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router.dart';
 import '../../data/api/pairing_payload.dart';
 import '../../l10n/app_localizations.dart';
+import '../shared/screen_layout.dart';
 import 'pairing_controller.dart';
 import 'pairing_scope.dart';
 
@@ -81,38 +82,38 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(
-                      Icons.devices_other_outlined,
-                      size: 72,
-                      color: theme.colorScheme.primary,
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Icon(
+                          Icons.photo_library_outlined,
+                          size: 44,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
-                    Text(
-                      l10n.welcomeTitle,
-                      style: theme.textTheme.headlineMedium,
-                      textAlign: TextAlign.center,
+                    ScreenIntro(
+                      title: l10n.welcomeTitle,
+                      body: l10n.welcomeBody,
+                    ),
+                    StatusNotice(
+                      message: l10n.welcomeStep,
+                      icon: Icons.computer_outlined,
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      l10n.welcomeBody,
-                      style: theme.textTheme.bodyLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      l10n.welcomeStep,
-                      style: theme.textTheme.bodyMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
                     Text(
                       l10n.welcomeSameWifi,
-                      style: theme.textTheme.bodyMedium?.copyWith(
+                      style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
-                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                     FilledButton.icon(
                       onPressed: () => context.push(Routes.scan),
                       icon: const Icon(Icons.qr_code_scanner),

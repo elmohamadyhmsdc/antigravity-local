@@ -244,6 +244,46 @@ class Phone {
 }
 
 void main() {
+  test(
+    'deletion decisions travel with the backup and replace older decisions',
+    () async {
+      final source = Phone('decisions_source');
+      final target = Phone('decisions_target');
+      addTearDown(source.dispose);
+      addTearDown(target.dispose);
+      final embedding = Uint8List(2048)
+        ..buffer.asByteData().setFloat32(0, 1, Endian.little);
+      await source.db
+          .into(source.db.faceSuppressions)
+          .insert(
+            FaceSuppressionsCompanion.insert(
+              assetId: 'deleted-asset',
+              modelId: 'buffalo_l@1',
+              embedding: embedding,
+              occurrences: '[[0.1,0.1,0.2,0.2,null]]',
+            ),
+          );
+      await target.db
+          .into(target.db.faceSuppressions)
+          .insert(
+            FaceSuppressionsCompanion.insert(
+              assetId: 'older-asset',
+              modelId: 'buffalo_l@1',
+              embedding: embedding,
+              occurrences: '[]',
+            ),
+          );
+      final archive = await source.backup.export(
+        Directory('${source.dir.path}/out'),
+      );
+      await target.backup.restore(archive);
+      final restored =
+          (await target.db.select(target.db.faceSuppressions).get()).single;
+      expect(restored.assetId, 'deleted-asset');
+      expect(restored.embedding, embedding);
+      expect(restored.occurrences, '[[0.1,0.1,0.2,0.2,null]]');
+    },
+  );
   late Phone a;
   late Phone b;
   setUp(() {

@@ -72,12 +72,25 @@ class ReviewScreen extends ConsumerWidget {
             ],
           ),
         ),
-        body: const TabBarView(
+        body: Column(
           children: [
-            _MatchesTab(),
-            _GroupsTab(),
-            _DuplicatesTab(),
-            _OutfitsTab(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              child: Text(
+                l10n.reviewIntro,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            const Expanded(
+              child: TabBarView(
+                children: [
+                  _MatchesTab(),
+                  _GroupsTab(),
+                  _DuplicatesTab(),
+                  _OutfitsTab(),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -125,7 +138,8 @@ class _MatchesTab extends ConsumerWidget {
     final groups = ref.watch(reviewMatchesProvider);
     return groups.when(
       loading: () => const LoadingBox(),
-      error: (e, _) => Center(child: Text('$e')),
+      error: (_, _) =>
+          RetryState(onRetry: () => ref.invalidate(reviewMatchesProvider)),
       data: (items) {
         if (items.isEmpty) {
           return EmptyState(
@@ -136,7 +150,7 @@ class _MatchesTab extends ConsumerWidget {
         final total = items.fold<int>(0, (sum, g) => sum + g.faces.length);
         return ListView(
           key: const Key('review-matches'),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
           children: [
             FilledButton.tonalIcon(
               key: const Key('accept-all-matches'),
@@ -193,7 +207,7 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
       key: Key('match-card-${g.person.id}'),
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -294,7 +308,8 @@ class _GroupsTab extends ConsumerWidget {
     final groups = ref.watch(reviewGroupsProvider);
     return groups.when(
       loading: () => const LoadingBox(),
-      error: (e, _) => Center(child: Text('$e')),
+      error: (_, _) =>
+          RetryState(onRetry: () => ref.invalidate(reviewGroupsProvider)),
       data: (items) {
         if (items.isEmpty) {
           return EmptyState(
@@ -304,7 +319,7 @@ class _GroupsTab extends ConsumerWidget {
         }
         return ListView(
           key: const Key('review-groups'),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
           children: [
             FilledButton.tonalIcon(
               key: const Key('create-all-groups'),
@@ -357,7 +372,7 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
       key: Key('group-card-${g.id}'),
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -456,7 +471,8 @@ class _DuplicatesTab extends ConsumerWidget {
     final items = ref.watch(reviewDuplicatesProvider);
     return items.when(
       loading: () => const LoadingBox(),
-      error: (e, _) => Center(child: Text('$e')),
+      error: (_, _) =>
+          RetryState(onRetry: () => ref.invalidate(reviewDuplicatesProvider)),
       data: (pairs) {
         if (pairs.isEmpty) {
           return EmptyState(
@@ -466,14 +482,14 @@ class _DuplicatesTab extends ConsumerWidget {
         }
         return ListView(
           key: const Key('review-duplicates'),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
           children: [
             for (final d in pairs)
               Card(
                 key: Key('dup-card-${d.a.id}-${d.b.id}'),
                 margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
                       Row(
@@ -553,7 +569,8 @@ class _OutfitsTab extends ConsumerWidget {
     final items = ref.watch(reviewBodyLinksProvider);
     return items.when(
       loading: () => const LoadingBox(),
-      error: (e, _) => Center(child: Text('$e')),
+      error: (_, _) =>
+          RetryState(onRetry: () => ref.invalidate(reviewBodyLinksProvider)),
       data: (links) {
         if (links.isEmpty) {
           return EmptyState(
@@ -564,7 +581,7 @@ class _OutfitsTab extends ConsumerWidget {
         final repo = ref.read(reviewRepositoryProvider);
         return ListView(
           key: const Key('review-outfits'),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
           children: [
             FilledButton.tonalIcon(
               key: const Key('accept-all-outfits'),

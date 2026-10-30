@@ -2446,6 +2446,370 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
   }
 }
 
+class $FaceSuppressionsTable extends FaceSuppressions
+    with TableInfo<$FaceSuppressionsTable, FaceSuppressionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FaceSuppressionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _assetIdMeta = const VerificationMeta(
+    'assetId',
+  );
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+    'asset_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _modelIdMeta = const VerificationMeta(
+    'modelId',
+  );
+  @override
+  late final GeneratedColumn<String> modelId = GeneratedColumn<String>(
+    'model_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _embeddingMeta = const VerificationMeta(
+    'embedding',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> embedding = GeneratedColumn<Uint8List>(
+    'embedding',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _occurrencesMeta = const VerificationMeta(
+    'occurrences',
+  );
+  @override
+  late final GeneratedColumn<String> occurrences = GeneratedColumn<String>(
+    'occurrences',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    assetId,
+    modelId,
+    embedding,
+    occurrences,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'face_suppressions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FaceSuppressionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(
+        _assetIdMeta,
+        assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_assetIdMeta);
+    }
+    if (data.containsKey('model_id')) {
+      context.handle(
+        _modelIdMeta,
+        modelId.isAcceptableOrUnknown(data['model_id']!, _modelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_modelIdMeta);
+    }
+    if (data.containsKey('embedding')) {
+      context.handle(
+        _embeddingMeta,
+        embedding.isAcceptableOrUnknown(data['embedding']!, _embeddingMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_embeddingMeta);
+    }
+    if (data.containsKey('occurrences')) {
+      context.handle(
+        _occurrencesMeta,
+        occurrences.isAcceptableOrUnknown(
+          data['occurrences']!,
+          _occurrencesMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_occurrencesMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FaceSuppressionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FaceSuppressionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      assetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}asset_id'],
+      )!,
+      modelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model_id'],
+      )!,
+      embedding: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}embedding'],
+      )!,
+      occurrences: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}occurrences'],
+      )!,
+    );
+  }
+
+  @override
+  $FaceSuppressionsTable createAlias(String alias) {
+    return $FaceSuppressionsTable(attachedDatabase, alias);
+  }
+}
+
+class FaceSuppressionRow extends DataClass
+    implements Insertable<FaceSuppressionRow> {
+  final int id;
+  final String assetId;
+  final String modelId;
+  final Uint8List embedding;
+  final String occurrences;
+  const FaceSuppressionRow({
+    required this.id,
+    required this.assetId,
+    required this.modelId,
+    required this.embedding,
+    required this.occurrences,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['asset_id'] = Variable<String>(assetId);
+    map['model_id'] = Variable<String>(modelId);
+    map['embedding'] = Variable<Uint8List>(embedding);
+    map['occurrences'] = Variable<String>(occurrences);
+    return map;
+  }
+
+  FaceSuppressionsCompanion toCompanion(bool nullToAbsent) {
+    return FaceSuppressionsCompanion(
+      id: Value(id),
+      assetId: Value(assetId),
+      modelId: Value(modelId),
+      embedding: Value(embedding),
+      occurrences: Value(occurrences),
+    );
+  }
+
+  factory FaceSuppressionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FaceSuppressionRow(
+      id: serializer.fromJson<int>(json['id']),
+      assetId: serializer.fromJson<String>(json['assetId']),
+      modelId: serializer.fromJson<String>(json['modelId']),
+      embedding: serializer.fromJson<Uint8List>(json['embedding']),
+      occurrences: serializer.fromJson<String>(json['occurrences']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'assetId': serializer.toJson<String>(assetId),
+      'modelId': serializer.toJson<String>(modelId),
+      'embedding': serializer.toJson<Uint8List>(embedding),
+      'occurrences': serializer.toJson<String>(occurrences),
+    };
+  }
+
+  FaceSuppressionRow copyWith({
+    int? id,
+    String? assetId,
+    String? modelId,
+    Uint8List? embedding,
+    String? occurrences,
+  }) => FaceSuppressionRow(
+    id: id ?? this.id,
+    assetId: assetId ?? this.assetId,
+    modelId: modelId ?? this.modelId,
+    embedding: embedding ?? this.embedding,
+    occurrences: occurrences ?? this.occurrences,
+  );
+  FaceSuppressionRow copyWithCompanion(FaceSuppressionsCompanion data) {
+    return FaceSuppressionRow(
+      id: data.id.present ? data.id.value : this.id,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      modelId: data.modelId.present ? data.modelId.value : this.modelId,
+      embedding: data.embedding.present ? data.embedding.value : this.embedding,
+      occurrences: data.occurrences.present
+          ? data.occurrences.value
+          : this.occurrences,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FaceSuppressionRow(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('modelId: $modelId, ')
+          ..write('embedding: $embedding, ')
+          ..write('occurrences: $occurrences')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    assetId,
+    modelId,
+    $driftBlobEquality.hash(embedding),
+    occurrences,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FaceSuppressionRow &&
+          other.id == this.id &&
+          other.assetId == this.assetId &&
+          other.modelId == this.modelId &&
+          $driftBlobEquality.equals(other.embedding, this.embedding) &&
+          other.occurrences == this.occurrences);
+}
+
+class FaceSuppressionsCompanion extends UpdateCompanion<FaceSuppressionRow> {
+  final Value<int> id;
+  final Value<String> assetId;
+  final Value<String> modelId;
+  final Value<Uint8List> embedding;
+  final Value<String> occurrences;
+  const FaceSuppressionsCompanion({
+    this.id = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.modelId = const Value.absent(),
+    this.embedding = const Value.absent(),
+    this.occurrences = const Value.absent(),
+  });
+  FaceSuppressionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String assetId,
+    required String modelId,
+    required Uint8List embedding,
+    required String occurrences,
+  }) : assetId = Value(assetId),
+       modelId = Value(modelId),
+       embedding = Value(embedding),
+       occurrences = Value(occurrences);
+  static Insertable<FaceSuppressionRow> custom({
+    Expression<int>? id,
+    Expression<String>? assetId,
+    Expression<String>? modelId,
+    Expression<Uint8List>? embedding,
+    Expression<String>? occurrences,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (assetId != null) 'asset_id': assetId,
+      if (modelId != null) 'model_id': modelId,
+      if (embedding != null) 'embedding': embedding,
+      if (occurrences != null) 'occurrences': occurrences,
+    });
+  }
+
+  FaceSuppressionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? assetId,
+    Value<String>? modelId,
+    Value<Uint8List>? embedding,
+    Value<String>? occurrences,
+  }) {
+    return FaceSuppressionsCompanion(
+      id: id ?? this.id,
+      assetId: assetId ?? this.assetId,
+      modelId: modelId ?? this.modelId,
+      embedding: embedding ?? this.embedding,
+      occurrences: occurrences ?? this.occurrences,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (modelId.present) {
+      map['model_id'] = Variable<String>(modelId.value);
+    }
+    if (embedding.present) {
+      map['embedding'] = Variable<Uint8List>(embedding.value);
+    }
+    if (occurrences.present) {
+      map['occurrences'] = Variable<String>(occurrences.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FaceSuppressionsCompanion(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('modelId: $modelId, ')
+          ..write('embedding: $embedding, ')
+          ..write('occurrences: $occurrences')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -11340,6 +11704,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PersonsTable persons = $PersonsTable(this);
   late final $MediaTable media = $MediaTable(this);
   late final $FacesTable faces = $FacesTable(this);
+  late final $FaceSuppressionsTable faceSuppressions = $FaceSuppressionsTable(
+    this,
+  );
   late final $BodiesTable bodies = $BodiesTable(this);
   late final $FaceRejectionsTable faceRejections = $FaceRejectionsTable(this);
   late final $BodyRejectionsTable bodyRejections = $BodyRejectionsTable(this);
@@ -11381,6 +11748,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'faces_media_id',
     'CREATE INDEX faces_media_id ON faces (media_id)',
   );
+  late final Index faceSuppressionsAsset = Index(
+    'face_suppressions_asset',
+    'CREATE INDEX face_suppressions_asset ON face_suppressions (asset_id)',
+  );
   late final Index bodiesMediaId = Index(
     'bodies_media_id',
     'CREATE INDEX bodies_media_id ON bodies (media_id)',
@@ -11421,6 +11792,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     persons,
     media,
     faces,
+    faceSuppressions,
     bodies,
     faceRejections,
     bodyRejections,
@@ -11445,6 +11817,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     mediaScanStatus,
     facesPersonId,
     facesMediaId,
+    faceSuppressionsAsset,
     bodiesMediaId,
     bodiesPersonId,
     bodiesFaceId,
@@ -15074,6 +15447,223 @@ typedef $$FacesTableProcessedTableManager =
         bool reviewMatchesRefs,
         bool identitySetFacesRefs,
       })
+    >;
+typedef $$FaceSuppressionsTableCreateCompanionBuilder =
+    FaceSuppressionsCompanion Function({
+      Value<int> id,
+      required String assetId,
+      required String modelId,
+      required Uint8List embedding,
+      required String occurrences,
+    });
+typedef $$FaceSuppressionsTableUpdateCompanionBuilder =
+    FaceSuppressionsCompanion Function({
+      Value<int> id,
+      Value<String> assetId,
+      Value<String> modelId,
+      Value<Uint8List> embedding,
+      Value<String> occurrences,
+    });
+
+class $$FaceSuppressionsTableFilterComposer
+    extends Composer<_$AppDatabase, $FaceSuppressionsTable> {
+  $$FaceSuppressionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get embedding => $composableBuilder(
+    column: $table.embedding,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get occurrences => $composableBuilder(
+    column: $table.occurrences,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$FaceSuppressionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FaceSuppressionsTable> {
+  $$FaceSuppressionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get embedding => $composableBuilder(
+    column: $table.embedding,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get occurrences => $composableBuilder(
+    column: $table.occurrences,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FaceSuppressionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FaceSuppressionsTable> {
+  $$FaceSuppressionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<String> get modelId =>
+      $composableBuilder(column: $table.modelId, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get embedding =>
+      $composableBuilder(column: $table.embedding, builder: (column) => column);
+
+  GeneratedColumn<String> get occurrences => $composableBuilder(
+    column: $table.occurrences,
+    builder: (column) => column,
+  );
+}
+
+class $$FaceSuppressionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FaceSuppressionsTable,
+          FaceSuppressionRow,
+          $$FaceSuppressionsTableFilterComposer,
+          $$FaceSuppressionsTableOrderingComposer,
+          $$FaceSuppressionsTableAnnotationComposer,
+          $$FaceSuppressionsTableCreateCompanionBuilder,
+          $$FaceSuppressionsTableUpdateCompanionBuilder,
+          (
+            FaceSuppressionRow,
+            BaseReferences<
+              _$AppDatabase,
+              $FaceSuppressionsTable,
+              FaceSuppressionRow
+            >,
+          ),
+          FaceSuppressionRow,
+          PrefetchHooks Function()
+        > {
+  $$FaceSuppressionsTableTableManager(
+    _$AppDatabase db,
+    $FaceSuppressionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FaceSuppressionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FaceSuppressionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FaceSuppressionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> assetId = const Value.absent(),
+                Value<String> modelId = const Value.absent(),
+                Value<Uint8List> embedding = const Value.absent(),
+                Value<String> occurrences = const Value.absent(),
+              }) => FaceSuppressionsCompanion(
+                id: id,
+                assetId: assetId,
+                modelId: modelId,
+                embedding: embedding,
+                occurrences: occurrences,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String assetId,
+                required String modelId,
+                required Uint8List embedding,
+                required String occurrences,
+              }) => FaceSuppressionsCompanion.insert(
+                id: id,
+                assetId: assetId,
+                modelId: modelId,
+                embedding: embedding,
+                occurrences: occurrences,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FaceSuppressionsTable, FaceSuppressionRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $FaceSuppressionsTable,
+                    FaceSuppressionRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$FaceSuppressionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FaceSuppressionsTable,
+      FaceSuppressionRow,
+      $$FaceSuppressionsTableFilterComposer,
+      $$FaceSuppressionsTableOrderingComposer,
+      $$FaceSuppressionsTableAnnotationComposer,
+      $$FaceSuppressionsTableCreateCompanionBuilder,
+      $$FaceSuppressionsTableUpdateCompanionBuilder,
+      (
+        FaceSuppressionRow,
+        BaseReferences<
+          _$AppDatabase,
+          $FaceSuppressionsTable,
+          FaceSuppressionRow
+        >,
+      ),
+      FaceSuppressionRow,
+      PrefetchHooks Function()
     >;
 typedef $$BodiesTableCreateCompanionBuilder =
     BodiesCompanion Function({
@@ -23011,6 +23601,8 @@ class $AppDatabaseManager {
       $$MediaTableTableManager(_db, _db.media);
   $$FacesTableTableManager get faces =>
       $$FacesTableTableManager(_db, _db.faces);
+  $$FaceSuppressionsTableTableManager get faceSuppressions =>
+      $$FaceSuppressionsTableTableManager(_db, _db.faceSuppressions);
   $$BodiesTableTableManager get bodies =>
       $$BodiesTableTableManager(_db, _db.bodies);
   $$FaceRejectionsTableTableManager get faceRejections =>

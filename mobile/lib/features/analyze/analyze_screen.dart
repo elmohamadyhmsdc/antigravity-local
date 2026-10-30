@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/api/dtos/analyze.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../shared/screen_layout.dart';
 import 'analyze_controller.dart';
 
 /// "Detect faces in a photo": the first screen that round-trips a real photo through the PC.
@@ -23,8 +24,7 @@ class AnalyzeScreen extends ConsumerWidget {
       body: switch (state) {
         AnalyzeIdle() => _Centered(
           children: [
-            Text(l10n.analyzeIdle, textAlign: TextAlign.center),
-            const SizedBox(height: 24),
+            ScreenIntro(title: l10n.analyzeHeadline, body: l10n.analyzeIdle),
             FilledButton.icon(
               key: const Key('pick-photo'),
               onPressed: controller.pickAndAnalyze,
@@ -98,8 +98,8 @@ class _Centered extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     ),
   );
@@ -196,37 +196,70 @@ class _FaceTile extends StatelessWidget {
     };
     return Card(
       key: Key('face-$index'),
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: SizedBox(
-          width: 56,
-          height: 56,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: face.cropJpeg != null
-                ? Image.memory(face.cropJpeg!, fit: BoxFit.cover)
-                : ColoredBox(
-                    color: scheme.surfaceContainerHighest,
-                    child: const Icon(Icons.face_outlined),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: face.cropJpeg != null
+                        ? Image.memory(face.cropJpeg!, fit: BoxFit.cover)
+                        : ColoredBox(
+                            color: scheme.surfaceContainerHighest,
+                            child: const Icon(Icons.face_outlined),
+                          ),
                   ),
-          ),
-        ),
-        title: Text(l10n.analyzeFaceTitle(index + 1)),
-        subtitle: Text(
-          '${l10n.analyzeFaceDetail(face.quality.facePx.round(), face.detScore.toStringAsFixed(2))}\n'
-          '${face.passesGate ? l10n.analyzeMeetsGate : l10n.analyzeBelowGate}',
-        ),
-        isThreeLine: true,
-        trailing: Chip(
-          label: Text(
-            l10n.analyzeQuality(
-              tierLabel,
-              face.quality.score.toStringAsFixed(2),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.analyzeFaceTitle(index + 1),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.analyzeFaceDetail(
+                          face.quality.facePx.round(),
+                          face.detScore.toStringAsFixed(2),
+                        ),
+                      ),
+                      Text(
+                        face.passesGate
+                            ? l10n.analyzeMeetsGate
+                            : l10n.analyzeBelowGate,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-          side: BorderSide(
-            color: face.passesGate ? Colors.green : Colors.amber,
-          ),
+            const SizedBox(height: 12),
+            Chip(
+              avatar: Icon(
+                face.passesGate
+                    ? Icons.check_circle_outline
+                    : Icons.info_outline,
+                size: 18,
+              ),
+              label: Text(
+                l10n.analyzeQuality(
+                  tierLabel,
+                  face.quality.score.toStringAsFixed(2),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

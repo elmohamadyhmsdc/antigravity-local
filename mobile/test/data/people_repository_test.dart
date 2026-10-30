@@ -367,11 +367,14 @@ void main() {
         );
         expect(
           (await db.select(db.bodyRejections).get()).map((r) => r.personId),
-          [target],
+          isEmpty,
+          reason: 'the merged body is explicitly assigned to the kept person',
         );
         expect(
           (await db.select(db.reviewMatches).get()).map((m) => m.personId),
-          [target],
+          isEmpty,
+          reason:
+              'a rejected match must not return after merging its suggested person',
         );
         final distinct = await db.select(db.personDistinct).get();
         expect(distinct.map((d) => (d.personA, d.personB)), [(target, third)]);

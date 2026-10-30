@@ -47,6 +47,27 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Capabilities" }
 
+  /v1/resources:
+    get:
+      summary: PC resource telemetry (authenticated, read-only, cached for 5 seconds)
+      description: |
+        RAM includes recognised application processes and children. GPU-wide VRAM
+        includes other applications; process VRAM is null when unavailable.
+        Storage counts only server scratch metadata, never the desktop library.
+        Admission thresholds are configured locally on the PC and are not hard
+        allocation caps. This endpoint does not start models or change limits.
+      responses:
+        "200":
+          description: Current measurements; unavailable measurements are null
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResourceSnapshot" }
+        "401":
+          description: Pairing token required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /v1/pair/complete:
     post:
       summary: Exchange the one-time code from the QR for a device token (no auth)
@@ -416,6 +437,9 @@ components:
           type: object
           required: [reface_v3, reface_v2, dfm_models, undress, lora_train, lora_generate, body_detection]
           properties:
+            reface:
+              type: boolean
+              description: Unified Reface image/video jobs and quality profiles are supported.
             reface_v3: { type: boolean }
             reface_v2: { type: boolean }
             dfm_models:
@@ -431,6 +455,16 @@ components:
         restorers:
           type: array
           items: { type: string }
+        reface_profiles:
+          type: object
+          description: Automatic settings for the same Reface pipeline, based on installed models.
+          additionalProperties:
+            type: object
+            required: [restorer, restore_size, use_parser]
+            properties:
+              restorer: { type: string }
+              restore_size: { type: integer, enum: [512, 1024] }
+              use_parser: { type: boolean }
         lora_base_checkpoints:
           type: array
           items: { type: string }
@@ -450,6 +484,60 @@ components:
             source:
               type: string
               enum: [mobile, dashboard]
+
+    ResourceSnapshot:
+      type: object
+      required: [sampled_at, ram, app_ram_bytes, processes_complete, processes, gpus, disk, app_storage_bytes, storage_complete, storage_sampled_at, warnings, alerts, admission_blocked, admission_reasons, storage_scope]
+      properties:
+        sampled_at: { type: string, format: date-time }
+        ram:
+          type: [object, "null"]
+          required: [total_bytes, available_bytes, used_percent]
+          properties:
+            total_bytes: { type: integer, minimum: 0 }
+            available_bytes: { type: integer, minimum: 0 }
+            used_percent: { type: number, minimum: 0, maximum: 100 }
+        app_ram_bytes: { type: [integer, "null"], minimum: 0 }
+        processes_complete: { type: boolean }
+        processes:
+          type: array
+          items:
+            type: object
+            required: [pid, name, ram_bytes]
+            properties:
+              pid: { type: integer }
+              name: { type: string }
+              ram_bytes: { type: integer, minimum: 0 }
+        gpus:
+          type: array
+          items:
+            type: object
+            required: [index, uuid, name, total_bytes, used_bytes, free_bytes, utilization_percent, temperature_c, app_used_bytes]
+            properties:
+              index: { type: integer, minimum: 0 }
+              uuid: { type: string }
+              name: { type: string }
+              total_bytes: { type: integer, minimum: 0 }
+              used_bytes: { type: integer, minimum: 0 }
+              free_bytes: { type: integer, minimum: 0 }
+              utilization_percent: { type: [number, "null"] }
+              temperature_c: { type: [number, "null"] }
+              app_used_bytes: { type: [integer, "null"], minimum: 0 }
+        disk:
+          type: [object, "null"]
+          required: [total_bytes, used_bytes, free_bytes]
+          properties:
+            total_bytes: { type: integer, minimum: 0 }
+            used_bytes: { type: integer, minimum: 0 }
+            free_bytes: { type: integer, minimum: 0 }
+        app_storage_bytes: { type: integer, minimum: 0 }
+        storage_complete: { type: boolean }
+        storage_sampled_at: { type: [string, "null"], format: date-time }
+        storage_scope: { type: string, const: server_scratch }
+        warnings: { type: array, items: { type: string } }
+        alerts: { type: array, items: { type: string } }
+        admission_blocked: { type: boolean }
+        admission_reasons: { type: array, items: { type: string } }
 
     PairRequest:
       type: object
@@ -657,6 +745,7 @@ components:
           items: { $ref: "#/components/schemas/GroupingFace" }
         dismissed_face_ids:
           type: array
+          description: Manually hidden faces, excluded from matching and clustering in both apply and review modes.
           items: { type: integer }
         distinct_pairs:
           type: array
@@ -733,6 +822,8 @@ components:
     JobType:
       type: string
       enum:
+        - reface_image
+        - reface_video
         - reface_image_v3
         - reface_image_v2
         - reface_image_dfm
@@ -761,16 +852,21 @@ components:
     RefaceParams:
       type: object
       description: |
-        reface_image_* / reface_video_*. Inputs: `target` (image or video blob).
+        reface_image / reface_video, plus compatibility aliases. Inputs: `target` (image or video blob).
         `target_faces` are matched to detections by IoU on the server (indices
-        are not stable across runs). `dfm_model` is required for *_dfm and then
-        `source_faces` may be empty. Photo selections use boxes. V3/DFM video
-        selections use `target_embeddings` from a reference photo and nonempty
+        are not stable across runs). `dfm_model` selects a trained identity for unified
+        jobs and is required for *_dfm aliases; then `source_faces` may be empty. Photo selections use boxes. All video engines
+        support `target_embeddings` from the selected clip and nonempty
         `target_indices`. Omit selection to swap all faces. Empty selections
         are invalid. Preview videos render at most three seconds of the trim range.
         Legacy supports automatic/disabled enhancement and its occlusion option.
       required: [source_faces]
       properties:
+        quality_profile:
+          type: string
+          enum: [fast, balanced, detail]
+          default: balanced
+          description: Unified Reface only; configures one shared pipeline, not an engine version.
         source_faces:
           type: array
           maxItems: 100
@@ -780,7 +876,7 @@ components:
           type: array
           description: Boxes (pixels of the target image/first frame) to swap; omit for all faces
           items: { $ref: "#/components/schemas/BBox" }
-        restorer: { type: string, default: auto, description: "auto uses the V3 engine's evaluated default; none disables restoration." }
+        restorer: { type: string, default: auto, description: "Unified Reface auto uses the selected quality profile's available default; none disables restoration. Legacy aliases retain their defaults." }
         target_embeddings:
           type: array
           minItems: 1
@@ -906,7 +1002,7 @@ components:
               - { $ref: "#/components/schemas/Sha256" }
               - { type: array, items: { $ref: "#/components/schemas/Sha256" } }
       allOf:
-        - if: { properties: { type: { enum: [reface_image_v3, reface_image_v2, reface_image_dfm, reface_video_v3, reface_video_v2, reface_video_dfm] } }, required: [type] }
+        - if: { properties: { type: { enum: [reface_image, reface_video, reface_image_v3, reface_image_v2, reface_image_dfm, reface_video_v3, reface_video_v2, reface_video_dfm] } }, required: [type] }
           then:
             properties:
               params: { $ref: "#/components/schemas/RefaceParams" }

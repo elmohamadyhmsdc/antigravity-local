@@ -52,7 +52,9 @@ class PersonDetailScreen extends ConsumerWidget {
       loading: () => Scaffold(appBar: AppBar(), body: const LoadingBox()),
       error: (e, _) => Scaffold(
         appBar: AppBar(),
-        body: Center(child: Text('$e')),
+        body: RetryState(
+          onRetry: () => ref.invalidate(personProvider(personId)),
+        ),
       ),
       data: (p) {
         if (p == null) {
@@ -86,6 +88,13 @@ class PersonDetailScreen extends ConsumerWidget {
                 ),
               ),
               actions: [
+                IconButton.filledTonal(
+                  key: const Key('person-use-studio'),
+                  tooltip: l10n.useInStudio,
+                  onPressed: () =>
+                      context.push('${Routes.reface}?person=$personId'),
+                  icon: const Icon(Icons.face_retouching_natural),
+                ),
                 PopupMenuButton<String>(
                   key: const Key('person-menu'),
                   onSelected: (v) {
@@ -236,7 +245,9 @@ class _BodiesTab extends ConsumerWidget {
     final bodies = ref.watch(personBodiesProvider(personId));
     return bodies.when(
       loading: () => const LoadingBox(),
-      error: (e, _) => Center(child: Text('$e')),
+      error: (_, _) => RetryState(
+        onRetry: () => ref.invalidate(personBodiesProvider(personId)),
+      ),
       data: (items) {
         if (items.isEmpty) {
           return EmptyState(

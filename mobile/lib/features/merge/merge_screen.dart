@@ -10,6 +10,7 @@ import '../people/face_grid.dart';
 import '../people/person_detail_screen.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
+import '../shared/screen_layout.dart';
 
 final _pcScoreProvider = FutureProvider.autoDispose.family<double?, (int, int)>(
   (ref, pair) =>
@@ -56,29 +57,41 @@ class _MergeScreenState extends ConsumerState<MergeScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.mergeTitle)),
+      bottomNavigationBar: StickyActionBar(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FilledButton.icon(
+              key: const Key('merge-confirm'),
+              icon: const Icon(Icons.merge_type),
+              label: Text(
+                l10n.mergeInto(personName(l10n, drop), personName(l10n, keep)),
+              ),
+              onPressed: () => _merge(context, keep, drop),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const Key('merge-distinct'),
+              icon: const Icon(Icons.people_outline),
+              label: Text(l10n.differentPeople),
+              onPressed: () async {
+                await ref
+                    .read(peopleRepositoryProvider)
+                    .markDistinct(a.id, b.id);
+                if (context.mounted) leave(context, Routes.review);
+              },
+            ),
+          ],
+        ),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _Side(label: 'A', person: a, highlighted: _keepA),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 40,
-                ),
-                child: Icon(
-                  Icons.compare_arrows,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              ),
-              Expanded(
-                child: _Side(label: 'B', person: b, highlighted: !_keepA),
-              ),
-            ],
+          ScreenIntro(title: l10n.mergeHeadline, body: l10n.mergeIntro),
+          AdaptivePair(
+            first: _Side(label: 'A', person: a, highlighted: _keepA),
+            second: _Side(label: 'B', person: b, highlighted: !_keepA),
           ),
           const SizedBox(height: 16),
           Card(
@@ -104,24 +117,6 @@ class _MergeScreenState extends ConsumerState<MergeScreen> {
             onSelectionChanged: (s) => setState(() => _keepA = s.first),
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            key: const Key('merge-confirm'),
-            icon: const Icon(Icons.merge_type),
-            label: Text(
-              l10n.mergeInto(personName(l10n, drop), personName(l10n, keep)),
-            ),
-            onPressed: () => _merge(context, keep, drop),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            key: const Key('merge-distinct'),
-            icon: const Icon(Icons.people_outline),
-            label: Text(l10n.differentPeople),
-            onPressed: () async {
-              await ref.read(peopleRepositoryProvider).markDistinct(a.id, b.id);
-              if (context.mounted) leave(context, Routes.review);
-            },
-          ),
           TextButton(
             onPressed: () => leave(context, Routes.review),
             child: Text(l10n.cancel),

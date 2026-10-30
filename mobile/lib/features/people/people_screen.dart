@@ -21,8 +21,20 @@ class PeopleScreen extends ConsumerStatefulWidget {
 }
 
 class _PeopleScreenState extends ConsumerState<PeopleScreen> {
+  final _search = TextEditingController();
   var _query = '';
   var _sort = PeopleSort.mostFaces;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    _search.clear();
+    setState(() => _query = '');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +79,12 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
       ),
       body: people.when(
         loading: () => const LoadingBox(),
-        error: (e, _) => Center(child: Text('$e')),
+        error: (e, _) => EmptyState(
+          icon: Icons.people_outline,
+          title: '$e',
+          actionLabel: l10n.retry,
+          onAction: () => ref.invalidate(peopleProvider),
+        ),
         data: (all) {
           if (all.isEmpty && unsorted == 0) {
             return EmptyState(
@@ -102,8 +119,17 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: TextField(
                   key: const Key('people-search'),
+                  controller: _search,
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            key: const Key('people-clear-search'),
+                            tooltip: l10n.clearSearch,
+                            onPressed: _clearSearch,
+                            icon: const Icon(Icons.close),
+                          ),
                     hintText: l10n.searchPeopleHint,
                     border: const OutlineInputBorder(),
                     isDense: true,
@@ -112,21 +138,33 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                 ),
               ),
               Expanded(
-                child: GridView(
-                  key: const Key('people-grid'),
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 130,
-                    mainAxisExtent: 160,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                  ),
-                  children: [
-                    if (unsorted > 0 && q.isEmpty)
-                      _UnsortedCard(count: unsorted),
-                    for (final p in shown) _PersonCard(person: p),
-                  ],
-                ),
+                child: shown.isEmpty && q.isNotEmpty
+                    ? EmptyState(
+                        icon: Icons.person_search_outlined,
+                        title: l10n.peopleNoMatches,
+                        actionLabel: l10n.clearSearch,
+                        onAction: _clearSearch,
+                      )
+                    : GridView(
+                        key: const Key('people-grid'),
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 220,
+                          mainAxisExtent:
+                              190.0 +
+                              (MediaQuery.textScalerOf(context).scale(14) - 14)
+                                      .clamp(0.0, 42.0)
+                                      .toDouble() *
+                                  3.0,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                        ),
+                        children: [
+                          if (unsorted > 0 && q.isEmpty)
+                            _UnsortedCard(count: unsorted),
+                          for (final p in shown) _PersonCard(person: p),
+                        ],
+                      ),
               ),
             ],
           );
@@ -154,7 +192,7 @@ class _PersonCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            PersonAvatar(cropPath: person.avatarCropPath, radius: 38),
+            PersonAvatar(cropPath: person.avatarCropPath, radius: 46),
             const SizedBox(height: 8),
             Text(
               personName(l10n, person),
@@ -190,7 +228,7 @@ class _UnsortedCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircleAvatar(
-              radius: 38,
+              radius: 46,
               backgroundColor: scheme.tertiaryContainer,
               child: Icon(
                 Icons.help_outline,

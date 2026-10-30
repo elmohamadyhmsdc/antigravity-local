@@ -409,6 +409,34 @@ void main() {
 
   group('a busy or unreachable PC', () {
     test(
+      'resource pressure pauses with the photo pending and explains why',
+      () async {
+        await rig.choose();
+        rig.api.analyzeHandler = (bytes, options) async =>
+            throw const ApiException(
+              code: 'resource_pressure',
+              message: 'Free system RAM is below 1024 MiB.',
+              retryable: true,
+              statusCode: 503,
+              retryAfter: Duration(seconds: 15),
+            );
+        final engine = rig.engine(policy: const ScanPolicy(busyRetries: 1));
+        await engine.start();
+        expect(engine.progress.phase, ScanPhase.paused);
+        expect(engine.progress.pauseReason, PauseReason.pcBusy);
+        expect(engine.progress.message, contains('RAM'));
+        expect(
+          (await rig.media()).map((m) => m.scanStatus),
+          everyElement('pending'),
+        );
+        expect(
+          rig.delays.fold<Duration>(Duration.zero, (sum, delay) => sum + delay),
+          const Duration(seconds: 15),
+        );
+      },
+    );
+
+    test(
       'a busy GPU is waited out with the PC\'s Retry-After and the photo is not given up on',
       () async {
         await rig.choose();

@@ -203,18 +203,22 @@ class _VideoMediaViewState extends State<VideoMediaView> {
                         value.isPlaying ? Icons.pause : Icons.play_arrow,
                       ),
                     ),
-                    Text(videoTime(position)),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: Slider(
-                        min: 0,
-                        max: duration > 0 ? duration.toDouble() : 1,
-                        value: position.clamp(0, duration).toDouble(),
-                        onChanged: (v) =>
-                            player.seekTo(Duration(milliseconds: v.round())),
+                      child: Text(
+                        '${videoTime(position)} / ${videoTime(duration)}',
                       ),
                     ),
-                    Text(videoTime(duration)),
                   ],
+                ),
+                Slider(
+                  min: 0,
+                  max: duration > 0 ? duration.toDouble() : 1,
+                  value: position.clamp(0, duration).toDouble(),
+                  semanticFormatterCallback: (value) =>
+                      videoTime(value.round()),
+                  onChanged: (v) =>
+                      player.seekTo(Duration(milliseconds: v.round())),
                 ),
                 if (samples.isNotEmpty) ...[
                   Align(
@@ -226,7 +230,7 @@ class _VideoMediaViewState extends State<VideoMediaView> {
                   ),
                   const SizedBox(height: 6),
                   SizedBox(
-                    height: 42,
+                    height: MediaQuery.textScalerOf(context).scale(16) + 32,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: samples.length,

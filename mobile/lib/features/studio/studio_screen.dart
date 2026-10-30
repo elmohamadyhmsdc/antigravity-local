@@ -6,6 +6,7 @@ import '../../core/router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
+import '../shared/screen_layout.dart';
 
 class StudioScreen extends ConsumerWidget {
   const StudioScreen({super.key});
@@ -15,68 +16,73 @@ class StudioScreen extends ConsumerWidget {
     final status = ref.watch(serverStatusProvider).value;
     final results = ref.watch(resultsProvider).value ?? const [];
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.studioTitle)),
+      appBar: AppBar(
+        title: Text(l10n.studioTitle),
+        actions: [
+          IconButton(
+            key: const Key('studio-results'),
+            tooltip: l10n.privateResults,
+            icon: const Icon(Icons.photo_library_outlined),
+            onPressed: () => context.push(Routes.results),
+          ),
+        ],
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
-          Text(
-            l10n.studioHint,
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 16),
-          if (status is ServerBusy)
+          ScreenIntro(title: l10n.studioIntro, body: l10n.studioHint),
+          if (status is ServerBusy ||
+              (status is! ServerReady && status is! ServerBusy))
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(l10n.studioBusyHint),
+              child: ListTile(
+                leading: Icon(
+                  status is ServerBusy
+                      ? Icons.schedule
+                      : Icons.computer_outlined,
+                ),
+                title: Text(
+                  status is ServerBusy
+                      ? l10n.studioBusyHint
+                      : l10n.studioNeedsPc,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(
+                  status is ServerBusy ? Routes.jobs : Routes.connection,
+                ),
               ),
             ),
-          if (status is! ServerReady && status is! ServerBusy)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(l10n.studioNeedsPc),
-              ),
-            ),
-          Card(
-            child: ListTile(
-              key: const Key('studio-reface'),
-              leading: const Icon(Icons.face_retouching_natural),
-              title: Text(l10n.refaceTitle),
-              subtitle: Text(l10n.refaceHint),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(Routes.reface),
-            ),
+          SectionHeading(title: l10n.studioTools),
+          ActionRow(
+            key: const Key('studio-reface'),
+            emphasized: true,
+            icon: Icons.face_retouching_natural,
+            title: l10n.refaceTitle,
+            subtitle: l10n.studioRefaceDescription,
+            onTap: () => context.push(Routes.reface),
           ),
-          Card(
-            child: ListTile(
-              key: const Key('studio-restyle'),
-              leading: const Icon(Icons.checkroom_outlined),
-              title: Text(l10n.restyleTitle),
-              subtitle: Text(l10n.restyleHint),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(Routes.restyle),
-            ),
+          const Divider(),
+          ActionRow(
+            key: const Key('studio-restyle'),
+            icon: Icons.checkroom_outlined,
+            title: l10n.restyleTitle,
+            subtitle: l10n.studioRestyleDescription,
+            onTap: () => context.push(Routes.restyle),
           ),
-          Card(
-            child: ListTile(
-              key: const Key('studio-lora'),
-              leading: const Icon(Icons.auto_awesome_outlined),
-              title: Text(l10n.loraTitle),
-              subtitle: Text(l10n.loraHint),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(Routes.lora),
-            ),
+          const Divider(),
+          ActionRow(
+            key: const Key('studio-lora'),
+            icon: Icons.auto_awesome_outlined,
+            title: l10n.loraTitle,
+            subtitle: l10n.studioLoraDescription,
+            onTap: () => context.push(Routes.lora),
           ),
-          Card(
-            child: ListTile(
-              key: const Key('studio-results'),
-              leading: const Icon(Icons.photo_library_outlined),
-              title: Text('${l10n.privateResults} (${results.length})'),
-              subtitle: Text(l10n.privateResultsHint),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(Routes.results),
-            ),
+          SectionHeading(title: l10n.studioSaved),
+          ActionRow(
+            key: const Key('studio-results-row'),
+            icon: Icons.photo_library_outlined,
+            title: '${l10n.privateResults} (${results.length})',
+            subtitle: l10n.privateResultsHint,
+            onTap: () => context.push(Routes.results),
           ),
         ],
       ),

@@ -9,6 +9,8 @@ import '../../library_providers.dart';
 import '../../providers.dart';
 import '../review/review_screen.dart';
 import '../privacy/app_lock.dart';
+import '../shared/screen_layout.dart';
+import 'resource_panel.dart';
 
 /// S24 (the library part) - how strictly the PC groups faces, how good a face must be to be kept,
 /// scan defaults, and the way into Sources, Backup and "Sort now".
@@ -43,6 +45,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          SectionHeading(title: l10n.settingsPrivacySection),
           SwitchListTile(
             key: const Key('app-lock'),
             contentPadding: EdgeInsets.zero,
@@ -84,6 +87,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push(Routes.storage),
           ),
+          SectionHeading(title: l10n.settingsLibrarySection),
           Text(l10n.settingsGrouping, style: text.titleMedium),
           const SizedBox(height: 8),
           SegmentedButton<String>(
@@ -183,7 +187,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => context.push(Routes.backup),
           ),
           const Divider(height: 32),
-          Text(l10n.settingsPc, style: text.titleMedium),
+          SectionHeading(title: l10n.settingsDeviceSection),
+          const ResourcePanel(),
           ListTile(
             key: const Key('settings-background'),
             contentPadding: EdgeInsets.zero,

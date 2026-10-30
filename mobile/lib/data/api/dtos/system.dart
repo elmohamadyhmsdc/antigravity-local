@@ -43,6 +43,7 @@ class GpuInfo {
 
 class Engines {
   const Engines({
+    this.reface = false,
     required this.refaceV3,
     required this.refaceV2,
     required this.dfmModels,
@@ -53,6 +54,7 @@ class Engines {
     required this.bodyDetection,
   });
 
+  final bool reface;
   final bool refaceV3;
   final bool refaceV2;
   final List<String> dfmModels;
@@ -63,6 +65,7 @@ class Engines {
   final bool bodyDetection;
 
   factory Engines.fromJson(Map<String, dynamic> json) => Engines(
+    reface: json['reface'] as bool? ?? false,
     refaceV3: field<bool>(json, 'reface_v3', 'engines'),
     refaceV2: field<bool>(json, 'reface_v2', 'engines'),
     dfmModels: list(json['dfm_models'], 'engines.dfm_models').cast<String>(),
@@ -115,6 +118,7 @@ class BusyInfo {
 
 class Capabilities {
   const Capabilities({
+    this.refaceProfiles = const {},
     required this.apiVersion,
     required this.serverId,
     required this.name,
@@ -128,6 +132,7 @@ class Capabilities {
     required this.busy,
   });
 
+  final Map<String, String> refaceProfiles;
   final String apiVersion;
   final String serverId;
   final String name;
@@ -145,6 +150,14 @@ class Capabilities {
   factory Capabilities.fromJson(Map<String, dynamic> json) {
     final model = map(json['embedding_model'], 'embedding_model');
     return Capabilities(
+      refaceProfiles: {
+        for (final entry
+            in (json['reface_profiles'] as Map<String, dynamic>? ?? {}).entries)
+          entry.key: field<String>(
+            map(entry.value, 'reface_profiles.${entry.key}'),
+            'restorer',
+          ),
+      },
       apiVersion: field<String>(json, 'api_version'),
       serverId: field<String>(json, 'server_id'),
       name: field<String>(json, 'name'),

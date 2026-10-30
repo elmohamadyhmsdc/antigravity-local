@@ -9,6 +9,7 @@ import '../../data/db/app_database.dart';
 import '../../data/files/file_store.dart';
 import '../../data/index/embedding_index.dart';
 import '../../data/repositories/library_repository.dart';
+import '../../data/repositories/face_suppression_store.dart';
 import 'scan_math.dart';
 
 class StoreOutcome {
@@ -70,70 +71,76 @@ class PhotoResultStore {
         if (analysis.faces[i].passesGate) i,
     ];
 
-    final inFile = await _facesOfMedia(media.id, frameNumber);
     final hits = await _index.nearest([
       for (final i in gated) analysis.faces[i].embedding,
     ]);
-
-    // ---- decide, per face: the same face again, or a new one --------------------------
-    final used = <int>{};
-    final faceTarget =
-        <
-          int,
-          int?
-        >{}; // analysis face index -> existing face id (null = new face)
-    for (var k = 0; k < gated.length; k++) {
-      final i = gated[k];
-      final face = analysis.faces[i];
-      final box = _box(face.bbox, w, h);
-      int? target;
-      for (final c in inFile) {
-        if (!used.contains(c.id) && iou(box, c.box) >= sameBoxIou) {
-          target = c.id;
-          break;
-        }
-      }
-      if (target == null) {
-        _Existing? closest;
-        var best = -1.0;
-        for (final c in inFile) {
-          if (used.contains(c.id)) continue;
-          final sim = cosine(c.vector, face.embedding);
-          if (sim > best) {
-            best = sim;
-            closest = c;
-          }
-        }
-        if (closest != null && best >= sameFileCosine) target = closest.id;
-      }
-      final hit = hits[k];
-      if (target == null &&
-          hit != null &&
-          hit.cosine >= duplicateCosine &&
-          !used.contains(hit.id)) {
-        target = hit.id;
-      }
-      if (target != null) used.add(target);
-      faceTarget[i] = target;
-    }
 
     final newIds = <int>[];
     final newVectors = <(int, Float32List)>[];
     var linked = 0, newBodies = 0;
 
     await _db.transaction(() async {
+      final inFile = await _facesOfMedia(media.id, frameNumber);
       final faceDbId = <int, int>{}; // analysis face index -> faces.id
+      final suppressed = await FaceSuppressionStore(
+        _db,
+      ).forAsset(media.assetId);
+      final ignored = <int>{};
+      final used = <int>{};
 
-      for (final i in gated) {
+      for (var k = 0; k < gated.length; k++) {
+        final i = gated[k];
         final face = analysis.faces[i];
-        final target = faceTarget[i];
+        if (FaceSuppressionStore.matches(
+          suppressed,
+          asset: media.assetId,
+          model: analysis.modelId,
+          embedding: face.embedding,
+          box: _box(face.bbox, w, h),
+          video: media.kind == 'video',
+          frame: frameNumber,
+        )) {
+          ignored.add(i);
+          continue;
+        }
+        // Ignore deleted detections before they can consume an existing match
+        // belonging to another face in this same frame.
+        final box = _box(face.bbox, w, h);
+        int? target;
+        for (final c in inFile) {
+          if (!used.contains(c.id) && iou(box, c.box) >= sameBoxIou) {
+            target = c.id;
+            break;
+          }
+        }
+        if (target == null) {
+          _Existing? closest;
+          var best = -1.0;
+          for (final c in inFile) {
+            if (used.contains(c.id)) continue;
+            final sim = cosine(c.vector, face.embedding);
+            if (sim > best) {
+              best = sim;
+              closest = c;
+            }
+          }
+          if (closest != null && best >= sameFileCosine) target = closest.id;
+        }
+        final hit = hits[k];
+        if (target == null &&
+            hit != null &&
+            hit.cosine >= duplicateCosine &&
+            !used.contains(hit.id)) {
+          target = hit.id;
+        }
+        if (target != null) used.add(target);
         if (target != null && await _refreshLinkedFace(target, face)) {
           faceDbId[i] = target;
           linked++;
           continue;
         }
-        // (a face the index still remembered but the user deleted meanwhile counts as a new face)
-        final box = _box(face.bbox, w, h);
+        // A stale index hit cannot recreate a deletion: suppression was checked
+        // inside this write transaction, after any manual correction committed.
         final id = await _db
             .into(_db.faces)
             .insert(
@@ -177,6 +184,7 @@ class PhotoResultStore {
 
       // detections of the faces, replacing earlier rows for the same (photo, face)
       for (final i in gated) {
+        if (!faceDbId.containsKey(i)) continue;
         final box = _box(analysis.faces[i].bbox, w, h);
         await _putDetection(
           media.id,
@@ -257,7 +265,7 @@ class PhotoResultStore {
 
         Float32List? weak;
         double? weakQuality;
-        if (fi != null && faceId == null) {
+        if (fi != null && faceId == null && !ignored.contains(fi)) {
           weak = analysis
               .faces[fi]
               .embedding; // a face the quality gate refused: weak evidence

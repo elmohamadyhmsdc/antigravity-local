@@ -10,6 +10,7 @@ import '../../library_providers.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
 import '../scan/scan_progress_card.dart';
+import '../shared/screen_layout.dart';
 
 /// S03 - Home: PC status chip, library stats from the local database, entry points.
 class HomeScreen extends ConsumerWidget {
@@ -34,13 +35,10 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.appTitle),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: _StatusChip(
-              status: status,
-              serverName: serverName,
-              onTap: () => ref.invalidate(serverStatusProvider),
-            ),
+          IconButton(
+            tooltip: l10n.settings,
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => context.push(Routes.settings),
           ),
           PopupMenuButton<String>(
             key: const Key('home-menu'),
@@ -57,108 +55,102 @@ class HomeScreen extends ConsumerWidget {
       ),
       body: ListView(
         key: const Key('home-list'),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
         children: [
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: _StatusChip(
+              status: status,
+              serverName: serverName,
+              onTap: () => ref.invalidate(serverStatusProvider),
+            ),
+          ),
+          const SizedBox(height: 20),
+          ScreenIntro(title: l10n.homeIntro, body: l10n.homeIntroHint),
           _StatusBanner(
             status: status,
             onPairAgain: () => ref.read(sessionProvider.notifier).forget(),
           ),
-          _StatsGrid(stats: stats),
-          Card(
-            child: ListTile(
-              key: const Key('open-insights'),
-              leading: const Icon(Icons.insights_outlined),
-              title: Text(l10n.insightsTitle),
-              subtitle: Text(l10n.insightsHint),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(Routes.insights),
+          const ScanProgressCard(),
+          if (review > 0)
+            ActionRow(
+              key: const Key('needs-review'),
+              icon: Icons.fact_check_outlined,
+              title: l10n.needsReview(review),
+              emphasized: true,
+              onTap: () => context.push(Routes.review),
             ),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              l10n.unsortedFaces(stats.unsorted),
+          if (stats.isEmpty) ...[
+            Text(
+              l10n.emptyLibraryTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              l10n.emptyLibraryBody,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
+            const SizedBox(height: 16),
+          ],
+          FilledButton.icon(
+            key: const Key('scan-library'),
+            onPressed: () => context.push(Routes.sources),
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            label: Text(l10n.scanLibrary),
           ),
-          const SizedBox(height: 16),
-          const ScanProgressCard(),
-          if (stats.isEmpty)
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
-                title: Text(l10n.emptyLibraryTitle),
-                subtitle: Text(l10n.emptyLibraryBody),
-              ),
-            ),
-          Card(
-            child: ListTile(
-              key: const Key('scan-library'),
-              leading: const Icon(Icons.document_scanner_outlined),
-              title: Text(l10n.scanLibrary),
-              subtitle: Text(l10n.scanLibraryHint),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(Routes.sources),
-            ),
+          SectionHeading(title: l10n.homeOrganize),
+          _StatsGrid(stats: stats),
+          const SizedBox(height: 12),
+          Text(
+            l10n.unsortedFaces(stats.unsorted),
+            style: Theme.of(context).textTheme.bodySmall,
           ),
-          if (review > 0)
-            Card(
-              child: ListTile(
-                key: const Key('needs-review'),
-                leading: const Icon(Icons.fact_check_outlined),
-                title: Text(l10n.needsReview(review)),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push(Routes.review),
-              ),
-            ),
-          if (backupDue)
-            Card(
-              color: Theme.of(context).colorScheme.tertiaryContainer,
-              child: ListTile(
-                key: const Key('backup-reminder'),
-                leading: const Icon(Icons.backup_outlined),
-                title: Text(
-                  last == null
-                      ? l10n.backupReminderNever
-                      : l10n.backupReminderOld,
-                ),
-                subtitle: Text(l10n.backupReminderBody),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push(Routes.backup),
-              ),
-            ),
-          Card(
-            child: ListTile(
-              key: const Key('try-detection'),
-              leading: const Icon(Icons.face_retouching_natural),
-              title: Text(l10n.tryDetectionTitle),
-              subtitle: Text(l10n.tryDetectionBody),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(Routes.analyze),
-            ),
+          SectionHeading(title: l10n.homeCreate),
+          ActionRow(
+            key: const Key('home-studio'),
+            icon: Icons.face_retouching_natural,
+            title: l10n.studioRefaceAction,
+            subtitle: l10n.studioRefaceDescription,
+            onTap: () => context.push(Routes.reface),
           ),
-          Card(
-            child: ListTile(
-              key: const Key('home-jobs'),
-              leading: const Icon(Icons.pending_actions_outlined),
-              title: Text(
-                '${l10n.navJobs} (${(ref.watch(jobsProvider).value ?? const []).where((j) => !const ['completed', 'failed', 'lost'].contains(j.status)).length})',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.go(Routes.jobs),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              key: const Key('home-results'),
-              leading: const Icon(Icons.photo_library_outlined),
-              title: Text(
+          ActionRow(
+            key: const Key('home-results'),
+            icon: Icons.photo_library_outlined,
+            title:
                 '${l10n.privateResults} (${(ref.watch(resultsProvider).value ?? const []).length})',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(Routes.results),
+            onTap: () => context.push(Routes.results),
+          ),
+          SectionHeading(title: l10n.homeActivity),
+          ActionRow(
+            key: const Key('home-jobs'),
+            icon: Icons.pending_actions_outlined,
+            title:
+                '${l10n.navJobs} (${(ref.watch(jobsProvider).value ?? const []).where((j) => !const ['completed', 'failed', 'lost'].contains(j.status)).length})',
+            onTap: () => context.go(Routes.jobs),
+          ),
+          ActionRow(
+            key: const Key('open-insights'),
+            icon: Icons.insights_outlined,
+            title: l10n.insightsTitle,
+            subtitle: l10n.insightsHint,
+            onTap: () => context.push(Routes.insights),
+          ),
+          if (backupDue)
+            ActionRow(
+              key: const Key('backup-reminder'),
+              icon: Icons.backup_outlined,
+              title: last == null
+                  ? l10n.backupReminderNever
+                  : l10n.backupReminderOld,
+              subtitle: l10n.backupReminderBody,
+              onTap: () => context.push(Routes.backup),
             ),
+          ActionRow(
+            key: const Key('try-detection'),
+            icon: Icons.center_focus_strong,
+            title: l10n.tryDetectionTitle,
+            subtitle: l10n.tryDetectionBody,
+            onTap: () => context.push(Routes.analyze),
           ),
         ],
       ),
@@ -268,14 +260,13 @@ class _StatusBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  text,
-                  key: const Key('status-banner'),
-                  style: TextStyle(color: fg),
-                ),
+              Text(
+                text,
+                key: const Key('status-banner'),
+                style: TextStyle(color: fg),
               ),
               if (status is ServerRevoked)
                 TextButton(
@@ -309,43 +300,56 @@ class _StatsGrid extends StatelessWidget {
       (l10n.statPhotos, stats.photos, Icons.photo_outlined),
       (l10n.statVideos, stats.videos, Icons.videocam_outlined),
     ];
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 2.1,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      children: [
-        for (final (label, value, icon) in tiles)
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Icon(icon, color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 12),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$value',
-                        key: Key('stat-$label'),
-                        style: Theme.of(context).textTheme.headlineSmall,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = MediaQuery.textScalerOf(context).scale(14) > 24 ? 1 : 2;
+        final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final (label, value, icon) in tiles)
+              SizedBox(
+                width: width,
+                child: Material(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(16),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => context.go(
+                      label == l10n.statPeople || label == l10n.statFaces
+                          ? Routes.people
+                          : Routes.library,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            icon,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            '$value',
+                            key: Key('stat-$label'),
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          Text(
+                            label,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
-                      Text(
-                        label,
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                    ],
+                    ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

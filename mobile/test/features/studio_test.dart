@@ -31,6 +31,10 @@ void main() {
   appTest('Studio links to Reface and private results', (tester, env) async {
     await open(tester, env, '/studio');
     expect(find.byKey(const Key('studio-reface')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('studio-results')),
+      200,
+    );
     await tester.tap(find.byKey(const Key('studio-results')));
     await tester.pumpAndSettle();
     expect(find.text('No private results yet'), findsOneWidget);
@@ -150,8 +154,7 @@ void main() {
           );
       await open(tester, env, '/results/x');
       expect(find.byKey(const Key('result-comparison')), findsOneWidget);
-      await tester.ensureVisible(find.widgetWithText(FilterChip, 'Favourite'));
-      await tester.pumpAndSettle();
+      await revealForTap(tester, find.widgetWithText(FilterChip, 'Favourite'));
       await tester.tap(find.widgetWithText(FilterChip, 'Favourite'));
       await tester.pumpAndSettle();
       expect(
@@ -162,30 +165,56 @@ void main() {
     session: testSession,
   );
 
-  appTest('Legacy hides unsupported mask and realism options', (
-    tester,
-    env,
-  ) async {
-    final person = await seedPerson(env.db, name: 'Sara');
-    await seedFace(env.db, personId: person, seed: 1);
-    env.picker.photo = tinyPng;
-    await open(tester, env, '/reface?person=$person');
-    await pickRefaceTarget(tester);
-    await tester.pumpAndSettle();
-    await next(tester);
-    await next(tester);
-    final engine = find.byKey(const ValueKey('quality-engine-v3'));
-    await tester.ensureVisible(engine);
-    await tester.tap(engine);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Legacy').last);
-    await tester.pumpAndSettle();
-    expect(find.text('Realism preset'), findsNothing);
-    expect(find.text('Use face region mask'), findsNothing);
-    expect(find.byKey(const Key('reface-identity-boost')), findsNothing);
-    expect(find.text('Face restoration'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  }, session: testSession);
+  appTest(
+    'one Reface pipeline explains quality and its automatic restorer',
+    (tester, env) async {
+      final person = await seedPerson(env.db, name: 'Sara');
+      await seedFace(env.db, personId: person, seed: 1);
+      env.picker.photo = tinyPng;
+      await open(tester, env, '/reface?person=$person');
+      await pickRefaceTarget(tester);
+      await tester.pumpAndSettle();
+      await next(tester);
+      await next(tester);
+      expect(find.text('V2'), findsNothing);
+      expect(find.text('V3 · HD'), findsNothing);
+      expect(find.text('Engine'), findsNothing);
+      expect(find.byKey(const Key('reface-identity-boost')), findsOneWidget);
+      final profile = find.byKey(const Key('reface-quality-profile'));
+      await tester.ensureVisible(profile);
+      await tester.tap(profile);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Less extra processing · no restoration by default'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Fast').last);
+      await tester.pumpAndSettle();
+      final parser = tester.widget<SwitchListTile>(
+        find.widgetWithText(SwitchListTile, 'Use face region mask'),
+      );
+      expect(parser.value, isFalse);
+      final restorer = find.byKey(const ValueKey('restorer-fast'));
+      await tester.ensureVisible(restorer);
+      await tester.tap(restorer);
+      await tester.pumpAndSettle();
+      expect(find.text('Starts with Off on this PC'), findsOneWidget);
+      expect(
+        find.text('Rebuild degraded detail · extra AI processing'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('CodeFormer').last);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('reface-restorer-description')))
+            .data,
+        contains('fidelity'),
+      );
+      expect(tester.takeException(), isNull);
+    },
+    session: testSession,
+  );
 
   appTest(
     'video finds its own people and allows target face selection without a reference photo',

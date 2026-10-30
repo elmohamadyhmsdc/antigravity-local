@@ -373,6 +373,12 @@ void main() {
             .onPressed,
         isNull,
       );
+      await revealForTap(
+        tester,
+        find.text(
+          'Backups are encrypted by default. Keep the password safe; it is never stored by the app. Older unencrypted backups can still be restored.',
+        ),
+      );
       expect(
         find.text(
           'Backups are encrypted by default. Keep the password safe; it is never stored by the app. Older unencrypted backups can still be restored.',
@@ -426,9 +432,15 @@ void main() {
 
         expect(find.byKey(const Key('scan-library')), findsOneWidget);
         expect(find.text('1 decision needs you'), findsOneWidget);
+        await revealForTap(tester, find.byKey(const Key('backup-reminder')));
         expect(find.byKey(const Key('backup-reminder')), findsOneWidget);
         expect(find.text('You have never made a backup'), findsOneWidget);
 
+        await revealForTap(
+          tester,
+          find.byKey(const Key('needs-review')),
+          delta: -180,
+        );
         await tester.tap(find.byKey(const Key('needs-review')));
         await _settle(tester);
         expect(find.text('Review (1)'), findsOneWidget);

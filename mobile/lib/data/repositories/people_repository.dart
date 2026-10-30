@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import '../db/app_database.dart';
 import '../files/file_store.dart';
 import '../index/embedding_index.dart';
+import 'face_suppression_store.dart';
 
 class PersonSummary {
   const PersonSummary({
@@ -306,6 +307,11 @@ class PeopleRepository {
   /// Faces and bodies come loose, then the person goes.
   Future<void> deletePerson(int id) => _db.transaction(() async {
     await _db.customUpdate(
+      'UPDATE faces SET review_dismissed = 1 WHERE person_id = ?',
+      variables: [Variable.withInt(id)],
+      updates: {_db.faces},
+    );
+    await _db.customUpdate(
       'UPDATE bodies SET link_method = NULL, link_confidence = NULL WHERE person_id = ?',
       variables: [Variable.withInt(id)],
       updates: {_db.bodies},
@@ -320,7 +326,7 @@ class PeopleRepository {
       final marks = _marks(chunk.length);
       final ids = [for (final i in chunk) Variable.withInt(i)];
       await _db.customUpdate(
-        'UPDATE faces SET person_id = ? WHERE id IN ($marks)',
+        'UPDATE faces SET person_id = ?, review_dismissed = 0 WHERE id IN ($marks)',
         variables: [Variable.withInt(personId), ...ids],
         updates: {_db.faces},
       );
@@ -366,13 +372,14 @@ class PeopleRepository {
         }
       });
 
-  /// Permanently removes faces (and their crops). The original photos are never touched.
+  /// Removes faces/crops and remembers their occurrences so rescanning cannot recreate them.
   Future<void> deleteFaces(Iterable<int> faceIds) async {
     final crops = <String?>[];
     await _db.transaction(() async {
       for (final chunk in _chunks(faceIds)) {
         final marks = _marks(chunk.length);
         final ids = [for (final i in chunk) Variable.withInt(i)];
+        await FaceSuppressionStore(_db).remember(chunk);
         final rows = await _db
             .customSelect(
               'SELECT crop_path FROM faces WHERE id IN ($marks)',
@@ -402,15 +409,22 @@ class PeopleRepository {
     await _index?.remove(faceIds);
   }
 
-  /// Hides faces from "new group" suggestions until the next scan finds them again.
+  /// Hides faces from automatic grouping and review until manually assigned.
   Future<void> dismissFaces(Iterable<int> faceIds) async {
-    for (final chunk in _chunks(faceIds)) {
-      await _db.customUpdate(
-        'UPDATE faces SET review_dismissed = 1 WHERE id IN (${_marks(chunk.length)})',
-        variables: [for (final i in chunk) Variable.withInt(i)],
-        updates: {_db.faces},
-      );
-    }
+    await _db.transaction(() async {
+      for (final chunk in _chunks(faceIds)) {
+        await _db.customUpdate(
+          'UPDATE faces SET review_dismissed = 1 WHERE id IN (${_marks(chunk.length)})',
+          variables: [for (final i in chunk) Variable.withInt(i)],
+          updates: {_db.faces},
+        );
+        await _db.customUpdate(
+          'DELETE FROM review_matches WHERE face_id IN (${_marks(chunk.length)})',
+          variables: [for (final id in chunk) Variable.withInt(id)],
+          updates: {_db.reviewMatches},
+        );
+      }
+    });
   }
 
   // ---- people vs people -----------------------------------------------------------
@@ -521,6 +535,24 @@ class PeopleRepository {
         'UPDATE review_matches SET person_id = ? WHERE person_id = ?',
         variables: [t, s],
         updates: {_db.reviewMatches},
+      );
+      await _db.customUpdate(
+        '''DELETE FROM review_matches WHERE
+        face_id IN (SELECT id FROM faces WHERE person_id IS NOT NULL)
+        OR EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = review_matches.face_id AND r.person_id = review_matches.person_id)
+      ''',
+        updates: {_db.reviewMatches},
+      );
+      await _db.customUpdate(
+        '''DELETE FROM review_duplicates WHERE EXISTS (
+        SELECT 1 FROM person_distinct d WHERE d.person_a = review_duplicates.person_a AND d.person_b = review_duplicates.person_b)
+      ''',
+        updates: {_db.reviewDuplicates},
+      );
+      await _db.customUpdate(
+        'DELETE FROM body_rejections WHERE person_id = ? AND body_id IN (SELECT id FROM bodies WHERE person_id = ?)',
+        variables: [t, t],
+        updates: {_db.bodyRejections},
       );
 
       final updates = PersonsCompanion(

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router.dart';
 import '../../data/repositories/media_queries.dart';
 import '../../library_providers.dart';
+import '../../l10n/app_localizations.dart';
 import '../shared/empty_state.dart';
 import '../media/video_media_view.dart';
 
@@ -32,6 +33,8 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
   static const _pageSize = 90;
 
   int? _count;
+  var _failed = false;
+  var _loadGeneration = 0;
   final _pages = <int, Future<List<MediaListItem>>>{};
   StreamSubscription<void>? _changes;
   Timer? _debounce;
@@ -62,12 +65,26 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
   }
 
   Future<void> _reload() async {
-    final count = await _queries.count(widget.filter);
-    if (!mounted) return;
-    setState(() {
-      _count = count;
-      _pages.clear();
-    });
+    final generation = ++_loadGeneration;
+    if (_failed && mounted) {
+      setState(() {
+        _failed = false;
+        _count = null;
+      });
+    }
+    try {
+      final count = await _queries.count(widget.filter);
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _failed = false;
+        _count = count;
+        _pages.clear();
+      });
+    } catch (_) {
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _failed = true);
+      }
+    }
   }
 
   Future<List<MediaListItem>> _page(int page) => _pages.putIfAbsent(
@@ -82,6 +99,7 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
   @override
   Widget build(BuildContext context) {
     final count = _count;
+    if (_failed) return RetryState(onRetry: _reload);
     if (count == null) return const LoadingBox();
     if (count == 0) return widget.empty;
     return GridView.builder(
@@ -96,6 +114,14 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
       itemBuilder: (context, index) => FutureBuilder<List<MediaListItem>>(
         future: _page(index ~/ _pageSize),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return IconButton(
+              tooltip: AppLocalizations.of(context).retry,
+              onPressed: () =>
+                  setState(() => _pages.remove(index ~/ _pageSize)),
+              icon: const Icon(Icons.refresh),
+            );
+          }
           final items = snapshot.data;
           final at = index % _pageSize;
           if (items == null || at >= items.length) {

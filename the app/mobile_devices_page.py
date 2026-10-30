@@ -84,8 +84,12 @@ def render_mobile_devices(controller=None, *, local_access=None):
             if status == 'running': st.success(f"Server online · {state['name']}")
             elif status == 'stopping': st.info('Stopping the mobile server…')
             else: st.info('Starting the mobile server…')
+            if recovery := state.get('recovery'):
+                code = recovery.get('last_code',0)
+                st.caption(f"Restarted automatically after a crash ({recovery['restarts']}×, last exit "
+                           f"0x{code & 0xffffffff:08X} at {recovery.get('at','')}). Phones reconnect on their own.")
         with stop:
-            if st.button('Stop server',key='mobile_stop',disabled=status!='running'):
+            if st.button('Stop server',key='mobile_stop',disabled=status=='stopping'):
                 action(controller.stop,'Stopping the mobile server…')
         if status != 'running': return
 

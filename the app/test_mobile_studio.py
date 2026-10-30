@@ -175,11 +175,14 @@ class StudioTests(unittest.TestCase):
                 def __init__(self,name):self.faces=[]
                 def add_face(self,face):self.faces.append(face)
             class Legacy:
-                def __init__(self,**kwargs):pass
+                def __init__(self,**kwargs):
+                    self_options.update(kwargs)
                 def reface_video_with_faceset_v2(self,target,faceset,**kwargs):
+                    selected_options.update(kwargs)
                     # Exactly what V2 does below five frames: returns an AVI with no callback.
-                    return SimpleNamespace(success=True,output_path=str(video))
+                    return SimpleNamespace(success=True,output_path=str(video),faces_swapped=4)
             commands=[]
+            self_options, selected_options = {}, {}
             def encode(command,**kwargs):
                 commands.append(command)
                 out=cv2.VideoWriter(command[-1],cv2.VideoWriter_fourcc(*'mp4v'),10,(32,32))
@@ -187,11 +190,16 @@ class StudioTests(unittest.TestCase):
                 out.release();return SimpleNamespace(returncode=0)
             modules={'reface_engine':SimpleNamespace(Faceset=Faceset,FaceData=lambda *args:None),
                      'reface_engine_v3':SimpleNamespace(RefaceEngineV3=None),
-                     'reface_engine_v2':SimpleNamespace(RefaceEngineV2=Legacy, EnhancementConfig=lambda **k:k, OcclusionConfig=lambda **k:k)}
-            job={'type':'reface_video_v2','params':{'source_faces':[]}}
+                     'reface_engine_v2':SimpleNamespace(RefaceEngineV2=Legacy, EnhancementConfig=lambda **k:k, OcclusionConfig=lambda **k:k, VideoConfig=lambda **k:k)}
+            job={'type':'reface_video_v2','params':{'source_faces':[],
+                 'target_embeddings':[encode_embedding(unit(1)),encode_embedding(unit(2))], 'target_indices':[1]}}
             with patch.dict('sys.modules',modules),patch('mobile_api.reface_runner.subprocess.run',side_effect=encode),patch('ffmpeg_utils.mux_audio',return_value=True):
                 meta=run_reface(job,directory,lambda *a,**k:None,lambda:False)
             self.assertEqual(meta['frames_done'],4)
+            self.assertEqual(meta['engine'],'v2')
+            self.assertEqual(selected_options['target_face_indices'],[1])
+            np.testing.assert_allclose(selected_options['target_face_embeddings'][1],unit(2))
+            self.assertFalse(self_options['video_config']['temporal_smoothing'])
             self.assertIn('libx264',commands[0]);self.assertEqual((directory/'result.mp4').read_bytes()[4:8],b'ftyp')
 
     def test_idempotency_and_other_phone_ownership(self):
@@ -269,8 +277,7 @@ class StudioTests(unittest.TestCase):
                        {"target_embeddings": [encode_embedding(np.full(512, np.nan))]}, {"preview": "yes"}):
             with self.assertRaises(ApiError):
                 validate_reface({**body, "params": {**body["params"], **change}}, caps)
-        with self.assertRaises(ApiError):
-            validate_reface({**body, "type": "reface_video_v2"}, caps)
+        validate_reface({**body, "type": "reface_video_v2"}, caps)
 
     def test_legacy_rejects_unsupported_quality_options(self):
         from mobile_api.studio_jobs import validate_reface
@@ -329,7 +336,7 @@ class StudioTests(unittest.TestCase):
             modules = {'reface_engine':SimpleNamespace(Faceset=Faceset,FaceData=lambda *a:None),
                        'reface_engine_v3':SimpleNamespace(RefaceEngineV3=None),
                        'reface_engine_v2':SimpleNamespace(RefaceEngineV2=Engine,
-                           EnhancementConfig=lambda **k:k,OcclusionConfig=lambda **k:k)}
+                           EnhancementConfig=lambda **k:k,OcclusionConfig=lambda **k:k,VideoConfig=lambda **k:k)}
             job={'type':'reface_image_v2','params':{'source_faces':[],'restorer':'none','use_occluder':False}}
             with patch.dict('sys.modules',modules): run_reface(job,directory,lambda *a,**k:None,lambda:False)
             self.assertEqual(seen['enhancement_config']['enhancer_type'],'none')

@@ -111,6 +111,18 @@ class Faces extends Table {
   IntColumn get createdAt => integer()();
 }
 
+/// Deletion decisions survive rescans and removal/reimport of the media row.
+/// Occurrences are normalised [x, y, w, h, frame] boxes; no crop is retained.
+@TableIndex(name: 'face_suppressions_asset', columns: {#assetId})
+@DataClassName('FaceSuppressionRow')
+class FaceSuppressions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get assetId => text()();
+  TextColumn get modelId => text()();
+  BlobColumn get embedding => blob()();
+  TextColumn get occurrences => text()();
+}
+
 @TableIndex(name: 'bodies_media_id', columns: {#mediaId})
 @TableIndex(name: 'bodies_person_id', columns: {#personId})
 @TableIndex(name: 'bodies_face_id', columns: {#faceId})

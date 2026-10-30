@@ -70,6 +70,8 @@ class JsonDatabase:
 
         self.persons: Dict[int, Dict[str, Any]] = {}
         self.faces: Dict[int, Dict[str, Any]] = {}
+        self.face_suppressions: Dict[int, Dict[str, Any]] = {}
+        self._suppression_by_path = None
         self.bodies: Dict[int, Dict[str, Any]] = {}
         self.media: Dict[int, Dict[str, Any]] = {}
 
@@ -110,6 +112,8 @@ class JsonDatabase:
             self.data_dir.mkdir(parents=True, exist_ok=True)
             for attr, name, _ in _COLLECTIONS:
                 items, next_id = {}, 1
+                if attr == "faces":
+                    self.face_suppressions = {}
                 path = self._file(name)
                 if path.exists():
                     try:
@@ -118,6 +122,8 @@ class JsonDatabase:
                         if isinstance(data, dict) and "items" in data:
                             items = {int(k): v for k, v in data["items"].items()}
                             next_id = data.get("next_id", 1)
+                            if attr == "faces":
+                                self.face_suppressions = {int(k): v for k, v in data.get("suppressed", {}).items()}
                     except Exception as e:
                         logger.error(f"Failed to load {name}: {e}")
                 setattr(self, attr, items)
@@ -126,6 +132,7 @@ class JsonDatabase:
                 setattr(self, id_attr, max(next_id, max(items, default=0) + 1))
             self._media_by_path = {norm_path(m["path"]): mid for mid, m in self.media.items() if m.get("path")}
             self._emb_cache = None
+            self._suppression_by_path = None
             self._disk_sig = self._signature()
             self.version += 1
 
@@ -157,7 +164,10 @@ class JsonDatabase:
                 try:
                     temp_file = path.with_suffix('.tmp')
                     with open(temp_file, 'w', encoding='utf-8') as f:
-                        json.dump({"next_id": getattr(self, id_attr), "items": items}, f,
+                        payload = {"next_id": getattr(self, id_attr), "items": items}
+                        if attr == "faces":
+                            payload["suppressed"] = self.face_suppressions
+                        json.dump(payload, f,
                                   indent=indent, separators=None if indent else (',', ':'), default=str)
                     os.replace(temp_file, path)
                 except Exception as e:
@@ -273,6 +283,7 @@ class JsonDatabase:
             for face in self.faces.values():
                 if face.get("person_id") == person_id:
                     face["person_id"] = None
+                    face["review_dismissed"] = True
 
             # Bodies linked straight to this person (no face of their own) come loose too
             for body in self.bodies.values():
@@ -519,7 +530,11 @@ class JsonDatabase:
             return
 
         old_pid = self.faces[face_id].get("person_id")
+        if person_id is not None:
+            self.faces[face_id]["review_dismissed"] = False
+            self.faces[face_id]["rejected_person_ids"] = [pid for pid in self.faces[face_id].get("rejected_person_ids") or () if pid != person_id]
         if old_pid == person_id:
+            self.save_db()
             return
             
         # If moving from another person, decrement their count
@@ -549,6 +564,9 @@ class JsonDatabase:
             if fid not in self.faces:
                 continue
             old_pid = self.faces[fid].get("person_id")
+            if person_id is not None:
+                self.faces[fid]["review_dismissed"] = False
+                self.faces[fid]["rejected_person_ids"] = [pid for pid in self.faces[fid].get("rejected_person_ids") or () if pid != person_id]
             if old_pid == person_id:
                 continue
             if old_pid and old_pid in self.persons:
@@ -566,12 +584,61 @@ class JsonDatabase:
 
         self.save_db()
 
+    def _remember_face_deletion(self, face):
+        sources = {}
+        source = face.get("source_path")
+        if source:
+            boxes = sources.setdefault(norm_path(source), [])
+            if face.get("bbox_width") and face.get("bbox_height"):
+                boxes.append([face.get("bbox_x") or 0, face.get("bbox_y") or 0,
+                              face["bbox_width"], face["bbox_height"], face.get("frame_number")])
+        for media in self.media.values():
+            for hit in media.get("detections") or ():
+                if len(hit) >= 8 and hit[2] == "f" and hit[3] == face["id"] and media.get("path"):
+                    boxes = sources.setdefault(norm_path(media["path"]), [])
+                    box = [*hit[4:8], hit[0]]
+                    if box not in boxes:
+                        boxes.append(box)
+        self.face_suppressions[face["id"]] = {"embedding": face.get("embedding"), "sources": sources or {"": []}}
+        self._suppression_by_path = None
+
+    def is_face_suppressed(self, source, embedding, bbox, frame_number=None, is_video=False,
+                           duplicate_distance=0.05, video_similar_distance=0.08):
+        """A deleted occurrence stays deleted, without banning that person in new photos."""
+        if self._suppression_by_path is None:
+            self._suppression_by_path = {}
+            for decision in self.face_suppressions.values():
+                for path, boxes in decision.get("sources", {}).items():
+                    self._suppression_by_path.setdefault(path, []).append((decision, boxes))
+        path = norm_path(source)
+        for key in (path, ""):
+            for decision, boxes in self._suppression_by_path.get(key, ()):
+                for x, y, w, h, frame in boxes:
+                    x, y, w, h = float(x), float(y), float(w), float(h)
+                    if frame != frame_number:
+                        continue
+                    bx, by, bw, bh = bbox
+                    inter = max(0, min(x+w, bx+bw)-max(x, bx)) * max(0, min(y+h, by+bh)-max(y, by))
+                    union = w*h + bw*bh - inter
+                    if union > 0 and inter / union >= 0.5:
+                        return True
+                if key == "" or is_video or not boxes:
+                    stored = np.asarray(decision.get("embedding"), np.float32)
+                    vector = np.asarray(embedding, np.float32)
+                    if stored.shape == vector.shape and stored.ndim == 1 and stored.size:
+                        norm = np.linalg.norm(stored) * np.linalg.norm(vector)
+                        threshold = 1.0 - (video_similar_distance if is_video and key else duplicate_distance)
+                        if norm > 0 and float(stored @ vector) / norm >= threshold:
+                            return True
+        return False
+
     def delete_face(self, face_id: int, delete_file: bool = True) -> bool:
         """Permanently delete a face from the database and optionally from disk."""
         self.refresh_if_changed()
         if face_id not in self.faces:
             return False
         face = self.faces[face_id]
+        self._remember_face_deletion(face)
         pid = face.get("person_id")
         if pid and pid in self.persons:
             self.persons[pid]["face_count"] = max(0, self.persons[pid].get("face_count", 0) - 1)
@@ -632,6 +699,8 @@ class JsonDatabase:
                 # "not this person" still holds once that person is part of the target
                 face["rejected_person_ids"] = sorted(
                     {target_person_id if p == source_person_id else p for p in rejected})
+            if face.get("person_id") == target_person_id:
+                face["rejected_person_ids"] = [p for p in face.get("rejected_person_ids") or () if p != target_person_id]
 
         # Move bodies that were linked to the source person directly
         for body in self.bodies.values():
@@ -641,6 +710,8 @@ class JsonDatabase:
             if rejected and source_person_id in rejected:
                 body["rejected_person_ids"] = sorted(
                     {target_person_id if p == source_person_id else p for p in rejected})
+            if body.get("person_id") == target_person_id:
+                body["rejected_person_ids"] = [p for p in body.get("rejected_person_ids") or () if p != target_person_id]
 
         target = self.persons[target_person_id]
         source = self.persons[source_person_id]

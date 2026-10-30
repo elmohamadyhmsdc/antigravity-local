@@ -3,6 +3,7 @@
 from typing import Callable
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -38,12 +39,20 @@ def build_system_router(ctx, require_device: Callable) -> APIRouter:
             "gpu": snap["gpu"],
             "engines": snap["engines"],
             "restorers": snap["restorers"],
+            "reface_profiles": snap.get("reface_profiles", {}),
             "lora_base_checkpoints": snap["lora_base_checkpoints"],
             "limits": {"max_image_px": ctx.max_image_px,
                        "max_upload_mb": ctx.workspace.max_upload_bytes // (1024 * 1024),
                        "blob_cache_mb": ctx.workspace.blob_cache_bytes // (1024 * 1024)},
             "busy": None if busy is None else busy.as_dict(),
         }
+
+    @router.get("/v1/resources")
+    async def resources(_: dict = Depends(require_device)):
+        snapshot = await run_in_threadpool(ctx.resources.snapshot)
+        reasons = await run_in_threadpool(ctx.resources.admission_reasons)
+        return JSONResponse({**snapshot, "admission_blocked": bool(reasons), "admission_reasons": reasons,
+                             "storage_scope": "server_scratch"}, headers={"Cache-Control": "no-store"})
 
     @router.post("/v1/pair/complete")
     async def pair_complete(body: PairRequest):

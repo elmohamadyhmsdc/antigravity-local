@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
+
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -20,33 +22,43 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: theme.colorScheme.outline),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium,
-            ),
-            if (body != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                body!,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainer,
+                  borderRadius: BorderRadius.circular(24),
                 ),
+                child: Icon(icon, size: 36, color: theme.colorScheme.primary),
               ),
-            ],
-            if (actionLabel != null) ...[
               const SizedBox(height: 20),
-              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall,
+              ),
+              if (body != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  body!,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+              if (actionLabel != null) ...[
+                const SizedBox(height: 20),
+                FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -66,6 +78,24 @@ class LoadingBox extends StatelessWidget {
   );
 }
 
+class RetryState extends StatelessWidget {
+  const RetryState({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return EmptyState(
+      icon: Icons.refresh,
+      title: l.loadFailedTitle,
+      body: l.loadFailedBody,
+      actionLabel: l.retry,
+      onAction: onRetry,
+    );
+  }
+}
+
 Future<bool> confirm(
   BuildContext context, {
   required String title,
@@ -78,6 +108,7 @@ Future<bool> confirm(
   final ok = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
+      scrollable: true,
       title: Text(title),
       content: Text(body),
       actions: [

@@ -28,8 +28,14 @@ class FaceGrid extends ConsumerStatefulWidget {
 
 class _FaceGridState extends ConsumerState<FaceGrid> {
   final _selected = <int>{};
+  var _selectMode = false;
 
-  bool get _selecting => _selected.isNotEmpty;
+  bool get _selecting => _selectMode || _selected.isNotEmpty;
+
+  void _clearSelection() => setState(() {
+    _selected.clear();
+    _selectMode = false;
+  });
 
   void _toggle(int id) => setState(() {
     if (!_selected.remove(id)) _selected.add(id);
@@ -41,7 +47,9 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
     final faces = ref.watch(facesProvider(widget.personId));
     return faces.when(
       loading: () => const LoadingBox(),
-      error: (e, _) => Center(child: Text('$e')),
+      error: (_, _) => RetryState(
+        onRetry: () => ref.invalidate(facesProvider(widget.personId)),
+      ),
       data: (items) {
         // faces that left (assigned elsewhere, deleted) drop out of the selection
         final ids = {for (final f in items) f.id};
@@ -56,6 +64,30 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
         }
         return Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Wrap(
+                spacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  TextButton.icon(
+                    key: const Key('face-selection-mode'),
+                    onPressed: _selecting
+                        ? _clearSelection
+                        : () => setState(() => _selectMode = true),
+                    icon: Icon(_selecting ? Icons.close : Icons.checklist),
+                    label: Text(
+                      _selecting ? l10n.clearSelection : l10n.selectFaces,
+                    ),
+                  ),
+                  if (_selectMode && _selected.isEmpty)
+                    TextButton(
+                      onPressed: () => setState(() => _selected.addAll(ids)),
+                      child: Text(l10n.selectAll),
+                    ),
+                ],
+              ),
+            ),
             Expanded(
               child: GridView.builder(
                 key: const Key('face-grid'),
@@ -78,13 +110,13 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
                 ),
               ),
             ),
-            if (_selecting)
+            if (_selected.isNotEmpty)
               _SelectionBar(
                 count: _selected.length,
                 inPerson: widget.personId != null,
                 canSetCover: widget.personId != null && _selected.length == 1,
                 onSelectAll: () => setState(() => _selected.addAll(ids)),
-                onClear: () => setState(_selected.clear),
+                onClear: _clearSelection,
                 onAssign: () => _assign(context),
                 onReject: () => _reject(context),
                 onDelete: () => _delete(context),
@@ -110,7 +142,7 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
     final target = await resolveChoice(ref, choice, faceIds: ids);
     if (!choice.isNew) await repo.assignFaces(ids, target);
     if (!mounted) return;
-    setState(_selected.clear);
+    _clearSelection();
     messenger.showSnackBar(
       SnackBar(content: Text(l10n.facesMoved(ids.length))),
     );
@@ -124,7 +156,7 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
         .read(peopleRepositoryProvider)
         .rejectFaces(ids, fromPersonId: widget.personId);
     if (!mounted) return;
-    setState(_selected.clear);
+    _clearSelection();
     messenger.showSnackBar(
       SnackBar(content: Text(l10n.facesRejected(ids.length))),
     );
@@ -142,7 +174,7 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
     );
     if (!ok || !mounted) return;
     await ref.read(peopleRepositoryProvider).deleteFaces(_selected.toList());
-    if (mounted) setState(_selected.clear);
+    if (mounted) _clearSelection();
   }
 
   Future<void> _cover(BuildContext context) async {
@@ -152,7 +184,7 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
         .read(peopleRepositoryProvider)
         .setAvatar(widget.personId!, _selected.single);
     if (!mounted) return;
-    setState(_selected.clear);
+    _clearSelection();
     messenger.showSnackBar(SnackBar(content: Text(l10n.coverChanged)));
   }
 }

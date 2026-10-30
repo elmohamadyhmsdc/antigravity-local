@@ -77,7 +77,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       loading: () => Scaffold(appBar: AppBar(), body: const LoadingBox()),
       error: (e, _) => Scaffold(
         appBar: AppBar(),
-        body: Center(child: Text('$e')),
+        body: RetryState(
+          onRetry: () => ref.invalidate(mediaRowProvider(widget.mediaId)),
+        ),
       ),
       data: (media) {
         if (media == null) {
@@ -405,7 +407,7 @@ class _WhoIsHere extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -414,11 +416,18 @@ class _WhoIsHere extends StatelessWidget {
                 style: Theme.of(context).textTheme.labelLarge,
               ),
               const SizedBox(height: 6),
+              if (faces.isNotEmpty) ...[
+                Text(
+                  l10n.mediaPeopleHint,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+              ],
               if (faces.isEmpty)
                 Text(mediaScanned ? l10n.noFacesInPhoto : l10n.notScannedYet)
               else
                 SizedBox(
-                  height: 40,
+                  height: MediaQuery.textScalerOf(context).scale(16) + 32,
                   child: ListView(
                     key: const Key('who-is-here'),
                     scrollDirection: Axis.horizontal,

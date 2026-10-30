@@ -20,7 +20,8 @@
     "undress": true,
     "lora_train": true,
     "lora_generate": true,
-    "body_detection": true
+    "body_detection": true,
+    "reface": true
   },
   "restorers": [
     "codeformer"
@@ -33,5 +34,22 @@
     "max_upload_mb": 2048,
     "blob_cache_mb": 20480
   },
-  "busy": null
+  "busy": null,
+  "reface_profiles": {
+    "fast": {
+      "restorer": "none",
+      "restore_size": 512,
+      "use_parser": false
+    },
+    "balanced": {
+      "restorer": "codeformer",
+      "restore_size": 512,
+      "use_parser": true
+    },
+    "detail": {
+      "restorer": "codeformer",
+      "restore_size": 512,
+      "use_parser": true
+    }
+  }
 }

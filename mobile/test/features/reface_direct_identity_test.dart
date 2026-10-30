@@ -301,7 +301,7 @@ void main() {
   );
 
   appTest(
-    'video targets and mixed gallery sources submit distinct selected identities without library people',
+    'unified Reface video and mixed gallery sources submit distinct selected identities without library people',
     (tester, env) async {
       final target = File('${env.tmp.path}/target.mp4');
       final sourcePhoto = File('${env.tmp.path}/source1.png');
@@ -386,7 +386,10 @@ void main() {
       await tester.pumpAndSettle();
       final request = jsonDecode(job.requestJson) as Map;
       final params = request['params'] as Map;
-      expect(request['type'], 'reface_video_v3');
+      expect(request['type'], 'reface_video');
+      expect(params['quality_profile'], 'balanced');
+      expect(params.containsKey('identity_boost'), isTrue);
+      expect(params['use_parser'], isTrue);
       expect(params['target_faces'], isNull);
       expect(params['target_indices'], [1]);
       expect(

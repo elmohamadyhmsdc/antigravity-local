@@ -178,6 +178,7 @@ void main() {
             'persons',
             'media',
             'faces',
+            'face_suppressions',
             'bodies',
             'face_rejections',
             'body_rejections',
@@ -350,6 +351,34 @@ void main() {
   });
 
   group('migrations', () {
+    test(
+      'v6 upgrade preserves faces and creates persistent deletion storage',
+      () async {
+        final file = File(p.join(dir.path, 'v6.db'));
+        final before = AppDatabase(NativeDatabase(file));
+        await before
+            .into(before.persons)
+            .insert(
+              PersonsCompanion.insert(name: const Value('Keep'), createdAt: 1),
+            );
+        await _addFace(before, personId: 1);
+        await before.close();
+        final legacy = raw.sqlite3.open(file.path);
+        legacy.execute(
+          'DROP TABLE face_suppressions; PRAGMA user_version = 6;',
+        );
+        legacy.close();
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
+        expect((await after.select(after.faces).get()).single.personId, 1);
+        expect((await after.select(after.persons).get()).single.name, 'Keep');
+        expect(await after.select(after.faceSuppressions).get(), isEmpty);
+        expect(
+          await after.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+      },
+    );
     // A database exactly as an older build left it: the current schema with everything newer
     // than [version] taken away again (DROP COLUMN needs SQLite 3.35+, which SQLCipher 4 is).
     Future<File> legacyDatabase(int version) async {
@@ -361,7 +390,7 @@ void main() {
       await fresh.close();
       final legacy = raw.sqlite3.open(file.path);
       legacy.execute(
-        'DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results;',
+        'DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results;',
       );
       legacy.execute('''
         DROP TABLE review_body_links; DROP TABLE review_duplicates; DROP TABLE review_groups;
@@ -516,7 +545,7 @@ void main() {
       await before.close();
       final legacy = raw.sqlite3.open(file.path);
       legacy.execute(
-        'DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results; PRAGMA user_version = 3;',
+        'DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; DROP TABLE jobs; DROP TABLE results; PRAGMA user_version = 3;',
       );
       legacy.close();
       final after = AppDatabase(NativeDatabase(file));
@@ -543,7 +572,7 @@ void main() {
         await before.close();
         final legacy = raw.sqlite3.open(file.path);
         legacy.execute(
-          'DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; PRAGMA user_version = 5;',
+          'DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; PRAGMA user_version = 5;',
         );
         legacy.close();
         final after = AppDatabase(NativeDatabase(file));
@@ -581,7 +610,7 @@ void main() {
       await before.close();
       final legacy = raw.sqlite3.open(file.path);
       legacy.execute(
-        'DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; ALTER TABLE jobs DROP COLUMN input_files; ALTER TABLE jobs DROP COLUMN details_json; PRAGMA user_version = 4;',
+        'DROP TABLE face_suppressions; DROP TABLE job_events; DROP TABLE identity_set_faces; DROP TABLE identity_sets; DROP TABLE dataset_items; DROP TABLE datasets; DROP TABLE loras; ALTER TABLE jobs DROP COLUMN input_files; ALTER TABLE jobs DROP COLUMN details_json; PRAGMA user_version = 4;',
       );
       legacy.close();
       final after = AppDatabase(NativeDatabase(file));

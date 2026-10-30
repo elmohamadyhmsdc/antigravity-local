@@ -25,7 +25,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from fractions import Fraction
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List, Optional
 from datetime import datetime
 
 import cv2
@@ -37,6 +37,8 @@ from face_restore import FaceRestorer, resolve_restorer_name
 from face_masking import FaceMasker, DEFAULT_REGIONS
 from face_compositor import CompositeConfig, FaceCompositor, config_from_preset, alignment_matrix
 from reface_tracking import FaceTracker
+from reface_selection import FaceSelector, match_reference, SELECT_MIN_SIMILARITY, SELECT_RECHECK_FRAMES
+from reface_video_detection import VideoFaceRecovery, detect_faces as detect_video_faces
 from reface_video_io import validate_video
 from face_swappers import SWAPPERS, available_swappers, load_swapper
 
@@ -152,60 +154,6 @@ def rate_arg(fps: float) -> str:
 
 # --- picking the faces the user ticked, by identity ----------------------------
 
-SELECT_MIN_SIMILARITY = 0.35   # nearest reference face must be at least this close
-SELECT_RECHECK_FRAMES = 12     # compatibility constant; selection now verifies every frame
-
-
-def match_reference(embedding, references: np.ndarray, selected: set,
-                    min_similarity: float = SELECT_MIN_SIMILARITY) -> bool:
-    """True when the nearest reference face is one the user selected.
-
-    Matching against *all* reference faces, not just the selected ones, is what
-    keeps a look-alike bystander from being swapped: they land on their own
-    reference face first.
-    """
-    if embedding is None or references is None or len(references) == 0:
-        return False
-    e = np.asarray(embedding, np.float32).ravel()
-    n = np.linalg.norm(e)
-    if not np.isfinite(n) or n < 1e-8:
-        return False
-    sims = references @ (e / n)
-    best = int(np.argmax(sims))
-    if len(sims) > 1 and float(np.partition(sims, -2)[-1] - np.partition(sims, -2)[-2]) < .05:
-        return False
-    return best in selected and float(sims[best]) >= min_similarity
-
-
-class FaceSelector:
-    """Which detected faces to swap, given the faces ticked on a reference frame.
-
-    insightface orders faces by detector score, so an index picked on the
-    first frame can point at somebody else a few frames later. Each track is
-    matched to the reference faces by identity on every frame, including crossings.
-    """
-
-    def __init__(self, reference_embeddings: Sequence, selected_indices: Sequence[int]):
-        refs = np.asarray(reference_embeddings, np.float32).reshape(len(reference_embeddings), -1)
-        if refs.shape[1] != 512 or not np.isfinite(refs).all():
-            raise ValueError("Invalid reference identity vectors")
-        norms = np.linalg.norm(refs, axis=1, keepdims=True)
-        if np.any(norms < 1e-8) or not selected_indices or any(i < 0 or i >= len(refs) for i in selected_indices):
-            raise ValueError("Invalid reference selection")
-        self.references = refs / np.maximum(norms, 1e-8)
-        self.selected = {int(i) for i in selected_indices}
-        self._decisions = {}
-
-    def reset(self):
-        self._decisions.clear()
-
-    def wants(self, track_id: int, frame_no: int, embed) -> bool:
-        """Verify the current face, including when a tracker ID was reassigned."""
-        # Recognition is already available for tracking: verify every frame.
-        decision = match_reference(embed(), self.references, self.selected)
-        return decision
-
-
 class RefaceEngineV3(RefaceEngine):
     VERSION = "3.0"
 
@@ -269,7 +217,8 @@ class RefaceEngineV3(RefaceEngine):
             self.restorer = FaceRestorer(model_name="__disabled__")  # available=False
 
         # Masks (ONNX parser + occluder(s), with graceful fallback)
-        self.masker = FaceMasker(providers=self.providers, occluders=occluders)
+        self.masker = FaceMasker(providers=self.providers, occluders=occluders,
+                                 load_parser=use_parser, load_occluder=use_occluder)
 
         # Optional DeepFaceLab DFM "pro" mode (per-person trained model)
         self.dfm = None
@@ -476,6 +425,7 @@ class RefaceEngineV3(RefaceEngine):
     def begin_video(self):
         """Reset per-video state: landmark tracks and the compositor's temporal smoothing."""
         self._reset_tracks()
+        self._video_recovery = VideoFaceRecovery()
         self.compositor.reset()
         self.compositor.config.temporal = True
 
@@ -485,9 +435,9 @@ class RefaceEngineV3(RefaceEngine):
         before the first frame. eval_reface.py drives this same method."""
         original = frame
         self._check_scene(frame, selector)
-        faces = self._detect(frame)
-        for face in faces:
-            self._embed(frame, face)
+        detector = lambda image: detect_video_faces(self.app, image)
+        accepts = (lambda face: selector.wants(0, frame_no, lambda: face.normed_embedding)) if selector else (lambda face: True)
+        faces = self._video_recovery.detect(frame, detector, accepts)
         faces, track_ids = self._smooth(faces)
         self.compositor.begin_frame()
         self._frame_outcomes = []
@@ -677,7 +627,8 @@ class RefaceEngineV3(RefaceEngine):
             if finalize:
                 validate_video(out_path, processed, fps)
             msg = f"V3 video {'stopped' if stopped else 'complete'} ({swaps} swaps in {processed} frames)"
-            return RefaceResult(True, str(out_path), msg, swaps, self._result_details(outcomes, frames_done=processed))
+            return RefaceResult(True, str(out_path), msg, swaps, self._result_details(
+                outcomes, frames_done=processed, frames_recovered=self._video_recovery.recovered))
         except Exception as e:
             import traceback
             traceback.print_exc()

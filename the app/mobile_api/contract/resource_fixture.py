@@ -1,0 +1,20 @@
+"""Deterministic resource example shared by contract generation and tests."""
+
+
+def resource_fixture():
+    return {
+        "sampled_at": "2026-10-30T12:00:00+00:00",
+        "ram": {"total_bytes": 17179869184, "available_bytes": 8589934592, "used_percent": 50},
+        "app_ram_bytes": 2147483648,
+        "processes_complete": True,
+        "processes": [{"pid": 1234, "name": "python.exe", "ram_bytes": 2147483648}],
+        "gpus": [{"index": 0, "uuid": "GPU-fixture", "name": "Example NVIDIA GPU",
+                  "total_bytes": 6442450944, "used_bytes": 2147483648, "free_bytes": 4294967296,
+                  "utilization_percent": 25, "temperature_c": 55, "app_used_bytes": None}],
+        "disk": {"total_bytes": 1099511627776, "used_bytes": 549755813888, "free_bytes": 549755813888},
+        "app_storage_bytes": 104857600,
+        "storage_complete": True,
+        "storage_sampled_at": "2026-10-30T12:00:00+00:00",
+        "storage_scope": "server_scratch",
+        "warnings": [], "alerts": [], "admission_blocked": False, "admission_reasons": [],
+    }

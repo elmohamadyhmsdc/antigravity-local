@@ -140,6 +140,7 @@ class CapabilityProbe:
         has_swapper = self._has("models", "inswapper_128.onnx")
         venv_ai = self._has("venv_ai", "Scripts", "python.exe")
         return {
+            "reface": has_swapper,
             "reface_v3": has_swapper and bool(self.restorers()),
             "reface_v2": has_swapper,
             "dfm_models": self.dfm_models(),
@@ -152,5 +153,8 @@ class CapabilityProbe:
         }
 
     def snapshot(self) -> Dict:
-        return {"gpu": self.gpu(), "engines": self.engines(), "restorers": self.restorers(),
+        from reface_config import profile_catalog
+        restorers = self.restorers()
+        return {"gpu": self.gpu(), "engines": self.engines(), "restorers": restorers,
+                "reface_profiles": profile_catalog(restorers),
                 "lora_base_checkpoints": self.lora_base_checkpoints()}

@@ -30,6 +30,7 @@ from .tls import ensure_cert
 from .workspace import Workspace
 from .admin import CONTROL_FILE, PROTOCOL
 from .lan_discovery import LanResponder, NetworkMonitor, DISCOVERY_PORT
+from .supervisor import launch_token
 
 DEFAULT_WORKSPACE = APP_DIR / "mobile_workspace"
 DEFAULT_PORT = 8443
@@ -55,7 +56,8 @@ def write_control(ctx):
     path = ctx.workspace.root/CONTROL_FILE
     temporary = path.with_suffix('.tmp')
     temporary.write_text(json.dumps({'protocol':PROTOCOL,'admin_token':ctx.admin_token,
-        'pair_port':ctx.pair_port,'api_port':ctx.api_port,'server_id':ctx.auth.server_id,'pid':os.getpid()}),encoding='utf-8')
+        'pair_port':ctx.pair_port,'api_port':ctx.api_port,'server_id':ctx.auth.server_id,'pid':os.getpid(),
+        'launch':launch_token()}),encoding='utf-8')
     os.replace(temporary,path)
 
 

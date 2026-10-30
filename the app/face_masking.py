@@ -99,7 +99,8 @@ def _layout(shape):
 class FaceMasker:
     def __init__(self, parser_path: Optional[str] = None,
                  occluder_path: Optional[str] = None, providers=None,
-                 occluders: Optional[List[str]] = None):
+                 occluders: Optional[List[str]] = None,
+                 load_parser: bool = True, load_occluder: bool = True):
         providers = providers or ["CUDAExecutionProvider", "CPUExecutionProvider"]
         self.parser = None
         self.occluder = None          # first occluder session; None means no occlusion handling
@@ -115,7 +116,7 @@ class FaceMasker:
             names = occluders or DEFAULT_OCCLUDERS
             occ_paths = [MODELS_DIR / OCCLUDER_FILES.get(n, f"{n}.onnx") for n in names]
 
-        if pp.exists():
+        if load_parser and pp.exists():
             try:
                 # The ArgMax patch assumes class logits on axis 1 (NCHW).
                 patched = _parser_session_with_argmax(pp, providers)
@@ -129,10 +130,10 @@ class FaceMasker:
                       f"{', argmax on GPU' if self._parser_argmax else ''})")
             except Exception as e:
                 print(f"[MASK] parser load failed: {e}")
-        else:
+        elif load_parser:
             print(f"[MASK] parser not found: {pp} (using box region mask)")
 
-        for op in occ_paths:
+        for op in occ_paths if load_occluder else []:
             if not op.exists():
                 print(f"[MASK] occluder not found: {op}")
                 continue

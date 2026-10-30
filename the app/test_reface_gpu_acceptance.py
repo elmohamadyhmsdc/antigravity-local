@@ -9,8 +9,8 @@ def main():
     sys.path.insert(0, str(Path.cwd()))
     import cv2
     import numpy as np
-    from reface_engine import Faceset, FaceData
-    from reface_engine_v3 import RefaceEngineV3
+    from reface import RefaceEngine, Faceset, FaceData
+    from reface_config import QUALITY_PROFILES
     from reface_video_io import validate_video
     from job_manager import Job, JobStatus, finish_v3_video
 
@@ -18,10 +18,11 @@ def main():
     parser.add_argument('--source',type=Path,required=True)
     parser.add_argument('--target',type=Path,required=True)
     parser.add_argument('--output',type=Path,default=Path('../mobile/build/reface-acceptance'))
+    parser.add_argument('--quality-profile', choices=QUALITY_PROFILES, default='balanced')
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True,exist_ok=True)
-    engine = RefaceEngineV3(output_dir=str(out/'render'))
+    engine = RefaceEngine(output_dir=str(out/'render'), quality_profile=args.quality_profile)
     try:
         source_img, target_img = cv2.imread(str(args.source)), cv2.imread(str(args.target))
         assert source_img is not None and target_img is not None, 'Choose readable source and target photos'
@@ -35,7 +36,7 @@ def main():
         refs = [f.normed_embedding.tolist() for f in faces]
         image = out/'two-person.png'
         cv2.imwrite(str(image),frame)
-        result = engine.reface_image_v3(str(image),source,[index],refs)
+        result = engine.reface_image(str(image),source,[index],refs)
         assert result.success and result.faces_swapped==1, result
         rendered = cv2.imread(result.output_path)
         assert np.array_equal(rendered[:,:600],frame[:,:600]), 'Unselected person/background changed in lossless photo'
@@ -44,13 +45,13 @@ def main():
         for _ in range(9): engine._write(writer,proc,frame)
         engine._close_writer(writer,proc)
         counts=[]
-        part1 = engine.reface_video_v3(str(video),source,[index],target_face_embeddings=refs,finalize=False,
+        part1 = engine.reface_video(str(video),source,[index],target_face_embeddings=refs,finalize=False,
                                       progress_callback=lambda count,total:(counts.append(count) or count<3))
         assert part1.success and counts[-1]==3, part1
-        part2 = engine.reface_video_v3(str(video),source,[index],target_face_embeddings=refs,finalize=False,resume_from_frame=3)
+        part2 = engine.reface_video(str(video),source,[index],target_face_embeddings=refs,finalize=False,resume_from_frame=3)
         assert part2.success, part2
-        job = Job(id='gpu-acceptance',job_type='reface_video_v3',status=JobStatus.RUNNING,progress=0,message='',created_at='',
-                  frames_done=3,part_files=[part1.output_path])
+        job = Job(id='gpu-acceptance',job_type='reface_video',status=JobStatus.RUNNING,progress=0,message='',created_at='',
+                  params={'quality_profile': args.quality_profile}, frames_done=3,part_files=[part1.output_path])
         joined = finish_v3_video(job,part2.output_path,6,str(video))
         info = validate_video(joined,9,30000/1001)
         report = dict(photo_faces_swapped=result.faces_swapped,unselected_photo_unchanged=True,

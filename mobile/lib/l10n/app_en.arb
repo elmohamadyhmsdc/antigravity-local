@@ -386,7 +386,7 @@
     }
   },
   "deletePerson": "Delete person",
-  "deletePersonBody": "{count, plural, =1{Their 1 face becomes unsorted.} other{Their {count} faces become unsorted.}} Nothing else is deleted.",
+  "deletePersonBody": "{count, plural, =1{Their 1 face becomes unsorted and stays out of automatic groups.} other{Their {count} faces become unsorted and stay out of automatic groups.}} You can still assign them manually. Nothing else is deleted.",
   "@deletePersonBody": {
     "placeholders": {
       "count": {
@@ -1032,8 +1032,8 @@
   "videoTrimEnd": "End (seconds, optional)",
   "selectSourcePerson": "Choose source person",
   "sourceFacesHint": "Select clear faces of the same person. The best 20 are selected by default.",
-  "refaceHd": "HD",
-  "refaceLegacy": "Legacy",
+  "refaceHd": "V3 · HD",
+  "refaceLegacy": "V2",
   "refacePro": "Pro · DFM",
   "refaceEngine": "Engine",
   "dfmModel": "DFM model",
@@ -1267,9 +1267,51 @@
   "refaceReference": "Choose a photo of the person to replace",
   "refaceReferenceHint": "Select their face in a reference photo. Only matching people in the video will be replaced.",
   "refaceAllVideoFaces": "Replace all video faces instead",
+  "refaceAllFaces": "Replace all faces",
+  "refaceQualityProfile": "Quality & processing time",
+  "refaceFast": "Fast",
+  "refaceFastSummary": "Less extra processing · no restoration by default",
+  "refaceFastDescription": "Uses the same Reface pipeline with restoration and face parsing off by default. A good starting point for long videos; fine face detail can be softer. Occlusion protection stays on.",
+  "refaceBalanced": "Balanced",
+  "refaceBalancedSummary": "Detail and processing cost · recommended starting point",
+  "refaceBalancedDescription": "Adds face restoration and face-region blending. Automatic prefers GPEN 512 when installed, then an available alternative. More processing than Fast, with more restored detail.",
+  "refaceDetail": "More detail",
+  "refaceDetailSummary": "Larger face crops when available · more processing",
+  "refaceDetailDescription": "Automatic prefers GPEN 1024 when installed, otherwise an available alternative. Useful for large close-up faces; higher resolution costs more processing and does not guarantee a closer likeness.",
+  "refaceAutoSummary": "Uses the chosen quality profile",
+  "refaceAutoStartsWith": "Starts with {model} on this PC",
+  "@refaceAutoStartsWith": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "refaceAutoDescription": "Uses the available default for the selected quality profile. Fast skips restoration; Balanced prefers GPEN 512; More detail prefers GPEN 1024. If needed, the PC uses another installed model.",
+  "refaceOffSummary": "Least restoration work · raw swap detail",
+  "refaceOffDescription": "Skips the restoration stage while still swapping faces. Reduces processing and keeps the raw swapped face; fine details can be softer.",
+  "refaceGpen512Summary": "Balanced face detail · 512 px crop",
+  "refaceGpen512Description": "A balanced starting point for restored face detail and processing cost in this app. Works on a 512 px face crop and generally needs less processing than GPEN 1024.",
+  "refaceGpen1024Summary": "Higher face resolution · heavier processing",
+  "refaceGpen1024Description": "Restores a 1024 px face crop. Can help large close-up faces, with more processing and memory than the 512 model. Higher resolution does not guarantee a better likeness.",
+  "refaceCodeformerSummary": "Rebuild degraded detail · extra AI processing",
+  "refaceCodeformerDescription": "Repairs degraded facial detail with a tradeoff between reconstructed detail and fidelity. It can change fine facial features, so compare a preview when likeness matters.",
+  "refaceGfpganSummary": "General face restoration · extra AI processing",
+  "refaceGfpganDescription": "Restores blurry or degraded facial detail using learned face patterns. Useful as an alternative look; compare a preview for both texture and likeness.",
+  "refaceRestoreformerSummary": "Alternative face restoration · extra AI processing",
+  "refaceRestoreformerDescription": "Reconstructs degraded facial detail using learned face information. Try it when other restorers do not suit the face; processing time and likeness depend on the input and PC.",
+  "refaceOtherModelSummary": "PC-provided restoration model",
+  "refaceOtherModelDescription": "This model is available on the PC. No speed or likeness comparison is defined here; use a short preview to compare it.",
+  "refaceRestorationIntro": "Restoration improves face detail after swapping. Model sizes describe face crops, not the output photo or video resolution.",
+  "refaceSpeedNote": "Processing time depends on the PC, frame size and number of faces. Compare a short preview for both detail and likeness.",
+  "refacePhotosIdentity": "Source photos & videos",
+  "refaceTrainedIdentity": "Trained identity model",
+  "refaceIdentityMethod": "Identity source",
+  "refaceUnifiedUnavailable": "Unified Reface is unavailable. Update the PC server and check its face-swap model.",
+  "refaceAllFacesHint": "Use the source identity for everyone in this photo or video, including people who appear later. No target face selection is needed.",
   "refacePreview": "Render a preview",
   "refacePreviewHint": "Try these settings first. Video previews render up to 3 seconds; return here to adjust settings or start the full job.",
-  "refaceLegacyHint": "Legacy uses automatic OpenCV enhancement and its own occlusion protection.",
+  "refaceLegacyHint": "V2 processes every video frame and keeps the selected people matched by identity. It uses automatic OpenCV enhancement and occlusion protection.",
   "refaceDfmHint": "The trained model supplies face detail; restoration is not applied.",
   "refaceIdentityBoost": "Identity strength",
   "refaceSwapped": "Successful face swaps",
@@ -1295,12 +1337,108 @@
   "refaceSourceMedia": "Selected source media",
   "refaceClearSourceMedia": "Clear selected source media",
   "refaceSourceMediaCount": "{count} source files analysed",
-  "@refaceSourceMediaCount": { "placeholders": { "count": { "type": "int" } } },
+  "@refaceSourceMediaCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "refaceReadingVideo": "Reading video frames…",
   "refaceDetectShownFrame": "Find faces in the frame shown",
   "refaceFaceAppearances": "{count, plural, =1{1 appearance} other{{count} appearances}}",
-  "@refaceFaceAppearances": { "placeholders": { "count": { "type": "int" } } },
+  "@refaceFaceAppearances": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "refaceVideoReadTimeout": "Reading this video took too long. Try a shorter clip or choose the video again.",
   "refaceVideoPeopleFound": "{count, plural, =1{1 person found in this clip} other{{count} people found in this clip}}",
-  "@refaceVideoPeopleFound": { "placeholders": { "count": { "type": "int" } } }
+  "@refaceVideoPeopleFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeIntro": "A little more organized.",
+  "homeIntroHint": "Find your people. Make something new.",
+  "homeOrganize": "Your library",
+  "homeCreate": "Make something yours",
+  "homeActivity": "Pick up where you left off",
+  "studioIntro": "What would you like to create?",
+  "studioTools": "Choose a tool",
+  "studioSaved": "Your creations",
+  "studioRefaceAction": "Replace a face",
+  "studioRestyleAction": "Try a new look",
+  "studioLoraAction": "Create a character",
+  "studioRefaceDescription": "Choose a photo or clip, then the person to replace.",
+  "studioRestyleDescription": "Describe a new look for a photo.",
+  "studioLoraDescription": "Build a character from photos, train it, then create.",
+  "clearFilters": "Clear filters",
+  "peopleNoMatches": "No people match your search",
+  "clearSearch": "Clear search",
+  "jobsInProgress": "In progress",
+  "workflowProgress": "Step {current} of {total}",
+  "settingsLibrarySection": "Library & scanning",
+  "settingsPrivacySection": "Privacy & storage",
+  "settingsDeviceSection": "PC & background activity",
+  "@workflowProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "resultsNoMatches": "No results match these filters",
+  "storageSavedTitle": "Saved on your phone",
+  "storageCategories": "Storage by category",
+  "storageManage": "Manage saved files",
+  "storageModels": "Character models",
+  "storageOther": "Other files",
+  "storageTemporary": "Temporary files",
+  "storageOriginalsHint": "Your original photos and videos stay in the device gallery.",
+  "reviewIntro": "Help your library recognize the right people.",
+  "permissionsHeadline": "Make it work for you",
+  "manualHeadline": "Connect by address",
+  "connectionHeadline": "Find your PC",
+  "backgroundHeadline": "Keep your work moving",
+  "backupHeadline": "Keep your library safe",
+  "mergeHeadline": "The same person?",
+  "mergeIntro": "Compare the faces, then choose which profile to keep.",
+  "datasetEditorIntro": "Choose the photos to train with",
+  "datasetEditorHint": "Keep clear, varied views of the same person. Include at least 5 photos to start training.",
+  "loraTrainHeadline": "Train your character",
+  "loraGenerateHeadline": "Create with your character",
+  "analyzeHeadline": "Who is in this photo?",
+  "loadFailedTitle": "Could not load this screen",
+  "loadFailedBody": "Your saved data has not changed. Try loading this screen again.",
+  "mediaPeopleHint": "Tap a face to see or change who it belongs to.",
+  "jobProgressTitle": "Progress",
+  "jobDetailsAdvanced": "Processing details",
+  "resultsBrowseHint": "Your creations, saved on this phone.",
+  "selectFaces": "Select faces",
+  "storageRemoveSaved": "Remove saved files",
+  "resourcesTitle": "PC resources",
+  "resourcesSubtitle": "RAM, GPU memory and storage on the PC doing your AI work.",
+  "resourcesUnavailable": "Could not read PC resources. Connect to the PC and make sure its server supports resource monitoring.",
+  "resourcesUnknown": "Unavailable",
+  "resourcesAppRam": "Application RAM (all PC workers)",
+  "resourcesRamAvailable": "System RAM available",
+  "resourcesSystemRam": "System RAM usage",
+  "resourcesGpuTotal": "Whole GPU VRAM used",
+  "resourcesAppVram": "Application compute VRAM",
+  "resourcesDiskAvailable": "PC workspace disk available",
+  "resourcesScratch": "Server temporary files",
+  "resourcesStoragePartial": "Folder size is still counting or partially unavailable.",
+  "resourcesProcessPartial": "Some application processes could not be measured.",
+  "resourcesWaiting": "Waiting for PC resources",
+  "resourcesScopeHint": "These readings describe the PC, not this phone. Shared RAM pages may be counted more than once. Whole GPU usage includes other apps; application VRAM may be unavailable with the PC driver. Updates every 5 seconds while this panel is visible.",
+  "resourcesLimitsHint": "Set optional admission thresholds in PC Settings → PC resources & protection. They delay new compute work; they are not hard memory caps for running tasks.",
+  "resourcesUpdated": "Last sample"
 }

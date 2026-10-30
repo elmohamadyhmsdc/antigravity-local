@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api/pairing_payload.dart';
 import '../../l10n/app_localizations.dart';
+import '../shared/screen_layout.dart';
 import 'pairing_controller.dart';
 import 'pairing_scope.dart';
 
@@ -65,6 +66,7 @@ class _ManualPairScreenState extends ConsumerState<ManualPairScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text(l10n.confirmFingerprintTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -109,12 +111,18 @@ class _ManualPairScreenState extends ConsumerState<ManualPairScreen> {
     return PairingScope(
       child: Scaffold(
         appBar: AppBar(title: Text(l10n.manualTitle)),
+        bottomNavigationBar: StickyActionBar(
+          child: FilledButton(
+            key: const Key('connect'),
+            onPressed: _submit,
+            child: Text(l10n.manualConnect),
+          ),
+        ),
         body: SafeArea(
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              Text(l10n.manualIntro),
-              const SizedBox(height: 20),
+              ScreenIntro(title: l10n.manualHeadline, body: l10n.manualIntro),
               Form(
                 key: _formKey,
                 child: Column(
@@ -164,11 +172,6 @@ class _ManualPairScreenState extends ConsumerState<ManualPairScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              FilledButton(
-                key: const Key('connect'),
-                onPressed: _submit,
-                child: Text(l10n.manualConnect),
-              ),
             ],
           ),
         ),

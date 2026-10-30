@@ -6,6 +6,7 @@ import '../../core/router.dart';
 import '../../data/platform/platform_services.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../shared/screen_layout.dart';
 
 /// S02 - Permissions: says why each one is wanted before Android asks. All optional.
 class PermissionsScreen extends ConsumerStatefulWidget {
@@ -89,9 +90,9 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
-                    child: Text(l10n.permissionsIntro),
+                  ScreenIntro(
+                    title: l10n.permissionsHeadline,
+                    body: l10n.permissionsIntro,
                   ),
                   for (final (permission, icon, title, why) in rows)
                     _PermissionCard(
@@ -113,8 +114,8 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
+            StickyActionBar(
+              avoidKeyboard: false,
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
@@ -182,7 +183,6 @@ class _PermissionCard extends StatelessWidget {
                 Expanded(
                   child: Text(title, style: theme.textTheme.titleMedium),
                 ),
-                trailing,
               ],
             ),
             const SizedBox(height: 8),
@@ -192,6 +192,13 @@ class _PermissionCard extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (state != PermissionState.blocked) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: trailing,
+              ),
+            ],
             if (state == PermissionState.blocked)
               Align(
                 alignment: Alignment.centerLeft,

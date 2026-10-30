@@ -38,8 +38,12 @@ class PlanApplier {
     for (final a in plan.assignments) {
       if (!a.isAuto || !people.contains(a.personId)) continue;
       assigned += await _db.customUpdate(
-        'UPDATE faces SET person_id = ? WHERE id = ? AND person_id IS NULL',
-        variables: [Variable.withInt(a.personId), Variable.withInt(a.faceId)],
+        'UPDATE faces SET person_id = ? WHERE id = ? AND person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id = ?)',
+        variables: [
+          Variable.withInt(a.personId),
+          Variable.withInt(a.faceId),
+          Variable.withInt(a.personId),
+        ],
         updates: {_db.faces},
       );
     }
@@ -48,7 +52,7 @@ class PlanApplier {
       if (!g.autoCreate || g.faceIds.isEmpty) continue;
       final rows = await _db
           .customSelect(
-            'SELECT id, quality_score FROM faces WHERE person_id IS NULL AND id IN (${List.filled(g.faceIds.length, '?').join(',')})',
+            'SELECT id, quality_score FROM faces WHERE person_id IS NULL AND review_dismissed = 0 AND id IN (${List.filled(g.faceIds.length, '?').join(',')})',
             variables: [for (final id in g.faceIds) Variable.withInt(id)],
             readsFrom: {_db.faces},
           )
@@ -105,12 +109,13 @@ class PlanApplier {
     for (final l in plan.bodyLinks) {
       if (!l.isAuto || !people.contains(l.personId)) continue;
       linked += await _db.customUpdate(
-        'UPDATE bodies SET person_id = ?, link_method = ?, link_confidence = ? WHERE id = ? AND person_id IS NULL',
+        'UPDATE bodies SET person_id = ?, link_method = ?, link_confidence = ? WHERE id = ? AND person_id IS NULL AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = bodies.id AND r.person_id = ?) AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.id = bodies.face_id AND f.person_id IS NOT NULL)',
         variables: [
           Variable.withInt(l.personId),
           Variable.withString(l.method),
           Variable.withReal(l.confidence),
           Variable.withInt(l.bodyId),
+          Variable.withInt(l.personId),
         ],
         updates: {_db.bodies},
       );

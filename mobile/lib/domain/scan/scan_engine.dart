@@ -424,10 +424,14 @@ class ScanEngine {
       } on VideoScanPaused {
         return _stop(row.id, PauseReason.user);
       } on ApiException catch (e) {
-        if (e.isGpuBusy) {
+        if (e.isGpuBusy || e.isResourcePressure) {
           busy++;
           if (busy > _policy.busyRetries) {
-            return _stop(row.id, PauseReason.pcBusy);
+            return _stop(
+              row.id,
+              PauseReason.pcBusy,
+              e.isResourcePressure ? e.message : null,
+            );
           }
           _emit(snapshot(phase: ScanPhase.waiting, message: e.message));
           if (!await _sleep(e.retryAfter ?? _policy.defaultBusyWait)) {

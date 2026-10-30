@@ -7,6 +7,7 @@ import '../../data/repositories/insights_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../shared/empty_state.dart';
+import '../shared/screen_layout.dart';
 
 final insightsProvider = StreamProvider.autoDispose<LibraryInsights>(
   (ref) => InsightsRepository(ref.watch(databaseProvider)).watch(),
@@ -24,7 +25,8 @@ class InsightsScreen extends ConsumerWidget {
           .watch(insightsProvider)
           .when(
             loading: () => const LoadingBox(),
-            error: (e, _) => Center(child: Text('$e')),
+            error: (_, _) =>
+                RetryState(onRetry: () => ref.invalidate(insightsProvider)),
             data: (data) {
               if (data.stats.isEmpty) {
                 return EmptyState(
@@ -37,11 +39,10 @@ class InsightsScreen extends ConsumerWidget {
               return ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  Text(
-                    l10n.insightsHint,
-                    style: Theme.of(context).textTheme.bodyLarge,
+                  ScreenIntro(
+                    title: l10n.homeOrganize,
+                    body: l10n.insightsHint,
                   ),
-                  const SizedBox(height: 16),
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -66,6 +67,13 @@ class InsightsScreen extends ConsumerWidget {
                           Text(
                             '${l10n.statPhotos}: ${data.stats.photos} · ${l10n.statVideos}: ${data.stats.videos}',
                           ),
+                          if (data.scanned < data.mediaCount)
+                            TextButton.icon(
+                              key: const Key('insights-scan'),
+                              onPressed: () => context.push(Routes.sources),
+                              icon: const Icon(Icons.document_scanner_outlined),
+                              label: Text(l10n.scanLibrary),
+                            ),
                         ],
                       ),
                     ),

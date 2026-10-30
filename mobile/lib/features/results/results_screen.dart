@@ -7,11 +7,13 @@ import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/router.dart';
+import '../../data/db/app_database.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../studio_providers.dart';
 import '../jobs/jobs_screen.dart';
 import '../shared/empty_state.dart';
+import '../shared/screen_layout.dart';
 import '../privacy/app_lock.dart';
 
 class ResultsScreen extends ConsumerStatefulWidget {
@@ -30,6 +32,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
       appBar: AppBar(title: Text(l10n.privateResults)),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Text(l10n.resultsBrowseHint),
+          ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Wrap(
@@ -59,7 +65,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                 .watch(resultsProvider)
                 .when(
                   loading: () => const LoadingBox(),
-                  error: (e, _) => Center(child: Text('$e')),
+                  error: (_, _) => RetryState(
+                    onRetry: () => ref.invalidate(resultsProvider),
+                  ),
                   data: (results) {
                     final shown = results
                         .where(
@@ -71,8 +79,19 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                     if (shown.isEmpty) {
                       return EmptyState(
                         icon: Icons.photo_library_outlined,
-                        title: l10n.resultEmpty,
-                        body: l10n.resultEmptyHint,
+                        title: results.isEmpty
+                            ? l10n.resultEmpty
+                            : l10n.resultsNoMatches,
+                        body: results.isEmpty ? l10n.resultEmptyHint : null,
+                        actionLabel: results.isEmpty
+                            ? l10n.navStudio
+                            : l10n.clearFilters,
+                        onAction: results.isEmpty
+                            ? () => context.go(Routes.studio)
+                            : () => setState(() {
+                                _kind = null;
+                                _favourites = false;
+                              }),
                       );
                     }
                     return GridView.builder(
@@ -155,222 +174,222 @@ class ResultDetailScreen extends ConsumerStatefulWidget {
 class _ResultDetailScreenState extends ConsumerState<ResultDetailScreen> {
   double _comparison = .5;
   bool _before = false;
+  Widget _exportActions(BuildContext context, WidgetRef ref, ResultRow result) {
+    final l10n = AppLocalizations.of(context);
+    final files = ref.read(fileStoreProvider);
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      children: [
+        if (result.mime.startsWith('image/') ||
+            result.mime.startsWith('video/'))
+          OutlinedButton.icon(
+            onPressed: () async {
+              try {
+                final saved = await ref
+                    .read(privacyServiceProvider)
+                    .exportMedia(files.resolve(result.path), result.mime);
+                if (!saved) {
+                  await SharePlus.instance.share(
+                    ShareParams(
+                      files: [
+                        XFile(
+                          files.resolve(result.path).path,
+                          mimeType: result.mime,
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(l10n.savedToGallery)));
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('$e')));
+                }
+              }
+            },
+            icon: const Icon(Icons.save_alt),
+            label: Text(l10n.saveToGallery),
+          ),
+        FilledButton.icon(
+          key: const Key('share-result'),
+          onPressed: () async {
+            try {
+              await SharePlus.instance.share(
+                ShareParams(
+                  files: [
+                    XFile(
+                      files.resolve(result.path).path,
+                      mimeType: result.mime,
+                    ),
+                  ],
+                ),
+              );
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('$e')));
+              }
+            }
+          },
+          icon: const Icon(Icons.share_outlined),
+          label: Text(l10n.resultShare),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final resultState = ref.watch(resultProvider(widget.id));
+    final currentResult = resultState.value;
     return Scaffold(
       appBar: AppBar(title: Text(l10n.privateResults)),
-      body: ref
-          .watch(resultProvider(widget.id))
-          .when(
-            loading: () => const LoadingBox(),
-            error: (e, _) => Center(child: Text('$e')),
-            data: (result) {
-              if (result == null) {
-                return EmptyState(
-                  icon: Icons.photo_outlined,
-                  title: l10n.resultEmpty,
-                );
-              }
-              final files = ref.read(fileStoreProvider);
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Text(
-                    jobTypeLabel(l10n, result.type),
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  if (result.mime == 'video/mp4') ...[
-                    SegmentedButton<bool>(
-                      segments: [
-                        ButtonSegment(
-                          value: true,
-                          label: Text(l10n.resultBefore),
-                        ),
-                        ButtonSegment(
-                          value: false,
-                          label: Text(l10n.resultAfter),
-                        ),
-                      ],
-                      selected: {_before},
-                      onSelectionChanged: (v) =>
-                          setState(() => _before = v.single),
-                    ),
-                    PrivateVideo(
-                      key: ValueKey(
-                        _before ? result.originalPath : result.path,
-                      ),
-                      file: files.resolve(
-                        _before ? result.originalPath : result.path,
-                      ),
-                    ),
-                  ] else if (!result.mime.startsWith('image/')) ...[
-                    const Icon(Icons.inventory_2_outlined, size: 64),
-                    Text(l10n.privateArtifact),
-                    if (result.type == 'build_lora_dataset')
-                      FilledButton(
-                        onPressed: () =>
-                            context.push('${Routes.datasets}/${result.id}'),
-                        child: Text(l10n.openDataset),
-                      ),
-                    if (result.type == 'train_lora')
-                      FilledButton(
-                        onPressed: () => context.push(Routes.lora),
-                        child: Text(l10n.openLora),
-                      ),
-                  ] else if (result.path == result.originalPath) ...[
-                    Image.file(
-                      files.resolve(result.path),
-                      height: 400,
-                      fit: BoxFit.contain,
-                    ),
-                  ] else ...[
-                    SizedBox(
-                      height: 400,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.file(
-                            files.resolve(result.path),
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) =>
-                                const Icon(Icons.broken_image_outlined),
-                          ),
-                          ClipRect(
-                            clipper: _ComparisonClip(_comparison),
-                            child: Image.file(
-                              files.resolve(result.originalPath),
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, _, _) =>
-                                  const SizedBox.shrink(),
-                            ),
-                          ),
-                          Align(
-                            alignment: Alignment.topLeft,
-                            child: Chip(label: Text(l10n.resultBefore)),
-                          ),
-                          Align(
-                            alignment: Alignment.topRight,
-                            child: Chip(label: Text(l10n.resultAfter)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Slider(
-                      key: const Key('result-comparison'),
-                      label: l10n.resultCompare,
-                      value: _comparison,
-                      onChanged: (v) => setState(() => _comparison = v),
-                    ),
+      bottomNavigationBar: currentResult == null
+          ? null
+          : StickyActionBar(child: _exportActions(context, ref, currentResult)),
+      body: resultState.when(
+        loading: () => const LoadingBox(),
+        error: (_, _) => RetryState(
+          onRetry: () => ref.invalidate(resultProvider(widget.id)),
+        ),
+        data: (result) {
+          if (result == null) {
+            return EmptyState(
+              icon: Icons.photo_outlined,
+              title: l10n.resultEmpty,
+            );
+          }
+          final files = ref.read(fileStoreProvider);
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              ScreenIntro(title: jobTypeLabel(l10n, result.type)),
+              if (result.mime == 'video/mp4') ...[
+                SegmentedButton<bool>(
+                  segments: [
+                    ButtonSegment(value: true, label: Text(l10n.resultBefore)),
+                    ButtonSegment(value: false, label: Text(l10n.resultAfter)),
                   ],
-                  const SizedBox(height: 16),
-                  Text(l10n.privateResultsHint),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
+                  selected: {_before},
+                  onSelectionChanged: (v) => setState(() => _before = v.single),
+                ),
+                PrivateVideo(
+                  key: ValueKey(_before ? result.originalPath : result.path),
+                  file: files.resolve(
+                    _before ? result.originalPath : result.path,
+                  ),
+                ),
+              ] else if (!result.mime.startsWith('image/')) ...[
+                const Icon(Icons.inventory_2_outlined, size: 64),
+                Text(l10n.privateArtifact),
+                if (result.type == 'build_lora_dataset')
+                  FilledButton(
+                    onPressed: () =>
+                        context.push('${Routes.datasets}/${result.id}'),
+                    child: Text(l10n.openDataset),
+                  ),
+                if (result.type == 'train_lora')
+                  FilledButton(
+                    onPressed: () => context.push(Routes.lora),
+                    child: Text(l10n.openLora),
+                  ),
+              ] else if (result.path == result.originalPath) ...[
+                Image.file(
+                  files.resolve(result.path),
+                  height: 400,
+                  fit: BoxFit.contain,
+                ),
+              ] else ...[
+                SizedBox(
+                  height: 400,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      if (result.mime.startsWith('image/') ||
-                          result.mime.startsWith('video/'))
-                        OutlinedButton.icon(
-                          onPressed: () async {
-                            try {
-                              final saved = await ref
-                                  .read(privacyServiceProvider)
-                                  .exportMedia(
-                                    files.resolve(result.path),
-                                    result.mime,
-                                  );
-                              if (!saved) {
-                                await SharePlus.instance.share(
-                                  ShareParams(
-                                    files: [
-                                      XFile(
-                                        files.resolve(result.path).path,
-                                        mimeType: result.mime,
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              } else if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(l10n.savedToGallery)),
-                                );
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(
-                                  context,
-                                ).showSnackBar(SnackBar(content: Text('$e')));
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.save_alt),
-                          label: Text(l10n.saveToGallery),
+                      Image.file(
+                        files.resolve(result.path),
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) =>
+                            const Icon(Icons.broken_image_outlined),
+                      ),
+                      ClipRect(
+                        clipper: _ComparisonClip(_comparison),
+                        child: Image.file(
+                          files.resolve(result.originalPath),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
                         ),
-                      FilledButton.icon(
-                        key: const Key('share-result'),
-                        onPressed: () async {
-                          try {
-                            await SharePlus.instance.share(
-                              ShareParams(
-                                files: [
-                                  XFile(
-                                    files.resolve(result.path).path,
-                                    mimeType: result.mime,
-                                  ),
-                                ],
-                              ),
-                            );
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(SnackBar(content: Text('$e')));
-                            }
-                          }
-                        },
-                        icon: const Icon(Icons.share_outlined),
-                        label: Text(l10n.resultShare),
                       ),
-                      FilterChip(
-                        selected: result.favourite,
-                        label: Text(l10n.resultFavourite),
-                        onSelected: (_) => ref
-                            .read(studioRepositoryProvider)
-                            .favourite(result),
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: Chip(label: Text(l10n.resultBefore)),
                       ),
-                      TextButton.icon(
-                        onPressed: () async {
-                          if (!await confirm(
-                            context,
-                            title: l10n.resultDelete,
-                            body: l10n.resultDeleteBody,
-                            confirmLabel: l10n.resultDelete,
-                            cancelLabel: l10n.cancel,
-                            destructive: true,
-                          )) {
-                            return;
-                          }
-                          await ref
-                              .read(studioRepositoryProvider)
-                              .deleteResult(result);
-                          if (context.mounted) leave(context, Routes.results);
-                        },
-                        icon: const Icon(Icons.delete_outline),
-                        label: Text(l10n.resultDelete),
-                      ),
-                      TextButton(
-                        onPressed: () => context.push(Routes.reface),
-                        child: Text(l10n.createAnother),
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Chip(label: Text(l10n.resultAfter)),
                       ),
                     ],
                   ),
+                ),
+                Slider(
+                  key: const Key('result-comparison'),
+                  semanticFormatterCallback: (value) =>
+                      '${(value * 100).round()}%',
+                  label: l10n.resultCompare,
+                  value: _comparison,
+                  onChanged: (v) => setState(() => _comparison = v),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Text(l10n.privateResultsHint),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  FilterChip(
+                    selected: result.favourite,
+                    label: Text(l10n.resultFavourite),
+                    onSelected: (_) =>
+                        ref.read(studioRepositoryProvider).favourite(result),
+                  ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      if (!await confirm(
+                        context,
+                        title: l10n.resultDelete,
+                        body: l10n.resultDeleteBody,
+                        confirmLabel: l10n.resultDelete,
+                        cancelLabel: l10n.cancel,
+                        destructive: true,
+                      )) {
+                        return;
+                      }
+                      await ref
+                          .read(studioRepositoryProvider)
+                          .deleteResult(result);
+                      if (context.mounted) leave(context, Routes.results);
+                    },
+                    icon: const Icon(Icons.delete_outline),
+                    label: Text(l10n.resultDelete),
+                  ),
+                  TextButton(
+                    onPressed: () => context.push(Routes.reface),
+                    child: Text(l10n.createAnother),
+                  ),
                 ],
-              );
-            },
-          ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

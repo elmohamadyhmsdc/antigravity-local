@@ -366,6 +366,9 @@ else:
             st.session_state._last_url_slug = get_primary_slug(resolved_page_from_url)
             set_url_route(st, st.session_state._last_url_slug)
 
+# Older sessions can still hold a retired page title.
+st.session_state.active_nav_page = resolve_route(st.session_state.active_nav_page) or NAV_PAGES[0]
+
 def on_nav_page_change():
     """Update URL query parameter when user selects a menu tab."""
     selected_page = st.session_state.get("active_nav_page", NAV_PAGES[0])
@@ -421,6 +424,9 @@ with st.sidebar:
                 st.metric("Persons", stats["total_persons"])
             st.metric("Unassigned", stats["unassigned_faces"])
 
+    from resource_ui import render_resource_summary
+    render_resource_summary()
+
 
 # Mobile App Bar (displayed on small screens)
 st.markdown(f"""
@@ -446,7 +452,7 @@ elif page == "📊 Dashboard":
     
     if stats.get("db_offline"):
         st.warning("⚠️ **Database Offline** - PostgreSQL is not running. Dashboard statistics are unavailable.")
-        st.info("💡 **Tip**: The **Reface** and **Reface V2** pages still work! Use saved facesets or upload files directly.")
+        st.info("💡 **Tip**: Open **Reface** to use saved facesets, people from Gallery, or uploaded photos and videos.")
     else:
         col1, col2, col3, col4 = st.columns(4)
         
@@ -749,1357 +755,6 @@ elif page == "👥 Gallery":
     )
 
 
-elif page == "🎭 Reface":
-    st.title("🎭 Reface")
-    st.markdown("Swap faces using angle-matched facesets for best quality")
-    
-    # Initialize reface engine
-    try:
-        from reface_engine import RefaceEngine, Faceset
-        reface_init_error = None
-    except Exception as e:
-        reface_init_error = str(e)
-    
-    if reface_init_error:
-        st.error(f"❌ Reface engine initialization failed: {reface_init_error}")
-        st.info("Check console for details.")
-    else:
-        # Main workflow tabs
-        main_tab1, main_tab2, main_tab3, main_tab4 = st.tabs([
-            "🔄 Quick Swap", 
-            "📦 Build Faceset (Advanced)", 
-            "📜 History / Results",
-            "⚙️ Background Jobs"
-        ])
-        
-        with main_tab3:
-            st.markdown("### 📜 Reface History")
-            
-            output_dir = Path(__file__).parent / "reface_output"
-            output_dir.mkdir(exist_ok=True)
-            
-            # Refresh button
-            if st.button("🔄 Refresh List"):
-                st.rerun()
-            
-            # List files
-            files = sorted(list(output_dir.glob("*.jpg")) + list(output_dir.glob("*.jpeg")) + \
-                          list(output_dir.glob("*.png")) + list(output_dir.glob("*.mp4")) + \
-                          list(output_dir.glob("*.avi")), key=os.path.getmtime, reverse=True)
-            
-            if not files:
-                st.info("No reface results found yet.")
-            else:
-                st.caption(f"Found {len(files)} result(s)")
-                
-                # Grid view
-                cols = st.columns(3)
-                for i, file_path in enumerate(files):
-                    with cols[i % 3]:
-                        st.markdown("---")
-                        
-                        is_video = file_path.suffix.lower() in ['.mp4', '.avi', '.mov', '.mkv']
-                        
-                        try:
-                            if is_video:
-                                # Try to show MP4 video
-                                if file_path.suffix.lower() == '.mp4':
-                                    st.video(str(file_path))
-                                else:
-                                    # For AVI/others: Generate and show thumbnail
-                                    import cv2
-                                    cap = cv2.VideoCapture(str(file_path))
-                                    ret, frame = cap.read()
-                                    cap.release()
-                                    
-                                    if ret:
-                                        # Convert BGR to RGB
-                                        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                                        st.image(frame, caption=f"Preview ({file_path.suffix})", width='stretch')
-                                    else:
-                                        st.warning(f"No preview for {file_path.suffix}")
-                                    
-                                    # Add "Convert to MP4" button
-                                    if st.button("🔄 Convert to Playable MP4", key=f"conv_{i}"):
-                                        with st.spinner("Converting..."):
-                                            try:
-                                                import subprocess
-                                                from ffmpeg_utils import _ffmpeg_exe
-                                                
-                                                # Locate FFmpeg
-                                                ffmpeg_exe = _ffmpeg_exe()
-                                                
-                                                mp4_path = file_path.with_suffix('.mp4')
-                                                subprocess.run([
-                                                    ffmpeg_exe, '-y', '-i', str(file_path),
-                                                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-                                                    '-pix_fmt', 'yuv420p', str(mp4_path)
-                                                ], check=True)
-                                                file_path.unlink() # Remove old avi
-                                                st.success("Converted! Refreshing...")
-                                                st.rerun()
-                                            except Exception as e:
-                                                st.error(f"FFmpeg failed: {e}")
-                            else:
-                                st.image(str(file_path), width='stretch')
-                        except Exception as e:
-                            st.error(f"Error loading preview: {e}")
-                        
-                        st.caption(f"📅 {datetime.fromtimestamp(file_path.stat().st_mtime).strftime('%Y-%m-%d %H:%M')}")
-                        st.caption(f"📁 {file_path.name}")
-                        
-                        # Actions
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            with open(file_path, "rb") as f:
-                                st.download_button(
-                                    "⬇️",
-                                    data=f.read(),
-                                    file_name=file_path.name,
-                                    mime="video/mp4" if is_video else "image/jpeg",
-                                    key=f"dl_{i}_{file_path.name}"
-                                )
-                        with c2:
-                            if st.button("🗑️", key=f"del_{i}_{file_path.name}", help="Delete file"):
-                                try:
-                                    file_path.unlink()
-                                    st.success("Deleted!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Delete failed: {e}")
-        
-        with main_tab1:
-            st.markdown("### Quick Face Swap")
-            
-            # GPU Status Check
-            try:
-                import onnxruntime as ort
-                providers = ort.get_available_providers()
-                if 'CUDAExecutionProvider' in providers:
-                    st.success(f"🚀 **GPU Accelerated** (NVIDIA CUDA detected)", icon="⚡")
-                else:
-                    st.warning(f"🐢 **CPU Mode** (Install onnxruntime-gpu for speed)", icon="🐢")
-            except:
-                pass
-
-            st.info("Upload source person media and target media for face swapping with angle matching")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### 📤 Step 1: Source Person Media")
-                
-                # Tabbed Interface for Source Selection
-                src_tab1, src_tab2 = st.tabs(["📂 Upload Files", "📚 Saved Facesets"])
-                
-                with src_tab1:
-                    st.caption("Upload photos/videos of the person whose face you want to use")
-                    
-                    source_files = st.file_uploader(
-                        "Upload source media (multiple allowed)",
-                        type=['jpg', 'jpeg', 'png', 'mp4', 'avi', 'mkv', 'mov'],
-                        accept_multiple_files=True,
-                        key="source_media_upload"
-                    )
-                    
-                    if source_files:
-                        source_dir = Path(__file__).parent / "reface_uploads" / "source"
-                        source_dir.mkdir(parents=True, exist_ok=True)
-                        source_paths = []
-                        for f in source_files:
-                            path = source_dir / f.name
-                            with open(path, "wb") as out:
-                                out.write(f.getbuffer())
-                            source_paths.append(str(path))
-                        
-                        st.session_state['reface_source_paths'] = source_paths
-                        st.session_state['reface_source_mode'] = 'upload'
-                        st.success(f"✅ {len(source_files)} source file(s) uploaded")
-                        
-                        # Show previews inside the correct tab
-                        if source_files:
-                            preview_cols = st.columns(min(3, len(source_files)))
-                            for i, f in enumerate(source_files[:3]):
-                                with preview_cols[i]:
-                                    ext = Path(f.name).suffix.lower()
-                                    if ext in ['.mp4', '.avi', '.mkv', '.mov']:
-                                        st.video(source_paths[i])
-                                    else:
-                                        st.image(source_paths[i], width='stretch')
-                            
-                            if len(source_files) > 3:
-                                st.caption(f"... and {len(source_files) - 3} more")
-
-                with src_tab2:
-                    st.info("Select a pre-built faceset for faster, consistent results.")
-                    if 'reface_engine_instance' not in st.session_state:
-                         st.session_state['reface_engine_instance'] = RefaceEngine(enable_enhancement=False)
-                    engine = st.session_state['reface_engine_instance']
-                    
-                    facesets = engine.list_facesets()
-                    if not facesets:
-                        st.warning("No saved facesets found. Go to 'Build Faceset' tab to create one!")
-                    else:
-                        selected_fs = st.selectbox("Choose a Faceset:", facesets, key="quick_swap_fs_select")
-                        
-                        # Only set faceset mode when explicitly clicking "Use This Faceset"
-                        if st.button("✅ Use This Faceset", key="use_faceset_btn", type="primary"):
-                            st.session_state['reface_selected_faceset_name'] = selected_fs
-                            st.session_state['reface_source_mode'] = 'faceset'
-                            # Clear upload paths to avoid confusion
-                            if 'reface_source_paths' in st.session_state:
-                                del st.session_state['reface_source_paths']
-                            st.rerun()
-                        
-                        # Show current selection status
-                        if st.session_state.get('reface_source_mode') == 'faceset' and st.session_state.get('reface_selected_faceset_name') == selected_fs:
-                            st.success(f"✅ Using faceset: {selected_fs}")
-                        
-                        # Show preview of selected faceset
-                        if selected_fs:
-                            try:
-                                fs = engine.load_faceset_by_name(selected_fs)
-                                if fs and fs.faces:
-                                    st.caption(f"{len(fs.faces)} faces in this faceset")
-                                    # Show up to 4 sample faces
-                                    preview_faces = fs.faces[:4]
-                                    cols = st.columns(len(preview_faces))
-                                    for i, face in enumerate(preview_faces):
-                                        with cols[i]:
-                                            img = cv2.imread(face.image_path)
-                                            if img is not None:
-                                                bbox = face.bbox
-                                                x1, y1, x2, y2 = [int(b) for b in bbox]
-                                                pad = 15
-                                                h, w = img.shape[:2]
-                                                x1, y1 = max(0, x1-pad), max(0, y1-pad)
-                                                x2, y2 = min(w, x2+pad), min(h, y2+pad)
-                                                crop = img[y1:y2, x1:x2]
-                                                crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-                                                st.image(crop_rgb, width='stretch')
-                            except:
-                                pass
-            
-            with col2:
-                st.markdown("#### 🎯 Step 2: Target Media")
-                st.caption("Upload the photo/video where you want to swap faces")
-                
-                target_file = st.file_uploader(
-                    "Upload target media",
-                    type=['jpg', 'jpeg', 'png', 'mp4', 'avi', 'mkv', 'mov'],
-                    key="target_media_upload"
-                )
-                
-                if target_file:
-                    target_dir = Path(__file__).parent / "reface_uploads" / "target"
-                    target_dir.mkdir(parents=True, exist_ok=True)
-                    
-                    target_path = target_dir / target_file.name
-                    with open(target_path, "wb") as out:
-                        out.write(target_file.getbuffer())
-                    
-                    st.session_state['reface_target_path'] = str(target_path)
-                    
-                    ext = Path(target_file.name).suffix.lower()
-                    is_video = ext in ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.webm']
-                    st.session_state['reface_target_is_video'] = is_video
-                    
-                    if is_video:
-                        # Video Trimming Options
-                        video_duration = 0
-                        video_fps = 0
-                        video_frame_count = 0
-                        try:
-                            import cv2
-                            cap = cv2.VideoCapture(str(target_path))
-                            video_fps = cap.get(cv2.CAP_PROP_FPS)
-                            video_frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                            video_duration = video_frame_count / video_fps if video_fps > 0 else 0
-                            cap.release()
-                        except Exception as e:
-                            pass
-
-                        start_time = st.session_state.get('video_trim_start', 0.0)
-
-                        try:
-                            # Play the video starting at the selected time
-                            st.video(str(target_path), start_time=int(start_time))
-                        except Exception:
-                            # Fallback if start_time isn't supported
-                            st.video(str(target_path))
-                        
-                        if video_duration > 0:
-                            st.markdown("**✂️ Video Trimming** (optional)")
-                            st.caption(f"Video duration: {video_duration:.1f} seconds ({video_frame_count} frames @ {video_fps:.0f} FPS)")
-                            
-                            trim_col1, trim_col2 = st.columns(2)
-                            with trim_col1:
-                                start_time = st.number_input(
-                                    "Start time (seconds)",
-                                    min_value=0.0,
-                                    max_value=max(0.0, video_duration - 0.1),
-                                    value=float(st.session_state.get('video_trim_start', 0.0)),
-                                    step=0.5,
-                                    key="video_trim_start"
-                                )
-                            with trim_col2:
-                                valid_max_end = max(0.1, float(video_duration))
-                                valid_value_end = float(st.session_state.get('video_trim_end', video_duration))
-                                if valid_value_end > valid_max_end:
-                                    valid_value_end = valid_max_end
-                                    
-                                end_time = st.number_input(
-                                    "End time (seconds)",
-                                    min_value=0.1,
-                                    max_value=valid_max_end,
-                                    value=valid_value_end,
-                                    step=0.5,
-                                    key="video_trim_end"
-                                )
-                            
-                            # Store in session state for backend
-                            st.session_state['reface_video_start_time'] = start_time
-                            st.session_state['reface_video_end_time'] = end_time
-                            
-                            # Show trim duration
-                            trim_duration = end_time - start_time
-                            if trim_duration > 0 and trim_duration < video_duration:
-                                st.info(f"📐 Will process {trim_duration:.1f} seconds of video")
-                    else:
-                        st.image(str(target_path), width='stretch')
-                    
-                    st.success("✅ Target media uploaded")
-                    
-                    # Face detection for target
-                    if st.button("🔍 Detect Faces", key="detect_target_faces"):
-                        with st.spinner("Detecting faces..."):
-                            try:
-                                import cv2
-                                from insightface.app import FaceAnalysis
-                                
-                                app = FaceAnalysis(name='buffalo_l')
-                                app.prepare(ctx_id=0, det_size=(640, 640))
-                                
-                                if is_video:
-                                    cap = cv2.VideoCapture(str(target_path))
-                                    ret, frame = cap.read()
-                                    cap.release()
-                                else:
-                                    frame = cv2.imread(str(target_path))
-                                
-                                if frame is not None:
-                                    faces = app.get(frame)
-                                    if faces:
-                                        # Save face crops
-                                        crops_dir = Path(__file__).parent / "reface_uploads" / "target_faces"
-                                        crops_dir.mkdir(parents=True, exist_ok=True)
-                                        
-                                        detected = []
-                                        for i, face in enumerate(faces):
-                                            bbox = face.bbox.astype(int)
-                                            x1, y1, x2, y2 = bbox
-                                            pad = 15
-                                            x1, y1 = max(0, x1 - pad), max(0, y1 - pad)
-                                            x2, y2 = min(frame.shape[1], x2 + pad), min(frame.shape[0], y2 + pad)
-                                            
-                                            crop = frame[y1:y2, x1:x2]
-                                            crop_path = crops_dir / f"target_face_{i}.jpg"
-                                            cv2.imwrite(str(crop_path), crop)
-                                            
-                                            detected.append({
-                                                'index': i,
-                                                'crop_path': str(crop_path),
-                                                'bbox': bbox.tolist()
-                                            })
-                                        
-                                        st.session_state['quick_swap_target_faces'] = detected
-                                        st.success(f"Found {len(faces)} face(s)!")
-                                        st.rerun()
-                                    else:
-                                        st.warning("No faces detected")
-                            except Exception as e:
-                                st.error(f"Detection failed: {e}")
-                    
-                    # Show detected faces for selection
-                    if 'quick_swap_target_faces' in st.session_state:
-                        detected = st.session_state['quick_swap_target_faces']
-                        
-                        if 'quick_swap_selected_faces' not in st.session_state:
-                            st.session_state['quick_swap_selected_faces'] = list(range(len(detected)))  # All selected by default
-                        
-                        st.markdown(f"**Select faces to swap ({len(detected)} found):**")
-                        
-                        cols = st.columns(min(4, len(detected)))
-                        for i, face_info in enumerate(detected):
-                            with cols[i % 4]:
-                                if os.path.exists(face_info['crop_path']):
-                                    st.image(face_info['crop_path'], width='stretch')
-                                
-                                selected = st.checkbox(
-                                    f"Face {i+1}",
-                                    value=i in st.session_state.get('quick_swap_selected_faces', []),
-                                    key=f"quick_face_{i}"
-                                )
-                                
-                                if selected and i not in st.session_state['quick_swap_selected_faces']:
-                                    st.session_state['quick_swap_selected_faces'].append(i)
-                                elif not selected and i in st.session_state['quick_swap_selected_faces']:
-                                    st.session_state['quick_swap_selected_faces'].remove(i)
-                        
-                        # Select all / none buttons
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            if st.button("Select All", key="select_all_faces"):
-                                st.session_state['quick_swap_selected_faces'] = list(range(len(detected)))
-                                st.rerun()
-                        with col_b:
-                            if st.button("Select None", key="select_none_faces"):
-                                st.session_state['quick_swap_selected_faces'] = []
-                                st.rerun()
-                        
-                        selected_count = len(st.session_state.get('quick_swap_selected_faces', []))
-                        st.caption(f"✓ {selected_count} face(s) will be swapped")
-            
-            st.markdown("---")
-            
-            # Step 3: Options and Execute
-            has_source = (st.session_state.get('reface_source_mode') == 'faceset' and st.session_state.get('reface_selected_faceset_name')) or \
-                         (st.session_state.get('reface_source_mode') == 'upload' and st.session_state.get('reface_source_paths'))
-            
-            if has_source and st.session_state.get('reface_target_path'):
-                st.markdown("#### ⚙️ Step 3: Options & Execute")
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    upscale = st.selectbox("Output quality", [1, 2, 4], index=1,
-                                          format_func=lambda x: f"{x}x {'(original)' if x==1 else 'upscale'}")
-                with col2:
-                    use_angle_match = st.checkbox("Use angle matching", value=True,
-                                                 help="Match source face angle to target for better results")
-                with col3:
-                    run_background = st.checkbox("🔄 Run in Background", value=False,
-                                                help="Run job in background - continues even if you close the tab")
-                
-                # DFM Engine Selection (Advanced)
-                with st.expander("🔧 Advanced: Swap Engine", expanded=False):
-                    st.markdown("**Choose your face swap engine:**")
-                    
-                    swap_engine = st.radio(
-                        "Engine",
-                        ["InsightFace (Quick)", "DeepFaceLab DFM (Pro)"],
-                        index=0,
-                        help="InsightFace is faster. DFM provides higher quality if you have a trained model."
-                    )
-                    
-                    if swap_engine == "DeepFaceLab DFM (Pro)":
-                        try:
-                            from dfm_engine import DFMEngine
-                            
-                            # Search for DFM models
-                            available_dfms = DFMEngine.list_available_models()
-                            
-                            if available_dfms:
-                                st.success(f"✅ Found {len(available_dfms)} DFM model(s)")
-                                dfm_options = {m.name: m.path for m in available_dfms}
-                                selected_dfm_name = st.selectbox(
-                                    "Select DFM Model",
-                                    list(dfm_options.keys())
-                                )
-                                
-                                if selected_dfm_name:
-                                    st.session_state['selected_dfm_path'] = dfm_options[selected_dfm_name]
-                                    selected_model = next(m for m in available_dfms if m.name == selected_dfm_name)
-                                    st.caption(f"Type: {selected_model.model_type} | Size: {selected_model.file_size_mb:.1f} MB")
-                            else:
-                                st.warning("⚠️ No .dfm models found.")
-                                st.markdown("""
-**To create a DFM model:**
-1. Train a model in DeepFaceLab (SAEHD or AMP)
-2. Export using: `6) export SAEHD as dfm.bat`
-3. Place the `.dfm` file in the `models/` folder
-                                """)
-                                swap_engine = "InsightFace (Quick)"  # Fallback
-                        except ImportError:
-                            st.error("DFM engine not available. Using InsightFace.")
-                            swap_engine = "InsightFace (Quick)"
-                    
-                    st.session_state['swap_engine_type'] = swap_engine
-                
-
-                # Check if faces were detected and selected
-                target_face_indices = None
-                if 'quick_swap_selected_faces' in st.session_state:
-                    target_face_indices = st.session_state['quick_swap_selected_faces']
-                    st.caption(f"ℹ️ Swapping {len(target_face_indices)} selected face(s)")
-                else:
-                    st.caption("ℹ️ No specific faces selected, will swap ALL faces found.")
-                
-                # Background job execution
-                if run_background:
-                    if st.button("🚀 Start Background Job", type="primary", width='stretch'):
-                        try:
-                            from job_manager import JobManager, add_job_to_queue
-                            job_manager = JobManager()
-                            
-                            # Prepare job params
-                            is_video = st.session_state.get('reface_target_is_video', False)
-                            params = {
-                                'target_path': st.session_state['reface_target_path'],
-                                'is_video': is_video,
-                                'upscale': upscale,
-                                'use_angle_matching': use_angle_match,
-                                'target_face_indices': target_face_indices
-                            }
-                            
-                            # Add video trim parameters if available
-                            if is_video:
-                                params['start_time'] = st.session_state.get('reface_video_start_time', 0.0)
-                                params['end_time'] = st.session_state.get('reface_video_end_time', None)
-                            
-                            if st.session_state.get('reface_source_mode') == 'faceset':
-                                params['faceset_name'] = st.session_state['reface_selected_faceset_name']
-                            else:
-                                params['source_paths'] = st.session_state['reface_source_paths']
-                            
-                            # Add job to queue (starts worker if needed)
-                            job_type = "reface_video" if is_video else "reface_image"
-                            job = add_job_to_queue(job_type, params, str(job_manager.jobs_dir))
-                            
-                            if job.queue_position > 0:
-                                st.success(f"✅ Job **{job.id}** added to queue (position {job.queue_position + 1})")
-                                st.info("📌 Your job will start after the current job completes. Check **Background Jobs** tab for status.")
-                            else:
-                                st.success(f"✅ Job **{job.id}** started!")
-                                st.info("📌 Check the **Background Jobs** tab or terminal for progress.")
-                            
-                        except Exception as e:
-                            import traceback
-                            st.error(f"Failed to start background job: {e}")
-                            st.code(traceback.format_exc())
-                else:
-                    # Original synchronous execution
-                    if st.button("🚀 Swap Faces", type="primary", width='stretch'):
-                        with st.spinner("Processing..."):
-                            try:
-                                _dfm_sel = (st.session_state.get('swap_engine_type') == "DeepFaceLab DFM (Pro)"
-                                            and st.session_state.get('selected_dfm_path'))
-                                if _dfm_sel:
-                                    from reface_engine_v3 import RefaceEngineV3
-                                    engine = RefaceEngineV3(dfm_path=st.session_state['selected_dfm_path'])
-                                    st.info(f"🧬 Using DeepFaceLab DFM: {Path(st.session_state['selected_dfm_path']).name}")
-                                else:
-                                    engine = RefaceEngine(upscale=upscale)
-
-                                faceset = None
-                                
-                                # Determine source strategy
-                                if st.session_state.get('reface_source_mode') == 'faceset':
-                                    fs_name = st.session_state['reface_selected_faceset_name']
-                                    st.text(f"Loading faceset '{fs_name}'...")
-                                    faceset = engine.load_faceset_by_name(fs_name)
-                                    if not faceset:
-                                        st.error(f"Failed to load faceset: {fs_name}")
-                                        st.stop()
-                                else:
-                                    # Build from uploaded files
-                                    st.text("Building faceset from source media...")
-                                    progress1 = st.progress(0)
-                                    status1 = st.empty()
-                                    eta_build = ETACalculator(len(st.session_state['reface_source_paths']))
-                                    
-                                    def update_build_progress(current, total):
-                                        eta_str = eta_build.get_eta_string(current)
-                                        progress1.progress(current / total)
-                                        status1.text(f"Building faceset: {current}/{total} ({eta_str} remaining)...")
-                                    
-                                    faceset = engine.build_faceset_from_media(
-                                        st.session_state['reface_source_paths'],
-                                        faceset_name="quick_swap",
-                                        progress_callback=update_build_progress
-                                    )
-                                
-                                if not faceset or not faceset.faces:
-                                    st.error("No faces found in source!")
-                                else:
-                                    st.success(f"✅ Built faceset with {len(faceset.faces)} faces")
-                                    
-                                    # Show coverage
-                                    coverage = faceset.get_pose_coverage()
-                                    st.caption(f"Coverage: Front={coverage['front']}, Left={coverage['left']}, Right={coverage['right']}, Up={coverage['up']}, Down={coverage['down']}")
-                                    
-                                    # Perform swap
-                                    st.text("Swapping faces...")
-                                    progress2 = st.progress(0)
-                                    status_swap = st.empty()
-                                    
-                                    target_path = st.session_state['reface_target_path']
-                                    is_video = st.session_state.get('reface_target_is_video', False)
-                                    
-                                    def update_swap_progress(current, total):
-                                        if 'eta_swap' not in st.session_state or st.session_state.eta_swap_total != total:
-                                            st.session_state.eta_swap = ETACalculator(total)
-                                            st.session_state.eta_swap_total = total
-                                            
-                                        eta_str = st.session_state.eta_swap.get_eta_string(current)
-                                        progress2.progress(current / total)
-                                        status_swap.text(f"Swapping frames: {current}/{total} ({eta_str} remaining)...")
-                                    
-                                    if is_video:
-                                        # Get trim parameters from session state
-                                        video_start_time = st.session_state.get('reface_video_start_time', 0.0)
-                                        video_end_time = st.session_state.get('reface_video_end_time', None)
-                                        
-                                        if _dfm_sel:
-                                            result = engine.reface_video_v3(
-                                                target_path,
-                                                faceset,
-                                                target_face_indices=target_face_indices,
-                                                progress_callback=update_swap_progress,
-                                                start_time=video_start_time,
-                                                end_time=video_end_time,
-                                            )
-                                        else:
-                                            result = engine.reface_video_with_faceset(
-                                                target_path,
-                                                faceset,
-                                                target_face_indices=target_face_indices,
-                                                use_angle_matching=use_angle_match,
-                                                progress_callback=update_swap_progress,
-                                                start_time=video_start_time,
-                                                end_time=video_end_time
-                                            )
-                                    else:
-                                        if _dfm_sel:
-                                            result = engine.reface_image_v3(
-                                                target_path,
-                                                faceset,
-                                                target_face_indices=target_face_indices,
-                                            )
-                                        else:
-                                            result = engine.reface_with_faceset(
-                                                target_path,
-                                                faceset,
-                                                target_face_indices=target_face_indices,
-                                                use_angle_matching=use_angle_match
-                                            )
-                                        progress2.progress(1.0)
-                                    
-                                    if result.success:
-                                        st.success(f"✅ {result.message}")
-                                        
-                                        if is_video and result.output_path:
-                                            st.video(result.output_path)
-                                        elif result.output_path:
-                                            st.image(result.output_path, caption="Result")
-                                        
-                                        if result.output_path and os.path.exists(result.output_path):
-                                            with open(result.output_path, "rb") as f:
-                                                st.download_button(
-                                                    "📥 Download Result",
-                                                    data=f.read(),
-                                                    file_name=Path(result.output_path).name,
-                                                    mime="video/mp4" if is_video else "image/jpeg"
-                                                )
-                                    else:
-                                        st.error(f"❌ {result.message}")
-                            
-                            except Exception as e:
-                                st.error(f"❌ Error: {str(e)}")
-                                import traceback
-                                st.code(traceback.format_exc())
-            else:
-                st.info("👆 Upload both source and target media to continue")
-        
-        with main_tab2:
-            st.markdown("### 📦 Build & Manage Facesets")
-            st.info("Create named collections of faces (Facesets) from your photos and videos. Using a faceset improves reface quality by providing more angles.")
-            
-            # --- Documentation Section ---
-            with st.expander("📚 How to Build a Professional Faceset", expanded=False):
-                st.markdown("""
-## Creating a High-Quality 3D Face Dataset
-
-For **professional results**, your faceset should include faces from **multiple angles**. 
-This allows the engine to match the source angle to the target pose for seamless swaps.
-
-### 🎯 Required Angles (7-Point System)
-
-| Priority | Angle | Yaw Range | How to Capture |
-|----------|-------|-----------|----------------|
-| 🔴 **Critical** | Front | -15° to +15° | Look directly at camera |
-| 🟡 **Important** | Left 45° | -60° to -30° | Turn head slightly left |
-| 🟡 **Important** | Right 45° | +30° to +60° | Turn head slightly right |
-| 🟡 **Important** | Up | pitch > 15° | Tilt chin up slightly |
-| 🟢 **Optional** | Left 90° | < -60° | Full profile shot (left side) |
-| 🟢 **Optional** | Right 90° | > +60° | Full profile shot (right side) |
-| 🟢 **Optional** | Down | pitch < -15° | Tilt chin down |
-
-### 💡 Pro Tips
-
-1. **Best Source Method**: Upload a **video of the person slowly turning their head** from left to right. 
-   This captures all angles automatically in one go!
-
-2. **Lighting**: Ensure even, soft lighting across all photos. Harsh shadows create artifacts.
-
-3. **Resolution**: Higher resolution source = better quality swaps. Aim for at least 512px face size.
-
-4. **Expressions**: Include:
-   - Neutral expression (primary)
-   - Slight smile
-   - Eyes open naturally
-
-5. **Quantity**: Target **50-200 faces** for optimal angle coverage.
-
-### ⚠️ Common Mistakes to Avoid
-
-| ❌ Problem | ✅ Solution |
-|-----------|------------|
-| Only frontal photos | Add profile and angled shots |
-| Harsh lighting/shadows | Use soft, even lighting |
-| Low resolution | Use higher quality source images |
-| Blurry images | Ensure sharp focus on face |
-| Only one expression | Include neutral + smile |
-
-### 📊 Quality Scoring
-
-After building a faceset, you'll see:
-- **Quality Score (0-100)**: Higher = better angle coverage
-- **Grade (A+ to F)**: Quick assessment
-- **Coverage Grid**: Shows which angles are captured
-- **Suggestions**: What to add for improvement
-                """)
-            
-            # --- Create New Faceset ---
-            with st.expander("✨ Create New Faceset", expanded=True):
-
-                col1, col2 = st.columns([1, 2])
-                with col1:
-                    new_faceset_name = st.text_input("Faceset Name", placeholder="e.g. MyFriend_John")
-                with col2:
-                    faceset_files = st.file_uploader("Upload Source Media", accept_multiple_files=True, type=['jpg', 'png', 'mp4', 'mov'])
-                
-                if st.button("🔨 Build & Save Faceset", disabled=not (new_faceset_name and faceset_files)):
-                    if not new_faceset_name.strip():
-                        st.error("Please provide a valid name.")
-                    else:
-                        # Save to PERMANENT faceset-specific directory
-                        faceset_media_dir = Path(__file__).parent / "facesets" / new_faceset_name / "source_media"
-                        faceset_media_dir.mkdir(parents=True, exist_ok=True)
-                        
-                        saved_paths = []
-                        for uploaded_file in faceset_files:
-                            path = faceset_media_dir / uploaded_file.name
-                            with open(path, "wb") as f:
-                                f.write(uploaded_file.getbuffer())
-                            saved_paths.append(str(path))
-                        
-                        
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        
-                        eta_build = ETACalculator(len(saved_paths))
-                        def update_progress(current, total):
-                            eta_str = eta_build.get_eta_string(current)
-                            progress_bar.progress(current / total)
-                            status_text.text(f"Processing media {current}/{total} ({eta_str} remaining)...")
-                            
-                        try:
-                            # Build
-                            if 'reface_engine_instance' not in st.session_state:
-                                st.session_state['reface_engine_instance'] = RefaceEngine(enable_enhancement=True)
-                            engine = st.session_state['reface_engine_instance']
-                            
-                            faceset = engine.build_faceset_from_media(
-                                saved_paths, 
-                                faceset_name=new_faceset_name,
-                                progress_callback=update_progress
-                            )
-                            
-                            # Save
-                            engine.save_faceset(faceset)
-                            
-                            st.success(f"✅ Faceset '{new_faceset_name}' created with {len(faceset.faces)} faces!")
-                            
-                            # Show detailed coverage analysis
-                            st.markdown("#### 📊 Faceset Quality Analysis")
-                            
-                            # Quality score and grade
-                            quality_score = faceset.get_quality_score()
-                            quality_grade = faceset.get_quality_grade()
-                            
-                            score_col1, score_col2 = st.columns(2)
-                            with score_col1:
-                                st.metric("Quality Score", f"{quality_score:.0f}/100")
-                            with score_col2:
-                                grade_emoji = {"A+": "🏆", "A": "⭐", "B": "👍", "C": "👌", "D": "⚠️", "F": "❌"}.get(quality_grade, "")
-                                st.metric("Grade", f"{grade_emoji} {quality_grade}")
-                            
-                            # Detailed angle coverage
-                            detailed_cov = faceset.get_detailed_coverage()
-                            
-                            st.markdown("**Angle Coverage:**")
-                            angle_cols = st.columns(7)
-                            angle_order = ['front', 'left_45', 'right_45', 'up', 'down', 'left_90', 'right_90']
-                            angle_labels = {
-                                'front': '🎯 Front', 'left_45': '↖️ Left 45°', 'right_45': '↗️ Right 45°',
-                                'up': '⬆️ Up', 'down': '⬇️ Down', 'left_90': '⬅️ Left 90°', 'right_90': '➡️ Right 90°'
-                            }
-                            
-                            for i, angle in enumerate(angle_order):
-                                data = detailed_cov[angle]
-                                with angle_cols[i]:
-                                    count = data['count']
-                                    priority = data['priority']
-                                    color = "green" if count > 0 else ("red" if data['required'] else "gray")
-                                    emoji = "✅" if count > 0 else ("❌" if data['required'] else "⬜")
-                                    st.markdown(f"**{emoji}**")
-                                    st.caption(f"{angle_labels.get(angle, angle)}")
-                                    st.caption(f"{count} faces")
-                            
-                            # Suggestions
-                            suggestions = faceset.get_suggestions()
-                            if suggestions:
-                                st.markdown("**💡 Suggestions:**")
-                                for suggestion in suggestions:
-                                    st.markdown(f"- {suggestion}")
-                            
-                        except Exception as e:
-                            import traceback
-                            st.error(f"Failed to build faceset: {e}")
-                            st.code(traceback.format_exc())
-
-            
-            st.markdown("---")
-            
-            # --- Manage Existing Facesets ---
-            st.subheader("📚 Your Facesets")
-            
-            if 'reface_engine_instance' not in st.session_state:
-                 st.session_state['reface_engine_instance'] = RefaceEngine(enable_enhancement=False) # lightweight init
-            
-            engine = st.session_state['reface_engine_instance']
-            facesets = engine.list_facesets()
-            
-            if not facesets:
-                st.info("No saved facesets found.")
-            else:
-                for fs_name in facesets:
-                    with st.container():
-                        # Load faceset ONCE at start of container
-                        loaded_fs = None
-                        face_count = 0
-                        preview_img = None
-                        
-                        try:
-                            loaded_fs = engine.load_faceset_by_name(fs_name)
-                            if loaded_fs and loaded_fs.faces:
-                                face_count = len(loaded_fs.faces)
-                                # Get first face's image and crop
-                                first_face = loaded_fs.faces[0]
-                                img = cv2.imread(first_face.image_path)
-                                if img is not None:
-                                    bbox = first_face.bbox
-                                    x1, y1, x2, y2 = [int(b) for b in bbox]
-                                    pad = 20
-                                    h, w = img.shape[:2]
-                                    x1, y1 = max(0, x1-pad), max(0, y1-pad)
-                                    x2, y2 = min(w, x2+pad), min(h, y2+pad)
-                                    crop = img[y1:y2, x1:x2]
-                                    preview_img = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-                        except:
-                            pass
-                        
-                        c1, c2, c3 = st.columns([1, 3, 1])
-                        
-                        with c1:
-                            if preview_img is not None:
-                                st.image(preview_img, width=80)
-                            else:
-                                st.markdown("🖼️")
-                        
-                        with c2:
-                            st.markdown(f"**{fs_name}**")
-                            if face_count > 0:
-                                st.caption(f"{face_count} faces")
-                        
-                        with c3:
-                            if st.button("🗑️", key=f"del_fs_{fs_name}"):
-                                try:
-                                    # Delete pkl file
-                                    (engine.faceset_dir / f"{fs_name}.pkl").unlink()
-                                    # Delete source media folder if exists
-                                    import shutil
-                                    media_dir = engine.faceset_dir / fs_name
-                                    if media_dir.exists():
-                                        shutil.rmtree(media_dir)
-                                    st.success(f"Deleted {fs_name}")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(str(e))
-        
-        # Background Jobs Tab
-        with main_tab4:
-            st.markdown("### ⚙️ Background Jobs")
-            st.info("Jobs run in the background and continue even if you close this tab. Check the terminal for real-time progress.")
-            
-            try:
-                from job_manager import JobManager, JobStatus
-                job_manager = JobManager()
-                
-                # Auto-refresh toggle
-                col1, col2 = st.columns([3, 1])
-                with col2:
-                    if st.button("🔄 Refresh"):
-                        st.rerun()
-                
-                jobs = job_manager.list_jobs(limit=20)
-                
-                if not jobs:
-                    st.info("No jobs found. Start a reface operation to see jobs here!")
-                else:
-                    # Running jobs first
-                    running_jobs = [j for j in jobs if j.status == JobStatus.RUNNING]
-                    if running_jobs:
-                        st.subheader("🔄 Currently Running")
-                        for job in running_jobs:
-                            with st.container():
-                                col1, col2, col3 = st.columns([4, 1, 1])
-                                with col1:
-                                    st.markdown(f"**Job {job.id}** - {job.job_type}")
-                                    st.progress(job.progress)
-                                    st.caption(job.message)
-                                    st.caption(f"Started: {job.started_at}")
-                                with col2:
-                                    if st.button("⏹️ Stop", key=f"stop_{job.id}", help="Pause this job"):
-                                        job_manager.request_stop(job.id)
-                                        st.warning("⏸️ Stop requested - job will pause at next frame")
-                                        import time
-                                        time.sleep(1)
-                                        st.rerun()
-                                with col3:
-                                    if st.button("🗑️", key=f"del_running_{job.id}", help="Delete this job"):
-                                        job_manager.request_stop(job.id)
-                                        import time
-                                        time.sleep(0.5)
-                                        job_manager.delete_job(job.id)
-                                        st.success("Job deleted")
-                                        st.rerun()
-                        st.markdown("---")
-                    
-                    # Paused jobs (can resume)
-                    paused_jobs = [j for j in jobs if j.status == JobStatus.PAUSED]
-                    if paused_jobs:
-                        st.subheader("⏸️ Paused Jobs")
-                        for job in paused_jobs:
-                            with st.container():
-                                col1, col2 = st.columns([4, 1])
-                                with col1:
-                                    st.markdown(f"**Job {job.id}** - {job.job_type}")
-                                    st.progress(job.progress)
-                                    st.caption(f"Paused at frame {job.last_frame}")
-                                with col2:
-                                    if st.button("▶️ Resume", key=f"resume_{job.id}"):
-                                        job_manager.resume_job(job.id)
-                                        # Start worker if not running
-                                        from job_manager import start_queue_worker
-                                        start_queue_worker(str(job_manager.jobs_dir))
-                                        st.success("▶️ Job queued for resume!")
-                                        st.rerun()
-                        st.markdown("---")
-                    
-                    # Queued jobs (waiting in line)
-                    from job_manager import JobStatus as JS
-                    queued_jobs = [j for j in jobs if j.status in [JobStatus.PENDING, JS.QUEUED]]
-                    if queued_jobs:
-                        st.subheader("📋 Queue")
-                        for i, job in enumerate(sorted(queued_jobs, key=lambda x: x.created_at)):
-                            pos = i + 1
-                            st.markdown(f"**#{pos}** Job {job.id} - {job.job_type}")
-                        st.caption(f"{len(queued_jobs)} job(s) waiting")
-                        st.markdown("---")
-                    
-                    # Completed/Failed jobs
-                    finished_jobs = [j for j in jobs if j.status in [JobStatus.COMPLETED, JobStatus.FAILED]]
-                    if finished_jobs:
-                        st.subheader("✅ Completed Jobs")
-                        for job in finished_jobs[:10]:  # Last 10
-                            with st.container():
-                                status_icon = "✅" if job.status == JobStatus.COMPLETED else "❌"
-                                st.markdown(f"{status_icon} **Job {job.id}** - {job.job_type}")
-                                st.caption(job.message)
-                                
-                                if job.result_path and Path(job.result_path).exists():
-                                    col1, col2 = st.columns([3, 1])
-                                    with col1:
-                                        if job.result_path.endswith(('.mp4', '.avi')):
-                                            st.video(job.result_path)
-                                        else:
-                                            st.image(job.result_path, width=200)
-                                    with col2:
-                                        with open(job.result_path, "rb") as f:
-                                            st.download_button(
-                                                "📥 Download",
-                                                data=f.read(),
-                                                file_name=Path(job.result_path).name,
-                                                key=f"dl_job_{job.id}"
-                                            )
-                                
-                                if job.error and job.status == JobStatus.FAILED:
-                                    with st.expander("Show Error"):
-                                        st.code(job.error)
-                                
-                                # Delete job button
-                                if st.button("🗑️ Remove", key=f"del_job_{job.id}"):
-                                    job_manager.delete_job(job.id)
-                                    st.rerun()
-                                
-                                st.markdown("---")
-            except Exception as e:
-                st.error(f"Error loading jobs: {e}")
-        
-        st.markdown("---")
-        st.markdown("### Or use Gallery Persons")
-        
-        # Keep original tabs for gallery-based workflow
-        tab1, tab2 = st.tabs(["📤 Upload Target Media", "📁 From Data Sources"])
-        
-        with tab1:
-            st.subheader("Upload Photo or Video to Reface")
-            uploaded_media = st.file_uploader(
-                "Choose a photo or video",
-                type=['jpg', 'jpeg', 'png', 'mp4', 'avi', 'mkv', 'mov'],
-                key="reface_upload"
-            )
-            
-            if uploaded_media:
-                # Save uploaded file temporarily
-                upload_dir = Path(__file__).parent / "reface_uploads"
-                upload_dir.mkdir(exist_ok=True)
-                
-                media_path = upload_dir / uploaded_media.name
-                with open(media_path, "wb") as f:
-                    f.write(uploaded_media.getbuffer())
-                
-                # Determine media type
-                ext = Path(uploaded_media.name).suffix.lower()
-                is_video = ext in ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.webm']
-                
-                # Preview
-                st.markdown("##### 📸 Preview")
-                if is_video:
-                    st.video(str(media_path))
-                    st.info(f"🎬 Video uploaded: {uploaded_media.name}")
-                else:
-                    try:
-                        import PIL.Image as PILImage
-                        img_preview = PILImage.open(media_path)
-                        img_preview.thumbnail((400, 400))
-                        st.image(img_preview, caption="Uploaded image")
-                    except Exception:
-                        st.image(str(media_path), caption="Uploaded image", use_container_width=True)
-                
-                st.session_state['reface_media_path'] = str(media_path)
-                st.session_state['reface_is_video'] = is_video
-        
-        with tab2:
-            st.subheader("Select from Data Sources")
-            
-            # Get all media from data sources
-            all_media = []
-            image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
-            video_extensions = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.webm'}
-            
-            for source in st.session_state.data_sources:
-                folder = Path(source['path'])
-                if folder.exists():
-                    for f in folder.rglob('*') if source.get('include_subfolders', True) else folder.iterdir():
-                        if f.is_file():
-                            ext = f.suffix.lower()
-                            if ext in image_extensions or ext in video_extensions:
-                                all_media.append({
-                                    'path': str(f),
-                                    'name': f.name,
-                                    'type': 'video' if ext in video_extensions else 'image'
-                                })
-            
-            if all_media:
-                media_options = {m['name']: m for m in all_media}
-                selected_media_name = st.selectbox(
-                    "Choose media file",
-                    options=list(media_options.keys())
-                )
-                
-                if selected_media_name:
-                    selected_media = media_options[selected_media_name]
-                    
-                    if selected_media['type'] == 'video':
-                        st.video(selected_media['path'])
-                    else:
-                        try:
-                            import PIL.Image as PILImage
-                            img_preview = PILImage.open(selected_media['path'])
-                            img_preview.thumbnail((400, 400))
-                            st.image(img_preview, caption=selected_media['name'])
-                        except Exception:
-                            st.image(selected_media['path'], use_container_width=True)
-                    
-                    if st.button("Use This Media", type="primary"):
-                        st.session_state['reface_media_path'] = selected_media['path']
-                        st.session_state['reface_is_video'] = selected_media['type'] == 'video'
-                        st.success(f"Selected: {selected_media_name}")
-            else:
-                st.info("No media files in data sources. Add data sources or upload a file.")
-        
-        st.markdown("---")
-        
-        # Step 2: Detect and select target faces
-        if 'reface_media_path' in st.session_state and st.session_state.get('reface_media_path'):
-            media_path = st.session_state['reface_media_path']
-            is_video = st.session_state.get('reface_is_video', False)
-            
-            st.subheader("🎯 Step 2: Select Faces to Swap")
-            
-            # Detect faces in the media
-            if st.button("🔍 Detect Faces in Media", type="primary"):
-                with st.spinner("Detecting faces..."):
-                    try:
-                        import cv2
-                        from insightface.app import FaceAnalysis
-                        
-                        # Initialize face detector
-                        app = FaceAnalysis(name='buffalo_l')
-                        app.prepare(ctx_id=0, det_size=(640, 640))
-                        
-                        if is_video:
-                            # For video, extract first frame
-                            cap = cv2.VideoCapture(media_path)
-                            ret, frame = cap.read()
-                            cap.release()
-                            if not ret:
-                                st.error("Could not read video frame")
-                                frame = None
-                        else:
-                            frame = cv2.imread(media_path)
-                        
-                        if frame is not None:
-                            # Detect faces
-                            faces = app.get(frame)
-                            
-                            if faces:
-                                st.session_state['reface_detected_faces'] = []
-                                
-                                # Save face crops for display
-                                face_crops_dir = Path(__file__).parent / "reface_uploads" / "face_crops"
-                                face_crops_dir.mkdir(parents=True, exist_ok=True)
-                                
-                                for i, face in enumerate(faces):
-                                    bbox = face.bbox.astype(int)
-                                    x1, y1, x2, y2 = bbox
-                                    
-                                    # Add padding
-                                    pad = 20
-                                    x1 = max(0, x1 - pad)
-                                    y1 = max(0, y1 - pad)
-                                    x2 = min(frame.shape[1], x2 + pad)
-                                    y2 = min(frame.shape[0], y2 + pad)
-                                    
-                                    face_crop = frame[y1:y2, x1:x2]
-                                    crop_path = face_crops_dir / f"face_{i}.jpg"
-                                    cv2.imwrite(str(crop_path), face_crop)
-                                    
-                                    st.session_state['reface_detected_faces'].append({
-                                        'index': i,
-                                        'bbox': bbox.tolist(),
-                                        'crop_path': str(crop_path)
-                                    })
-                                
-                                st.success(f"✅ Detected {len(faces)} faces!")
-                                st.rerun()
-                            else:
-                                st.warning("No faces detected in the media")
-                    except Exception as e:
-                        st.error(f"Face detection failed: {e}")
-                        import traceback
-                        st.code(traceback.format_exc())
-            
-            # Display detected faces for selection
-            if 'reface_detected_faces' in st.session_state and st.session_state['reface_detected_faces']:
-                detected_faces = st.session_state['reface_detected_faces']
-                
-                st.markdown(f"**Found {len(detected_faces)} faces. Select which to swap:**")
-                
-                # Initialize selected faces
-                if 'reface_selected_target_faces' not in st.session_state:
-                    st.session_state['reface_selected_target_faces'] = []
-                
-                # Display faces in grid
-                cols = st.columns(min(5, len(detected_faces)))
-                for i, face_info in enumerate(detected_faces):
-                    with cols[i % 5]:
-                        if os.path.exists(face_info['crop_path']):
-                            st.image(face_info['crop_path'], width='stretch')
-                        
-                        is_selected = i in st.session_state.get('reface_selected_target_faces', [])
-                        
-                        if st.checkbox(
-                            f"Face {i+1}",
-                            value=is_selected,
-                            key=f"target_face_{i}"
-                        ):
-                            if i not in st.session_state['reface_selected_target_faces']:
-                                st.session_state['reface_selected_target_faces'].append(i)
-                        else:
-                            if i in st.session_state['reface_selected_target_faces']:
-                                st.session_state['reface_selected_target_faces'].remove(i)
-                
-                selected_count = len(st.session_state.get('reface_selected_target_faces', []))
-                if selected_count > 0:
-                    st.success(f"✅ Selected {selected_count} face(s) for swapping")
-                else:
-                    st.info("Select at least one face to swap, or leave empty to swap ALL faces")
-                
-                st.markdown("---")
-                
-                # Step 3: Person selection for face swap
-                st.subheader("👤 Step 3: Select Person to Swap In")
-                
-                persons = get_all_persons()
-                
-                if not persons:
-                    st.warning("No persons in gallery. Go to Gallery to process and assign faces first.")
-                else:
-                    # Display persons as selectable grid
-                    cols = st.columns(5)
-                    
-                    if 'reface_selected_person' not in st.session_state:
-                        st.session_state['reface_selected_person'] = None
-                    
-                    for i, person in enumerate(persons):
-                        with cols[i % 5]:
-                            faces = get_faces_for_person(person["id"], limit=1)
-                            
-                            # Thumbnail
-                            if faces and faces[0]["image_path"] and os.path.exists(faces[0]["image_path"]):
-                                st.image(faces[0]["image_path"], width='stretch')
-                            else:
-                                st.markdown("""
-                                <div style="background: #333; border-radius: 10px; height: 80px; 
-                                            display: flex; align-items: center; justify-content: center;">
-                                    <span style="font-size: 30px;">👤</span>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                            # Selection button
-                            is_selected = st.session_state.get('reface_selected_person') == person['id']
-                            btn_type = "primary" if is_selected else "secondary"
-                            
-                            if st.button(
-                                f"{'✅ ' if is_selected else ''}{person['name'][:12]}",
-                                key=f"select_person_{person['id']}",
-                                type=btn_type,
-                                width='stretch'
-                            ):
-                                st.session_state['reface_selected_person'] = person['id']
-                                st.rerun()
-                            
-                            st.caption(f"{person['face_count']} faces")
-                    
-                    st.markdown("---")
-                    
-                    # Execute reface
-                    if st.session_state.get('reface_selected_person'):
-                        selected_person = next((p for p in persons if p['id'] == st.session_state['reface_selected_person']), None)
-                        
-                        if selected_person:
-                            st.success(f"✅ Selected: **{selected_person['name']}** for face swap")
-                            
-                            # Get faces for this person
-                            person_faces = get_faces_for_person(selected_person['id'], limit=20)
-                            face_paths = [f['image_path'] for f in person_faces if f['image_path'] and os.path.exists(f['image_path'])]
-                            
-                            # Enhancement options
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                upscale = st.selectbox("Output quality", [1, 2, 4], index=1, 
-                                                      format_func=lambda x: f"{x}x {'(Original)' if x==1 else 'upscale'}")
-                            with col2:
-                                swap_all = st.checkbox("Swap ALL detected faces", value=len(st.session_state.get('reface_selected_target_faces', [])) == 0)
-                            
-                            if st.button("🚀 Start Face Swap", type="primary", width='stretch'):
-                                if not face_paths:
-                                    st.error("No face images found for this person")
-                                else:
-                                    with st.spinner("Processing face swap... This may take a while for videos."):
-                                        try:
-                                            engine = RefaceEngine(upscale=upscale)
-                                            
-                                            # Determine which faces to swap
-                                            if swap_all:
-                                                target_face_index = -1  # Swap all
-                                            else:
-                                                selected_indices = st.session_state.get('reface_selected_target_faces', [])
-                                                # For now, swap first selected (could extend to multiple)
-                                                target_face_index = selected_indices[0] if selected_indices else -1
-                                            
-                                            progress = st.progress(0)
-                                            status = st.empty()
-                                            
-                                            def update_progress(current, total):
-                                                if 'eta_gallery' not in st.session_state or st.session_state.eta_gallery_total != total:
-                                                    st.session_state.eta_gallery = ETACalculator(total)
-                                                    st.session_state.eta_gallery_total = total
-                                                    
-                                                eta_str = st.session_state.eta_gallery.get_eta_string(current)
-                                                progress_pct = int((current / total) * 100) if total > 0 else 0
-                                                progress.progress(current / total)
-                                                status.text(f"Frame {current}/{total} ({progress_pct}%) ({eta_str} remaining)...")
-                                            
-                                            if is_video:
-                                                result = engine.reface_video(
-                                                    target_video_path=media_path,
-                                                    source_person_faces=face_paths,
-                                                    target_face_index=target_face_index,
-                                                    progress_callback=update_progress
-                                                )
-                                            else:
-                                                result = engine.reface_image(
-                                                    target_image_path=media_path,
-                                                    source_person_faces=face_paths,
-                                                    target_face_index=target_face_index
-                                                )
-                                            
-                                            if result.success:
-                                                st.success(f"✅ {result.message}")
-                                                
-                                                # Show result
-                                                if is_video and result.output_path:
-                                                    st.video(result.output_path)
-                                                elif result.output_path:
-                                                    st.image(result.output_path, caption="Refaced Result")
-                                                
-                                                # Download button
-                                                if result.output_path and os.path.exists(result.output_path):
-                                                    with open(result.output_path, "rb") as f:
-                                                        st.download_button(
-                                                            "📥 Download Result",
-                                                            data=f.read(),
-                                                            file_name=Path(result.output_path).name,
-                                                            mime="video/mp4" if is_video else "image/jpeg"
-                                                        )
-                                            else:
-                                                st.error(f"❌ Face swap failed: {result.message}")
-                                        
-                                        except Exception as e:
-                                            st.error(f"❌ Error: {str(e)}")
-                                            import traceback
-                                            st.code(traceback.format_exc())
-                    else:
-                        st.info("👆 Click on a person above to select them for face swap")
-            else:
-                st.info("👆 Click 'Detect Faces' to find faces in the media")
-
-
-
 elif page == "✨ Magic Undress":
     st.title("✨ Magic Undress")
     st.markdown(
@@ -2380,7 +1035,7 @@ elif page == "🧬 Character LoRA":
     with tab_dataset:
         source_mode = st.radio(
             "Source", ["📤 Upload New", "👥 Use Gallery Person"], horizontal=True, key="lora_dataset_source_mode",
-            help="Upload New works like Reface V2's source upload: photos don't need to already be mined into a gallery person.",
+            help="Upload photos directly, including photos that have not been scanned into Gallery.",
         )
 
         build_clicked = False
@@ -3064,21 +1719,21 @@ elif page == "🧬 Character LoRA":
             _generation_jobs_panel()
 
 
-elif page == "🎭 Reface V2":
-    st.title("🎭 Reface V2")
+elif page == "🎭 Reface":
+    st.title("🎭 Reface")
     st.markdown("**Professional face swapping** with neural enhancement, occlusion handling, and temporal consistency")
     
-    # Initialize V2 engine
+    # Import the single public engine; model loading happens when processing starts.
     try:
-        from reface_engine_v2 import RefaceEngineV2, EnhancementConfig, OcclusionConfig, VideoConfig
-        from reface_engine_v3 import RefaceEngineV3
-        from reface_engine import Faceset
+        from reface import RefaceEngine, Faceset
+        from reface_desktop import (render_options, gallery_faceset, target_files,
+                                    select_target, stage_target_upload, selected_targets)
         reface_v2_error = None
     except Exception as e:
         reface_v2_error = str(e)
     
     if reface_v2_error:
-        st.error(f"❌ Reface V2 engine initialization failed: {reface_v2_error}")
+        st.error(f"❌ Reface initialization failed: {reface_v2_error}")
         st.code(reface_v2_error)
     else:
         # GPU Status
@@ -3092,18 +1747,9 @@ elif page == "🎭 Reface V2":
         except:
             pass
         
-        # V2 Features Info
-        with st.expander("ℹ️ What's New in V2?", expanded=False):
-            st.markdown("""
-            **Reface V2** includes professional-grade enhancements:
-            
-            - **🧠 Neural Enhancement**: GFPGAN for high-quality face restoration
-            - **🎭 Occlusion Handling**: Protects glasses, hands, and hair from being overwritten
-            - **🎬 Temporal Consistency**: Reduces jitter in video face swaps
-            - **🎨 Advanced Color Correction**: Skin-tone aware blending
-            - **⚡ Quality Presets**: Fast, Standard, or Professional modes
-            """)
-        
+        st.caption("One Reface pipeline for photos and complete videos. Quality profiles adjust the same engine.")
+        st.caption("Video swaps process every frame; tracking and current-frame detection recovery reduce interruptions.")
+
         st.markdown("---")
 
         from job_manager import JobManager as _V2JM, JobStatus as _V2JS, gpu_heavy_job_running
@@ -3114,7 +1760,7 @@ elif page == "🎭 Reface V2":
                        "and identity builds are disabled until it finishes (background swaps will queue behind it).")
 
         tab_v2_swap, tab_v2_build, tab_v2_dfl, tab_v2_history, tab_v2_jobs = st.tabs([
-            "🔄 Quick Swap (V2)",
+            "🔄 Quick Swap",
             "📦 Build Faceset (Advanced)",
             "🧠 Video Model (DFL)",
             "📜 History / Results",
@@ -3131,7 +1777,7 @@ elif page == "🎭 Reface V2":
                 st.caption("Upload the person's face you want to insert")
                 
                 # Source mode selection
-                source_mode = st.radio("Source Mode", ["📤 Upload New", "📦 Use Faceset", "🧬 Trained LoRA"],
+                source_mode = st.radio("Source Mode", ["📤 Upload New", "📦 Use Faceset", "👥 Gallery Person", "🧬 Trained LoRA"],
                                        horizontal=True, key="v2_source_mode")
 
                 if source_mode == "📤 Upload New":
@@ -3209,7 +1855,32 @@ elif page == "🎭 Reface V2":
                             st.session_state['v2_data_source_mode'] = 'faceset'
                             st.success(f"Using faceset: {selected_fs}")
                     else:
-                        st.info("No facesets found. Create one in the original Reface tab.")
+                        st.info("No facesets found. Create one in Build Faceset (Advanced).")
+
+                elif source_mode == "👥 Gallery Person":
+                    people = get_all_persons()
+                    if not people:
+                        st.info("Add people in Gallery first.")
+                    else:
+                        person_id = st.selectbox("Person", [person['id'] for person in people],
+                                                 key="reface_gallery_person",
+                                                 format_func=lambda pid: next(person['name'] for person in people if person['id'] == pid))
+                        person = next(person for person in people if person['id'] == person_id)
+                        faces = get_faces_for_person(person_id)
+                        if faces and faces[0].get('image_path') and Path(faces[0]['image_path']).is_file():
+                            st.image(faces[0]['image_path'], width=160)
+                        st.caption(f"{person['face_count']} saved faces")
+                        if st.button("Use this person", key="reface_use_gallery_person"):
+                            selected = gallery_faceset(f"gallery_person_{person_id}", faces)
+                            if not selected.faces:
+                                st.error("This person has no usable face embeddings. Scan their photos in Gallery first.")
+                            else:
+                                gallery_dir = Path(__file__).parent / "facesets"
+                                gallery_dir.mkdir(parents=True, exist_ok=True)
+                                selected.save(gallery_dir / f"{selected.name}.pkl")
+                                st.session_state['v2_selected_faceset'] = selected.name
+                                st.session_state['v2_data_source_mode'] = 'faceset'
+                                st.success(f"Ready: {person['name']} ({len(selected.faces)} source faces)")
 
                 else:  # 🧬 Trained LoRA
                     from database import get_person_lora_info as _v2_get_lora_info
@@ -3337,382 +2008,173 @@ elif page == "🎭 Reface V2":
                 st.markdown("#### 🎯 Step 2: Target Media")
                 st.caption("The photo/video where faces will be swapped")
                 
-                target_file = st.file_uploader(
-                    "Upload target media",
-                    type=['jpg', 'jpeg', 'png', 'mp4', 'avi', 'mkv', 'mov'],
-                    key="v2_target_upload"
-                )
+                target_mode = st.radio("Target source", ["Upload", "From Data Sources"], horizontal=True, key="reface_target_mode")
+                if target_mode == "Upload":
+                    target_file = st.file_uploader(
+                        "Upload target media",
+                        type=['jpg', 'jpeg', 'png', 'bmp', 'webp', 'mp4', 'avi', 'mkv', 'mov', 'wmv', 'webm'],
+                        key="v2_target_upload"
+                    )
                 
-                if target_file:
-                    target_dir = Path(__file__).parent / "reface_uploads" / "v2_target"
-                    target_dir.mkdir(parents=True, exist_ok=True)
+                    if target_file:
+                        target_dir = Path(__file__).parent / "reface_uploads" / "v2_target"
+                        target_path = stage_target_upload(st.session_state, target_file, target_dir)
                     
-                    target_path = target_dir / target_file.name
-                    with open(target_path, "wb") as out:
-                        out.write(target_file.getbuffer())
-
-                    if st.session_state.get('v2_target_path') != str(target_path):
-                        # New target: faces detected and ticked on the old one no longer apply.
-                        for k in [k for k in st.session_state.keys() if str(k).startswith('v2_target_face_')]:
-                            del st.session_state[k]
-                        st.session_state['v2_detected_faces'] = []
-                        st.session_state['v2_selected_target_faces'] = []
-                    st.session_state['v2_target_path'] = str(target_path)
+                        ext = Path(target_file.name).suffix.lower()
+                        is_video = ext in ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.webm']
+                        st.session_state['v2_is_video'] = is_video
                     
-                    ext = Path(target_file.name).suffix.lower()
-                    is_video = ext in ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.webm']
-                    st.session_state['v2_is_video'] = is_video
+                        import PIL.Image as PILImage
                     
-                    import PIL.Image as PILImage
+                        st.markdown("##### 📸 Preview")
+                        if is_video:
+                            st.video(str(target_path))
+                        else:
+                            try:
+                                img_preview = PILImage.open(target_path)
+                                img_preview.thumbnail((400, 400))
+                                st.image(img_preview, caption=target_file.name)
+                            except Exception:
+                                st.image(str(target_path), use_container_width=True)
                     
-                    st.markdown("##### 📸 Preview")
-                    if is_video:
-                        st.video(str(target_path))
+                        st.success("✅ Target uploaded successfully")
+                
+                else:
+                    paths = target_files(st.session_state.get('data_sources', []))
+                    if paths:
+                        path = st.selectbox("Target file", paths, key="reface_target_from_source")
+                        if st.button("Use this media", key="reface_use_source_target"):
+                            select_target(st.session_state, path)
+                            st.success(f"Selected: {Path(path).name}")
                     else:
-                        try:
-                            img_preview = PILImage.open(target_path)
-                            img_preview.thumbnail((400, 400))
-                            st.image(img_preview, caption=target_file.name)
-                        except Exception:
-                            st.image(str(target_path), use_container_width=True)
-                    
-                    st.success("✅ Target uploaded successfully")
-                
+                        st.info("No media files in Data Sources. Add a folder or upload a file.")
+
                 if 'v2_target_path' in st.session_state and st.session_state.get('v2_target_path'):
                     target_path_str = st.session_state['v2_target_path']
                     is_video_target = st.session_state.get('v2_is_video', False)
+                    st.caption(f"Current target: {Path(target_path_str).name}")
                     
-                    # Detect faces in the media
-                    if st.button("🔍 Detect Faces in Media", type="primary", key="v2_detect_btn", use_container_width=True):
-                        with st.spinner("Detecting faces..."):
-                            try:
-                                import cv2
+                    replace_all = st.checkbox("Replace all faces", value=True, key="reface_replace_all",
+                                              help="Replaces every detected face throughout the video, including people who appear later. No target selection needed.")
+                    if replace_all:
+                        st.caption("All faces will be replaced. Face detection is automatic during processing.")
+                    else:
+                        # Detect faces in the media
+                        if st.button("🔍 Detect Faces in Media", type="primary", key="v2_detect_btn", use_container_width=True):
+                            with st.spinner("Detecting faces..."):
+                                try:
+                                    import cv2
 
-                                app = get_face_analyzer()  # cached; loading buffalo_l per click cost seconds
+                                    app = get_face_analyzer()  # cached; loading buffalo_l per click cost seconds
 
-                                if is_video_target:
-                                    # For video, extract first frame
-                                    cap = cv2.VideoCapture(target_path_str)
-                                    ret, frame = cap.read()
-                                    cap.release()
-                                    if not ret:
-                                        st.error("Could not read video frame")
-                                        frame = None
-                                else:
-                                    frame = cv2.imread(target_path_str)
-                                
-                                if frame is not None:
-                                    # Detect faces
-                                    faces = app.get(frame)
-                                    
-                                    if faces:
-                                        st.session_state['v2_detected_faces'] = []
-                                        st.session_state['v2_selected_target_faces'] = []
-                                        for k in [k for k in st.session_state.keys()
-                                                  if str(k).startswith('v2_target_face_')]:
-                                            del st.session_state[k]
-
-                                        # Save face crops for display
-                                        face_crops_dir = Path(__file__).parent / "reface_uploads" / "v2_face_crops"
-                                        face_crops_dir.mkdir(parents=True, exist_ok=True)
-                                        
-                                        for i, face in enumerate(faces):
-                                            bbox = face.bbox.astype(int)
-                                            x1, y1, x2, y2 = bbox
-                                            
-                                            # Add padding
-                                            pad = 20
-                                            x1 = max(0, x1 - pad)
-                                            y1 = max(0, y1 - pad)
-                                            x2 = min(frame.shape[1], x2 + pad)
-                                            y2 = min(frame.shape[0], y2 + pad)
-                                            
-                                            face_crop = frame[y1:y2, x1:x2]
-                                            crop_path = face_crops_dir / f"face_{i}.jpg"
-                                            cv2.imwrite(str(crop_path), face_crop)
-                                            
-                                            st.session_state['v2_detected_faces'].append({
-                                                'index': i,
-                                                'bbox': bbox.tolist(),
-                                                'crop_path': str(crop_path),
-                                                # V3 finds the ticked people in every frame by
-                                                # identity; detection order changes frame to frame.
-                                                'embedding': [float(x) for x in face.normed_embedding],
-                                            })
-                                        
-                                        st.success(f"✅ Detected {len(faces)} faces!")
-                                        st.rerun()
+                                    if is_video_target:
+                                        # For video, extract first frame
+                                        cap = cv2.VideoCapture(target_path_str)
+                                        ret, frame = cap.read()
+                                        cap.release()
+                                        if not ret:
+                                            st.error("Could not read video frame")
+                                            frame = None
                                     else:
-                                        st.warning("No faces detected in the media")
-                            except Exception as e:
-                                st.error(f"Face detection failed: {e}")
-                                import traceback
-                                st.code(traceback.format_exc())
+                                        frame = cv2.imread(target_path_str)
+                                
+                                    if frame is not None:
+                                        # Detect faces
+                                        faces = app.get(frame)
+                                    
+                                        if faces:
+                                            st.session_state['v2_detected_faces'] = []
+                                            st.session_state['v2_selected_target_faces'] = []
+                                            for k in [k for k in st.session_state.keys()
+                                                      if str(k).startswith('v2_target_face_')]:
+                                                del st.session_state[k]
+
+                                            # Save face crops for display
+                                            face_crops_dir = Path(__file__).parent / "reface_uploads" / "v2_face_crops"
+                                            face_crops_dir.mkdir(parents=True, exist_ok=True)
+                                        
+                                            for i, face in enumerate(faces):
+                                                bbox = face.bbox.astype(int)
+                                                x1, y1, x2, y2 = bbox
+                                            
+                                                # Add padding
+                                                pad = 20
+                                                x1 = max(0, x1 - pad)
+                                                y1 = max(0, y1 - pad)
+                                                x2 = min(frame.shape[1], x2 + pad)
+                                                y2 = min(frame.shape[0], y2 + pad)
+                                            
+                                                face_crop = frame[y1:y2, x1:x2]
+                                                crop_path = face_crops_dir / f"face_{i}.jpg"
+                                                cv2.imwrite(str(crop_path), face_crop)
+                                            
+                                                st.session_state['v2_detected_faces'].append({
+                                                    'index': i,
+                                                    'bbox': bbox.tolist(),
+                                                    'crop_path': str(crop_path),
+                                                    # Reface finds selected people in every frame by
+                                                    # identity; detection order changes frame to frame.
+                                                    'embedding': [float(x) for x in face.normed_embedding],
+                                                })
+                                        
+                                            st.success(f"✅ Detected {len(faces)} faces!")
+                                            st.rerun()
+                                        else:
+                                            st.warning("No faces detected in the media")
+                                except Exception as e:
+                                    st.error(f"Face detection failed: {e}")
+                                    import traceback
+                                    st.code(traceback.format_exc())
                     
-                    # Display detected faces for selection
-                    if 'v2_detected_faces' in st.session_state and st.session_state['v2_detected_faces']:
-                        detected_faces = st.session_state['v2_detected_faces']
+                        # Display detected faces for selection
+                        if 'v2_detected_faces' in st.session_state and st.session_state['v2_detected_faces']:
+                            detected_faces = st.session_state['v2_detected_faces']
                         
-                        st.markdown(f"**Found {len(detected_faces)} faces. Select which to swap:**")
+                            st.markdown(f"**Found {len(detected_faces)} faces. Select which to swap:**")
                         
-                        # Initialize selected faces
-                        if 'v2_selected_target_faces' not in st.session_state:
-                            st.session_state['v2_selected_target_faces'] = []
+                            # Initialize selected faces
+                            if 'v2_selected_target_faces' not in st.session_state:
+                                st.session_state['v2_selected_target_faces'] = []
                         
-                        # Display faces in grid
-                        cols_faces = st.columns(min(5, len(detected_faces)))
-                        for i, face_info in enumerate(detected_faces):
-                            with cols_faces[i % 5]:
-                                if os.path.exists(face_info['crop_path']):
-                                    st.image(face_info['crop_path'], use_container_width=True)
+                            # Display faces in grid
+                            cols_faces = st.columns(min(5, len(detected_faces)))
+                            for i, face_info in enumerate(detected_faces):
+                                with cols_faces[i % 5]:
+                                    if os.path.exists(face_info['crop_path']):
+                                        st.image(face_info['crop_path'], use_container_width=True)
                                 
-                                is_selected = i in st.session_state.get('v2_selected_target_faces', [])
+                                    is_selected = i in st.session_state.get('v2_selected_target_faces', [])
                                 
-                                if st.checkbox(
-                                    f"Face {i+1}",
-                                    value=is_selected,
-                                    key=f"v2_target_face_{i}"
-                                ):
-                                    if i not in st.session_state['v2_selected_target_faces']:
-                                        st.session_state['v2_selected_target_faces'].append(i)
-                                        st.rerun()
-                                else:
-                                    if i in st.session_state['v2_selected_target_faces']:
-                                        st.session_state['v2_selected_target_faces'].remove(i)
-                                        st.rerun()
+                                    if st.checkbox(
+                                        f"Face {i+1}",
+                                        value=is_selected,
+                                        key=f"v2_target_face_{i}"
+                                    ):
+                                        if i not in st.session_state['v2_selected_target_faces']:
+                                            st.session_state['v2_selected_target_faces'].append(i)
+                                            st.rerun()
+                                    else:
+                                        if i in st.session_state['v2_selected_target_faces']:
+                                            st.session_state['v2_selected_target_faces'].remove(i)
+                                            st.rerun()
                         
-                        selected_count = len(st.session_state.get('v2_selected_target_faces', []))
-                        if selected_count > 0:
-                            st.info(f"✅ Selected {selected_count} face(s) for swapping")
-                        else:
-                            st.info("Select at least one face to swap, or leave empty to swap ALL faces.")
+                            selected_count = len(st.session_state.get('v2_selected_target_faces', []))
+                            if selected_count > 0:
+                                st.info(f"✅ Selected {selected_count} face(s) for swapping")
+                            else:
+                                st.info("Select the people you want to replace, or enable Replace all faces.")
         
-        st.markdown("---")
+            st.markdown("---")
         
-        # V2 Configuration Options
         with st.container(border=True):
-            st.markdown("#### ⚙️ Step 3: Engine Options")
-
-            engine_mode = st.radio(
-                "Engine",
-                ["✨ HD V3 (recommended)", "Legacy V2"],
-                horizontal=True,
-                help="HD V3: ONNX CodeFormer restoration + face-parser/occluder masks + averaged identity. "
-                     "Sharper faces, stronger likeness, stable video. Legacy V2 kept for fallback.",
-            )
-            use_v3 = engine_mode.startswith("✨")
-
-            if use_v3:
-                vc1, vc2, vc3 = st.columns(3)
-                with vc1:
-                    from face_restore import RESTORER_FILES as _RESTORER_FILES, MODELS_DIR as _RESTORER_DIR
-                    from reface_engine_v3 import DEFAULT_RESTORER as _DEFAULT_RESTORER
-                    _restorer_opts = list(_RESTORER_FILES) + ["none"]
-                    v3_restorer = st.selectbox(
-                        "Restorer",
-                        _restorer_opts,
-                        index=_restorer_opts.index(_DEFAULT_RESTORER) if _DEFAULT_RESTORER in _restorer_opts else 0,
-                        format_func=lambda n: n if n == "none" or (_RESTORER_DIR / _RESTORER_FILES[n]).exists()
-                        else f"{n} (not downloaded - falls back to CodeFormer)",
-                        help="CodeFormer best preserves identity. 'none' = swap only (no HD restore). "
-                             "Optional restorers: venv\\Scripts\\python download_models.py --extras",
-                    )
-                with vc2:
-                    if v3_restorer == "codeformer":
-                        v3_weight = st.slider(
-                            "CodeFormer fidelity", 0.0, 1.0, 0.5, 0.05,
-                            help="Lower = sharper/stronger restoration; higher = more faithful to the swap. 0.5 is balanced.",
-                        )
-                    else:
-                        v3_weight = 0.5   # only CodeFormer has a fidelity input
-                        st.caption("Measured on 4 people (eval_reface.py): GPEN 512 keeps the identity and adds "
-                                   "the most detail; GPEN 1024 is marginally better and 4x slower; CodeFormer "
-                                   "loses the most identity.")
-                with vc3:
-                    v3_use_parser = st.checkbox(
-                        "Parser blending", value=True,
-                        help="Clean hairline/jaw via the face-parsing region mask.",
-                    )
-                    v3_use_occluder = st.checkbox(
-                        "Occlusion handling", value=True,
-                        help="Preserve hands / objects / glasses in front of the face.",
-                    )
-                from face_swappers import available_swappers as _available_swappers
-                from reface_engine_v3 import resolve_swapper_name as _resolve_swapper
-                _swappers = _available_swappers()
-                v3_swapper = st.selectbox(
-                    "Swapper",
-                    ["auto"] + _swappers,
-                    format_func=lambda n: f"auto - best measured ({_resolve_swapper('auto')})" if n == "auto" else n,
-                    help="HyperSwap works at 256 px (4x the pixels of inswapper_128) and reads the same "
-                         "identity. 'auto' uses whichever eval_reface.py measured best on this PC. "
-                         "Missing ones: venv\\Scripts\\python download_models.py --extras",
-                )
-                from reface_engine_v3 import DEFAULT_IDENTITY_BOOST as _DEFAULT_BOOST
-                v3_identity_boost = st.slider(
-                    "Identity strength", 0.0, 1.0, float(_DEFAULT_BOOST), 0.05,
-                    help="Pushes the identity away from the target's own face before swapping, so less of the "
-                         "original person leaks through. 0 = off, 1 = FaceFusion's maximum. Too high can look "
-                         "exaggerated.",
-                )
-                st.caption("V3 runs entirely on GPU via onnxruntime. First run loads the restorer/parser/occluder models.")
-                from dfl_bridge import dfm_for as _dfm_for
-                _sel_fs = (st.session_state.get('v2_selected_faceset')
-                           if st.session_state.get('v2_data_source_mode') == 'faceset' else None)
-                _dfm_path = _dfm_for(_sel_fs) if _sel_fs else None
-                v3_use_dfm = False
-                if _dfm_path:
-                    v3_use_dfm = st.checkbox(
-                        f"🧠 Use the trained video model for {_sel_fs}", value=True, key="v2_use_dfm",
-                        help="DeepFaceLab model trained on this person (🧠 Video Model tab). It learned the face "
-                             "itself, not just an identity vector - the best quality for video. "
-                             "Untick to use the swapper above.")
-
-                with st.expander("🎬 Realism", expanded=True):
-                    v3_preset = st.selectbox(
-                        "Preset",
-                        ["natural", "maximum_detail", "clean"],
-                        index=0,
-                        format_func=lambda x: {
-                            "natural": "Natural (recommended)",
-                            "maximum_detail": "Maximum detail (stills / close-ups)",
-                            "clean": "Clean — legacy V3 (for A/B comparison)",
-                        }[x],
-                        help="Natural matches the frame's lighting, focus and grain, and keeps "
-                             "the target's real teeth. Clean reproduces the old behaviour so you "
-                             "can compare.",
-                    )
-                    v3_realism_overrides = {}
-                    if st.checkbox("Fine-tune realism", value=False):
-                        rc1, rc2 = st.columns(2)
-                        with rc1:
-                            v3_realism_overrides["detail_transfer"] = st.slider(
-                                "Skin detail transfer", 0.0, 1.0, 0.4, 0.05,
-                                help="Borrows real pores from the original frame. Scales "
-                                     "automatically with how large the face is.",
-                            )
-                            v3_realism_overrides["grain_match"] = st.slider(
-                                "Grain match", 0.0, 1.0, 1.0, 0.05,
-                                help="Adds noise matched to the surrounding frame.",
-                            )
-                        with rc2:
-                            v3_realism_overrides["relight"] = st.slider(
-                                "Relight strength", 0.0, 1.0, 1.0, 0.05,
-                                help="Matches the scene's light direction and white balance.",
-                            )
-                            v3_realism_overrides["preserve_mouth_interior"] = st.checkbox(
-                                "Keep the target's real teeth", value=True,
-                                help="Swaps the lips but not the inner mouth. Stops open "
-                                     "mouths turning to mush.",
-                            )
-                            v3_realism_overrides["focus_match"] = st.checkbox(
-                                "Focus match", value=True,
-                                help="Softens the face to match a soft or blurred frame.",
-                            )
-            else:
-                v3_restorer, v3_weight, v3_use_parser, v3_use_occluder = "codeformer", 0.7, True, True
-                v3_preset, v3_realism_overrides = "natural", {}
-                v3_swapper = "auto"
-                v3_use_dfm, _dfm_path = False, None
-                v3_identity_boost = 0.0
-
+            st.markdown("#### ⚙️ Step 3: Reface Options")
+            selected_faceset = (st.session_state.get('v2_selected_faceset')
+                                if st.session_state.get('v2_data_source_mode') == 'faceset' else None)
+            engine_options = render_options(st, selected_faceset)
             is_video_target = st.session_state.get('v2_is_video', False)
-            if use_v3:
-                # None of the Legacy V2 controls reach V3 (it has its own above), so
-                # they are hidden; these values only fill the shared job params.
-                quality_preset, enhancement_mode, enhancer_type = "standard", "auto", "none"
-                use_angle_match, enable_occlusion, temporal_smooth = True, True, True
-                enhancement_strength, upscale_factor, smoothing_window = 0.7, 1, 3
-                protect_glasses, protect_hair = True, True
-            else:
-                col1, col2, col3 = st.columns(3)
-            
-                # The preset seeds every control below it. Keeping the values in one
-                # place is what stops the dropdown from drifting back into a label
-                # that changes two checkboxes and nothing else.
-                _PRESET_DEFAULTS = {
-                    "fast":         {"enhancer_index": 0, "upscale_index": 0, "smoothing_window": 3,
-                                     "occlusion": False, "temporal": False, "strength": 0.7},
-                    "standard":     {"enhancer_index": 1, "upscale_index": 1, "smoothing_window": 3,
-                                     "occlusion": True,  "temporal": True,  "strength": 0.7},
-                    "professional": {"enhancer_index": 2, "upscale_index": 1, "smoothing_window": 5,
-                                     "occlusion": True,  "temporal": True,  "strength": 0.8},
-                }
+            start_time_sec, end_time_sec = 0.0, 0.0
 
-                with col1:
-                    quality_preset = st.selectbox(
-                        "Quality Preset",
-                        ["fast", "standard", "professional"],
-                        index=1,
-                        format_func=lambda x: f"{x.title()} {'⚡' if x=='fast' else '🔧' if x=='standard' else '🌟'}",
-                        help="Seeds every option below. Change the preset first, then adjust "
-                             "individual controls — they keep whatever you set."
-                    )
-
-                with col2:
-                    if is_video_target:
-                        enhancement_mode = st.selectbox(
-                            "Video Enhancement Mode",
-                            ["auto", "always", "off"],
-                            index=0,
-                            format_func=lambda x: {
-                                "auto": "Auto (Quality Gate)",
-                                "always": "Always (Force)",
-                                "off": "Off (None)"
-                            }[x],
-                            help="Auto enhances only sharp faces in 540p+ videos to avoid inventing clashing detail on low-res sources."
-                        )
-                        enhancer_type = "gfpgan" if enhancement_mode != "off" else "none"
-                    else:
-                        enhancement_mode = "auto"
-                        enhancer_type = st.selectbox(
-                            "Face Enhancer",
-                            ["none", "opencv", "gfpgan"],
-                            index=_PRESET_DEFAULTS[quality_preset]["enhancer_index"],
-                            format_func=lambda x: {"none": "None (Raw)", "opencv": "OpenCV (Basic)", "gfpgan": "GFPGAN (Neural)"}[x]
-                        )
-            
-                with col3:
-                    use_angle_match = st.checkbox("🔄 Angle Matching", value=True, help="Match source face angle to target")
-            
-                col1, col2, col3 = st.columns(3)
-            
-                with col1:
-                    enable_occlusion = st.checkbox("🎭 Occlusion Protection",
-                                                  value=_PRESET_DEFAULTS[quality_preset]["occlusion"],
-                                                  help="Protect glasses, hands, hair from being overwritten")
-            
-                with col2:
-                    temporal_smooth = st.checkbox("🎬 Temporal Smoothing",
-                                                 value=_PRESET_DEFAULTS[quality_preset]["temporal"],
-                                                 help="Reduce video jitter (videos only)")
-            
-                with col3:
-                    enhancement_strength = st.slider("Enhancement Strength", 0.0, 1.0,
-                                                    _PRESET_DEFAULTS[quality_preset]["strength"], 0.1,
-                                                    help="How strongly to apply face enhancement")
-            
-                # Advanced options
-                with st.expander("🔧 Advanced Engineering Options"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if is_video_target:
-                            st.caption("ℹ️ Upscale Factor applies to still images only. Video frames stay at source resolution.")
-                            upscale_factor = 1
-                        else:
-                            upscale_factor = st.selectbox(
-                                "Upscale Factor", [1, 2, 4],
-                                index=_PRESET_DEFAULTS[quality_preset]["upscale_index"]
-                            )
-                        protect_glasses = st.checkbox("Protect Glasses", value=True)
-                    with col2:
-                        smoothing_window = st.slider(
-                            "Smoothing Window (frames)", 1, 7,
-                            _PRESET_DEFAULTS[quality_preset]["smoothing_window"]
-                        )
-                        protect_hair = st.checkbox("Protect Hair Region", value=True)
-
-            # Video specific time clipping options (both engines)
+            # Time clipping uses the same whole-video pipeline.
             if is_video_target:
                 with st.expander("🎬 Video Clipping"):
                     tcol1, tcol2 = st.columns(2)
@@ -3734,43 +2196,27 @@ elif page == "🎭 Reface V2":
                      (st.session_state.get('v2_data_source_mode') == 'upload' and st.session_state.get('v2_source_paths'))
 
         if has_source and st.session_state.get('v2_target_path'):
+            selection_error = None
+            try:
+                selected_targets(st.session_state)
+            except ValueError as error:
+                selection_error = str(error)
+                st.info(selection_error)
+            processing_blocked = bool(selection_error) or (bool(_v2_gpu_job) and not run_in_background)
             process_requested = st.button("🚀 Process Reface", type="primary", use_container_width=True,
-                                          disabled=bool(_v2_gpu_job) and not run_in_background)
+                                          disabled=processing_blocked)
             preview_requested = st.button("Render preview (up to 3 seconds for video)",
-                                          disabled=bool(_v2_gpu_job) and not run_in_background)
+                                          disabled=processing_blocked)
             if process_requested or preview_requested:
-                with st.spinner("Processing with Reface V2..."):
+                with st.spinner("Processing with Reface..."):
                     try:
-                        # Build configuration
-                        enhancement_config = EnhancementConfig(
-                            enhancer_type=enhancer_type,
-                            strength=enhancement_strength,
-                            upscale_factor=upscale_factor
-                        )
-                        
-                        occlusion_config = OcclusionConfig(
-                            enabled=enable_occlusion,
-                            protect_glasses=protect_glasses,
-                            protect_hair=protect_hair
-                        )
-                        
-                        video_config = VideoConfig(
-                            temporal_smoothing=temporal_smooth,
-                            smoothing_window=smoothing_window
-                        )
-                        
                         target_path = st.session_state['v2_target_path']
                         is_video = st.session_state.get('v2_is_video', False)
+                        if is_video and end_time_sec > 0 and end_time_sec <= start_time_sec:
+                            raise ValueError("End time must be after the start time.")
                         if preview_requested and is_video:
                             end_time_sec = min(end_time_sec if end_time_sec > start_time_sec else start_time_sec + 3, start_time_sec + 3)
-                        selected_indices = st.session_state.get('v2_selected_target_faces', [])
-                        target_face_indices = selected_indices if len(selected_indices) > 0 else None
-                        # Every detected face's embedding (not just the ticked ones): V3 assigns
-                        # each face it meets to the nearest of these, so a bystander matches
-                        # their own reference instead of borrowing a selected one.
-                        _ref_embs = [f.get('embedding') for f in st.session_state.get('v2_detected_faces', [])]
-                        target_face_embeddings = (_ref_embs if target_face_indices and _ref_embs
-                                                  and all(e is not None for e in _ref_embs) else None)
+                        target_face_indices, target_face_embeddings = selected_targets(st.session_state)
 
                         if run_in_background:
                             from job_manager import add_job_to_queue
@@ -3779,11 +2225,8 @@ elif page == "🎭 Reface V2":
                                 'target_path': target_path,
                                 'is_video': is_video,
                                 'target_face_indices': target_face_indices,
-                                'use_angle_matching': use_angle_match, # Added this parameter
-                                'enhancement_mode': enhancement_mode,
-                                'enhancement_config': enhancement_config.__dict__,
-                                'occlusion_config': occlusion_config.__dict__,
-                                'video_config': video_config.__dict__
+                                'target_face_embeddings': target_face_embeddings,
+                                **engine_options,
                             }
                             
                             # Add time parameters if video
@@ -3796,48 +2239,14 @@ elif page == "🎭 Reface V2":
                             else:
                                 params['source_paths'] = st.session_state['v2_source_paths']
                             
-                            if use_v3:
-                                params['target_face_embeddings'] = target_face_embeddings
-                                params['swapper'] = v3_swapper
-                                params['identity_boost'] = v3_identity_boost
-                                if v3_use_dfm and _dfm_path:
-                                    params['dfm_path'] = str(_dfm_path)
-                                params['restorer'] = v3_restorer
-                                params['restorer_weight'] = v3_weight
-                                params['use_parser'] = v3_use_parser
-                                params['use_occluder'] = v3_use_occluder
-                                params['realism_preset'] = v3_preset
-                                params['realism_overrides'] = v3_realism_overrides
-                                job_type = "reface_video_v3" if is_video else "reface_image_v3"
-                                if v3_use_dfm and _dfm_path:
-                                    job_type = "reface_video_dfm" if is_video else "reface_image_dfm"
-                            else:
-                                job_type = "reface_video_v2" if is_video else "reface_image_v2"
+                            job_type = "reface_video" if is_video else "reface_image"
                             job = add_job_to_queue(job_type, params)
                             
                             st.success(f"✅ Job {job.id} added to background queue!")
                             st.info("Check the '⚙️ Background Jobs' tab to see progress.")
                         else:
-                            # Create engine
-                            if use_v3:
-                                engine = RefaceEngineV3(
-                                    dfm_path=str(_dfm_path) if (v3_use_dfm and _dfm_path) else None,
-                                    swapper=v3_swapper,
-                                    identity_boost=v3_identity_boost,
-                                    restorer=v3_restorer,
-                                    restorer_weight=v3_weight,
-                                    use_parser=v3_use_parser,
-                                    use_occluder=v3_use_occluder,
-                                    realism_preset=v3_preset,
-                                    realism_overrides=v3_realism_overrides,
-                                )
-                            else:
-                                engine = RefaceEngineV2(
-                                    enhancement_config=enhancement_config,
-                                    occlusion_config=occlusion_config,
-                                    video_config=video_config
-                                )
-                            
+                            engine = RefaceEngine(**engine_options)
+
                             # Get or build faceset
                             if st.session_state.get('v2_data_source_mode') == 'faceset':
                                 faceset = engine.load_faceset_by_name(st.session_state['v2_selected_faceset'])
@@ -3855,18 +2264,11 @@ elif page == "🎭 Reface V2":
                                     progress.progress(current / total)
                                     status_build.text(f"Building faceset: {current}/{total} ({progress_pct}%) ({eta_str} remaining)...")
                                 
-                                if use_v3:
-                                    from identity_builder import faceset_from_media
-                                    faceset = faceset_from_media(st.session_state['v2_source_paths'],
-                                                                 engine.app, name="v2_temp")
-                                    update_progress(1, 1)
-                                else:
-                                    faceset = engine.build_faceset_from_media(
-                                        st.session_state['v2_source_paths'],
-                                        faceset_name="v2_temp",
-                                        progress_callback=update_progress
-                                    )
-                            
+                                from identity_builder import faceset_from_media
+                                faceset = faceset_from_media(st.session_state['v2_source_paths'],
+                                                             engine.app, name="reface_temp")
+                                update_progress(1, 1)
+
                             if not faceset or not faceset.faces:
                                 st.error("No faces found in source!")
                                 st.stop()
@@ -3875,7 +2277,7 @@ elif page == "🎭 Reface V2":
                             
                             # Perform swap
                             
-                            st.text("Swapping faces with V2 engine...")
+                            st.text("Swapping faces...")
                             swap_progress = st.progress(0)
                             
                             status_v2_swap = st.empty()
@@ -3897,44 +2299,19 @@ elif page == "🎭 Reface V2":
                                 # Apply chosen end time
                                 final_end_time = end_time_sec if end_time_sec > 0.0 else None
 
-                                if use_v3:
-                                    result = engine.reface_video_v3(
-                                        target_video_path=target_path,
-                                        faceset=faceset,
-                                        target_face_indices=target_face_indices,
-                                        target_face_embeddings=target_face_embeddings,
-                                        progress_callback=update_swap,
-                                        start_time=start_time_sec,
-                                        end_time=final_end_time,
-                                    )
-                                else:
-                                    result = engine.reface_video_with_faceset_v2(
-                                        target_video_path=target_path,
-                                        faceset=faceset,
-                                        target_face_indices=target_face_indices,
-                                        use_angle_matching=use_angle_match,
-                                        apply_occlusion=enable_occlusion,
-                                        enhancement_mode=enhancement_mode,
-                                        progress_callback=update_swap,
-                                        start_time=start_time_sec,
-                                        end_time=final_end_time
-                                    )
+                                result = engine.reface_video(
+                                    target_video_path=target_path, faceset=faceset,
+                                    target_face_indices=target_face_indices,
+                                    target_face_embeddings=target_face_embeddings,
+                                    progress_callback=update_swap, start_time=start_time_sec,
+                                    end_time=final_end_time,
+                                )
                             else:
-                                if use_v3:
-                                    result = engine.reface_image_v3(
-                                        target_image_path=target_path,
-                                        faceset=faceset,
-                                        target_face_indices=target_face_indices,
-                                        target_face_embeddings=target_face_embeddings,
-                                    )
-                                else:
-                                    result = engine.reface_with_faceset_v2(
-                                        target_image_path=target_path,
-                                        faceset=faceset,
-                                        target_face_indices=target_face_indices,
-                                        use_angle_matching=use_angle_match,
-                                        apply_occlusion=enable_occlusion
-                                    )
+                                result = engine.reface_image(
+                                    target_image_path=target_path, faceset=faceset,
+                                    target_face_indices=target_face_indices,
+                                    target_face_embeddings=target_face_embeddings,
+                                )
                                 swap_progress.progress(1.0)
                             
                             if result.success:
@@ -3947,7 +2324,7 @@ elif page == "🎭 Reface V2":
                                 if is_video and result.output_path:
                                     st.video(result.output_path)
                                 elif result.output_path:
-                                    st.image(result.output_path, caption="V2 Result")
+                                    st.image(result.output_path, caption="Reface Result")
                                 
                                 # Download button
                                 if result.output_path and os.path.exists(result.output_path):
@@ -3973,7 +2350,7 @@ elif page == "🎭 Reface V2":
             st.info("👆 Upload source and target media, then click Process to begin")
 
         with tab_v2_build:
-            st.markdown("### 📦 Build & Manage Facesets (V2)")
+            st.markdown("### 📦 Build & Manage Facesets")
             st.info("Create named collections of faces (Facesets) from your photos and videos. Using a faceset improves reface quality by providing more angles.")
             
             # --- Documentation Section ---
@@ -4145,7 +2522,7 @@ After building a faceset, you'll see:
             # --- Manage Existing Facesets ---
             st.subheader("📚 Your Facesets")
             
-            # Listing files needs no models. (This used to keep a whole RefaceEngineV2 -
+            # Listing files needs no models. (This used to keep a whole engine -
             # ~2.5 GB of VRAM - alive in the Streamlit process for the session.)
             from types import SimpleNamespace
             _fs_dir = Path(__file__).parent / "facesets"
@@ -4218,10 +2595,9 @@ After building a faceset, you'll see:
 
         with tab_v2_dfl:
             st.markdown("### 🧠 Trained video model (DeepFaceLab)")
-            st.caption("The best quality for video. Instead of a 512-number identity vector, DeepFaceLab trains a "
-                       "network on thousands of frames of one person, so it learns the face itself - skin, teeth, "
-                       "expressions. It takes days of GPU time, runs in the background, and can be stopped and "
-                       "resumed any time; every stop saves the model and exports it so you can already use it.")
+            st.caption("DeepFaceLab trains a model from many frames of one person. It needs substantial GPU time "
+                       "and varied videos of that person. Saved exports can be selected as a trained identity "
+                       "in Quick Swap. Training availability and progress are shown below.")
             import dfl_bridge
             from identity_builder import list_identities, load_manifest
             _dfl_problem = dfl_bridge.available()
@@ -4321,7 +2697,7 @@ After building a faceset, you'll see:
                             if _log.exists() else "(no log yet)")
 
         with tab_v2_history:
-            st.markdown("### 📜 Reface History (V2)")
+            st.markdown("### 📜 Reface History")
             
             output_dir = Path(__file__).parent / "reface_output"
             output_dir.mkdir(exist_ok=True)
@@ -4330,18 +2706,20 @@ After building a faceset, you'll see:
             if st.button("🔄 Refresh List", key="v2_refresh_history"):
                 st.rerun()
             
-            # List files filtered by V2 prefix
+            # Include saved results from every former engine and the unified pipeline.
             all_files = list(output_dir.glob("*.jpg")) + list(output_dir.glob("*.jpeg")) + \
                         list(output_dir.glob("*.png")) + list(output_dir.glob("*.mp4")) + \
                         list(output_dir.glob("*.avi"))
-            files = sorted([f for f in all_files if f.name.startswith("refaced_v2")], key=os.path.getmtime, reverse=True)
+            files = sorted([f for f in all_files if f.name.startswith("refaced")], key=os.path.getmtime, reverse=True)
             
             if not files:
                 st.info("No reface results found yet.")
             else:
                 st.caption(f"Found {len(files)} result(s)")
                 
-                # Grid view
+                # Limit previews per rerun; downloads remain explicitly prepared.
+                result_page = st.selectbox("Results page", range(1, (len(files) + 11) // 12 + 1), key="reface_results_page")
+                files = files[(result_page - 1) * 12:result_page * 12]
                 cols = st.columns(3)
                 for i, file_path in enumerate(files):
                     with cols[i % 3]:
@@ -4431,12 +2809,12 @@ After building a faceset, you'll see:
                                     st.error(f"Delete failed: {e}")
 
         with tab_v2_jobs:
-            st.markdown("### ⚙️ Background Jobs (V2)")
-            st.info("V2 Background Jobs run asynchronously. Check terminal for raw logs.")
+            st.markdown("### ⚙️ Background Jobs")
+            st.info("Reface background jobs use the same settings as direct processing.")
             
             try:
                 from job_manager import JobManager, JobStatus
-                job_manager = JobManager()
+                job_manager = _v2_jobs
                 
                 # Auto-refresh toggle
                 col1, col2 = st.columns([3, 1])
@@ -4551,6 +2929,10 @@ After building a faceset, you'll see:
 
 elif page == "⚙️ Settings":
     st.title("⚙️ Settings")
+
+    from resource_ui import render_resource_settings
+    render_resource_settings()
+    st.markdown("---")
     
     st.subheader("Database")
     

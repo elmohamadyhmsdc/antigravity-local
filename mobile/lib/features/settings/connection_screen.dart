@@ -8,6 +8,7 @@ import '../../data/platform/lan_network.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../onboarding/pairing_controller.dart';
+import '../shared/screen_layout.dart';
 
 class ConnectionScreen extends ConsumerStatefulWidget {
   const ConnectionScreen({super.key});
@@ -148,8 +149,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen>
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Text(l.connectionIntro),
-          const SizedBox(height: 16),
+          ScreenIntro(title: l.connectionHeadline, body: l.connectionIntro),
           if (saved != null)
             Text(
               '${saved.name} · ${saved.host}:${saved.port}',
@@ -193,7 +193,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen>
               trailing: const Icon(Icons.chevron_right),
               onTap: _busy ? null : () => _run(() => _connect(endpoint)),
             ),
-          const Divider(height: 32),
+          SectionHeading(title: l.manualConnect),
           TextField(
             controller: _host,
             key: const Key('connection-host'),
@@ -237,10 +237,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen>
             ),
           ),
           const SizedBox(height: 24),
-          Text(
-            l.connectionPhoneAddresses,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          SectionHeading(title: l.connectionPhoneAddresses),
           if (_interfaces.isEmpty) Text(l.connectionNoLan),
           for (final interface in _interfaces)
             Text('${interface.address}/${interface.prefix}'),
@@ -273,10 +270,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen>
             'adb reverse tcp:${saved?.port ?? 8443} tcp:${saved?.port ?? 8443}',
           ),
           const SizedBox(height: 16),
-          Text(
-            l.connectionPinSafety,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          StatusNotice(message: l.connectionPinSafety, icon: Icons.link),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import '../../data/platform/background_execution.dart';
 import '../../data/platform/foreground_keep_alive.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../shared/screen_layout.dart';
 
 const _promptedKey = 'background.prompted';
 
@@ -125,37 +126,45 @@ class _BackgroundScreenState extends ConsumerState<BackgroundScreen>
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          Text(l.backgroundIntro),
-          const SizedBox(height: 20),
-          if (status == null && _error == null) const LinearProgressIndicator(),
-          if (status != null && !status.supported)
-            Text(l.backgroundAndroidOnly),
-          if (status != null && status.supported) ...[
-            row(
-              Icons.notifications_outlined,
-              l.backgroundNotifications,
-              status.notifications,
-            ),
-            row(
-              Icons.battery_charging_full,
-              l.backgroundBattery,
-              status.unrestricted,
-            ),
-            row(
-              Icons.sync,
-              status.running ? l.backgroundRunning : l.backgroundIdle,
-              status.running,
-            ),
-            const SizedBox(height: 16),
-            if (!status.ready)
-              FilledButton(
+      bottomNavigationBar: status != null && status.supported && !status.ready
+          ? StickyActionBar(
+              child: FilledButton(
                 key: const Key('background-enable'),
                 onPressed: _busy ? null : _request,
                 child: Text(l.backgroundEnable),
               ),
+            )
+          : null,
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          ScreenIntro(title: l.backgroundHeadline, body: l.backgroundIntro),
+          if (status == null && _error == null) const LinearProgressIndicator(),
+          if (status != null && !status.supported)
+            Text(l.backgroundAndroidOnly),
+          if (status != null && status.supported) ...[
+            SurfaceSection(
+              child: Column(
+                children: [
+                  row(
+                    Icons.notifications_outlined,
+                    l.backgroundNotifications,
+                    status.notifications,
+                  ),
+                  row(
+                    Icons.battery_charging_full,
+                    l.backgroundBattery,
+                    status.unrestricted,
+                  ),
+                  row(
+                    Icons.sync,
+                    status.running ? l.backgroundRunning : l.backgroundIdle,
+                    status.running,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             TextButton(
               onPressed: _busy
                   ? null

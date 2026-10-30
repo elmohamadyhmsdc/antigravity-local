@@ -157,7 +157,9 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
     params = strictness if isinstance(strictness, pl.GroupingParams) else pl.params_for(strictness)
 
     models = snapshot.models
-    pending = snapshot.pending
+    # A manual hide applies to every automatic round, including matching and
+    # auto-created groups, not just the review card that was dismissed.
+    pending = [face for face in snapshot.pending if face.id not in snapshot.dismissed_face_ids]
     n = len(pending)
     result = GroupingPlan(mode=mode)
 

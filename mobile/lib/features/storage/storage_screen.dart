@@ -8,6 +8,7 @@ import '../../library_providers.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
 import '../shared/empty_state.dart';
+import '../shared/screen_layout.dart';
 
 final storageSizesProvider = FutureProvider.autoDispose<Map<String, int>>((
   ref,
@@ -53,7 +54,12 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
     if (!mounted ||
         !await confirm(
           context,
-          title: l.storageTitle,
+          title: switch (category) {
+            'results' => l.storageDeleteResults,
+            'datasets' => l.storageDeleteDatasets,
+            'loras' => l.storageDeleteLoras,
+            _ => l.storageDeleteTemporary,
+          },
           body: l.storageConfirm,
           confirmLabel: l.delete,
           cancelLabel: l.cancel,
@@ -136,54 +142,129 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    String sizeLabel(int bytes) => bytes >= 1073741824
+        ? '${(bytes / 1073741824).toStringAsFixed(1)} GB'
+        : '${(bytes / 1048576).toStringAsFixed(1)} MB';
+    String categoryLabel(String category) => switch (category) {
+      'faces' => l.navPeople,
+      'bodies' => l.tabBodies,
+      'datasets' => l.loraDatasetTitle,
+      'portraits' => l.loraGenerate,
+      'results' => l.privateResults,
+      'loras' || 'models' => l.storageModels,
+      'work' => l.storageTemporary,
+      _ => l.storageOther,
+    };
     return Scaffold(
       appBar: AppBar(title: Text(l.storageTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
-          Text(l.storageHint),
+          ScreenIntro(title: l.storageSavedTitle, body: l.storageHint),
           if (_busy) const LinearProgressIndicator(),
           ref
               .watch(storageSizesProvider)
               .when(
                 loading: () => const LoadingBox(),
-                error: (e, _) => Text('$e'),
-                data: (sizes) => Column(
-                  children: [
-                    ListTile(
-                      title: Text(l.storageUsed),
-                      trailing: Text(
-                        '${(sizes.values.fold<int>(0, (a, b) => a + b) / 1048576).toStringAsFixed(1)} MB',
-                      ),
-                    ),
-                    for (final entry in sizes.entries)
-                      ListTile(
-                        title: Text(switch (entry.key) {
-                          'faces' => l.navPeople,
-                          'bodies' => l.tabBodies,
-                          'datasets' => l.loraDatasetTitle,
-                          'portraits' => l.loraGenerate,
-                          'results' => l.privateResults,
-                          _ => l.storageDeleteTemporary,
-                        }),
-                        trailing: Text(
-                          '${(entry.value / 1048576).toStringAsFixed(1)} MB',
+                error: (_, _) => RetryState(
+                  onRetry: () => ref.invalidate(storageSizesProvider),
+                ),
+                data: (sizes) {
+                  final total = sizes.values.fold<int>(
+                    0,
+                    (sum, bytes) => sum + bytes,
+                  );
+                  final entries = sizes.entries.toList()
+                    ..sort((a, b) => b.value.compareTo(a.value));
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SurfaceSection(
+                        key: const Key('storage-total'),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.storage_outlined,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              sizeLabel(total),
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                            Text(l.storageUsed),
+                          ],
                         ),
                       ),
-                  ],
-                ),
+                      if (entries.isNotEmpty) ...[
+                        SectionHeading(title: l.storageCategories),
+                        for (final entry in entries)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Wrap(
+                                  alignment: WrapAlignment.spaceBetween,
+                                  spacing: 12,
+                                  runSpacing: 4,
+                                  children: [
+                                    Text(categoryLabel(entry.key)),
+                                    Text(sizeLabel(entry.value)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                LinearProgressIndicator(
+                                  value: total == 0 ? 0 : entry.value / total,
+                                  minHeight: 6,
+                                  semanticsLabel: categoryLabel(entry.key),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ],
+                  );
+                },
               ),
-          const SizedBox(height: 16),
-          for (final action in [
-            ('results', l.storageDeleteResults),
-            ('datasets', l.storageDeleteDatasets),
-            ('loras', l.storageDeleteLoras),
-            ('temporary', l.storageDeleteTemporary),
-          ])
-            OutlinedButton(
-              onPressed: _busy ? null : () => _clean(action.$1),
-              child: Text(action.$2),
-            ),
+          const SizedBox(height: 12),
+          StatusNotice(
+            message: l.storageOriginalsHint,
+            icon: Icons.photo_library_outlined,
+          ),
+          SectionHeading(title: l.storageManage),
+          OutlinedButton.icon(
+            key: const Key('storage-clean-temporary'),
+            onPressed: _busy ? null : () => _clean('temporary'),
+            icon: const Icon(Icons.cleaning_services_outlined),
+            label: Text(l.storageDeleteTemporary),
+          ),
+          const SizedBox(height: 8),
+          ExpansionTile(
+            key: const Key('storage-saved-files'),
+            tilePadding: EdgeInsets.zero,
+            title: Text(l.storageRemoveSaved),
+            subtitle: Text(l.storageConfirm),
+            children: [
+              for (final action in [
+                ('results', l.storageDeleteResults),
+                ('datasets', l.storageDeleteDatasets),
+                ('loras', l.storageDeleteLoras),
+              ])
+                ListTile(
+                  key: Key('storage-delete-${action.$1}'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  title: Text(action.$2),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _busy ? null : () => _clean(action.$1),
+                ),
+            ],
+          ),
         ],
       ),
     );

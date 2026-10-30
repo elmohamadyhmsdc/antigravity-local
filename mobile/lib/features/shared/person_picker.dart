@@ -5,6 +5,7 @@ import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import 'crop_image.dart';
+import 'empty_state.dart';
 
 /// What the user chose in the picker: an existing person, or "make a new person" (optionally named).
 class PersonChoice {
@@ -28,10 +29,13 @@ Future<PersonChoice?> pickPerson(
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (context) => _PersonPickerSheet(
-      excludePersonId: excludePersonId,
-      title: title,
-      allowNew: allowNew,
+    builder: (context) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: _PersonPickerSheet(
+        excludePersonId: excludePersonId,
+        title: title,
+        allowNew: allowNew,
+      ),
     ),
   );
 }
@@ -52,12 +56,25 @@ class _PersonPickerSheet extends ConsumerStatefulWidget {
 }
 
 class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
+  final _search = TextEditingController();
   var _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    _search.clear();
+    setState(() => _query = '');
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final people = ref.watch(peopleProvider).value ?? const <PersonSummary>[];
+    final peopleState = ref.watch(peopleProvider);
+    final people = peopleState.value ?? const <PersonSummary>[];
     final shown = [
       for (final p in people)
         if (p.id != widget.excludePersonId &&
@@ -85,8 +102,16 @@ class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
                 const SizedBox(height: 8),
                 TextField(
                   key: const Key('person-picker-search'),
+                  controller: _search,
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: l10n.clearSearch,
+                            onPressed: _clearSearch,
+                            icon: const Icon(Icons.close),
+                          ),
                     hintText: l10n.searchPeopleHint,
                     border: const OutlineInputBorder(),
                     isDense: true,
@@ -121,10 +146,28 @@ class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
                     onTap: () =>
                         Navigator.pop(context, PersonChoice.existing(p.id)),
                   ),
-                if (shown.isEmpty && !widget.allowNew)
+                if (peopleState.isLoading) const LoadingBox(),
+                if (peopleState.hasError)
+                  RetryState(onRetry: () => ref.invalidate(peopleProvider)),
+                if (!peopleState.isLoading &&
+                    !peopleState.hasError &&
+                    shown.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Center(child: Text(l10n.noPeopleYet)),
+                    child: Column(
+                      children: [
+                        Text(
+                          _query.trim().isEmpty
+                              ? l10n.noPeopleYet
+                              : l10n.peopleNoMatches,
+                        ),
+                        if (_query.isNotEmpty)
+                          TextButton(
+                            onPressed: _clearSearch,
+                            child: Text(l10n.clearSearch),
+                          ),
+                      ],
+                    ),
                   ),
               ],
             ),

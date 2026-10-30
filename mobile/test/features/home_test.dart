@@ -103,8 +103,9 @@ void main() {
             reason: label,
           );
         }
-        expect(find.text('No unsorted faces'), findsOneWidget);
         expect(find.text('Your library is empty'), findsOneWidget);
+        await revealForTap(tester, find.text('No unsorted faces'));
+        expect(find.text('No unsorted faces'), findsOneWidget);
       },
       session: testSession,
     );
@@ -192,9 +193,9 @@ void main() {
     env,
   ) async {
     await env.pump(tester);
-    await tester.scrollUntilVisible(
+    await revealForTap(
+      tester,
       find.byKey(const Key('try-detection')),
-      200,
       scrollable: find
           .descendant(
             of: find.byKey(const Key('home-list')),

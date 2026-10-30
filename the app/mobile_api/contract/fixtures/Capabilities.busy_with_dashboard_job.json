@@ -20,7 +20,8 @@
     "undress": true,
     "lora_train": true,
     "lora_generate": true,
-    "body_detection": true
+    "body_detection": true,
+    "reface": true
   },
   "restorers": [
     "codeformer"
@@ -37,5 +38,22 @@
     "job_id": "9c1d2e84-aaaa-4bbb-8ccc-0123456789ab",
     "job_type": "reface_video_v3",
     "source": "dashboard"
+  },
+  "reface_profiles": {
+    "fast": {
+      "restorer": "none",
+      "restore_size": 512,
+      "use_parser": false
+    },
+    "balanced": {
+      "restorer": "codeformer",
+      "restore_size": 512,
+      "use_parser": true
+    },
+    "detail": {
+      "restorer": "codeformer",
+      "restore_size": 512,
+      "use_parser": true
+    }
   }
 }

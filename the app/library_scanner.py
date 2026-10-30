@@ -319,12 +319,16 @@ class LibraryScanner:
         face_of_body = result.face_of_body
 
         face_ids: Dict[int, Optional[int]] = {}
+        ignored_faces = set()
         for i, (face, q) in enumerate(zip(faces, quality)):
             if not result.passes_gate[i]:
                 face_ids[i] = None
                 continue
             fid, kind = state.store_face(self, img, face, q, frame_number, timestamp)
             face_ids[i] = fid
+            if kind == "suppressed":
+                ignored_faces.add(i)
+                continue
             if kind == "new":
                 summary.faces_new += 1
             else:
@@ -338,7 +342,7 @@ class LibraryScanner:
             fi = face_of_body.get(bi)
             fid = face_ids.get(fi) if fi is not None else None
             weak = None
-            if fi is not None and fid is None and faces[fi].embedding is not None:
+            if fi is not None and fi not in ignored_faces and fid is None and faces[fi].embedding is not None:
                 weak = (faces[fi].normed_embedding, quality[fi]["quality_score"])
             bid = state.store_body(self, img, body, result.appearances[bi], fid, weak, frame_number, timestamp)
             if bid is None:
@@ -403,6 +407,9 @@ class _FileState:
         emb = face.normed_embedding
         x1, y1, x2, y2 = [float(v) for v in face.bbox[:4]]
         bbox = (x1, y1, x2 - x1, y2 - y1)
+        if self.db.is_face_suppressed(self.source_path, emb, bbox, frame_number, self.is_video,
+                                     scanner.options.duplicate_distance, scanner.options.video_similar_distance):
+            return None, "suppressed"
         meta = {
             "media_id": self.media_id,
             "frame_number": frame_number,

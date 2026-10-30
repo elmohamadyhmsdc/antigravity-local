@@ -312,7 +312,7 @@ def finish_v3_video(job, last_part: Optional[str], last_part_frames: int,
     if not parts:
         raise Exception("No video parts were rendered")
 
-    final_mp4 = parts[0].parent / f"refaced_v3_{job.id}.mp4"
+    final_mp4 = parts[0].parent / f"refaced_{job.id}.mp4"
     import shutil
     from reface_video_io import validate_video
     timings = [validate_video(part) for part in parts]
@@ -344,6 +344,16 @@ def run_single_job(job_id: str, jobs_dir: str):
 
     if not job:
         print(f"[ERROR] Job {job_id} not found!")
+        return False
+
+    if job.status not in (JobStatus.PENDING, JobStatus.QUEUED):
+        return False
+    from resource_monitor import get_resource_monitor
+    reasons = get_resource_monitor().admission_reasons()
+    if reasons:
+        job.status = JobStatus.PAUSED
+        job.message = "Resource protection: " + " ".join(reasons) + " Resume when resources are available."
+        manager.save_job(job)
         return False
 
     if job.job_type == "train_lora":
@@ -433,17 +443,23 @@ def run_single_job(job_id: str, jobs_dir: str):
         
         params = job.params
         
-        is_dfm = job.job_type in ["reface_image_dfm", "reface_video_dfm"]
-        is_v3 = job.job_type in ["reface_image_v3", "reface_video_v3"] or is_dfm
-        is_v2 = job.job_type in ["reface_image_v2", "reface_video_v2"]
+        # Old unversioned desktop jobs used V1. The quality profile marks new
+        # requests, so already saved checkpoints keep their original engine.
+        is_unified = job.job_type in ("reface_image", "reface_video") and 'quality_profile' in params
+        is_dfm = job.job_type in ("reface_image_dfm", "reface_video_dfm") or (is_unified and bool(params.get('dfm_path')))
+        is_v3 = job.job_type in ("reface_image_v3", "reface_video_v3") or is_dfm
+        is_modern = is_unified or is_v3
+        is_v2 = job.job_type in ("reface_image_v2", "reface_video_v2")
 
-        if is_v3:
-            # Initialize V3 (HD) engine; DFM "pro" mode if a .dfm path is supplied
-            from reface_engine_v3 import RefaceEngineV3
-            engine = RefaceEngineV3(
-                restorer=params.get('restorer'),
+        if is_modern:
+            if is_unified:
+                from reface import RefaceEngine as Pipeline
+            else:
+                from reface_engine_v3 import RefaceEngineV3 as Pipeline
+            options = dict(
+                restorer=params.get('restorer', 'auto' if is_unified else None),
                 restorer_weight=params.get('restorer_weight', 0.5),
-                use_parser=params.get('use_parser', True),
+                use_parser=params.get('use_parser', None if is_unified else True),
                 use_occluder=params.get('use_occluder', True),
                 dfm_path=params.get('dfm_path') if is_dfm else None,
                 realism_preset=params.get('realism_preset', 'natural'),
@@ -452,6 +468,9 @@ def run_single_job(job_id: str, jobs_dir: str):
                 identity_boost=params.get('identity_boost'),
                 occluders=params.get('occluders') or None,
             )
+            if is_unified:
+                options['quality_profile'] = params['quality_profile']
+            engine = Pipeline(**options)
         elif is_v2:
             # Build V2 engine WITH its configs (these are constructor args, NOT swap kwargs)
             engine = RefaceEngineV2(
@@ -484,7 +503,7 @@ def run_single_job(job_id: str, jobs_dir: str):
                 manager.save_job(job)
                 print(f"[JOB {job_id}] {int(pct*100)}% - Building faceset: {current}/{total}")
             
-            if is_v3:
+            if is_modern:
                 # V3 finds the person in each photo/frame instead of taking the
                 # detector's first face, and filters the faces (identity_builder.py).
                 from identity_builder import faceset_from_media
@@ -539,10 +558,11 @@ def run_single_job(job_id: str, jobs_dir: str):
             video_start_time = params.get('start_time', 0.0)
             video_end_time = params.get('end_time', None)
             
-            if is_v3:
+            if is_modern:
                 # Rendered as silent parts so a paused job resumes where it
                 # stopped; the parts are joined and the audio muxed below.
-                result = engine.reface_video_v3(
+                render_video = engine.reface_video if is_unified else engine.reface_video_v3
+                result = render_video(
                     target_path,
                     faceset,
                     target_face_indices=target_face_indices,
@@ -578,8 +598,9 @@ def run_single_job(job_id: str, jobs_dir: str):
                     end_time=video_end_time
                 )
         else:
-            if is_v3:
-                result = engine.reface_image_v3(
+            if is_modern:
+                render_image = engine.reface_image if is_unified else engine.reface_image_v3
+                result = render_image(
                     target_path,
                     faceset,
                     target_face_indices=target_face_indices,
@@ -602,9 +623,9 @@ def run_single_job(job_id: str, jobs_dir: str):
                 )
             swap_progress(1, 1)
         
-        if is_v3 and (not result or not result.success):
-            raise RuntimeError(result.message if result else "V3 did not produce a result")
-        if is_v3:
+        if is_modern and (not result or not result.success):
+            raise RuntimeError(result.message if result else "Reface did not produce a result")
+        if is_modern:
             details = getattr(result, "details", {})
             for key in ("faces_swapped", "faces_failed", "faces_skipped", "faces_degraded"):
                 job.details[key] = job.details.get(key, 0) + details.get(key, 0)
@@ -613,7 +634,10 @@ def run_single_job(job_id: str, jobs_dir: str):
                     job.details[key] = details[key]
         # Check if stopped
         if stop_requested[0]:
-            part_path = result.output_path if ((is_v2 or is_v3) and is_video and result and result.success) else None
+            part_path = result.output_path if ((is_v2 or is_modern) and is_video and result and result.success) else None
+            # pause_job reloads the persisted job. Keep this segment's counts and
+            # effective settings before it records the checkpoint.
+            manager.save_job(job)
             manager.pause_job(job_id, current_frame[0], part_file=part_path)
             print(f"\n[JOB {job_id}] ⏸️ PAUSED at frame {job.frames_done}")
             return False  # Not complete, paused
@@ -682,9 +706,9 @@ def run_single_job(job_id: str, jobs_dir: str):
 
         # For V3 video: the parts are already x264 at one rate and size, so
         # they join losslessly with stream copy; then the audio goes on once.
-        if is_v3 and is_video:
+        if is_modern and is_video:
             if not result or not result.success:
-                raise Exception(result.message if result else "V3 video processing failed")
+                raise Exception(result.message if result else "Reface video processing failed")
             if job.details.get("faces_swapped") == 0 and getattr(result, "details", None):
                 raise ValueError("No faces were swapped in this video")
             final_mp4 = finish_v3_video(job, result.output_path, current_frame[0],

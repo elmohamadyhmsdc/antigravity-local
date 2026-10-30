@@ -121,6 +121,8 @@ def blend_to_similarity(a, target):
 # --------------------------------------------------------------------------- simple fixtures
 
 def system_fixtures():
+    from mobile_api.contract.resource_fixture import resource_fixture
+    write("ResourceSnapshot.idle", resource_fixture())
     write("Health.ok", {"status": "ok", "server_id": "srv_7f3a91c2", "name": "RTX-PC", "api_version": "1.0.0"})
     caps = {
         "api_version": "1.0.0",
@@ -129,10 +131,13 @@ def system_fixtures():
         "embedding_model": {"id": "buffalo_l@1", "dim": 512},
         "gpu": {"name": "NVIDIA GeForce RTX 3060 Laptop GPU", "vram_total_mb": 6144, "vram_free_mb": 5320},
         "engines": {
-            "reface_v3": True, "reface_v2": True, "dfm_models": ["RTM_WF_224"],
+            "reface": True, "reface_v3": True, "reface_v2": True, "dfm_models": ["RTM_WF_224"],
             "undress": True, "lora_train": True, "lora_generate": True, "body_detection": True,
         },
         "restorers": ["codeformer"],
+        "reface_profiles": {"fast": {"restorer": "none", "restore_size": 512, "use_parser": False},
+                            "balanced": {"restorer": "codeformer", "restore_size": 512, "use_parser": True},
+                            "detail": {"restorer": "codeformer", "restore_size": 512, "use_parser": True}},
         "lora_base_checkpoints": ["sd15_realistic_base"],
         "limits": {"max_image_px": 4096, "max_upload_mb": 2048, "blob_cache_mb": 20480},
         "busy": None,
@@ -271,7 +276,7 @@ def job_fixtures():
         return {"embedding": b64(unit(rng.standard_normal(DIM))), "quality": q,
                 "pose": {"yaw": yaw, "pitch": 0.0, "roll": 0.0}}
 
-    write("JobCreate.reface_image_v3", {
+    reface_request = {
         "client_job_id": "c0a8e6f2-1111-4a1b-9c1d-5a5a5a5a5a5a",
         "type": "reface_image_v3",
         "params": {
@@ -281,7 +286,11 @@ def job_fixtures():
             "use_parser": True, "use_occluder": True, "realism_preset": "natural",
         },
         "inputs": {"target": sha("target-photo")},
-    })
+    }
+    write("JobCreate.reface_image_v3", reface_request)
+    write("JobCreate.reface_image", {**reface_request, "type": "reface_image",
+          "client_job_id": "fixture-reface-unified-image",
+          "params": {**reface_request["params"], "quality_profile": "balanced", "restorer": "auto"}})
     write("JobCreate.reface_video_dfm", {
         "client_job_id": "fixture-reface-video",
         "type": "reface_video_dfm",

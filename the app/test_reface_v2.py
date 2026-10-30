@@ -589,10 +589,10 @@ def test_get_source_face_falls_back_when_embedding_invalid():
 # =====================================================================
 
 @test
-def test_dashboard_v2_history_filtered_and_on_demand_download():
+def test_dashboard_history_includes_legacy_results_and_on_demand_download():
     content = Path("dashboard.py").read_text(encoding="utf-8")
-    # Check refaced_v2 filtering
-    check('f.name.startswith("refaced_v2")' in content, "V2 history does not filter by refaced_v2 prefix")
+    # The unified page includes V1, V2, V3 and current results.
+    check('f.name.startswith("refaced")' in content, "Unified history excludes saved results")
     # Check filename-based keys
     check('key=f"v2_conv_{file_path.name}"' in content, "Convert button missing filename-based key")
     check('key=f"v2_dl_{file_path.name}"' in content, "Download button missing filename-based key")
@@ -869,11 +869,13 @@ def _mock_v2_engine(occlusion_enabled=True, temporal=False):
         self.enhancer = None
 
     with patch.object(RefaceEngine, "__init__", mock_engine_init):
-        return RefaceEngineV2(
+        engine = RefaceEngineV2(
             enhancement_config=EnhancementConfig(enhancer_type="none"),
             occlusion_config=OcclusionConfig(enabled=occlusion_enabled),
             video_config=VideoConfig(temporal_smoothing=temporal),
         )
+        engine._detect_video_faces = lambda frame: engine.app.get(frame)
+        return engine
 
 
 def _face_with_68_landmarks(x1, y1, x2, y2):

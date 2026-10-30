@@ -18,6 +18,7 @@ import '../../library_providers.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
 import '../shared/empty_state.dart';
+import '../shared/screen_layout.dart';
 import 'password_dialog.dart';
 
 /// S26 - the phone holds the ONLY copy of the library, so this is where it is protected: export one
@@ -215,11 +216,31 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.backupTitle)),
+      bottomNavigationBar: StickyActionBar(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FilledButton.icon(
+              key: const Key('backup-export'),
+              icon: const Icon(Icons.upload_file),
+              label: Text(l10n.backupNow),
+              onPressed: _busy || stats.isEmpty ? null : _export,
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const Key('backup-restore'),
+              icon: const Icon(Icons.download),
+              label: Text(l10n.restoreFromBackup),
+              onPressed: _busy ? null : _restore,
+            ),
+          ],
+        ),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
-          Text(l10n.backupIntro, style: text.bodyMedium),
-          const SizedBox(height: 16),
+          ScreenIntro(title: l10n.backupHeadline, body: l10n.backupIntro),
           Card(
             child: ListTile(
               key: const Key('last-backup'),
@@ -253,19 +274,6 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             ),
             onChanged: _busy ? null : (v) => setState(() => _encrypt = v),
           ),
-          FilledButton.icon(
-            key: const Key('backup-export'),
-            icon: const Icon(Icons.upload_file),
-            label: Text(l10n.backupNow),
-            onPressed: _busy || stats.isEmpty ? null : _export,
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            key: const Key('backup-restore'),
-            icon: const Icon(Icons.download),
-            label: Text(l10n.restoreFromBackup),
-            onPressed: _busy ? null : _restore,
-          ),
           if (progress != null) ...[
             const SizedBox(height: 16),
             LinearProgressIndicator(
@@ -290,9 +298,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             ),
           ],
           const SizedBox(height: 24),
-          Text(l10n.backupWhatIsIncluded, style: text.titleSmall),
-          const SizedBox(height: 4),
-          Text(l10n.backupWhatIsIncludedBody, style: text.bodySmall),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(l10n.backupWhatIsIncluded),
+            childrenPadding: const EdgeInsets.only(bottom: 16),
+            children: [
+              Text(l10n.backupWhatIsIncludedBody, style: text.bodySmall),
+            ],
+          ),
           const SizedBox(height: 12),
           Text(l10n.backupKeepSafe, style: text.bodySmall),
         ],

@@ -830,7 +830,10 @@ def render_person(ctx: GalleryContext, person_id: int):
                 ctx.navigate_to("lora")
         with actions[1]:
             if st.button("🎭 Use in Reface", width="stretch", key="gal_person_reface"):
-                ctx.navigate_to("reface_v2")
+                st.session_state["v2_source_mode"] = "👥 Gallery Person"
+                st.session_state["reface_gallery_person"] = person_id
+                st.session_state["v2_data_source_mode"] = "gallery"
+                ctx.navigate_to("reface")
         with actions[2]:
             with st.popover("⋯", width="stretch"):
                 new_name = st.text_input("Name", value=name, key=f"gal_rename_{person_id}")

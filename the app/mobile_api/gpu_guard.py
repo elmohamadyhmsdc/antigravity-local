@@ -36,6 +36,7 @@ class GpuGuard:
         self.mobile_jobs_dir = Path(mobile_jobs_dir) if mobile_jobs_dir else None
         self._manager_factory = manager_factory
         self.mobile_busy = lambda: None
+        self.resource_check = lambda: []
 
     def _manager(self, jobs_dir: Path):
         if self._manager_factory is not None:
@@ -68,4 +69,11 @@ class GpuGuard:
         b = self.busy()
         if b is not None:
             raise ApiError(503, "gpu_busy", f"A {b.job_type} job is running on the GPU.", retryable=True,
+                           headers={"Retry-After": str(RETRY_AFTER_SECONDS)})
+        self.require_resources()
+
+    def require_resources(self) -> None:
+        reasons = self.resource_check()
+        if reasons:
+            raise ApiError(503, "resource_pressure", " ".join(reasons), retryable=True,
                            headers={"Retry-After": str(RETRY_AFTER_SECONDS)})

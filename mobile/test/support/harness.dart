@@ -32,6 +32,23 @@ Finder textContaining(String part) => find.byWidgetPredicate(
   description: 'Text containing "$part"',
 );
 
+/// Build lazily laid-out content, then wait for scrolling/layout before tapping.
+Future<void> revealForTap(
+  WidgetTester tester,
+  Finder target, {
+  Finder? scrollable,
+  double delta = 180,
+}) async {
+  await tester.scrollUntilVisible(
+    target,
+    delta,
+    scrollable: scrollable ?? find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
+}
+
 Future<void> pickRefaceTarget(
   WidgetTester tester, {
   String source = 'files',

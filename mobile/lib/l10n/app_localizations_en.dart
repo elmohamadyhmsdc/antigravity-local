@@ -612,10 +612,11 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Their $count faces become unsorted.',
-      one: 'Their 1 face becomes unsorted.',
+      other:
+          'Their $count faces become unsorted and stay out of automatic groups.',
+      one: 'Their 1 face becomes unsorted and stays out of automatic groups.',
     );
-    return '$_temp0 Nothing else is deleted.';
+    return '$_temp0 You can still assign them manually. Nothing else is deleted.';
   }
 
   @override
@@ -1467,10 +1468,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Select clear faces of the same person. The best 20 are selected by default.';
 
   @override
-  String get refaceHd => 'HD';
+  String get refaceHd => 'V3 · HD';
 
   @override
-  String get refaceLegacy => 'Legacy';
+  String get refaceLegacy => 'V2';
 
   @override
   String get refacePro => 'Pro · DFM';
@@ -2157,6 +2158,135 @@ class AppLocalizationsEn extends AppLocalizations {
   String get refaceAllVideoFaces => 'Replace all video faces instead';
 
   @override
+  String get refaceAllFaces => 'Replace all faces';
+
+  @override
+  String get refaceQualityProfile => 'Quality & processing time';
+
+  @override
+  String get refaceFast => 'Fast';
+
+  @override
+  String get refaceFastSummary =>
+      'Less extra processing · no restoration by default';
+
+  @override
+  String get refaceFastDescription =>
+      'Uses the same Reface pipeline with restoration and face parsing off by default. A good starting point for long videos; fine face detail can be softer. Occlusion protection stays on.';
+
+  @override
+  String get refaceBalanced => 'Balanced';
+
+  @override
+  String get refaceBalancedSummary =>
+      'Detail and processing cost · recommended starting point';
+
+  @override
+  String get refaceBalancedDescription =>
+      'Adds face restoration and face-region blending. Automatic prefers GPEN 512 when installed, then an available alternative. More processing than Fast, with more restored detail.';
+
+  @override
+  String get refaceDetail => 'More detail';
+
+  @override
+  String get refaceDetailSummary =>
+      'Larger face crops when available · more processing';
+
+  @override
+  String get refaceDetailDescription =>
+      'Automatic prefers GPEN 1024 when installed, otherwise an available alternative. Useful for large close-up faces; higher resolution costs more processing and does not guarantee a closer likeness.';
+
+  @override
+  String get refaceAutoSummary => 'Uses the chosen quality profile';
+
+  @override
+  String refaceAutoStartsWith(String model) {
+    return 'Starts with $model on this PC';
+  }
+
+  @override
+  String get refaceAutoDescription =>
+      'Uses the available default for the selected quality profile. Fast skips restoration; Balanced prefers GPEN 512; More detail prefers GPEN 1024. If needed, the PC uses another installed model.';
+
+  @override
+  String get refaceOffSummary => 'Least restoration work · raw swap detail';
+
+  @override
+  String get refaceOffDescription =>
+      'Skips the restoration stage while still swapping faces. Reduces processing and keeps the raw swapped face; fine details can be softer.';
+
+  @override
+  String get refaceGpen512Summary => 'Balanced face detail · 512 px crop';
+
+  @override
+  String get refaceGpen512Description =>
+      'A balanced starting point for restored face detail and processing cost in this app. Works on a 512 px face crop and generally needs less processing than GPEN 1024.';
+
+  @override
+  String get refaceGpen1024Summary =>
+      'Higher face resolution · heavier processing';
+
+  @override
+  String get refaceGpen1024Description =>
+      'Restores a 1024 px face crop. Can help large close-up faces, with more processing and memory than the 512 model. Higher resolution does not guarantee a better likeness.';
+
+  @override
+  String get refaceCodeformerSummary =>
+      'Rebuild degraded detail · extra AI processing';
+
+  @override
+  String get refaceCodeformerDescription =>
+      'Repairs degraded facial detail with a tradeoff between reconstructed detail and fidelity. It can change fine facial features, so compare a preview when likeness matters.';
+
+  @override
+  String get refaceGfpganSummary =>
+      'General face restoration · extra AI processing';
+
+  @override
+  String get refaceGfpganDescription =>
+      'Restores blurry or degraded facial detail using learned face patterns. Useful as an alternative look; compare a preview for both texture and likeness.';
+
+  @override
+  String get refaceRestoreformerSummary =>
+      'Alternative face restoration · extra AI processing';
+
+  @override
+  String get refaceRestoreformerDescription =>
+      'Reconstructs degraded facial detail using learned face information. Try it when other restorers do not suit the face; processing time and likeness depend on the input and PC.';
+
+  @override
+  String get refaceOtherModelSummary => 'PC-provided restoration model';
+
+  @override
+  String get refaceOtherModelDescription =>
+      'This model is available on the PC. No speed or likeness comparison is defined here; use a short preview to compare it.';
+
+  @override
+  String get refaceRestorationIntro =>
+      'Restoration improves face detail after swapping. Model sizes describe face crops, not the output photo or video resolution.';
+
+  @override
+  String get refaceSpeedNote =>
+      'Processing time depends on the PC, frame size and number of faces. Compare a short preview for both detail and likeness.';
+
+  @override
+  String get refacePhotosIdentity => 'Source photos & videos';
+
+  @override
+  String get refaceTrainedIdentity => 'Trained identity model';
+
+  @override
+  String get refaceIdentityMethod => 'Identity source';
+
+  @override
+  String get refaceUnifiedUnavailable =>
+      'Unified Reface is unavailable. Update the PC server and check its face-swap model.';
+
+  @override
+  String get refaceAllFacesHint =>
+      'Use the source identity for everyone in this photo or video, including people who appear later. No target face selection is needed.';
+
+  @override
   String get refacePreview => 'Render a preview';
 
   @override
@@ -2165,7 +2295,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get refaceLegacyHint =>
-      'Legacy uses automatic OpenCV enhancement and its own occlusion protection.';
+      'V2 processes every video frame and keeps the selected people matched by identity. It uses automatic OpenCV enhancement and occlusion protection.';
 
   @override
   String get refaceDfmHint =>
@@ -2280,4 +2410,223 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get homeIntro => 'A little more organized.';
+
+  @override
+  String get homeIntroHint => 'Find your people. Make something new.';
+
+  @override
+  String get homeOrganize => 'Your library';
+
+  @override
+  String get homeCreate => 'Make something yours';
+
+  @override
+  String get homeActivity => 'Pick up where you left off';
+
+  @override
+  String get studioIntro => 'What would you like to create?';
+
+  @override
+  String get studioTools => 'Choose a tool';
+
+  @override
+  String get studioSaved => 'Your creations';
+
+  @override
+  String get studioRefaceAction => 'Replace a face';
+
+  @override
+  String get studioRestyleAction => 'Try a new look';
+
+  @override
+  String get studioLoraAction => 'Create a character';
+
+  @override
+  String get studioRefaceDescription =>
+      'Choose a photo or clip, then the person to replace.';
+
+  @override
+  String get studioRestyleDescription => 'Describe a new look for a photo.';
+
+  @override
+  String get studioLoraDescription =>
+      'Build a character from photos, train it, then create.';
+
+  @override
+  String get clearFilters => 'Clear filters';
+
+  @override
+  String get peopleNoMatches => 'No people match your search';
+
+  @override
+  String get clearSearch => 'Clear search';
+
+  @override
+  String get jobsInProgress => 'In progress';
+
+  @override
+  String workflowProgress(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
+  String get settingsLibrarySection => 'Library & scanning';
+
+  @override
+  String get settingsPrivacySection => 'Privacy & storage';
+
+  @override
+  String get settingsDeviceSection => 'PC & background activity';
+
+  @override
+  String get resultsNoMatches => 'No results match these filters';
+
+  @override
+  String get storageSavedTitle => 'Saved on your phone';
+
+  @override
+  String get storageCategories => 'Storage by category';
+
+  @override
+  String get storageManage => 'Manage saved files';
+
+  @override
+  String get storageModels => 'Character models';
+
+  @override
+  String get storageOther => 'Other files';
+
+  @override
+  String get storageTemporary => 'Temporary files';
+
+  @override
+  String get storageOriginalsHint =>
+      'Your original photos and videos stay in the device gallery.';
+
+  @override
+  String get reviewIntro => 'Help your library recognize the right people.';
+
+  @override
+  String get permissionsHeadline => 'Make it work for you';
+
+  @override
+  String get manualHeadline => 'Connect by address';
+
+  @override
+  String get connectionHeadline => 'Find your PC';
+
+  @override
+  String get backgroundHeadline => 'Keep your work moving';
+
+  @override
+  String get backupHeadline => 'Keep your library safe';
+
+  @override
+  String get mergeHeadline => 'The same person?';
+
+  @override
+  String get mergeIntro =>
+      'Compare the faces, then choose which profile to keep.';
+
+  @override
+  String get datasetEditorIntro => 'Choose the photos to train with';
+
+  @override
+  String get datasetEditorHint =>
+      'Keep clear, varied views of the same person. Include at least 5 photos to start training.';
+
+  @override
+  String get loraTrainHeadline => 'Train your character';
+
+  @override
+  String get loraGenerateHeadline => 'Create with your character';
+
+  @override
+  String get analyzeHeadline => 'Who is in this photo?';
+
+  @override
+  String get loadFailedTitle => 'Could not load this screen';
+
+  @override
+  String get loadFailedBody =>
+      'Your saved data has not changed. Try loading this screen again.';
+
+  @override
+  String get mediaPeopleHint =>
+      'Tap a face to see or change who it belongs to.';
+
+  @override
+  String get jobProgressTitle => 'Progress';
+
+  @override
+  String get jobDetailsAdvanced => 'Processing details';
+
+  @override
+  String get resultsBrowseHint => 'Your creations, saved on this phone.';
+
+  @override
+  String get selectFaces => 'Select faces';
+
+  @override
+  String get storageRemoveSaved => 'Remove saved files';
+
+  @override
+  String get resourcesTitle => 'PC resources';
+
+  @override
+  String get resourcesSubtitle =>
+      'RAM, GPU memory and storage on the PC doing your AI work.';
+
+  @override
+  String get resourcesUnavailable =>
+      'Could not read PC resources. Connect to the PC and make sure its server supports resource monitoring.';
+
+  @override
+  String get resourcesUnknown => 'Unavailable';
+
+  @override
+  String get resourcesAppRam => 'Application RAM (all PC workers)';
+
+  @override
+  String get resourcesRamAvailable => 'System RAM available';
+
+  @override
+  String get resourcesSystemRam => 'System RAM usage';
+
+  @override
+  String get resourcesGpuTotal => 'Whole GPU VRAM used';
+
+  @override
+  String get resourcesAppVram => 'Application compute VRAM';
+
+  @override
+  String get resourcesDiskAvailable => 'PC workspace disk available';
+
+  @override
+  String get resourcesScratch => 'Server temporary files';
+
+  @override
+  String get resourcesStoragePartial =>
+      'Folder size is still counting or partially unavailable.';
+
+  @override
+  String get resourcesProcessPartial =>
+      'Some application processes could not be measured.';
+
+  @override
+  String get resourcesWaiting => 'Waiting for PC resources';
+
+  @override
+  String get resourcesScopeHint =>
+      'These readings describe the PC, not this phone. Shared RAM pages may be counted more than once. Whole GPU usage includes other apps; application VRAM may be unavailable with the PC driver. Updates every 5 seconds while this panel is visible.';
+
+  @override
+  String get resourcesLimitsHint =>
+      'Set optional admission thresholds in PC Settings → PC resources & protection. They delay new compute work; they are not hard memory caps for running tasks.';
+
+  @override
+  String get resourcesUpdated => 'Last sample';
 }

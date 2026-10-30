@@ -65,9 +65,16 @@ class ServerContext:
     bind_address: str = '0.0.0.0'
     discovery_port: int = 8445
     lan_discovery_ready: bool = False
+    resources: object = None
 
 
 def create_app(ctx: ServerContext) -> FastAPI:
+    if ctx.resources is None:
+        from resource_monitor import ResourceMonitor
+        app_dir = ctx.gpu.dashboard_jobs_dir.parent if ctx.gpu.dashboard_jobs_dir else ctx.workspace.root.parent
+        # Only scratch metadata is scanned here; never traverse the desktop library.
+        ctx.resources = ResourceMonitor(app_dir, storage_root=ctx.workspace.root)
+    ctx.gpu.resource_check = ctx.resources.admission_reasons
     ctx.jobs_lock = threading.RLock()
     ctx.compute_lock = threading.RLock()
     ctx.video_jobs = VideoJobs(ctx)
@@ -78,6 +85,7 @@ def create_app(ctx: ServerContext) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
         ctx.api_ready = True
+        ctx.resources.start()
         ctx.scratch_janitor.start()
         try:
             yield
@@ -89,6 +97,7 @@ def create_app(ctx: ServerContext) -> FastAPI:
             await run_in_threadpool(ctx.studio_jobs.close)
             if hasattr(ctx.engines, 'unload'):
                 await run_in_threadpool(ctx.engines.unload)
+            await run_in_threadpool(ctx.resources.close)
 
     app = FastAPI(title="Your Gallery Mobile API", version=ctx.api_version,
                   docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)

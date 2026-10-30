@@ -50,30 +50,33 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: SegmentedButton<String>(
-              segments: [
-                ButtonSegment(
-                  value: 'all',
-                  label: Text(l10n.filterAll),
-                  icon: const Icon(Icons.perm_media_outlined),
-                ),
-                ButtonSegment(
-                  value: 'photo',
-                  label: Text(l10n.statPhotos),
-                  icon: const Icon(Icons.photo_outlined),
-                ),
-                ButtonSegment(
-                  value: 'video',
-                  label: Text(l10n.statVideos),
-                  icon: const Icon(Icons.videocam_outlined),
-                ),
-              ],
-              selected: {_filter.kind ?? 'all'},
-              onSelectionChanged: (value) => setState(() {
-                _filter = value.single == 'all'
-                    ? _filter.copyWith(clearKind: true)
-                    : _filter.copyWith(kind: value.single);
-              }),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(
+                    value: 'all',
+                    label: Text(l10n.filterAll),
+                    icon: const Icon(Icons.perm_media_outlined),
+                  ),
+                  ButtonSegment(
+                    value: 'photo',
+                    label: Text(l10n.statPhotos),
+                    icon: const Icon(Icons.photo_outlined),
+                  ),
+                  ButtonSegment(
+                    value: 'video',
+                    label: Text(l10n.statVideos),
+                    icon: const Icon(Icons.videocam_outlined),
+                  ),
+                ],
+                selected: {_filter.kind ?? 'all'},
+                onSelectionChanged: (value) => setState(() {
+                  _filter = value.single == 'all'
+                      ? _filter.copyWith(clearKind: true)
+                      : _filter.copyWith(kind: value.single);
+                }),
+              ),
             ),
           ),
           SingleChildScrollView(
@@ -148,6 +151,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ],
             ),
           ),
+          if (!_filter.isDefault)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton.icon(
+                key: const Key('library-clear-filters'),
+                onPressed: () => setState(() => _filter = const MediaFilter()),
+                icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+                label: Text(l10n.clearFilters),
+              ),
+            ),
           Expanded(
             child: MediaGrid(
               filter: _filter,
@@ -162,6 +175,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   : EmptyState(
                       icon: Icons.filter_alt_off_outlined,
                       title: l10n.noPhotosMatch,
+                      actionLabel: l10n.clearFilters,
+                      onAction: () =>
+                          setState(() => _filter = const MediaFilter()),
                     ),
             ),
           ),

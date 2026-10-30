@@ -102,12 +102,12 @@ def group_library(db: Optional[JsonDatabase] = None, strictness: str = "balanced
     summary = GroupingSummary()
 
     with db.batch():
-        unassigned, pending, _ = _pending_faces(db)
+        unassigned, pending, dismissed = _pending_faces(db)
         stages = [s for s, wanted in (("match", match_existing), ("cluster", create_new)) if wanted]
 
         if stages and unassigned:
             models = person_models(db) if match_existing else {}
-            plan = gc.plan(gc.Snapshot(models=models, pending=pending), "apply", stages, params)
+            plan = gc.plan(gc.Snapshot(models=models, pending=pending, dismissed_face_ids=dismissed), "apply", stages, params)
 
             for a in plan.assignments:  # apply mode: confident matches only
                 db.assign_face_to_person(a.face_id, a.person_id)

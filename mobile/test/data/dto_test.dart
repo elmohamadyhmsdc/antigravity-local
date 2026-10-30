@@ -38,6 +38,9 @@ void main() {
       expect(c.gpu!.name, contains('RTX'));
       expect(c.gpu!.vramFreeMb, lessThanOrEqualTo(c.gpu!.vramTotalMb));
       expect(c.engines.refaceV3, isTrue);
+      expect(c.engines.reface, isTrue);
+      expect(c.refaceProfiles['fast'], 'none');
+      expect(c.refaceProfiles['balanced'], 'codeformer');
       expect(c.engines.dfmModels, ['RTM_WF_224']);
       expect(c.restorers, ['codeformer']);
       expect(c.loraBaseCheckpoints, ['sd15_realistic_base']);
@@ -52,6 +55,16 @@ void main() {
       expect(c.isBusy, isTrue);
       expect(c.busy!.source, 'dashboard');
       expect(c.busy!.jobType, 'reface_video_v3');
+    });
+
+    test('older servers do not advertise unsupported unified jobs', () {
+      final json = copyOf(fixture('Capabilities.idle'))
+        ..remove('reface_profiles');
+      (json['engines'] as Map).remove('reface');
+      final caps = Capabilities.fromJson(json);
+      expect(caps.engines.reface, isFalse);
+      expect(caps.refaceProfiles, isEmpty);
+      expect(caps.engines.refaceV3, isTrue);
     });
 
     test('a PC without a GPU reports gpu: null', () {
