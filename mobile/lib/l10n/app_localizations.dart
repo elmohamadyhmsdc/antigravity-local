@@ -4618,6 +4618,54 @@ abstract class AppLocalizations {
   /// **'Your original photos and videos stay in the device gallery.'**
   String get storageOriginalsHint;
 
+  /// No description provided for @storageDatabase.
+  ///
+  /// In en, this message translates to:
+  /// **'Library database'**
+  String get storageDatabase;
+
+  /// No description provided for @storageCache.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache and scratch files'**
+  String get storageCache;
+
+  /// No description provided for @storageLeftoversTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Leftover files'**
+  String get storageLeftoversTitle;
+
+  /// No description provided for @storageLeftoversNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No leftover files found. Everything on this phone belongs to your library.'**
+  String get storageLeftoversNone;
+
+  /// No description provided for @storageLeftoversFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{size} of files no longer belong to anything in your library (old crops, finished downloads, scratch copies of videos).'**
+  String storageLeftoversFound(String size);
+
+  /// No description provided for @storageCleanLeftovers.
+  ///
+  /// In en, this message translates to:
+  /// **'Clean up leftovers'**
+  String get storageCleanLeftovers;
+
+  /// No description provided for @storageLeftoversConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete only files that nothing in your library uses, plus old cache and scratch files? Your people, photos, results, datasets and trained models are not touched.'**
+  String get storageLeftoversConfirm;
+
+  /// No description provided for @storageLeftoversDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Freed {size}'**
+  String storageLeftoversDone(String size);
+
   /// No description provided for @reviewIntro.
   ///
   /// In en, this message translates to:
@@ -5175,6 +5223,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Change who this is'**
   String get viewerReassign;
+
+  /// No description provided for @exportTrainingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export for training'**
+  String get exportTrainingTitle;
+
+  /// No description provided for @exportTrainingHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Cuts full-resolution pictures of {name} from your original photos and videos (not the small previews) and zips them with a list of where each came from. Nothing is uploaded.'**
+  String exportTrainingHelp(String name);
+
+  /// No description provided for @exportTrainingFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Faces (square)'**
+  String get exportTrainingFaces;
+
+  /// No description provided for @exportTrainingBodies.
+  ///
+  /// In en, this message translates to:
+  /// **'Bodies'**
+  String get exportTrainingBodies;
+
+  /// No description provided for @exportTrainingFaceSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Face size'**
+  String get exportTrainingFaceSize;
+
+  /// No description provided for @exportTrainingBodySize.
+  ///
+  /// In en, this message translates to:
+  /// **'Body long side'**
+  String get exportTrainingBodySize;
+
+  /// No description provided for @exportTrainingPerVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Most pictures per video'**
+  String get exportTrainingPerVideo;
+
+  /// No description provided for @exportTrainingStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start export'**
+  String get exportTrainingStart;
+
+  /// No description provided for @exportTrainingNeedKind.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose faces, bodies or both.'**
+  String get exportTrainingNeedKind;
+
+  /// No description provided for @exportTrainingPlanning.
+  ///
+  /// In en, this message translates to:
+  /// **'Choosing the pictures…'**
+  String get exportTrainingPlanning;
+
+  /// No description provided for @exportTrainingRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Cutting {done} of {total}'**
+  String exportTrainingRunning(int done, int total);
+
+  /// No description provided for @exportTrainingPacking.
+  ///
+  /// In en, this message translates to:
+  /// **'Building the zip…'**
+  String get exportTrainingPacking;
+
+  /// No description provided for @exportTrainingStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get exportTrainingStop;
+
+  /// No description provided for @exportTrainingStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped. Finished pictures are kept; start again to continue.'**
+  String get exportTrainingStopped;
+
+  /// No description provided for @exportTrainingDone.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 picture exported} other{{count} pictures exported}}'**
+  String exportTrainingDone(int count);
+
+  /// No description provided for @exportTrainingSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'{small} too small · {missing} originals unavailable · {failed} failed'**
+  String exportTrainingSkipped(int small, int missing, int failed);
+
+  /// No description provided for @exportTrainingNothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No picture could be exported.'**
+  String get exportTrainingNothing;
+
+  /// No description provided for @exportTrainingFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Export failed: {error}'**
+  String exportTrainingFailed(String error);
+
+  /// No description provided for @exportTrainingShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share zip'**
+  String get exportTrainingShare;
+
+  /// No description provided for @exportTrainingNotification.
+  ///
+  /// In en, this message translates to:
+  /// **'Exporting training pictures'**
+  String get exportTrainingNotification;
 }
 
 class _AppLocalizationsDelegate

@@ -1,8 +1,11 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, File, Platform;
 import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
+import 'data/db/open_database.dart' show databaseFileName;
 import 'data/files/file_store.dart';
 import 'data/index/embedding_index.dart';
 import 'data/index/index_loader.dart';
@@ -22,6 +25,7 @@ import 'domain/backup/backup_service.dart';
 import 'domain/grouping/grouping_runner.dart';
 import 'domain/scan/photo_result_store.dart';
 import 'domain/scan/video_compactor.dart';
+import 'domain/storage/storage_sweeper.dart';
 import 'domain/scan/scan_engine.dart';
 import 'domain/scan/scan_state.dart';
 import 'domain/scan/video_scan.dart';
@@ -39,6 +43,17 @@ AppLocalizations get _en => lookupAppLocalizations(const Locale('en'));
 final fileStoreProvider = Provider<FileStore>(
   (ref) => throw UnimplementedError('fileStoreProvider must be overridden'),
 );
+
+/// Measures the phone's storage and removes files nothing refers to any more.
+final storageSweeperProvider = FutureProvider<StorageSweeper>((ref) async {
+  final support = await getApplicationSupportDirectory();
+  return StorageSweeper(
+    db: ref.watch(databaseProvider),
+    files: ref.watch(fileStoreProvider),
+    databaseFile: File(p.join(support.path, databaseFileName)),
+    tempDirs: [await getTemporaryDirectory(), Directory.systemTemp],
+  );
+});
 
 final appSettingsProvider = Provider<AppSettings>(
   (ref) => AppSettings(ref.watch(databaseProvider)),

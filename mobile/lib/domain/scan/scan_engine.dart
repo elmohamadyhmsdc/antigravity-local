@@ -403,6 +403,11 @@ class ScanEngine {
           unawaited(notify());
         },
       );
+      if (row.kind == 'video') {
+        // On Android 10+ opening a video copies the whole file into the app cache.
+        await _preparedPhoto;
+        await _media.clearCache();
+      }
       switch (result) {
         case _Paused():
           if (sinceGroupingFaces > 0) await groupNow();

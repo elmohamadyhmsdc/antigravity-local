@@ -744,3 +744,53 @@ At the user's request ("اسم الابليكيشن Your Gallery مش antigravit
   `people_screen.dart` / `people_actions_test.dart`. Nothing committed.
 - **Next asked by the user**: storage clean-up (orphan files) and high-resolution face/body
   extraction for training from the original photos/videos using stored detections.
+
+## Storage leftovers sweep — 2026-10-31
+
+Request: the phone app reportedly grows to ~50 GB on a ~100 GB library; find what
+takes the space and make leftovers reclaimable.
+
+**Measurement (limit):** the installed app (1.3.0, signed Release, also installed in
+the Samsung *Secure Folder* profile, user 150) is not debuggable, so `run-as` fails,
+and adb's shell cannot read user 150. `dumpsys diskstats` (user 0 only) showed
+app 92 MB, data ~0.9 MB, cache ~0.6 MB: the user-0 copy is essentially empty, so the
+large library is probably the Secure Folder copy, which adb cannot size. Nothing on
+the phone was changed. The per-folder breakdown must be read in-app (Storage screen,
+now extended). A debug build would be needed for `run-as du`, and cannot replace the
+differently signed Release install (do not uninstall).
+
+**Leaks found in code:**
+- Video scan / video viewer open `AssetEntity.originFile`; on Android 10+ photo_manager
+  copies the whole video (up to 2 GB each) into the app cache. `clearCache()` ran only
+  every 40 items and at normal completion, never after a pause/failure/kill and never
+  for the viewer. Fixed in part: `scan_engine.dart` now clears it after every video
+  (done, paused or failed). The viewer's copy is only reclaimed by the sweep.
+- Staged Studio inputs (`work/<id>/`) are deleted on success, but kept for
+  failed/lost/paused jobs, and the existing "Clean temporary files" protects every
+  job's inputs forever. `work/picker/*.jpg`, `work/exports/*.zip` and `*.part`
+  downloads have no owner and were never removed.
+- Crops: `deleteFaces`, the video compactor and `deletePerson` delete crops, but any
+  crash between row delete and file delete (or a restore/scan interrupted after the
+  crop write) leaves unreferenced files; nothing ever looked for them.
+- Backup (`cache/backups`, `ag-restore-*`), people export and Reface temp files and
+  `ag_video_*` (video-scan NDJSON) live in the cache dir and are only removed on the
+  happy path.
+
+**Changes:** `lib/domain/storage/storage_sweeper.dart` (`StorageSweeper.usage()`,
+`findLeftovers()`, `sweep()`): removes private files referenced by no row (faces,
+bodies, character samples, dataset items, results, LoRAs, jobs target/inputs) and
+top-level cache entries whose newest file is older than `minAge` (6 h), so a live
+scan/job is never raced; empty folders are pruned; results, datasets, LoRAs and
+staged inputs of existing jobs are never swept. Storage screen shows database,
+cache/scratch and leftovers and has "Clean up leftovers" with confirmation (refuses
+while a scan or job runs, suspends the job tracker, then clears the photo_manager
+cache). New providers `storageSweeperProvider`, `storageExtrasProvider`; new ARB
+strings (`storage*`). Inputs of failed jobs are not swept: delete the job in Studio.
+
+**Checks:** `flutter test test/domain/storage_sweeper_test.dart` 7/7 (temp dir
+FileStore + in-memory DB). Full `flutter test`: 529 passed, 8 failed — all 8 are
+compile failures from another session's untracked `lib/domain/export/crop_math.dart`
+(`num` passed as `int`, line 75), not from this change. `flutter analyze`: no issues
+in the files touched here; the same `lib/domain/export/*` and
+`data/platform/crop_source.dart` items are reported. Not done: widget test of the new
+Storage section, a run on the phone, SDXL/other outstanding items.

@@ -44,6 +44,8 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler(NetworkBridge()::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/video_scan")
             .setMethodCallHandler(VideoScanBridge(appContext)::handle)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/crop_export")
+            .setMethodCallHandler(CropExportBridge(appContext)::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/wakelock")
             .setMethodCallHandler(wakeLockBridge::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/studio_notifications")

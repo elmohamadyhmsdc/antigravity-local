@@ -19,6 +19,7 @@ import '../shared/person_picker.dart';
 import 'face_grid.dart';
 import 'action_sheet.dart';
 import 'people_actions.dart';
+import 'training_export_dialog.dart';
 
 final personProvider = StreamProvider.autoDispose.family<PersonSummary?, int>(
   (ref, id) => ref.watch(peopleRepositoryProvider).watchPerson(id),
@@ -129,6 +130,12 @@ class PersonDetailScreen extends ConsumerWidget {
                         context.push('${Routes.reface}?person=$personId');
                       case 'rename':
                         _rename(context, ref, p);
+                      case 'exportTraining':
+                        showTrainingExportDialog(
+                          context,
+                          person: p,
+                          personName: personName(l10n, p),
+                        );
                       case 'merge':
                         _merge(context, ref, p);
                       case 'delete':
@@ -143,6 +150,11 @@ class PersonDetailScreen extends ConsumerWidget {
                       child: Text(l10n.useInStudio),
                     ),
                     PopupMenuItem(value: 'rename', child: Text(l10n.rename)),
+                    PopupMenuItem(
+                      key: const Key('person-export-training'),
+                      value: 'exportTraining',
+                      child: Text(l10n.exportTrainingTitle),
+                    ),
                     PopupMenuItem(value: 'merge', child: Text(l10n.mergeWith)),
                     PopupMenuItem(
                       value: 'delete',

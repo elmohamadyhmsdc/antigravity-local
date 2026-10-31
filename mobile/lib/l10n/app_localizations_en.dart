@@ -2857,6 +2857,36 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your original photos and videos stay in the device gallery.';
 
   @override
+  String get storageDatabase => 'Library database';
+
+  @override
+  String get storageCache => 'Cache and scratch files';
+
+  @override
+  String get storageLeftoversTitle => 'Leftover files';
+
+  @override
+  String get storageLeftoversNone =>
+      'No leftover files found. Everything on this phone belongs to your library.';
+
+  @override
+  String storageLeftoversFound(String size) {
+    return '$size of files no longer belong to anything in your library (old crops, finished downloads, scratch copies of videos).';
+  }
+
+  @override
+  String get storageCleanLeftovers => 'Clean up leftovers';
+
+  @override
+  String get storageLeftoversConfirm =>
+      'Delete only files that nothing in your library uses, plus old cache and scratch files? Your people, photos, results, datasets and trained models are not touched.';
+
+  @override
+  String storageLeftoversDone(String size) {
+    return 'Freed $size';
+  }
+
+  @override
   String get reviewIntro =>
       'Open a photo to inspect the highlighted face or body, then decide who it belongs to.';
 
@@ -3228,4 +3258,81 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get viewerReassign => 'Change who this is';
+
+  @override
+  String get exportTrainingTitle => 'Export for training';
+
+  @override
+  String exportTrainingHelp(String name) {
+    return 'Cuts full-resolution pictures of $name from your original photos and videos (not the small previews) and zips them with a list of where each came from. Nothing is uploaded.';
+  }
+
+  @override
+  String get exportTrainingFaces => 'Faces (square)';
+
+  @override
+  String get exportTrainingBodies => 'Bodies';
+
+  @override
+  String get exportTrainingFaceSize => 'Face size';
+
+  @override
+  String get exportTrainingBodySize => 'Body long side';
+
+  @override
+  String get exportTrainingPerVideo => 'Most pictures per video';
+
+  @override
+  String get exportTrainingStart => 'Start export';
+
+  @override
+  String get exportTrainingNeedKind => 'Choose faces, bodies or both.';
+
+  @override
+  String get exportTrainingPlanning => 'Choosing the pictures…';
+
+  @override
+  String exportTrainingRunning(int done, int total) {
+    return 'Cutting $done of $total';
+  }
+
+  @override
+  String get exportTrainingPacking => 'Building the zip…';
+
+  @override
+  String get exportTrainingStop => 'Stop';
+
+  @override
+  String get exportTrainingStopped =>
+      'Stopped. Finished pictures are kept; start again to continue.';
+
+  @override
+  String exportTrainingDone(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pictures exported',
+      one: '1 picture exported',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String exportTrainingSkipped(int small, int missing, int failed) {
+    return '$small too small · $missing originals unavailable · $failed failed';
+  }
+
+  @override
+  String get exportTrainingNothing => 'No picture could be exported.';
+
+  @override
+  String exportTrainingFailed(String error) {
+    return 'Export failed: $error';
+  }
+
+  @override
+  String get exportTrainingShare => 'Share zip';
+
+  @override
+  String get exportTrainingNotification => 'Exporting training pictures';
 }

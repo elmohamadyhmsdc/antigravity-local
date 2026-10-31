@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
+import '../../domain/storage/storage_sweeper.dart';
 import '../shared/empty_state.dart';
 import '../shared/screen_layout.dart';
 
@@ -21,6 +22,19 @@ final storageSizesProvider = FutureProvider.autoDispose<Map<String, int>>((
   return sizes;
 });
 
+/// What the per-folder sizes do not show: the database, cache/scratch space and the leftovers
+/// that a sweep would remove. Its own provider, so a failure here never hides the sizes above.
+final storageExtrasProvider =
+    FutureProvider.autoDispose<({StorageUsage usage, Leftovers leftovers})>((
+      ref,
+    ) async {
+      final sweeper = await ref.watch(storageSweeperProvider.future);
+      return (
+        usage: await sweeper.usage(),
+        leftovers: await sweeper.findLeftovers(),
+      );
+    });
+
 class StorageScreen extends ConsumerStatefulWidget {
   const StorageScreen({super.key});
   @override
@@ -29,6 +43,66 @@ class StorageScreen extends ConsumerStatefulWidget {
 
 class _StorageScreenState extends ConsumerState<StorageScreen> {
   bool _busy = false;
+
+  Future<bool> _workIsRunning() async {
+    final db = ref.read(databaseProvider);
+    final jobs = await db.select(db.jobs).get();
+    return ref.read(scanEngineProvider).isRunning ||
+        jobs.any(
+          (j) => !const [
+            'completed',
+            'failed',
+            'paused',
+            'lost',
+          ].contains(j.status),
+        );
+  }
+
+  Future<void> _cleanLeftovers() async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    if (await _workIsRunning()) {
+      messenger.showSnackBar(SnackBar(content: Text(l.storageBusy)));
+      return;
+    }
+    if (!mounted ||
+        !await confirm(
+          context,
+          title: l.storageCleanLeftovers,
+          body: l.storageLeftoversConfirm,
+          confirmLabel: l.delete,
+          cancelLabel: l.cancel,
+          destructive: true,
+        )) {
+      return;
+    }
+    setState(() => _busy = true);
+    final tracker = ref.read(jobTrackerProvider);
+    final wasActive = await tracker.suspendForMaintenance();
+    try {
+      final sweeper = await ref.read(storageSweeperProvider.future);
+      final result = await sweeper.sweep();
+      // photo_manager keeps its own copies of originals opened by this app
+      await ref.read(mediaLibraryProvider).clearCache();
+      ref.invalidate(storageSizesProvider);
+      ref.invalidate(storageExtrasProvider);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l.storageLeftoversDone(_size(result.removedBytes))),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      tracker.resumeAfterMaintenance(wasActive);
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  static String _size(int bytes) => bytes >= 1073741824
+      ? '${(bytes / 1073741824).toStringAsFixed(1)} GB'
+      : '${(bytes / 1048576).toStringAsFixed(1)} MB';
+
   Future<void> _clean(String category) async {
     final l = AppLocalizations.of(context);
     final repository = ref.read(studioRepositoryProvider);
@@ -122,6 +196,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
         }
       }
       ref.invalidate(storageSizesProvider);
+      ref.invalidate(storageExtrasProvider);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -142,9 +217,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    String sizeLabel(int bytes) => bytes >= 1073741824
-        ? '${(bytes / 1073741824).toStringAsFixed(1)} GB'
-        : '${(bytes / 1048576).toStringAsFixed(1)} MB';
+    final sizeLabel = _size;
     String categoryLabel(String category) => switch (category) {
       'faces' => l.navPeople,
       'bodies' => l.tabBodies,
@@ -228,6 +301,47 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                     ],
                   );
                 },
+              ),
+          ref
+              .watch(storageExtrasProvider)
+              .maybeWhen(
+                data: (extras) => Column(
+                  key: const Key('storage-extras'),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final row in [
+                      (l.storageDatabase, extras.usage.databaseBytes),
+                      (l.storageCache, extras.usage.tempBytes),
+                    ])
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          spacing: 12,
+                          children: [Text(row.$1), Text(sizeLabel(row.$2))],
+                        ),
+                      ),
+                    SectionHeading(title: l.storageLeftoversTitle),
+                    Text(
+                      extras.leftovers.isEmpty
+                          ? l.storageLeftoversNone
+                          : l.storageLeftoversFound(
+                              sizeLabel(extras.leftovers.totalBytes),
+                            ),
+                      key: const Key('storage-leftovers-summary'),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.tonalIcon(
+                      key: const Key('storage-clean-leftovers'),
+                      onPressed: _busy || extras.leftovers.isEmpty
+                          ? null
+                          : _cleanLeftovers,
+                      icon: const Icon(Icons.auto_delete_outlined),
+                      label: Text(l.storageCleanLeftovers),
+                    ),
+                  ],
+                ),
+                orElse: () => const SizedBox.shrink(),
               ),
           const SizedBox(height: 12),
           StatusNotice(

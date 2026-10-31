@@ -1494,6 +1494,28 @@
   "storageOther": "Other files",
   "storageTemporary": "Temporary files",
   "storageOriginalsHint": "Your original photos and videos stay in the device gallery.",
+  "storageDatabase": "Library database",
+  "storageCache": "Cache and scratch files",
+  "storageLeftoversTitle": "Leftover files",
+  "storageLeftoversNone": "No leftover files found. Everything on this phone belongs to your library.",
+  "storageLeftoversFound": "{size} of files no longer belong to anything in your library (old crops, finished downloads, scratch copies of videos).",
+  "@storageLeftoversFound": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "storageCleanLeftovers": "Clean up leftovers",
+  "storageLeftoversConfirm": "Delete only files that nothing in your library uses, plus old cache and scratch files? Your people, photos, results, datasets and trained models are not touched.",
+  "storageLeftoversDone": "Freed {size}",
+  "@storageLeftoversDone": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "reviewIntro": "Open a photo to inspect the highlighted face or body, then decide who it belongs to.",
   "compactVideosBanner": "{count, plural, =1{1 video still keeps a face for every frame.} other{{count} videos still keep a face for every frame.}} Combine each appearance into one review item and free the space of the repeated crops.",
   "@compactVideosBanner": {
@@ -1637,5 +1659,30 @@
   "albumReviewSaved": "{add} added · {remove} marked as someone else",
   "@albumReviewSaved": {"placeholders": {"add": {"type": "int"}, "remove": {"type": "int"}}},
   "viewerUnknownPerson": "Unknown",
-  "viewerReassign": "Change who this is"
+  "viewerReassign": "Change who this is",
+  "exportTrainingTitle": "Export for training",
+  "exportTrainingHelp": "Cuts full-resolution pictures of {name} from your original photos and videos (not the small previews) and zips them with a list of where each came from. Nothing is uploaded.",
+  "@exportTrainingHelp": {"placeholders": {"name": {"type": "String"}}},
+  "exportTrainingFaces": "Faces (square)",
+  "exportTrainingBodies": "Bodies",
+  "exportTrainingFaceSize": "Face size",
+  "exportTrainingBodySize": "Body long side",
+  "exportTrainingPerVideo": "Most pictures per video",
+  "exportTrainingStart": "Start export",
+  "exportTrainingNeedKind": "Choose faces, bodies or both.",
+  "exportTrainingPlanning": "Choosing the pictures…",
+  "exportTrainingRunning": "Cutting {done} of {total}",
+  "@exportTrainingRunning": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "exportTrainingPacking": "Building the zip…",
+  "exportTrainingStop": "Stop",
+  "exportTrainingStopped": "Stopped. Finished pictures are kept; start again to continue.",
+  "exportTrainingDone": "{count, plural, =1{1 picture exported} other{{count} pictures exported}}",
+  "@exportTrainingDone": {"placeholders": {"count": {"type": "int"}}},
+  "exportTrainingSkipped": "{small} too small · {missing} originals unavailable · {failed} failed",
+  "@exportTrainingSkipped": {"placeholders": {"small": {"type": "int"}, "missing": {"type": "int"}, "failed": {"type": "int"}}},
+  "exportTrainingNothing": "No picture could be exported.",
+  "exportTrainingFailed": "Export failed: {error}",
+  "@exportTrainingFailed": {"placeholders": {"error": {"type": "String"}}},
+  "exportTrainingShare": "Share zip",
+  "exportTrainingNotification": "Exporting training pictures"
 }
