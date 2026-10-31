@@ -592,6 +592,10 @@ components:
         model_id:
           type: string
           description: The embedding model the phone's library uses; the server answers 409 `model_mismatch` if it differs
+        return_outlines:
+          type: boolean
+          default: false
+          description: "ask for face/body polygons; costs one parser pass per stored face and one RMBG pass per body"
 
     FaceQuality:
       type: object
@@ -638,6 +642,11 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/Base64Jpeg" }
             - { type: "null" }
+        outline:
+          description: Polygon around the real face/body shape, image pixels, 3-64 [x, y] points, not closed. Null when unavailable.
+          oneOf:
+            - { type: array, minItems: 3, maxItems: 64, items: { type: array, minItems: 2, maxItems: 2, items: { type: number } } }
+            - { type: "null" }
 
     Body:
       type: object
@@ -660,6 +669,11 @@ components:
         crop_jpeg:
           oneOf:
             - { $ref: "#/components/schemas/Base64Jpeg" }
+            - { type: "null" }
+        outline:
+          description: Polygon around the real face/body shape, image pixels, 3-64 [x, y] points, not closed. Null when unavailable.
+          oneOf:
+            - { type: array, minItems: 3, maxItems: 64, items: { type: array, minItems: 2, maxItems: 2, items: { type: number } } }
             - { type: "null" }
 
     FaceBodyPair:
@@ -968,6 +982,10 @@ components:
           minimum: 0
           description: First uncommitted frame; rounded up to the original frame_interval sampling grid.
         model_id: { type: [string, "null"] }
+        return_outlines:
+          type: boolean
+          default: false
+          description: "ask for face/body polygons; costs one parser pass per stored face and one RMBG pass per body"
 
     UndressParams:
       type: object

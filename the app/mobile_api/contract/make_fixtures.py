@@ -168,6 +168,10 @@ def analyze_fixture():
         "embedding": b64(unit(rng.standard_normal(DIM))),
         "quality": quality(176.0, 22.4, 310.5, 6.2, -3.1, 1.4, det=0.9312),
         "crop_jpeg": jpeg_b64((120, 150, 190)),
+        "outline": [
+            [round(500.5 + 70.4 * float(np.cos(a)), 1), round(295.3 + 96.5 * float(np.sin(a)), 1)]
+            for a in [2 * np.pi * i / 12 for i in range(12)]
+        ],
     }
     face_a["passes_gate"] = True
     face_b = {
@@ -177,6 +181,7 @@ def analyze_fixture():
         "embedding": b64(unit(rng.standard_normal(DIM))),
         "quality": quality(28.0, 17.8, 22.0, 38.0, 12.0, 0.0, det=0.58),
         "crop_jpeg": None,
+        "outline": None,
         "passes_gate": False,
     }
     appearance = hellinger_descriptor()
@@ -188,6 +193,10 @@ def analyze_fixture():
         "appearance": [round(float(x), 4) for x in appearance],
         "extent": pl.body_extent([k[2] for k in kpts]),
         "crop_jpeg": jpeg_b64((90, 60, 40)),
+        "outline": [
+            [round(500.0 + 136.0 * float(np.cos(a)), 1), round(540.0 + 351.0 * float(np.sin(a)), 1)]
+            for a in [2 * np.pi * i / 20 for i in range(20)]
+        ],
     }
     write("AnalyzeImageResponse.two_faces_one_body", {
         "model_id": "buffalo_l@1",

@@ -499,7 +499,7 @@ def _analyze(e, data=None, options=None, headers=None):
 @test
 def test_analyze_image_response_matches_the_contract_and_the_golden_fixture():
     with Env() as e:
-        r = _analyze(e)
+        r = _analyze(e, options={"return_outlines": True})
         check(r.status_code == 200, f"{r.status_code} {r.text[:300]}")
         body = r.json()
         check_schema("AnalyzeImageResponse", body)
