@@ -52,8 +52,18 @@ Flutter/Dart, Drift (SQLCipher).
 - Backward compatible both ways: an old phone (no `return_outlines`) costs the server nothing
   extra, and a new phone talking to an old server gets `outline == null` and still scans.
 - The analyzer stays at zero issues (`flutter analyze`, infos included).
-- Run commands per the repo rule in `CLAUDE.md` (post them for the user, or run them if the
-  user has told you to).
+- **Unattended run (the user said so on 2026-10-31): never stop to wait for the user.**
+  Run every command in this plan yourself (this overrides the "post the command" rule in
+  `CLAUDE.md` for this plan only; the no-download / no-install rules still hold). When a step
+  says "ask" or needs a decision, take the default written in that step, record it in the
+  handoff, and continue. If the phone is not connected (`adb devices` lists nothing), skip
+  the phone part of Task 9 and record that. Keep the debug PNGs of Task 4 local (do not
+  commit them). If a GPU step fails with out-of-memory because another process holds the GPU,
+  wait 5 minutes and retry up to 3 times, then record it and move on to the next task.
+- Other changes are landing in parallel in `mask_utils.py`, `undress_core.py`,
+  `undress_engine.py`, `model_readiness.py`, `reface.py`, `reface_engine_v3.py`,
+  `lora_dataset.py`, `florence_captioner.py`, `download_upgrades.py` and their tests. Don't
+  edit, revert, stage or commit those files.
 - Out of scope: Streamlit `gallery_page.py`, character (anime) detections, people avatars
   (`people_screen.dart` circles are avatars, not overlays).
 
@@ -114,7 +124,10 @@ lines up with the stored box in every view, at any display size, with no image s
      - Per body: crop the box padded 6% horizontally / 4% vertically (same as
        `analysis.body_crop`, but no resize), clipped to the image.
      - Preprocess for RMBG-1.4: BGR→RGB, resize to 1024×1024 bilinear, `/255`, subtract 0.5
-       (std 1.0), NCHW float32. **Batch** all bodies of the frame in one `run` (cap the batch at
+       (std 1.0), NCHW float32. **Do not copy `mask_utils.get_segmentation_mask`**: it uses
+       ImageNet mean/std, skips the min-max step and gets BGR from `get_person_bbox`; measured
+       on real crops it marks 75-99% of the frame as foreground (see
+       `docs/reviews/2026-10-31-model-upgrades-review.md`). **Batch** all bodies of the frame in one `run` (cap the batch at
        8; the input's batch axis is dynamic).
      - Output: take `[i, 0]`, min-max normalise to 0..1, resize back to the crop size, threshold
        at 0.5.

@@ -178,10 +178,12 @@ void main() {
         0xFF,
         0xD8,
       ], reason: 'crop_jpeg decodes to JPEG bytes');
+      expect(a.outline, hasLength(12));
 
       final b = r.faces[1];
       expect(b.passesGate, isFalse);
       expect(b.cropJpeg, isNull);
+      expect(b.outline, isNull);
       expect(r.storableFaces, [a]);
 
       final body = r.bodies.single;
@@ -191,6 +193,7 @@ void main() {
       expect(body.appearance, hasLength(80));
       expect(body.extent, isNotNull);
       expect(body.cropJpeg, isNotNull);
+      expect(body.outline, hasLength(20));
     });
 
     test('no_faces parses to empty lists', () {
@@ -213,8 +216,15 @@ void main() {
 
     test('AnalyzeOptions serialises to the fixture', () {
       expect(
-        const AnalyzeOptions(modelId: 'buffalo_l@1').toJson(),
+        const AnalyzeOptions(
+          modelId: 'buffalo_l@1',
+          returnOutlines: false,
+        ).toJson(),
         fixture('AnalyzeImageOptions.default'),
+      );
+      expect(
+        const AnalyzeOptions(modelId: 'buffalo_l@1').toJson()['return_outlines'],
+        isTrue,
       );
       expect(const AnalyzeOptions().toJson().containsKey('model_id'), isFalse);
     });

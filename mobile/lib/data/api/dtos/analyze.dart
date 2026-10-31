@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui';
 import '../../../domain/scan/character_descriptor.dart';
 
 import 'embedding.dart';
@@ -100,6 +101,30 @@ class FaceQuality {
   }
 }
 
+List<Offset>? _parseOutline(dynamic raw) {
+  if (raw is! List || raw.length < 3 || raw.length > 64) {
+    return null;
+  }
+  final points = <Offset>[];
+  for (final item in raw) {
+    if (item is! List || item.length != 2) {
+      return null;
+    }
+    final x = item[0];
+    final y = item[1];
+    if (x is! num || y is! num) {
+      return null;
+    }
+    final dx = x.toDouble();
+    final dy = y.toDouble();
+    if (!dx.isFinite || !dy.isFinite) {
+      return null;
+    }
+    points.add(Offset(dx, dy));
+  }
+  return points;
+}
+
 class DetectedFace {
   const DetectedFace({
     required this.bbox,
@@ -109,6 +134,7 @@ class DetectedFace {
     required this.quality,
     required this.passesGate,
     this.cropJpeg,
+    this.outline,
   });
 
   final BBox bbox;
@@ -118,6 +144,7 @@ class DetectedFace {
   final FaceQuality quality;
   final bool passesGate; // the phone stores only faces that pass
   final Uint8List? cropJpeg;
+  final List<Offset>? outline;
 
   factory DetectedFace.fromJson(
     Map<String, dynamic> json, [
@@ -139,6 +166,7 @@ class DetectedFace {
       quality: FaceQuality.fromJson(map(json['quality'], '$path.quality')),
       passesGate: field<bool>(json, 'passes_gate', path),
       cropJpeg: crop is String ? base64Decode(crop) : null,
+      outline: _parseOutline(json['outline']),
     );
   }
 }
@@ -151,6 +179,7 @@ class DetectedBody {
     this.appearance,
     this.extent,
     this.cropJpeg,
+    this.outline,
   });
 
   final BBox bbox;
@@ -159,6 +188,7 @@ class DetectedBody {
   final List<double>? appearance; // 80-float outfit descriptor
   final String? extent; // full | knee | upper | head
   final Uint8List? cropJpeg;
+  final List<Offset>? outline;
 
   factory DetectedBody.fromJson(
     Map<String, dynamic> json, [
@@ -181,6 +211,7 @@ class DetectedBody {
           : numbers(appearance, '$path.appearance'),
       extent: json['extent'] as String?,
       cropJpeg: crop is String ? base64Decode(crop) : null,
+      outline: _parseOutline(json['outline']),
     );
   }
 }
@@ -308,6 +339,7 @@ class AnalyzeOptions {
     this.bodyScore = 0.5,
     this.modelId,
     this.detectCharacters = false,
+    this.returnOutlines = true,
   });
 
   final bool detectBodies;
@@ -316,6 +348,7 @@ class AnalyzeOptions {
   final double bodyScore;
   final String? modelId;
   final bool detectCharacters;
+  final bool returnOutlines;
 
   Map<String, dynamic> toJson() => {
     'detect_bodies': detectBodies,
@@ -324,5 +357,6 @@ class AnalyzeOptions {
     'return_crops': returnCrops,
     'body_score': bodyScore,
     if (modelId != null) 'model_id': modelId,
+    if (returnOutlines) 'return_outlines': true,
   };
 }

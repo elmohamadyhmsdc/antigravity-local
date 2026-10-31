@@ -527,6 +527,7 @@ class VideoScan {
               'detect_characters': isCharScan,
               'model_id': prefs.modelId,
               'start_frame': current.lastScannedFrame,
+              'return_outlines': true,
             },
           },
         };
