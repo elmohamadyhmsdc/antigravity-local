@@ -859,19 +859,24 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                           }),
                                           child: Container(
                                             decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
                                               border: Border.all(
                                                 color: _targets.contains(i)
                                                     ? Colors.greenAccent
                                                     : Colors.white,
                                                 width: 3,
                                               ),
+                                              color: _targets.contains(i)
+                                                  ? Colors.greenAccent.withValues(alpha: 0.20)
+                                                  : Colors.black.withValues(alpha: 0.10),
                                             ),
-                                            alignment: Alignment.topLeft,
+                                            alignment: Alignment.center,
                                             child: Text(
-                                              '${i + 1}',
+                                              '',
                                               style: const TextStyle(
                                                 color: Colors.white,
-                                                backgroundColor: Colors.black,
+                                                fontWeight: FontWeight.bold,
+                                                backgroundColor: Colors.black54,
                                               ),
                                             ),
                                           ),

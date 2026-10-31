@@ -167,6 +167,18 @@ class _VideoMediaViewState extends State<VideoMediaView> {
                                 ? const Key('review-video-highlight')
                                 : null,
                             decoration: BoxDecoration(
+                              shape: d.isFace
+                                  ? BoxShape.circle
+                                  : BoxShape.rectangle,
+                              color: d.isFace
+                                  ? (_focused(d)
+                                        ? Colors.amberAccent.withValues(
+                                            alpha: 0.15,
+                                          )
+                                        : null)
+                                  : Colors.lightBlueAccent.withValues(
+                                      alpha: 0.18,
+                                    ),
                               border: Border.all(
                                 width: _focused(d) ? 3 : 2,
                                 color: _focused(d)
@@ -177,6 +189,8 @@ class _VideoMediaViewState extends State<VideoMediaView> {
                                           : Colors.greenAccent)
                                     : Colors.lightBlueAccent,
                               ),
+                              borderRadius:
+                                  d.isFace ? null : BorderRadius.circular(12),
                             ),
                             child: d.personId == null && !_focused(d)
                                 ? null

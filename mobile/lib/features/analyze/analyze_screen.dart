@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/api/dtos/analyze.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../review/review_media_viewer.dart';
 import '../shared/screen_layout.dart';
 import 'analyze_controller.dart';
 
@@ -313,22 +314,45 @@ class DetectionsPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final body = Paint()
+    final bodyStroke = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = bodyColor.withValues(alpha: 0.8);
+      ..strokeWidth = 2.5
+      ..color = bodyColor.withValues(alpha: 0.85);
+    final bodyFill = Paint()
+      ..style = PaintingStyle.fill
+      ..color = bodyColor.withValues(alpha: 0.20);
+
     for (final b in result.bodies) {
-      canvas.drawRect(_rect(b.bbox, size), body);
+      final rect = _rect(b.bbox, size);
+      final bodyPath = ReviewHighlightPainter.createBodySilhouettePath(rect);
+      canvas.drawPath(bodyPath, bodyFill);
+      canvas.drawPath(bodyPath, bodyStroke);
+
+      if (b.kpts != null && b.kpts!.isNotEmpty) {
+        final sx = size.width / result.imageW;
+        final sy = size.height / result.imageH;
+        final jointPaint = Paint()
+          ..color = bodyColor
+          ..style = PaintingStyle.fill;
+        for (final pt in b.kpts!) {
+          if (pt.length >= 3 && pt[2] > 0.3) {
+            canvas.drawCircle(Offset(pt[0] * sx, pt[1] * sy), 3, jointPaint);
+          }
+        }
+      }
     }
     for (final c in result.characters) {
-      canvas.drawRect(_rect(c.bbox, size), body);
+      final rect = _rect(c.bbox, size);
+      final bodyPath = ReviewHighlightPainter.createBodySilhouettePath(rect);
+      canvas.drawPath(bodyPath, bodyFill);
+      canvas.drawPath(bodyPath, bodyStroke);
     }
     for (var i = 0; i < result.faces.length; i++) {
       final f = result.faces[i];
       final color = f.passesGate ? faceColor : skippedColor;
       final rect = _rect(f.bbox, size);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+      canvas.drawOval(
+        rect,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3
@@ -348,7 +372,10 @@ class DetectionsPainter extends CustomPainter {
       )..layout();
       label.paint(
         canvas,
-        Offset(rect.left, (rect.top - label.height).clamp(0, size.height)),
+        Offset(
+          (rect.center.dx - label.width / 2).clamp(0, size.width - label.width),
+          (rect.top - label.height - 2).clamp(0, size.height),
+        ),
       );
     }
   }

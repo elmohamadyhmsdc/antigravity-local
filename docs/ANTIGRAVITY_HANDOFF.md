@@ -968,3 +968,29 @@ faces near one shared direction, which is why different characters merged.
 - **Status & Policy**: Documentation task; no source code modified, no tests run, no phone or server state altered.
 
 
+
+## Circular Face Boundaries & Contoured Body Silhouette Overlays — 2026-10-31
+
+- **User Request**: Change the face boundary across all places from square to an exact circle/oval, and for the body make exact boundaries/contours as if coloring the body with its contours and edges everywhere ("دلوقتي إحنا بنعرض الـ سيركل حوالين الـ بودي أو حوالين الـ فيس. هل نقدر حوالين الـ فيس بدل ما هي مربعة نخليها دايرة حوالين الـ فيس بالظبط؟ والبودي نعرف نعمل حدود عليه بالظبط كأننا بنلون الجسم بالظبط بالحروف بكل حاجة؟ ... هنطبقها في كل حتة بيظهر فيها حدود للوش والجسم، هنطبقهم في كل حتة.").
+- **Changes Across All Screens & Viewers**:
+  1. **Review Media Viewer & Highlighted Photo** (`mobile/lib/features/review/review_media_viewer.dart`, `mobile/lib/features/review/highlighted_photo.dart`):
+     - Added `isFace` parameter to `ReviewHighlightPainter`.
+     - When `isFace == true`: Background cutout mask uses `addOval`, and outline stroke is drawn via `canvas.drawOval` with glowing amber stroke.
+     - When `isFace == false` (Body): Implemented `ReviewHighlightPainter.createBodySilhouettePath(Rect rect)` constructing an anatomical human silhouette with Bézier curves (head, neck, shoulder slope, outer arms, torso contour, hips, inseam/crotch, and legs). Cutout follows this silhouette, interior is filled with translucent amber highlight (`alpha: 0.22`), and outline stroke (`strokeWidth: 3`) traces the body edges.
+     - `highlighted_photo.dart` forwards `isFace: kind == 'f'`.
+  2. **Analyze Screen** (`mobile/lib/features/analyze/analyze_screen.dart`):
+     - In `DetectionsPainter`: Faces are rendered as ovals via `canvas.drawOval(rect, colorPaint)`, with centered label badges at the apex. Bodies are rendered using `ReviewHighlightPainter.createBodySilhouettePath` with translucent fill (`alpha: 0.20`) and solid outline stroke; joint dots are rendered for present keypoints (`kpts`).
+  3. **Media Screen & Video View** (`mobile/lib/features/media/media_screen.dart`, `mobile/lib/features/media/video_media_view.dart`):
+     - Updated detection overlay boxes: when `d.isFace`, `BoxDecoration` uses `shape: BoxShape.circle` with amber/primary circular borders. When `!d.isFace`, container uses `color: Colors.lightBlueAccent.withValues(alpha: 0.18)` and rounded borders (`borderRadius: BorderRadius.circular(12)`).
+  4. **Reface Screen** (`mobile/lib/features/reface/reface_screen.dart`):
+     - Target face selection boxes over the photo updated from rectangles to `shape: BoxShape.circle`, with green accent selection ring and translucent fill.
+  5. **Restyle Screen** (`mobile/lib/features/restyle/restyle_screen.dart`):
+     - Protected face box updated to `shape: BoxShape.circle` with glowing green tint.
+  6. **Desktop Streamlit Gallery** (`the app/gallery_page.py`):
+     - Face detection boxes updated from `cv2.rectangle` to smooth anti-aliased `cv2.ellipse`.
+     - Body detection boxes updated with translucent colored tint overlay via `cv2.addWeighted` and solid boundary rectangle.
+- **Verification**:
+  - `flutter analyze` passed with **0 issues** (no compilation or lint warnings).
+  - Flutter test suite: **35/35 tests passed** across `review_viewer_test.dart`, `analyze_test.dart`, `redesign_screens_test.dart`, `reface_all_faces_test.dart`, and `reface_direct_identity_test.dart`.
+  - Python compile check: `the app/gallery_page.py` compiles cleanly without errors.
+  - Preserved terminal policy; no phone or server state altered.

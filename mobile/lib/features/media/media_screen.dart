@@ -543,17 +543,22 @@ class _AnnotatedPhoto extends StatelessWidget {
                         onTap: () => onTapBox(d),
                         child: DecoratedBox(
                           decoration: BoxDecoration(
+                            shape: d.isFace ? BoxShape.circle : BoxShape.rectangle,
+                            color: d.isFace
+                                ? (d.personId == null
+                                      ? Colors.amber.withValues(alpha: 0.10)
+                                      : scheme.primary.withValues(alpha: 0.12))
+                                : Colors.lightBlueAccent.withValues(alpha: 0.18),
                             border: Border.all(
-                              width: d.isFace ? 2.5 : 1.5,
+                              width: d.isFace ? 2.5 : 2.0,
                               color: d.isFace
                                   ? (d.personId == null
                                         ? Colors.amber
                                         : scheme.primary)
                                   : Colors.lightBlueAccent,
                             ),
-                            borderRadius: BorderRadius.circular(
-                              d.isFace ? 6 : 2,
-                            ),
+                            borderRadius:
+                                d.isFace ? null : BorderRadius.circular(12),
                           ),
                           child:
                               d.personId != null &&

@@ -215,10 +215,12 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
                         height: box.h / _analysis!.imageH * c.maxHeight,
                         child: Container(
                           decoration: BoxDecoration(
+                            shape: BoxShape.circle,
                             border: Border.all(
                               color: Colors.greenAccent,
                               width: 3,
                             ),
+                            color: Colors.greenAccent.withValues(alpha: 0.15),
                           ),
                         ),
                       ),

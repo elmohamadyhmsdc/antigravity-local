@@ -233,7 +233,9 @@ def _body_thumb_cached(crop_path: str, stamp: float, bbox: Tuple[float, float, f
 
     neon_bgr = (252, 132, 192)  # Bright neon violet
     # Subtle inner border
-    cv2.rectangle(disp, (fx1, fy1), (fx2, fy2), neon_bgr, 1, cv2.LINE_AA)
+    center = (fx1 + (fx2 - fx1) // 2, fy1 + (fy2 - fy1) // 2)
+    axes = (max(1, (fx2 - fx1) // 2), max(1, (fy2 - fy1) // 2))
+    cv2.ellipse(disp, center, axes, 0, 0, 360, neon_bgr, 1, cv2.LINE_AA)
 
     # High-contrast corner brackets [ ]
     arm = max(8, min(20, (fx2 - fx1) // 4, (fy2 - fy1) // 6))
@@ -1254,7 +1256,16 @@ def _annotated_body_context_bytes(path: str, stamp: float, boxes: tuple, target_
             continue
         sx, sy, sw, sh = [int(v * scale) for v in (x, y, w, h)]
         color = (226, 43, 138) if kind == "f" else (212, 185, 6)
-        cv2.rectangle(img, (sx, sy), (sx + sw, sy + sh), color, 2 if kind == "f" else 1)
+        if kind == "f":
+            center = (sx + sw // 2, sy + sh // 2)
+            axes = (max(1, sw // 2), max(1, sh // 2))
+            cv2.ellipse(img, center, axes, 0, 0, 360, color, 2, cv2.LINE_AA)
+        else:
+            sub = img[max(0, sy):min(img.shape[0], sy + sh), max(0, sx):min(img.shape[1], sx + sw)]
+            if sub.size > 0:
+                tint = np.full_like(sub, color)
+                cv2.addWeighted(tint, 0.22, sub, 0.78, 0, sub)
+            cv2.rectangle(img, (sx, sy), (sx + sw, sy + sh), color, 2, cv2.LINE_AA)
         if label:
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
             cv2.rectangle(img, (sx, max(0, sy - th - 6)), (sx + tw + 6, sy), color, -1)
@@ -1265,8 +1276,18 @@ def _annotated_body_context_bytes(path: str, stamp: float, boxes: tuple, target_
         x, y, w, h, kind, label, ref_id = target_box
         sx, sy, sw, sh = [int(v * scale) for v in (x, y, w, h)]
         neon_color = (252, 132, 192)  # Bright neon violet
-        cv2.rectangle(img, (sx - 1, sy - 1), (sx + sw + 1, sy + sh + 1), (0, 0, 0), 4)
-        cv2.rectangle(img, (sx, sy), (sx + sw, sy + sh), neon_color, 3)
+        if kind == "f":
+            center = (sx + sw // 2, sy + sh // 2)
+            axes = (max(1, sw // 2), max(1, sh // 2))
+            cv2.ellipse(img, center, axes, 0, 0, 360, (0, 0, 0), 4, cv2.LINE_AA)
+            cv2.ellipse(img, center, axes, 0, 0, 360, neon_color, 3, cv2.LINE_AA)
+        else:
+            sub = img[max(0, sy):min(img.shape[0], sy + sh), max(0, sx):min(img.shape[1], sx + sw)]
+            if sub.size > 0:
+                tint = np.full_like(sub, neon_color)
+                cv2.addWeighted(tint, 0.25, sub, 0.75, 0, sub)
+            cv2.rectangle(img, (sx - 1, sy - 1), (sx + sw + 1, sy + sh + 1), (0, 0, 0), 4)
+            cv2.rectangle(img, (sx, sy), (sx + sw, sy + sh), neon_color, 3)
 
         arm = max(12, min(30, sw // 4, sh // 6))
         for cx, cy, dx, dy in [(sx, sy, 1, 1), (sx + sw, sy, -1, 1), (sx, sy + sh, 1, -1), (sx + sw, sy + sh, -1, -1)]:
@@ -1633,7 +1654,16 @@ def _annotated_bytes(path: str, stamp: float, boxes: tuple) -> Optional[bytes]:
     for x, y, w, h, kind, label in boxes:
         x, y, w, h = [int(v * scale) for v in (x, y, w, h)]
         color = (226, 43, 138) if kind == "f" else (212, 185, 6)
-        cv2.rectangle(img, (x, y), (x + w, y + h), color, 2 if kind == "f" else 1)
+        if kind == "f":
+            center = (x + w // 2, y + h // 2)
+            axes = (max(1, w // 2), max(1, h // 2))
+            cv2.ellipse(img, center, axes, 0, 0, 360, color, 2, cv2.LINE_AA)
+        else:
+            sub = img[max(0, y):min(img.shape[0], y + h), max(0, x):min(img.shape[1], x + w)]
+            if sub.size > 0:
+                tint = np.full_like(sub, color)
+                cv2.addWeighted(tint, 0.22, sub, 0.78, 0, sub)
+            cv2.rectangle(img, (x, y), (x + w, y + h), color, 2, cv2.LINE_AA)
         if label:
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
             cv2.rectangle(img, (x, max(0, y - th - 6)), (x + tw + 6, y), color, -1)

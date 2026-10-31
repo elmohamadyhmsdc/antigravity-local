@@ -423,6 +423,7 @@ class _ReviewSourceState extends ConsumerState<_ReviewSource> {
                           label: v.target.kind == 'f'
                               ? l.reviewFace
                               : l.reviewBody,
+                          isFace: v.target.kind == 'f',
                         ),
                       ),
                     ),
@@ -438,9 +439,117 @@ class _ReviewSourceState extends ConsumerState<_ReviewSource> {
 }
 
 class ReviewHighlightPainter extends CustomPainter {
-  const ReviewHighlightPainter(this.box, {required this.label});
+  const ReviewHighlightPainter(
+    this.box, {
+    required this.label,
+    this.isFace = false,
+  });
+
   final Rect box;
   final String label;
+  final bool isFace;
+
+  /// Creates a smooth, anatomically proportioned human silhouette path in [rect].
+  static Path createBodySilhouettePath(Rect rect) {
+    if (rect.isEmpty) return Path();
+    final x = rect.left;
+    final y = rect.top;
+    final w = rect.width;
+    final h = rect.height;
+
+    final path = Path();
+    // Start at top center of head
+    path.moveTo(x + 0.50 * w, y);
+    // Right crown to ear/jaw
+    path.cubicTo(
+      x + 0.68 * w,
+      y + 0.02 * h,
+      x + 0.68 * w,
+      y + 0.14 * h,
+      x + 0.59 * w,
+      y + 0.17 * h,
+    );
+    // Neck to right shoulder slope
+    path.cubicTo(
+      x + 0.62 * w,
+      y + 0.20 * h,
+      x + 0.78 * w,
+      y + 0.22 * h,
+      x + 0.96 * w,
+      y + 0.26 * h,
+    );
+    // Right shoulder down outer arm
+    path.quadraticBezierTo(
+      x + 0.98 * w,
+      y + 0.40 * h,
+      x + 0.88 * w,
+      y + 0.54 * h,
+    );
+    // Right hip down outer leg
+    path.cubicTo(
+      x + 0.84 * w,
+      y + 0.70 * h,
+      x + 0.80 * w,
+      y + 0.88 * h,
+      x + 0.76 * w,
+      y + h,
+    );
+    // Right foot base
+    path.lineTo(x + 0.56 * w, y + h);
+    // Inseam up to crotch
+    path.quadraticBezierTo(
+      x + 0.54 * w,
+      y + 0.75 * h,
+      x + 0.50 * w,
+      y + 0.56 * h,
+    );
+    // Inseam down left leg
+    path.quadraticBezierTo(
+      x + 0.46 * w,
+      y + 0.75 * h,
+      x + 0.44 * w,
+      y + h,
+    );
+    // Left foot base
+    path.lineTo(x + 0.24 * w, y + h);
+    // Left outer leg up to hip
+    path.cubicTo(
+      x + 0.20 * w,
+      y + 0.88 * h,
+      x + 0.16 * w,
+      y + 0.70 * h,
+      x + 0.12 * w,
+      y + 0.54 * h,
+    );
+    // Left outer arm up to left shoulder tip
+    path.quadraticBezierTo(
+      x + 0.02 * w,
+      y + 0.40 * h,
+      x + 0.04 * w,
+      y + 0.26 * h,
+    );
+    // Left shoulder tip to neck
+    path.cubicTo(
+      x + 0.22 * w,
+      y + 0.22 * h,
+      x + 0.38 * w,
+      y + 0.20 * h,
+      x + 0.41 * w,
+      y + 0.17 * h,
+    );
+    // Left jaw up to crown
+    path.cubicTo(
+      x + 0.32 * w,
+      y + 0.14 * h,
+      x + 0.32 * w,
+      y + 0.02 * h,
+      x + 0.50 * w,
+      y,
+    );
+    path.close();
+    return path;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final bounds = Offset.zero & size;
@@ -451,21 +560,42 @@ class ReviewHighlightPainter extends CustomPainter {
       box.bottom * size.height,
     ).intersect(bounds);
     if (target.isEmpty) return;
+
+    final targetPath = Path();
+    if (isFace) {
+      targetPath.addOval(target);
+    } else {
+      targetPath.addPath(createBodySilhouettePath(target), Offset.zero);
+    }
+
+    // Cutout in the dark mask
     canvas.drawPath(
       Path.combine(
         PathOperation.difference,
         Path()..addRect(bounds),
-        Path()..addRect(target),
+        targetPath,
       ),
       Paint()..color = Colors.black.withValues(alpha: .5),
     );
-    canvas.drawRect(
-      target,
+
+    // Colored translucent fill inside the body or face
+    final fillColor = Colors.amberAccent.withValues(alpha: isFace ? 0.08 : 0.22);
+    canvas.drawPath(
+      targetPath,
+      Paint()
+        ..color = fillColor
+        ..style = PaintingStyle.fill,
+    );
+
+    // Glowing border outline
+    canvas.drawPath(
+      targetPath,
       Paint()
         ..color = Colors.amberAccent
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
+
     final text = TextPainter(
       text: TextSpan(
         text: label,
@@ -494,5 +624,7 @@ class ReviewHighlightPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(ReviewHighlightPainter oldDelegate) =>
-      oldDelegate.box != box || oldDelegate.label != label;
+      oldDelegate.box != box ||
+      oldDelegate.label != label ||
+      oldDelegate.isFace != isFace;
 }
