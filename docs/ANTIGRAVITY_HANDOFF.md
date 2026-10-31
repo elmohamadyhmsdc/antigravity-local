@@ -877,3 +877,36 @@ Storage section, a run on the phone, SDXL/other outstanding items.
   overflow at `people_screen.dart:496`, quick-review People entry, background battery test).
   Log: `mobile/build/crop-cache-tests.log`. `cutCrop` (dart:ui + native JPEG) and the photo
   orientation match were **not** run on a phone; no APK built.
+
+## Drawn (anime/cartoon) faces are never people — 2026-10-31
+
+Problem: anime/cartoon faces reached People and several characters ended up in one person.
+The detector scores drawn faces as good faces (quality 0.70–0.94 on the phone's anime
+folders), so the character-mode rule "quality >= 0.50 = a real person" let them through,
+and in albums not marked illustrated every drawn face went to People. ArcFace maps drawn
+faces near one shared direction, which is why different characters merged.
+
+- `the app/drawn_faces.py` and `mobile/lib/domain/scan/drawn_faces.dart` hold the same
+  512-float direction (unit mean of 63 drawn-face embeddings) and `DRAWN_MIN_SCORE = 0.20`;
+  `test_drawn_faces.py` checks both files agree. Measured on 63 drawn faces (Pictures/Anime
+  Wallpaper, background, Pins, copied to a temp folder and deleted afterwards) against ~720 real faces
+  (lora_datasets, DFL sample videos, insightface samples): usable real faces <= 0.13, blurred or
+  covered real faces up to 0.17, drawn faces 0.13–0.62 (leave-one-out, 95% >= 0.18). About 90% of
+  drawn faces are caught; very realistic drawings (e.g. Attack on Titan style) can still pass.
+  Non-faces (dog, Groot, hair) also score high; photoreal renders/statues do not. Only ~6 real
+  identities were available locally, so the real-face margin is not proven on a diverse library.
+- PC `analysis.analyze_frame`: drawn faces and the bodies paired with them are dropped in every
+  mode; in character mode a face is "real" only if it passes the gate, has quality >= 0.50 and is
+  not drawn (so a good drawn face no longer hides its character). Needs a server restart.
+- Phone `PhotoResultStore.store`: skips drawn faces and their bodies itself, so it works with an
+  un-restarted/older PC server.
+- Phone `DrawnFaceSweep` (`domain/scan/drawn_face_sweep.dart`) runs once at app start
+  (`cleanup.drawn_faces` = version '1'; restore of a backup clears the key): deletes drawn faces,
+  their detections/crops/index entries, the bodies around them, and people left with no faces and
+  no bodies unless named, pinned, favourite or locked (a named all-anime person stays, empty).
+  No suppression records are written (the scan filter already prevents re-creation).
+- Tests: Python `test_drawn_faces.py` 4, character 13, analysis 7, gallery 33, API contract 29,
+  video 17, scan worker 2, stateless 5 — all pass. Flutter: analyzer clean; full suite 571 passed,
+  8 failed (the same pre-existing People-screen 1-px overflow ×7 and battery-notice timeout).
+  The end-to-end real-model run over the photo folders was stopped at the user's request; not
+  verified on the phone.
