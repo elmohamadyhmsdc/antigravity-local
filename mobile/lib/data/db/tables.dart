@@ -330,6 +330,9 @@ class MediaDetections extends Table {
   RealColumn get h => real()();
   IntColumn get frameNumber => integer().nullable()();
   IntColumn get timestampMs => integer().nullable()();
+
+  // v13: flat JSON [x1, y1, x2, y2, ...] normalised to detection box
+  TextColumn get outline => text().nullable()();
 }
 
 /// The PC's last review plan, stored so the Review screen opens instantly and works offline.

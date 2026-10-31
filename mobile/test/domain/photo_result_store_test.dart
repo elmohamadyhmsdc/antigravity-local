@@ -11,6 +11,7 @@ import 'package:antigravity_mobile/data/index/embedding_index.dart';
 import 'package:antigravity_mobile/data/repositories/library_repository.dart';
 import 'package:antigravity_mobile/domain/scan/drawn_faces.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
+import 'package:antigravity_mobile/domain/geometry/outline.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -126,6 +127,61 @@ void main() {
           1,
           reason: 'the new face is searchable at once',
         );
+      },
+    );
+
+    test(
+      'a scan with outlines stores them; without outline stores null; rescan replaces outline',
+      () async {
+        final media = await photo('a_outlines');
+        final face = unitVec(1);
+        final faceWithOutline = Map<String, dynamic>.from(faceJson(face, box: [100, 100, 200, 240]))
+          ..['outline'] = [
+            [110.0, 110.0],
+            [290.0, 110.0],
+            [290.0, 330.0],
+            [110.0, 330.0],
+          ];
+        final bodyWithOutline = Map<String, dynamic>.from(bodyJson(box: [50, 60, 400, 700]))
+          ..['outline'] = [
+            [60.0, 70.0],
+            [440.0, 70.0],
+            [440.0, 750.0],
+            [60.0, 750.0],
+          ];
+
+        await store.store(
+          media,
+          analysis(
+            faces: [faceWithOutline],
+            bodies: [bodyWithOutline],
+            pairs: [(0, 0)],
+          ),
+        );
+
+        var detections = await db.select(db.mediaDetections).get();
+        final faceDet = detections.firstWhere((d) => d.kind == 'f');
+        final bodyDet = detections.firstWhere((d) => d.kind == 'b');
+        expect(faceDet.outline, isNotNull);
+        expect(bodyDet.outline, isNotNull);
+        final decodedFace = decodeOutline(faceDet.outline);
+        expect(decodedFace, hasLength(4));
+
+        // rescan without outlines replaces outline with null
+        await store.store(
+          media,
+          analysis(
+            faces: [faceJson(face, box: [100, 100, 200, 240])],
+            bodies: [bodyJson(box: [50, 60, 400, 700])],
+            pairs: [(0, 0)],
+          ),
+        );
+
+        detections = await db.select(db.mediaDetections).get();
+        final rescanFaceDet = detections.firstWhere((d) => d.kind == 'f');
+        final rescanBodyDet = detections.firstWhere((d) => d.kind == 'b');
+        expect(rescanFaceDet.outline, isNull);
+        expect(rescanBodyDet.outline, isNull);
       },
     );
 

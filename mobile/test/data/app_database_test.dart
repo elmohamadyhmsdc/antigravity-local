@@ -354,6 +354,68 @@ void main() {
 
   group('migrations', () {
     test(
+      'v12 -> v13 upgrade adds outline column and preserves existing media detections',
+      () async {
+        final file = File(p.join(dir.path, 'v12.db'));
+        final before = AppDatabase(NativeDatabase(file));
+        final mediaId = await before.into(before.media).insert(
+          MediaCompanion.insert(
+            assetId: 'm12',
+            kind: 'photo',
+            scanStatus: const Value('done'),
+          ),
+        );
+        final faceId = await before.into(before.faces).insert(
+          FacesCompanion.insert(
+            mediaId: Value(mediaId),
+            modelId: 'buffalo_l@1',
+            embedding: Uint8List(2048),
+            qualityScore: 0.8,
+            qualityVersion: 2,
+            detScore: 0.9,
+            facePx: 100,
+            sharpness: 200,
+            bboxX: 0.1,
+            bboxY: 0.1,
+            bboxW: 0.2,
+            bboxH: 0.2,
+            createdAt: 1,
+          ),
+        );
+        await before.into(before.mediaDetections).insert(
+          MediaDetectionsCompanion.insert(
+            mediaId: mediaId,
+            kind: 'f',
+            refId: faceId,
+            x: 0.1,
+            y: 0.1,
+            w: 0.2,
+            h: 0.2,
+          ),
+        );
+        await before.close();
+
+        final legacy = raw.sqlite3.open(file.path);
+        legacy.execute(
+          'ALTER TABLE media_detections DROP COLUMN outline; PRAGMA user_version = 12;',
+        );
+        legacy.close();
+
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
+
+        final det = (await after.select(after.mediaDetections).get()).single;
+        expect(det.mediaId, mediaId);
+        expect(det.refId, faceId);
+        expect(det.outline, isNull);
+        expect(
+          (await after.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          AppDatabase.currentSchemaVersion,
+        );
+      },
+    );
+    test(
       'v10 upgrade drops characters found by the old global switch and rescans those files',
       () async {
         final file = File(p.join(dir.path, 'v10.db'));

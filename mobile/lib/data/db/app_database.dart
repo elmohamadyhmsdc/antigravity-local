@@ -79,7 +79,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 12;
+  static const currentSchemaVersion = 13;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -220,6 +220,9 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'CREATE INDEX IF NOT EXISTS bodies_track_id ON bodies (track_id)',
         );
+      }
+      if (from < 13) {
+        await addMissing(mediaDetections, [mediaDetections.outline]);
       }
     },
     beforeOpen: (details) async {

@@ -6653,6 +6653,17 @@ class $MediaDetectionsTable extends MediaDetections
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _outlineMeta = const VerificationMeta(
+    'outline',
+  );
+  @override
+  late final GeneratedColumn<String> outline = GeneratedColumn<String>(
+    'outline',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -6665,6 +6676,7 @@ class $MediaDetectionsTable extends MediaDetections
     h,
     frameNumber,
     timestampMs,
+    outline,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6743,6 +6755,12 @@ class $MediaDetectionsTable extends MediaDetections
         ),
       );
     }
+    if (data.containsKey('outline')) {
+      context.handle(
+        _outlineMeta,
+        outline.isAcceptableOrUnknown(data['outline']!, _outlineMeta),
+      );
+    }
     return context;
   }
 
@@ -6792,6 +6810,10 @@ class $MediaDetectionsTable extends MediaDetections
         DriftSqlType.int,
         data['${effectivePrefix}timestamp_ms'],
       ),
+      outline: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}outline'],
+      ),
     );
   }
 
@@ -6812,6 +6834,7 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
   final double h;
   final int? frameNumber;
   final int? timestampMs;
+  final String? outline;
   const DetectionRow({
     required this.id,
     required this.mediaId,
@@ -6823,6 +6846,7 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
     required this.h,
     this.frameNumber,
     this.timestampMs,
+    this.outline,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6840,6 +6864,9 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
     }
     if (!nullToAbsent || timestampMs != null) {
       map['timestamp_ms'] = Variable<int>(timestampMs);
+    }
+    if (!nullToAbsent || outline != null) {
+      map['outline'] = Variable<String>(outline);
     }
     return map;
   }
@@ -6860,6 +6887,9 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
       timestampMs: timestampMs == null && nullToAbsent
           ? const Value.absent()
           : Value(timestampMs),
+      outline: outline == null && nullToAbsent
+          ? const Value.absent()
+          : Value(outline),
     );
   }
 
@@ -6879,6 +6909,7 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
       h: serializer.fromJson<double>(json['h']),
       frameNumber: serializer.fromJson<int?>(json['frameNumber']),
       timestampMs: serializer.fromJson<int?>(json['timestampMs']),
+      outline: serializer.fromJson<String?>(json['outline']),
     );
   }
   @override
@@ -6895,6 +6926,7 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
       'h': serializer.toJson<double>(h),
       'frameNumber': serializer.toJson<int?>(frameNumber),
       'timestampMs': serializer.toJson<int?>(timestampMs),
+      'outline': serializer.toJson<String?>(outline),
     };
   }
 
@@ -6909,6 +6941,7 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
     double? h,
     Value<int?> frameNumber = const Value.absent(),
     Value<int?> timestampMs = const Value.absent(),
+    Value<String?> outline = const Value.absent(),
   }) => DetectionRow(
     id: id ?? this.id,
     mediaId: mediaId ?? this.mediaId,
@@ -6920,6 +6953,7 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
     h: h ?? this.h,
     frameNumber: frameNumber.present ? frameNumber.value : this.frameNumber,
     timestampMs: timestampMs.present ? timestampMs.value : this.timestampMs,
+    outline: outline.present ? outline.value : this.outline,
   );
   DetectionRow copyWithCompanion(MediaDetectionsCompanion data) {
     return DetectionRow(
@@ -6937,6 +6971,7 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
       timestampMs: data.timestampMs.present
           ? data.timestampMs.value
           : this.timestampMs,
+      outline: data.outline.present ? data.outline.value : this.outline,
     );
   }
 
@@ -6952,7 +6987,8 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
           ..write('w: $w, ')
           ..write('h: $h, ')
           ..write('frameNumber: $frameNumber, ')
-          ..write('timestampMs: $timestampMs')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('outline: $outline')
           ..write(')'))
         .toString();
   }
@@ -6969,6 +7005,7 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
     h,
     frameNumber,
     timestampMs,
+    outline,
   );
   @override
   bool operator ==(Object other) =>
@@ -6983,7 +7020,8 @@ class DetectionRow extends DataClass implements Insertable<DetectionRow> {
           other.w == this.w &&
           other.h == this.h &&
           other.frameNumber == this.frameNumber &&
-          other.timestampMs == this.timestampMs);
+          other.timestampMs == this.timestampMs &&
+          other.outline == this.outline);
 }
 
 class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
@@ -6997,6 +7035,7 @@ class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
   final Value<double> h;
   final Value<int?> frameNumber;
   final Value<int?> timestampMs;
+  final Value<String?> outline;
   const MediaDetectionsCompanion({
     this.id = const Value.absent(),
     this.mediaId = const Value.absent(),
@@ -7008,6 +7047,7 @@ class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
     this.h = const Value.absent(),
     this.frameNumber = const Value.absent(),
     this.timestampMs = const Value.absent(),
+    this.outline = const Value.absent(),
   });
   MediaDetectionsCompanion.insert({
     this.id = const Value.absent(),
@@ -7020,6 +7060,7 @@ class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
     required double h,
     this.frameNumber = const Value.absent(),
     this.timestampMs = const Value.absent(),
+    this.outline = const Value.absent(),
   }) : mediaId = Value(mediaId),
        kind = Value(kind),
        refId = Value(refId),
@@ -7038,6 +7079,7 @@ class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
     Expression<double>? h,
     Expression<int>? frameNumber,
     Expression<int>? timestampMs,
+    Expression<String>? outline,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -7050,6 +7092,7 @@ class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
       if (h != null) 'h': h,
       if (frameNumber != null) 'frame_number': frameNumber,
       if (timestampMs != null) 'timestamp_ms': timestampMs,
+      if (outline != null) 'outline': outline,
     });
   }
 
@@ -7064,6 +7107,7 @@ class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
     Value<double>? h,
     Value<int?>? frameNumber,
     Value<int?>? timestampMs,
+    Value<String?>? outline,
   }) {
     return MediaDetectionsCompanion(
       id: id ?? this.id,
@@ -7076,6 +7120,7 @@ class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
       h: h ?? this.h,
       frameNumber: frameNumber ?? this.frameNumber,
       timestampMs: timestampMs ?? this.timestampMs,
+      outline: outline ?? this.outline,
     );
   }
 
@@ -7112,6 +7157,9 @@ class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
     if (timestampMs.present) {
       map['timestamp_ms'] = Variable<int>(timestampMs.value);
     }
+    if (outline.present) {
+      map['outline'] = Variable<String>(outline.value);
+    }
     return map;
   }
 
@@ -7127,7 +7175,8 @@ class MediaDetectionsCompanion extends UpdateCompanion<DetectionRow> {
           ..write('w: $w, ')
           ..write('h: $h, ')
           ..write('frameNumber: $frameNumber, ')
-          ..write('timestampMs: $timestampMs')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('outline: $outline')
           ..write(')'))
         .toString();
   }
@@ -20670,6 +20719,7 @@ typedef $$MediaDetectionsTableCreateCompanionBuilder =
       required double h,
       Value<int?> frameNumber,
       Value<int?> timestampMs,
+      Value<String?> outline,
     });
 typedef $$MediaDetectionsTableUpdateCompanionBuilder =
     MediaDetectionsCompanion Function({
@@ -20683,6 +20733,7 @@ typedef $$MediaDetectionsTableUpdateCompanionBuilder =
       Value<double> h,
       Value<int?> frameNumber,
       Value<int?> timestampMs,
+      Value<String?> outline,
     });
 
 final class $$MediaDetectionsTableReferences
@@ -20765,6 +20816,11 @@ class $$MediaDetectionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get outline => $composableBuilder(
+    column: $table.outline,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$MediaTableFilterComposer get mediaId {
     final $$MediaTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -20843,6 +20899,11 @@ class $$MediaDetectionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get outline => $composableBuilder(
+    column: $table.outline,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MediaTableOrderingComposer get mediaId {
     final $$MediaTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -20906,6 +20967,9 @@ class $$MediaDetectionsTableAnnotationComposer
     column: $table.timestampMs,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get outline =>
+      $composableBuilder(column: $table.outline, builder: (column) => column);
 
   $$MediaTableAnnotationComposer get mediaId {
     final $$MediaTableAnnotationComposer composer = $composerBuilder(
@@ -20971,6 +21035,7 @@ class $$MediaDetectionsTableTableManager
                 Value<double> h = const Value.absent(),
                 Value<int?> frameNumber = const Value.absent(),
                 Value<int?> timestampMs = const Value.absent(),
+                Value<String?> outline = const Value.absent(),
               }) => MediaDetectionsCompanion(
                 id: id,
                 mediaId: mediaId,
@@ -20982,6 +21047,7 @@ class $$MediaDetectionsTableTableManager
                 h: h,
                 frameNumber: frameNumber,
                 timestampMs: timestampMs,
+                outline: outline,
               ),
           createCompanionCallback:
               ({
@@ -20995,6 +21061,7 @@ class $$MediaDetectionsTableTableManager
                 required double h,
                 Value<int?> frameNumber = const Value.absent(),
                 Value<int?> timestampMs = const Value.absent(),
+                Value<String?> outline = const Value.absent(),
               }) => MediaDetectionsCompanion.insert(
                 id: id,
                 mediaId: mediaId,
@@ -21006,6 +21073,7 @@ class $$MediaDetectionsTableTableManager
                 h: h,
                 frameNumber: frameNumber,
                 timestampMs: timestampMs,
+                outline: outline,
               ),
           withReferenceMapper: (p0) => p0
               .map(

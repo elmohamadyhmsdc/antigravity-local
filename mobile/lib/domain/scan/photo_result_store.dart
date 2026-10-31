@@ -15,6 +15,7 @@ import '../../data/repositories/face_suppression_store.dart';
 import 'drawn_faces.dart';
 import 'scan_math.dart';
 import 'video_tracks.dart';
+import '../geometry/outline.dart';
 
 class StoreOutcome {
   const StoreOutcome({
@@ -307,7 +308,8 @@ class PhotoResultStore {
       // detections of the faces, replacing earlier rows for the same (photo, face)
       for (final i in gated) {
         if (!faceDbId.containsKey(i)) continue;
-        final box = _box(analysis.faces[i].bbox, w, h);
+        final face = analysis.faces[i];
+        final box = _box(face.bbox, w, h);
         await _putDetection(
           media.id,
           'f',
@@ -315,6 +317,7 @@ class PhotoResultStore {
           box,
           frameNumber,
           timestampMs,
+          encodeOutline(face.outline, face.bbox),
         );
       }
 
@@ -379,6 +382,7 @@ class PhotoResultStore {
             box,
             frameNumber,
             timestampMs,
+            encodeOutline(body.outline, body.bbox),
           );
           continue;
         }
@@ -424,6 +428,7 @@ class PhotoResultStore {
                 box,
                 frameNumber,
                 timestampMs,
+                encodeOutline(body.outline, body.bbox),
               );
               continue;
             }
@@ -497,7 +502,15 @@ class PhotoResultStore {
             BodiesCompanion(cropPath: Value(path)),
           );
         }
-        await _putDetection(media.id, 'b', id, box, frameNumber, timestampMs);
+        await _putDetection(
+          media.id,
+          'b',
+          id,
+          box,
+          frameNumber,
+          timestampMs,
+          encodeOutline(body.outline, body.bbox),
+        );
         newBodies++;
         if (faceId == null) {
           keptFaceless++;
@@ -847,8 +860,9 @@ class PhotoResultStore {
     int refId,
     _Box box,
     int? frameNumber,
-    int? timestampMs,
-  ) async {
+    int? timestampMs, [
+    String? outline,
+  ]) async {
     await _db.customUpdate(
       'DELETE FROM media_detections WHERE media_id = ? AND kind = ? AND ref_id = ? AND frame_number IS ?',
       variables: [
@@ -872,6 +886,7 @@ class PhotoResultStore {
             y: box.y,
             w: box.w,
             h: box.h,
+            outline: Value(outline),
           ),
         );
   }
