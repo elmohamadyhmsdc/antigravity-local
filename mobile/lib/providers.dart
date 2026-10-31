@@ -175,12 +175,23 @@ class ServerRevoked extends ServerStatus {
 
 const statusPollInterval = Duration(seconds: 15);
 
-Future<ServerStatus> checkServer(MobileApi api) async {
+Future<ServerStatus> checkServer(MobileApi api, {Capabilities? lastKnown}) async {
   try {
     final caps = await api.capabilities();
     return caps.isBusy ? ServerBusy(caps) : ServerReady(caps);
   } on ApiException catch (e) {
-    return e.isUnauthorized ? const ServerRevoked() : ServerOffline(e);
+    if (e.isUnauthorized) return const ServerRevoked();
+    if (lastKnown != null && e.isOffline) {
+      try {
+        final health = await api.health();
+        if (health.serverId == lastKnown.serverId) {
+          return lastKnown.isBusy ? ServerBusy(lastKnown) : ServerReady(lastKnown);
+        }
+      } on Object {
+        /* Health also failed; genuinely offline */
+      }
+    }
+    return ServerOffline(e);
   }
 }
 
@@ -190,10 +201,13 @@ final serverStatusProvider = StreamProvider.autoDispose<ServerStatus>((ref) {
   final controller = StreamController<ServerStatus>();
   Timer? timer;
   var closed = false;
+  Capabilities? lastKnown;
 
   Future<void> poll() async {
     if (api == null || closed) return;
-    var status = await checkServer(api);
+    var status = await checkServer(api, lastKnown: lastKnown);
+    if (status is ServerReady) lastKnown = status.capabilities;
+    if (status is ServerBusy) lastKnown = status.capabilities;
     if (closed) return;
     final saved = ref.read(sessionProvider);
     final network = ref.read(lanNetworkProvider);
@@ -201,7 +215,6 @@ final serverStatusProvider = StreamProvider.autoDispose<ServerStatus>((ref) {
         status is ServerOffline &&
         saved != null &&
         network.supported) {
-      controller.add(status);
       try {
         final recovered = await recoverEndpoint(saved, network);
         if (!closed &&
@@ -209,6 +222,7 @@ final serverStatusProvider = StreamProvider.autoDispose<ServerStatus>((ref) {
             await ref
                 .read(sessionProvider.notifier)
                 .relocate(saved, recovered.session)) {
+          lastKnown = recovered.capabilities;
           status = recovered.capabilities.isBusy
               ? ServerBusy(recovered.capabilities)
               : ServerReady(recovered.capabilities);

@@ -3778,6 +3778,12 @@ abstract class AppLocalizations {
   /// **'Battery use unrestricted'**
   String get backgroundBattery;
 
+  /// No description provided for @backgroundBatteryWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Battery optimization is on. Allow unrestricted battery so scanning continues when your screen is locked.'**
+  String get backgroundBatteryWarning;
+
   /// No description provided for @backgroundRunning.
   ///
   /// In en, this message translates to:

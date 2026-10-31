@@ -149,6 +149,36 @@ void main() {
     );
     expect(called, isFalse);
   });
+
+  test('checkServer falls back to health when capabilities times out under load', () async {
+    final api = _CapabilitiesTimeoutApi();
+    final status = await checkServer(api, lastKnown: api.capabilities_);
+    expect(status, isA<ServerReady>());
+  });
+
+  test('checkServer returns offline if both capabilities and health fail', () async {
+    final api = _CompletelyDeadApi();
+    final status = await checkServer(api, lastKnown: api.capabilities_);
+    expect(status, isA<ServerOffline>());
+  });
+}
+
+class _CapabilitiesTimeoutApi extends FakeMobileApi {
+  @override
+  Future<Capabilities> capabilities() => throw ApiException.timeout();
+  @override
+  Future<Health> health() async => Health(
+    serverId: testSession.serverId,
+    name: testSession.name,
+    apiVersion: '1.0',
+  );
+}
+
+class _CompletelyDeadApi extends FakeMobileApi {
+  @override
+  Future<Capabilities> capabilities() => throw ApiException.timeout();
+  @override
+  Future<Health> health() => throw ApiException.network('connection refused');
 }
 
 class _WrongIdentity extends FakeMobileApi {

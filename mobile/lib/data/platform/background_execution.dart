@@ -56,3 +56,7 @@ class AndroidBackgroundExecution implements BackgroundExecution {
 final backgroundExecutionProvider = Provider<BackgroundExecution>(
   (ref) => AndroidBackgroundExecution(),
 );
+
+final backgroundStatusProvider = FutureProvider<BackgroundStatus>((ref) async {
+  return ref.watch(backgroundExecutionProvider).status();
+});

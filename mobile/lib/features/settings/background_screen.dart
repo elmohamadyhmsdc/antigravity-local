@@ -9,17 +9,19 @@ import '../shared/screen_layout.dart';
 
 const _promptedKey = 'background.prompted';
 
-/// Ask once after a user starts work. Declining never blocks the scan.
+/// Ask once after a user starts work, or when forcePrompt is true. Declining never blocks the scan.
 Future<void> prepareBackgroundForWork(
   BuildContext context,
-  WidgetRef ref,
-) async {
+  WidgetRef ref, {
+  bool forcePrompt = false,
+}) async {
   try {
     final service = ref.read(backgroundExecutionProvider);
     final status = await service.status();
     if (!status.supported || status.ready || !context.mounted) return;
     final db = ref.read(databaseProvider);
-    if (await db.setting(_promptedKey) == 'true' || !context.mounted) return;
+    final alreadyPrompted = await db.setting(_promptedKey) == 'true';
+    if (alreadyPrompted && !forcePrompt) return;
     await db.putSetting(_promptedKey, 'true');
     if (!context.mounted) return;
     final l = AppLocalizations.of(context);
@@ -40,7 +42,10 @@ Future<void> prepareBackgroundForWork(
         ],
       ),
     );
-    if (allow == true) await service.request();
+    if (allow == true) {
+      await service.request();
+      ref.invalidate(backgroundStatusProvider);
+    }
   } on Object {
     // Optional permissions must never discard the work the user requested.
   }
@@ -94,6 +99,7 @@ class _BackgroundScreenState extends ConsumerState<BackgroundScreen>
     try {
       await ref.read(databaseProvider).putSetting(_promptedKey, 'true');
       await ref.read(backgroundExecutionProvider).request();
+      ref.invalidate(backgroundStatusProvider);
       await _refresh();
     } on Object catch (error) {
       if (mounted) setState(() => _error = '$error');

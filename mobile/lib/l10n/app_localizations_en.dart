@@ -2365,6 +2365,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backgroundBattery => 'Battery use unrestricted';
 
   @override
+  String get backgroundBatteryWarning =>
+      'Battery optimization is on. Allow unrestricted battery so scanning continues when your screen is locked.';
+
+  @override
   String get backgroundRunning => 'Background service is running';
 
   @override

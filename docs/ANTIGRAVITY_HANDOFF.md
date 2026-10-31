@@ -659,3 +659,41 @@ At the user's request ("اسم الابليكيشن Your Gallery مش antigravit
   as a human face. `InsightEngines.analyze` always loads face models. The 0.50
   threshold is a heuristic, not measured on real anime/photo sets. Restoring an
   older backup brings back its old character rows.
+
+## Fix: Mobile false offline / connection flapping during scan & server load — 2026-10-31
+
+- **Symptom**: User reported that on mobile, while scanning and with the server running normally on PC, the mobile app repeatedly displays that the PC is offline ("على طول والموبايل شغال والاسكان شغال والسيرفر شغال عادي على الجهاز بيديني على الموبايل ان الـ PC أوفلاين. الـ PC أوفلاين، مقفول.").
+- **Root Causes**:
+  1. `CapabilityProbe.snapshot()` in `the app/mobile_api/engines.py` did not cache its engine/restorer/model inspections, scanning the filesystem on every poll, and re-invoking `nvidia-smi` subprocesses every 3.0s. Under heavy GPU/inference load or system RAM pressure (>=90%), `GET /v1/capabilities` took several seconds to answer.
+  2. Flutter's `HttpMobileApi.capabilities()` in `mobile/lib/data/api/mobile_api.dart` had an overly aggressive 6-second timeout (`receiveTimeout: Duration(seconds: 6)`). When the PC took >6s due to active scan worker inference or threadpool scheduling, Dio timed out, marking the status `isOffline`.
+  3. `serverStatusProvider` in `mobile/lib/providers.dart` immediately emitted `controller.add(status)` upon receiving `ServerOffline` *before* attempting `recoverEndpoint`, causing the UI to flash red "PC offline" and the offline banner before immediately recovering back to connected.
+  4. `checkServer` lacked a fallback to `api.health()`. While capabilities is heavy, `/v1/health` responds in <1ms without GPU or disk traversal. A timeout on capabilities caused `checkServer` to immediately assume the entire PC was dead even when the server process was healthy and actively scanning.
+- **Changes**:
+  1. `the app/mobile_api/engines.py`: Added 10-second snapshot caching (`_snapshot_ttl = 10.0`) and 10-second GPU caching in `CapabilityProbe`, so repeated polls return cached static engine capabilities instantly without spawning `nvidia-smi` or walking disk trees on every request. Added `invalidate()`.
+  2. `mobile/lib/data/api/mobile_api.dart`: Relaxed `receiveTimeout` on `capabilities()` from 6s to 15s.
+  3. `mobile/lib/providers.dart`: Removed the premature `controller.add(status)` before `recoverEndpoint` in `serverStatusProvider`. Added `api.health()` fast fallback in `checkServer` when `lastKnown` capabilities exist, confirming the PC is reachable and maintaining connected/busy state rather than falsely showing offline.
+  4. Added regression tests in `mobile/test/data/connection_test.dart` and `the app/test_mobile_dashboard.py`.
+- **Status & Policy**: Preserved terminal policy. Changes made to source. No running server stopped. Provided verification commands for user.
+
+## Fix: Screen-off & background scanning continuation on Android (Samsung One UI) — 2026-10-31
+
+- **Symptom**: User reported that when locking the phone during scanning, the scan pauses/freezes at the current spot and waits until the screen is unlocked/reopened to resume ("عايزك تتأكد إن الأبليكيشن بيشتغل مظبوط في الباكجراوند والموبايل مقفول. عشان لما بقفل الموبايل وأفتحه بلاقيه واقف عند نفس الحتة بتاعة الاسكان، بستنيني أفتحه عشان يكمل، أول ما بفتحه بيقوم مكمل.").
+- **Root Causes**:
+  1. **Doze & Battery Optimization Restrictions**: On Samsung One UI (Android 14), default "Optimized" battery settings cut TCP network sockets and suspend background processing when the screen is locked (`SocketException: Send failed (OS Error: Network is unreachable, errno = 101)`).
+  2. **One-Time Prompt Silencing**: `prepareBackgroundForWork` checked `db.setting('background.prompted') == 'true'` and silently bailed out forever without ever prompting or notifying the user that screen-off scanning requires "Unrestricted" battery mode.
+  3. **No Native WakeLock / WifiLock on Main Process**: `FlutterForegroundTask` ran the service in its own isolate, but `ScanEngine` ran in the main isolate with no explicit continuous native `PowerManager.PARTIAL_WAKE_LOCK` or `WifiManager.WIFI_MODE_FULL_LOW_LATENCY` / `FULL_HIGH_PERF` held on the Android side.
+  4. **Low Notification Channel Importance**: Foreground service channel was configured with `NotificationChannelImportance.LOW` and `priority: LOW`, which causes Samsung and Android power daemons to deprioritize CPU/network scheduling during screen-off.
+  5. **Short Offline Retry Window**: `ScanPolicy.offlineRetries = 4` with uncapped exponential backoff permanently aborted/paused scans after only 45 seconds of transient network drops.
+- **Changes**:
+  1. `mobile/android/app/src/main/kotlin/com/antigravity/antigravity_mobile/WakeLockBridge.kt`: Added native Android bridge acquiring `PowerManager.PARTIAL_WAKE_LOCK` and `WifiManager.createWifiLock` (`WIFI_MODE_FULL_LOW_LATENCY` on API 29+, `WIFI_MODE_FULL_HIGH_PERF` on older) during background work leases.
+  2. `mobile/android/app/src/main/kotlin/com/antigravity/antigravity_mobile/MainActivity.kt`: Registered `antigravity/wakelock` channel and safely released locks on destruction.
+  3. `mobile/android/app/src/main/AndroidManifest.xml`: Added `<uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>` and `<uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>`.
+  4. `mobile/lib/data/platform/foreground_keep_alive.dart`: Added `NativeWakeLock` abstraction, wired `wakeLock.acquire()` on first lease and `wakeLock.release()` on last lease. Raised notification channel importance and priority from `LOW` to `DEFAULT`.
+  5. `mobile/lib/data/platform/background_execution.dart`: Added reactive `backgroundStatusProvider`.
+  6. `mobile/lib/features/settings/background_screen.dart`: Added `forcePrompt` parameter to `prepareBackgroundForWork` and auto-invalidated `backgroundStatusProvider` upon requesting permissions.
+  7. `mobile/lib/app.dart`: Invalidated `backgroundStatusProvider` on app resume.
+  8. `mobile/lib/domain/scan/scan_engine.dart`: Increased `ScanPolicy.offlineRetries` from 4 to 10 and clamped sleep intervals `(3 * (1 << (offline - 1))).clamp(3, 30)` for ~3.5 min resilience.
+  9. `mobile/lib/features/scan/scan_progress_card.dart`: Added an actionable warning banner on the card when battery optimization is restricted, allowing the user to tap and immediately set battery to Unrestricted.
+  10. `mobile/lib/l10n/app_en.arb`, `app_localizations.dart`, and `app_localizations_en.dart`: Added `backgroundBatteryWarning` string.
+  11. `mobile/test/features/background_test.dart`: Added unit test for native wake/wifi lock coordination and widget test for the battery warning banner.
+- **Status & Policy**: Preserved terminal policy. Changes made to source. No running server stopped. Provided build and verification commands for user.

@@ -4,6 +4,8 @@ import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/platform/background_execution.dart';
 import 'package:antigravity_mobile/data/platform/foreground_keep_alive.dart';
 import 'package:antigravity_mobile/features/settings/background_screen.dart';
+import 'package:antigravity_mobile/domain/scan/scan_state.dart';
+import 'package:antigravity_mobile/library_providers.dart';
 import 'package:antigravity_mobile/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +33,14 @@ class FakeBackground implements BackgroundExecution {
   Future<void> openSettings() async {
     settings++;
   }
+}
+
+class FakeNativeWakeLock implements NativeWakeLock {
+  var acquires = 0, releases = 0;
+  @override
+  Future<void> acquire() async => acquires++;
+  @override
+  Future<void> release() async => releases++;
 }
 
 class FakeForeground implements ForegroundBackend {
@@ -171,4 +181,66 @@ void main() {
       },
     );
   }
+
+  test(
+    'foreground coordinator acquires native wake lock on first lease and releases on last',
+    () async {
+      final backend = FakeForeground();
+      final wakeLock = FakeNativeWakeLock();
+      final service = ForegroundServiceCoordinator(backend, wakeLock: wakeLock);
+      await service.acquire('scan', 'Scan', '1 of 20');
+      expect(wakeLock.acquires, 1);
+      expect(wakeLock.releases, 0);
+
+      await service.acquire('studio', 'Studio', '1 job');
+      expect(wakeLock.acquires, 1);
+
+      await service.release('scan');
+      expect(wakeLock.releases, 0);
+
+      await service.release('studio');
+      expect(wakeLock.releases, 1);
+    },
+  );
+
+  appTest(
+    'scan progress card shows battery notice when battery optimization is restricted',
+    (tester, env) async {
+      final service = FakeBackground()
+        ..current = const BackgroundStatus(
+          supported: true,
+          notifications: true,
+          unrestricted: false,
+        );
+      await env.pump(
+        tester,
+        settle: false,
+        extra: [
+          initialLocationProvider.overrideWithValue('/sources'),
+          backgroundExecutionProvider.overrideWithValue(service),
+          scanProgressProvider.overrideWith(
+            (ref) => Stream.value(
+              const ScanProgress(
+                phase: ScanPhase.running,
+                total: 10,
+                done: 2,
+              ),
+            ),
+          ),
+        ],
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const Key('scan-battery-warning')), findsOneWidget);
+      expect(
+        find.text(
+          'Battery optimization is on. Allow unrestricted battery so scanning continues when your screen is locked.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('scan-battery-warning')));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+    },
+    session: testSession,
+  );
 }

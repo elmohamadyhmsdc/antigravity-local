@@ -1292,6 +1292,7 @@
   "backgroundRefresh": "Refresh status",
   "backgroundNotifications": "Progress notifications allowed",
   "backgroundBattery": "Battery use unrestricted",
+  "backgroundBatteryWarning": "Battery optimization is on. Allow unrestricted battery so scanning continues when your screen is locked.",
   "backgroundRunning": "Background service is running",
   "backgroundIdle": "Ready to start when there is active work",
   "backgroundOpenSettings": "Open Android app settings",

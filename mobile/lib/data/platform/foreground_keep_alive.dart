@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'dart:ui' show IsolateNameServer;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../../domain/scan/scan_state.dart';
@@ -76,8 +77,8 @@ class AndroidForegroundBackend implements ForegroundBackend {
         channelId: 'antigravity_scan',
         channelName: 'Background work',
         channelDescription: 'Scan and Studio progress while the screen is off.',
-        channelImportance: NotificationChannelImportance.LOW,
-        priority: NotificationPriority.LOW,
+        channelImportance: NotificationChannelImportance.DEFAULT,
+        priority: NotificationPriority.DEFAULT,
         onlyAlertOnce: true,
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
@@ -131,22 +132,71 @@ class AndroidForegroundBackend implements ForegroundBackend {
       _check(await FlutterForegroundTask.stopService());
 }
 
+abstract interface class NativeWakeLock {
+  Future<void> acquire();
+  Future<void> release();
+}
+
+class AndroidNativeWakeLock implements NativeWakeLock {
+  const AndroidNativeWakeLock();
+  static const _channel = MethodChannel('antigravity/wakelock');
+
+  @override
+  Future<void> acquire() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('acquire');
+    } on Object {
+      // Non-fatal if platform channel is unavailable or in tests.
+    }
+  }
+
+  @override
+  Future<void> release() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('release');
+    } on Object {
+      // Non-fatal if platform channel is unavailable or in tests.
+    }
+  }
+}
+
+class NoopNativeWakeLock implements NativeWakeLock {
+  const NoopNativeWakeLock();
+  @override
+  Future<void> acquire() async {}
+  @override
+  Future<void> release() async {}
+}
+
 /// Serialize Scan/Studio leases: a finishing scan must not stop Studio's service.
 class ForegroundServiceCoordinator {
-  ForegroundServiceCoordinator(this.backend);
+  ForegroundServiceCoordinator(
+    this.backend, {
+    this.wakeLock = const AndroidNativeWakeLock(),
+  });
   final ForegroundBackend backend;
+  final NativeWakeLock wakeLock;
   final error = ValueNotifier<Object?>(null);
   final _leases = <String, ({String title, String text})>{};
   Future<void> _pending = Future.value();
   bool get hasWork => _leases.isNotEmpty;
   Future<void> _enqueue(void Function() change) {
     return _pending = _pending.then((_) async {
+      final wasEmpty = _leases.isEmpty;
       change();
       try {
         final running = await backend.running;
         if (_leases.isEmpty) {
+          if (!wasEmpty) {
+            await wakeLock.release();
+          }
           if (running) await backend.stop();
         } else {
+          if (wasEmpty) {
+            await wakeLock.acquire();
+          }
           final title = _leases.length == 1
               ? _leases.values.first.title
               : 'Your Gallery';

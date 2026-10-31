@@ -11,6 +11,7 @@ import 'providers.dart';
 import 'studio_providers.dart';
 import 'features/privacy/app_lock.dart';
 import 'data/api/mobile_api.dart';
+import 'data/platform/background_execution.dart';
 
 /// Where the app opens (null = Home when paired, Welcome otherwise). Tests start on a link.
 final initialLocationProvider = Provider<String?>((ref) => null);
@@ -68,6 +69,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
     final api = ref.read(mobileApiProvider);
     if (api is HttpMobileApi) api.resetTransport();
     ref.invalidate(serverStatusProvider);
+    ref.invalidate(backgroundStatusProvider);
   }
 
   @override

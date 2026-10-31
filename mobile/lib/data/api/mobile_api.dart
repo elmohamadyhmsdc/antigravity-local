@@ -449,7 +449,7 @@ class HttpMobileApi
       _json(
         await _dio.get(
           '/v1/capabilities',
-          options: Options(receiveTimeout: const Duration(seconds: 6)),
+          options: Options(receiveTimeout: const Duration(seconds: 15)),
         ),
       ),
     ),

@@ -22,7 +22,7 @@ class ScanPolicy {
   const ScanPolicy({
     this.busyRetries =
         20, // x Retry-After (15 s) = about 5 minutes of a busy GPU
-    this.offlineRetries = 4, // 3 s, 6 s, 12 s, 24 s
+    this.offlineRetries = 10, // 3 s, 6 s, 12 s, 24 s, then 30 s (~3.5 min resilience for Wi-Fi drops)
     this.serverErrorRetries = 2,
     this.defaultBusyWait = const Duration(seconds: 15),
     this.cacheClearEvery = 40,
@@ -573,7 +573,8 @@ class ScanEngine {
             return _stop(row.id, PauseReason.offline, e.message);
           }
           _emit(snapshot(phase: ScanPhase.waiting, message: e.message));
-          if (!await _sleep(Duration(seconds: 3 * (1 << (offline - 1))))) {
+          final backoffSeconds = (3 * (1 << (offline - 1))).clamp(3, 30);
+          if (!await _sleep(Duration(seconds: backoffSeconds))) {
             return _stop(row.id, PauseReason.user);
           }
           _emit(snapshot());

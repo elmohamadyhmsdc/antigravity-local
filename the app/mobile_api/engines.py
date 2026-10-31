@@ -93,9 +93,18 @@ def _nvidia_smi() -> Optional[str]:
 class CapabilityProbe:
     """Reads the file system (models/, venvs, DeepFaceLab workspace) and nvidia-smi. Cheap, cached briefly."""
 
-    def __init__(self, app_dir: Path = APP_DIR, gpu_ttl: float = 3.0):
+    def __init__(self, app_dir: Path = APP_DIR, gpu_ttl: float = 10.0, snapshot_ttl: float = 10.0):
         self.app_dir = Path(app_dir)
         self._gpu_ttl = gpu_ttl
+        self._gpu_cache = (0.0, None)
+        self._snapshot_ttl = snapshot_ttl
+        self._snapshot_cache = None
+        self._snapshot_stamp = 0.0
+
+    def invalidate(self) -> None:
+        """Clear cached snapshots, e.g. after model downloads."""
+        self._snapshot_cache = None
+        self._snapshot_stamp = 0.0
         self._gpu_cache = (0.0, None)
 
     def _has(self, *rel: str) -> bool:
@@ -156,8 +165,16 @@ class CapabilityProbe:
         }
 
     def snapshot(self) -> Dict:
+        now = time.time()
+        if self._snapshot_cache is not None and now - self._snapshot_stamp < self._snapshot_ttl:
+            cached = dict(self._snapshot_cache)
+            cached["gpu"] = self.gpu()
+            return cached
         from reface_config import profile_catalog
         restorers = self.restorers()
-        return {"gpu": self.gpu(), "engines": self.engines(), "restorers": restorers,
-                "reface_profiles": profile_catalog(restorers),
-                "lora_base_checkpoints": self.lora_base_checkpoints()}
+        result = {"gpu": self.gpu(), "engines": self.engines(), "restorers": restorers,
+                  "reface_profiles": profile_catalog(restorers),
+                  "lora_base_checkpoints": self.lora_base_checkpoints()}
+        self._snapshot_cache = result
+        self._snapshot_stamp = now
+        return result

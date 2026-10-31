@@ -47,6 +47,18 @@ class AdminTests(unittest.TestCase):
         self.assertEqual(response.headers['cache-control'],'no-store')
         self.assertNotIn('admin_token',response.json())
 
+    def test_capability_probe_caches_snapshot_and_invalidates(self):
+        from mobile_api.engines import CapabilityProbe
+        probe = CapabilityProbe(self.ctx.workspace.root.parent, gpu_ttl=5.0, snapshot_ttl=5.0)
+        snap1 = probe.snapshot()
+        self.assertIn("engines", snap1)
+        self.assertIn("reface_profiles", snap1)
+        snap2 = probe.snapshot()
+        self.assertEqual(snap1["engines"], snap2["engines"])
+        self.assertIs(snap1["engines"], snap2["engines"])
+        probe.invalidate()
+        self.assertIsNone(probe._snapshot_cache)
+
     def test_qr_is_single_use_cancelable_and_addresses_are_from_this_pc(self):
         from unittest.mock import patch
         # Deterministic QR fixture: OpenCV's decoder has mask-dependent failures

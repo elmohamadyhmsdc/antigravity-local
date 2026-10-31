@@ -11,6 +11,7 @@ import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
 import '../settings/background_screen.dart';
+import '../../data/platform/background_execution.dart';
 import 'video_scan_details.dart';
 
 String _eta(AppLocalizations l10n, Duration d) {
@@ -50,6 +51,15 @@ class ScanProgressCard extends ConsumerWidget {
     if (progress.phase == ScanPhase.idle) return const SizedBox.shrink();
 
     final processed = progress.done + progress.failed;
+    final bgStatus = ref.watch(backgroundStatusProvider).value;
+    final showBatteryNotice = bgStatus != null &&
+        bgStatus.supported &&
+        !bgStatus.unrestricted &&
+        (progress.phase == ScanPhase.running ||
+            progress.phase == ScanPhase.preparing ||
+            progress.phase == ScanPhase.waiting ||
+            (progress.phase == ScanPhase.paused &&
+                progress.pauseReason == PauseReason.offline));
     final video = progress.video;
     final faces = progress.facesFound + (video?.facesFound ?? 0);
     final itemsText = video == null
@@ -216,6 +226,54 @@ class ScanProgressCard extends ConsumerWidget {
                 ),
               ),
             for (final line in lines) Text(line, style: text.bodyMedium),
+            if (showBatteryNotice)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: InkWell(
+                  key: const Key('scan-battery-warning'),
+                  onTap: () async {
+                    await prepareBackgroundForWork(context, ref, forcePrompt: true);
+                    ref.invalidate(backgroundStatusProvider);
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: scheme.errorContainer.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: scheme.error.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.battery_alert_outlined,
+                          color: scheme.error,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n.backgroundBatteryWarning,
+                            style: text.bodySmall?.copyWith(
+                              color: scheme.onErrorContainer,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          l10n.backgroundEnable,
+                          style: text.labelSmall?.copyWith(
+                            color: scheme.error,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

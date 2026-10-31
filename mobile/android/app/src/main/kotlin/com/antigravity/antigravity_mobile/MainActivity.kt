@@ -20,6 +20,7 @@ class MainActivity : FlutterActivity() {
     private var securityChannel: MethodChannel? = null
     private val mediaPicker by lazy { MediaPickerBridge(this) }
     private var mediaPickerChannel: MethodChannel? = null
+    private val wakeLockBridge by lazy { WakeLockBridge(applicationContext) }
     // The foreground service protects the process; retain the actual Dart work
     // as well when Android removes the Activity (for example, a task swipe).
     override fun provideFlutterEngine(context: Context): FlutterEngine? =
@@ -43,6 +44,8 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler(NetworkBridge()::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/video_scan")
             .setMethodCallHandler(VideoScanBridge(appContext)::handle)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/wakelock")
+            .setMethodCallHandler(wakeLockBridge::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/studio_notifications")
             .setMethodCallHandler { call, result ->
                 if (call.method != "completed") {
@@ -80,6 +83,7 @@ class MainActivity : FlutterActivity() {
         mediaPicker.close()
         mediaPickerChannel?.setMethodCallHandler(null)
         mediaPickerChannel = null
+        wakeLockBridge.releaseAll()
         super.onDestroy()
     }
 
