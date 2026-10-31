@@ -111,9 +111,44 @@ class LibraryRepository {
                 width: Value(a.width),
                 height: Value(a.height),
                 takenAt: Value(a.takenAt),
+                illustrated: Value(a.illustrated),
               ),
             );
             added++;
+            continue;
+          }
+          if (row.illustrated != a.illustrated) {
+            // Its album was marked/unmarked as anime/cartoon: rescan it in the other
+            // mode. Characters of a file that is no longer illustrated are wrong.
+            if (!a.illustrated) {
+              await (_db.delete(
+                _db.characterSamples,
+              )..where((s) => s.mediaId.equals(row.id))).go();
+              await _db.customStatement(
+                'DELETE FROM character_identities WHERE id NOT IN '
+                '(SELECT identity_id FROM character_samples)',
+              );
+            }
+            await (_db.delete(_db.settings)..where(
+                  (s) => s.key.isIn([
+                    'video.job.${row.id}',
+                    'video.local.${row.id}',
+                  ]),
+                ))
+                .go();
+            await (_db.update(
+              _db.media,
+            )..where((m) => m.id.equals(row.id))).write(
+              MediaCompanion(
+                illustrated: Value(a.illustrated),
+                scanVersion: const Value(0),
+                lastScannedFrame: const Value(0),
+                scanStatus: const Value('pending'),
+                scanAttempts: const Value(0),
+                scanError: const Value(null),
+              ),
+            );
+            changed++;
             continue;
           }
           final same =
@@ -172,6 +207,14 @@ class LibraryRepository {
     });
   }
 
+  /// Photos first (seconds each), then videos shortest first, so one long video
+  /// never holds up the rest of a large library.
+  static final _queueOrder = <OrderClauseGenerator<$MediaTable>>[
+    (m) => OrderingTerm.asc(m.kind.equals('video')),
+    (m) => OrderingTerm.asc(m.durationMs),
+    (m) => OrderingTerm.asc(m.id),
+  ];
+
   /// Looks ahead by one item without claiming it; used for bounded JPEG preparation.
   Future<MediaRow?> nextPending() =>
       (_db.select(_db.media)
@@ -180,7 +223,7 @@ class LibraryRepository {
                   m.scanStatus.equals('pending') &
                   m.kind.isIn(['photo', 'video']),
             )
-            ..orderBy([(m) => OrderingTerm.asc(m.id)])
+            ..orderBy(_queueOrder)
             ..limit(1))
           .getSingleOrNull();
 
@@ -193,7 +236,7 @@ class LibraryRepository {
                     m.scanStatus.equals('pending') &
                     m.kind.isIn(['photo', 'video']),
               )
-              ..orderBy([(m) => OrderingTerm.asc(m.id)])
+              ..orderBy(_queueOrder)
               ..limit(1))
             .getSingleOrNull();
     if (row == null) return null;

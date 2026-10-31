@@ -62,6 +62,16 @@ class FrameAnalysis:
 
 # --- detection ---------------------------------------------------------------
 
+# In anime/cartoon sources, a face at least this good (face_quality v2) counts as a real
+# person. Above the 0.40 store gate on purpose: a borderline drawn face stays a character.
+REAL_FACE_MIN_QUALITY = 0.50
+
+
+def _centre_inside(face_box, box) -> bool:
+    cx, cy = (float(face_box[0]) + float(face_box[2])) / 2, (float(face_box[1]) + float(face_box[3])) / 2
+    return float(box[0]) <= cx <= float(box[2]) and float(box[1]) <= cy <= float(box[3])
+
+
 def det_sizes(img) -> List[Tuple[int, int]]:
     """Small scale catches faces that fill the frame, large ones catch small
     faces in big photos."""
@@ -119,13 +129,15 @@ def analyze_frame(face_app, body, img, options,
               LibraryScanner routes through its own overridable methods this way;
               `face_app` is not used (and may be None) when `detect` is given.
     """
+    can_detect = detect is not None or face_app is not None
     detect = detect or (lambda im: detect_faces(face_app, im))
     assess = assess or assess_face
     timings: Dict[str, float] = {}
     want_characters = getattr(options, "detect_characters", False)
 
     t = time.perf_counter()
-    faces = [] if want_characters else detect(img)
+    # Character mode still looks for faces: a clear real face is a person, not a drawing.
+    faces = detect(img) if can_detect or not want_characters else []
     timings["detect"] = (time.perf_counter() - t) * 1000.0
     t = time.perf_counter()
     quality = [assess(img, f) for f in faces]
@@ -146,8 +158,17 @@ def analyze_frame(face_app, body, img, options,
         t = time.perf_counter()
         characters = detect_characters(img, bodies)
         timings["characters"] = (time.perf_counter() - t) * 1000.0
-        # Illustrated characters never become human face/body identities.
-        faces, quality, passes, bodies = [], [], [], []
+        # A body around a clear real face is a real person: keep the face (it goes to
+        # People) and drop that "character". Drawn faces rarely reach this quality.
+        real = [i for i, f in enumerate(faces)
+                if passes[i] and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY]
+        characters = [c for c in characters
+                      if not any(_centre_inside(faces[i].bbox, c.bbox) for i in real)]
+        faces = [faces[i] for i in real]
+        quality = [quality[i] for i in real]
+        passes = [True] * len(real)
+        # Illustrated characters never become human body identities.
+        bodies = []
     appearances = [pl.appearance_descriptor(img, b.bbox, b.kpts, b.kpt_scores) for b in bodies]
     pairs = pl.associate_faces_bodies([f.bbox for f in faces], bodies,
                                       face_kps=[f.kps for f in faces]) if bodies else []

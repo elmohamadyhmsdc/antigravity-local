@@ -26,6 +26,7 @@ class SourcesScreen extends ConsumerWidget {
     final counts = ref.watch(scanCountsProvider).value;
     final settingsStore = ref.read(appSettingsProvider);
     final chosen = settings.albumIds.toSet();
+    final illustrated = settings.characterAlbumIds.toSet();
 
     return Scaffold(
       appBar: AppBar(
@@ -91,7 +92,7 @@ class SourcesScreen extends ConsumerWidget {
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
-                    for (final a in list)
+                    for (final a in list) ...[
                       CheckboxListTile(
                         key: Key('album-${a.id}'),
                         value: chosen.contains(a.id),
@@ -103,6 +104,27 @@ class SourcesScreen extends ConsumerWidget {
                           settingsStore.setAlbumIds(next);
                         },
                       ),
+                      // "All media" holds real photos too, so it cannot be marked.
+                      if (chosen.contains(a.id) && !a.isAll)
+                        SwitchListTile(
+                          key: Key('album-anime-${a.id}'),
+                          dense: true,
+                          contentPadding: const EdgeInsets.only(
+                            left: 72,
+                            right: 16,
+                          ),
+                          secondary: const Icon(Icons.auto_awesome_outlined),
+                          value: illustrated.contains(a.id),
+                          title: Text(l10n.charactersAlbumToggle),
+                          onChanged: progress.isActive
+                              ? null
+                              : (on) {
+                                  final next = {...illustrated};
+                                  on ? next.add(a.id) : next.remove(a.id);
+                                  settingsStore.setCharacterAlbumIds(next);
+                                },
+                        ),
+                    ],
                   ],
                 ),
               );
@@ -160,15 +182,6 @@ class SourcesScreen extends ConsumerWidget {
                   title: Text(l10n.optionBodies),
                   subtitle: Text(l10n.optionBodiesHint),
                   onChanged: settingsStore.setScanBodies,
-                ),
-                SwitchListTile(
-                  key: const Key('scan-characters'),
-                  value: settings.scanCharacters,
-                  title: Text(l10n.charactersScan),
-                  subtitle: Text(l10n.charactersScanHint),
-                  onChanged: progress.isActive
-                      ? null
-                      : settingsStore.setScanCharacters,
                 ),
                 ListTile(
                   leading: const Icon(Icons.auto_awesome_outlined),

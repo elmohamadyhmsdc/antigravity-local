@@ -4855,8 +4855,20 @@ abstract class AppLocalizations {
   /// No description provided for @charactersScanHint.
   ///
   /// In en, this message translates to:
-  /// **'For cartoon or anime albums. Scan bodies, hair, clothing and visual details instead of human faces. Select illustrated albums before scanning.'**
+  /// **'Mark anime or cartoon albums on Scan sources. Only those albums are scanned for characters; a clear real face there still goes to People.'**
   String get charactersScanHint;
+
+  /// No description provided for @charactersAlbumToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Anime / cartoon album'**
+  String get charactersAlbumToggle;
+
+  /// No description provided for @charactersAlbumsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No anime or cartoon albums marked} =1{1 anime or cartoon album} other{{count} anime or cartoon albums}}'**
+  String charactersAlbumsCount(int count);
 
   /// No description provided for @charactersEmpty.
   ///

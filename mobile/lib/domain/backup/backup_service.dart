@@ -385,9 +385,10 @@ class BackupService {
         }
         // A restored backup may have an earlier video checkpoint than the current
         // phone. Reusing that phone's newer PC job could skip uncommitted samples.
-        await (_db.delete(
-          _db.settings,
-        )..where((s) => s.key.like('video.job.%'))).go();
+        await (_db.delete(_db.settings)..where(
+              (s) => s.key.like('video.job.%') | s.key.like('video.local.%'),
+            ))
+            .go();
         await _settings.setScanActive(false);
       });
 

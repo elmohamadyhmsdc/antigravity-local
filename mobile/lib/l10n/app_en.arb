@@ -1533,7 +1533,16 @@
   "resourcesUpdated": "Last sample",
   "charactersTitle": "Cartoon & anime characters",
   "charactersScan": "Scan illustrated characters",
-  "charactersScanHint": "For cartoon or anime albums. Scan bodies, hair, clothing and visual details instead of human faces. Select illustrated albums before scanning.",
+  "charactersScanHint": "Mark anime or cartoon albums on Scan sources. Only those albums are scanned for characters; a clear real face there still goes to People.",
+  "charactersAlbumToggle": "Anime / cartoon album",
+  "charactersAlbumsCount": "{count, plural, =0{No anime or cartoon albums marked} =1{1 anime or cartoon album} other{{count} anime or cartoon albums}}",
+  "@charactersAlbumsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "charactersEmpty": "No characters yet",
   "charactersEmptyHint": "Choose cartoon or anime albums in Scan sources and enable illustrated character scanning. Detection runs on the PC; your character library and appearance matching stay on this phone.",
   "charactersAccuracyHint": "Grouped by visual appearance. Different outfits, hidden bodies or similar designs can need correction. Open a group to name it or separate a mistaken match.",

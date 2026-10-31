@@ -30,6 +30,7 @@ class AssetInfo {
     required this.takenAt,
     this.kind = 'photo',
     this.durationMs,
+    this.illustrated = false,
   });
 
   final String id;
@@ -39,6 +40,20 @@ class AssetInfo {
   final int takenAt;
   final String kind;
   final int? durationMs;
+
+  /// In an album the user marked as anime/cartoon.
+  final bool illustrated;
+
+  AssetInfo withIllustrated(bool value) => AssetInfo(
+    id: id,
+    width: width,
+    height: height,
+    modifiedAt: modifiedAt,
+    takenAt: takenAt,
+    kind: kind,
+    durationMs: durationMs,
+    illustrated: value,
+  );
 
   /// The scan's "did this file change?" signature: modified time + pixel size. (File size would
   /// need opening every file; an edit changes the modified time anyway.)

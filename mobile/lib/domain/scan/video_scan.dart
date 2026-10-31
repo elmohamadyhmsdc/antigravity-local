@@ -9,9 +9,11 @@ import 'package:drift/drift.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/api/dtos/analyze.dart';
 import '../../data/api/dtos/jobs.dart';
+import '../../data/api/mobile_api.dart';
 import '../../data/api/video_api.dart';
 import '../../data/db/app_database.dart';
 import '../../data/media/media_library.dart';
+import '../../data/platform/video_frames.dart';
 import '../../data/repositories/app_settings.dart';
 import '../../data/repositories/library_repository.dart';
 import 'photo_result_store.dart';
@@ -22,6 +24,9 @@ import 'video_scan_progress.dart';
 class VideoScanPaused implements Exception {
   const VideoScanPaused();
 }
+
+/// The PC's per-blob upload limit (`workspace.DEFAULT_MAX_UPLOAD_BYTES`).
+const maxUploadBytes = 2 * 1024 * 1024 * 1024;
 
 Future<String> fileSha256(File file) async =>
     (await sha256.bind(file.openRead()).first).toString();
@@ -37,6 +42,7 @@ class VideoScan {
     required this.db,
     required this.store,
     required this.settings,
+    this.localFrames,
     this.pollInterval = const Duration(seconds: 2),
     Future<void> Function(Duration)? delay,
   }) : delay = delay ?? Future<void>.delayed;
@@ -44,6 +50,9 @@ class VideoScan {
   final AppDatabase db;
   final PhotoResultStore store;
   final AppSettings settings;
+
+  /// Decodes sampled frames on the phone; null (tests, non-Android) = always upload.
+  final LocalVideoFrames? localFrames;
   final Duration pollInterval;
   final Future<void> Function(Duration) delay;
 
@@ -217,27 +226,22 @@ class VideoScan {
     var nextFrame =
         (await LibraryRepository(db).mediaById(media.id))?.lastScannedFrame ??
         0;
-    Future<void> importFrame(Map<String, dynamic> json) async {
-      checkPause();
-      final frame = json['frame_number'] as int;
-      final timestamp = json['timestamp_ms'] as int;
-      if (frame < 0 || timestamp < 0) {
-        throw ApiException.badResponse('Invalid video frame position.');
-      }
-      if (frame < nextFrame) return;
-      final analysis = AnalyzeImageResponse.fromJson(json);
+    Future<void> commitFrame(
+      AnalyzeImageResponse analysis,
+      int frame,
+      int timestamp, {
+      required bool characterScan,
+    }) async {
       final model = (await settings.load()).modelId;
-      final characterScan =
-          ((saved?['request'] as Map?)?['params']
-              as Map?)?['detect_characters'] ==
-          true;
-      if (!characterScan && model != null && analysis.modelId != model) {
+      // Character frames only carry face vectors when a real face was found.
+      final faceModel = !characterScan || analysis.faces.isNotEmpty;
+      if (faceModel && model != null && analysis.modelId != model) {
         throw const ApiException(
           code: 'model_mismatch',
           message: 'The video uses a different embedding model.',
         );
       }
-      if (!characterScan && model == null) {
+      if (faceModel && model == null) {
         await settings.setModelId(analysis.modelId);
       }
       final stored = await store.store(
@@ -268,6 +272,189 @@ class VideoScan {
       );
     }
 
+    Future<void> importFrame(Map<String, dynamic> json) async {
+      checkPause();
+      final frame = json['frame_number'] as int;
+      final timestamp = json['timestamp_ms'] as int;
+      if (frame < 0 || timestamp < 0) {
+        throw ApiException.badResponse('Invalid video frame position.');
+      }
+      if (frame < nextFrame) return;
+      await commitFrame(
+        AnalyzeImageResponse.fromJson(json),
+        frame,
+        timestamp,
+        characterScan:
+            ((saved?['request'] as Map?)?['params']
+                as Map?)?['detect_characters'] ==
+            true,
+      );
+    }
+
+    // Phone-side sampling: decode the sampled frames here and send small JPEGs, so the
+    // video file never crosses the Wi-Fi. False = the phone cannot read this video and
+    // it is uploaded instead. An upload already in progress (saved) finishes as before.
+    Future<bool> scanOnPhone(LocalVideoFrames local, MobileApi analyzer) async {
+      final gridKey = 'video.local.${media.id}';
+      publish(VideoScanStage.prepare);
+      final probe = await local.probe(media.assetId);
+      if (probe == null) return false;
+      Map<String, dynamic>? grid;
+      final raw = await db.setting(gridKey);
+      if (raw != null) {
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map<String, dynamic>) grid = decoded;
+        } on FormatException {
+          /* rebuild the grid */
+        }
+      }
+      // The grid is pinned so a resumed scan samples exactly the same frames.
+      if (grid?['asset'] != media.assetId ||
+          grid?['modified'] != media.modifiedAt ||
+          grid?['duration'] != media.durationMs ||
+          grid?['fps'] is! num ||
+          grid?['step'] is! int ||
+          grid?['total'] is! int) {
+        final interval = prefs.adaptiveVideoSampling
+            ? adaptiveVideoInterval(probe.durationMs)
+            : prefs.frameInterval;
+        grid = {
+          'asset': media.assetId,
+          'modified': media.modifiedAt,
+          'duration': media.durationMs,
+          'fps': probe.fps,
+          'step': max(1, (probe.fps * interval).round()),
+          'total': probe.totalFrames,
+        };
+        await db.putSetting(gridKey, jsonEncode(grid));
+      }
+      final fps = (grid!['fps'] as num).toDouble();
+      final step = grid['step'] as int;
+      final total = grid['total'] as int;
+      if (total <= 0) return false;
+      int timeOf(int frame) => (frame * 1000 / fps).round();
+      final samples = [for (var f = 0; f < total; f += step) f];
+      var index = samples.indexWhere((f) => f >= nextFrame);
+      if (index < 0) index = samples.length;
+      final resumed = index > 0;
+      var done = index, skipped = 0, unreadable = 0;
+      String? localWarning;
+      fileName = null;
+      fileBytes = null;
+
+      void status(int? timestampMs) {
+        currentJob = VideoJobStatus(
+          id: 'phone',
+          status: 'running',
+          progress: samples.isEmpty ? 1 : done / samples.length,
+          framesDone: done - skipped,
+          totalSamples: samples.length,
+          analyzedTimestampMs: timestampMs,
+          frameInterval: step / fps,
+          skippedSamples: skipped,
+          incrementalResults: true,
+        );
+        serverUpdatedAt = DateTime.now();
+      }
+
+      Future<List<Uint8List?>>? decode(int from) => from >= samples.length
+          ? null
+          : local.frames(media.assetId, [
+              for (final f in samples.sublist(
+                from,
+                min(from + 4, samples.length),
+              ))
+                timeOf(f),
+            ]);
+
+      status(null);
+      publish(
+        VideoScanStage.analyze,
+        samples.isEmpty ? 1 : done / samples.length,
+      );
+      var pending = decode(index);
+      try {
+        while (pending != null) {
+          checkPause();
+          final List<Uint8List?> images;
+          try {
+            images = await pending;
+          } on Exception {
+            pending = null;
+            if (!resumed && framesSaved == 0) return false;
+            throw const ApiException(
+              code: 'bad_video',
+              message: 'The phone stopped reading this video part-way.',
+            );
+          }
+          final from = index;
+          index = min(index + 4, samples.length);
+          pending = decode(
+            index,
+          ); // decode the next batch while the PC analyses
+          for (var k = 0; k < images.length; k++) {
+            checkPause();
+            final frame = samples[from + k];
+            final bytes = images[k];
+            done++;
+            if (bytes == null) {
+              skipped++;
+              if (++unreadable >= 8) {
+                if (!resumed && framesSaved == 0) return false;
+                localWarning =
+                    'Stopped after 8 consecutive unreadable samples; earlier detections were saved.';
+                pending?.ignore();
+                pending = null;
+                break;
+              }
+              continue;
+            }
+            unreadable = 0;
+            onPreview?.call(bytes, timeOf(frame));
+            final analysis = await analyzer.analyzeImage(
+              bytes,
+              filename: 'frame.jpg',
+              options: AnalyzeOptions(
+                detectBodies: prefs.scanBodies,
+                detectCharacters: media.illustrated,
+                minQuality: prefs.qualityGate,
+                modelId: prefs.modelId,
+              ),
+            );
+            status(timeOf(frame));
+            await commitFrame(
+              analysis,
+              frame,
+              timeOf(frame),
+              characterScan: media.illustrated,
+            );
+            publish(VideoScanStage.analyze, done / samples.length);
+          }
+        }
+      } finally {
+        pending?.ignore();
+        await local.close();
+      }
+      publish(VideoScanStage.finish);
+      await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
+        MediaCompanion(
+          scanStatus: const Value('done'),
+          scanVersion: const Value(scanVersion),
+          scannedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          scanError: Value(localWarning),
+        ),
+      );
+      await (db.delete(db.settings)..where((s) => s.key.equals(gridKey))).go();
+      return true;
+    }
+
+    final local = localFrames;
+    if (saved == null && local != null && api is MobileApi) {
+      if (await scanOnPhone(local, api as MobileApi)) return outcome;
+      checkPause();
+    }
+
     for (var restart = 0; restart < 3; restart++) {
       checkPause();
       if (saved == null) {
@@ -284,6 +471,13 @@ class VideoScan {
         }
         final path = file.path;
         totalBytes = await file.length();
+        if (totalBytes > maxUploadBytes) {
+          throw const ApiException(
+            code: 'too_large',
+            message:
+                'This video is over 2 GB and the phone could not read its frames, so it cannot be sent to the PC.',
+          );
+        }
         fileBytes = totalBytes;
         fileName = file.uri.pathSegments.last;
         processedBytes = 0;
@@ -328,7 +522,7 @@ class VideoScan {
                   : 'fixed',
               'min_quality': prefs.qualityGate,
               'detect_bodies': prefs.scanBodies,
-              'detect_characters': prefs.scanCharacters,
+              'detect_characters': media.illustrated,
               'model_id': prefs.modelId,
               'start_frame': current.lastScannedFrame,
             },

@@ -41,6 +41,8 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler(BackupBridge(appContext)::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/network")
             .setMethodCallHandler(NetworkBridge()::handle)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/video_scan")
+            .setMethodCallHandler(VideoScanBridge(appContext)::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/studio_notifications")
             .setMethodCallHandler { call, result ->
                 if (call.method != "completed") {

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import 'tables.dart';
@@ -77,7 +79,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 10;
+  static const currentSchemaVersion = 11;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -170,6 +172,43 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 10) {
         await m.createTable(reviewSnoozes);
+      }
+      if (from < 11) {
+        final mediaColumns = (await customSelect(
+          'PRAGMA table_info(media)',
+        ).get()).map((r) => r.read<String>('name')).toSet();
+        if (!mediaColumns.contains(media.illustrated.name)) {
+          await m.addColumn(media, media.illustrated);
+        }
+        // The old global "scan characters" switch ran the body detector on every
+        // photo, so real people were stored as characters and got no faces. Those
+        // files are rescanned for people; anime albums are now marked one by one.
+        await customStatement('''
+          UPDATE media SET scan_status = 'pending', scan_version = 0,
+            last_scanned_frame = 0, scan_attempts = 0, scan_error = NULL
+          WHERE id IN (SELECT media_id FROM character_samples)''');
+        for (final row in await customSelect(
+          "SELECT key, value FROM settings WHERE key LIKE 'video.job.%'",
+        ).get()) {
+          try {
+            final params =
+                ((jsonDecode(row.read<String>('value')) as Map)['request']
+                    as Map?)?['params'];
+            if (params is! Map || params['detect_characters'] != true) {
+              continue;
+            }
+          } on Object {
+            // An unreadable checkpoint is dropped too.
+          }
+          await customStatement('DELETE FROM settings WHERE key = ?', [
+            row.read<String>('key'),
+          ]);
+        }
+        await customStatement('DELETE FROM character_samples');
+        await customStatement('DELETE FROM character_identities');
+        await customStatement(
+          "DELETE FROM settings WHERE key = 'scan.characters'",
+        );
       }
     },
     beforeOpen: (details) async {

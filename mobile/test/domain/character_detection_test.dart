@@ -6,8 +6,10 @@ import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/index/embedding_index.dart';
+import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:antigravity_mobile/data/repositories/app_settings.dart';
 import 'package:antigravity_mobile/data/repositories/character_repository.dart';
+import 'package:antigravity_mobile/data/repositories/library_repository.dart';
 import 'package:antigravity_mobile/domain/backup/backup_service.dart';
 import 'package:antigravity_mobile/domain/scan/character_descriptor.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
@@ -156,20 +158,44 @@ void main() {
   );
 
   test(
-    'enabling character scanning revisits completed assets without resuming paused work',
+    'unmarking an anime album drops its characters and rescans it for people',
     () async {
-      final m = await media('done');
-      await store.store(m, result());
-      await AppSettings(db).setScanCharacters(true);
-      final row = await (db.select(
-        db.media,
-      )..where((r) => r.id.equals(m.id))).getSingle();
-      expect(row.scanStatus, 'done');
+      const asset = AssetInfo(
+        id: 'art',
+        width: 512,
+        height: 512,
+        modifiedAt: 1,
+        takenAt: 1,
+        illustrated: true,
+      );
+      final repo = LibraryRepository(db);
+      await repo.syncAssets([asset]);
+      var row = (await db.select(db.media).get()).single;
+      expect(row.illustrated, isTrue);
+      await store.store(row, result());
+      expect(await db.select(db.characterSamples).get(), hasLength(1));
+
+      final sync = await repo.syncAssets([asset.withIllustrated(false)]);
+      expect(sync.changed, 1);
+      row = (await db.select(db.media).get()).single;
+      expect(row.illustrated, isFalse);
+      expect(row.scanStatus, 'pending');
       expect(row.scanVersion, 0);
-      expect((await AppSettings(db).load()).scanCharacters, isTrue);
-      expect((await AppSettings(db).load()).scanActive, isFalse);
+      expect(await db.select(db.characterSamples).get(), isEmpty);
+      expect(await db.select(db.characterIdentities).get(), isEmpty);
+
+      // Marking it again only requeues: nothing about people is deleted.
+      expect((await repo.syncAssets([asset])).changed, 1);
+      expect((await db.select(db.media).get()).single.illustrated, isTrue);
+      expect((await repo.syncAssets([asset])).changed, 0);
     },
   );
+
+  test('marked anime albums are saved per album', () async {
+    await AppSettings(db).setCharacterAlbumIds(['b', 'a', 'a']);
+    expect((await AppSettings(db).load()).characterAlbumIds, ['a', 'b']);
+    expect((await AppSettings(db).load()).scanActive, isFalse);
+  });
 
   test(
     'backup roundtrip preserves characters, names, descriptors, crops and mode',
@@ -182,7 +208,7 @@ void main() {
       await store.store(m, AnalyzeImageResponse.fromJson(parsed));
       final sample = (await db.select(db.characterSamples).get()).single;
       await characters.rename(sample.identityId, 'Hero');
-      await AppSettings(db).setScanCharacters(true);
+      await AppSettings(db).setCharacterAlbumIds(['anime']);
       final backup = BackupService(
         db: db,
         files: files,
@@ -211,7 +237,9 @@ void main() {
           2,
           3,
         ]);
-        expect((await AppSettings(restored).load()).scanCharacters, isTrue);
+        expect((await AppSettings(restored).load()).characterAlbumIds, [
+          'anime',
+        ]);
       } finally {
         await restored.close();
       }

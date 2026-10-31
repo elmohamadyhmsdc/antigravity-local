@@ -59,7 +59,7 @@ class InsightEngines:
         with self._lock:
             if self._scan_worker is not None:
                 return self._scan_worker.analyze(img, options)
-            self.load(faces=not getattr(options, "detect_characters", False))
+            self.load(faces=True)  # character mode also needs faces (real-face filter)
             return analysis.analyze_frame(self._face_app, self._body, img, options)
 
     def unload(self):

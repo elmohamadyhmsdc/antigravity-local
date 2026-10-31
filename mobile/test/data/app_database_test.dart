@@ -354,6 +354,83 @@ void main() {
 
   group('migrations', () {
     test(
+      'v10 upgrade drops characters found by the old global switch and rescans those files',
+      () async {
+        final file = File(p.join(dir.path, 'v10.db'));
+        final before = AppDatabase(NativeDatabase(file));
+        await before
+            .into(before.persons)
+            .insert(
+              PersonsCompanion.insert(name: const Value('Keep'), createdAt: 1),
+            );
+        await _addFace(before, personId: 1);
+        final real = await before
+            .into(before.media)
+            .insert(
+              MediaCompanion.insert(
+                assetId: 'real-photo',
+                kind: 'photo',
+                scanStatus: const Value('done'),
+                scanVersion: const Value(3),
+              ),
+            );
+        final identity = await before
+            .into(before.characterIdentities)
+            .insert(CharacterIdentitiesCompanion.insert(createdAt: 1));
+        await before
+            .into(before.characterSamples)
+            .insert(
+              CharacterSamplesCompanion.insert(
+                identityId: identity,
+                mediaId: real,
+                modelId: 'character-appearance@1',
+                descriptor: Uint8List(640),
+                bboxX: 0,
+                bboxY: 0,
+                bboxW: .5,
+                bboxH: .5,
+                score: .9,
+                createdAt: 1,
+              ),
+            );
+        await before.putSetting('scan.characters', '1');
+        await before.putSetting(
+          'video.job.7',
+          '{"request":{"params":{"detect_characters":true}}}',
+        );
+        await before.putSetting(
+          'video.job.8',
+          '{"request":{"params":{"detect_characters":false}}}',
+        );
+        await before.close();
+        final legacy = raw.sqlite3.open(file.path);
+        legacy.execute(
+          'ALTER TABLE media DROP COLUMN illustrated; PRAGMA user_version = 10;',
+        );
+        legacy.close();
+
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
+        expect(await after.select(after.characterSamples).get(), isEmpty);
+        expect(await after.select(after.characterIdentities).get(), isEmpty);
+        final rescanned = await (after.select(
+          after.media,
+        )..where((m) => m.id.equals(real))).getSingle();
+        expect(rescanned.scanStatus, 'pending');
+        expect(rescanned.scanVersion, 0);
+        expect(rescanned.illustrated, isFalse);
+        expect(await after.setting('scan.characters'), isNull);
+        expect(await after.setting('video.job.7'), isNull);
+        expect(await after.setting('video.job.8'), isNotNull);
+        expect((await after.select(after.faces).get()).single.personId, 1);
+        expect(
+          (await after.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          AppDatabase.currentSchemaVersion,
+        );
+      },
+    );
+    test(
       'v9 upgrade keeps the review plan and adds the quick review snoozes',
       () async {
         final file = File(p.join(dir.path, 'v9.db'));

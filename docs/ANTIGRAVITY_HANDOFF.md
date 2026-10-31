@@ -626,3 +626,36 @@ At the user's request ("اسم الابليكيشن Your Gallery مش antigravit
   the phone's scan were not touched. Visual check on the real phone (photo
   highlight sizing, keyboard over the "Who is this?" field, large text) remains.
   Nothing committed.
+- 14:26: release APK with the quick-review redesign installed with `adb install -r`
+  (100,503,786 bytes, SHA-256
+  ad956bb10d6a2282fa180487936507d0a9ea03c9a2dac9bb749a6c95437bb071). The in-place
+  DB migration and the new review UI have not been checked on the phone yet.
+
+## Phone-side video frames, queue order, per-album characters — 2026-10-31
+
+- Library video scan no longer uploads the whole file. `VideoScanBridge.kt`
+  (channel `antigravity/video_scan`: probe/frames/close) reads the sampled frames
+  from MediaStore by asset id (`MediaMetadataRetriever`, OPTION_CLOSEST then
+  CLOSEST_SYNC, long side <= 2048, JPEG 90) and `VideoScan.scanOnPhone` sends each
+  through `POST /v1/analyze/image`. Same grid as the PC (adaptive/fixed interval,
+  step = round(fps x interval)), pinned in setting `video.local.<mediaId>`; resume
+  from `lastScannedFrame`. Next batch decodes while the PC analyses the current one.
+  Falls back to the old upload path if the phone cannot probe the video or the
+  first 8 samples are unreadable; an upload already in progress (`video.job.*`)
+  finishes on the old path. Over-2 GB fallbacks now fail with `too_large`.
+  Not measured on the device yet (decode speed, battery, rotation of boxes).
+- Scan queue order: photos first, then videos by duration ascending, then id.
+- Characters: the old global "Scan illustrated characters" switch ran HumanArt
+  body detection on every scanned photo and disabled face extraction, so real
+  people became characters. Now albums are marked one by one on Scan sources
+  (`scan.character_albums`; "All media" cannot be marked). `media.illustrated`
+  (schema **11**) decides per file; `syncAssets` requeues a file whose flag flips
+  and deletes its characters when it is unmarked. The v11 migration deletes all
+  character samples/identities, requeues their media for a people scan, drops
+  `scan.characters` and character-mode video checkpoints.
+- PC `analysis.analyze_frame` character mode now also runs face detection: a body
+  whose box contains the centre of a face that passes the gate with quality >=
+  `REAL_FACE_MIN_QUALITY` (0.50) is not a character, and that face is returned
+  as a human face. `InsightEngines.analyze` always loads face models. The 0.50
+  threshold is a heuristic, not measured on real anime/photo sets. Restoring an
+  older backup brings back its old character rows.

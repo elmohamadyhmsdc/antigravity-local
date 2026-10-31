@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,7 @@ import 'data/media/media_library.dart';
 import 'data/media/thumbnail_service.dart';
 import 'data/platform/foreground_keep_alive.dart';
 import 'data/platform/backup_crypto.dart';
+import 'data/platform/video_frames.dart';
 import 'data/repositories/app_settings.dart';
 import 'data/repositories/library_repository.dart';
 import 'data/repositories/media_queries.dart';
@@ -173,6 +175,7 @@ final scanEngineProvider = Provider<ScanEngine>((ref) {
       db: ref.watch(databaseProvider),
       store: ref.watch(photoResultStoreProvider),
       settings: ref.watch(appSettingsProvider),
+      localFrames: Platform.isAndroid ? const AndroidVideoFrames() : null,
     ),
     describeVideo: (stage, progress) => switch (stage) {
       'prepare' => _en.videoPreparing((progress * 100).floor()),

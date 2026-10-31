@@ -2985,7 +2985,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get charactersScanHint =>
-      'For cartoon or anime albums. Scan bodies, hair, clothing and visual details instead of human faces. Select illustrated albums before scanning.';
+      'Mark anime or cartoon albums on Scan sources. Only those albums are scanned for characters; a clear real face there still goes to People.';
+
+  @override
+  String get charactersAlbumToggle => 'Anime / cartoon album';
+
+  @override
+  String charactersAlbumsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count anime or cartoon albums',
+      one: '1 anime or cartoon album',
+      zero: 'No anime or cartoon albums marked',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get charactersEmpty => 'No characters yet';

@@ -201,7 +201,10 @@ class ScanEngine {
     }
     final prefs = await _settings.load();
     _emit(const ScanProgress(phase: ScanPhase.preparing));
-    if (prefs.scanCharacters &&
+    final characterAlbums = prefs.characterAlbumIds.toSet().intersection(
+      prefs.albumIds.toSet(),
+    );
+    if (characterAlbums.isNotEmpty &&
         !(await api.capabilities()).engines.characterDetection) {
       await _pause(
         PauseReason.error,
@@ -223,11 +226,20 @@ class ScanEngine {
       }
       await _repo.resetScanning();
       await _repo.skipPending();
+      // Only files in albums marked anime/cartoon are scanned for characters; a file
+      // can also appear in "All media", so the marked albums are listed first.
+      final illustrated = <String>{};
+      if (characterAlbums.isNotEmpty) {
+        await for (final page in _media.photos(characterAlbums)) {
+          illustrated.addAll([for (final asset in page) asset.id]);
+        }
+      }
       var found = const SyncResult();
       await for (final page in _media.photos(prefs.albumIds.toSet())) {
         found += await _repo.syncAssets([
           for (final asset in page)
-            if (asset.kind != 'video' || prefs.scanVideos) asset,
+            if (asset.kind != 'video' || prefs.scanVideos)
+              asset.withIllustrated(illustrated.contains(asset.id)),
         ]);
         _emit(
           ScanProgress(
@@ -333,7 +345,6 @@ class ScanEngine {
     }
 
     Future<void> groupNow({bool incremental = false}) async {
-      if (prefs.scanCharacters) return;
       if (_api() == null) return;
       _emit(_progress.copyWith(grouping: true));
       try {
@@ -515,17 +526,17 @@ class ScanEngine {
           bytes!,
           options: AnalyzeOptions(
             detectBodies: prefs.scanBodies,
-            detectCharacters: prefs.scanCharacters,
+            detectCharacters: row.illustrated,
             minQuality: prefs.qualityGate,
             modelId: modelId,
           ),
         );
-        if (!prefs.scanCharacters &&
-            modelId != null &&
-            response.modelId != modelId) {
+        // Illustrated files only carry face vectors when a real face was found.
+        final faceModel = !row.illustrated || response.faces.isNotEmpty;
+        if (faceModel && modelId != null && response.modelId != modelId) {
           return _stop(row.id, PauseReason.modelMismatch, response.modelId);
         }
-        if (!prefs.scanCharacters && modelId == null) {
+        if (faceModel && modelId == null) {
           await _settings.setModelId(response.modelId);
         }
         final media = await _repo.mediaById(row.id);

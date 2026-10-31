@@ -141,15 +141,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: Text(l10n.optionBodiesHint),
             onChanged: store.setScanBodies,
           ),
-          SwitchListTile(
+          ListTile(
             key: const Key('settings-characters'),
             contentPadding: EdgeInsets.zero,
-            value: settings.scanCharacters,
+            leading: const Icon(Icons.auto_awesome_outlined),
             title: Text(l10n.charactersScan),
-            subtitle: Text(l10n.charactersScanHint),
-            onChanged: ref.watch(scanProgressProvider).value?.isActive == true
-                ? null
-                : store.setScanCharacters,
+            subtitle: Text(
+              l10n.charactersAlbumsCount(settings.characterAlbumIds.length),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(Routes.sources),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,

@@ -105,6 +105,9 @@ class Media extends Table {
       integer().nullable()(); // epoch ms (MediaStore creation date)
   IntColumn get scanAttempts => integer().withDefault(const Constant(0))();
   TextColumn get scanError => text().nullable()();
+
+  // v11: in an album the user marked as anime/cartoon (scanned for characters)
+  BoolColumn get illustrated => boolean().withDefault(const Constant(false))();
 }
 
 @TableIndex(name: 'faces_person_id', columns: {#personId})

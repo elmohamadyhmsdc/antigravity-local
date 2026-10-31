@@ -62,18 +62,38 @@ class CharacterTests(unittest.TestCase):
         b[0] = np.nan
         self.assertEqual(similarity(a, b), 0)
 
-    def test_character_mode_never_calls_face_detector_and_ignores_body_toggle(self):
+    def test_character_mode_without_faces_ignores_body_toggle(self):
         class Bodies:
             available = True
             def analyze(self, img, score_thr):
                 return [body()]
-        def no_faces(_):
-            raise AssertionError('Human face inference must not run')
         result = analyze_frame(None, Bodies(), drawing(),
-                               AnalyzeOptions(detect_bodies=False, detect_characters=True), detect=no_faces)
+                               AnalyzeOptions(detect_bodies=False, detect_characters=True), detect=lambda _: [])
         self.assertEqual((result.faces, result.bodies, result.pairs), ([], [], []))
         self.assertEqual(len(result.characters), 1)
         self.assertEqual(result.characters[0].model_id, MODEL_ID)
+
+    def test_a_clear_real_face_is_a_person_not_a_character(self):
+        """Real photos in an anime album: the body around a good face is not a character."""
+        class Bodies:
+            available = True
+            def analyze(self, img, score_thr):
+                return [body((0, 0, 128, 256)), body((20, 0, 100, 120))]
+        face = SimpleNamespace(bbox=np.array([40, 10, 88, 72], np.float32), det_score=.9, kps=None,
+                               embedding=np.ones(512, np.float32))
+        def options():
+            return AnalyzeOptions(detect_bodies=False, detect_characters=True)
+        real = analyze_frame(None, Bodies(), drawing(), options(), detect=lambda _: [face],
+                             assess=lambda img, f: {"quality_score": .7})
+        self.assertEqual(len(real.faces), 1)
+        self.assertEqual(real.passes_gate, [True])
+        self.assertEqual(real.bodies, [])
+        # Both boxes contain the face centre (64, 41), so neither is a character.
+        self.assertEqual(real.characters, [])
+        drawn = analyze_frame(None, Bodies(), drawing(), options(), detect=lambda _: [face],
+                              assess=lambda img, f: {"quality_score": .45})
+        self.assertEqual(drawn.faces, [])
+        self.assertEqual(len(drawn.characters), 2)
 
     def test_missing_body_model_is_an_error_not_an_empty_success(self):
         with self.assertRaisesRegex(RuntimeError, 'HumanArt'):
@@ -93,6 +113,7 @@ class CharacterTests(unittest.TestCase):
                 cv2.imwrite(str(root / name), drawing())
             scanner = LibraryScanner(db, ScanOptions(detect_characters=True, detect_bodies=False),
                                      body=Bodies(), body_crop_dir=root / 'crops' / 'bodies')
+            scanner.detect_faces = lambda img: []  # a drawing: no real face
             paths = [root / 'one.png', root / 'two.png']
             summary = scanner.scan_paths(paths)
             self.assertEqual(summary.characters_new, 2)

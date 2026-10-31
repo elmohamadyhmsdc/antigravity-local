@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:drift/drift.dart' show Value;
 
 import '../db/app_database.dart';
 
@@ -8,7 +7,9 @@ abstract final class SettingKeys {
   static const qualityGate = 'quality.gate';
   static const albumIds = 'scan.albums';
   static const scanBodies = 'scan.bodies';
-  static const scanCharacters = 'scan.characters';
+
+  /// Albums the user marked as anime/cartoon: scanned for characters (plus clear real faces).
+  static const characterAlbumIds = 'scan.character_albums';
   static const scanVideos = 'scan.videos';
   static const frameInterval = 'scan.frame_interval';
   static const adaptiveVideoSampling = 'scan.adaptive_video_sampling';
@@ -27,7 +28,7 @@ abstract final class SettingKeys {
     qualityGate,
     albumIds,
     scanBodies,
-    scanCharacters,
+    characterAlbumIds,
     scanVideos,
     frameInterval,
     adaptiveVideoSampling,
@@ -51,7 +52,7 @@ class SettingsSnapshot {
     this.qualityGate = defaultQualityGate,
     this.albumIds = const [],
     this.scanBodies = true,
-    this.scanCharacters = false,
+    this.characterAlbumIds = const [],
     this.scanVideos = true,
     this.frameInterval = 1.0,
     this.adaptiveVideoSampling = true,
@@ -66,13 +67,16 @@ class SettingsSnapshot {
     final strictness = m[SettingKeys.strictness];
     final gate = double.tryParse(m[SettingKeys.qualityGate] ?? '');
     final side = int.tryParse(m[SettingKeys.maxSide] ?? '');
-    List<String> albums = const [];
-    try {
-      final decoded = jsonDecode(m[SettingKeys.albumIds] ?? '[]');
-      if (decoded is List) albums = [for (final a in decoded) '$a'];
-    } on FormatException {
-      albums = const [];
+    List<String> ids(String key) {
+      try {
+        final decoded = jsonDecode(m[key] ?? '[]');
+        if (decoded is List) return [for (final a in decoded) '$a'];
+      } on FormatException {
+        /* treated as none chosen */
+      }
+      return const [];
     }
+
     final backup = int.tryParse(m[SettingKeys.lastBackupAt] ?? '');
     return SettingsSnapshot(
       strictness: strictnessChoices.contains(strictness)
@@ -81,9 +85,9 @@ class SettingsSnapshot {
       qualityGate: gate == null
           ? defaultQualityGate
           : gate.clamp(minQualityGate, maxQualityGate).toDouble(),
-      albumIds: albums,
+      albumIds: ids(SettingKeys.albumIds),
       scanBodies: (m[SettingKeys.scanBodies] ?? '1') != '0',
-      scanCharacters: m[SettingKeys.scanCharacters] == '1',
+      characterAlbumIds: ids(SettingKeys.characterAlbumIds),
       scanVideos: (m[SettingKeys.scanVideos] ?? '1') != '0',
       adaptiveVideoSampling: m[SettingKeys.adaptiveVideoSampling] != '0',
       frameInterval:
@@ -107,7 +111,8 @@ class SettingsSnapshot {
   final List<String>
   albumIds; // MediaStore bucket ids chosen on the Sources screen
   final bool scanBodies;
-  final bool scanCharacters;
+  final List<String>
+  characterAlbumIds; // subset of albumIds marked anime/cartoon
   final bool scanVideos;
   final double frameInterval;
   final bool adaptiveVideoSampling;
@@ -161,17 +166,12 @@ class AppSettings {
   Future<void> setScanBodies(bool value) =>
       _put(SettingKeys.scanBodies, value ? '1' : '0');
 
-  Future<void> setScanCharacters(bool value) => _db.transaction(() async {
-    if ((await load()).scanCharacters == value) return;
-    await _put(SettingKeys.scanCharacters, value ? '1' : '0');
-    // The next explicit scan can revisit completed assets in the chosen albums.
-    // Paused/in-flight video requests retain their original options/checkpoint.
-    await (_db.update(
-      _db.media,
-    )..where((m) => m.scanStatus.equals('done'))).write(
-      const MediaCompanion(scanVersion: Value(0), lastScannedFrame: Value(0)),
-    );
-  });
+  /// The next explicit scan rescans files whose album was marked or unmarked
+  /// (`LibraryRepository.syncAssets` compares each file's `illustrated` flag).
+  Future<void> setCharacterAlbumIds(Iterable<String> ids) => _put(
+    SettingKeys.characterAlbumIds,
+    jsonEncode(ids.toSet().toList()..sort()),
+  );
 
   Future<void> setScanVideos(bool value) =>
       _put(SettingKeys.scanVideos, value ? '1' : '0');

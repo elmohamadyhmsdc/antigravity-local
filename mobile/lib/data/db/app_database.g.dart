@@ -685,6 +685,21 @@ class $MediaTable extends Media with TableInfo<$MediaTable, MediaRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _illustratedMeta = const VerificationMeta(
+    'illustrated',
+  );
+  @override
+  late final GeneratedColumn<bool> illustrated = GeneratedColumn<bool>(
+    'illustrated',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("illustrated" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -702,6 +717,7 @@ class $MediaTable extends Media with TableInfo<$MediaTable, MediaRow> {
     takenAt,
     scanAttempts,
     scanError,
+    illustrated,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -815,6 +831,15 @@ class $MediaTable extends Media with TableInfo<$MediaTable, MediaRow> {
         scanError.isAcceptableOrUnknown(data['scan_error']!, _scanErrorMeta),
       );
     }
+    if (data.containsKey('illustrated')) {
+      context.handle(
+        _illustratedMeta,
+        illustrated.isAcceptableOrUnknown(
+          data['illustrated']!,
+          _illustratedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -884,6 +909,10 @@ class $MediaTable extends Media with TableInfo<$MediaTable, MediaRow> {
         DriftSqlType.string,
         data['${effectivePrefix}scan_error'],
       ),
+      illustrated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}illustrated'],
+      )!,
     );
   }
 
@@ -909,6 +938,7 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
   final int? takenAt;
   final int scanAttempts;
   final String? scanError;
+  final bool illustrated;
   const MediaRow({
     required this.id,
     required this.assetId,
@@ -925,6 +955,7 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
     this.takenAt,
     required this.scanAttempts,
     this.scanError,
+    required this.illustrated,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -956,6 +987,7 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
     if (!nullToAbsent || scanError != null) {
       map['scan_error'] = Variable<String>(scanError);
     }
+    map['illustrated'] = Variable<bool>(illustrated);
     return map;
   }
 
@@ -988,6 +1020,7 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
       scanError: scanError == null && nullToAbsent
           ? const Value.absent()
           : Value(scanError),
+      illustrated: Value(illustrated),
     );
   }
 
@@ -1012,6 +1045,7 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
       takenAt: serializer.fromJson<int?>(json['takenAt']),
       scanAttempts: serializer.fromJson<int>(json['scanAttempts']),
       scanError: serializer.fromJson<String?>(json['scanError']),
+      illustrated: serializer.fromJson<bool>(json['illustrated']),
     );
   }
   @override
@@ -1033,6 +1067,7 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
       'takenAt': serializer.toJson<int?>(takenAt),
       'scanAttempts': serializer.toJson<int>(scanAttempts),
       'scanError': serializer.toJson<String?>(scanError),
+      'illustrated': serializer.toJson<bool>(illustrated),
     };
   }
 
@@ -1052,6 +1087,7 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
     Value<int?> takenAt = const Value.absent(),
     int? scanAttempts,
     Value<String?> scanError = const Value.absent(),
+    bool? illustrated,
   }) => MediaRow(
     id: id ?? this.id,
     assetId: assetId ?? this.assetId,
@@ -1068,6 +1104,7 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
     takenAt: takenAt.present ? takenAt.value : this.takenAt,
     scanAttempts: scanAttempts ?? this.scanAttempts,
     scanError: scanError.present ? scanError.value : this.scanError,
+    illustrated: illustrated ?? this.illustrated,
   );
   MediaRow copyWithCompanion(MediaCompanion data) {
     return MediaRow(
@@ -1098,6 +1135,9 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
           ? data.scanAttempts.value
           : this.scanAttempts,
       scanError: data.scanError.present ? data.scanError.value : this.scanError,
+      illustrated: data.illustrated.present
+          ? data.illustrated.value
+          : this.illustrated,
     );
   }
 
@@ -1118,7 +1158,8 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
           ..write('scannedAt: $scannedAt, ')
           ..write('takenAt: $takenAt, ')
           ..write('scanAttempts: $scanAttempts, ')
-          ..write('scanError: $scanError')
+          ..write('scanError: $scanError, ')
+          ..write('illustrated: $illustrated')
           ..write(')'))
         .toString();
   }
@@ -1140,6 +1181,7 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
     takenAt,
     scanAttempts,
     scanError,
+    illustrated,
   );
   @override
   bool operator ==(Object other) =>
@@ -1159,7 +1201,8 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
           other.scannedAt == this.scannedAt &&
           other.takenAt == this.takenAt &&
           other.scanAttempts == this.scanAttempts &&
-          other.scanError == this.scanError);
+          other.scanError == this.scanError &&
+          other.illustrated == this.illustrated);
 }
 
 class MediaCompanion extends UpdateCompanion<MediaRow> {
@@ -1178,6 +1221,7 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
   final Value<int?> takenAt;
   final Value<int> scanAttempts;
   final Value<String?> scanError;
+  final Value<bool> illustrated;
   const MediaCompanion({
     this.id = const Value.absent(),
     this.assetId = const Value.absent(),
@@ -1194,6 +1238,7 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     this.takenAt = const Value.absent(),
     this.scanAttempts = const Value.absent(),
     this.scanError = const Value.absent(),
+    this.illustrated = const Value.absent(),
   });
   MediaCompanion.insert({
     this.id = const Value.absent(),
@@ -1211,6 +1256,7 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     this.takenAt = const Value.absent(),
     this.scanAttempts = const Value.absent(),
     this.scanError = const Value.absent(),
+    this.illustrated = const Value.absent(),
   }) : assetId = Value(assetId),
        kind = Value(kind);
   static Insertable<MediaRow> custom({
@@ -1229,6 +1275,7 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     Expression<int>? takenAt,
     Expression<int>? scanAttempts,
     Expression<String>? scanError,
+    Expression<bool>? illustrated,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1246,6 +1293,7 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
       if (takenAt != null) 'taken_at': takenAt,
       if (scanAttempts != null) 'scan_attempts': scanAttempts,
       if (scanError != null) 'scan_error': scanError,
+      if (illustrated != null) 'illustrated': illustrated,
     });
   }
 
@@ -1265,6 +1313,7 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     Value<int?>? takenAt,
     Value<int>? scanAttempts,
     Value<String?>? scanError,
+    Value<bool>? illustrated,
   }) {
     return MediaCompanion(
       id: id ?? this.id,
@@ -1282,6 +1331,7 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
       takenAt: takenAt ?? this.takenAt,
       scanAttempts: scanAttempts ?? this.scanAttempts,
       scanError: scanError ?? this.scanError,
+      illustrated: illustrated ?? this.illustrated,
     );
   }
 
@@ -1333,6 +1383,9 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     if (scanError.present) {
       map['scan_error'] = Variable<String>(scanError.value);
     }
+    if (illustrated.present) {
+      map['illustrated'] = Variable<bool>(illustrated.value);
+    }
     return map;
   }
 
@@ -1353,7 +1406,8 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
           ..write('scannedAt: $scannedAt, ')
           ..write('takenAt: $takenAt, ')
           ..write('scanAttempts: $scanAttempts, ')
-          ..write('scanError: $scanError')
+          ..write('scanError: $scanError, ')
+          ..write('illustrated: $illustrated')
           ..write(')'))
         .toString();
   }
@@ -15369,6 +15423,7 @@ typedef $$MediaTableCreateCompanionBuilder =
       Value<int?> takenAt,
       Value<int> scanAttempts,
       Value<String?> scanError,
+      Value<bool> illustrated,
     });
 typedef $$MediaTableUpdateCompanionBuilder =
     MediaCompanion Function({
@@ -15387,6 +15442,7 @@ typedef $$MediaTableUpdateCompanionBuilder =
       Value<int?> takenAt,
       Value<int> scanAttempts,
       Value<String?> scanError,
+      Value<bool> illustrated,
     });
 
 final class $$MediaTableReferences
@@ -15552,6 +15608,11 @@ class $$MediaTableFilterComposer extends Composer<_$AppDatabase, $MediaTable> {
 
   ColumnFilters<String> get scanError => $composableBuilder(
     column: $table.scanError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get illustrated => $composableBuilder(
+    column: $table.illustrated,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15739,6 +15800,11 @@ class $$MediaTableOrderingComposer
     column: $table.scanError,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get illustrated => $composableBuilder(
+    column: $table.illustrated,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MediaTableAnnotationComposer
@@ -15806,6 +15872,11 @@ class $$MediaTableAnnotationComposer
 
   GeneratedColumn<String> get scanError =>
       $composableBuilder(column: $table.scanError, builder: (column) => column);
+
+  GeneratedColumn<bool> get illustrated => $composableBuilder(
+    column: $table.illustrated,
+    builder: (column) => column,
+  );
 
   Expression<T> facesRefs<T extends Object>(
     Expression<T> Function($$FacesTableAnnotationComposer a) f,
@@ -15956,6 +16027,7 @@ class $$MediaTableTableManager
                 Value<int?> takenAt = const Value.absent(),
                 Value<int> scanAttempts = const Value.absent(),
                 Value<String?> scanError = const Value.absent(),
+                Value<bool> illustrated = const Value.absent(),
               }) => MediaCompanion(
                 id: id,
                 assetId: assetId,
@@ -15972,6 +16044,7 @@ class $$MediaTableTableManager
                 takenAt: takenAt,
                 scanAttempts: scanAttempts,
                 scanError: scanError,
+                illustrated: illustrated,
               ),
           createCompanionCallback:
               ({
@@ -15990,6 +16063,7 @@ class $$MediaTableTableManager
                 Value<int?> takenAt = const Value.absent(),
                 Value<int> scanAttempts = const Value.absent(),
                 Value<String?> scanError = const Value.absent(),
+                Value<bool> illustrated = const Value.absent(),
               }) => MediaCompanion.insert(
                 id: id,
                 assetId: assetId,
@@ -16006,6 +16080,7 @@ class $$MediaTableTableManager
                 takenAt: takenAt,
                 scanAttempts: scanAttempts,
                 scanError: scanError,
+                illustrated: illustrated,
               ),
           withReferenceMapper: (p0) => p0
               .map(
