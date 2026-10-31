@@ -69,8 +69,9 @@ CropPlan? faceCrop({
   final face = math.max(bw, bh);
   final limit = math.min(imgW, imgH).toDouble();
   final side = math.min(face * margin, limit);
-  if (side < face - 0.5)
+  if (side < face - 0.5) {
     return null; // the face itself does not fit in a square
+  }
   final left = (cx - side / 2).clamp(0.0, imgW - side).toDouble();
   final top = (cy - side / 2).clamp(0.0, imgH - side).toDouble();
   final s = side.round().clamp(1, math.min(imgW, imgH)).toInt();

@@ -227,6 +227,7 @@ class _State extends ConsumerState<TrainingExportDialog> {
     TrainingExportController controller, {
     required bool mine,
   }) {
+    final navigator = Navigator.of(context);
     final close = TextButton(
       onPressed: () => Navigator.pop(context),
       child: Text(MaterialLocalizations.of(context).closeButtonLabel),
@@ -248,7 +249,7 @@ class _State extends ConsumerState<TrainingExportDialog> {
           TextButton(
             onPressed: () async {
               await controller.dismiss(deleteZip: true);
-              if (context.mounted) Navigator.pop(context);
+              navigator.pop();
             },
             child: Text(MaterialLocalizations.of(context).closeButtonLabel),
           ),

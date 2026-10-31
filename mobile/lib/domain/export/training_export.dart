@@ -484,10 +484,7 @@ class TrainingExporter {
         '${safe.isEmpty ? 'person${o.personId}' : safe}_training_$stamp.zip',
       ),
     );
-    final items = [
-      for (final c in picks)
-        if (entries[entryKey(c)] case final e?) e,
-    ];
+    final items = [for (final c in picks) ?entries[entryKey(c)]];
     final encoder = ZipFileEncoder()..create(output.path);
     try {
       for (final e in items) {

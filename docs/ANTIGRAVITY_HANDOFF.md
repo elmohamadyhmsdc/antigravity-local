@@ -794,3 +794,59 @@ compile failures from another session's untracked `lib/domain/export/crop_math.d
 in the files touched here; the same `lib/domain/export/*` and
 `data/platform/crop_source.dart` items are reported. Not done: widget test of the new
 Storage section, a run on the phone, SDXL/other outstanding items.
+
+## Export for training: full-resolution faces and bodies from the originals — 2026-10-31
+
+- **What**: person page menu (⋮) -> "Export for training" cuts a person's faces and/or bodies out
+  of the ORIGINAL photos and video frames at native resolution (never the 256/384 px stored
+  crops), and zips them with `manifest.json` + `manifest.csv` (asset id, media kind, frame number,
+  timestamp, normalised box, source size, crop rect in source pixels, output size, quality,
+  status). Nothing is uploaded; the PC is not involved. The zip is shared through the system
+  share sheet (same as backups).
+- **Which detections**: `media_detections` joined to `faces` (`faces.person_id = P`, not hidden)
+  and `bodies` (`bodies.person_id = P`, or no person and the body's face is P's; `extent =
+  head` bodies are dropped). A track's non-view frames point at the kept view, so that view's
+  quality/pose stand in for them. Does not depend on `track_id`. Video detections without
+  `timestamp_ms` are ignored (the frame cannot be found again).
+- **Selection** (`domain/export/export_selection.dart`): a photo gives its best face and best
+  body; a video gives up to N (default 40, choose 20/40/80) per kind, picked greedily by max-min
+  distance in (time / span + head-pose yaw/pitch) weighted by quality, with >= 1 s between
+  picks; one detection per moment. Boxes smaller than 96 px (face short side) / 384 px (body
+  height) in the original are dropped.
+- **Crop maths** (`domain/export/crop_math.dart`, pure): faces = square, 1.6 x the longer box
+  side, moved inside the image (never padded), output 512/768/1024; skipped when the crop would
+  be enlarged more than 2x. Bodies keep their aspect, 1.1 x margin, long side <= 1024/1536/2048,
+  never enlarged. EXIF orientation is mapped by `uprightToRaw` (tested for all 8 orientations),
+  because region decoders cut stored pixels while the DB boxes are upright.
+- **Native** (`CropExportBridge.kt`, channel `antigravity/crop_export`, Dart side
+  `data/platform/crop_source.dart`): photos via `BitmapRegionDecoder` (JPEG/PNG/WebP; a 100 MP
+  original is never held whole), EXIF read with `android.media.ExifInterface`; video frames via
+  `MediaMetadataRetriever.getFrameAtTime` at full size (same seek order as the scan). Large
+  regions are decoded with `inSampleSize` only while still >= output size, then halved
+  stepwise to the exact output. One original open at a time; faces and bodies of one frame
+  share one decode. **HEIC/AVIF photos cannot be region-decoded and are reported as failed**
+  (not yet handled; the A72's default is JPEG).
+- **Background/resume/cancel** (`features/people/training_export_controller.dart`): an app-level
+  `trainingExportProvider` (not tied to the page), a foreground-service lease "Training export",
+  Stop button. Work folder `<support>/training_export_work/<options signature>/` holds the
+  finished JPEGs plus `manifest.jsonl` (one line per finished detection, flushed). A stopped or
+  killed export runs the selection again and skips finished items; a half-written last line or a
+  deleted JPEG is simply redone; `failed` (crop returned null) is retried, `too_small`/`missing`
+  are final. The zip is built only when everything is settled, then the work folder is deleted.
+  Changing any option starts a separate work folder. The zip lives in the cache dir
+  (`training_exports/`) and is deleted when the dialog's Close is pressed after a finished run.
+- **Verification (actual)**: `dart analyze` (whole `mobile/`): no issues. New tests, 29/29:
+  `test/domain/export/crop_math_test.dart`, `export_selection_test.dart`,
+  `training_export_test.dart` (fake `CropSource` + in-memory DB: person filtering, native-size
+  crop maths, manifest content, shared decode, deleted originals, cancel+resume, killed-app
+  manifest, rotated photos, hidden faces). `flutter test test/features test/domain`: 356 pass, 8
+  fail — the same People-screen 1 px `RenderFlex` overflow tests and `background_test`
+  battery-notice test recorded under "Video tracks"; none involve the new code.
+- **Not verified**: the Kotlin bridge compiles (`gradlew :app:compileDebugKotlin --offline`, exit 0)
+  but has never run on a phone; no APK build; no real-device timing, memory, orientation or video-frame-alignment check; the
+  dialog has no widget test. First thing to check on the phone: a rotated portrait JPEG, a 4K
+  video frame, and that a video frame's crop lines up with the face (frame seek vs the scan's
+  scaled decode).
+- **Deliberately not done**: no PC-side option (originals are never uploaded); no LoRA/DFL
+  folder layout or captions (the zip is flat `faces/` + `bodies/`); no near-duplicate photo
+  removal across different photos.
