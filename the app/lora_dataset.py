@@ -199,17 +199,21 @@ def build_caption(
     quality_score: float,
     tagger: Optional[WD14Tagger] = None,
     captioner=None,
+    description: Optional[str] = None,
 ) -> str:
     """
     Builds the caption using the idea.txt trick: trigger word + class first,
-    then natural language description (e.g. Florence-2 if provided),
+    then natural language description (`description`, e.g. from the Florence-2
+    worker, or an in-process `captioner`),
     then descriptive tags (WD14 tagger),
     then explicit quality-flag tags for low-quality or blurry sources so the
     LoRA learns those are photo defects, not identity.
     """
     parts = [f"{trigger_word} person"]
 
-    if captioner is not None and getattr(captioner, "available", False):
+    if description:
+        parts.append(description)
+    elif captioner is not None and getattr(captioner, "available", False):
         try:
             desc = captioner.caption(image_bgr)
             if desc:
@@ -260,16 +264,22 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
     """Shared write loop: turns a list of face-record-shaped dicts (either pulled
     from the database or synthesized fresh by detect_face_record_from_image)
     into the sd-scripts folder layout. Both build_dataset() and
-    build_dataset_from_uploads() call this after assembling their records."""
+    build_dataset_from_uploads() call this after assembling their records.
+
+    captioner None means Florence-2 descriptions from its own venv_ai process
+    (florence_captioner.caption_paths), so a torch/CUDA crash there can never take
+    down this process; any failure just leaves the descriptions out.
+    AG_FLORENCE_CAPTIONS=0 turns them off. An explicit captioner runs in-process."""
     dataset_dir = Path(output_root) / slug / f"{repeats}_{trigger_word} person"
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
     image_count = 0
     skipped_body_count = 0
+    written = []   # (image path, quality score)
 
     for i, face in enumerate(face_records):
         if progress:
-            progress(i / max(len(face_records), 1), f"Cropping + captioning {i + 1}/{len(face_records)}")
+            progress(0.8 * i / max(len(face_records), 1), f"Cropping {i + 1}/{len(face_records)}")
         extracted = extract_face_and_body_crop(face, face_app, restorer=restorer)
         if extracted["skipped_body"]:
             skipped_body_count += 1
@@ -280,12 +290,28 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
             stem = f"{slug}_{i:04d}_{kind}"
             img_path = dataset_dir / f"{stem}.jpg"
             cv2.imwrite(str(img_path), crop)
+            written.append((img_path, float(face.get("quality_score", 0.0))))
 
-            caption = build_caption(crop, trigger_word=trigger_word,
-                                     quality_score=float(face.get("quality_score", 0.0)),
-                                     tagger=tagger, captioner=captioner)
-            (dataset_dir / f"{stem}.txt").write_text(caption, encoding="utf-8")
-            image_count += 1
+    descriptions = {}
+    if captioner is None and written:
+        if progress:
+            progress(0.8, f"Describing {len(written)} images (Florence-2)")
+        from florence_captioner import caption_paths
+        # Progress callbacks may raise to cancel (mobile jobs); caption_paths kills its worker then.
+        descriptions = caption_paths(
+            [p for p, _ in written],
+            progress=(lambda done, total: progress(0.8 + 0.1 * done / total,
+                                                   f"Describing {done}/{total} (Florence-2)")) if progress else None)
+
+    for n, (img_path, quality) in enumerate(written):
+        if progress:
+            progress(0.9 + 0.1 * n / len(written), f"Captioning {n + 1}/{len(written)}")
+        crop = cv2.imread(str(img_path))
+        caption = build_caption(crop, trigger_word=trigger_word, quality_score=quality,
+                                tagger=tagger, captioner=captioner,
+                                description=descriptions.get(str(img_path)))
+        img_path.with_suffix(".txt").write_text(caption, encoding="utf-8")
+        image_count += 1
 
     warning = None
     blocked = False

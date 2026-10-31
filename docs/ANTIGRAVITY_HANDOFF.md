@@ -1047,3 +1047,42 @@ faces near one shared direction, which is why different characters merged.
   - Python tests: `test_lora_dataset.py` passed all tasks (1-6 + upload-path); `test_reface_unified.py` 8/8 passed, `test_mobile_artifacts.py` 8/8 passed, `test_mobile_api_contract.py` 29/29 passed, `test_mobile_stateless.py` 5/5 passed, `test_mobile_dashboard.py` 12/12 passed.
   - Pre-existing recorded 7 Restyle CPU test failures in `test_undress.py` preserved unmodified.
   - Preserved terminal policy; no running user server, phone database, or live queue state altered.
+
+## Model upgrade fixes (Claude review follow-up) — 2026-10-31
+
+- **User decisions**: keep Realistic Vision V6 inpainting (`andregn/...`) as the only SD1.5 inpaint
+  model, with no V5.1 fallback. Face recognition: the user asked for the newest. Measured on 221 labelled
+  `lora_datasets` faces, glintr100 (antelopev2) was *worse* than the current w600k_r50
+  (TAR@1e-3 0.941 vs 0.955, EER 0.021 vs 0.016, 1.5x slower), and inswapper/HyperSwap only
+  accept w600k identities, so **buffalo_l stays**. See `docs/reviews/2026-10-31-model-upgrades-review.md`.
+- `mask_utils.py`: RMBG-1.4 preprocessing fixed (RGB, `x/255-0.5`, min-max output). The old
+  code marked 75-99 % of a photo as person. Only the component attached to the main face (plus
+  sizeable parts below it) is kept. The MediaPipe fallback gets RGB, and the model is loaded as a
+  buffer because mediapipe mangles absolute Windows paths (also fixed in `undress_engine.py`,
+  where Restyle's person mask silently failed). New `test_mask_utils.py`.
+- `undress_core.py` / `model_readiness.py`: V5.1 fallback removed. V6 UNet verified loading from
+  safetensors alone. The leftover `unet/diffusion_pytorch_model.bin` (1.7 GB pickle) is still on disk:
+  deleting it was blocked by the permission system and is left for the user.
+- `undress_engine.py`: Hyper-SD is switchable (payload `hyper_sd`, env `AG_RESTYLE_HYPER_SD=0`);
+  a failed fuse reloads clean weights at 20 steps. Do **not** call `unload_lora_weights()` after
+  `fuse_lora()`: with IP-Adapter loaded next it crashes natively (access violation). GPU A/B:
+  8 steps with Hyper-SD looks as good as 20 without. Full default run (V6 + Hyper-SD + SDXL refine)
+  succeeded on the RTX 4050 in 251 s. That is the first real SDXL GPU run.
+- Florence-2: patched code/configs are tracked in `the app/florence2_patch/` and restored into the
+  model folder when missing. Captions run in a **venv_ai worker process**
+  (`florence_captioner.caption_paths`): loading it in the main venv after an onnxruntime-gpu
+  session corrupts the heap (0xc0000374) and would kill the dashboard or the mobile server.
+  Images are resized to 768x768 (the processor passed tall crops through at full size and hit a
+  CUDA device-side assert that poisoned the rest of the batch). Captions are one sentence of at
+  most 25 words, with repeats removed. Worker crash, timeout or a busy GPU (CPU fallback below 1.5 GB free)
+  only drops the descriptions. Cancel works through the progress callback. Wired into every
+  dataset build (dashboard + mobile `build_lora_dataset`); `AG_FLORENCE_CAPTIONS=0` disables.
+  New `test_florence_captioner.py`. Note: the NSFW-tuned model sometimes gets details wrong
+  (it once called a woman's face close-up "young man").
+- Reface: `eval_reface.py --stage swappers` re-run: identity 1b 0.426 / 1c 0.405 /
+  inswapper 0.401, 368/478/394 ms per frame. "Detail" no longer forces 1c; every profile uses `auto`
+  (1b first).
+- `download_upgrades.py`: verifies Hugging Face LFS SHA-256 (local Hyper-SD and RMBG files match).
+- Tests: test_mask_utils, test_florence_captioner, test_lora_dataset, test_mobile_artifacts,
+  test_mobile_api_contract 30/30, test_mobile_stateless 5/5, test_reface_unified, test_reface_desktop,
+  test_compositor 52/52 all pass; test_undress 58/65, the same 7 pre-existing CPU mask failures.

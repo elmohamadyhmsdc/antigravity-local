@@ -55,16 +55,27 @@ def human_size(n_bytes: int) -> str:
     return f"{n_bytes} B"
 
 
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024 * 8), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def download_file(url: str, target: Path, expected_size: int = 0, sha256: str = None) -> bool:
+    """sha256 (Hugging Face's LFS hash) is checked on an existing file and after the
+    download; a mismatch deletes the file and fails instead of leaving bad weights."""
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.is_file():
         have_size = target.stat().st_size
-        if expected_size > 0 and have_size == expected_size:
-            print(f" [OK] {target.name} already exists ({human_size(have_size)})", flush=True)
-            return True
-        elif expected_size == 0 and have_size > 1000:
-            print(f" [OK] {target.name} already exists ({human_size(have_size)})", flush=True)
-            return True
+        if (expected_size > 0 and have_size == expected_size) or (expected_size == 0 and have_size > 1000):
+            if sha256 and file_sha256(target) != sha256:
+                print(f" [BAD] {target.name} exists but its SHA-256 does not match; downloading again", flush=True)
+                target.unlink()
+            else:
+                print(f" [OK] {target.name} already exists ({human_size(have_size)})", flush=True)
+                return True
 
     partial = target.with_name(target.name + ".part")
     offset = partial.stat().st_size if partial.exists() else 0
@@ -104,6 +115,10 @@ def download_file(url: str, target: Path, expected_size: int = 0, sha256: str = 
 
             if expected_size and downloaded != expected_size:
                 raise RuntimeError(f"Incomplete download: {downloaded} of {expected_size} bytes")
+            if sha256 and file_sha256(partial) != sha256:
+                partial.unlink(missing_ok=True)
+                print(f" [ERR] {target.name}: SHA-256 mismatch, file deleted", flush=True)
+                return False
 
             partial.replace(target)
             print(f" [DONE] {target.name} ({human_size(target.stat().st_size)})", flush=True)
@@ -129,13 +144,18 @@ def get_hf_metadata(repo_id: str):
     return files
 
 
+def lfs_sha256(info: dict):
+    """The SHA-256 Hugging Face lists for an LFS file (None for small git files)."""
+    return (info.get("lfs") or {}).get("sha256")
+
+
 def download_hyper_sd():
     print("\n--- Downloading Hyper-SD 4-step LoRA ---")
     meta = get_hf_metadata(HYPER_SD_REPO)
     info = meta.get(HYPER_SD_FILE, {})
     size = info.get("size", 140000000)
     url = f"https://huggingface.co/{HYPER_SD_REPO}/resolve/main/{HYPER_SD_FILE}"
-    return download_file(url, HYPER_SD_TARGET, expected_size=size)
+    return download_file(url, HYPER_SD_TARGET, expected_size=size, sha256=lfs_sha256(info))
 
 
 def download_rmbg():
@@ -144,7 +164,7 @@ def download_rmbg():
     info = meta.get(RMBG_FILE, {})
     size = info.get("size", 176000000)
     url = f"https://huggingface.co/{RMBG_REPO}/resolve/main/{RMBG_FILE}"
-    return download_file(url, RMBG_TARGET, expected_size=size)
+    return download_file(url, RMBG_TARGET, expected_size=size, sha256=lfs_sha256(info))
 
 
 def download_restyle_v6():
@@ -157,7 +177,7 @@ def download_restyle_v6():
         size = info.get("size", 0)
         target = RESTYLE_V6_TARGET_DIR / rpath
         url = f"https://huggingface.co/{RESTYLE_V6_REPO}/resolve/main/{rpath}"
-        ok = download_file(url, target, expected_size=size)
+        ok = download_file(url, target, expected_size=size, sha256=lfs_sha256(info))
         if not ok:
             success = False
             break

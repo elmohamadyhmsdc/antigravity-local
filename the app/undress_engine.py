@@ -102,6 +102,18 @@ from undress_core import (
 
 _SELFIE_SEGMENTER = APP_DIR / "models" / "selfie_segmenter.tflite"
 
+# Hyper-SD 8-step CFG LoRA for the SD1.5 base pass: 8 steps instead of 20. On by default;
+# payload "hyper_sd": false, or AG_RESTYLE_HYPER_SD=0 in the environment, turns it off.
+HYPER_SD_LORA = APP_DIR / "models" / "Hyper-SD15-8steps-CFG-lora.safetensors"
+HYPER_SD_STEPS = 8
+BASE_STEPS = 20
+
+
+def hyper_sd_wanted(payload: dict) -> bool:
+    if os.environ.get("AG_RESTYLE_HYPER_SD", "1").strip().lower() in ("0", "false", "no", "off"):
+        return False
+    return str(payload.get("hyper_sd", True)).strip().lower() not in ("0", "false", "no", "off")
+
 
 def _emit(payload: dict) -> None:
     print(format_result_line(payload), flush=True)
@@ -115,8 +127,10 @@ def _img_to_b64(img: Image.Image) -> str:
 
 def _person_mask_tasks(image_rgb: np.ndarray) -> np.ndarray:
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+    # model_asset_buffer, not model_asset_path: on Windows mediapipe joins an absolute
+    # "D:\..." path onto its own site-packages folder and cannot open the file.
     options = ImageSegmenterOptions(
-        base_options=BaseOptions(model_asset_path=str(_SELFIE_SEGMENTER)),
+        base_options=BaseOptions(model_asset_buffer=_SELFIE_SEGMENTER.read_bytes()),
         output_confidence_masks=True,
     )
     with ImageSegmenter.create_from_options(options) as segmenter:
@@ -249,7 +263,7 @@ def parse_clothes(image_pil: Image.Image, processor, model) -> np.ndarray:
     return up.argmax(dim=1)[0].cpu().numpy().astype(np.uint8)
 
 
-def get_sd15_pipeline(device: str, dtype):
+def get_sd15_pipeline(device: str, dtype, hyper_sd: bool = True):
     inpaint_src = ensure_local_model(INPAINT_MODEL_ID, "model_index.json")
     print(f"Loading SD1.5 Inpaint + ControlNet from {inpaint_src}...", file=sys.stderr)
     
@@ -266,15 +280,21 @@ def get_sd15_pipeline(device: str, dtype):
     )
     pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
 
-    hyper_sd_path = Path(__file__).parent / "models" / "Hyper-SD15-8steps-CFG-lora.safetensors"
-    if hyper_sd_path.exists():
+    pipe._hyper_sd = False
+    if hyper_sd and HYPER_SD_LORA.is_file():
         try:
-            pipe.load_lora_weights(str(hyper_sd_path.parent), weight_name=hyper_sd_path.name)
+            pipe.load_lora_weights(str(HYPER_SD_LORA.parent), weight_name=HYPER_SD_LORA.name)
             pipe.fuse_lora()
+            # No unload_lora_weights() here: with IP-Adapter loaded next it crashes the
+            # process natively (access violation, diffusers 0.39 / torch 2.5, 2026-10-31).
             pipe._hyper_sd = True
             print("Hyper-SD 8-step LoRA fused into UNet successfully.", file=sys.stderr)
         except Exception as e:
-            print(f"Hyper-SD LoRA loading failed: {e}", file=sys.stderr)
+            # A half-applied LoRA must not run at 8 steps: reload clean weights.
+            print(f"Hyper-SD LoRA loading failed, using {BASE_STEPS} steps: {e}", file=sys.stderr)
+            del pipe
+            gc.collect()
+            return get_sd15_pipeline(device, dtype, hyper_sd=False)
 
     ip_loaded = False
     ip_src = ensure_ip_adapter()
@@ -555,7 +575,7 @@ def generate(payload: dict, device: str, dtype, parser_proc, parser) -> dict:
     if device == "cuda":
         torch.cuda.empty_cache()
         
-    pipe_sd15, ip_loaded = get_sd15_pipeline(device, dtype)
+    pipe_sd15, ip_loaded = get_sd15_pipeline(device, dtype, hyper_sd=hyper_sd_wanted(payload))
     ip_kwargs = build_ip_kwargs(pipe_sd15, payload, ip_loaded)
     
     gw_15, gh_15 = fit_work_size(cw, ch, 768)
@@ -578,7 +598,7 @@ def generate(payload: dict, device: str, dtype, parser_proc, parser) -> dict:
         image=gen_in_15,
         mask_image=gen_mask_15,
         control_image=control_image_15,
-        num_inference_steps=8 if getattr(pipe_sd15, '_hyper_sd', False) else 20, # Fast base gen
+        num_inference_steps=HYPER_SD_STEPS if pipe_sd15._hyper_sd else BASE_STEPS,
         generator=generator,
         guidance_scale=guidance,
         strength=1.0,

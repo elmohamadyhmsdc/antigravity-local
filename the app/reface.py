@@ -20,13 +20,8 @@ class RefaceEngine(RefaceEngineV3):
         if kwargs.get("dfm_path"):
             selected = "none"
         kwargs.setdefault("restore_size", 1024 if selected == "gpen_bfr_1024" else 512)
-        if kwargs.get("swapper") in (None, "auto"):
-            from face_swappers import available_swappers
-            have_swappers = available_swappers()
-            if quality_profile == "detail" and "hyperswap_1c_256" in have_swappers:
-                kwargs["swapper"] = "hyperswap_1c_256"
-            elif "hyperswap_1b_256" in have_swappers:
-                kwargs["swapper"] = "hyperswap_1b_256"
+        # Every profile uses the measured best swapper ("auto" -> SWAPPER_PREFERENCE). 1c for
+        # "detail" was re-measured on 2026-10-31: lower identity than 1b, slower, no sharper.
         super().__init__(restorer=selected,
                          use_parser=settings["use_parser"] if use_parser is None else use_parser, **kwargs)
 

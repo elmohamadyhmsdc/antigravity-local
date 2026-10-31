@@ -34,9 +34,6 @@ def restyle_missing_models(app_dir, *, refine=True, cache_roots=None):
     missing = []
     for repo, groups in required.items():
         candidates = [Path(app_dir)/'models'/'undress'/repo.replace('/','--')]
-        if repo == INPAINT_MODEL_ID:
-            from undress_core import FALLBACK_INPAINT_MODEL_ID
-            candidates.append(Path(app_dir)/'models'/'undress'/FALLBACK_INPAINT_MODEL_ID.replace('/','--'))
         for root in roots:
             snapshots = Path(root)/('models--'+repo.replace('/','--'))/'snapshots'
             if snapshots.is_dir(): candidates.extend(p for p in snapshots.iterdir() if p.is_dir())
