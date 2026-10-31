@@ -104,10 +104,53 @@ def similarity(left, right):
     return float(np.clip(.35 * scores[0] + .30 * scores[1] + .20 * scores[2] + .15 * shape, 0, 1))
 
 
-def detect_characters(img, bodies):
+def detect_characters(img, bodies, anime_faces=None):
+    """Detect characters from bodies and/or anime face detections."""
     found = []
-    for body in bodies:
+    h, w = img.shape[:2]
+    used_bodies = set()
+
+    # 1. If anime faces were detected, associate them with bodies or expand to upper torso
+    if anime_faces:
+        for af in anime_faces:
+            abox = af["bbox"] if isinstance(af, dict) else af.bbox
+            ascore = float(af["score"] if isinstance(af, dict) else af.score)
+
+            # Look for a body that contains the centre of the anime face
+            cx = (abox[0] + abox[2]) / 2.0
+            cy = (abox[1] + abox[3]) / 2.0
+            matched_body_idx = None
+            for bi, b in enumerate(bodies):
+                bbox = b.bbox
+                if bbox[0] <= cx <= bbox[2] and bbox[1] <= cy <= bbox[3]:
+                    matched_body_idx = bi
+                    break
+
+            if matched_body_idx is not None:
+                used_bodies.add(matched_body_idx)
+                char_box = bodies[matched_body_idx].bbox
+            else:
+                # Expand face box to include hair and upper torso
+                bw = abox[2] - abox[0]
+                bh = abox[3] - abox[1]
+                x1 = max(0.0, abox[0] - bw * 0.25)
+                y1 = max(0.0, abox[1] - bh * 0.25)
+                x2 = min(float(w), abox[2] + bw * 0.25)
+                y2 = min(float(h), abox[3] + bh * 1.5)
+                char_box = np.array([x1, y1, x2, y2], dtype=np.float32)
+
+            descriptor = describe(img, char_box)
+            if descriptor is None:
+                descriptor = describe(img, abox)
+            if descriptor is not None:
+                found.append(Character(np.asarray(char_box, np.float32), ascore, descriptor))
+
+    # 2. For any bodies not already matched to an anime face, process them
+    for bi, body in enumerate(bodies):
+        if bi in used_bodies:
+            continue
         descriptor = describe(img, body.bbox)
         if descriptor is not None:
             found.append(Character(np.asarray(body.bbox, np.float32), float(body.score), descriptor))
+
     return found

@@ -18,9 +18,10 @@ The crop helpers live here too, so a "face crop" means the same thing (20 % pad)
 in the gallery and in the API.
 """
 
+import os
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Any
 
 import cv2
 import numpy as np
@@ -28,6 +29,22 @@ import numpy as np
 import drawn_faces
 import face_quality
 import person_linking as pl
+
+_anime_detector: Optional[Any] = None
+
+
+def get_anime_detector():
+    """Lazily load AnimeFaceDetector if model exists."""
+    global _anime_detector
+    if _anime_detector is None:
+        model_path = os.path.join(os.path.dirname(__file__), "models", "anime_face_detect.onnx")
+        if os.path.exists(model_path):
+            try:
+                from anime_detector import AnimeFaceDetector
+                _anime_detector = AnimeFaceDetector(model_path)
+            except Exception:
+                _anime_detector = None
+    return _anime_detector
 
 
 @dataclass
@@ -150,8 +167,24 @@ def analyze_frame(face_app, body, img, options,
     # Drawn faces get good quality scores too; the embedding tells them apart.
     drawn = [drawn_faces.is_drawn(getattr(f, "embedding", None)) for f in faces]
 
+    # Detect anime faces if characters are requested
+    anime_faces = []
+    if want_characters:
+        ad = get_anime_detector()
+        if ad is not None:
+            try:
+                raw_anime = ad.detect(img, score_thresh=0.55)
+                from face_routing import overlaps_real_face
+                # Real face veto at 0.40 quality/det threshold
+                veto_boxes = [f.bbox for i, f in enumerate(faces)
+                              if passes[i] and not drawn[i] and quality[i]["quality_score"] >= 0.40]
+                anime_faces = [a for a in raw_anime
+                               if not any(overlaps_real_face(rbox, a["bbox"]) for rbox in veto_boxes)]
+            except Exception:
+                anime_faces = []
+
     bodies: list = []
-    if want_characters and (body is None or not body.available):
+    if want_characters and (body is None or not getattr(body, "available", False)):
         raise RuntimeError("Character detection requires the installed HumanArt body models.")
     if (options.detect_bodies or want_characters) and body is not None and body.available:
         t = time.perf_counter()
@@ -161,7 +194,7 @@ def analyze_frame(face_app, body, img, options,
     if want_characters:
         from character_detection import detect_characters
         t = time.perf_counter()
-        characters = detect_characters(img, bodies)
+        characters = detect_characters(img, bodies, anime_faces=anime_faces)
         timings["characters"] = (time.perf_counter() - t) * 1000.0
         # A body around a clear real face is a real person: keep the face (it goes to
         # People) and drop that "character".

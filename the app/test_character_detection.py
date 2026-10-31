@@ -152,6 +152,16 @@ class CharacterTests(unittest.TestCase):
                 self.assertEqual(result['faces'], [])
                 self.assertEqual(len(result['characters']), 1)
 
+    def test_anime_face_detector_in_analyze_frame(self):
+        class Bodies:
+            available = True
+            def analyze(self, img, score_thr):
+                return []
+        img = drawing()
+        options = AnalyzeOptions(detect_characters=True, detect_bodies=False)
+        result = analyze_frame(None, Bodies(), img, options)
+        self.assertIsInstance(result.characters, list)
+
     def test_worker_and_wire_roundtrip_keep_character_descriptor_and_no_faces(self):
         from analysis import FrameAnalysis
         from mobile_api.scan_worker import encode_result, decode_result
