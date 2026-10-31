@@ -5,6 +5,7 @@ scanner and the mobile API.
 `analyze_frame` runs everything that only needs the pixels:
 
     detect faces (multi-scale) -> embed -> quality v2 -> gate
+    drop drawn (anime/cartoon) and other non-human faces - never a person
     detect bodies (+17 keypoints) -> outfit descriptor
     associate faces with bodies
 
@@ -24,6 +25,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+import drawn_faces
 import face_quality
 import person_linking as pl
 
@@ -62,8 +64,9 @@ class FrameAnalysis:
 
 # --- detection ---------------------------------------------------------------
 
-# In anime/cartoon sources, a face at least this good (face_quality v2) counts as a real
-# person. Above the 0.40 store gate on purpose: a borderline drawn face stays a character.
+# In anime/cartoon sources, a face at least this good (face_quality v2) that is not drawn
+# (drawn_faces) counts as a real person. Above the 0.40 store gate on purpose: a borderline
+# face stays a character.
 REAL_FACE_MIN_QUALITY = 0.50
 
 
@@ -144,6 +147,8 @@ def analyze_frame(face_app, body, img, options,
     timings["quality"] = (time.perf_counter() - t) * 1000.0
     passes = [face_quality.passes_gate(f, options.min_face_quality, q["quality_score"])
               for f, q in zip(faces, quality)]
+    # Drawn faces get good quality scores too; the embedding tells them apart.
+    drawn = [drawn_faces.is_drawn(getattr(f, "embedding", None)) for f in faces]
 
     bodies: list = []
     if want_characters and (body is None or not body.available):
@@ -159,9 +164,9 @@ def analyze_frame(face_app, body, img, options,
         characters = detect_characters(img, bodies)
         timings["characters"] = (time.perf_counter() - t) * 1000.0
         # A body around a clear real face is a real person: keep the face (it goes to
-        # People) and drop that "character". Drawn faces rarely reach this quality.
+        # People) and drop that "character".
         real = [i for i, f in enumerate(faces)
-                if passes[i] and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY]
+                if passes[i] and not drawn[i] and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY]
         characters = [c for c in characters
                       if not any(_centre_inside(faces[i].bbox, c.bbox) for i in real)]
         faces = [faces[i] for i in real]
@@ -169,9 +174,19 @@ def analyze_frame(face_app, body, img, options,
         passes = [True] * len(real)
         # Illustrated characters never become human body identities.
         bodies = []
-    appearances = [pl.appearance_descriptor(img, b.bbox, b.kpts, b.kpt_scores) for b in bodies]
     pairs = pl.associate_faces_bodies([f.bbox for f in faces], bodies,
                                       face_kps=[f.kps for f in faces]) if bodies else []
+    if any(drawn) and not want_characters:
+        # A drawn face is no person, and the body around it is a drawn figure.
+        drawn_bodies = {bi for fi, bi, _ in pairs if drawn[fi]}
+        face_at = {old: new for new, old in enumerate(i for i in range(len(faces)) if not drawn[i])}
+        body_at = {old: new for new, old in enumerate(i for i in range(len(bodies)) if i not in drawn_bodies)}
+        pairs = [(face_at[fi], body_at[bi], s) for fi, bi, s in pairs if fi in face_at and bi in body_at]
+        faces = [f for i, f in enumerate(faces) if i in face_at]
+        quality = [q for i, q in enumerate(quality) if i in face_at]
+        passes = [g for i, g in enumerate(passes) if i in face_at]
+        bodies = [b for i, b in enumerate(bodies) if i in body_at]
+    appearances = [pl.appearance_descriptor(img, b.bbox, b.kpts, b.kpt_scores) for b in bodies]
 
     h, w = img.shape[:2]
     return FrameAnalysis(faces=faces, quality=quality, passes_gate=passes, bodies=bodies,

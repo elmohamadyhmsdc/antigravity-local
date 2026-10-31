@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,6 +51,13 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     if (ref.read(autoResumeScanProvider)) {
+      // anime/cartoon faces older scans put in People; a failure leaves them for the next start
+      unawaited(
+        ref
+            .read(drawnFaceSweepProvider)
+            .runOnce()
+            .then((_) {}, onError: (_) {}),
+      );
       // a scan is persistent: if the app was killed mid-scan, carry on where it stopped
       Future<void>.microtask(() {
         if (mounted && ref.read(sessionProvider) != null) {

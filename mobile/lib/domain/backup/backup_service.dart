@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../../data/db/app_database.dart';
 import '../../data/files/file_store.dart';
 import '../../data/repositories/app_settings.dart';
+import '../scan/drawn_face_sweep.dart';
 
 /// The phone holds the ONLY copy of the user's library, so a backup must be able to rebuild it
 /// exactly: every person, face, body, photo record, rejection, detection and crop.
@@ -389,6 +390,10 @@ class BackupService {
               (s) => s.key.like('video.job.%') | s.key.like('video.local.%'),
             ))
             .go();
+        // an older backup can bring drawn faces back: sweep them at the next start
+        await (_db.delete(
+          _db.settings,
+        )..where((s) => s.key.equals(DrawnFaceSweep.doneKey))).go();
         await _settings.setScanActive(false);
       });
 

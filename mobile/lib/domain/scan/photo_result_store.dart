@@ -12,6 +12,7 @@ import '../../data/index/embedding_index.dart';
 import '../../data/repositories/library_repository.dart';
 import '../../data/repositories/character_repository.dart';
 import '../../data/repositories/face_suppression_store.dart';
+import 'drawn_faces.dart';
 import 'scan_math.dart';
 import 'video_tracks.dart';
 
@@ -79,9 +80,15 @@ class PhotoResultStore {
   }) async {
     final w = analysis.imageW, h = analysis.imageH;
     final now = _clock().millisecondsSinceEpoch;
+    // Drawn (anime/cartoon) faces score like good faces but are never people; older PC
+    // servers still send them.
+    final drawn = {
+      for (var i = 0; i < analysis.faces.length; i++)
+        if (isDrawnFace(analysis.faces[i].embedding)) i,
+    };
     final gated = [
       for (var i = 0; i < analysis.faces.length; i++)
-        if (analysis.faces[i].passesGate) i,
+        if (analysis.faces[i].passesGate && !drawn.contains(i)) i,
     ];
 
     final hits = await _index.nearest([
@@ -336,6 +343,7 @@ class PhotoResultStore {
       for (var bi = 0; bi < analysis.bodies.length; bi++) {
         final body = analysis.bodies[bi];
         final fi = faceOfBody[bi];
+        if (drawn.contains(fi)) continue; // a drawn figure, not a person's body
         final faceId = fi == null ? null : faceDbId[fi];
         final box = _box(body.bbox, w, h);
 

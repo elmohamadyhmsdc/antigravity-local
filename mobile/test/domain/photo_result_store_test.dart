@@ -9,6 +9,7 @@ import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/index/embedding_index.dart';
 import 'package:antigravity_mobile/data/repositories/library_repository.dart';
+import 'package:antigravity_mobile/domain/scan/drawn_faces.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -396,6 +397,36 @@ void main() {
     expect(f.cropPath, isNull, reason: 'the PC sent no crop');
     expect(await files.allFiles(), isEmpty);
   });
+
+  test(
+    'a drawn face and the figure around it are never stored, even from an older PC',
+    () async {
+      final media = await photo('a1');
+      final outcome = await store.store(
+        media,
+        analysis(
+          faces: [
+            faceJson(drawnFaceDirection, box: [100, 100, 200, 240]),
+            faceJson(unitVec(2), box: [600, 100, 200, 240]),
+          ],
+          bodies: [
+            bodyJson(box: [50, 60, 400, 700]),
+            bodyJson(box: [560, 60, 400, 700]),
+          ],
+          pairs: [(0, 0), (1, 1)],
+        ),
+      );
+      expect(
+        (outcome.newFaces, outcome.newBodies, outcome.facesSeen),
+        (1, 1, 1),
+      );
+      final f = (await db.select(db.faces).get()).single;
+      expect(dot(embeddingFromBlob(f.embedding), unitVec(2)), closeTo(1, 1e-6));
+      final b = (await db.select(db.bodies).get()).single;
+      expect((b.faceId, b.bboxX), (f.id, 0.56));
+      expect(await index.size(), 1);
+    },
+  );
 
   test(
     'unit helpers: the bytes of a stored embedding are 512 little-endian float32',

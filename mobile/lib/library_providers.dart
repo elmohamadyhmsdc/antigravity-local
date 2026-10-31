@@ -26,6 +26,7 @@ import 'data/repositories/review_questions.dart';
 import 'data/repositories/review_repository.dart';
 import 'domain/backup/backup_service.dart';
 import 'domain/grouping/grouping_runner.dart';
+import 'domain/scan/drawn_face_sweep.dart';
 import 'domain/scan/photo_result_store.dart';
 import 'domain/scan/video_compactor.dart';
 import 'domain/storage/storage_sweeper.dart';
@@ -200,6 +201,15 @@ final photoResultStoreProvider = Provider<PhotoResultStore>(
 
 final videoCompactorProvider = Provider<VideoCompactor>(
   (ref) => VideoCompactor(
+    db: ref.watch(databaseProvider),
+    files: ref.watch(fileStoreProvider),
+    index: ref.watch(embeddingIndexProvider),
+  ),
+);
+
+/// Removes the drawn (anime/cartoon) faces older scans put in People; runs once at start-up.
+final drawnFaceSweepProvider = Provider<DrawnFaceSweep>(
+  (ref) => DrawnFaceSweep(
     db: ref.watch(databaseProvider),
     files: ref.watch(fileStoreProvider),
     index: ref.watch(embeddingIndexProvider),
