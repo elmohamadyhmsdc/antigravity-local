@@ -165,7 +165,7 @@ class CropCache {
         w: row.read<double>('bbox_w'),
         h: row.read<double>('bbox_h'),
       ));
-    } on Exception {
+    } catch (_) {
       return null;
     }
   }

@@ -910,3 +910,26 @@ faces near one shared direction, which is why different characters merged.
   8 failed (the same pre-existing People-screen 1-px overflow ×7 and battery-notice timeout).
   The end-to-end real-model run over the photo folders was stopped at the user's request; not
   verified on the phone.
+
+## Fix: Photo scan halts on CompressError Bitmap.recycle() null reference — 2026-10-31
+
+- **Symptom**: Photo scan stops with `The scan stopped: CompressError(unknown): Attempt to invoke virtual method 'void android.graphics.Bitmap.recycle()' on a null object reference` (e.g. at 0 of 17,652 photos).
+- **Root Cause**:
+  1. In `flutter_image_compress_common` (native Kotlin `CommonHandler.kt`), when `BitmapFactory.decodeFile(path, options)` encounters an image format it cannot decode (unsupported format, damaged file, zero-byte file, etc.), it returns `null`. Its `finally` block unconditionally invokes `bitmap.recycle()`, raising a `NullPointerException`.
+  2. The plugin catches this and returns it across the method channel, where Dart wraps it in `CompressError`.
+  3. In Dart, `class CompressError extends Error`, which does **not** implement `Exception`.
+  4. In `PhotoManagerLibrary.downscaledJpeg` (`media_library.dart`), the fallback to `entity.thumbnailDataWithSize(...)` was guarded by `on Exception`. Consequently, `CompressError` was not caught.
+  5. In `ScanEngine` (`scan_engine.dart`), `prepareNextPhoto` and `_scanOne` also caught only `on Exception`. The uncaught `Error` escaped all the way to `ScanEngine.start()`, which paused the entire scan with `PauseReason.error` rather than recording that specific photo as failed and continuing to the rest of the queue.
+- **Changes**:
+  1. `mobile/lib/data/media/media_library.dart`:
+     - Changed `on Exception` in `downscaledJpeg` to `catch (_)`. On any compression failure (including `CompressError`), it gracefully falls back to `entity.thumbnailDataWithSize(...)`. If the thumbnail also fails, it returns `null`.
+     - Guarded `thumbnail()`, `viewerImage()`, and `clearCache()` with `catch (_)`.
+  2. `mobile/lib/domain/scan/scan_engine.dart`:
+     - Changed `on Exception` in `prepareNextPhoto` and `_scanOne` to `catch (_)`. An unreadable or corrupt photo is caught, `bytes` evaluates to `null`, and `_scanOne` records the photo as failed (`'The photo could not be read...'`) and seamlessly continues scanning remaining photos.
+     - Changed `_afterRun` to `catch (_)`.
+  3. `mobile/lib/data/files/crop_cutter.dart`: Wrapped `cutCrop` in `try ... catch (_)` so any `CompressError` or decode failure returns `null` safely.
+  4. `mobile/lib/data/files/crop_cache.dart`: Changed `on Exception` in `_ensureCrop` to `catch (_)`.
+  5. `mobile/lib/domain/scan/video_scan.dart`: Changed `on Exception` in frame decoding batch to `catch (_)`.
+  6. `mobile/test/support/fakes.dart` & `mobile/test/domain/scan_engine_test.dart`: Added `failures` support in `FakeMediaLibrary` and a regression test confirming that when an asset throws `CompressError`, the photo is marked failed and the remaining scan completes uninterrupted.
+- **Status & Policy**: Preserved terminal policy; changes made to source files. Provided verification and build commands for the user. No phone or server state altered.
+

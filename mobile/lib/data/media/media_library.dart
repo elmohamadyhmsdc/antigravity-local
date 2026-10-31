@@ -207,16 +207,18 @@ class PhotoManagerLibrary implements MediaLibrary, VideoMediaLibrary {
         );
         if (bytes != null && bytes.isNotEmpty) return bytes;
       }
-    } on Exception {
+    } catch (_) {
       // MediaStore/ImageDecoder supports some HEIF, AVIF, GIF and WebP assets
       // that the original-file compressor cannot convert on this Android version.
+      // Also catches CompressError (which extends Error, not Exception) when
+      // BitmapFactory fails to decode and throws NPE during recycle().
     }
     try {
       return await entity.thumbnailDataWithSize(
         ThumbnailSize(targetW, targetH),
         quality: 90,
       );
-    } on Exception {
+    } catch (_) {
       return null;
     }
   }
@@ -227,25 +229,40 @@ class PhotoManagerLibrary implements MediaLibrary, VideoMediaLibrary {
     required int width,
     required int height,
     int size = 256,
-  }) async => (await AssetEntity.fromId(
-    assetId,
-  ))?.thumbnailDataWithSize(ThumbnailSize.square(size), quality: 80);
+  }) async {
+    try {
+      final entity = await AssetEntity.fromId(assetId);
+      return await entity?.thumbnailDataWithSize(
+        ThumbnailSize.square(size),
+        quality: 80,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Future<Uint8List?> viewerImage(String assetId, {int maxSide = 1800}) async {
-    final entity = await AssetEntity.fromId(assetId);
-    if (entity == null) return null;
-    final ratio = entity.width / math.max(1, entity.height);
-    final w = ratio >= 1 ? maxSide : (maxSide * ratio).round();
-    final h = ratio >= 1 ? (maxSide / ratio).round() : maxSide;
-    return entity.thumbnailDataWithSize(ThumbnailSize(w, h), quality: 90);
+    try {
+      final entity = await AssetEntity.fromId(assetId);
+      if (entity == null) return null;
+      final ratio = entity.width / math.max(1, entity.height);
+      final w = ratio >= 1 ? maxSide : (maxSide * ratio).round();
+      final h = ratio >= 1 ? (maxSide / ratio).round() : maxSide;
+      return await entity.thumbnailDataWithSize(
+        ThumbnailSize(w, h),
+        quality: 90,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
   Future<void> clearCache() async {
     try {
       await PhotoManager.clearFileCache();
-    } on Exception catch (_) {
+    } catch (_) {
       // a cache that cannot be cleared is only wasted space
     }
   }

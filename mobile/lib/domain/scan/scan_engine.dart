@@ -292,7 +292,7 @@ class ScanEngine {
             maxSide: prefs.maxSide,
           );
           return (next.assetId, bytes);
-        } on Exception {
+        } catch (_) {
           return null;
         }
       }();
@@ -452,7 +452,7 @@ class ScanEngine {
     await _media.clearCache();
     try {
       await _afterRun?.call();
-    } on Exception {
+    } catch (_) {
       // housekeeping only (thumbnail trim): never fails a finished scan
     }
     await _settings.setScanActive(false);
@@ -495,7 +495,7 @@ class ScanEngine {
             );
         if (bytes != null) preview(bytes, null);
       }
-    } on Exception {
+    } catch (_) {
       // A missing/corrupt file must not pause every remaining item in the queue.
     }
     if (bytes == null && row.kind != 'video') {

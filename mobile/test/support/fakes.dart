@@ -179,6 +179,7 @@ class FakeMediaLibrary implements MediaLibrary {
   final Map<String, List<AssetInfo>> _assets;
   final Map<String, Uint8List> bytes = {};
   final Set<String> unreadable = {};
+  final Map<String, Object> failures = {};
   var access = true;
   final reads = <String>[];
   final maxSides = <int>[];
@@ -220,6 +221,9 @@ class FakeMediaLibrary implements MediaLibrary {
   }) async {
     reads.add(assetId);
     maxSides.add(maxSide);
+    if (failures.containsKey(assetId)) {
+      throw failures[assetId]!;
+    }
     if (unreadable.contains(assetId)) return null;
     return bytes[assetId] ?? Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xD9]);
   }

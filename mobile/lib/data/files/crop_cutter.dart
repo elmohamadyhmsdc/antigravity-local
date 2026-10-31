@@ -14,39 +14,43 @@ Future<Uint8List?> cutCrop(
   CropKind kind,
   ({double x, double y, double w, double h}) box,
 ) async {
-  final codec = await ui.instantiateImageCodec(source);
-  final image = (await codec.getNextFrame()).image;
-  codec.dispose();
-  ui.Image? out;
   try {
-    final r = cropPixels(kind, box, image.width, image.height);
-    final recorder = ui.PictureRecorder();
-    Canvas(recorder).drawImageRect(
-      image,
-      Rect.fromLTWH(
-        r.left.toDouble(),
-        r.top.toDouble(),
-        r.width.toDouble(),
-        r.height.toDouble(),
-      ),
-      Rect.fromLTWH(0, 0, r.outWidth.toDouble(), r.outHeight.toDouble()),
-      Paint()..filterQuality = FilterQuality.medium,
-    );
-    final picture = recorder.endRecording();
-    out = await picture.toImage(r.outWidth, r.outHeight);
-    picture.dispose();
-    final png = await out.toByteData(format: ui.ImageByteFormat.png);
-    if (png == null) return null;
-    return await FlutterImageCompress.compressWithList(
-      png.buffer.asUint8List(),
-      minWidth: r.outWidth,
-      minHeight: r.outHeight,
-      quality: 85,
-      format: CompressFormat.jpeg,
-    );
-  } finally {
-    image.dispose();
-    out?.dispose();
+    final codec = await ui.instantiateImageCodec(source);
+    final image = (await codec.getNextFrame()).image;
+    codec.dispose();
+    ui.Image? out;
+    try {
+      final r = cropPixels(kind, box, image.width, image.height);
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawImageRect(
+        image,
+        Rect.fromLTWH(
+          r.left.toDouble(),
+          r.top.toDouble(),
+          r.width.toDouble(),
+          r.height.toDouble(),
+        ),
+        Rect.fromLTWH(0, 0, r.outWidth.toDouble(), r.outHeight.toDouble()),
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+      final picture = recorder.endRecording();
+      out = await picture.toImage(r.outWidth, r.outHeight);
+      picture.dispose();
+      final png = await out.toByteData(format: ui.ImageByteFormat.png);
+      if (png == null) return null;
+      return await FlutterImageCompress.compressWithList(
+        png.buffer.asUint8List(),
+        minWidth: r.outWidth,
+        minHeight: r.outHeight,
+        quality: 85,
+        format: CompressFormat.jpeg,
+      );
+    } finally {
+      image.dispose();
+      out?.dispose();
+    }
+  } catch (_) {
+    return null;
   }
 }
 

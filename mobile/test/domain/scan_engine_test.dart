@@ -19,6 +19,7 @@ import 'package:antigravity_mobile/domain/scan/scan_engine.dart';
 import 'package:antigravity_mobile/domain/scan/scan_state.dart';
 import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:drift/native.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
@@ -723,6 +724,24 @@ void main() {
   });
 
   group('photos that cannot be scanned', () {
+    test(
+      'a photo that throws CompressError or Error is marked failed, the scan goes on',
+      () async {
+        await rig.choose();
+        rig.everyPhotoHasANewFace();
+        rig.library.failures['asset-2'] = CompressError(
+          "Attempt to invoke virtual method 'void android.graphics.Bitmap.recycle()' on a null object reference",
+          code: 'unknown',
+        );
+        final engine = rig.engine();
+        await engine.start();
+        final media = await rig.media();
+        expect(media.map((m) => m.scanStatus), ['done', 'failed', 'done']);
+        expect(media[1].scanError, contains('could not be read'));
+        expect((engine.progress.done, engine.progress.failed), (2, 1));
+      },
+    );
+
     test(
       'an unreadable photo is marked failed with a reason, the scan goes on',
       () async {

@@ -380,7 +380,7 @@ class VideoScan {
           final List<Uint8List?> images;
           try {
             images = await pending;
-          } on Exception {
+          } catch (_) {
             pending = null;
             if (!resumed && framesSaved == 0) return false;
             throw const ApiException(
