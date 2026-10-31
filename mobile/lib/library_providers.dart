@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Directory, File, Platform;
 import 'dart:ui';
 
@@ -6,6 +7,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'data/db/open_database.dart' show databaseFileName;
+import 'data/files/crop_cache.dart';
+import 'data/files/crop_cutter.dart';
 import 'data/files/file_store.dart';
 import 'data/index/embedding_index.dart';
 import 'data/index/index_loader.dart';
@@ -53,6 +56,22 @@ final storageSweeperProvider = FutureProvider<StorageSweeper>((ref) async {
     databaseFile: File(p.join(support.path, databaseFileName)),
     tempDirs: [await getTemporaryDirectory(), Directory.systemTemp],
   );
+});
+
+/// Face/body thumbnails as a size-capped cache, cut again from the originals when needed.
+final cropCacheProvider = Provider<CropCache>((ref) {
+  final cache = CropCache(
+    db: ref.watch(databaseProvider),
+    files: ref.watch(fileStoreProvider),
+    loadOriginal: originalLoader(
+      ref.watch(mediaLibraryProvider),
+      Platform.isAndroid ? const AndroidVideoFrames() : null,
+    ),
+    cut: cutCrop,
+  );
+  // start-up trim; a failure only leaves more thumbnails on disk
+  unawaited(cache.evict().then((_) {}, onError: (_) {}));
+  return cache;
 });
 
 final appSettingsProvider = Provider<AppSettings>(
@@ -221,6 +240,7 @@ final scanEngineProvider = Provider<ScanEngine>((ref) {
     describe: (p) => p.video != null
         ? '${p.message ?? _en.scanRunning} · ${_en.scanNotificationText(p.done + p.failed, p.total, p.facesFound + p.video!.facesFound)}'
         : _en.scanNotificationText(p.done + p.failed, p.total, p.facesFound),
+    afterRun: () => ref.read(cropCacheProvider).evict(),
   );
   ref.onDispose(engine.dispose);
   return engine;

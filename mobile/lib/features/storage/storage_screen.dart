@@ -82,13 +82,17 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
     try {
       final sweeper = await ref.read(storageSweeperProvider.future);
       final result = await sweeper.sweep();
+      // thumbnails over the cache limit; they come back from the originals when shown
+      final trimmed = await ref.read(cropCacheProvider).evict();
       // photo_manager keeps its own copies of originals opened by this app
       await ref.read(mediaLibraryProvider).clearCache();
       ref.invalidate(storageSizesProvider);
       ref.invalidate(storageExtrasProvider);
       messenger.showSnackBar(
         SnackBar(
-          content: Text(l.storageLeftoversDone(_size(result.removedBytes))),
+          content: Text(
+            l.storageLeftoversDone(_size(result.removedBytes + trimmed)),
+          ),
         ),
       );
     } catch (e) {

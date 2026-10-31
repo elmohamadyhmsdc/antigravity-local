@@ -63,6 +63,7 @@ class ScanEngine {
     Future<void> Function(Duration)? delay,
     String Function(ScanProgress)? describe,
     String keepAliveTitle = 'Scanning your photos',
+    this._afterRun,
   }) : _repo = library,
        _clock = clock ?? DateTime.now,
        _delay = delay ?? ((d) => Future<void>.delayed(d)),
@@ -80,6 +81,9 @@ class ScanEngine {
   final GroupingRunner _grouping;
   final ScanKeepAlive _keepAlive;
   final ScanPolicy _policy;
+
+  /// Runs after a scan pass finished (thumbnail cache trim).
+  final Future<void> Function()? _afterRun;
   final DateTime Function() _clock;
   final Future<void> Function(Duration) _delay;
   final String Function(ScanProgress) _describe;
@@ -446,6 +450,11 @@ class ScanEngine {
 
     await groupNow();
     await _media.clearCache();
+    try {
+      await _afterRun?.call();
+    } on Exception {
+      // housekeeping only (thumbnail trim): never fails a finished scan
+    }
     await _settings.setScanActive(false);
     _emit(
       snapshot(

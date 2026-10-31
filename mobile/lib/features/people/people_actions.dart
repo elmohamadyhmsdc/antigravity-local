@@ -492,7 +492,6 @@ Future<void> runFaceAction(
 ) async {
   if (faces.isEmpty || action == 'select') return;
   final repo = ref.read(peopleRepositoryProvider);
-  final files = ref.read(fileStoreProvider);
   final l = AppLocalizations.of(context);
   final ids = faces.map((f) => f.id).toList();
   final f = faces.first;
@@ -564,9 +563,10 @@ Future<void> runFaceAction(
         context.push('${Routes.reface}?face=${f.id}');
         return;
       case 'save':
-        if (f.cropPath == null) throw StateError(l.peopleAction('emptyExport'));
+        final crop = await ref.read(cropCacheProvider).ensure(f.cropPath);
+        if (crop == null) throw StateError(l.peopleAction('emptyExport'));
         await PhotoManager.editor.saveImage(
-          await files.resolve(f.cropPath!).readAsBytes(),
+          await crop.readAsBytes(),
           filename: 'face-${f.id}.jpg',
         );
       case 'export':
@@ -611,7 +611,6 @@ Future<void> exportPeopleFaces(
 ) async {
   final l = AppLocalizations.of(context);
   final repo = ref.read(peopleRepositoryProvider);
-  final files = ref.read(fileStoreProvider);
   final library = ref.read(libraryRepositoryProvider);
   final mode = await showPeopleActionSheet(
     context,
@@ -664,8 +663,8 @@ Future<void> exportPeopleFaces(
     for (final f in faces) {
       details.add(await repo.faceDetails(f.id));
       if (f.cropPath != null) {
-        final crop = files.resolve(f.cropPath!);
-        if (await crop.exists()) {
+        final crop = await ref.read(cropCacheProvider).ensure(f.cropPath);
+        if (crop != null) {
           await archive.addFile(crop, 'faces/${f.id}.jpg');
           count++;
         }

@@ -850,3 +850,30 @@ Storage section, a run on the phone, SDXL/other outstanding items.
 - **Deliberately not done**: no PC-side option (originals are never uploaded); no LoRA/DFL
   folder layout or captions (the zip is flat `faces/` + `bodies/`); no near-duplicate photo
   removal across different photos.
+
+## Face/body thumbnails are a size-capped cache — 2026-10-31
+
+- **User request**: drop stored thumbnails where possible; keep the boxes, let the person's
+  featured photo be chosen any time, and cut thumbnails from the originals when needed.
+- **Change**: `mobile/lib/data/files/crop_cache.dart` (`CropCache`, provider `cropCacheProvider`).
+  `faces/<id>.jpg` / `bodies/<id>.jpg` are now a cache capped at **300 MB**
+  (`defaultCropCacheBytes`). `evict()` deletes least-recently-shown crops first (shown = file
+  mtime, touched once per run), never people's covers (`persons.avatar_face_id`), never
+  `characters/`. Trims run at provider start-up, after every scan pass
+  (`ScanEngine.afterRun`) and from Storage → "Clean up leftovers" (freed bytes added to the
+  message). The DB keeps `crop_path` and every box; nothing in the DB changes.
+- **Regeneration**: `CropImage` shows the file if it exists, otherwise `CropCache.ensure`
+  cuts it again: photos from `MediaLibrary.viewerImage(maxSide: 2048)` (the same upright
+  image the Review viewer draws boxes on), videos from the scan's `AndroidVideoFrames.frames`
+  at the row's `timestamp_ms` (that bridge reopens per asset on its single worker, so a
+  running scan only pays a reopen; `close()` is never called from the cache). Framing matches
+  the PC (`analysis.face_crop` 20% pad, <= 256 px; `body_crop` 6%/4% pad, <= 384 px high),
+  cut with dart:ui and encoded JPEG q85 via flutter_image_compress (`crop_cutter.dart`).
+  At most 2 regenerations at once; same path requested twice decodes once; failures are not
+  retried in the same run. Face "Save" and face export call `ensure` first. Backups contain
+  only crops present at the time; restored libraries regenerate on demand.
+- **Verification (actual)**: `dart analyze` clean; `test/data/crop_cache_test.dart` 9/9;
+  full `flutter test` 567 passed, 8 failed — the same 8 as before this change (People screen
+  overflow at `people_screen.dart:496`, quick-review People entry, background battery test).
+  Log: `mobile/build/crop-cache-tests.log`. `cutCrop` (dart:ui + native JPEG) and the photo
+  orientation match were **not** run on a phone; no APK built.

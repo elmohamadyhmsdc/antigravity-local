@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 
 /// A face or body crop from the phone's private crop store (relative path as kept in the database).
+/// Thumbnails are a cache: one that was evicted is cut again from the original photo or video.
 class CropImage extends ConsumerWidget {
   const CropImage({
     super.key,
@@ -29,12 +33,39 @@ class CropImage extends ConsumerWidget {
     );
     final relative = path;
     if (relative == null || relative.isEmpty) return placeholder;
-    return Image.file(
-      ref.watch(fileStoreProvider).resolve(relative),
+    final File file;
+    try {
+      file = ref.watch(fileStoreProvider).resolve(relative);
+    } on FormatException {
+      return placeholder;
+    }
+    final image = Image.file(
+      file,
       fit: fit,
       cacheWidth: cacheWidth,
       gaplessPlayback: true,
       errorBuilder: (_, _, _) => placeholder,
+    );
+    final cache = ref.watch(cropCacheProvider);
+    if (file.existsSync()) {
+      unawaited(cache.ensure(relative)); // marks it recently shown
+      return image;
+    }
+    return FutureBuilder<File?>(
+      key: ValueKey(relative),
+      future: cache.ensure(relative),
+      builder: (context, snapshot) {
+        if (snapshot.data == null) return placeholder;
+        // a new crop at the same path must not show a stale decoded image
+        return Image.file(
+          snapshot.data!,
+          key: ValueKey('$relative:regenerated'),
+          fit: fit,
+          cacheWidth: cacheWidth,
+          gaplessPlayback: true,
+          errorBuilder: (_, _, _) => placeholder,
+        );
+      },
     );
   }
 }
