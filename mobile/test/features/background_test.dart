@@ -220,11 +220,7 @@ void main() {
           backgroundExecutionProvider.overrideWithValue(service),
           scanProgressProvider.overrideWith(
             (ref) => Stream.value(
-              const ScanProgress(
-                phase: ScanPhase.running,
-                total: 10,
-                done: 2,
-              ),
+              const ScanProgress(phase: ScanPhase.running, total: 10, done: 2),
             ),
           ),
         ],

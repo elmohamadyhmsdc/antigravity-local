@@ -21,6 +21,7 @@ import 'data/repositories/review_repository.dart';
 import 'domain/backup/backup_service.dart';
 import 'domain/grouping/grouping_runner.dart';
 import 'domain/scan/photo_result_store.dart';
+import 'domain/scan/video_compactor.dart';
 import 'domain/scan/scan_engine.dart';
 import 'domain/scan/scan_state.dart';
 import 'domain/scan/video_scan.dart';
@@ -161,6 +162,19 @@ final photoResultStoreProvider = Provider<PhotoResultStore>(
     files: ref.watch(fileStoreProvider),
     index: ref.watch(embeddingIndexProvider),
   ),
+);
+
+final videoCompactorProvider = Provider<VideoCompactor>(
+  (ref) => VideoCompactor(
+    db: ref.watch(databaseProvider),
+    files: ref.watch(fileStoreProvider),
+    index: ref.watch(embeddingIndexProvider),
+  ),
+);
+
+/// Scanned videos that still keep a face/body row per frame (scanned before tracking).
+final videosToCompactProvider = StreamProvider.autoDispose<int>(
+  (ref) => ref.watch(videoCompactorProvider).watchPendingCount(),
 );
 
 final scanEngineProvider = Provider<ScanEngine>((ref) {

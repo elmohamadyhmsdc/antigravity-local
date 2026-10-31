@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
 
@@ -245,11 +246,12 @@ class ReviewRepository {
 
   // ---- reading --------------------------------------------------------------------
 
+  /// A video track is one question: counts, cards and decisions all treat it as a single face.
   Future<ReviewCounts> counts() async {
     final matches =
         (await _db
                 .customSelect(
-                  'SELECT COUNT(*) AS n FROM review_matches m JOIN faces f ON f.id = m.face_id WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)',
+                  "SELECT COUNT(DISTINCT m.person_id || ':' || COALESCE(f.track_id, -f.id)) AS n FROM review_matches m JOIN faces f ON f.id = m.face_id WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)",
                   readsFrom: {_db.reviewMatches, _db.faces, _db.faceRejections},
                 )
                 .getSingle())
@@ -267,7 +269,8 @@ class ReviewRepository {
         (await _db
                 .customSelect(
                   '''
-          SELECT COUNT(*) AS n FROM review_body_links l JOIN bodies b ON b.id = l.body_id
+          SELECT COUNT(DISTINCT l.person_id || ':' || COALESCE(b.track_id, -b.id)) AS n
+          FROM review_body_links l JOIN bodies b ON b.id = l.body_id
           LEFT JOIN faces f ON f.id = b.face_id
           WHERE f.person_id IS NULL AND b.person_id IS NULL
             AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = l.person_id)
@@ -299,7 +302,7 @@ class ReviewRepository {
     final rows = await _db
         .customSelect(
           '''
-          SELECT m.face_id, m.person_id, m.score, m.decision, f.crop_path
+          SELECT m.face_id, m.person_id, m.score, m.decision, f.crop_path, f.track_id
           FROM review_matches m JOIN faces f ON f.id = m.face_id
           WHERE f.person_id IS NULL AND f.review_dismissed = 0
             AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)
@@ -309,7 +312,13 @@ class ReviewRepository {
         )
         .get();
     final byPerson = <int, List<ReviewMatchFace>>{};
+    final shown =
+        <String>{}; // person:track - the best-scoring face stands for its track
     for (final r in rows) {
+      final track = r.readNullable<int>('track_id');
+      if (track != null && !shown.add('${r.read<int>('person_id')}:$track')) {
+        continue;
+      }
       byPerson
           .putIfAbsent(r.read<int>('person_id'), () => [])
           .add(
@@ -351,12 +360,23 @@ class ReviewRepository {
         );
       }
     }
+    final tracks = await _trackOf(faces.keys);
     final out = <ReviewGroupItem>[];
     for (final r in rows) {
-      final list = [
-        for (final id in PeopleRepository.decodeFaceIds(r.faceIds))
-          if (faces[id] != null) faces[id]!,
-      ];
+      final best =
+          <
+            Object,
+            ReviewGroupFace
+          >{}; // track (or the face itself) -> best face
+      for (final id in PeopleRepository.decodeFaceIds(r.faceIds)) {
+        final face = faces[id];
+        if (face == null) continue;
+        final key = tracks[id] ?? 'f$id';
+        if (best[key] == null || face.quality > best[key]!.quality) {
+          best[key] = face;
+        }
+      }
+      final list = best.values.toList();
       if (list.isNotEmpty) {
         out.add(
           ReviewGroupItem(
@@ -420,7 +440,7 @@ class ReviewRepository {
     final rows = await _db
         .customSelect(
           '''
-          SELECT l.body_id, l.person_id, l.method, l.confidence, b.media_id, b.crop_path
+          SELECT l.body_id, l.person_id, l.method, l.confidence, b.media_id, b.crop_path, b.track_id
           FROM review_body_links l JOIN bodies b ON b.id = l.body_id
           LEFT JOIN faces f ON f.id = b.face_id
           WHERE f.person_id IS NULL AND b.person_id IS NULL
@@ -430,9 +450,14 @@ class ReviewRepository {
           readsFrom: {_db.reviewBodyLinks, _db.bodies, _db.faces},
         )
         .get();
+    final shown = <String>{};
     return [
       for (final r in rows)
-        if (people[r.read<int>('person_id')] != null)
+        if (people[r.read<int>('person_id')] != null &&
+            (r.readNullable<int>('track_id') == null ||
+                shown.add(
+                  '${r.read<int>('person_id')}:${r.read<int>('track_id')}',
+                )))
           ReviewBodyLinkItem(
             bodyId: r.read<int>('body_id'),
             mediaId: r.readNullable<int>('media_id'),
@@ -499,11 +524,27 @@ class ReviewRepository {
   // ---- decisions ------------------------------------------------------------------
 
   /// "Add these faces to the person" for a whole Matches card.
-  Future<void> acceptMatches(Iterable<int> faceIds, int personId) =>
-      _people.assignFaces(faceIds, personId);
+  Future<void> acceptMatches(Iterable<int> faceIds, int personId) async =>
+      _people.assignFaces(
+        await expandTracks(faceIds, notRejectedBy: personId),
+        personId,
+      );
 
-  Future<void> rejectMatches(Iterable<int> faceIds, int personId) =>
-      _people.rejectFaces(faceIds, fromPersonId: personId);
+  Future<void> rejectMatches(Iterable<int> faceIds, int personId) async =>
+      _people.rejectFaces(await expandTracks(faceIds), fromPersonId: personId);
+
+  /// A New groups card becomes a person: its faces and the rest of their video tracks.
+  Future<int> createPersonFromGroup({
+    String? name,
+    required Iterable<int> faceIds,
+  }) async =>
+      _people.createPerson(name: name, faceIds: await expandTracks(faceIds));
+
+  Future<void> assignGroup(Iterable<int> faceIds, int personId) async =>
+      _people.assignFaces(
+        await expandTracks(faceIds, notRejectedBy: personId),
+        personId,
+      );
 
   /// "Not a person worth keeping": hides the faces from group suggestions and removes the group.
   Future<void> dismissGroup(int groupId) => _db.transaction(() async {
@@ -511,7 +552,9 @@ class ReviewRepository {
       _db.reviewGroups,
     )..where((g) => g.id.equals(groupId))).getSingleOrNull();
     if (row == null) return;
-    await _people.dismissFaces(PeopleRepository.decodeFaceIds(row.faceIds));
+    await _people.dismissFaces(
+      await expandTracks(PeopleRepository.decodeFaceIds(row.faceIds)),
+    );
     await (_db.delete(
       _db.reviewGroups,
     )..where((g) => g.id.equals(groupId))).go();
@@ -521,8 +564,89 @@ class ReviewRepository {
       (_db.delete(_db.reviewGroups)..where((g) => g.id.equals(groupId))).go();
 
   Future<void> acceptBodyLink(int bodyId, int personId) =>
-      _people.linkBody(bodyId, personId);
+      _db.transaction(() async {
+        for (final id in await _expandBodyTrack(bodyId, personId)) {
+          await _people.linkBody(id, personId);
+        }
+      });
 
   Future<void> rejectBodyLink(int bodyId, int personId) =>
-      _people.rejectBody(bodyId, personId: personId);
+      _db.transaction(() async {
+        for (final id in await _expandBodyTrack(bodyId, null)) {
+          await _people.rejectBody(id, personId: personId);
+        }
+      });
+
+  // ---- video tracks ---------------------------------------------------------------
+
+  /// The faces plus the still unsorted faces of their video tracks (a review card shows one
+  /// face per track, but the answer is about the whole appearance). `notRejectedBy` leaves out
+  /// track faces the user already said are not that person.
+  Future<List<int>> expandTracks(
+    Iterable<int> faceIds, {
+    int? notRejectedBy,
+  }) async {
+    final ids = faceIds.toSet();
+    final tracks = (await _trackOf(ids)).values.toSet().toList();
+    for (var i = 0; i < tracks.length; i += 500) {
+      final chunk = tracks.sublist(i, math.min(i + 500, tracks.length));
+      for (final r
+          in await _db
+              .customSelect(
+                'SELECT id FROM faces WHERE person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id IS ?) AND track_id IN (${List.filled(chunk.length, '?').join(',')}) ORDER BY id',
+                variables: [
+                  Variable<int>(notRejectedBy),
+                  for (final t in chunk) Variable.withInt(t),
+                ],
+                readsFrom: {_db.faces, _db.faceRejections},
+              )
+              .get()) {
+        ids.add(r.read<int>('id'));
+      }
+    }
+    return ids.toList();
+  }
+
+  Future<Map<int, int>> _trackOf(Iterable<int> faceIds) async {
+    final ids = faceIds.toSet().toList();
+    final out = <int, int>{};
+    for (var i = 0; i < ids.length; i += 500) {
+      final chunk = ids.sublist(i, math.min(i + 500, ids.length));
+      for (final r
+          in await _db
+              .customSelect(
+                'SELECT id, track_id FROM faces WHERE track_id IS NOT NULL AND id IN (${List.filled(chunk.length, '?').join(',')})',
+                variables: [for (final id in chunk) Variable.withInt(id)],
+                readsFrom: {_db.faces},
+              )
+              .get()) {
+        out[r.read<int>('id')] = r.read<int>('track_id');
+      }
+    }
+    return out;
+  }
+
+  /// The body plus the unlinked bodies of its video track (minus those already refused for
+  /// `notRejectedBy`).
+  Future<List<int>> _expandBodyTrack(int bodyId, int? notRejectedBy) async => [
+    bodyId,
+    for (final r
+        in await _db
+            .customSelect(
+              '''
+              SELECT o.id FROM bodies b JOIN bodies o ON o.track_id = b.track_id AND o.id != b.id
+              LEFT JOIN faces f ON f.id = o.face_id
+              WHERE b.id = ? AND o.person_id IS NULL AND f.person_id IS NULL
+                AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = o.id AND r.person_id IS ?)
+              ORDER BY o.id
+              ''',
+              variables: [
+                Variable.withInt(bodyId),
+                Variable<int>(notRejectedBy),
+              ],
+              readsFrom: {_db.bodies, _db.faces, _db.bodyRejections},
+            )
+            .get())
+      r.read<int>('id'),
+  ];
 }

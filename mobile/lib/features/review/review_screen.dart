@@ -92,6 +92,7 @@ class ReviewScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
+            const _CompactVideosBanner(),
             const Expanded(
               child: TabBarView(
                 children: [
@@ -103,6 +104,97 @@ class ReviewScreen extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Videos scanned before tracking still have a row per frame: offer to combine them once.
+class _CompactVideosBanner extends ConsumerStatefulWidget {
+  const _CompactVideosBanner();
+
+  @override
+  ConsumerState<_CompactVideosBanner> createState() =>
+      _CompactVideosBannerState();
+}
+
+class _CompactVideosBannerState extends ConsumerState<_CompactVideosBanner> {
+  (int, int)? _progress;
+
+  Future<void> _run() async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _progress = (0, 0));
+    try {
+      final result = await ref
+          .read(videoCompactorProvider)
+          .compactAll(
+            onProgress: (done, total) {
+              if (mounted) setState(() => _progress = (done, total));
+            },
+          );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.compactVideosDone(
+              result.videos,
+              result.facesRemoved,
+              result.bodiesRemoved,
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _progress = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final pending = ref.watch(videosToCompactProvider).value ?? 0;
+    final progress = _progress;
+    if (pending == 0 && progress == null) return const SizedBox.shrink();
+    return Padding(
+      key: const Key('review-compact-videos'),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: progress != null
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.compactVideosRunning(
+                        progress.$1 + 1 > progress.$2
+                            ? progress.$2
+                            : progress.$1 + 1,
+                        progress.$2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: progress.$2 == 0
+                          ? null
+                          : progress.$1 / progress.$2,
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.compactVideosBanner(pending)),
+                    const SizedBox(height: 8),
+                    FilledButton.tonalIcon(
+                      key: const Key('review-compact-videos-run'),
+                      icon: const Icon(Icons.compress),
+                      label: Text(l10n.compactVideosAction),
+                      onPressed: _run,
+                    ),
+                  ],
+                ),
         ),
       ),
     );
@@ -366,10 +458,9 @@ class _GroupsTab extends ConsumerWidget {
               icon: const Icon(Icons.group_add_outlined),
               label: Text(l10n.createAllGroups(items.length)),
               onPressed: () async {
-                final people = ref.read(peopleRepositoryProvider);
                 final review = ref.read(reviewRepositoryProvider);
                 for (final g in items) {
-                  await people.createPerson(
+                  await review.createPersonFromGroup(
                     faceIds: [for (final f in g.faces) f.faceId],
                   );
                   await review.forgetGroup(g.id);
@@ -508,8 +599,11 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
                       ? null
                       : () async {
                           await ref
-                              .read(peopleRepositoryProvider)
-                              .createPerson(name: _name.text, faceIds: ids);
+                              .read(reviewRepositoryProvider)
+                              .createPersonFromGroup(
+                                name: _name.text,
+                                faceIds: ids,
+                              );
                           await ref
                               .read(reviewRepositoryProvider)
                               .forgetGroup(g.id);
@@ -528,8 +622,8 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
                           );
                           if (choice?.personId == null) return;
                           await ref
-                              .read(peopleRepositoryProvider)
-                              .assignFaces(ids, choice!.personId!);
+                              .read(reviewRepositoryProvider)
+                              .assignGroup(ids, choice!.personId!);
                           await ref
                               .read(reviewRepositoryProvider)
                               .forgetGroup(g.id);

@@ -89,6 +89,28 @@ class PlanApplier {
       newPeople++;
       inNew += g.faceIds.length;
     }
+
+    // A video track is one appearance: once some of its faces have a person (and no other
+    // person), the rest follow - unless the user refused that very pair.
+    assigned += await _db.customUpdate(
+      '''
+      WITH owner AS (
+        SELECT track_id, MIN(person_id) AS pid FROM faces
+        WHERE track_id IS NOT NULL AND person_id IS NOT NULL
+        GROUP BY track_id HAVING COUNT(DISTINCT person_id) = 1
+      )
+      UPDATE faces SET person_id = (SELECT pid FROM owner WHERE owner.track_id = faces.track_id)
+      WHERE person_id IS NULL AND review_dismissed = 0
+        AND track_id IN (SELECT track_id FROM owner)
+        AND NOT EXISTS (
+          SELECT 1 FROM face_rejections r JOIN owner o ON o.pid = r.person_id
+          WHERE r.face_id = faces.id AND o.track_id = faces.track_id)
+        AND EXISTS (
+          SELECT 1 FROM persons p JOIN owner o ON o.pid = p.id
+          WHERE o.track_id = faces.track_id AND p.grouping_locked = 0)
+      ''',
+      updates: {_db.faces},
+    );
     return FacePlanResult(
       assigned: assigned,
       newPeople: newPeople,

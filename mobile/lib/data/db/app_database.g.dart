@@ -1689,6 +1689,17 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _trackIdMeta = const VerificationMeta(
+    'trackId',
+  );
+  @override
+  late final GeneratedColumn<int> trackId = GeneratedColumn<int>(
+    'track_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1716,6 +1727,7 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
     reviewDismissed,
     createdAt,
     hidden,
+    trackId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1918,6 +1930,12 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
         hidden.isAcceptableOrUnknown(data['hidden']!, _hiddenMeta),
       );
     }
+    if (data.containsKey('track_id')) {
+      context.handle(
+        _trackIdMeta,
+        trackId.isAcceptableOrUnknown(data['track_id']!, _trackIdMeta),
+      );
+    }
     return context;
   }
 
@@ -2027,6 +2045,10 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
         DriftSqlType.bool,
         data['${effectivePrefix}hidden'],
       )!,
+      trackId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}track_id'],
+      ),
     );
   }
 
@@ -2062,6 +2084,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
   final bool reviewDismissed;
   final int createdAt;
   final bool hidden;
+  final int? trackId;
   const FaceRow({
     required this.id,
     this.mediaId,
@@ -2088,6 +2111,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     required this.reviewDismissed,
     required this.createdAt,
     required this.hidden,
+    this.trackId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2137,6 +2161,9 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     map['review_dismissed'] = Variable<bool>(reviewDismissed);
     map['created_at'] = Variable<int>(createdAt);
     map['hidden'] = Variable<bool>(hidden);
+    if (!nullToAbsent || trackId != null) {
+      map['track_id'] = Variable<int>(trackId);
+    }
     return map;
   }
 
@@ -2181,6 +2208,9 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       reviewDismissed: Value(reviewDismissed),
       createdAt: Value(createdAt),
       hidden: Value(hidden),
+      trackId: trackId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackId),
     );
   }
 
@@ -2215,6 +2245,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       reviewDismissed: serializer.fromJson<bool>(json['reviewDismissed']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       hidden: serializer.fromJson<bool>(json['hidden']),
+      trackId: serializer.fromJson<int?>(json['trackId']),
     );
   }
   @override
@@ -2246,6 +2277,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       'reviewDismissed': serializer.toJson<bool>(reviewDismissed),
       'createdAt': serializer.toJson<int>(createdAt),
       'hidden': serializer.toJson<bool>(hidden),
+      'trackId': serializer.toJson<int?>(trackId),
     };
   }
 
@@ -2275,6 +2307,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     bool? reviewDismissed,
     int? createdAt,
     bool? hidden,
+    Value<int?> trackId = const Value.absent(),
   }) => FaceRow(
     id: id ?? this.id,
     mediaId: mediaId.present ? mediaId.value : this.mediaId,
@@ -2303,6 +2336,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     reviewDismissed: reviewDismissed ?? this.reviewDismissed,
     createdAt: createdAt ?? this.createdAt,
     hidden: hidden ?? this.hidden,
+    trackId: trackId.present ? trackId.value : this.trackId,
   );
   FaceRow copyWithCompanion(FacesCompanion data) {
     return FaceRow(
@@ -2343,6 +2377,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           : this.reviewDismissed,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       hidden: data.hidden.present ? data.hidden.value : this.hidden,
+      trackId: data.trackId.present ? data.trackId.value : this.trackId,
     );
   }
 
@@ -2373,7 +2408,8 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           ..write('cropPath: $cropPath, ')
           ..write('reviewDismissed: $reviewDismissed, ')
           ..write('createdAt: $createdAt, ')
-          ..write('hidden: $hidden')
+          ..write('hidden: $hidden, ')
+          ..write('trackId: $trackId')
           ..write(')'))
         .toString();
   }
@@ -2405,6 +2441,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     reviewDismissed,
     createdAt,
     hidden,
+    trackId,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -2434,7 +2471,8 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           other.cropPath == this.cropPath &&
           other.reviewDismissed == this.reviewDismissed &&
           other.createdAt == this.createdAt &&
-          other.hidden == this.hidden);
+          other.hidden == this.hidden &&
+          other.trackId == this.trackId);
 }
 
 class FacesCompanion extends UpdateCompanion<FaceRow> {
@@ -2463,6 +2501,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
   final Value<bool> reviewDismissed;
   final Value<int> createdAt;
   final Value<bool> hidden;
+  final Value<int?> trackId;
   const FacesCompanion({
     this.id = const Value.absent(),
     this.mediaId = const Value.absent(),
@@ -2489,6 +2528,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     this.reviewDismissed = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.hidden = const Value.absent(),
+    this.trackId = const Value.absent(),
   });
   FacesCompanion.insert({
     this.id = const Value.absent(),
@@ -2516,6 +2556,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     this.reviewDismissed = const Value.absent(),
     required int createdAt,
     this.hidden = const Value.absent(),
+    this.trackId = const Value.absent(),
   }) : modelId = Value(modelId),
        embedding = Value(embedding),
        qualityScore = Value(qualityScore),
@@ -2554,6 +2595,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     Expression<bool>? reviewDismissed,
     Expression<int>? createdAt,
     Expression<bool>? hidden,
+    Expression<int>? trackId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2581,6 +2623,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
       if (reviewDismissed != null) 'review_dismissed': reviewDismissed,
       if (createdAt != null) 'created_at': createdAt,
       if (hidden != null) 'hidden': hidden,
+      if (trackId != null) 'track_id': trackId,
     });
   }
 
@@ -2610,6 +2653,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     Value<bool>? reviewDismissed,
     Value<int>? createdAt,
     Value<bool>? hidden,
+    Value<int?>? trackId,
   }) {
     return FacesCompanion(
       id: id ?? this.id,
@@ -2637,6 +2681,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
       reviewDismissed: reviewDismissed ?? this.reviewDismissed,
       createdAt: createdAt ?? this.createdAt,
       hidden: hidden ?? this.hidden,
+      trackId: trackId ?? this.trackId,
     );
   }
 
@@ -2718,6 +2763,9 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     if (hidden.present) {
       map['hidden'] = Variable<bool>(hidden.value);
     }
+    if (trackId.present) {
+      map['track_id'] = Variable<int>(trackId.value);
+    }
     return map;
   }
 
@@ -2748,7 +2796,8 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
           ..write('cropPath: $cropPath, ')
           ..write('reviewDismissed: $reviewDismissed, ')
           ..write('createdAt: $createdAt, ')
-          ..write('hidden: $hidden')
+          ..write('hidden: $hidden, ')
+          ..write('trackId: $trackId')
           ..write(')'))
         .toString();
   }
@@ -3339,6 +3388,17 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _trackIdMeta = const VerificationMeta(
+    'trackId',
+  );
+  @override
+  late final GeneratedColumn<int> trackId = GeneratedColumn<int>(
+    'track_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3361,6 +3421,7 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
     timestampMs,
     cropPath,
     createdAt,
+    trackId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3518,6 +3579,12 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('track_id')) {
+      context.handle(
+        _trackIdMeta,
+        trackId.isAcceptableOrUnknown(data['track_id']!, _trackIdMeta),
+      );
+    }
     return context;
   }
 
@@ -3607,6 +3674,10 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
       )!,
+      trackId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}track_id'],
+      ),
     );
   }
 
@@ -3637,6 +3708,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
   final int? timestampMs;
   final String? cropPath;
   final int createdAt;
+  final int? trackId;
   const BodyRow({
     required this.id,
     this.mediaId,
@@ -3658,6 +3730,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     this.timestampMs,
     this.cropPath,
     required this.createdAt,
+    this.trackId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3708,6 +3781,9 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       map['crop_path'] = Variable<String>(cropPath);
     }
     map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || trackId != null) {
+      map['track_id'] = Variable<int>(trackId);
+    }
     return map;
   }
 
@@ -3757,6 +3833,9 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           ? const Value.absent()
           : Value(cropPath),
       createdAt: Value(createdAt),
+      trackId: trackId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackId),
     );
   }
 
@@ -3788,6 +3867,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       timestampMs: serializer.fromJson<int?>(json['timestampMs']),
       cropPath: serializer.fromJson<String?>(json['cropPath']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
+      trackId: serializer.fromJson<int?>(json['trackId']),
     );
   }
   @override
@@ -3814,6 +3894,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       'timestampMs': serializer.toJson<int?>(timestampMs),
       'cropPath': serializer.toJson<String?>(cropPath),
       'createdAt': serializer.toJson<int>(createdAt),
+      'trackId': serializer.toJson<int?>(trackId),
     };
   }
 
@@ -3838,6 +3919,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     Value<int?> timestampMs = const Value.absent(),
     Value<String?> cropPath = const Value.absent(),
     int? createdAt,
+    Value<int?> trackId = const Value.absent(),
   }) => BodyRow(
     id: id ?? this.id,
     mediaId: mediaId.present ? mediaId.value : this.mediaId,
@@ -3865,6 +3947,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     timestampMs: timestampMs.present ? timestampMs.value : this.timestampMs,
     cropPath: cropPath.present ? cropPath.value : this.cropPath,
     createdAt: createdAt ?? this.createdAt,
+    trackId: trackId.present ? trackId.value : this.trackId,
   );
   BodyRow copyWithCompanion(BodiesCompanion data) {
     return BodyRow(
@@ -3902,6 +3985,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           : this.timestampMs,
       cropPath: data.cropPath.present ? data.cropPath.value : this.cropPath,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      trackId: data.trackId.present ? data.trackId.value : this.trackId,
     );
   }
 
@@ -3927,13 +4011,14 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           ..write('frameNumber: $frameNumber, ')
           ..write('timestampMs: $timestampMs, ')
           ..write('cropPath: $cropPath, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('trackId: $trackId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     mediaId,
     faceId,
@@ -3954,7 +4039,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     timestampMs,
     cropPath,
     createdAt,
-  );
+    trackId,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3981,7 +4067,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           other.frameNumber == this.frameNumber &&
           other.timestampMs == this.timestampMs &&
           other.cropPath == this.cropPath &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.trackId == this.trackId);
 }
 
 class BodiesCompanion extends UpdateCompanion<BodyRow> {
@@ -4005,6 +4092,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
   final Value<int?> timestampMs;
   final Value<String?> cropPath;
   final Value<int> createdAt;
+  final Value<int?> trackId;
   const BodiesCompanion({
     this.id = const Value.absent(),
     this.mediaId = const Value.absent(),
@@ -4026,6 +4114,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     this.timestampMs = const Value.absent(),
     this.cropPath = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.trackId = const Value.absent(),
   });
   BodiesCompanion.insert({
     this.id = const Value.absent(),
@@ -4048,6 +4137,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     this.timestampMs = const Value.absent(),
     this.cropPath = const Value.absent(),
     required int createdAt,
+    this.trackId = const Value.absent(),
   }) : bboxX = Value(bboxX),
        bboxY = Value(bboxY),
        bboxW = Value(bboxW),
@@ -4075,6 +4165,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     Expression<int>? timestampMs,
     Expression<String>? cropPath,
     Expression<int>? createdAt,
+    Expression<int>? trackId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4097,6 +4188,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
       if (timestampMs != null) 'timestamp_ms': timestampMs,
       if (cropPath != null) 'crop_path': cropPath,
       if (createdAt != null) 'created_at': createdAt,
+      if (trackId != null) 'track_id': trackId,
     });
   }
 
@@ -4121,6 +4213,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     Value<int?>? timestampMs,
     Value<String?>? cropPath,
     Value<int>? createdAt,
+    Value<int?>? trackId,
   }) {
     return BodiesCompanion(
       id: id ?? this.id,
@@ -4143,6 +4236,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
       timestampMs: timestampMs ?? this.timestampMs,
       cropPath: cropPath ?? this.cropPath,
       createdAt: createdAt ?? this.createdAt,
+      trackId: trackId ?? this.trackId,
     );
   }
 
@@ -4209,6 +4303,9 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
+    if (trackId.present) {
+      map['track_id'] = Variable<int>(trackId.value);
+    }
     return map;
   }
 
@@ -4234,7 +4331,8 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
           ..write('frameNumber: $frameNumber, ')
           ..write('timestampMs: $timestampMs, ')
           ..write('cropPath: $cropPath, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('trackId: $trackId')
           ..write(')'))
         .toString();
   }
@@ -13442,6 +13540,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'faces_media_id',
     'CREATE INDEX faces_media_id ON faces (media_id)',
   );
+  late final Index facesTrackId = Index(
+    'faces_track_id',
+    'CREATE INDEX faces_track_id ON faces (track_id)',
+  );
   late final Index faceSuppressionsAsset = Index(
     'face_suppressions_asset',
     'CREATE INDEX face_suppressions_asset ON face_suppressions (asset_id)',
@@ -13457,6 +13559,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index bodiesFaceId = Index(
     'bodies_face_id',
     'CREATE INDEX bodies_face_id ON bodies (face_id)',
+  );
+  late final Index bodiesTrackId = Index(
+    'bodies_track_id',
+    'CREATE INDEX bodies_track_id ON bodies (track_id)',
   );
   late final Index faceRejectionsPersonId = Index(
     'face_rejections_person_id',
@@ -13522,10 +13628,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     mediaScanStatus,
     facesPersonId,
     facesMediaId,
+    facesTrackId,
     faceSuppressionsAsset,
     bodiesMediaId,
     bodiesPersonId,
     bodiesFaceId,
+    bodiesTrackId,
     faceRejectionsPersonId,
     mediaDetectionsMediaId,
     mediaDetectionsRef,
@@ -16238,6 +16346,7 @@ typedef $$FacesTableCreateCompanionBuilder =
       Value<bool> reviewDismissed,
       required int createdAt,
       Value<bool> hidden,
+      Value<int?> trackId,
     });
 typedef $$FacesTableUpdateCompanionBuilder =
     FacesCompanion Function({
@@ -16266,6 +16375,7 @@ typedef $$FacesTableUpdateCompanionBuilder =
       Value<bool> reviewDismissed,
       Value<int> createdAt,
       Value<bool> hidden,
+      Value<int?> trackId,
     });
 
 final class $$FacesTableReferences
@@ -16502,6 +16612,11 @@ class $$FacesTableFilterComposer extends Composer<_$AppDatabase, $FacesTable> {
 
   ColumnFilters<bool> get hidden => $composableBuilder(
     column: $table.hidden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get trackId => $composableBuilder(
+    column: $table.trackId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16776,6 +16891,11 @@ class $$FacesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get trackId => $composableBuilder(
+    column: $table.trackId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MediaTableOrderingComposer get mediaId {
     final $$MediaTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -16912,6 +17032,9 @@ class $$FacesTableAnnotationComposer
 
   GeneratedColumn<bool> get hidden =>
       $composableBuilder(column: $table.hidden, builder: (column) => column);
+
+  GeneratedColumn<int> get trackId =>
+      $composableBuilder(column: $table.trackId, builder: (column) => column);
 
   $$MediaTableAnnotationComposer get mediaId {
     final $$MediaTableAnnotationComposer composer = $composerBuilder(
@@ -17120,6 +17243,7 @@ class $$FacesTableTableManager
                 Value<bool> reviewDismissed = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<bool> hidden = const Value.absent(),
+                Value<int?> trackId = const Value.absent(),
               }) => FacesCompanion(
                 id: id,
                 mediaId: mediaId,
@@ -17146,6 +17270,7 @@ class $$FacesTableTableManager
                 reviewDismissed: reviewDismissed,
                 createdAt: createdAt,
                 hidden: hidden,
+                trackId: trackId,
               ),
           createCompanionCallback:
               ({
@@ -17174,6 +17299,7 @@ class $$FacesTableTableManager
                 Value<bool> reviewDismissed = const Value.absent(),
                 required int createdAt,
                 Value<bool> hidden = const Value.absent(),
+                Value<int?> trackId = const Value.absent(),
               }) => FacesCompanion.insert(
                 id: id,
                 mediaId: mediaId,
@@ -17200,6 +17326,7 @@ class $$FacesTableTableManager
                 reviewDismissed: reviewDismissed,
                 createdAt: createdAt,
                 hidden: hidden,
+                trackId: trackId,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -17621,6 +17748,7 @@ typedef $$BodiesTableCreateCompanionBuilder =
       Value<int?> timestampMs,
       Value<String?> cropPath,
       required int createdAt,
+      Value<int?> trackId,
     });
 typedef $$BodiesTableUpdateCompanionBuilder =
     BodiesCompanion Function({
@@ -17644,6 +17772,7 @@ typedef $$BodiesTableUpdateCompanionBuilder =
       Value<int?> timestampMs,
       Value<String?> cropPath,
       Value<int> createdAt,
+      Value<int?> trackId,
     });
 
 final class $$BodiesTableReferences
@@ -17831,6 +17960,11 @@ class $$BodiesTableFilterComposer
 
   ColumnFilters<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get trackId => $composableBuilder(
+    column: $table.trackId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18048,6 +18182,11 @@ class $$BodiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get trackId => $composableBuilder(
+    column: $table.trackId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MediaTableOrderingComposer get mediaId {
     final $$MediaTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -18191,6 +18330,9 @@ class $$BodiesTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get trackId =>
+      $composableBuilder(column: $table.trackId, builder: (column) => column);
 
   $$MediaTableAnnotationComposer get mediaId {
     final $$MediaTableAnnotationComposer composer = $composerBuilder(
@@ -18366,6 +18508,7 @@ class $$BodiesTableTableManager
                 Value<int?> timestampMs = const Value.absent(),
                 Value<String?> cropPath = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
+                Value<int?> trackId = const Value.absent(),
               }) => BodiesCompanion(
                 id: id,
                 mediaId: mediaId,
@@ -18387,6 +18530,7 @@ class $$BodiesTableTableManager
                 timestampMs: timestampMs,
                 cropPath: cropPath,
                 createdAt: createdAt,
+                trackId: trackId,
               ),
           createCompanionCallback:
               ({
@@ -18410,6 +18554,7 @@ class $$BodiesTableTableManager
                 Value<int?> timestampMs = const Value.absent(),
                 Value<String?> cropPath = const Value.absent(),
                 required int createdAt,
+                Value<int?> trackId = const Value.absent(),
               }) => BodiesCompanion.insert(
                 id: id,
                 mediaId: mediaId,
@@ -18431,6 +18576,7 @@ class $$BodiesTableTableManager
                 timestampMs: timestampMs,
                 cropPath: cropPath,
                 createdAt: createdAt,
+                trackId: trackId,
               ),
           withReferenceMapper: (p0) => p0
               .map(

@@ -150,17 +150,23 @@ void main() {
     expect(called, isFalse);
   });
 
-  test('checkServer falls back to health when capabilities times out under load', () async {
-    final api = _CapabilitiesTimeoutApi();
-    final status = await checkServer(api, lastKnown: api.capabilities_);
-    expect(status, isA<ServerReady>());
-  });
+  test(
+    'checkServer falls back to health when capabilities times out under load',
+    () async {
+      final api = _CapabilitiesTimeoutApi();
+      final status = await checkServer(api, lastKnown: api.capabilities_);
+      expect(status, isA<ServerReady>());
+    },
+  );
 
-  test('checkServer returns offline if both capabilities and health fail', () async {
-    final api = _CompletelyDeadApi();
-    final status = await checkServer(api, lastKnown: api.capabilities_);
-    expect(status, isA<ServerOffline>());
-  });
+  test(
+    'checkServer returns offline if both capabilities and health fail',
+    () async {
+      final api = _CompletelyDeadApi();
+      final status = await checkServer(api, lastKnown: api.capabilities_);
+      expect(status, isA<ServerOffline>());
+    },
+  );
 }
 
 class _CapabilitiesTimeoutApi extends FakeMobileApi {

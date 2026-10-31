@@ -1495,6 +1495,40 @@
   "storageTemporary": "Temporary files",
   "storageOriginalsHint": "Your original photos and videos stay in the device gallery.",
   "reviewIntro": "Open a photo to inspect the highlighted face or body, then decide who it belongs to.",
+  "compactVideosBanner": "{count, plural, =1{1 video still keeps a face for every frame.} other{{count} videos still keep a face for every frame.}} Combine each appearance into one review item and free the space of the repeated crops.",
+  "@compactVideosBanner": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "compactVideosAction": "Combine frames",
+  "compactVideosRunning": "Combining video {done} of {total}…",
+  "@compactVideosRunning": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "compactVideosDone": "Combined {videos} videos: {faces} repeated faces and {bodies} repeated bodies removed. Every frame is still recorded.",
+  "@compactVideosDone": {
+    "placeholders": {
+      "videos": {
+        "type": "int"
+      },
+      "faces": {
+        "type": "int"
+      },
+      "bodies": {
+        "type": "int"
+      }
+    }
+  },
   "permissionsHeadline": "Make it work for you",
   "manualHeadline": "Connect by address",
   "connectionHeadline": "Find your PC",

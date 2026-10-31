@@ -172,9 +172,9 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
       _run(q, () async {
         final ids = [for (final f in q.group!.faces) f.faceId];
         if (person != null) {
-          await _people.assignFaces(ids, person.id);
+          await _review.assignGroup(ids, person.id);
         } else {
-          await _people.createPerson(name: name, faceIds: ids);
+          await _review.createPersonFromGroup(name: name, faceIds: ids);
         }
         await _review.forgetGroup(q.group!.id);
         return true;

@@ -2861,6 +2861,30 @@ class AppLocalizationsEn extends AppLocalizations {
       'Open a photo to inspect the highlighted face or body, then decide who it belongs to.';
 
   @override
+  String compactVideosBanner(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count videos still keep a face for every frame.',
+      one: '1 video still keeps a face for every frame.',
+    );
+    return '$_temp0 Combine each appearance into one review item and free the space of the repeated crops.';
+  }
+
+  @override
+  String get compactVideosAction => 'Combine frames';
+
+  @override
+  String compactVideosRunning(int done, int total) {
+    return 'Combining video $done of $total…';
+  }
+
+  @override
+  String compactVideosDone(int videos, int faces, int bodies) {
+    return 'Combined $videos videos: $faces repeated faces and $bodies repeated bodies removed. Every frame is still recorded.';
+  }
+
+  @override
   String get permissionsHeadline => 'Make it work for you';
 
   @override

@@ -52,7 +52,8 @@ class ScanProgressCard extends ConsumerWidget {
 
     final processed = progress.done + progress.failed;
     final bgStatus = ref.watch(backgroundStatusProvider).value;
-    final showBatteryNotice = bgStatus != null &&
+    final showBatteryNotice =
+        bgStatus != null &&
         bgStatus.supported &&
         !bgStatus.unrestricted &&
         (progress.phase == ScanPhase.running ||
@@ -232,12 +233,19 @@ class ScanProgressCard extends ConsumerWidget {
                 child: InkWell(
                   key: const Key('scan-battery-warning'),
                   onTap: () async {
-                    await prepareBackgroundForWork(context, ref, forcePrompt: true);
+                    await prepareBackgroundForWork(
+                      context,
+                      ref,
+                      forcePrompt: true,
+                    );
                     ref.invalidate(backgroundStatusProvider);
                   },
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: scheme.errorContainer.withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(8),

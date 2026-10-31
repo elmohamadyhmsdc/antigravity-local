@@ -79,7 +79,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 11;
+  static const currentSchemaVersion = 12;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -146,22 +146,22 @@ class AppDatabase extends _$AppDatabase {
         await m.createIndex(characterSamplesIdentity);
         await m.createIndex(characterSamplesMedia);
       }
-      if (from < 9) {
-        // Also tolerate imports/tests whose table already has newer columns.
-        Future<void> addMissing(
-          TableInfo<Table, dynamic> table,
-          List<GeneratedColumn<Object>> columns,
-        ) async {
-          final existing = (await customSelect(
-            'PRAGMA table_info(${table.actualTableName})',
-          ).get()).map((r) => r.read<String>('name')).toSet();
-          for (final column in columns) {
-            if (!existing.contains(column.name)) {
-              await m.addColumn(table, column);
-            }
+      // Also tolerate imports/tests whose table already has newer columns.
+      Future<void> addMissing(
+        TableInfo<Table, dynamic> table,
+        List<GeneratedColumn<Object>> columns,
+      ) async {
+        final existing = (await customSelect(
+          'PRAGMA table_info(${table.actualTableName})',
+        ).get()).map((r) => r.read<String>('name')).toSet();
+        for (final column in columns) {
+          if (!existing.contains(column.name)) {
+            await m.addColumn(table, column);
           }
         }
+      }
 
+      if (from < 9) {
         await addMissing(persons, [
           persons.hidden,
           persons.favorite,
@@ -208,6 +208,17 @@ class AppDatabase extends _$AppDatabase {
         await customStatement('DELETE FROM character_identities');
         await customStatement(
           "DELETE FROM settings WHERE key = 'scan.characters'",
+        );
+      }
+      if (from < 12) {
+        // Existing video frames stay as they are until the library is compacted.
+        await addMissing(faces, [faces.trackId]);
+        await addMissing(bodies, [bodies.trackId]);
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS faces_track_id ON faces (track_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS bodies_track_id ON bodies (track_id)',
         );
       }
     },

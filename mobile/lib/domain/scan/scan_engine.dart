@@ -22,7 +22,8 @@ class ScanPolicy {
   const ScanPolicy({
     this.busyRetries =
         20, // x Retry-After (15 s) = about 5 minutes of a busy GPU
-    this.offlineRetries = 10, // 3 s, 6 s, 12 s, 24 s, then 30 s (~3.5 min resilience for Wi-Fi drops)
+    this.offlineRetries =
+        10, // 3 s, 6 s, 12 s, 24 s, then 30 s (~3.5 min resilience for Wi-Fi drops)
     this.serverErrorRetries = 2,
     this.defaultBusyWait = const Duration(seconds: 15),
     this.cacheClearEvery = 40,

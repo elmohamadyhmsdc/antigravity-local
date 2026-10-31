@@ -4624,6 +4624,30 @@ abstract class AppLocalizations {
   /// **'Open a photo to inspect the highlighted face or body, then decide who it belongs to.'**
   String get reviewIntro;
 
+  /// No description provided for @compactVideosBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 video still keeps a face for every frame.} other{{count} videos still keep a face for every frame.}} Combine each appearance into one review item and free the space of the repeated crops.'**
+  String compactVideosBanner(int count);
+
+  /// No description provided for @compactVideosAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Combine frames'**
+  String get compactVideosAction;
+
+  /// No description provided for @compactVideosRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Combining video {done} of {total}…'**
+  String compactVideosRunning(int done, int total);
+
+  /// No description provided for @compactVideosDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Combined {videos} videos: {faces} repeated faces and {bodies} repeated bodies removed. Every frame is still recorded.'**
+  String compactVideosDone(int videos, int faces, int bodies);
+
   /// No description provided for @permissionsHeadline.
   ///
   /// In en, this message translates to:

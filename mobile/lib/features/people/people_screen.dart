@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -245,7 +246,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: Row(
                     children: [
                       for (final filter in [
@@ -258,12 +259,30 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
                             key: Key('people-filter-$filter'),
+                            avatar: switch (filter) {
+                              'favorites' => const Icon(
+                                Icons.star_rounded,
+                                size: 16,
+                              ),
+                              'pinned' => const Icon(
+                                Icons.push_pin_rounded,
+                                size: 16,
+                              ),
+                              'hidden' => const Icon(
+                                Icons.visibility_off_rounded,
+                                size: 16,
+                              ),
+                              _ => null,
+                            },
                             label: Text(l10n.peopleAction(filter)),
                             selected: _filter == filter,
                             onSelected: (_) => setState(() {
                               _filter = filter;
                               _selected.clear();
                             }),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
                           ),
                         ),
                     ],
@@ -271,22 +290,45 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
                 child: TextField(
                   key: const Key('people-search'),
                   controller: _search,
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search),
+                    prefixIcon: const Icon(Icons.search_rounded),
                     suffixIcon: _query.isEmpty
                         ? null
                         : IconButton(
                             key: const Key('people-clear-search'),
                             tooltip: l10n.clearSearch,
                             onPressed: _clearSearch,
-                            icon: const Icon(Icons.close),
+                            icon: const Icon(Icons.close_rounded),
                           ),
                     hintText: l10n.searchPeopleHint,
-                    border: const OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.45),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 1.5,
+                      ),
+                    ),
                     isDense: true,
                   ),
                   onChanged: (v) => setState(() => _query = v),
@@ -304,35 +346,73 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                         actionLabel: q.isNotEmpty ? l10n.clearSearch : null,
                         onAction: q.isNotEmpty ? _clearSearch : null,
                       )
-                    : GridView(
-                        key: const Key('people-grid'),
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-                        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 220,
-                          mainAxisExtent:
-                              190.0 +
-                              (MediaQuery.textScalerOf(context).scale(14) - 14)
-                                      .clamp(0.0, 42.0)
-                                      .toDouble() *
-                                  3.0,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
-                        ),
-                        children: [
-                          if (unsorted > 0 &&
-                              q.isEmpty &&
-                              _filter == 'all' &&
-                              !_selecting)
-                            _UnsortedCard(count: unsorted),
-                          for (final p in shown)
-                            _PersonCard(
-                              person: p,
-                              selecting: _selecting,
-                              selected: _selected.contains(p.id),
-                              onToggle: () => _toggle(p.id),
-                              onMenu: () => _menu([p]),
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final width = constraints.maxWidth;
+                          // Responsive column count: 3 on normal phones (< 480dp width),
+                          // 4 on wider screens / landscape (480dp - 720dp),
+                          // 5+ on tablets / desktop (>= 720dp).
+                          final crossAxisCount = width < 480
+                              ? 3
+                              : width < 720
+                              ? 4
+                              : (width / 140).floor().clamp(4, 8);
+                          const crossAxisSpacing = 8.0;
+                          const mainAxisSpacing = 10.0;
+                          const horizontalPadding = 12.0;
+
+                          final totalSpacing =
+                              (crossAxisCount - 1) * crossAxisSpacing;
+                          final cardWidth =
+                              (width - (horizontalPadding * 2) - totalSpacing) /
+                              crossAxisCount;
+                          final avatarRadius = (cardWidth * 0.28).clamp(
+                            30.0,
+                            42.0,
+                          );
+
+                          final textScaler = MediaQuery.textScalerOf(context);
+                          final textScaleDelta = (textScaler.scale(14) - 14)
+                              .clamp(0.0, 30.0);
+                          final mainAxisExtent =
+                              60.0 + (avatarRadius * 2) + textScaleDelta * 2.5;
+
+                          return GridView(
+                            key: const Key('people-grid'),
+                            padding: const EdgeInsets.fromLTRB(
+                              horizontalPadding,
+                              2,
+                              horizontalPadding,
+                              24,
                             ),
-                        ],
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
+                                  crossAxisSpacing: crossAxisSpacing,
+                                  mainAxisSpacing: mainAxisSpacing,
+                                  mainAxisExtent: mainAxisExtent,
+                                ),
+                            children: [
+                              if (unsorted > 0 &&
+                                  q.isEmpty &&
+                                  _filter == 'all' &&
+                                  !_selecting)
+                                _UnsortedCard(
+                                  count: unsorted,
+                                  avatarRadius: avatarRadius,
+                                ),
+                              for (final p in shown)
+                                _PersonCard(
+                                  person: p,
+                                  selecting: _selecting,
+                                  selected: _selected.contains(p.id),
+                                  onToggle: () => _toggle(p.id),
+                                  onMenu: () => _menu([p]),
+                                  avatarRadius: avatarRadius,
+                                ),
+                            ],
+                          );
+                        },
                       ),
               ),
             ],
@@ -350,94 +430,216 @@ class _PersonCard extends StatelessWidget {
     required this.selected,
     required this.onToggle,
     required this.onMenu,
+    this.avatarRadius = 34,
   });
 
   final PersonSummary person;
   final bool selecting, selected;
   final VoidCallback onToggle, onMenu;
+  final double avatarRadius;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final text = Theme.of(context).textTheme;
-    return InkWell(
-      key: Key('person-${person.id}'),
-      borderRadius: BorderRadius.circular(12),
-      onTap: selecting
-          ? onToggle
-          : () => context.push('${Routes.people}/${person.id}'),
-      onLongPress: selecting ? onToggle : onMenu,
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              height: 96,
-              width: double.infinity,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  PersonAvatar(cropPath: person.avatarCropPath, radius: 46),
-                  if (selecting)
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      child: Icon(
-                        selected
-                            ? Icons.check_circle
-                            : Icons.radio_button_unchecked,
-                        color: Theme.of(context).colorScheme.primary,
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final text = theme.textTheme;
+
+    final isSelected = selecting && selected;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key('person-${person.id}'),
+        borderRadius: BorderRadius.circular(16),
+        onTap: selecting
+            ? onToggle
+            : () => context.push('${Routes.people}/${person.id}'),
+        onLongPress: () {
+          HapticFeedback.selectionClick();
+          if (selecting) {
+            onToggle();
+          } else {
+            onMenu();
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? scheme.primaryContainer.withValues(alpha: 0.35)
+                : scheme.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected
+                  ? scheme.primary
+                  : scheme.outlineVariant.withValues(alpha: 0.35),
+              width: isSelected ? 1.5 : 1.0,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: scheme.primary.withValues(alpha: 0.15),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                height: avatarRadius * 2 + 4,
+                width: avatarRadius * 2 + 4,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: PersonAvatar(
+                        cropPath: person.avatarCropPath,
+                        radius: avatarRadius,
                       ),
                     ),
-                  if (!selecting)
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Tooltip(
-                        message: l10n.peopleAction('more'),
-                        triggerMode: TooltipTriggerMode.manual,
-                        child: GestureDetector(
-                          onLongPress: onMenu,
-                          child: IconButton(
-                            key: Key('person-menu-${person.id}'),
-                            onPressed: onMenu,
-                            icon: const Icon(Icons.more_vert),
+                    if (selecting)
+                      Positioned(
+                        top: -2,
+                        right: -2,
+                        child: AnimatedScale(
+                          scale: 1.0,
+                          duration: const Duration(milliseconds: 150),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: scheme.surface,
+                            ),
+                            child: Icon(
+                              selected
+                                  ? Icons.check_circle_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              size: 22,
+                              color: selected ? scheme.primary : scheme.outline,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  if (person.pinned ||
-                      person.favorite ||
-                      person.hidden ||
-                      person.groupingLocked)
-                    Positioned(
-                      bottom: 0,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (person.pinned)
-                            const Icon(Icons.push_pin, size: 16),
-                          if (person.favorite) const Icon(Icons.star, size: 16),
-                          if (person.hidden)
-                            const Icon(Icons.visibility_off, size: 16),
-                          if (person.groupingLocked)
-                            const Icon(Icons.lock, size: 16),
-                        ],
+                    if (person.pinned ||
+                        person.favorite ||
+                        person.hidden ||
+                        person.groupingLocked)
+                      Positioned(
+                        bottom: -3,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.surfaceContainerHighest.withValues(
+                              alpha: 0.95,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: scheme.surface,
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 3,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (person.favorite) ...[
+                                Icon(
+                                  Icons.star_rounded,
+                                  size: 12,
+                                  color: Colors.amber.shade700,
+                                ),
+                                if (person.pinned ||
+                                    person.hidden ||
+                                    person.groupingLocked)
+                                  const SizedBox(width: 2),
+                              ],
+                              if (person.pinned) ...[
+                                Icon(
+                                  Icons.push_pin_rounded,
+                                  size: 11,
+                                  color: scheme.primary,
+                                ),
+                                if (person.hidden || person.groupingLocked)
+                                  const SizedBox(width: 2),
+                              ],
+                              if (person.hidden) ...[
+                                Icon(
+                                  Icons.visibility_off_rounded,
+                                  size: 11,
+                                  color: scheme.outline,
+                                ),
+                                if (person.groupingLocked)
+                                  const SizedBox(width: 2),
+                              ],
+                              if (person.groupingLocked)
+                                Icon(
+                                  Icons.lock_rounded,
+                                  size: 11,
+                                  color: scheme.secondary,
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              personName(l10n, person),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: text.titleSmall,
-            ),
-            Text(l10n.facesCount(person.faceCount), style: text.bodySmall),
-          ],
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Text(
+                  personName(l10n, person),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Text(
+                  l10n.facesCount(person.faceCount),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: text.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -445,37 +647,91 @@ class _PersonCard extends StatelessWidget {
 }
 
 class _UnsortedCard extends StatelessWidget {
-  const _UnsortedCard({required this.count});
+  const _UnsortedCard({required this.count, this.avatarRadius = 34});
 
   final int count;
+  final double avatarRadius;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    return InkWell(
-      key: const Key('unsorted-card'),
-      borderRadius: BorderRadius.circular(12),
-      onTap: () => context.push(Routes.unsorted),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 46,
-              backgroundColor: scheme.tertiaryContainer,
-              child: Icon(
-                Icons.help_outline,
-                size: 34,
-                color: scheme.onTertiaryContainer,
-              ),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final text = theme.textTheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: const Key('unsorted-card'),
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => context.push(Routes.unsorted),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: scheme.outlineVariant.withValues(alpha: 0.35),
+              width: 1.0,
             ),
-            const SizedBox(height: 8),
-            Text(l10n.unsortedCardTitle, style: text.titleSmall),
-            Text(l10n.facesCount(count), style: text.bodySmall),
-          ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: avatarRadius * 2,
+                height: avatarRadius * 2,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: scheme.tertiaryContainer,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.help_outline_rounded,
+                  size: avatarRadius * 0.85,
+                  color: scheme.onTertiaryContainer,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Text(
+                  l10n.unsortedCardTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Text(
+                  l10n.facesCount(count),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: text.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

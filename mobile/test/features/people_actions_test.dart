@@ -39,7 +39,7 @@ void main() {
       await tester.tap(find.byKey(const Key('people-filter-hidden')));
       await tester.pumpAndSettle();
       expect(find.byKey(Key('person-$id')), findsOneWidget);
-      await tester.tap(find.byKey(Key('person-menu-$id')));
+      await tester.longPress(find.byKey(Key('person-$id')));
       await tester.pumpAndSettle();
       await action(tester, 'show');
       expect(

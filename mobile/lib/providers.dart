@@ -175,7 +175,10 @@ class ServerRevoked extends ServerStatus {
 
 const statusPollInterval = Duration(seconds: 15);
 
-Future<ServerStatus> checkServer(MobileApi api, {Capabilities? lastKnown}) async {
+Future<ServerStatus> checkServer(
+  MobileApi api, {
+  Capabilities? lastKnown,
+}) async {
   try {
     final caps = await api.capabilities();
     return caps.isBusy ? ServerBusy(caps) : ServerReady(caps);
@@ -185,7 +188,9 @@ Future<ServerStatus> checkServer(MobileApi api, {Capabilities? lastKnown}) async
       try {
         final health = await api.health();
         if (health.serverId == lastKnown.serverId) {
-          return lastKnown.isBusy ? ServerBusy(lastKnown) : ServerReady(lastKnown);
+          return lastKnown.isBusy
+              ? ServerBusy(lastKnown)
+              : ServerReady(lastKnown);
         }
       } on Object {
         /* Health also failed; genuinely offline */

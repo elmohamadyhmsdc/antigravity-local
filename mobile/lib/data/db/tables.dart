@@ -9,6 +9,7 @@
 //   v3  + media.taken_at/scan_attempts/scan_error (the scan queue IS the media table: scan_status),
 //       media_detections (every face/body seen in a photo, incl. faces linked to an earlier copy),
 //       review_matches/groups/duplicates/body_links (the PC's last "review" plan), indexes
+//   v12 + faces/bodies.track_id (a person's continuous appearance in one video)
 // Tables for later phases (identity_sets, loras, lora_dataset_items, jobs, results)
 // arrive with their phase as new migration steps.
 
@@ -112,6 +113,7 @@ class Media extends Table {
 
 @TableIndex(name: 'faces_person_id', columns: {#personId})
 @TableIndex(name: 'faces_media_id', columns: {#mediaId})
+@TableIndex(name: 'faces_track_id', columns: {#trackId})
 @DataClassName('FaceRow')
 class Faces extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -150,6 +152,10 @@ class Faces extends Table {
       boolean().withDefault(const Constant(false))();
   IntColumn get createdAt => integer()();
   BoolColumn get hidden => boolean().withDefault(const Constant(false))();
+
+  // v12: one appearance of a person in a video. Every face of it shares the id of
+  // its first face; only a few varied views are rows, other frames are detections.
+  IntColumn get trackId => integer().nullable()();
 }
 
 /// Deletion decisions survive rescans and removal/reimport of the media row.
@@ -167,6 +173,7 @@ class FaceSuppressions extends Table {
 @TableIndex(name: 'bodies_media_id', columns: {#mediaId})
 @TableIndex(name: 'bodies_person_id', columns: {#personId})
 @TableIndex(name: 'bodies_face_id', columns: {#faceId})
+@TableIndex(name: 'bodies_track_id', columns: {#trackId})
 @DataClassName('BodyRow')
 class Bodies extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -204,6 +211,9 @@ class Bodies extends Table {
   IntColumn get timestampMs => integer().nullable()();
   TextColumn get cropPath => text().nullable()();
   IntColumn get createdAt => integer()();
+
+  // v12: like faces.track_id, in the bodies' own id space.
+  IntColumn get trackId => integer().nullable()();
 }
 
 /// "This face is not that person" - auto-grouping never redoes a correction.

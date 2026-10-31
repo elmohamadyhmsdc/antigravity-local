@@ -35,7 +35,7 @@ Workspace: `D:\AndroidScan\gallary` (Windows / PowerShell).
 | `DeepFaceLab_NVIDIA_RTX3000_series/` | Vendored tool, not application source |
 
 Desktop storage: local JSON via `the app/database.py` (`JsonDatabase`).
-Phone storage: Drift + SQLCipher, schema **8**, keys in Android Keystore.
+Phone storage: Drift + SQLCipher, schema **12**, keys in Android Keystore.
 These are separate systems. Do not reintroduce PostgreSQL or use the desktop
 JSON database in mobile API request/job paths.
 
@@ -697,3 +697,50 @@ At the user's request ("اسم الابليكيشن Your Gallery مش antigravit
   10. `mobile/lib/l10n/app_en.arb`, `app_localizations.dart`, and `app_localizations_en.dart`: Added `backgroundBatteryWarning` string.
   11. `mobile/test/features/background_test.dart`: Added unit test for native wake/wifi lock coordination and widget test for the battery warning banner.
 - **Status & Policy**: Preserved terminal policy. Changes made to source. No running server stopped. Provided build and verification commands for user.
+
+## Video tracks: one review item per appearance, compaction of old videos — 2026-10-31
+
+- **Symptom** (user, mobile): a single video produced ~15000 face/body rows for the same
+  person, so Review showed ~1600 items; app storage also grows with per-frame crops.
+- **Cause**: `PhotoResultStore` only de-duplicated inside one frame (`frame_number IS ?`) or
+  across the library at cosine >= 0.95. Same-person faces in consecutive frames are usually
+  0.6–0.85, so every sampled frame stored a new face row + crop; bodies likewise (the
+  faceless cap was per frame).
+- **Schema v12**: `faces.track_id`, `bodies.track_id` (+ indexes). Track id = id of the
+  track's first row (bodies use their own id space). Migration tolerates existing columns.
+  Older backups restore with NULL tracks.
+- **Scan** (`domain/scan/video_tracks.dart`, `photo_result_store.dart`): for video frames a
+  face continues a track of the same video when cosine >= 0.65 to a kept view, or >= 0.40
+  and IoU >= 0.3 with the track's box within 4 s (greedy one-to-one per frame). A track
+  keeps <= 5 face rows (new row only if cosine < 0.85 to all views or clearly sharper); a
+  full track overwrites its weakest *untouched* view when quality is +0.15 better
+  (untouched = unsorted, not dismissed/hidden, no rejections, not cover, not in an identity
+  set). Every other frame is only a `media_detections` row pointing at a view. Bodies with a
+  face follow the face track (<= 3 rows); faceless bodies track by outfit (>= 0.9, or >= 0.7
+  near the last box); the 40-faceless cap is now per video. Photos are unchanged.
+- **Review** (`review_repository.dart`): counts/cards show one face (best score/quality)
+  per (person, track); accept/"not them"/dismiss/create-person/add-to-person and outfit
+  accept/reject apply to the still-unsorted rest of the track (skipping mates already
+  refused for that person). `PlanApplier.applyFacePlan` also gives a track's unsorted faces
+  to its single owner (not locked persons, not refused pairs).
+- **Compaction** (`domain/scan/video_compactor.dart`, Review banner "Combine frames"):
+  re-tracks videos scanned before v12 (`scan_status = done` with NULL-track frame rows), one
+  transaction per video. A removed row's detections, bodies, rejections and review rows move
+  to the kept view; rows only merge into views with the same person/dismissed/hidden (bodies:
+  person + link method); covers and identity-set faces are never removed. Crops of removed
+  rows are deleted (frees space); detections are never deleted, so "which frames" and future
+  full-resolution re-extraction from the original video stay possible. Not run automatically.
+- **Verification (actual)**: `dart analyze` no issues. New `test/domain/video_tracks_test.dart`
+  10/10 pass; photo_result_store/video_scan/scan_engine/app_database tests pass (88). Full
+  `flutter test`: 522 passed, 8 failed — 7 in People screens (RenderFlex overflow at
+  `people_screen.dart:496`, file has the user's uncommitted edits) incl. quick_review "People
+  shows how many questions wait", and `background_test` battery-warning (`pumpAndSettle`
+  timed out on /sources). These areas were not changed by this work; not verified against
+  HEAD. Log: `mobile/build/video-tracks-tests.log`.
+- **Not done / not verified**: no phone run, no real-video measurement of the thresholds, no
+  APK build. A `dart format lib test` also reformatted (whitespace only) `scan_engine.dart`,
+  `scan_progress_card.dart`, `providers.dart`, `test/data/connection_test.dart`,
+  `test/features/background_test.dart`, and probably the user's uncommitted
+  `people_screen.dart` / `people_actions_test.dart`. Nothing committed.
+- **Next asked by the user**: storage clean-up (orphan files) and high-resolution face/body
+  extraction for training from the original photos/videos using stored detections.
