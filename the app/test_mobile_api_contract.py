@@ -370,6 +370,57 @@ def test_blob_upload_resumes_with_content_range():
 
 
 @test
+def test_a_stalled_chunk_releases_the_blob_so_the_retry_resumes():
+    """Wi-Fi drops mid-chunk: the dead request must not hold the blob lock forever (upload stuck at 43%)."""
+    import asyncio
+    from mobile_api import routes_blobs
+    with Env() as e:
+        data = os.urandom(6000)
+        digest = sha(data)
+        app = e.client.app
+        auth = e.auth["Authorization"].encode()
+
+        async def put(first, start, end, stall):
+            sent = []
+            body = [{"type": "http.request", "body": first, "more_body": stall}]
+
+            async def receive():
+                if body:
+                    return body.pop(0)
+                await asyncio.sleep(3600)  # half-open connection: no bytes, no disconnect
+
+            async def send(message):
+                sent.append(message)
+
+            scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "PUT",
+                     "scheme": "https", "path": f"/v1/blobs/{digest}", "raw_path": f"/v1/blobs/{digest}".encode(),
+                     "query_string": b"", "root_path": "", "client": ("192.168.1.20", 5000),
+                     "server": ("testserver", 8443),
+                     "headers": [(b"authorization", auth), (b"content-type", b"application/octet-stream"),
+                                 (b"content-range", f"bytes {start}-{end}/6000".encode()),
+                                 (b"content-length", str(end - start + 1).encode())]}
+            await app(scope, receive, send)
+            start_msg = next(m for m in sent if m["type"] == "http.response.start")
+            return start_msg["status"], {k.decode(): v.decode() for k, v in start_msg["headers"]}
+
+        async def scenario():
+            stalled = asyncio.create_task(put(data[:1000], 0, 3999, stall=True))
+            await asyncio.sleep(0.1)  # the dead request now holds the lock
+            retry = asyncio.create_task(put(data[1000:], 1000, 5999, stall=False))
+            return await asyncio.wait_for(asyncio.gather(stalled, retry), 10)
+
+        old = routes_blobs.BODY_IDLE_SECONDS
+        routes_blobs.BODY_IDLE_SECONDS = 0.5
+        try:
+            (s1, h1), (s2, _) = asyncio.run(scenario())
+        finally:
+            routes_blobs.BODY_IDLE_SECONDS = old
+        check(s1 == 408 and h1.get("upload-offset") == "1000", f"stalled chunk: {s1} {h1}")
+        check(s2 == 201, f"the retry must not wait behind the dead request: {s2}")
+        check(e.ctx.workspace.blob_path(digest).read_bytes() == data, "bytes from both requests assemble correctly")
+
+
+@test
 def test_blob_resume_survives_a_lost_hash_state_and_a_corrupt_chunk_is_caught_at_the_end():
     with Env() as e:
         data = os.urandom(6000)

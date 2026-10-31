@@ -12,6 +12,8 @@ import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../shared/screen_layout.dart';
 import '../review/review_media_viewer.dart';
+import '../review/review_words.dart';
+import '../../data/repositories/review_questions.dart';
 import '../../data/repositories/review_visual_repository.dart';
 
 final _pcScoreProvider = FutureProvider.autoDispose.family<double?, (int, int)>(
@@ -103,7 +105,12 @@ class _MergeScreenState extends ConsumerState<MergeScreen> {
               title: Text(
                 score == null
                     ? l10n.mergeNotFlagged
-                    : l10n.similarityPercent((score * 100).round()),
+                    : scoreLabel(
+                        l10n,
+                        advanced: ref.watch(reviewAdvancedProvider),
+                        kind: ReviewQuestionKind.duplicate,
+                        score: score,
+                      ),
               ),
               subtitle: Text(l10n.mergeScoreHint),
             ),

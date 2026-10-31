@@ -64,6 +64,8 @@ List<PeopleMenuAction> faceMenuActions(List<FaceItem> faces) {
   final single = faces.length == 1;
   return [
     const PeopleMenuAction('select', Icons.checklist),
+    if (faces.any((f) => f.personId != null))
+      const PeopleMenuAction('remove', Icons.person_remove_outlined),
     if (single && faces.single.mediaId != null)
       const PeopleMenuAction('original', Icons.perm_media_outlined),
     const PeopleMenuAction('assign', Icons.drive_file_move_outline),
@@ -528,6 +530,25 @@ Future<void> runFaceAction(
         } else {
           await repo.createPerson(name: name, faceIds: ids);
         }
+      case 'remove':
+        final how = await showPeopleActionSheet(
+          context,
+          title: l.peopleAction('remove'),
+          cropPath: faces.length == 1 ? f.cropPath : null,
+          subtitle: l.selectedCount(faces.length),
+          actions: const [
+            PeopleMenuAction('someoneElse', Icons.person_off_outlined),
+            PeopleMenuAction('notAFace', Icons.face_retouching_off),
+            PeopleMenuAction('moveTo', Icons.drive_file_move_outline),
+          ],
+        );
+        if (how == null || !context.mounted) return;
+        return runFaceAction(context, ref, faces, switch (how) {
+          'someoneElse' =>
+            'reject', // face_rejections: never suggested for them again
+          'notAFace' => 'hide', // out of people, matching and grouping
+          _ => 'assign',
+        });
       case 'reject':
         await repo.rejectFaces(ids);
       case 'unassign':

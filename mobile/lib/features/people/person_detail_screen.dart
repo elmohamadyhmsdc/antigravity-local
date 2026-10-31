@@ -5,12 +5,16 @@ import 'package:go_router/go_router.dart';
 import '../../core/router.dart';
 import '../../data/repositories/media_queries.dart';
 import '../../data/repositories/people_repository.dart';
+import '../../data/repositories/review_questions.dart';
 import '../../data/repositories/review_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../library/media_grid.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
+import '../review/album_review_screen.dart';
+import '../review/review_banner.dart';
+import '../review/review_words.dart';
 import '../shared/person_picker.dart';
 import 'face_grid.dart';
 import 'action_sheet.dart';
@@ -55,6 +59,7 @@ class PersonDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final person = ref.watch(personProvider(personId));
+    final pending = albumReviewCount(ref, personId);
     return person.when(
       loading: () => Scaffold(appBar: AppBar(), body: const LoadingBox()),
       error: (e, _) => Scaffold(
@@ -177,18 +182,32 @@ class PersonDetailScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            body: TabBarView(
+            body: Column(
               children: [
-                FaceGrid(personId: personId),
-                MediaGrid(
-                  filter: MediaFilter(personId: personId),
-                  empty: EmptyState(
-                    icon: Icons.photo_outlined,
-                    title: l10n.noPhotosOfPerson,
+                if (pending > 0)
+                  ReviewBanner(
+                    key: const Key('album-review-banner'),
+                    icon: Icons.photo_library_outlined,
+                    title: l10n.albumReviewBanner(pending),
+                    body: l10n.albumReviewBannerBody(personName(l10n, p)),
+                    onTap: () => openAlbumReview(context, p),
+                  ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      FaceGrid(personId: personId),
+                      MediaGrid(
+                        filter: MediaFilter(personId: personId),
+                        empty: EmptyState(
+                          icon: Icons.photo_outlined,
+                          title: l10n.noPhotosOfPerson,
+                        ),
+                      ),
+                      _BodiesTab(personId: personId),
+                      _SuggestionsTab(person: p),
+                    ],
                   ),
                 ),
-                _BodiesTab(personId: personId),
-                _SuggestionsTab(person: p),
               ],
             ),
           ),
@@ -517,7 +536,14 @@ class _SuggestionsTabState extends ConsumerState<_SuggestionsTab> {
                 radius: 22,
               ),
               title: Text(personName(l10n, d.a.id == p.id ? d.b : d.a)),
-              subtitle: Text(l10n.similarityPercent((d.score * 100).round())),
+              subtitle: Text(
+                scoreLabel(
+                  l10n,
+                  advanced: ref.watch(reviewAdvancedProvider),
+                  kind: ReviewQuestionKind.duplicate,
+                  score: d.score,
+                ),
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push(
                 '${Routes.merge}/${p.id}/${d.a.id == p.id ? d.b.id : d.a.id}',
@@ -562,9 +588,12 @@ class _BodyLinkTile extends ConsumerWidget {
       ),
       title: Text(l10n.bodyLinkTitle(personName(l10n, link.person))),
       subtitle: Text(
-        l10n.bodyLinkDetail(
-          link.method == 'appearance' ? l10n.linkOutfit : l10n.linkWeakFace,
-          (link.confidence * 100).round(),
+        scoreLabel(
+          l10n,
+          advanced: ref.watch(reviewAdvancedProvider),
+          kind: ReviewQuestionKind.outfit,
+          score: link.confidence,
+          method: link.method,
         ),
       ),
       trailing: Row(

@@ -478,3 +478,21 @@ class Loras extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+// ---- v10: "Not sure" answers from the quick review --------------------------------
+
+/// A quick-review question the user answered "Not sure". It stays out of the quick flow until
+/// new evidence arrives: a higher score or more faces than when it was snoozed. Keys follow
+/// `ReviewQuestion.key` (m:face:person, g:first face, d:a:b, o:body:person); they outlive the
+/// review_* rows, which every grouping run replaces.
+@DataClassName('ReviewSnoozeRow')
+class ReviewSnoozes extends Table {
+  TextColumn get questionKey => text()();
+  RealColumn get score => real()();
+  IntColumn get evidence =>
+      integer()(); // faces behind the question when snoozed
+  IntColumn get snoozedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {questionKey};
+}

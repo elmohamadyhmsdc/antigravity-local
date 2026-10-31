@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import '../api/dtos/grouping.dart';
 import '../db/app_database.dart';
 import 'people_repository.dart';
+import 'review_questions.dart';
 
 class ReviewMatchFace {
   const ReviewMatchFace({
@@ -135,6 +136,7 @@ class ReviewRepository {
           _db.faceRejections,
           _db.bodyRejections,
           _db.personDistinct,
+          _db.reviewSnoozes,
         ]),
       )
       .map((_) {});
@@ -455,6 +457,44 @@ class ReviewRepository {
     yield await matchesFor(personId);
     yield* _changes().asyncMap((_) => matchesFor(personId));
   }
+
+  // ---- quick review ---------------------------------------------------------------
+
+  Future<Map<String, ReviewSnooze>> _snoozes() async => {
+    for (final r in await _db.select(_db.reviewSnoozes).get())
+      r.questionKey: ReviewSnooze(score: r.score, evidence: r.evidence),
+  };
+
+  /// One question at a time for the quick review: everything the tabs show, minus "Not sure"
+  /// answers that no new evidence has reopened.
+  Future<List<ReviewQuestion>> questions() async => buildQuestions(
+    matches: await matches(),
+    groups: await groupItems(),
+    duplicates: await duplicates(),
+    outfits: await bodyLinks(),
+    snoozes: await _snoozes(),
+  );
+
+  Stream<List<ReviewQuestion>> watchQuestions() async* {
+    yield await questions();
+    yield* _changes().asyncMap((_) => questions());
+  }
+
+  /// "Not sure": park the question on this phone until its score or its faces grow.
+  Future<void> snooze(ReviewQuestion q) => _db
+      .into(_db.reviewSnoozes)
+      .insertOnConflictUpdate(
+        ReviewSnoozesCompanion.insert(
+          questionKey: q.key,
+          score: q.score,
+          evidence: q.evidence,
+          snoozedAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+
+  Future<void> unsnooze(String key) => (_db.delete(
+    _db.reviewSnoozes,
+  )..where((s) => s.questionKey.equals(key))).go();
 
   // ---- decisions ------------------------------------------------------------------
 

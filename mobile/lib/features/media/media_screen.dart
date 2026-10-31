@@ -189,12 +189,31 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                       ],
                       people: people,
                       mediaScanned: media.scanStatus == 'done',
+                      onOpen: (d) => _boxMenu(context, d, people),
+                      onEdit: (d) => _reassign(context, d),
                     ),
                   ],
                 ),
         );
       },
     );
+  }
+
+  /// "Who is this?" for one face (or a body without a person): pick or name someone.
+  Future<void> _reassign(BuildContext context, MediaDetection d) async {
+    final repo = ref.read(peopleRepositoryProvider);
+    final choice = await pickPerson(
+      context,
+      excludePersonId: d.personId,
+      allowNew: d.isFace,
+    );
+    if (choice == null) return;
+    if (d.isFace) {
+      final target = await resolveChoice(ref, choice, faceIds: [d.refId]);
+      if (!choice.isNew) await repo.assignFaces([d.refId], target);
+    } else if (choice.personId != null) {
+      await repo.linkBody(d.refId, choice.personId!);
+    }
   }
 
   Future<void> _boxMenu(
@@ -269,18 +288,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       case 'open':
         context.push('${Routes.people}/${person!.id}');
       case 'assign':
-        final choice = await pickPerson(
-          context,
-          excludePersonId: d.personId,
-          allowNew: d.isFace,
-        );
-        if (choice == null) return;
-        if (d.isFace) {
-          final target = await resolveChoice(ref, choice, faceIds: [d.refId]);
-          if (!choice.isNew) await repo.assignFaces([d.refId], target);
-        } else if (choice.personId != null) {
-          await repo.linkBody(d.refId, choice.personId!);
-        }
+        await _reassign(context, d);
       case 'reject':
         if (d.isFace) {
           await repo.rejectFaces([d.refId]);
@@ -403,25 +411,27 @@ class _AnnotatedPhoto extends StatelessWidget {
   }
 }
 
+/// "People in this photo": one entry per detected face (and body linked to someone), each with a
+/// pencil to say who it really is.
 class _WhoIsHere extends StatelessWidget {
   const _WhoIsHere({
     required this.faces,
     required this.people,
     required this.mediaScanned,
+    required this.onOpen,
+    required this.onEdit,
   });
 
   final List<MediaDetection> faces;
   final Map<int, PersonSummary> people;
   final bool mediaScanned;
+  final void Function(MediaDetection) onOpen;
+  final void Function(MediaDetection) onEdit;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final ids = <int>{
-      for (final f in faces)
-        if (f.personId != null) f.personId!,
-    };
-    final unsorted = faces.where((f) => f.personId == null).length;
+    final seen = <int>{};
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       child: SafeArea(
@@ -452,22 +462,49 @@ class _WhoIsHere extends StatelessWidget {
                     key: const Key('who-is-here'),
                     scrollDirection: Axis.horizontal,
                     children: [
-                      for (final id in ids)
+                      for (final d in faces)
                         Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ActionChip(
-                            key: Key('who-$id'),
-                            avatar: PersonAvatar(
-                              cropPath: people[id]?.avatarCropPath,
-                              radius: 12,
-                            ),
-                            label: Text(personNameOf(l10n, id, people)),
-                            onPressed: () =>
-                                context.push('${Routes.people}/$id'),
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ActionChip(
+                                key: d.personId != null && seen.add(d.personId!)
+                                    ? Key('who-${d.personId}')
+                                    : Key('who-${d.kind}-${d.refId}'),
+                                avatar: ClipOval(
+                                  child: CropImage(
+                                    path: d.cropPath,
+                                    placeholderIcon: d.isFace
+                                        ? Icons.face_outlined
+                                        : Icons.accessibility_new,
+                                  ),
+                                ),
+                                label: Text(
+                                  d.personId == null
+                                      ? l10n.viewerUnknownPerson
+                                      : personNameOf(l10n, d.personId!, people),
+                                ),
+                                onPressed: () => d.personId == null
+                                    ? onOpen(d)
+                                    : context.push(
+                                        '${Routes.people}/${d.personId}',
+                                      ),
+                              ),
+                              if (d.isFace)
+                                IconButton(
+                                  key: Key('who-edit-${d.refId}'),
+                                  tooltip: l10n.viewerReassign,
+                                  visualDensity: VisualDensity.compact,
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 18,
+                                  ),
+                                  onPressed: () => onEdit(d),
+                                ),
+                            ],
                           ),
                         ),
-                      if (unsorted > 0)
-                        Chip(label: Text(l10n.unsortedFacesInPhoto(unsorted))),
                     ],
                   ),
                 ),

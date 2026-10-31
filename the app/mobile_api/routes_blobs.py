@@ -6,9 +6,15 @@ HEAD/PUT /v1/blobs/{sha256} - content-addressed, hash-verified, resumable upload
   PUT   no Content-Range              the whole blob in one request (restarts any partial)
         Content-Range: bytes a-b/N    one chunk; `a` must equal the current Upload-Offset
         201 stored | 202 chunk accepted (Upload-Offset = new offset) | 204 already cached
-        409 offset_mismatch (+Upload-Offset) | 413 too_large | 422 hash_mismatch
+        408 upload_stalled (+Upload-Offset) | 409 offset_mismatch (+Upload-Offset) | 413 too_large
+        422 hash_mismatch
 
 The server cache is evictable: a blob that disappears is simply uploaded again.
+
+A phone that loses Wi-Fi mid-chunk leaves a half-open connection the server never hears close.
+Its PUT holds this blob's lock, so the body is read with an idle timeout: the bytes that did
+arrive stay in the partial file and the phone's retry continues from Upload-Offset instead of
+queueing forever behind a dead request.
 """
 
 import asyncio
@@ -21,6 +27,7 @@ from fastapi import APIRouter, Depends, Path, Request, Response
 from .errors import ApiError, bad_request
 
 SHA_PATTERN = r"^[0-9a-f]{64}$"
+BODY_IDLE_SECONDS = 30.0  # no body bytes for this long = the sender is gone
 _RANGE_RE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
 
 
@@ -102,8 +109,17 @@ def build_blob_router(ctx, require_device: Callable) -> APIRouter:
 
             received = 0
             path = ws.partial_path(sha256)
+            body = request.stream().__aiter__()
             with open(path, "ab") as out:
-                async for chunk in request.stream():
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(body.__anext__(), BODY_IDLE_SECONDS)
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        # st still matches the file (hash and offset advance per written block).
+                        raise ApiError(408, "upload_stalled", "No upload data arrived; resume from Upload-Offset.",
+                                       retryable=True, headers={"Upload-Offset": str(st.offset)})
                     if not chunk:
                         continue
                     received += len(chunk)

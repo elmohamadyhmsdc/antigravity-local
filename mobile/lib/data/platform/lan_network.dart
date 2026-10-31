@@ -163,7 +163,9 @@ Future<List<LanEndpoint>> discoverLan(
               /* Ignore unrelated or malformed LAN packets. */
             }
           }
-        });
+          // dart:io reports a failed send() (errno 101 while Wi-Fi is down) asynchronously
+          // on this stream; without a handler it escapes as an unhandled exception.
+        }, onError: (Object _) {});
         for (final host
             in targets ??
                 {

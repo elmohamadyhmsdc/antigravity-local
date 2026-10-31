@@ -98,7 +98,7 @@ void main() {
       env,
     ) async {
       await _seed(env);
-      await _open(tester, env, '/review');
+      await _open(tester, env, '/review?view=all');
       expect(
         find.text('Review (6)'),
         findsOneWidget,
@@ -111,7 +111,7 @@ void main() {
     }, session: testSession);
 
     appTest('an empty review says there is nothing to do', (tester, env) async {
-      await _open(tester, env, '/review');
+      await _open(tester, env, '/review?view=all');
       expect(find.text('Review'), findsOneWidget);
       expect(find.text('No faces waiting to be matched'), findsOneWidget);
       await tester.ensureVisible(find.byKey(const Key('review-tab-groups')));
@@ -136,7 +136,7 @@ void main() {
     group('Matches', () {
       appTest('accept only the faces that stay ticked', (tester, env) async {
         final l = await _seed(env);
-        await _open(tester, env, '/review');
+        await _open(tester, env, '/review?view=all');
         expect(find.byKey(Key('match-card-${l.sara}')), findsOneWidget);
 
         await tester.tap(find.byKey(Key('match-select-${l.f2}'))); // untick
@@ -164,7 +164,7 @@ void main() {
         '"Not them" remembers the rejection and the suggestion is gone',
         (tester, env) async {
           final l = await _seed(env);
-          await _open(tester, env, '/review');
+          await _open(tester, env, '/review?view=all');
           await tester.scrollUntilVisible(
             find.byKey(Key('match-card-${l.anna}')),
             160,
@@ -192,7 +192,7 @@ void main() {
         '"Accept all" asks first, then sorts every suggested face',
         (tester, env) async {
           final l = await _seed(env);
-          await _open(tester, env, '/review');
+          await _open(tester, env, '/review?view=all');
           await tester.tap(find.byKey(const Key('accept-all-matches')));
           await _settle(tester);
           await tester.tap(find.text('Cancel'));
@@ -233,7 +233,7 @@ void main() {
 
       appTest('create a person from a group, with a name', (tester, env) async {
         final l = await _seed(env);
-        await _open(tester, env, '/review');
+        await _open(tester, env, '/review?view=all');
         await groupsTab(tester);
         final id = (await env.db.select(env.db.reviewGroups).get()).single.id;
         await tester.enterText(find.byKey(Key('group-name-$id')), 'Lina');
@@ -259,7 +259,7 @@ void main() {
         '"Not a person" hides the faces from later suggestions',
         (tester, env) async {
           await _seed(env);
-          await _open(tester, env, '/review');
+          await _open(tester, env, '/review?view=all');
           await groupsTab(tester);
           final id = (await env.db.select(env.db.reviewGroups).get()).single.id;
           await tester.ensureVisible(find.byKey(Key('group-dismiss-$id')));
@@ -280,7 +280,7 @@ void main() {
         env,
       ) async {
         final l = await _seed(env);
-        await _open(tester, env, '/review');
+        await _open(tester, env, '/review?view=all');
         await groupsTab(tester);
         final id = (await env.db.select(env.db.reviewGroups).get()).single.id;
         await tester.ensureVisible(find.byKey(Key('group-add-$id')));
@@ -303,7 +303,7 @@ void main() {
         '"Create N people" turns every group into a person at once',
         (tester, env) async {
           await _seed(env);
-          await _open(tester, env, '/review');
+          await _open(tester, env, '/review?view=all');
           await groupsTab(tester);
           await tester.tap(find.byKey(const Key('create-all-groups')));
           await _settle(tester);
@@ -322,7 +322,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('review-tab-duplicates')));
         await _settle(tester);
-        expect(find.text('55% alike'), findsOneWidget);
+        expect(find.text('Very likely'), findsOneWidget);
         await tester.tap(find.byKey(Key('dup-compare-${l.sara}-${l.anna}')));
         await _settle(tester);
         return l.sara;
@@ -332,7 +332,7 @@ void main() {
         '"They are different people" is remembered and the pair is not suggested again',
         (tester, env) async {
           final l = await _seed(env);
-          await _open(tester, env, '/review');
+          await _open(tester, env, '/review?view=all');
           await tester.ensureVisible(
             find.byKey(const Key('review-tab-duplicates')),
           );
@@ -354,12 +354,12 @@ void main() {
         (tester, env) async {
           final l = await _seed(env);
           await seedFace(env.db, personId: l.anna, seed: 40);
-          await _open(tester, env, '/review');
+          await _open(tester, env, '/review?view=all');
           await compare(tester, l);
 
           expect(find.text('Merge people'), findsOneWidget);
           expect(find.byKey(const Key('merge-score')), findsOneWidget);
-          expect(find.text('55% alike'), findsOneWidget);
+          expect(find.text('Very likely'), findsOneWidget);
           expect(
             find.text('Merge Anna into Sara'),
             findsOneWidget,
@@ -441,7 +441,7 @@ void main() {
         env,
       ) async {
         final l = await _seed(env);
-        await _open(tester, env, '/review');
+        await _open(tester, env, '/review?view=all');
         await outfits(tester);
         await tester.tap(find.byKey(Key('outfit-accept-${l.body}')));
         await _settle(tester);
@@ -452,7 +452,7 @@ void main() {
 
       appTest('rejecting remembers it', (tester, env) async {
         final l = await _seed(env);
-        await _open(tester, env, '/review');
+        await _open(tester, env, '/review?view=all');
         await outfits(tester);
         await tester.ensureVisible(find.byKey(Key('outfit-reject-${l.body}')));
         await tester.pumpAndSettle();
@@ -470,7 +470,7 @@ void main() {
 
       appTest('"Accept all" links every suggested body', (tester, env) async {
         final l = await _seed(env);
-        await _open(tester, env, '/review');
+        await _open(tester, env, '/review?view=all');
         await outfits(tester);
         await tester.tap(find.byKey(const Key('accept-all-outfits')));
         await _settle(tester);

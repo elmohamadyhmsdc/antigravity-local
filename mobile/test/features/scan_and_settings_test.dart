@@ -476,7 +476,8 @@ void main() {
         );
         await tester.tap(find.byKey(const Key('needs-review')));
         await _settle(tester);
-        expect(find.text('Review (1)'), findsOneWidget);
+        expect(find.text('Quick review'), findsOneWidget);
+        expect(find.text('Is this Sara?'), findsOneWidget);
       },
       session: testSession,
     );

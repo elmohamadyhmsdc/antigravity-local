@@ -241,7 +241,7 @@ abstract class AppLocalizations {
   /// No description provided for @peopleAction.
   ///
   /// In en, this message translates to:
-  /// **'{action, select, selection {Select multiple} open {Open person} merge {Merge with…} rename {Rename} hide {Hide} show {Show again} pin {Pin to top} unpin {Unpin} favorite {Add to favorites} unfavorite {Remove from favorites} media {Photos and videos} add {Add faces…} split {Split into new person…} suggestions {Review match suggestions} distinct {Different from…} lock {Lock automatic matching} unlock {Unlock automatic matching} studio {Use in Studio} export {Export / share…} details {Details} cover {Change cover…} bestCover {Choose best cover automatically} chooseCover {Choose cover face…} deletePerson {Delete person grouping} original {Open original} assign {Assign / move to person…} create {Create new person…} reject {Not this person} unassign {Remove assignment} similar {Find similar faces} save {Save crop to gallery} deleteFace {Delete detection} ignore {Not a face / ignore detection} hidden {Hidden} all {All} favorites {Favorites} pinned {Pinned} invert {Invert selection} more {More actions} done {Done} undo {Undo} updated {Updated} noResults {No items in this view} exportCrops {Face crops and details} exportOriginals {Face crops and original media} lockedNote {Automatic matching cannot add faces or change derived body links for a locked person. Manual corrections remain available.} deletePersonNote {Remove these person groupings and return their faces to Unsorted. Original photos and videos are kept.} deleteFaceNote {Remove these detections and their private crops. Rescanning will not recreate them. Original photos and videos are kept.} mergeNote {All selected people will be merged into the chosen person. Review the resulting name and cover before confirming.} similarNote {Similarity is a suggestion. Open an original or assign selected faces after checking them.} emptyExport {No readable files were available to export.} other {More actions}}'**
+  /// **'{action, select, selection {Select multiple} open {Open person} merge {Merge with…} rename {Rename} hide {Hide} show {Show again} pin {Pin to top} unpin {Unpin} favorite {Add to favorites} unfavorite {Remove from favorites} media {Photos and videos} add {Add faces…} split {Split into new person…} suggestions {Review match suggestions} distinct {Different from…} lock {Lock automatic matching} unlock {Unlock automatic matching} studio {Use in Studio} export {Export / share…} details {Details} cover {Change cover…} bestCover {Choose best cover automatically} chooseCover {Choose cover face…} deletePerson {Delete person grouping} original {Open original} assign {Assign / move to person…} create {Create new person…} reject {Not this person} remove {Remove from person…} someoneElse {This is someone else} notAFace {Not a face} moveTo {Move to…} unassign {Remove assignment} similar {Find similar faces} save {Save crop to gallery} deleteFace {Delete detection} ignore {Not a face / ignore detection} hidden {Hidden} all {All} favorites {Favorites} pinned {Pinned} invert {Invert selection} more {More actions} done {Done} undo {Undo} updated {Updated} noResults {No items in this view} exportCrops {Face crops and details} exportOriginals {Face crops and original media} lockedNote {Automatic matching cannot add faces or change derived body links for a locked person. Manual corrections remain available.} deletePersonNote {Remove these person groupings and return their faces to Unsorted. Original photos and videos are kept.} deleteFaceNote {Remove these detections and their private crops. Rescanning will not recreate them. Original photos and videos are kept.} mergeNote {All selected people will be merged into the chosen person. Review the resulting name and cover before confirming.} similarNote {Similarity is a suggestion. Open an original or assign selected faces after checking them.} emptyExport {No readable files were available to export.} other {More actions}}'**
   String peopleAction(String action);
 
   /// No description provided for @peopleActionError.
@@ -4923,6 +4923,216 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} character appearances found'**
   String charactersFound(int count);
+
+  /// No description provided for @quickReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick review'**
+  String get quickReviewTitle;
+
+  /// No description provided for @quickReviewProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'{current} of {total}'**
+  String quickReviewProgress(int current, int total);
+
+  /// No description provided for @quickSeeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get quickSeeAll;
+
+  /// No description provided for @quickYes.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get quickYes;
+
+  /// No description provided for @quickNo.
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get quickNo;
+
+  /// No description provided for @quickNotSure.
+  ///
+  /// In en, this message translates to:
+  /// **'Not sure'**
+  String get quickNotSure;
+
+  /// No description provided for @quickSwipeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe right for Yes, left for No'**
+  String get quickSwipeHint;
+
+  /// No description provided for @quickSamePerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Same person?'**
+  String get quickSamePerson;
+
+  /// No description provided for @quickWhoIsThis.
+  ///
+  /// In en, this message translates to:
+  /// **'Who is this?'**
+  String get quickWhoIsThis;
+
+  /// No description provided for @quickWhoHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type a new name or pick someone'**
+  String get quickWhoHint;
+
+  /// No description provided for @quickNewPersonHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Saves a new person'**
+  String get quickNewPersonHelper;
+
+  /// No description provided for @quickAddToHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds these faces to {name}'**
+  String quickAddToHelper(String name);
+
+  /// No description provided for @quickGroupFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 photo of this face} other{{count} photos of this face}}'**
+  String quickGroupFaces(int count);
+
+  /// No description provided for @quickByClothes.
+  ///
+  /// In en, this message translates to:
+  /// **'Recognised by clothes'**
+  String get quickByClothes;
+
+  /// No description provided for @quickByWeakFace.
+  ///
+  /// In en, this message translates to:
+  /// **'Recognised by a small or blurry face'**
+  String get quickByWeakFace;
+
+  /// No description provided for @quickSnoozed.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved for later. It comes back when new photos give more evidence.'**
+  String get quickSnoozed;
+
+  /// No description provided for @quickAllDone.
+  ///
+  /// In en, this message translates to:
+  /// **'All caught up'**
+  String get quickAllDone;
+
+  /// No description provided for @quickAllDoneBody.
+  ///
+  /// In en, this message translates to:
+  /// **'New questions appear after the next scan or Sort now.'**
+  String get quickAllDoneBody;
+
+  /// No description provided for @quickAllDoneSnoozed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 answer you weren\'t sure about is waiting until there is more evidence. See all to decide now.} other{{count} answers you weren\'t sure about are waiting until there is more evidence. See all to decide now.}}'**
+  String quickAllDoneSnoozed(int count);
+
+  /// No description provided for @likelihoodVeryLikely.
+  ///
+  /// In en, this message translates to:
+  /// **'Very likely'**
+  String get likelihoodVeryLikely;
+
+  /// No description provided for @likelihoodLikely.
+  ///
+  /// In en, this message translates to:
+  /// **'Likely'**
+  String get likelihoodLikely;
+
+  /// No description provided for @likelihoodMaybe.
+  ///
+  /// In en, this message translates to:
+  /// **'Maybe'**
+  String get likelihoodMaybe;
+
+  /// No description provided for @reviewAdvancedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced review details'**
+  String get reviewAdvancedTitle;
+
+  /// No description provided for @reviewAdvancedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Show percentages and how bodies were linked, and open Review on all four lists instead of one question at a time'**
+  String get reviewAdvancedBody;
+
+  /// No description provided for @peopleReviewBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Help improve your groups · 1 question} other{Help improve your groups · {count} questions}}'**
+  String peopleReviewBanner(int count);
+
+  /// No description provided for @peopleReviewBannerBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick yes / no answers, one photo at a time'**
+  String get peopleReviewBannerBody;
+
+  /// No description provided for @albumReviewBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Review 1 photo} other{Review {count} photos}}'**
+  String albumReviewBanner(int count);
+
+  /// No description provided for @albumReviewBannerBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos that may also be {name}'**
+  String albumReviewBannerBody(String name);
+
+  /// No description provided for @albumReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Is this {name}?'**
+  String albumReviewTitle(String name);
+
+  /// No description provided for @albumReviewHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Every photo starts ticked. Untick the ones that aren\'t {name}, then tap Done. Long-press a photo to see it full size.'**
+  String albumReviewHelp(String name);
+
+  /// No description provided for @albumReviewNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Untick all'**
+  String get albumReviewNone;
+
+  /// No description provided for @albumReviewSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{add} to add · {remove} someone else'**
+  String albumReviewSummary(int add, int remove);
+
+  /// No description provided for @albumReviewSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'{add} added · {remove} marked as someone else'**
+  String albumReviewSaved(int add, int remove);
+
+  /// No description provided for @viewerUnknownPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown'**
+  String get viewerUnknownPerson;
+
+  /// No description provided for @viewerReassign.
+  ///
+  /// In en, this message translates to:
+  /// **'Change who this is'**
+  String get viewerReassign;
 }
 
 class _AppLocalizationsDelegate

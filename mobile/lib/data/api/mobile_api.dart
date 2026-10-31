@@ -236,11 +236,16 @@ class HttpMobileApi
       onSendProgress: (sent, _) => onProgress(sent),
       options: Options(
         contentType: 'application/octet-stream',
+        // A 4 MiB chunk on a dropped Wi-Fi link must fail fast so the retry resumes from
+        // Upload-Offset, instead of waiting out the 5-minute default.
+        sendTimeout: const Duration(seconds: 90),
         headers: {
           Headers.contentLengthHeader: bytes.length,
           'Content-Range': 'bytes $offset-${offset + bytes.length - 1}/$total',
         },
-        validateStatus: (s) => s == 201 || s == 202 || s == 204 || s == 409,
+        // 408 upload_stalled and 409 offset_mismatch both carry the offset to resume from.
+        validateStatus: (s) =>
+            s == 201 || s == 202 || s == 204 || s == 408 || s == 409,
       ),
     );
     if (r.statusCode == 204 || r.statusCode == 201) return total;

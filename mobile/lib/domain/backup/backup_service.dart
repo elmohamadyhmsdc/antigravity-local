@@ -49,6 +49,7 @@ const backupTables = [
   BackupTable('review_groups'),
   BackupTable('review_duplicates'),
   BackupTable('review_body_links'),
+  BackupTable('review_snoozes'),
   BackupTable('results'),
   BackupTable('datasets'),
   BackupTable('dataset_items'),

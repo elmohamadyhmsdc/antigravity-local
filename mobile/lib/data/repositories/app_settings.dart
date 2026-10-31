@@ -17,6 +17,9 @@ abstract final class SettingKeys {
   static const modelId = 'library.model_id';
   static const lastBackupAt = 'backup.last_at';
 
+  /// Show scores as numbers and open Review on the four tabs (a per-phone display choice).
+  static const reviewAdvanced = 'review.advanced';
+
   /// Keys that describe the library itself and travel inside a backup. `scan.active` and anything
   /// about the paired PC stay on this phone.
   static const backedUp = [
@@ -56,6 +59,7 @@ class SettingsSnapshot {
     this.scanActive = false,
     this.modelId,
     this.lastBackupAt,
+    this.reviewAdvanced = false,
   });
 
   factory SettingsSnapshot.fromMap(Map<String, String> m) {
@@ -93,6 +97,7 @@ class SettingsSnapshot {
       lastBackupAt: backup == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(backup),
+      reviewAdvanced: m[SettingKeys.reviewAdvanced] == '1',
     );
   }
 
@@ -111,6 +116,9 @@ class SettingsSnapshot {
   scanActive; // a scan was started and not finished/paused: resume it after a restart
   final String? modelId; // embedding model of this library (never mix models)
   final DateTime? lastBackupAt;
+
+  /// Percentages, link methods and the four-tab Review instead of words and the quick review.
+  final bool reviewAdvanced;
 }
 
 /// Typed access to the `settings` table (a key/value store inside the encrypted database).
@@ -180,6 +188,9 @@ class AppSettings {
       _put(SettingKeys.scanActive, value ? '1' : '0');
 
   Future<void> setModelId(String value) => _put(SettingKeys.modelId, value);
+
+  Future<void> setReviewAdvanced(bool value) =>
+      _put(SettingKeys.reviewAdvanced, value ? '1' : '0');
 
   Future<void> setLastBackupAt(DateTime value) =>
       _put(SettingKeys.lastBackupAt, '${value.millisecondsSinceEpoch}');

@@ -524,3 +524,105 @@ At the user's request ("اسم الابليكيشن Your Gallery مش antigravit
   update timestamp. No uninstall, app-data clear, app launch, server restart or
   library/queue operation was performed. No source change or new build was
   needed; earlier test results remain historical and were not rerun.
+
+## Video upload stuck at the same offset; no system-RAM gate — 2026-10-31
+
+- Symptom (Secure Folder build, phone log `mobile/build/secure_folder_app.log`):
+  a video upload stopped at 10.9 MB (~43%) after a Wi-Fi drop at 12:41; the
+  phone app stayed alive and kept retrying, the `.part` file never grew again.
+- Root cause was on the PC, not a phone checkpoint reset: `PUT /v1/blobs` held
+  the per-blob `asyncio.Lock` while reading the body with no timeout. The phone's
+  dead (half-open) connection kept that lock forever, so every retry for the same
+  blob queued behind it and timed out. The phone's checkpoint (`video.job.<id>`
+  with sha + request) is only cleared on 404/`missing_blobs`/failure; a network
+  error resumes from HEAD `Upload-Offset`, it does not re-hash from 0.
+- Fix: `routes_blobs.py` reads the body with a 30 s idle timeout
+  (`BODY_IDLE_SECONDS`) and answers `408 upload_stalled` + `Upload-Offset`; the
+  bytes received are kept. Contract updated. Phone `uploadVideoChunk` accepts 408
+  like 409 and uses a 90 s per-chunk send timeout (was the 5 min default).
+- `discoverLan` now handles the socket stream's async send errors (errno 101 while
+  Wi-Fi is down was an unhandled exception).
+- At the user's request, `ResourceMonitor.scan_admission_reasons` no longer
+  refuses work on system RAM (<1 GiB free / >=97%). Only limits the user enables
+  in PC Settings (`resource_limits.json`, off by default) gate scans. The ">=90%"
+  line in `mobile_api.log` is an informational alert and never blocked work.
+- Verified: new `test_a_stalled_chunk_releases_the_blob_so_the_retry_resumes`;
+  `test_mobile_api_contract.py` 29/29, `test_resource_monitor` 20 OK,
+  `test_mobile_video.py`, `test_mobile_studio.py`, `test_mobile_stateless.py`,
+  `validate_contract.py` all pass; Flutter analyze 0 issues, 496 tests pass. Not yet done: running PC server restart (code
+  takes effect on next start), new APK build/install, real Wi-Fi-drop retest.
+- Deployed 13:45-13:50: release APK 1.3.0+6 (100,143,002 bytes, SHA-256
+  f610f45d8bfb976aa5cf92cd46eb90e0927ed9419632e01b21f857f469ef921a) installed with
+  `adb install -r` on R58R30QA3KZ (user 0; Secure Folder copy updates with it).
+  The PC server had already stopped (log ends 13:19); restarted via
+  `run_mobile_api.bat` in a Terminal tab (pid 30464, same server id/cert, health
+  OK). The 10,940,952-byte `.part` survived. Real Wi-Fi-drop resume not yet
+  observed: needs the app opened in the Secure Folder.
+- Confirmed by the user on the phone (Secure Folder): the stuck video upload
+  continued past 43% and reached 60%+ from the kept partial; it did not restart.
+
+## Quick face review (Google-Photos-style) on the phone — 2026-10-31
+
+- Requested via a side session: combine Google Photos' one-question review with
+  our outfit/body matching, Sort now, lock, split and local-first corrections.
+  Flutter only; **no PC/API/contract change** — every answer writes the same
+  correction records as before (`face_rejections`, `person_distinct`,
+  `body_rejections`, `review_dismissed`, `hidden`, assignments) and the PC
+  grouping stays a pure function.
+- `/review` now opens **Quick review** (`features/review/quick_review_screen.dart`):
+  one question at a time, the whole photo with the face/body highlighted and its
+  crop as an inset (`highlighted_photo.dart`; videos/missing originals fall back to
+  the crop, tap opens the existing viewer), big No / Not sure / Yes buttons plus
+  swipe right = Yes, left = No, progress "5 of 23". Questions are built on the phone
+  from the stored review plan (`data/repositories/review_questions.dart`):
+  matches "Is this Sara?", outfit links "Is this Sara? Recognised by clothes"
+  (or "…small or blurry face" for `weak_face`), duplicates "Same person?" (two
+  covers side by side) and new groups "Who is this?". Order: faces sorted by one
+  answer first (group size, smaller side of a duplicate pair), then the most
+  certain. Yes on a duplicate merges directly (bigger person kept, an unnamed one
+  takes the other's name); two different names open the existing Merge screen.
+  "Who is this?" is one name field with autocomplete: picking (or typing exactly)
+  an existing name adds the faces to that person, anything else creates one;
+  "Not a person" is the existing group dismissal.
+- **Not sure** parks a question in the new `review_snoozes` table (schema **v10**,
+  migration `from < 10`, backed up with the library). Keys survive grouping runs:
+  `m:face:person`, `g:first face`, `d:a:b`, `o:body:person`. It comes back only
+  when the PC score rises by ≥ 0.02, or a new group gains faces. Undo in the
+  snackbar removes the snooze. Snoozed questions remain in See all.
+- Numbers are hidden by default: likelihood words come from `likelihoodOf`
+  (cut points between the balanced `person_linking` suggest/auto thresholds:
+  match 0.40/0.32, merge 0.55/0.47, outfit 0.84/0.80, weak face as match,
+  group cohesion 0.55/0.45). **Advanced review details** (Settings switch
+  `settings-review-advanced`, or the quick review's ⋮ menu; setting key
+  `review.advanced`, per phone, not backed up) restores percentages and link
+  method everywhere (four tabs, person Suggestions tab, Merge) and makes `/review`
+  open the four tabs. `/review?view=all` ("See all") and `/review?view=quick`
+  force either; the tabs have a Quick review button.
+- Entry points: People shows "Help improve your groups · N questions" (snoozed
+  ones excluded); a person shows "Review N photos" when face matches or outfit
+  links wait for them, opening a full-photo grid (`album_review_screen.dart`)
+  where everything starts ticked, tap to untick, Done accepts ticked and records
+  "not them" for unticked faces/bodies.
+- Fixing mistakes: face menu (people/unsorted grids) starts with **Remove from
+  person…** → This is someone else (existing reject), Not a face (existing hide,
+  with undo), Move to… (existing assign). Split, unassign, lock and the rest stay
+  in the menus. The photo viewer's "Who is here" row lists every detected face
+  (Unknown for unsorted) with a pencil that reassigns it through the person
+  picker; boxes still open the full box menu.
+- Verification: `dart run build_runner build` (drift v10),
+  `flutter gen-l10n`, `dart format lib test` + `dart fix --apply` (nothing to
+  fix), `flutter analyze` **0 issues**, full `flutter test` **510 passed, 0
+  failed** (logs `mobile/build/quick-review-*.log`). New
+  `test/features/quick_review_test.dart` (13 cases: yes/no/not sure order and
+  stored corrections, snooze parked until the score rises, parked group returns
+  with more faces, swipe yes/no, "Who is this?" pick / exact name / new name,
+  merge + outfit, words vs percent toggle, Advanced opens the tabs, People
+  banner, album Done grid, Remove from person someone else / not a face, viewer
+  pencil) plus a v9→v10 migration test. Existing tests updated for the intended
+  changes: four-tab tests open `/review?view=all`, "55% alike" now reads
+  "Very likely", the viewer lists unsorted faces as "Unknown", Home's review
+  link lands on the quick review.
+- Not done: no APK built or installed, no device run; the running PC server and
+  the phone's scan were not touched. Visual check on the real phone (photo
+  highlight sizing, keyboard over the "Who is this?" field, large text) remains.
+  Nothing committed.

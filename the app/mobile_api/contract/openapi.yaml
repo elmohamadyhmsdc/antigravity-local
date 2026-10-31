@@ -132,6 +132,13 @@ paths:
             Upload-Offset: { schema: { type: integer } }
         "204": { description: Already cached (body ignored) }
         "400": { $ref: "#/components/responses/Error" }
+        "408":
+          description: No body bytes arrived for 30 s (`upload_stalled`, retryable); bytes received so far are kept, resume from `Upload-Offset`
+          headers:
+            Upload-Offset: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "409":
           description: The chunk does not start where the server's partial upload ends (`offset_mismatch`); resume from `Upload-Offset`
           headers:
@@ -405,7 +412,7 @@ components:
             code:
               type: string
               examples: [gpu_busy, unauthorized, missing_blobs, bad_request, bad_image, model_mismatch, not_found, internal,
-                         offset_mismatch, hash_mismatch, too_large, invalid_code, pairing_locked]
+                         offset_mismatch, upload_stalled, hash_mismatch, too_large, invalid_code, pairing_locked]
             message: { type: string }
             retryable: { type: boolean }
 

@@ -16,7 +16,7 @@ import '../features/onboarding/manual_pair_screen.dart';
 import '../features/onboarding/permissions_screen.dart';
 import '../features/onboarding/qr_scan_screen.dart';
 import '../features/onboarding/welcome_screen.dart';
-import '../features/review/review_screen.dart';
+import '../features/review/quick_review_screen.dart';
 import '../features/scan/sources_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/background_screen.dart';
@@ -232,7 +232,8 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.review,
-        builder: (context, state) => const ReviewScreen(),
+        builder: (context, state) =>
+            ReviewEntryScreen(view: state.uri.queryParameters['view']),
       ),
       GoRoute(
         path: Routes.sources,

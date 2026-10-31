@@ -14,6 +14,7 @@ import 'data/repositories/library_repository.dart';
 import 'data/repositories/media_queries.dart';
 import 'data/repositories/people_repository.dart';
 import 'data/repositories/character_repository.dart';
+import 'data/repositories/review_questions.dart';
 import 'data/repositories/review_repository.dart';
 import 'domain/backup/backup_service.dart';
 import 'domain/grouping/grouping_runner.dart';
@@ -123,6 +124,12 @@ final unsortedCountProvider = StreamProvider.autoDispose<int>(
 final reviewCountsProvider = StreamProvider.autoDispose<ReviewCounts>(
   (ref) => ref.watch(reviewRepositoryProvider).watchCounts(),
 );
+
+/// The quick review's queue (snoozed questions left out), highest impact first.
+final reviewQuestionsProvider =
+    StreamProvider.autoDispose<List<ReviewQuestion>>(
+      (ref) => ref.watch(reviewRepositoryProvider).watchQuestions(),
+    );
 
 final scanCountsProvider = StreamProvider.autoDispose<ScanCounts>(
   (ref) => ref.watch(libraryRepositoryProvider).watchScanCounts(),

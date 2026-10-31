@@ -6,6 +6,7 @@ import '../../core/router.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
+import '../review/review_banner.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import 'people_actions.dart';
@@ -78,6 +79,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
     final people = ref.watch(peopleProvider);
     final unsorted = ref.watch(unsortedCountProvider).value ?? 0;
     final review = ref.watch(reviewCountsProvider).value?.total ?? 0;
+    final questions = ref.watch(reviewQuestionsProvider).value?.length ?? 0;
     final allPeople = people.value ?? const <PersonSummary>[];
     final q = _query.trim().toLowerCase();
     final visible = allPeople
@@ -232,6 +234,14 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
           });
           return Column(
             children: [
+              if (questions > 0 && !_selecting)
+                ReviewBanner(
+                  key: const Key('people-review-banner'),
+                  icon: Icons.swipe_outlined,
+                  title: l10n.peopleReviewBanner(questions),
+                  body: l10n.peopleReviewBannerBody,
+                  onTap: () => context.push('${Routes.review}?view=quick'),
+                ),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Padding(

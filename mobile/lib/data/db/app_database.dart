@@ -59,6 +59,7 @@ class LibraryStats {
     ReviewGroups,
     ReviewDuplicates,
     ReviewBodyLinks,
+    ReviewSnoozes,
     Jobs,
     Results,
     Datasets,
@@ -76,7 +77,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 9;
+  static const currentSchemaVersion = 10;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -166,6 +167,9 @@ class AppDatabase extends _$AppDatabase {
           persons.groupingLocked,
         ]);
         await addMissing(faces, [faces.hidden]);
+      }
+      if (from < 10) {
+        await m.createTable(reviewSnoozes);
       }
     },
     beforeOpen: (details) async {

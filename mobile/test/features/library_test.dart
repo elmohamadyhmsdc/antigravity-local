@@ -134,7 +134,7 @@ void main() {
         await _open(tester, env, '/media/$photo');
         expect(find.text('Who is here'), findsOneWidget);
         expect(find.byKey(Key('who-$sara')), findsOneWidget);
-        expect(find.text('1 unsorted'), findsOneWidget);
+        expect(find.text('Unknown'), findsOneWidget);
         // the original is not available in this test: the viewer says so instead of crashing
         expect(find.text('Photo not found'), findsOneWidget);
 

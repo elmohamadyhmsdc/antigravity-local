@@ -8266,6 +8266,329 @@ class ReviewBodyLinksCompanion extends UpdateCompanion<ReviewBodyLinkRow> {
   }
 }
 
+class $ReviewSnoozesTable extends ReviewSnoozes
+    with TableInfo<$ReviewSnoozesTable, ReviewSnoozeRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReviewSnoozesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _questionKeyMeta = const VerificationMeta(
+    'questionKey',
+  );
+  @override
+  late final GeneratedColumn<String> questionKey = GeneratedColumn<String>(
+    'question_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scoreMeta = const VerificationMeta('score');
+  @override
+  late final GeneratedColumn<double> score = GeneratedColumn<double>(
+    'score',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _evidenceMeta = const VerificationMeta(
+    'evidence',
+  );
+  @override
+  late final GeneratedColumn<int> evidence = GeneratedColumn<int>(
+    'evidence',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _snoozedAtMeta = const VerificationMeta(
+    'snoozedAt',
+  );
+  @override
+  late final GeneratedColumn<int> snoozedAt = GeneratedColumn<int>(
+    'snoozed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    questionKey,
+    score,
+    evidence,
+    snoozedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'review_snoozes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReviewSnoozeRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('question_key')) {
+      context.handle(
+        _questionKeyMeta,
+        questionKey.isAcceptableOrUnknown(
+          data['question_key']!,
+          _questionKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_questionKeyMeta);
+    }
+    if (data.containsKey('score')) {
+      context.handle(
+        _scoreMeta,
+        score.isAcceptableOrUnknown(data['score']!, _scoreMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scoreMeta);
+    }
+    if (data.containsKey('evidence')) {
+      context.handle(
+        _evidenceMeta,
+        evidence.isAcceptableOrUnknown(data['evidence']!, _evidenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_evidenceMeta);
+    }
+    if (data.containsKey('snoozed_at')) {
+      context.handle(
+        _snoozedAtMeta,
+        snoozedAt.isAcceptableOrUnknown(data['snoozed_at']!, _snoozedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_snoozedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {questionKey};
+  @override
+  ReviewSnoozeRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReviewSnoozeRow(
+      questionKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}question_key'],
+      )!,
+      score: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}score'],
+      )!,
+      evidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}evidence'],
+      )!,
+      snoozedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}snoozed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ReviewSnoozesTable createAlias(String alias) {
+    return $ReviewSnoozesTable(attachedDatabase, alias);
+  }
+}
+
+class ReviewSnoozeRow extends DataClass implements Insertable<ReviewSnoozeRow> {
+  final String questionKey;
+  final double score;
+  final int evidence;
+  final int snoozedAt;
+  const ReviewSnoozeRow({
+    required this.questionKey,
+    required this.score,
+    required this.evidence,
+    required this.snoozedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['question_key'] = Variable<String>(questionKey);
+    map['score'] = Variable<double>(score);
+    map['evidence'] = Variable<int>(evidence);
+    map['snoozed_at'] = Variable<int>(snoozedAt);
+    return map;
+  }
+
+  ReviewSnoozesCompanion toCompanion(bool nullToAbsent) {
+    return ReviewSnoozesCompanion(
+      questionKey: Value(questionKey),
+      score: Value(score),
+      evidence: Value(evidence),
+      snoozedAt: Value(snoozedAt),
+    );
+  }
+
+  factory ReviewSnoozeRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReviewSnoozeRow(
+      questionKey: serializer.fromJson<String>(json['questionKey']),
+      score: serializer.fromJson<double>(json['score']),
+      evidence: serializer.fromJson<int>(json['evidence']),
+      snoozedAt: serializer.fromJson<int>(json['snoozedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'questionKey': serializer.toJson<String>(questionKey),
+      'score': serializer.toJson<double>(score),
+      'evidence': serializer.toJson<int>(evidence),
+      'snoozedAt': serializer.toJson<int>(snoozedAt),
+    };
+  }
+
+  ReviewSnoozeRow copyWith({
+    String? questionKey,
+    double? score,
+    int? evidence,
+    int? snoozedAt,
+  }) => ReviewSnoozeRow(
+    questionKey: questionKey ?? this.questionKey,
+    score: score ?? this.score,
+    evidence: evidence ?? this.evidence,
+    snoozedAt: snoozedAt ?? this.snoozedAt,
+  );
+  ReviewSnoozeRow copyWithCompanion(ReviewSnoozesCompanion data) {
+    return ReviewSnoozeRow(
+      questionKey: data.questionKey.present
+          ? data.questionKey.value
+          : this.questionKey,
+      score: data.score.present ? data.score.value : this.score,
+      evidence: data.evidence.present ? data.evidence.value : this.evidence,
+      snoozedAt: data.snoozedAt.present ? data.snoozedAt.value : this.snoozedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReviewSnoozeRow(')
+          ..write('questionKey: $questionKey, ')
+          ..write('score: $score, ')
+          ..write('evidence: $evidence, ')
+          ..write('snoozedAt: $snoozedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(questionKey, score, evidence, snoozedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReviewSnoozeRow &&
+          other.questionKey == this.questionKey &&
+          other.score == this.score &&
+          other.evidence == this.evidence &&
+          other.snoozedAt == this.snoozedAt);
+}
+
+class ReviewSnoozesCompanion extends UpdateCompanion<ReviewSnoozeRow> {
+  final Value<String> questionKey;
+  final Value<double> score;
+  final Value<int> evidence;
+  final Value<int> snoozedAt;
+  final Value<int> rowid;
+  const ReviewSnoozesCompanion({
+    this.questionKey = const Value.absent(),
+    this.score = const Value.absent(),
+    this.evidence = const Value.absent(),
+    this.snoozedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ReviewSnoozesCompanion.insert({
+    required String questionKey,
+    required double score,
+    required int evidence,
+    required int snoozedAt,
+    this.rowid = const Value.absent(),
+  }) : questionKey = Value(questionKey),
+       score = Value(score),
+       evidence = Value(evidence),
+       snoozedAt = Value(snoozedAt);
+  static Insertable<ReviewSnoozeRow> custom({
+    Expression<String>? questionKey,
+    Expression<double>? score,
+    Expression<int>? evidence,
+    Expression<int>? snoozedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (questionKey != null) 'question_key': questionKey,
+      if (score != null) 'score': score,
+      if (evidence != null) 'evidence': evidence,
+      if (snoozedAt != null) 'snoozed_at': snoozedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ReviewSnoozesCompanion copyWith({
+    Value<String>? questionKey,
+    Value<double>? score,
+    Value<int>? evidence,
+    Value<int>? snoozedAt,
+    Value<int>? rowid,
+  }) {
+    return ReviewSnoozesCompanion(
+      questionKey: questionKey ?? this.questionKey,
+      score: score ?? this.score,
+      evidence: evidence ?? this.evidence,
+      snoozedAt: snoozedAt ?? this.snoozedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (questionKey.present) {
+      map['question_key'] = Variable<String>(questionKey.value);
+    }
+    if (score.present) {
+      map['score'] = Variable<double>(score.value);
+    }
+    if (evidence.present) {
+      map['evidence'] = Variable<int>(evidence.value);
+    }
+    if (snoozedAt.present) {
+      map['snoozed_at'] = Variable<int>(snoozedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReviewSnoozesCompanion(')
+          ..write('questionKey: $questionKey, ')
+          ..write('score: $score, ')
+          ..write('evidence: $evidence, ')
+          ..write('snoozedAt: $snoozedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $JobsTable extends Jobs with TableInfo<$JobsTable, JobRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -13037,6 +13360,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ReviewBodyLinksTable reviewBodyLinks = $ReviewBodyLinksTable(
     this,
   );
+  late final $ReviewSnoozesTable reviewSnoozes = $ReviewSnoozesTable(this);
   late final $JobsTable jobs = $JobsTable(this);
   late final $ResultsTable results = $ResultsTable(this);
   late final $DatasetsTable datasets = $DatasetsTable(this);
@@ -13130,6 +13454,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     reviewGroups,
     reviewDuplicates,
     reviewBodyLinks,
+    reviewSnoozes,
     jobs,
     results,
     datasets,
@@ -21913,6 +22238,198 @@ typedef $$ReviewBodyLinksTableProcessedTableManager =
       ReviewBodyLinkRow,
       PrefetchHooks Function({bool bodyId, bool personId})
     >;
+typedef $$ReviewSnoozesTableCreateCompanionBuilder =
+    ReviewSnoozesCompanion Function({
+      required String questionKey,
+      required double score,
+      required int evidence,
+      required int snoozedAt,
+      Value<int> rowid,
+    });
+typedef $$ReviewSnoozesTableUpdateCompanionBuilder =
+    ReviewSnoozesCompanion Function({
+      Value<String> questionKey,
+      Value<double> score,
+      Value<int> evidence,
+      Value<int> snoozedAt,
+      Value<int> rowid,
+    });
+
+class $$ReviewSnoozesTableFilterComposer
+    extends Composer<_$AppDatabase, $ReviewSnoozesTable> {
+  $$ReviewSnoozesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get questionKey => $composableBuilder(
+    column: $table.questionKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get evidence => $composableBuilder(
+    column: $table.evidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get snoozedAt => $composableBuilder(
+    column: $table.snoozedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ReviewSnoozesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReviewSnoozesTable> {
+  $$ReviewSnoozesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get questionKey => $composableBuilder(
+    column: $table.questionKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get evidence => $composableBuilder(
+    column: $table.evidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get snoozedAt => $composableBuilder(
+    column: $table.snoozedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ReviewSnoozesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReviewSnoozesTable> {
+  $$ReviewSnoozesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get questionKey => $composableBuilder(
+    column: $table.questionKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get score =>
+      $composableBuilder(column: $table.score, builder: (column) => column);
+
+  GeneratedColumn<int> get evidence =>
+      $composableBuilder(column: $table.evidence, builder: (column) => column);
+
+  GeneratedColumn<int> get snoozedAt =>
+      $composableBuilder(column: $table.snoozedAt, builder: (column) => column);
+}
+
+class $$ReviewSnoozesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ReviewSnoozesTable,
+          ReviewSnoozeRow,
+          $$ReviewSnoozesTableFilterComposer,
+          $$ReviewSnoozesTableOrderingComposer,
+          $$ReviewSnoozesTableAnnotationComposer,
+          $$ReviewSnoozesTableCreateCompanionBuilder,
+          $$ReviewSnoozesTableUpdateCompanionBuilder,
+          (
+            ReviewSnoozeRow,
+            BaseReferences<_$AppDatabase, $ReviewSnoozesTable, ReviewSnoozeRow>,
+          ),
+          ReviewSnoozeRow,
+          PrefetchHooks Function()
+        > {
+  $$ReviewSnoozesTableTableManager(_$AppDatabase db, $ReviewSnoozesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReviewSnoozesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ReviewSnoozesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ReviewSnoozesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> questionKey = const Value.absent(),
+                Value<double> score = const Value.absent(),
+                Value<int> evidence = const Value.absent(),
+                Value<int> snoozedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReviewSnoozesCompanion(
+                questionKey: questionKey,
+                score: score,
+                evidence: evidence,
+                snoozedAt: snoozedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String questionKey,
+                required double score,
+                required int evidence,
+                required int snoozedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ReviewSnoozesCompanion.insert(
+                questionKey: questionKey,
+                score: score,
+                evidence: evidence,
+                snoozedAt: snoozedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ReviewSnoozesTable, ReviewSnoozeRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ReviewSnoozesTable,
+                    ReviewSnoozeRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ReviewSnoozesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ReviewSnoozesTable,
+      ReviewSnoozeRow,
+      $$ReviewSnoozesTableFilterComposer,
+      $$ReviewSnoozesTableOrderingComposer,
+      $$ReviewSnoozesTableAnnotationComposer,
+      $$ReviewSnoozesTableCreateCompanionBuilder,
+      $$ReviewSnoozesTableUpdateCompanionBuilder,
+      (
+        ReviewSnoozeRow,
+        BaseReferences<_$AppDatabase, $ReviewSnoozesTable, ReviewSnoozeRow>,
+      ),
+      ReviewSnoozeRow,
+      PrefetchHooks Function()
+    >;
 typedef $$JobsTableCreateCompanionBuilder =
     JobsCompanion Function({
       required String id,
@@ -26037,6 +26554,8 @@ class $AppDatabaseManager {
       $$ReviewDuplicatesTableTableManager(_db, _db.reviewDuplicates);
   $$ReviewBodyLinksTableTableManager get reviewBodyLinks =>
       $$ReviewBodyLinksTableTableManager(_db, _db.reviewBodyLinks);
+  $$ReviewSnoozesTableTableManager get reviewSnoozes =>
+      $$ReviewSnoozesTableTableManager(_db, _db.reviewSnoozes);
   $$JobsTableTableManager get jobs => $$JobsTableTableManager(_db, _db.jobs);
   $$ResultsTableTableManager get results =>
       $$ResultsTableTableManager(_db, _db.results);

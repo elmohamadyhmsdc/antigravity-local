@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/repositories/people_repository.dart';
+import '../../data/repositories/review_questions.dart';
 import '../../data/repositories/review_repository.dart';
 import '../../data/repositories/review_visual_repository.dart';
 import '../../l10n/app_localizations.dart';
@@ -15,6 +16,7 @@ import '../shared/empty_state.dart';
 import '../shared/person_picker.dart';
 import 'review_media_viewer.dart';
 import 'review_photo_tile.dart';
+import 'review_words.dart';
 
 final reviewMatchesProvider =
     StreamProvider.autoDispose<List<ReviewMatchGroup>>(
@@ -45,6 +47,12 @@ class ReviewScreen extends ConsumerWidget {
                 : l10n.reviewTitleCount(counts.total),
           ),
           actions: [
+            IconButton(
+              key: const Key('review-open-quick'),
+              tooltip: l10n.quickReviewTitle,
+              icon: const Icon(Icons.swipe_outlined),
+              onPressed: () => context.push('${Routes.review}?view=quick'),
+            ),
             IconButton(
               key: const Key('review-sort-now'),
               tooltip: l10n.sortNow,
@@ -583,7 +591,14 @@ class _DuplicatesTab extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text(l10n.similarityPercent((d.score * 100).round())),
+                      Text(
+                        scoreLabel(
+                          l10n,
+                          advanced: ref.watch(reviewAdvancedProvider),
+                          kind: ReviewQuestionKind.duplicate,
+                          score: d.score,
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       Wrap(
                         spacing: 8,
@@ -760,9 +775,12 @@ class _OutfitCard extends ConsumerWidget {
               ],
             ),
             Text(
-              l.bodyLinkDetail(
-                link.method == 'appearance' ? l.linkOutfit : l.linkWeakFace,
-                (link.confidence * 100).round(),
+              scoreLabel(
+                l,
+                advanced: ref.watch(reviewAdvancedProvider),
+                kind: ReviewQuestionKind.outfit,
+                score: link.confidence,
+                method: link.method,
               ),
               style: Theme.of(context).textTheme.bodySmall,
             ),

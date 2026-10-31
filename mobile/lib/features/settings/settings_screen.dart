@@ -187,6 +187,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: Text(l10n.sortNowHint),
             onTap: () => sortNow(context, ref),
           ),
+          SwitchListTile(
+            key: const Key('settings-review-advanced'),
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.percent),
+            value: settings.reviewAdvanced,
+            title: Text(l10n.reviewAdvancedTitle),
+            subtitle: Text(l10n.reviewAdvancedBody),
+            onChanged: store.setReviewAdvanced,
+          ),
           ListTile(
             key: const Key('settings-backup'),
             contentPadding: EdgeInsets.zero,

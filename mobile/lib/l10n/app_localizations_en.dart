@@ -131,6 +131,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'assign': 'Assign / move to person…',
       'create': 'Create new person…',
       'reject': 'Not this person',
+      'remove': 'Remove from person…',
+      'someoneElse': 'This is someone else',
+      'notAFace': 'Not a face',
+      'moveTo': 'Move to…',
       'unassign': 'Remove assignment',
       'similar': 'Find similar faces',
       'save': 'Save crop to gallery',
@@ -3024,4 +3028,161 @@ class AppLocalizationsEn extends AppLocalizations {
   String charactersFound(int count) {
     return '$count character appearances found';
   }
+
+  @override
+  String get quickReviewTitle => 'Quick review';
+
+  @override
+  String quickReviewProgress(int current, int total) {
+    return '$current of $total';
+  }
+
+  @override
+  String get quickSeeAll => 'See all';
+
+  @override
+  String get quickYes => 'Yes';
+
+  @override
+  String get quickNo => 'No';
+
+  @override
+  String get quickNotSure => 'Not sure';
+
+  @override
+  String get quickSwipeHint => 'Swipe right for Yes, left for No';
+
+  @override
+  String get quickSamePerson => 'Same person?';
+
+  @override
+  String get quickWhoIsThis => 'Who is this?';
+
+  @override
+  String get quickWhoHint => 'Type a new name or pick someone';
+
+  @override
+  String get quickNewPersonHelper => 'Saves a new person';
+
+  @override
+  String quickAddToHelper(String name) {
+    return 'Adds these faces to $name';
+  }
+
+  @override
+  String quickGroupFaces(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count photos of this face',
+      one: '1 photo of this face',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get quickByClothes => 'Recognised by clothes';
+
+  @override
+  String get quickByWeakFace => 'Recognised by a small or blurry face';
+
+  @override
+  String get quickSnoozed =>
+      'Saved for later. It comes back when new photos give more evidence.';
+
+  @override
+  String get quickAllDone => 'All caught up';
+
+  @override
+  String get quickAllDoneBody =>
+      'New questions appear after the next scan or Sort now.';
+
+  @override
+  String quickAllDoneSnoozed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count answers you weren\'t sure about are waiting until there is more evidence. See all to decide now.',
+      one:
+          '1 answer you weren\'t sure about is waiting until there is more evidence. See all to decide now.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get likelihoodVeryLikely => 'Very likely';
+
+  @override
+  String get likelihoodLikely => 'Likely';
+
+  @override
+  String get likelihoodMaybe => 'Maybe';
+
+  @override
+  String get reviewAdvancedTitle => 'Advanced review details';
+
+  @override
+  String get reviewAdvancedBody =>
+      'Show percentages and how bodies were linked, and open Review on all four lists instead of one question at a time';
+
+  @override
+  String peopleReviewBanner(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Help improve your groups · $count questions',
+      one: 'Help improve your groups · 1 question',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get peopleReviewBannerBody =>
+      'Quick yes / no answers, one photo at a time';
+
+  @override
+  String albumReviewBanner(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Review $count photos',
+      one: 'Review 1 photo',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String albumReviewBannerBody(String name) {
+    return 'Photos that may also be $name';
+  }
+
+  @override
+  String albumReviewTitle(String name) {
+    return 'Is this $name?';
+  }
+
+  @override
+  String albumReviewHelp(String name) {
+    return 'Every photo starts ticked. Untick the ones that aren\'t $name, then tap Done. Long-press a photo to see it full size.';
+  }
+
+  @override
+  String get albumReviewNone => 'Untick all';
+
+  @override
+  String albumReviewSummary(int add, int remove) {
+    return '$add to add · $remove someone else';
+  }
+
+  @override
+  String albumReviewSaved(int add, int remove) {
+    return '$add added · $remove marked as someone else';
+  }
+
+  @override
+  String get viewerUnknownPerson => 'Unknown';
+
+  @override
+  String get viewerReassign => 'Change who this is';
 }

@@ -15,7 +15,7 @@ final _photo = base64Decode(
 
 Future<void> _open(WidgetTester tester, TestEnv env) => env.pump(
   tester,
-  extra: [initialLocationProvider.overrideWithValue('/review')],
+  extra: [initialLocationProvider.overrideWithValue('/review?view=all')],
 );
 
 Future<void> _viewerSettle(WidgetTester tester) async {
