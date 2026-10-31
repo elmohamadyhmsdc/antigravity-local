@@ -52,6 +52,11 @@ class Persons extends Table {
   TextColumn get name => text().nullable()();
   IntColumn get avatarFaceId => integer().nullable()();
   IntColumn get createdAt => integer()(); // epoch ms
+  BoolColumn get hidden => boolean().withDefault(const Constant(false))();
+  BoolColumn get favorite => boolean().withDefault(const Constant(false))();
+  BoolColumn get pinned => boolean().withDefault(const Constant(false))();
+  BoolColumn get groupingLocked =>
+      boolean().withDefault(const Constant(false))();
 }
 
 /// A reusable choice of real source faces. Deleting a person/face cannot leave
@@ -141,6 +146,7 @@ class Faces extends Table {
   BoolColumn get reviewDismissed =>
       boolean().withDefault(const Constant(false))();
   IntColumn get createdAt => integer()();
+  BoolColumn get hidden => boolean().withDefault(const Constant(false))();
 }
 
 /// Deletion decisions survive rescans and removal/reimport of the media row.

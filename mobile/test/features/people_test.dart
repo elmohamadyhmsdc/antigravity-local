@@ -15,6 +15,13 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _selectFace(WidgetTester tester, int id) async {
+  await tester.longPress(find.byKey(Key('face-$id')));
+  await _settle(tester);
+  await tester.tap(find.byKey(const Key('people-action-select')));
+  await _settle(tester);
+}
+
 void main() {
   group('S07 People', () {
     appTest('an empty library says so and points to scanning', (
@@ -233,7 +240,7 @@ void main() {
         );
         await _settle(tester);
 
-        await tester.longPress(find.byKey(Key('face-$a')));
+        await _selectFace(tester, a);
         await tester.pumpAndSettle();
         expect(find.text('1 selected'), findsOneWidget);
         await tester.tap(find.byKey(Key('face-$b')));
@@ -284,7 +291,7 @@ void main() {
         );
         await _settle(tester);
 
-        await tester.longPress(find.byKey(Key('face-$a')));
+        await _selectFace(tester, a);
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('selection-reject')));
         await _settle(tester);
@@ -309,7 +316,7 @@ void main() {
         extra: [initialLocationProvider.overrideWithValue('/people/$sara')],
       );
       await _settle(tester);
-      await tester.longPress(find.byKey(Key('face-$a')));
+      await _selectFace(tester, a);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('selection-delete')));
       await _settle(tester);
@@ -334,7 +341,7 @@ void main() {
         extra: [initialLocationProvider.overrideWithValue('/people/$sara')],
       );
       await _settle(tester);
-      await tester.longPress(find.byKey(Key('face-$low')));
+      await _selectFace(tester, low);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('selection-cover')));
       await _settle(tester);

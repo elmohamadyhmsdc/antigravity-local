@@ -15,6 +15,12 @@ class VideoJobStatus {
     this.warning,
     this.message,
     this.incrementalResults = false,
+    this.framesDone,
+    this.totalSamples,
+    this.analyzedTimestampMs,
+    this.frameInterval,
+    this.skippedSamples = 0,
+    this.stage,
   });
 
   factory VideoJobStatus.fromJson(Map<String, dynamic> json) {
@@ -30,6 +36,11 @@ class VideoJobStatus {
     }
     final details = json['details'] as Map? ?? const {};
     final skipped = details['skipped_frames'] as int? ?? 0;
+    int? count(Object? value) => value is int && value >= 0 ? value : null;
+    double? positive(Object? value) =>
+        value is num && value.isFinite && value > 0 ? value.toDouble() : null;
+    final fps = positive(details['fps']);
+    final lastFrame = count(json['last_frame']);
     if (!progress.isFinite ||
         progress < 0 ||
         progress > 1 ||
@@ -52,6 +63,14 @@ class VideoJobStatus {
       incrementalResults: json['incremental_results'] == true,
       previewBytes: preview == null ? null : base64Decode(preview),
       previewTimestampMs: timestamp,
+      framesDone: count(json['frames_done']),
+      totalSamples: count(details['total_samples']),
+      analyzedTimestampMs: fps == null || lastFrame == null
+          ? null
+          : (lastFrame * 1000 / fps).round(),
+      frameInterval: positive(details['frame_interval']),
+      skippedSamples: skipped < 0 ? 0 : skipped,
+      stage: details['stage'] as String?,
       warning:
           details['warning'] as String? ??
           (skipped > 0
@@ -69,6 +88,12 @@ class VideoJobStatus {
   final int? previewTimestampMs;
   final String? warning;
   final bool incrementalResults;
+  final int? framesDone;
+  final int? totalSamples;
+  final int? analyzedTimestampMs;
+  final double? frameInterval;
+  final int skippedSamples;
+  final String? stage;
 }
 
 class VideoFrameBatch {

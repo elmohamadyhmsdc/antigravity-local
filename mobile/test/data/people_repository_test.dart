@@ -39,6 +39,90 @@ void main() {
   Future<PersonRow?> person(int id) =>
       (db.select(db.persons)..where((p) => p.id.equals(id))).getSingleOrNull();
 
+  test('person flags persist and undo only the changed flags', () async {
+    final id = await seedPerson(db, name: 'Sara');
+    final undo = await repo.setPersonFlags([id], hidden: true, favorite: true);
+    await repo.setPersonFlags([id], pinned: true);
+    var p = (await repo.person(id))!;
+    expect((p.hidden, p.favorite, p.pinned), (true, true, true));
+    await undo();
+    p = (await repo.person(id))!;
+    expect((p.hidden, p.favorite, p.pinned), (false, false, true));
+  });
+
+  test(
+    'hiding a face keeps its assignment and crop and replaces a hidden cover',
+    () async {
+      final id = await seedPerson(db, name: 'Sara');
+      final a = await seedFace(
+        db,
+        personId: id,
+        seed: 1,
+        quality: .9,
+        cropPath: 'faces/a.jpg',
+      );
+      await seedFace(
+        db,
+        personId: id,
+        seed: 2,
+        quality: .5,
+        cropPath: 'faces/b.jpg',
+      );
+      await repo.setAvatar(id, a);
+      final undo = await repo.setFacesHidden([a], true);
+      expect((await face(a)).personId, id);
+      expect((await repo.person(id))!.avatarCropPath, 'faces/b.jpg');
+      expect(await db.select(db.faceSuppressions).get(), isEmpty);
+      await undo();
+      expect((await repo.person(id))!.avatarCropPath, 'faces/a.jpg');
+    },
+  );
+
+  test('splitting a person remembers the old assignment was wrong', () async {
+    final id = await seedPerson(db, name: 'Sara');
+    final a = await seedFace(db, personId: id, seed: 1);
+    final next = await repo.splitFaces(id, [a], 'Lina');
+    expect((await face(a)).personId, next);
+    expect(await repo.areDistinct(id, next), isTrue);
+    final rejection = (await db.select(db.faceRejections).get()).single;
+    expect((rejection.faceId, rejection.personId), (a, id));
+  });
+
+  test(
+    'bulk merging preserves flags and applies the reviewed name and cover',
+    () async {
+      final a = await seedPerson(db, name: 'A');
+      final b = await seedPerson(db, name: 'B');
+      final c = await seedPerson(db, name: 'C');
+      final cover = await seedFace(db, personId: a, seed: 1);
+      await seedFace(db, personId: b, seed: 2);
+      await repo.setPersonFlags([a], favorite: true);
+      await repo.setPersonFlags([b], pinned: true);
+      await repo.mergeMany([a, b, c], c, name: 'Together', coverFaceId: cover);
+      final kept = (await person(c))!;
+      expect(
+        (kept.name, kept.favorite, kept.pinned, kept.avatarFaceId),
+        ('Together', true, true, cover),
+      );
+      expect((await db.select(db.persons).get()).length, 1);
+      expect((await face(cover)).personId, c);
+    },
+  );
+
+  test(
+    'similar face search orders real embeddings and excludes hidden faces',
+    () async {
+      final a = await seedFace(db, seed: 1);
+      final near = await seedFace(db, seed: 1);
+      final hidden = await seedFace(db, seed: 1);
+      await repo.setFacesHidden([hidden], true);
+      final hits = await repo.similarFaces(a);
+      expect(hits.first.$1.id, near);
+      expect(hits.first.$2, closeTo(1, 1e-5));
+      expect(hits.any((h) => h.$1.id == hidden || h.$1.id == a), isFalse);
+    },
+  );
+
   group('people', () {
     test(
       'the list is ordered by face count, with the chosen cover or else the best face',

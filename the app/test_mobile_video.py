@@ -88,6 +88,7 @@ class VideoTests(unittest.TestCase):
         job = self.wait(job_id)
         self.assertEqual(job["status"], "completed", job)
         self.assertEqual(job["frames_done"], 3)
+        self.assertEqual(job['details']['total_samples'], 3)
         preview = cv2.imdecode(np.frombuffer(base64.b64decode(job['preview_jpeg']), np.uint8), cv2.IMREAD_COLOR)
         self.assertLessEqual(max(preview.shape[:2]), 480)
         self.assertEqual(job['preview_timestamp_ms'], 2000)
@@ -128,6 +129,11 @@ class VideoTests(unittest.TestCase):
         self.assertTrue(entered.wait(10))
         endpoint = f'/v1/jobs/{job_id}/frames'
         try:
+            progress = self.client.get(f'/v1/jobs/{job_id}', headers=self.headers).json()
+            self.assertEqual(progress['details']['stage'], 'inference')
+            self.assertEqual(progress['details']['total_samples'], 18)
+            self.assertEqual(progress['frames_done'], 8)
+            self.assertEqual(progress['last_frame'], 14)
             response = self.client.get(endpoint, params={'cursor': 0, 'limit': 2}, headers=self.headers)
             self.assertEqual(response.status_code, 200, response.text)
             batch = response.json()

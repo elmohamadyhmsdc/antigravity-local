@@ -38,10 +38,11 @@ class PlanApplier {
     for (final a in plan.assignments) {
       if (!a.isAuto || !people.contains(a.personId)) continue;
       assigned += await _db.customUpdate(
-        'UPDATE faces SET person_id = ? WHERE id = ? AND person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id = ?)',
+        'UPDATE faces SET person_id = ? WHERE id = ? AND person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id = ?) AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ? AND p.grouping_locked = 0)',
         variables: [
           Variable.withInt(a.personId),
           Variable.withInt(a.faceId),
+          Variable.withInt(a.personId),
           Variable.withInt(a.personId),
         ],
         updates: {_db.faces},
@@ -101,7 +102,7 @@ class PlanApplier {
     GroupingPlanResponse plan,
   ) => _db.transaction(() async {
     await _db.customUpdate(
-      "UPDATE bodies SET person_id = NULL, link_method = NULL, link_confidence = NULL WHERE link_method IN ('appearance', 'weak_face')",
+      "UPDATE bodies SET person_id = NULL, link_method = NULL, link_confidence = NULL WHERE link_method IN ('appearance', 'weak_face') AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.id = bodies.person_id AND p.grouping_locked = 1)",
       updates: {_db.bodies},
     );
     final people = await _personIds();
@@ -126,7 +127,10 @@ class PlanApplier {
   Future<Set<int>> _personIds() async => {
     for (final r
         in await _db
-            .customSelect('SELECT id FROM persons', readsFrom: {_db.persons})
+            .customSelect(
+              'SELECT id FROM persons WHERE grouping_locked = 0',
+              readsFrom: {_db.persons},
+            )
             .get())
       r.read<int>('id'),
   };

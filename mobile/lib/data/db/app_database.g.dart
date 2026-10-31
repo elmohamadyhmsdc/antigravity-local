@@ -52,8 +52,73 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _hiddenMeta = const VerificationMeta('hidden');
   @override
-  List<GeneratedColumn> get $columns => [id, name, avatarFaceId, createdAt];
+  late final GeneratedColumn<bool> hidden = GeneratedColumn<bool>(
+    'hidden',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("hidden" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _favoriteMeta = const VerificationMeta(
+    'favorite',
+  );
+  @override
+  late final GeneratedColumn<bool> favorite = GeneratedColumn<bool>(
+    'favorite',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("favorite" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
+  @override
+  late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
+    'pinned',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pinned" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _groupingLockedMeta = const VerificationMeta(
+    'groupingLocked',
+  );
+  @override
+  late final GeneratedColumn<bool> groupingLocked = GeneratedColumn<bool>(
+    'grouping_locked',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("grouping_locked" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    avatarFaceId,
+    createdAt,
+    hidden,
+    favorite,
+    pinned,
+    groupingLocked,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -92,6 +157,33 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('hidden')) {
+      context.handle(
+        _hiddenMeta,
+        hidden.isAcceptableOrUnknown(data['hidden']!, _hiddenMeta),
+      );
+    }
+    if (data.containsKey('favorite')) {
+      context.handle(
+        _favoriteMeta,
+        favorite.isAcceptableOrUnknown(data['favorite']!, _favoriteMeta),
+      );
+    }
+    if (data.containsKey('pinned')) {
+      context.handle(
+        _pinnedMeta,
+        pinned.isAcceptableOrUnknown(data['pinned']!, _pinnedMeta),
+      );
+    }
+    if (data.containsKey('grouping_locked')) {
+      context.handle(
+        _groupingLockedMeta,
+        groupingLocked.isAcceptableOrUnknown(
+          data['grouping_locked']!,
+          _groupingLockedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -117,6 +209,22 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
       )!,
+      hidden: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}hidden'],
+      )!,
+      favorite: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}favorite'],
+      )!,
+      pinned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pinned'],
+      )!,
+      groupingLocked: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}grouping_locked'],
+      )!,
     );
   }
 
@@ -131,11 +239,19 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
   final String? name;
   final int? avatarFaceId;
   final int createdAt;
+  final bool hidden;
+  final bool favorite;
+  final bool pinned;
+  final bool groupingLocked;
   const PersonRow({
     required this.id,
     this.name,
     this.avatarFaceId,
     required this.createdAt,
+    required this.hidden,
+    required this.favorite,
+    required this.pinned,
+    required this.groupingLocked,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -148,6 +264,10 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
       map['avatar_face_id'] = Variable<int>(avatarFaceId);
     }
     map['created_at'] = Variable<int>(createdAt);
+    map['hidden'] = Variable<bool>(hidden);
+    map['favorite'] = Variable<bool>(favorite);
+    map['pinned'] = Variable<bool>(pinned);
+    map['grouping_locked'] = Variable<bool>(groupingLocked);
     return map;
   }
 
@@ -159,6 +279,10 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
           ? const Value.absent()
           : Value(avatarFaceId),
       createdAt: Value(createdAt),
+      hidden: Value(hidden),
+      favorite: Value(favorite),
+      pinned: Value(pinned),
+      groupingLocked: Value(groupingLocked),
     );
   }
 
@@ -172,6 +296,10 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
       name: serializer.fromJson<String?>(json['name']),
       avatarFaceId: serializer.fromJson<int?>(json['avatarFaceId']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
+      hidden: serializer.fromJson<bool>(json['hidden']),
+      favorite: serializer.fromJson<bool>(json['favorite']),
+      pinned: serializer.fromJson<bool>(json['pinned']),
+      groupingLocked: serializer.fromJson<bool>(json['groupingLocked']),
     );
   }
   @override
@@ -182,6 +310,10 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
       'name': serializer.toJson<String?>(name),
       'avatarFaceId': serializer.toJson<int?>(avatarFaceId),
       'createdAt': serializer.toJson<int>(createdAt),
+      'hidden': serializer.toJson<bool>(hidden),
+      'favorite': serializer.toJson<bool>(favorite),
+      'pinned': serializer.toJson<bool>(pinned),
+      'groupingLocked': serializer.toJson<bool>(groupingLocked),
     };
   }
 
@@ -190,11 +322,19 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
     Value<String?> name = const Value.absent(),
     Value<int?> avatarFaceId = const Value.absent(),
     int? createdAt,
+    bool? hidden,
+    bool? favorite,
+    bool? pinned,
+    bool? groupingLocked,
   }) => PersonRow(
     id: id ?? this.id,
     name: name.present ? name.value : this.name,
     avatarFaceId: avatarFaceId.present ? avatarFaceId.value : this.avatarFaceId,
     createdAt: createdAt ?? this.createdAt,
+    hidden: hidden ?? this.hidden,
+    favorite: favorite ?? this.favorite,
+    pinned: pinned ?? this.pinned,
+    groupingLocked: groupingLocked ?? this.groupingLocked,
   );
   PersonRow copyWithCompanion(PersonsCompanion data) {
     return PersonRow(
@@ -204,6 +344,12 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
           ? data.avatarFaceId.value
           : this.avatarFaceId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      hidden: data.hidden.present ? data.hidden.value : this.hidden,
+      favorite: data.favorite.present ? data.favorite.value : this.favorite,
+      pinned: data.pinned.present ? data.pinned.value : this.pinned,
+      groupingLocked: data.groupingLocked.present
+          ? data.groupingLocked.value
+          : this.groupingLocked,
     );
   }
 
@@ -213,13 +359,26 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarFaceId: $avatarFaceId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('hidden: $hidden, ')
+          ..write('favorite: $favorite, ')
+          ..write('pinned: $pinned, ')
+          ..write('groupingLocked: $groupingLocked')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, avatarFaceId, createdAt);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    avatarFaceId,
+    createdAt,
+    hidden,
+    favorite,
+    pinned,
+    groupingLocked,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -227,7 +386,11 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
           other.id == this.id &&
           other.name == this.name &&
           other.avatarFaceId == this.avatarFaceId &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.hidden == this.hidden &&
+          other.favorite == this.favorite &&
+          other.pinned == this.pinned &&
+          other.groupingLocked == this.groupingLocked);
 }
 
 class PersonsCompanion extends UpdateCompanion<PersonRow> {
@@ -235,29 +398,49 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
   final Value<String?> name;
   final Value<int?> avatarFaceId;
   final Value<int> createdAt;
+  final Value<bool> hidden;
+  final Value<bool> favorite;
+  final Value<bool> pinned;
+  final Value<bool> groupingLocked;
   const PersonsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.avatarFaceId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.hidden = const Value.absent(),
+    this.favorite = const Value.absent(),
+    this.pinned = const Value.absent(),
+    this.groupingLocked = const Value.absent(),
   });
   PersonsCompanion.insert({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.avatarFaceId = const Value.absent(),
     required int createdAt,
+    this.hidden = const Value.absent(),
+    this.favorite = const Value.absent(),
+    this.pinned = const Value.absent(),
+    this.groupingLocked = const Value.absent(),
   }) : createdAt = Value(createdAt);
   static Insertable<PersonRow> custom({
     Expression<int>? id,
     Expression<String>? name,
     Expression<int>? avatarFaceId,
     Expression<int>? createdAt,
+    Expression<bool>? hidden,
+    Expression<bool>? favorite,
+    Expression<bool>? pinned,
+    Expression<bool>? groupingLocked,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (avatarFaceId != null) 'avatar_face_id': avatarFaceId,
       if (createdAt != null) 'created_at': createdAt,
+      if (hidden != null) 'hidden': hidden,
+      if (favorite != null) 'favorite': favorite,
+      if (pinned != null) 'pinned': pinned,
+      if (groupingLocked != null) 'grouping_locked': groupingLocked,
     });
   }
 
@@ -266,12 +449,20 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
     Value<String?>? name,
     Value<int?>? avatarFaceId,
     Value<int>? createdAt,
+    Value<bool>? hidden,
+    Value<bool>? favorite,
+    Value<bool>? pinned,
+    Value<bool>? groupingLocked,
   }) {
     return PersonsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       avatarFaceId: avatarFaceId ?? this.avatarFaceId,
       createdAt: createdAt ?? this.createdAt,
+      hidden: hidden ?? this.hidden,
+      favorite: favorite ?? this.favorite,
+      pinned: pinned ?? this.pinned,
+      groupingLocked: groupingLocked ?? this.groupingLocked,
     );
   }
 
@@ -290,6 +481,18 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
+    if (hidden.present) {
+      map['hidden'] = Variable<bool>(hidden.value);
+    }
+    if (favorite.present) {
+      map['favorite'] = Variable<bool>(favorite.value);
+    }
+    if (pinned.present) {
+      map['pinned'] = Variable<bool>(pinned.value);
+    }
+    if (groupingLocked.present) {
+      map['grouping_locked'] = Variable<bool>(groupingLocked.value);
+    }
     return map;
   }
 
@@ -299,7 +502,11 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarFaceId: $avatarFaceId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('hidden: $hidden, ')
+          ..write('favorite: $favorite, ')
+          ..write('pinned: $pinned, ')
+          ..write('groupingLocked: $groupingLocked')
           ..write(')'))
         .toString();
   }
@@ -1415,6 +1622,19 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _hiddenMeta = const VerificationMeta('hidden');
+  @override
+  late final GeneratedColumn<bool> hidden = GeneratedColumn<bool>(
+    'hidden',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("hidden" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1441,6 +1661,7 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
     cropPath,
     reviewDismissed,
     createdAt,
+    hidden,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1637,6 +1858,12 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('hidden')) {
+      context.handle(
+        _hiddenMeta,
+        hidden.isAcceptableOrUnknown(data['hidden']!, _hiddenMeta),
+      );
+    }
     return context;
   }
 
@@ -1742,6 +1969,10 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
       )!,
+      hidden: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}hidden'],
+      )!,
     );
   }
 
@@ -1776,6 +2007,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
   final String? cropPath;
   final bool reviewDismissed;
   final int createdAt;
+  final bool hidden;
   const FaceRow({
     required this.id,
     this.mediaId,
@@ -1801,6 +2033,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     this.cropPath,
     required this.reviewDismissed,
     required this.createdAt,
+    required this.hidden,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1849,6 +2082,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     }
     map['review_dismissed'] = Variable<bool>(reviewDismissed);
     map['created_at'] = Variable<int>(createdAt);
+    map['hidden'] = Variable<bool>(hidden);
     return map;
   }
 
@@ -1892,6 +2126,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           : Value(cropPath),
       reviewDismissed: Value(reviewDismissed),
       createdAt: Value(createdAt),
+      hidden: Value(hidden),
     );
   }
 
@@ -1925,6 +2160,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       cropPath: serializer.fromJson<String?>(json['cropPath']),
       reviewDismissed: serializer.fromJson<bool>(json['reviewDismissed']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
+      hidden: serializer.fromJson<bool>(json['hidden']),
     );
   }
   @override
@@ -1955,6 +2191,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       'cropPath': serializer.toJson<String?>(cropPath),
       'reviewDismissed': serializer.toJson<bool>(reviewDismissed),
       'createdAt': serializer.toJson<int>(createdAt),
+      'hidden': serializer.toJson<bool>(hidden),
     };
   }
 
@@ -1983,6 +2220,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     Value<String?> cropPath = const Value.absent(),
     bool? reviewDismissed,
     int? createdAt,
+    bool? hidden,
   }) => FaceRow(
     id: id ?? this.id,
     mediaId: mediaId.present ? mediaId.value : this.mediaId,
@@ -2010,6 +2248,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     cropPath: cropPath.present ? cropPath.value : this.cropPath,
     reviewDismissed: reviewDismissed ?? this.reviewDismissed,
     createdAt: createdAt ?? this.createdAt,
+    hidden: hidden ?? this.hidden,
   );
   FaceRow copyWithCompanion(FacesCompanion data) {
     return FaceRow(
@@ -2049,6 +2288,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           ? data.reviewDismissed.value
           : this.reviewDismissed,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      hidden: data.hidden.present ? data.hidden.value : this.hidden,
     );
   }
 
@@ -2078,7 +2318,8 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           ..write('timestampMs: $timestampMs, ')
           ..write('cropPath: $cropPath, ')
           ..write('reviewDismissed: $reviewDismissed, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('hidden: $hidden')
           ..write(')'))
         .toString();
   }
@@ -2109,6 +2350,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     cropPath,
     reviewDismissed,
     createdAt,
+    hidden,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -2137,7 +2379,8 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           other.timestampMs == this.timestampMs &&
           other.cropPath == this.cropPath &&
           other.reviewDismissed == this.reviewDismissed &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.hidden == this.hidden);
 }
 
 class FacesCompanion extends UpdateCompanion<FaceRow> {
@@ -2165,6 +2408,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
   final Value<String?> cropPath;
   final Value<bool> reviewDismissed;
   final Value<int> createdAt;
+  final Value<bool> hidden;
   const FacesCompanion({
     this.id = const Value.absent(),
     this.mediaId = const Value.absent(),
@@ -2190,6 +2434,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     this.cropPath = const Value.absent(),
     this.reviewDismissed = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.hidden = const Value.absent(),
   });
   FacesCompanion.insert({
     this.id = const Value.absent(),
@@ -2216,6 +2461,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     this.cropPath = const Value.absent(),
     this.reviewDismissed = const Value.absent(),
     required int createdAt,
+    this.hidden = const Value.absent(),
   }) : modelId = Value(modelId),
        embedding = Value(embedding),
        qualityScore = Value(qualityScore),
@@ -2253,6 +2499,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     Expression<String>? cropPath,
     Expression<bool>? reviewDismissed,
     Expression<int>? createdAt,
+    Expression<bool>? hidden,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2279,6 +2526,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
       if (cropPath != null) 'crop_path': cropPath,
       if (reviewDismissed != null) 'review_dismissed': reviewDismissed,
       if (createdAt != null) 'created_at': createdAt,
+      if (hidden != null) 'hidden': hidden,
     });
   }
 
@@ -2307,6 +2555,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     Value<String?>? cropPath,
     Value<bool>? reviewDismissed,
     Value<int>? createdAt,
+    Value<bool>? hidden,
   }) {
     return FacesCompanion(
       id: id ?? this.id,
@@ -2333,6 +2582,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
       cropPath: cropPath ?? this.cropPath,
       reviewDismissed: reviewDismissed ?? this.reviewDismissed,
       createdAt: createdAt ?? this.createdAt,
+      hidden: hidden ?? this.hidden,
     );
   }
 
@@ -2411,6 +2661,9 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
+    if (hidden.present) {
+      map['hidden'] = Variable<bool>(hidden.value);
+    }
     return map;
   }
 
@@ -2440,7 +2693,8 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
           ..write('timestampMs: $timestampMs, ')
           ..write('cropPath: $cropPath, ')
           ..write('reviewDismissed: $reviewDismissed, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('hidden: $hidden')
           ..write(')'))
         .toString();
   }
@@ -13115,6 +13369,10 @@ typedef $$PersonsTableCreateCompanionBuilder =
       Value<String?> name,
       Value<int?> avatarFaceId,
       required int createdAt,
+      Value<bool> hidden,
+      Value<bool> favorite,
+      Value<bool> pinned,
+      Value<bool> groupingLocked,
     });
 typedef $$PersonsTableUpdateCompanionBuilder =
     PersonsCompanion Function({
@@ -13122,6 +13380,10 @@ typedef $$PersonsTableUpdateCompanionBuilder =
       Value<String?> name,
       Value<int?> avatarFaceId,
       Value<int> createdAt,
+      Value<bool> hidden,
+      Value<bool> favorite,
+      Value<bool> pinned,
+      Value<bool> groupingLocked,
     });
 
 final class $$PersonsTableReferences
@@ -13432,6 +13694,26 @@ class $$PersonsTableFilterComposer
 
   ColumnFilters<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get favorite => $composableBuilder(
+    column: $table.favorite,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get groupingLocked => $composableBuilder(
+    column: $table.groupingLocked,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13839,6 +14121,26 @@ class $$PersonsTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get favorite => $composableBuilder(
+    column: $table.favorite,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get groupingLocked => $composableBuilder(
+    column: $table.groupingLocked,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PersonsTableAnnotationComposer
@@ -13863,6 +14165,20 @@ class $$PersonsTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get hidden =>
+      $composableBuilder(column: $table.hidden, builder: (column) => column);
+
+  GeneratedColumn<bool> get favorite =>
+      $composableBuilder(column: $table.favorite, builder: (column) => column);
+
+  GeneratedColumn<bool> get pinned =>
+      $composableBuilder(column: $table.pinned, builder: (column) => column);
+
+  GeneratedColumn<bool> get groupingLocked => $composableBuilder(
+    column: $table.groupingLocked,
+    builder: (column) => column,
+  );
 
   Expression<T> facesRefs<T extends Object>(
     Expression<T> Function($$FacesTableAnnotationComposer a) f,
@@ -14288,11 +14604,19 @@ class $$PersonsTableTableManager
                 Value<String?> name = const Value.absent(),
                 Value<int?> avatarFaceId = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
+                Value<bool> hidden = const Value.absent(),
+                Value<bool> favorite = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+                Value<bool> groupingLocked = const Value.absent(),
               }) => PersonsCompanion(
                 id: id,
                 name: name,
                 avatarFaceId: avatarFaceId,
                 createdAt: createdAt,
+                hidden: hidden,
+                favorite: favorite,
+                pinned: pinned,
+                groupingLocked: groupingLocked,
               ),
           createCompanionCallback:
               ({
@@ -14300,11 +14624,19 @@ class $$PersonsTableTableManager
                 Value<String?> name = const Value.absent(),
                 Value<int?> avatarFaceId = const Value.absent(),
                 required int createdAt,
+                Value<bool> hidden = const Value.absent(),
+                Value<bool> favorite = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+                Value<bool> groupingLocked = const Value.absent(),
               }) => PersonsCompanion.insert(
                 id: id,
                 name: name,
                 avatarFaceId: avatarFaceId,
                 createdAt: createdAt,
+                hidden: hidden,
+                favorite: favorite,
+                pinned: pinned,
+                groupingLocked: groupingLocked,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -15505,6 +15837,7 @@ typedef $$FacesTableCreateCompanionBuilder =
       Value<String?> cropPath,
       Value<bool> reviewDismissed,
       required int createdAt,
+      Value<bool> hidden,
     });
 typedef $$FacesTableUpdateCompanionBuilder =
     FacesCompanion Function({
@@ -15532,6 +15865,7 @@ typedef $$FacesTableUpdateCompanionBuilder =
       Value<String?> cropPath,
       Value<bool> reviewDismissed,
       Value<int> createdAt,
+      Value<bool> hidden,
     });
 
 final class $$FacesTableReferences
@@ -15763,6 +16097,11 @@ class $$FacesTableFilterComposer extends Composer<_$AppDatabase, $FacesTable> {
 
   ColumnFilters<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16032,6 +16371,11 @@ class $$FacesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MediaTableOrderingComposer get mediaId {
     final $$MediaTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -16165,6 +16509,9 @@ class $$FacesTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get hidden =>
+      $composableBuilder(column: $table.hidden, builder: (column) => column);
 
   $$MediaTableAnnotationComposer get mediaId {
     final $$MediaTableAnnotationComposer composer = $composerBuilder(
@@ -16372,6 +16719,7 @@ class $$FacesTableTableManager
                 Value<String?> cropPath = const Value.absent(),
                 Value<bool> reviewDismissed = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
+                Value<bool> hidden = const Value.absent(),
               }) => FacesCompanion(
                 id: id,
                 mediaId: mediaId,
@@ -16397,6 +16745,7 @@ class $$FacesTableTableManager
                 cropPath: cropPath,
                 reviewDismissed: reviewDismissed,
                 createdAt: createdAt,
+                hidden: hidden,
               ),
           createCompanionCallback:
               ({
@@ -16424,6 +16773,7 @@ class $$FacesTableTableManager
                 Value<String?> cropPath = const Value.absent(),
                 Value<bool> reviewDismissed = const Value.absent(),
                 required int createdAt,
+                Value<bool> hidden = const Value.absent(),
               }) => FacesCompanion.insert(
                 id: id,
                 mediaId: mediaId,
@@ -16449,6 +16799,7 @@ class $$FacesTableTableManager
                 cropPath: cropPath,
                 reviewDismissed: reviewDismissed,
                 createdAt: createdAt,
+                hidden: hidden,
               ),
           withReferenceMapper: (p0) => p0
               .map(

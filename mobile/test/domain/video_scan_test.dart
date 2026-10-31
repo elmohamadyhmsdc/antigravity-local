@@ -15,6 +15,7 @@ import 'package:antigravity_mobile/data/repositories/library_repository.dart';
 import 'package:antigravity_mobile/data/repositories/media_queries.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
 import 'package:antigravity_mobile/domain/scan/video_scan.dart';
+import 'package:antigravity_mobile/domain/scan/video_scan_progress.dart';
 import 'package:antigravity_mobile/domain/scan/video_sampling.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
@@ -218,6 +219,7 @@ void main() {
     bool Function()? paused,
     void Function(String, double)? report,
     void Function(Uint8List, int?)? onPreview,
+    void Function(VideoScanProgress)? onProgress,
   }) => scanner.run(
     row,
     api: pc,
@@ -226,6 +228,113 @@ void main() {
     paused: paused ?? () => false,
     report: report ?? (_, _) {},
     onPreview: onPreview,
+    onProgress: onProgress,
+  );
+
+  test(
+    'stage telemetry starts at the resumed offset and counts committed results',
+    () async {
+      pc.uploadedOffset = 4;
+      pc.liveStatus = const VideoJobStatus(
+        id: 'video-1',
+        status: 'completed',
+        progress: 1,
+        stage: 'finalize',
+      );
+      final updates = <VideoScanProgress>[];
+      await run(onProgress: updates.add);
+      final uploads = updates
+          .where((p) => p.stage == VideoScanStage.upload)
+          .toList();
+      expect(uploads.first.processedBytes, 4);
+      expect(uploads.first.totalBytes, 10);
+      expect(uploads.first.fraction, 0.4);
+      expect(uploads.last.processedBytes, 10);
+      final verify = updates.firstWhere(
+        (p) => p.stage == VideoScanStage.verify,
+      );
+      expect(verify.fraction, isNull);
+      expect(verify.eta, isNull);
+      final imported = updates
+          .where((p) => p.stage == VideoScanStage.importing)
+          .toList();
+      expect(imported.last.framesSaved, 3);
+      expect(imported.last.facesFound, 3);
+      expect(updates.last.stage, VideoScanStage.finish);
+      expect(
+        updates
+            .where((p) => p.stage == VideoScanStage.finish)
+            .every((p) => p.fraction == null && p.eta == null),
+        isTrue,
+      );
+      expect(updates.last.facesFound, (await db.select(db.faces).get()).length);
+      expect(updates.last.fileName, 'original.mp4');
+      expect(updates.last.fileBytes, 10);
+      expect((updates.last.width, updates.last.height), (640, 480));
+    },
+  );
+
+  test(
+    'live saving retains analysis progress and exposes detections before completion',
+    () async {
+      final streaming = StreamingPc()..result = pc.result;
+      pc = streaming;
+      final updates = <VideoScanProgress>[];
+      var pause = false;
+      await expectLater(
+        run(
+          paused: () => pause,
+          onProgress: (p) {
+            updates.add(p);
+            if (p.framesSaved == 1) pause = true;
+          },
+        ),
+        throwsA(isA<VideoScanPaused>()),
+      );
+      final saved = updates.firstWhere((p) => p.framesSaved == 1);
+      expect(saved.stage, VideoScanStage.analyze);
+      expect(saved.fraction, closeTo(1 / 3, 1e-9));
+      expect(saved.facesFound, 1);
+      expect(saved.incrementalResults, isTrue);
+      expect(saved.serverUpdatedAt, isNotNull);
+      expect((await db.select(db.faces).get()).length, 1);
+      expect(pc.deleted, 0);
+    },
+  );
+
+  test(
+    'optional PC measurements use analyzed rather than preview position',
+    () {
+      final status = VideoJobStatus.fromJson({
+        'job_id': 'v',
+        'status': 'running',
+        'progress': 0.4,
+        'frames_done': 4,
+        'last_frame': 90,
+        'preview_timestamp_ms': 4000,
+        'details': {
+          'fps': 30,
+          'frame_interval': 1.0,
+          'total_samples': 10,
+          'skipped_frames': 1,
+          'stage': 'inference',
+        },
+      });
+      expect(status.framesDone, 4);
+      expect(status.totalSamples, 10);
+      expect(status.analyzedTimestampMs, 3000);
+      expect(status.frameInterval, 1);
+      expect(status.skippedSamples, 1);
+      expect(status.stage, 'inference');
+      final older = VideoJobStatus.fromJson({
+        'job_id': 'v',
+        'status': 'running',
+        'progress': 0.4,
+      });
+      expect(older.totalSamples, isNull);
+      expect(older.framesDone, isNull);
+      expect(older.analyzedTimestampMs, isNull);
+    },
   );
 
   test(

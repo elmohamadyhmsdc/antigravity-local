@@ -76,7 +76,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 8;
+  static const currentSchemaVersion = 9;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -142,6 +142,30 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(characterSamples);
         await m.createIndex(characterSamplesIdentity);
         await m.createIndex(characterSamplesMedia);
+      }
+      if (from < 9) {
+        // Also tolerate imports/tests whose table already has newer columns.
+        Future<void> addMissing(
+          TableInfo<Table, dynamic> table,
+          List<GeneratedColumn<Object>> columns,
+        ) async {
+          final existing = (await customSelect(
+            'PRAGMA table_info(${table.actualTableName})',
+          ).get()).map((r) => r.read<String>('name')).toSet();
+          for (final column in columns) {
+            if (!existing.contains(column.name)) {
+              await m.addColumn(table, column);
+            }
+          }
+        }
+
+        await addMissing(persons, [
+          persons.hidden,
+          persons.favorite,
+          persons.pinned,
+          persons.groupingLocked,
+        ]);
+        await addMissing(faces, [faces.hidden]);
       }
     },
     beforeOpen: (details) async {

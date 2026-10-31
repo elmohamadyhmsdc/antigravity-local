@@ -86,6 +86,22 @@ void main() {
   )..where((f) => f.id.equals(face))).getSingle()).personId;
 
   test(
+    'a lock rejects even an already requested automatic plan until unlocked',
+    () async {
+      final id = await seedPerson(db, name: 'Sara');
+      final face = await seedFace(db, seed: 5);
+      final repo = PeopleRepository(db, FileStore(tmp));
+      final plan = _plan('apply', assignments: [_assign(face, id)]);
+      await repo.setPersonFlags([id], groupingLocked: true);
+      expect((await PlanApplier(db).applyFacePlan(plan)).assigned, 0);
+      expect(await personOf(face), isNull);
+      await repo.setPersonFlags([id], groupingLocked: false);
+      expect((await PlanApplier(db).applyFacePlan(plan)).assigned, 1);
+      expect(await personOf(face), id);
+    },
+  );
+
+  test(
     'round 1 gives confident matches to existing people and turns auto-create groups into people',
     () async {
       final sara = await seedPerson(db, name: 'Sara');

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'video_scan_progress.dart';
+
 enum ScanPhase {
   idle, // nothing running
   preparing, // listing the photos of the chosen albums
@@ -42,6 +44,7 @@ class ScanProgress {
     this.currentKind,
     this.previewBytes,
     this.previewTimestampMs,
+    this.video,
   });
 
   final ScanPhase phase;
@@ -62,6 +65,7 @@ class ScanProgress {
   final String? currentKind;
   final Uint8List? previewBytes;
   final int? previewTimestampMs;
+  final VideoScanProgress? video;
 
   bool get isActive =>
       phase == ScanPhase.preparing ||
@@ -94,6 +98,8 @@ class ScanProgress {
     Uint8List? previewBytes,
     int? previewTimestampMs,
     bool clearPreview = false,
+    VideoScanProgress? video,
+    bool clearVideo = false,
   }) => ScanProgress(
     phase: phase ?? this.phase,
     pauseReason: clearPauseReason ? null : (pauseReason ?? this.pauseReason),
@@ -117,6 +123,7 @@ class ScanProgress {
     previewTimestampMs: clearPreview
         ? null
         : (previewTimestampMs ?? this.previewTimestampMs),
+    video: clearVideo ? null : (video ?? this.video),
   );
 }
 

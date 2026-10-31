@@ -354,6 +354,44 @@ void main() {
 
   group('migrations', () {
     test(
+      'v8 upgrade preserves people and faces with visible unlocked defaults',
+      () async {
+        final file = File(p.join(dir.path, 'v8.db'));
+        final before = AppDatabase(NativeDatabase(file));
+        await before
+            .into(before.persons)
+            .insert(
+              PersonsCompanion.insert(name: const Value('Keep'), createdAt: 1),
+            );
+        await _addFace(before, personId: 1);
+        await before.close();
+        final legacy = raw.sqlite3.open(file.path);
+        legacy.execute(
+          'ALTER TABLE faces DROP COLUMN hidden; ALTER TABLE persons DROP COLUMN hidden; ALTER TABLE persons DROP COLUMN favorite; ALTER TABLE persons DROP COLUMN pinned; ALTER TABLE persons DROP COLUMN grouping_locked; PRAGMA user_version = 8;',
+        );
+        legacy.close();
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
+        final person = (await after.select(after.persons).get()).single;
+        final face = (await after.select(after.faces).get()).single;
+        expect(
+          (
+            person.name,
+            person.hidden,
+            person.favorite,
+            person.pinned,
+            person.groupingLocked,
+          ),
+          ('Keep', false, false, false, false),
+        );
+        expect((face.personId, face.hidden), (person.id, false));
+        expect(
+          await after.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+      },
+    );
+    test(
       'v7 upgrade keeps the human library and adds isolated character storage',
       () async {
         final file = File(p.join(dir.path, 'v7.db'));

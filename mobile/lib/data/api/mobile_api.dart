@@ -145,7 +145,13 @@ Map<String, dynamic> _json(Response<dynamic> response) {
 }
 
 class HttpMobileApi
-    implements MobileApi, VideoApi, VideoFrameApi, StudioApi, ResourceApi {
+    implements
+        MobileApi,
+        VideoApi,
+        VideoFrameApi,
+        VideoTransferProgressApi,
+        StudioApi,
+        ResourceApi {
   HttpMobileApi(
     this.session, {
     Dio? dio,
@@ -214,10 +220,20 @@ class HttpMobileApi
     Uint8List bytes,
     int offset,
     int total,
-  ) => _guard(() async {
+  ) => uploadVideoChunk(sha256, bytes, offset, total, onProgress: (_) {});
+
+  @override
+  Future<int> uploadVideoChunk(
+    String sha256,
+    Uint8List bytes,
+    int offset,
+    int total, {
+    required void Function(int sent) onProgress,
+  }) => _guard(() async {
     final r = await _dio.put(
       '/v1/blobs/$sha256',
       data: binaryUploadBody(bytes),
+      onSendProgress: (sent, _) => onProgress(sent),
       options: Options(
         contentType: 'application/octet-stream',
         headers: {
@@ -297,6 +313,20 @@ class HttpMobileApi
       _dio,
       '/v1/jobs/${Uri.encodeComponent(id)}/result/detections.ndjson',
       target,
+    );
+  });
+
+  @override
+  Future<void> downloadVideoWithProgress(
+    String id,
+    File target, {
+    required void Function(int received) onProgress,
+  }) => _guard(() async {
+    await downloadResumableFile(
+      _dio,
+      '/v1/jobs/${Uri.encodeComponent(id)}/result/detections.ndjson',
+      target,
+      onProgress: onProgress,
     );
   });
 

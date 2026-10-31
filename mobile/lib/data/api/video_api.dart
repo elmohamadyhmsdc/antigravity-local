@@ -25,3 +25,19 @@ abstract interface class VideoApi {
 abstract interface class VideoFrameApi {
   Future<VideoFrameBatch> videoFrames(String id, {required int cursor});
 }
+
+/// Optional transport telemetry; older/fake transports retain chunk updates.
+abstract interface class VideoTransferProgressApi {
+  Future<int> uploadVideoChunk(
+    String sha256,
+    Uint8List bytes,
+    int offset,
+    int total, {
+    required void Function(int sent) onProgress,
+  });
+  Future<void> downloadVideoWithProgress(
+    String id,
+    File target, {
+    required void Function(int received) onProgress,
+  });
+}

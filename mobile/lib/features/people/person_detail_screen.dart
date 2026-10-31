@@ -13,6 +13,8 @@ import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../shared/person_picker.dart';
 import 'face_grid.dart';
+import 'action_sheet.dart';
+import 'people_actions.dart';
 
 final personProvider = StreamProvider.autoDispose.family<PersonSummary?, int>(
   (ref, id) => ref.watch(peopleRepositoryProvider).watchPerson(id),
@@ -40,9 +42,14 @@ final reviewBodyLinksProvider =
 
 /// S08 - one person: faces, photos, bodies and what the PC suggests about them.
 class PersonDetailScreen extends ConsumerWidget {
-  const PersonDetailScreen({super.key, required this.personId});
+  const PersonDetailScreen({
+    super.key,
+    required this.personId,
+    this.initialTab = 0,
+  });
 
   final int personId;
+  final int initialTab;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,11 +75,25 @@ class PersonDetailScreen extends ConsumerWidget {
         }
         return DefaultTabController(
           length: 4,
+          initialIndex: initialTab.clamp(0, 3),
           child: Scaffold(
             appBar: AppBar(
               title: InkWell(
                 key: const Key('person-title'),
                 onTap: () => _rename(context, ref, p),
+                onLongPress: () async {
+                  final action = await showPeopleActionSheet(
+                    context,
+                    title: personName(l10n, p),
+                    cropPath: p.avatarCropPath,
+                    actions: personMenuActions(
+                      [p],
+                    ).where((a) => a.id != 'select' && a.id != 'open').toList(),
+                  );
+                  if (action != null && context.mounted) {
+                    await runPersonAction(context, ref, [p], action);
+                  }
+                },
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -107,6 +128,8 @@ class PersonDetailScreen extends ConsumerWidget {
                         _merge(context, ref, p);
                       case 'delete':
                         _delete(context, ref, p);
+                      default:
+                        runPersonAction(context, ref, [p], v);
                     }
                   },
                   itemBuilder: (context) => [
@@ -120,6 +143,20 @@ class PersonDetailScreen extends ConsumerWidget {
                       value: 'delete',
                       child: Text(l10n.deletePerson),
                     ),
+                    for (final a in personMenuActions([p]).where(
+                      (a) => !{
+                        'select',
+                        'open',
+                        'studio',
+                        'rename',
+                        'merge',
+                        'deletePerson',
+                      }.contains(a.id),
+                    ))
+                      PopupMenuItem(
+                        value: a.id,
+                        child: Text(l10n.peopleAction(a.id)),
+                      ),
                   ],
                 ),
               ],

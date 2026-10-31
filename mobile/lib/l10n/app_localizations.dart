@@ -94,6 +94,438 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[Locale('en')];
 
+  /// No description provided for @reviewPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Review photos'**
+  String get reviewPhotos;
+
+  /// No description provided for @reviewFullPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Show full photo'**
+  String get reviewFullPhoto;
+
+  /// No description provided for @reviewCrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Show close-up'**
+  String get reviewCrop;
+
+  /// No description provided for @reviewNoPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'No photos are available for this suggestion.'**
+  String get reviewNoPhotos;
+
+  /// No description provided for @reviewFaceHighlighted.
+  ///
+  /// In en, this message translates to:
+  /// **'Review the face inside the yellow box'**
+  String get reviewFaceHighlighted;
+
+  /// No description provided for @reviewBodyHighlighted.
+  ///
+  /// In en, this message translates to:
+  /// **'Review the body inside the yellow box'**
+  String get reviewBodyHighlighted;
+
+  /// No description provided for @reviewViewerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe to see every photo. Pinch a photo to zoom. Use the crop button for a close-up.'**
+  String get reviewViewerHint;
+
+  /// No description provided for @reviewVideoHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The video opens at the highlighted sample. Use the crop button for a close-up, or move to the next photo.'**
+  String get reviewVideoHint;
+
+  /// No description provided for @reviewOriginalMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The original is unavailable. This is the saved crop only.'**
+  String get reviewOriginalMissing;
+
+  /// No description provided for @reviewPreviousPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous photo'**
+  String get reviewPreviousPhoto;
+
+  /// No description provided for @reviewNextPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Next photo'**
+  String get reviewNextPhoto;
+
+  /// No description provided for @reviewFace.
+  ///
+  /// In en, this message translates to:
+  /// **'This face'**
+  String get reviewFace;
+
+  /// No description provided for @reviewBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This body'**
+  String get reviewBody;
+
+  /// No description provided for @reviewViewAll.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {View photo} other {View all {count} photos}}'**
+  String reviewViewAll(int count);
+
+  /// No description provided for @reviewMatchQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Is this {name}?'**
+  String reviewMatchQuestion(String name);
+
+  /// No description provided for @reviewGroupQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Are these the same person?'**
+  String get reviewGroupQuestion;
+
+  /// No description provided for @reviewMatchHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a photo to inspect it. Use the checkboxes to choose which faces to add or reject.'**
+  String get reviewMatchHelp;
+
+  /// No description provided for @reviewGroupHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Review every photo and uncheck any face that does not belong. Then create a person or add the selected faces to someone you know.'**
+  String get reviewGroupHelp;
+
+  /// No description provided for @reviewOutfitQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Does this body belong to {name}?'**
+  String reviewOutfitQuestion(String name);
+
+  /// No description provided for @reviewOutfitHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'This is a suggestion based on clothing or a weak face match. Check the highlighted body in the original before deciding.'**
+  String get reviewOutfitHelp;
+
+  /// No description provided for @reviewYesPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, {name}'**
+  String reviewYesPerson(String name);
+
+  /// No description provided for @reviewNotPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'No, someone else'**
+  String get reviewNotPerson;
+
+  /// No description provided for @reviewIncludeFace.
+  ///
+  /// In en, this message translates to:
+  /// **'Include this face'**
+  String get reviewIncludeFace;
+
+  /// No description provided for @reviewReferencePhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Known photos'**
+  String get reviewReferencePhotos;
+
+  /// No description provided for @peopleAction.
+  ///
+  /// In en, this message translates to:
+  /// **'{action, select, selection {Select multiple} open {Open person} merge {Merge with…} rename {Rename} hide {Hide} show {Show again} pin {Pin to top} unpin {Unpin} favorite {Add to favorites} unfavorite {Remove from favorites} media {Photos and videos} add {Add faces…} split {Split into new person…} suggestions {Review match suggestions} distinct {Different from…} lock {Lock automatic matching} unlock {Unlock automatic matching} studio {Use in Studio} export {Export / share…} details {Details} cover {Change cover…} bestCover {Choose best cover automatically} chooseCover {Choose cover face…} deletePerson {Delete person grouping} original {Open original} assign {Assign / move to person…} create {Create new person…} reject {Not this person} unassign {Remove assignment} similar {Find similar faces} save {Save crop to gallery} deleteFace {Delete detection} ignore {Not a face / ignore detection} hidden {Hidden} all {All} favorites {Favorites} pinned {Pinned} invert {Invert selection} more {More actions} done {Done} undo {Undo} updated {Updated} noResults {No items in this view} exportCrops {Face crops and details} exportOriginals {Face crops and original media} lockedNote {Automatic matching cannot add faces or change derived body links for a locked person. Manual corrections remain available.} deletePersonNote {Remove these person groupings and return their faces to Unsorted. Original photos and videos are kept.} deleteFaceNote {Remove these detections and their private crops. Rescanning will not recreate them. Original photos and videos are kept.} mergeNote {All selected people will be merged into the chosen person. Review the resulting name and cover before confirming.} similarNote {Similarity is a suggestion. Open an original or assign selected faces after checking them.} emptyExport {No readable files were available to export.} other {More actions}}'**
+  String peopleAction(String action);
+
+  /// No description provided for @peopleActionError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not complete the action: {reason}'**
+  String peopleActionError(String reason);
+
+  /// No description provided for @videoOpening.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening video…'**
+  String get videoOpening;
+
+  /// No description provided for @videoLastRecorded.
+  ///
+  /// In en, this message translates to:
+  /// **'Last recorded progress · scan is not currently advancing'**
+  String get videoLastRecorded;
+
+  /// No description provided for @videoWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for PC analysis…'**
+  String get videoWaiting;
+
+  /// No description provided for @videoVerifying.
+  ///
+  /// In en, this message translates to:
+  /// **'Verifying downloaded results…'**
+  String get videoVerifying;
+
+  /// No description provided for @videoFinishing.
+  ///
+  /// In en, this message translates to:
+  /// **'Finalizing video results…'**
+  String get videoFinishing;
+
+  /// No description provided for @videoStepPrepare.
+  ///
+  /// In en, this message translates to:
+  /// **'Prepare'**
+  String get videoStepPrepare;
+
+  /// No description provided for @videoStepUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload'**
+  String get videoStepUpload;
+
+  /// No description provided for @videoStepAnalyze.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyze'**
+  String get videoStepAnalyze;
+
+  /// No description provided for @videoStepSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get videoStepSave;
+
+  /// No description provided for @videoPrepareDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading the video on this phone and calculating its fingerprint before upload. Large videos take longer here.'**
+  String get videoPrepareDetail;
+
+  /// No description provided for @videoUploadDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending the original video to your PC in resumable chunks. Analysis starts after the upload finishes.'**
+  String get videoUploadDetail;
+
+  /// No description provided for @videoUploadConfirming.
+  ///
+  /// In en, this message translates to:
+  /// **'Video bytes sent. Waiting for the PC to confirm the upload.'**
+  String get videoUploadConfirming;
+
+  /// No description provided for @videoQueueDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The video request is on the PC. Waiting for the analysis worker to start or resume.'**
+  String get videoQueueDetail;
+
+  /// No description provided for @videoDecodeDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The PC is reading and decoding the next sampled frame.'**
+  String get videoDecodeDetail;
+
+  /// No description provided for @videoInferenceDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The PC is detecting faces and people in the current sampled frame.'**
+  String get videoInferenceDetail;
+
+  /// No description provided for @videoAnalyzeDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The PC is analyzing sampled frames. The video is still in progress even while new results are saved below.'**
+  String get videoAnalyzeDetail;
+
+  /// No description provided for @videoDownloadDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Receiving the completed detections from your PC before saving them on this phone.'**
+  String get videoDownloadDetail;
+
+  /// No description provided for @videoVerifyDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the result file size and fingerprint before importing detections.'**
+  String get videoVerifyDetail;
+
+  /// No description provided for @videoImportDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving verified detections and crops into this phone’s library.'**
+  String get videoImportDetail;
+
+  /// No description provided for @videoFinishDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Finishing the result file and confirming the saved video. This can take a moment for large videos.'**
+  String get videoFinishDetail;
+
+  /// No description provided for @videoStagePercent.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% of this stage'**
+  String videoStagePercent(int percent);
+
+  /// No description provided for @videoElapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Time on this video'**
+  String get videoElapsed;
+
+  /// No description provided for @videoFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Video file'**
+  String get videoFile;
+
+  /// No description provided for @videoSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Original video'**
+  String get videoSource;
+
+  /// No description provided for @videoStageElapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Time in this stage'**
+  String get videoStageElapsed;
+
+  /// No description provided for @videoBytesRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Video data read'**
+  String get videoBytesRead;
+
+  /// No description provided for @videoBytesSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Video data sent'**
+  String get videoBytesSent;
+
+  /// No description provided for @videoBytesReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Results received'**
+  String get videoBytesReceived;
+
+  /// No description provided for @videoTransferSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Average transfer speed'**
+  String get videoTransferSpeed;
+
+  /// No description provided for @videoStageRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated time left in this stage'**
+  String get videoStageRemaining;
+
+  /// No description provided for @videoMeasuring.
+  ///
+  /// In en, this message translates to:
+  /// **'Measuring…'**
+  String get videoMeasuring;
+
+  /// No description provided for @videoApproximate.
+  ///
+  /// In en, this message translates to:
+  /// **'About {time}'**
+  String videoApproximate(String time);
+
+  /// No description provided for @videoPosition.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyzed video position'**
+  String get videoPosition;
+
+  /// No description provided for @videoSamplesAnalyzed.
+  ///
+  /// In en, this message translates to:
+  /// **'Samples processed (including skipped)'**
+  String get videoSamplesAnalyzed;
+
+  /// No description provided for @videoSampling.
+  ///
+  /// In en, this message translates to:
+  /// **'Sampling interval'**
+  String get videoSampling;
+
+  /// No description provided for @videoSamplingSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'One frame every {seconds} s'**
+  String videoSamplingSeconds(String seconds);
+
+  /// No description provided for @videoLiveSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Available results are saved as the PC works. Counts below are for this video session.'**
+  String get videoLiveSaving;
+
+  /// No description provided for @videoSavedSamples.
+  ///
+  /// In en, this message translates to:
+  /// **'Samples saved on this phone'**
+  String get videoSavedSamples;
+
+  /// No description provided for @videoLiveDetections.
+  ///
+  /// In en, this message translates to:
+  /// **'New detections saved'**
+  String get videoLiveDetections;
+
+  /// No description provided for @videoDetectionCounts.
+  ///
+  /// In en, this message translates to:
+  /// **'{faces} faces · {bodies} bodies · {characters} characters'**
+  String videoDetectionCounts(int faces, int bodies, int characters);
+
+  /// No description provided for @videoSkippedSamples.
+  ///
+  /// In en, this message translates to:
+  /// **'Unreadable samples skipped'**
+  String get videoSkippedSamples;
+
+  /// No description provided for @videoPcUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Last PC response'**
+  String get videoPcUpdate;
+
+  /// No description provided for @videoSecondsAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds} s ago'**
+  String videoSecondsAgo(int seconds);
+
+  /// No description provided for @videoAwaitingUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'No new progress for {seconds} s. Waiting for the current operation to respond; you can pause the scan.'**
+  String videoAwaitingUpdate(int seconds);
+
+  /// No description provided for @videoLibraryProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Overall library progress'**
+  String get videoLibraryProgress;
+
+  /// No description provided for @scanItemsOf.
+  ///
+  /// In en, this message translates to:
+  /// **'{done} of {total} items complete'**
+  String scanItemsOf(int done, int total);
+
   /// No description provided for @videoAdaptiveSampling.
   ///
   /// In en, this message translates to:
@@ -1573,25 +2005,25 @@ abstract class AppLocalizations {
   /// No description provided for @reviewTabDuplicates.
   ///
   /// In en, this message translates to:
-  /// **'Duplicates ({count})'**
+  /// **'Same person? ({count})'**
   String reviewTabDuplicates(int count);
 
   /// No description provided for @reviewTabGroups.
   ///
   /// In en, this message translates to:
-  /// **'New groups ({count})'**
+  /// **'New people ({count})'**
   String reviewTabGroups(int count);
 
   /// No description provided for @reviewTabMatches.
   ///
   /// In en, this message translates to:
-  /// **'Matches ({count})'**
+  /// **'Faces ({count})'**
   String reviewTabMatches(int count);
 
   /// No description provided for @reviewTabOutfits.
   ///
   /// In en, this message translates to:
-  /// **'Outfits ({count})'**
+  /// **'Bodies ({count})'**
   String reviewTabOutfits(int count);
 
   /// No description provided for @reviewTitle.
@@ -4183,7 +4615,7 @@ abstract class AppLocalizations {
   /// No description provided for @reviewIntro.
   ///
   /// In en, this message translates to:
-  /// **'Help your library recognize the right people.'**
+  /// **'Open a photo to inspect the highlighted face or body, then decide who it belongs to.'**
   String get reviewIntro;
 
   /// No description provided for @permissionsHeadline.

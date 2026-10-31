@@ -177,6 +177,7 @@ class VideoJobs:
             # start_frame is the phone's first uncommitted frame, not a new sampling
             # origin. Keep the same grid when the PC restarted between imports.
             frame_no = origin + ((lower_bound - origin + step - 1) // step) * step
+            first_sample = origin + ((max(params.get('start_frame', 0), origin) - origin + step - 1) // step) * step
             opts = parse_analyze_options(json.dumps(params))
             engine_opts = AnalyzeOptions(min_face_quality=opts.min_face_quality,
                                          detect_characters=opts.detect_characters,
@@ -185,6 +186,8 @@ class VideoJobs:
                 job.update(status="running", started_at=job["started_at"] or stamp(),
                            error=None, details={**job['details'], "fps": fps, "total_frames": total,
                                                 "frame_interval": step / fps, 'sample_step': step,
+                                                'total_samples': max(0, (total - first_sample + step - 1) // step),
+                                                'stage': 'decode',
                                                 'sampling_mode': params.get('sampling_mode', 'fixed')})
             consecutive_errors = 0
             with open(directory / "detections.ndjson", "ab") as out:
@@ -209,6 +212,9 @@ class VideoJobs:
                         with self.lock:
                             job.update(status="paused", message="The dashboard needs the GPU", touched=time.time())
                         return
+                    with self.lock:
+                        job['details']['stage'] = 'decode'
+                        job['message'] = 'Reading the next video sample'
                     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_no)
                     ok, img = cap.read()
                     if not ok or img is None or not img.size:
@@ -243,6 +249,8 @@ class VideoJobs:
                     with self.lock:
                         job.update(preview_jpeg=base64.b64encode(jpeg).decode('ascii') if encoded else None,
                                    preview_timestamp_ms=round(frame_no * 1000 / fps))
+                        job['details']['stage'] = 'inference'
+                        job['message'] = 'Detecting faces and people in the current sample'
                     with self.ctx.compute_lock:
                         result = self.ctx.engines.analyze(img, engine_opts)
                     line = analysis_to_response(result, img, opts, self.ctx.engines.model_id)
@@ -258,6 +266,9 @@ class VideoJobs:
                                    _next_frame=frame_no + step, touched=time.time())
                     frame_no += step
                     self._checkpoint(job, out)
+                with self.lock:
+                    job['details']['stage'] = 'finalize'
+                    job['message'] = 'Finalizing video detections'
                 self._checkpoint(job, out, force=True)
             if not job['frames_done'] and lower_bound < total:
                 raise ValueError('No sampled video frames could be decoded. The file may be damaged or its codec unavailable.')

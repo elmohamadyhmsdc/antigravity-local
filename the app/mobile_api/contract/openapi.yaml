@@ -1109,6 +1109,12 @@ components:
         details:
           type: object
           description: Engine-specific live state (LoRA stage/epoch/step/loss, generation seeds, ...)
+          properties:
+            stage: { type: string, description: "For video analysis: decode, inference or finalize." }
+            total_samples: { type: integer, minimum: 0, description: Number of sampled positions in this video job, including unreadable samples. }
+            skipped_frames: { type: integer, minimum: 0, description: Unreadable video samples skipped so far. }
+            fps: { type: number, exclusiveMinimum: 0 }
+            frame_interval: { type: number, exclusiveMinimum: 0, description: Actual spacing in seconds between sampled frames. }
           additionalProperties: true
         has_result: { type: boolean }
 

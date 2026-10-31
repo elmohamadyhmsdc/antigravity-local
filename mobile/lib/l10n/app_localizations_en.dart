@@ -9,6 +9,332 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get reviewPhotos => 'Review photos';
+
+  @override
+  String get reviewFullPhoto => 'Show full photo';
+
+  @override
+  String get reviewCrop => 'Show close-up';
+
+  @override
+  String get reviewNoPhotos => 'No photos are available for this suggestion.';
+
+  @override
+  String get reviewFaceHighlighted => 'Review the face inside the yellow box';
+
+  @override
+  String get reviewBodyHighlighted => 'Review the body inside the yellow box';
+
+  @override
+  String get reviewViewerHint =>
+      'Swipe to see every photo. Pinch a photo to zoom. Use the crop button for a close-up.';
+
+  @override
+  String get reviewVideoHint =>
+      'The video opens at the highlighted sample. Use the crop button for a close-up, or move to the next photo.';
+
+  @override
+  String get reviewOriginalMissing =>
+      'The original is unavailable. This is the saved crop only.';
+
+  @override
+  String get reviewPreviousPhoto => 'Previous photo';
+
+  @override
+  String get reviewNextPhoto => 'Next photo';
+
+  @override
+  String get reviewFace => 'This face';
+
+  @override
+  String get reviewBody => 'This body';
+
+  @override
+  String reviewViewAll(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'View all $count photos',
+      one: 'View photo',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reviewMatchQuestion(String name) {
+    return 'Is this $name?';
+  }
+
+  @override
+  String get reviewGroupQuestion => 'Are these the same person?';
+
+  @override
+  String get reviewMatchHelp =>
+      'Open a photo to inspect it. Use the checkboxes to choose which faces to add or reject.';
+
+  @override
+  String get reviewGroupHelp =>
+      'Review every photo and uncheck any face that does not belong. Then create a person or add the selected faces to someone you know.';
+
+  @override
+  String reviewOutfitQuestion(String name) {
+    return 'Does this body belong to $name?';
+  }
+
+  @override
+  String get reviewOutfitHelp =>
+      'This is a suggestion based on clothing or a weak face match. Check the highlighted body in the original before deciding.';
+
+  @override
+  String reviewYesPerson(String name) {
+    return 'Yes, $name';
+  }
+
+  @override
+  String get reviewNotPerson => 'No, someone else';
+
+  @override
+  String get reviewIncludeFace => 'Include this face';
+
+  @override
+  String get reviewReferencePhotos => 'Known photos';
+
+  @override
+  String peopleAction(String action) {
+    String _temp0 = intl.Intl.selectLogic(action, {
+      'selection': 'Select multiple',
+      'open': 'Open person',
+      'merge': 'Merge with…',
+      'rename': 'Rename',
+      'hide': 'Hide',
+      'show': 'Show again',
+      'pin': 'Pin to top',
+      'unpin': 'Unpin',
+      'favorite': 'Add to favorites',
+      'unfavorite': 'Remove from favorites',
+      'media': 'Photos and videos',
+      'add': 'Add faces…',
+      'split': 'Split into new person…',
+      'suggestions': 'Review match suggestions',
+      'distinct': 'Different from…',
+      'lock': 'Lock automatic matching',
+      'unlock': 'Unlock automatic matching',
+      'studio': 'Use in Studio',
+      'export': 'Export / share…',
+      'details': 'Details',
+      'cover': 'Change cover…',
+      'bestCover': 'Choose best cover automatically',
+      'chooseCover': 'Choose cover face…',
+      'deletePerson': 'Delete person grouping',
+      'original': 'Open original',
+      'assign': 'Assign / move to person…',
+      'create': 'Create new person…',
+      'reject': 'Not this person',
+      'unassign': 'Remove assignment',
+      'similar': 'Find similar faces',
+      'save': 'Save crop to gallery',
+      'deleteFace': 'Delete detection',
+      'ignore': 'Not a face / ignore detection',
+      'hidden': 'Hidden',
+      'all': 'All',
+      'favorites': 'Favorites',
+      'pinned': 'Pinned',
+      'invert': 'Invert selection',
+      'more': 'More actions',
+      'done': 'Done',
+      'undo': 'Undo',
+      'updated': 'Updated',
+      'noResults': 'No items in this view',
+      'exportCrops': 'Face crops and details',
+      'exportOriginals': 'Face crops and original media',
+      'lockedNote':
+          'Automatic matching cannot add faces or change derived body links for a locked person. Manual corrections remain available.',
+      'deletePersonNote':
+          'Remove these person groupings and return their faces to Unsorted. Original photos and videos are kept.',
+      'deleteFaceNote':
+          'Remove these detections and their private crops. Rescanning will not recreate them. Original photos and videos are kept.',
+      'mergeNote':
+          'All selected people will be merged into the chosen person. Review the resulting name and cover before confirming.',
+      'similarNote':
+          'Similarity is a suggestion. Open an original or assign selected faces after checking them.',
+      'emptyExport': 'No readable files were available to export.',
+      'other': 'More actions',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String peopleActionError(String reason) {
+    return 'Could not complete the action: $reason';
+  }
+
+  @override
+  String get videoOpening => 'Opening video…';
+
+  @override
+  String get videoLastRecorded =>
+      'Last recorded progress · scan is not currently advancing';
+
+  @override
+  String get videoWaiting => 'Waiting for PC analysis…';
+
+  @override
+  String get videoVerifying => 'Verifying downloaded results…';
+
+  @override
+  String get videoFinishing => 'Finalizing video results…';
+
+  @override
+  String get videoStepPrepare => 'Prepare';
+
+  @override
+  String get videoStepUpload => 'Upload';
+
+  @override
+  String get videoStepAnalyze => 'Analyze';
+
+  @override
+  String get videoStepSave => 'Save';
+
+  @override
+  String get videoPrepareDetail =>
+      'Reading the video on this phone and calculating its fingerprint before upload. Large videos take longer here.';
+
+  @override
+  String get videoUploadDetail =>
+      'Sending the original video to your PC in resumable chunks. Analysis starts after the upload finishes.';
+
+  @override
+  String get videoUploadConfirming =>
+      'Video bytes sent. Waiting for the PC to confirm the upload.';
+
+  @override
+  String get videoQueueDetail =>
+      'The video request is on the PC. Waiting for the analysis worker to start or resume.';
+
+  @override
+  String get videoDecodeDetail =>
+      'The PC is reading and decoding the next sampled frame.';
+
+  @override
+  String get videoInferenceDetail =>
+      'The PC is detecting faces and people in the current sampled frame.';
+
+  @override
+  String get videoAnalyzeDetail =>
+      'The PC is analyzing sampled frames. The video is still in progress even while new results are saved below.';
+
+  @override
+  String get videoDownloadDetail =>
+      'Receiving the completed detections from your PC before saving them on this phone.';
+
+  @override
+  String get videoVerifyDetail =>
+      'Checking the result file size and fingerprint before importing detections.';
+
+  @override
+  String get videoImportDetail =>
+      'Saving verified detections and crops into this phone’s library.';
+
+  @override
+  String get videoFinishDetail =>
+      'Finishing the result file and confirming the saved video. This can take a moment for large videos.';
+
+  @override
+  String videoStagePercent(int percent) {
+    return '$percent% of this stage';
+  }
+
+  @override
+  String get videoElapsed => 'Time on this video';
+
+  @override
+  String get videoFile => 'Video file';
+
+  @override
+  String get videoSource => 'Original video';
+
+  @override
+  String get videoStageElapsed => 'Time in this stage';
+
+  @override
+  String get videoBytesRead => 'Video data read';
+
+  @override
+  String get videoBytesSent => 'Video data sent';
+
+  @override
+  String get videoBytesReceived => 'Results received';
+
+  @override
+  String get videoTransferSpeed => 'Average transfer speed';
+
+  @override
+  String get videoStageRemaining => 'Estimated time left in this stage';
+
+  @override
+  String get videoMeasuring => 'Measuring…';
+
+  @override
+  String videoApproximate(String time) {
+    return 'About $time';
+  }
+
+  @override
+  String get videoPosition => 'Analyzed video position';
+
+  @override
+  String get videoSamplesAnalyzed => 'Samples processed (including skipped)';
+
+  @override
+  String get videoSampling => 'Sampling interval';
+
+  @override
+  String videoSamplingSeconds(String seconds) {
+    return 'One frame every $seconds s';
+  }
+
+  @override
+  String get videoLiveSaving =>
+      'Available results are saved as the PC works. Counts below are for this video session.';
+
+  @override
+  String get videoSavedSamples => 'Samples saved on this phone';
+
+  @override
+  String get videoLiveDetections => 'New detections saved';
+
+  @override
+  String videoDetectionCounts(int faces, int bodies, int characters) {
+    return '$faces faces · $bodies bodies · $characters characters';
+  }
+
+  @override
+  String get videoSkippedSamples => 'Unreadable samples skipped';
+
+  @override
+  String get videoPcUpdate => 'Last PC response';
+
+  @override
+  String videoSecondsAgo(int seconds) {
+    return '$seconds s ago';
+  }
+
+  @override
+  String videoAwaitingUpdate(int seconds) {
+    return 'No new progress for $seconds s. Waiting for the current operation to respond; you can pause the scan.';
+  }
+
+  @override
+  String get videoLibraryProgress => 'Overall library progress';
+
+  @override
+  String scanItemsOf(int done, int total) {
+    return '$done of $total items complete';
+  }
+
+  @override
   String get videoAdaptiveSampling => 'Automatic video sampling';
 
   @override
@@ -1006,22 +1332,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String reviewTabDuplicates(int count) {
-    return 'Duplicates ($count)';
+    return 'Same person? ($count)';
   }
 
   @override
   String reviewTabGroups(int count) {
-    return 'New groups ($count)';
+    return 'New people ($count)';
   }
 
   @override
   String reviewTabMatches(int count) {
-    return 'Matches ($count)';
+    return 'Faces ($count)';
   }
 
   @override
   String reviewTabOutfits(int count) {
-    return 'Outfits ($count)';
+    return 'Bodies ($count)';
   }
 
   @override
@@ -2523,7 +2849,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your original photos and videos stay in the device gallery.';
 
   @override
-  String get reviewIntro => 'Help your library recognize the right people.';
+  String get reviewIntro =>
+      'Open a photo to inspect the highlighted face or body, then decide who it belongs to.';
 
   @override
   String get permissionsHeadline => 'Make it work for you';

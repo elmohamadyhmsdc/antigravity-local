@@ -168,16 +168,20 @@ final scanEngineProvider = Provider<ScanEngine>((ref) {
       settings: ref.watch(appSettingsProvider),
     ),
     describeVideo: (stage, progress) => switch (stage) {
-      'prepare' => _en.videoPreparing((progress * 100).round()),
-      'upload' => _en.videoUploading((progress * 100).round()),
-      'analyze' => _en.videoAnalyzing((progress * 100).round()),
+      'prepare' => _en.videoPreparing((progress * 100).floor()),
+      'upload' => _en.videoUploading((progress * 100).floor()),
+      'analyze' => _en.videoAnalyzing((progress * 100).floor()),
       'download' => _en.videoDownloading,
+      'queue' => _en.videoWaiting,
+      'verify' => _en.videoVerifying,
+      'finish' => _en.videoFinishing,
       _ => _en.videoImporting,
     },
     keepAlive: ref.watch(scanKeepAliveProvider),
     keepAliveTitle: _en.scanNotificationTitle,
-    describe: (p) =>
-        _en.scanNotificationText(p.done + p.failed, p.total, p.facesFound),
+    describe: (p) => p.video != null
+        ? '${p.message ?? _en.scanRunning} · ${_en.scanNotificationText(p.done + p.failed, p.total, p.facesFound + p.video!.facesFound)}'
+        : _en.scanNotificationText(p.done + p.failed, p.total, p.facesFound),
   );
   ref.onDispose(engine.dispose);
   return engine;

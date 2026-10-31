@@ -104,10 +104,10 @@ void main() {
         findsOneWidget,
         reason: '3 matches + 1 group + 1 duplicate + 1 outfit link',
       );
-      expect(find.text('Matches (3)'), findsOneWidget);
-      expect(find.text('New groups (1)'), findsOneWidget);
-      expect(find.text('Duplicates (1)'), findsOneWidget);
-      expect(find.text('Outfits (1)'), findsOneWidget);
+      expect(find.text('Faces (3)'), findsOneWidget);
+      expect(find.text('New people (1)'), findsOneWidget);
+      expect(find.text('Same person? (1)'), findsOneWidget);
+      expect(find.text('Bodies (1)'), findsOneWidget);
     }, session: testSession);
 
     appTest('an empty review says there is nothing to do', (tester, env) async {
@@ -115,16 +115,19 @@ void main() {
       expect(find.text('Review'), findsOneWidget);
       expect(find.text('No faces waiting to be matched'), findsOneWidget);
       await tester.ensureVisible(find.byKey(const Key('review-tab-groups')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('review-tab-groups')));
       await _settle(tester);
       expect(find.text('No new groups to review'), findsOneWidget);
       await tester.ensureVisible(
         find.byKey(const Key('review-tab-duplicates')),
       );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('review-tab-duplicates')));
       await _settle(tester);
       expect(find.text('No people look like duplicates'), findsOneWidget);
       await tester.ensureVisible(find.byKey(const Key('review-tab-outfits')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('review-tab-outfits')));
       await _settle(tester);
       expect(find.text('No outfit matches to review'), findsOneWidget);
@@ -135,9 +138,8 @@ void main() {
         final l = await _seed(env);
         await _open(tester, env, '/review');
         expect(find.byKey(Key('match-card-${l.sara}')), findsOneWidget);
-        expect(find.byKey(Key('match-card-${l.anna}')), findsOneWidget);
 
-        await tester.tap(find.byKey(Key('match-face-${l.f2}'))); // untick
+        await tester.tap(find.byKey(Key('match-select-${l.f2}'))); // untick
         await tester.pumpAndSettle();
         expect(
           find.descendant(
@@ -155,7 +157,7 @@ void main() {
         };
         expect(owner[l.f1], l.sara);
         expect(owner[l.f2], isNull);
-        expect(find.text('Matches (2)'), findsOneWidget);
+        expect(find.text('Faces (2)'), findsOneWidget);
       }, session: testSession);
 
       appTest(
@@ -163,6 +165,18 @@ void main() {
         (tester, env) async {
           final l = await _seed(env);
           await _open(tester, env, '/review');
+          await tester.scrollUntilVisible(
+            find.byKey(Key('match-card-${l.anna}')),
+            160,
+            scrollable: find
+                .descendant(
+                  of: find.byKey(const Key('review-matches')),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          );
+          await tester.ensureVisible(find.byKey(Key('match-reject-${l.anna}')));
+          await tester.pumpAndSettle();
           await tester.tap(find.byKey(Key('match-reject-${l.anna}')));
           await _settle(tester);
           final rejections = await env.db.select(env.db.faceRejections).get();
@@ -212,6 +226,7 @@ void main() {
     group('New groups', () {
       Future<void> groupsTab(WidgetTester tester) async {
         await tester.ensureVisible(find.byKey(const Key('review-tab-groups')));
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('review-tab-groups')));
         await _settle(tester);
       }
@@ -247,6 +262,8 @@ void main() {
           await _open(tester, env, '/review');
           await groupsTab(tester);
           final id = (await env.db.select(env.db.reviewGroups).get()).single.id;
+          await tester.ensureVisible(find.byKey(Key('group-dismiss-$id')));
+          await tester.pumpAndSettle();
           await tester.tap(find.byKey(Key('group-dismiss-$id')));
           await _settle(tester);
           final dismissed = (await env.db.select(env.db.faces).get())
@@ -266,6 +283,8 @@ void main() {
         await _open(tester, env, '/review');
         await groupsTab(tester);
         final id = (await env.db.select(env.db.reviewGroups).get()).single.id;
+        await tester.ensureVisible(find.byKey(Key('group-add-$id')));
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(Key('group-add-$id')));
         await _settle(tester);
         await tester.tap(find.byKey(Key('person-picker-${l.anna}')));
@@ -300,6 +319,7 @@ void main() {
         await tester.ensureVisible(
           find.byKey(const Key('review-tab-duplicates')),
         );
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('review-tab-duplicates')));
         await _settle(tester);
         expect(find.text('55% alike'), findsOneWidget);
@@ -316,6 +336,7 @@ void main() {
           await tester.ensureVisible(
             find.byKey(const Key('review-tab-duplicates')),
           );
+          await tester.pumpAndSettle();
           await tester.tap(find.byKey(const Key('review-tab-duplicates')));
           await _settle(tester);
           await tester.tap(find.byKey(Key('dup-distinct-${l.sara}-${l.anna}')));
@@ -345,6 +366,11 @@ void main() {
             reason: 'by default the first person is kept',
           );
 
+          await tester.scrollUntilVisible(
+            find.text('Keep B'),
+            160,
+            scrollable: find.byType(Scrollable).first,
+          );
           await tester.tap(find.text('Keep B'));
           await tester.pumpAndSettle();
           expect(find.text('Merge Sara into Anna'), findsOneWidget);
@@ -405,6 +431,7 @@ void main() {
     group('Outfit links', () {
       Future<void> outfits(WidgetTester tester) async {
         await tester.ensureVisible(find.byKey(const Key('review-tab-outfits')));
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('review-tab-outfits')));
         await _settle(tester);
       }
@@ -427,6 +454,8 @@ void main() {
         final l = await _seed(env);
         await _open(tester, env, '/review');
         await outfits(tester);
+        await tester.ensureVisible(find.byKey(Key('outfit-reject-${l.body}')));
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(Key('outfit-reject-${l.body}')));
         await _settle(tester);
         expect(

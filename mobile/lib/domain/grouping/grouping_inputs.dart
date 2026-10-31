@@ -79,8 +79,8 @@ class GroupingInputs {
   Future<List<GroupingModel>> models({int cap = groupingMemberCap}) async {
     final people = await _db
         .customSelect(
-          'SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL ORDER BY person_id',
-          readsFrom: {_db.faces},
+          'SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL AND EXISTS (SELECT 1 FROM persons p WHERE p.id = faces.person_id AND p.grouping_locked = 0) ORDER BY person_id',
+          readsFrom: {_db.faces, _db.persons},
         )
         .get();
     final out = <GroupingModel>[];

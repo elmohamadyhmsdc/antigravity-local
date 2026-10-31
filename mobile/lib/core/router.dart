@@ -156,6 +156,7 @@ GoRouter createRouter({
         path: Routes.reface,
         builder: (context, state) => RefaceScreen(
           personId: int.tryParse(state.uri.queryParameters['person'] ?? ''),
+          faceId: int.tryParse(state.uri.queryParameters['face'] ?? ''),
         ),
       ),
       GoRoute(
@@ -210,12 +211,17 @@ GoRouter createRouter({
         path: '${Routes.people}/:id',
         builder: (context, state) => PersonDetailScreen(
           personId: int.parse(state.pathParameters['id']!),
+          initialTab: int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0,
         ),
       ),
       GoRoute(
         path: '${Routes.media}/:id',
-        builder: (context, state) =>
-            MediaScreen(mediaId: int.parse(state.pathParameters['id']!)),
+        builder: (context, state) => MediaScreen(
+          mediaId: int.parse(state.pathParameters['id']!),
+          initialTimestampMs: int.tryParse(
+            state.uri.queryParameters['at'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: '${Routes.merge}/:a/:b',

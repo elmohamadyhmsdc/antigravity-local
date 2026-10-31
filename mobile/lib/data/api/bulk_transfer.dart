@@ -38,7 +38,12 @@ Stream<Uint8List> _diskBlocks(Stream<Uint8List> source) async* {
 /// Results are immutable within a job. Keep partial bytes on a broken connection
 /// and use HTTP Range on the next attempt. The caller still checks the complete
 /// manifest size and SHA-256 before committing or acknowledging anything.
-Future<void> downloadResumableFile(Dio dio, String path, File target) async {
+Future<void> downloadResumableFile(
+  Dio dio,
+  String path,
+  File target, {
+  void Function(int received)? onProgress,
+}) async {
   for (var attempt = 0; attempt < 2; attempt++) {
     final offset = await target.exists() ? await target.length() : 0;
     final response = await dio.get<ResponseBody>(
@@ -109,8 +114,17 @@ Future<void> downloadResumableFile(Dio dio, String path, File target) async {
     );
     // Attach before asynchronous IO: disk errors must reach the awaiting call.
     sink.done.ignore();
+    var received = append ? offset : 0;
+    Stream<Uint8List> measured() async* {
+      await for (final block in _diskBlocks(body.stream)) {
+        received += block.length;
+        onProgress?.call(received);
+        yield block;
+      }
+    }
+
     try {
-      await sink.addStream(_diskBlocks(body.stream));
+      await sink.addStream(measured());
       await sink.flush();
     } finally {
       await sink.close();

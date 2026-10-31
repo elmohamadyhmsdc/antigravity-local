@@ -77,7 +77,8 @@ class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
     final people = peopleState.value ?? const <PersonSummary>[];
     final shown = [
       for (final p in people)
-        if (p.id != widget.excludePersonId &&
+        if (!p.hidden &&
+            p.id != widget.excludePersonId &&
             personName(
               l10n,
               p,

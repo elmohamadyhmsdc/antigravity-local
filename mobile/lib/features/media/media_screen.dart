@@ -36,9 +36,14 @@ class _Loaded {
 /// S06 - one photo with the faces (and optionally bodies) the PC found, drawn as boxes. Tap a box to
 /// say who it is, that it is not them, or to open the person. "Who is in this photo" sits underneath.
 class MediaScreen extends ConsumerStatefulWidget {
-  const MediaScreen({super.key, required this.mediaId});
+  const MediaScreen({
+    super.key,
+    required this.mediaId,
+    this.initialTimestampMs,
+  });
 
   final int mediaId;
+  final int? initialTimestampMs;
 
   @override
   ConsumerState<MediaScreen> createState() => _MediaScreenState();
@@ -143,6 +148,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
               ? VideoMediaView(
                   key: ValueKey(media.assetId),
                   assetId: media.assetId,
+                  initialTimestampMs: widget.initialTimestampMs,
                   library: ref.watch(mediaLibraryProvider),
                   detections: detections,
                   people: people,

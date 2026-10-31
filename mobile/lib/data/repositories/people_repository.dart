@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:isolate';
 
 import 'package:drift/drift.dart';
 
 import '../db/app_database.dart';
 import '../files/file_store.dart';
 import '../index/embedding_index.dart';
+import '../api/dtos/embedding.dart';
 import 'face_suppression_store.dart';
 
 class PersonSummary {
@@ -14,6 +16,10 @@ class PersonSummary {
     required this.faceCount,
     required this.avatarCropPath,
     required this.createdAt,
+    this.hidden = false,
+    this.favorite = false,
+    this.pinned = false,
+    this.groupingLocked = false,
   });
 
   final int id;
@@ -21,6 +27,7 @@ class PersonSummary {
   final int faceCount;
   final String? avatarCropPath;
   final DateTime createdAt;
+  final bool hidden, favorite, pinned, groupingLocked;
 
   bool get isNamed => (name ?? '').trim().isNotEmpty;
 }
@@ -34,6 +41,7 @@ class FaceItem {
     required this.cropPath,
     required this.facePx,
     required this.dismissed,
+    this.hidden = false,
   });
 
   final int id;
@@ -43,6 +51,7 @@ class FaceItem {
   final String? cropPath;
   final double facePx;
   final bool dismissed;
+  final bool hidden;
 }
 
 class BodyItem {
@@ -99,11 +108,11 @@ class PeopleRepository {
   // ---- reading --------------------------------------------------------------------
 
   static const _personSql = '''
-    SELECT p.id, p.name, p.created_at,
+    SELECT p.id, p.name, p.created_at, p.hidden, p.favorite, p.pinned, p.grouping_locked,
       (SELECT COUNT(*) FROM faces f WHERE f.person_id = p.id) AS face_count,
       COALESCE(
-        (SELECT crop_path FROM faces WHERE id = p.avatar_face_id AND person_id = p.id),
-        (SELECT crop_path FROM faces WHERE person_id = p.id AND crop_path IS NOT NULL
+        (SELECT crop_path FROM faces WHERE id = p.avatar_face_id AND person_id = p.id AND hidden = 0),
+        (SELECT crop_path FROM faces WHERE person_id = p.id AND crop_path IS NOT NULL AND hidden = 0
            ORDER BY quality_score DESC LIMIT 1)
       ) AS avatar_crop
     FROM persons p
@@ -115,6 +124,10 @@ class PeopleRepository {
     faceCount: r.read<int>('face_count'),
     avatarCropPath: r.readNullable<String>('avatar_crop'),
     createdAt: DateTime.fromMillisecondsSinceEpoch(r.read<int>('created_at')),
+    hidden: r.read<bool>('hidden'),
+    favorite: r.read<bool>('favorite'),
+    pinned: r.read<bool>('pinned'),
+    groupingLocked: r.read<bool>('grouping_locked'),
   );
 
   Stream<List<PersonSummary>> watchPeople() => _db
@@ -163,10 +176,11 @@ class PeopleRepository {
     cropPath: r.readNullable<String>('crop_path'),
     facePx: r.read<double>('face_px'),
     dismissed: r.read<bool>('review_dismissed'),
+    hidden: r.read<bool>('hidden'),
   );
 
   static const _faceCols =
-      'id, person_id, media_id, quality_score, crop_path, face_px, review_dismissed';
+      'id, person_id, media_id, quality_score, crop_path, face_px, review_dismissed, hidden';
 
   /// A person's faces, best quality first. `personId == null` lists the unsorted faces.
   Stream<List<FaceItem>> watchFaces(int? personId) => _db
@@ -197,7 +211,7 @@ class PeopleRepository {
 
   Stream<int> watchUnsortedCount() => _db
       .customSelect(
-        'SELECT COUNT(*) AS n FROM faces WHERE person_id IS NULL',
+        'SELECT COUNT(*) AS n FROM faces WHERE person_id IS NULL AND hidden = 0',
         readsFrom: {_db.faces},
       )
       .watchSingle()
@@ -556,6 +570,9 @@ class PeopleRepository {
       );
 
       final updates = PersonsCompanion(
+        favorite: Value(target.favorite || source.favorite),
+        pinned: Value(target.pinned || source.pinned),
+        groupingLocked: Value(target.groupingLocked || source.groupingLocked),
         name:
             (target.name ?? '').trim().isEmpty &&
                 (source.name ?? '').trim().isNotEmpty
@@ -637,6 +654,217 @@ class PeopleRepository {
   /// The crop of a person's cover, resolved to a file.
   Future<String?> avatarOf(int personId) async =>
       (await person(personId))?.avatarCropPath;
+
+  Future<Future<void> Function()> setPersonFlags(
+    Iterable<int> ids, {
+    bool? hidden,
+    bool? favorite,
+    bool? pinned,
+    bool? groupingLocked,
+  }) async {
+    final before = <PersonRow>[];
+    await _db.transaction(() async {
+      for (final chunk in _chunks(ids)) {
+        before.addAll(
+          await (_db.select(_db.persons)..where((p) => p.id.isIn(chunk))).get(),
+        );
+        await (_db.update(_db.persons)..where((p) => p.id.isIn(chunk))).write(
+          PersonsCompanion(
+            hidden: hidden == null ? const Value.absent() : Value(hidden),
+            favorite: favorite == null ? const Value.absent() : Value(favorite),
+            pinned: pinned == null ? const Value.absent() : Value(pinned),
+            groupingLocked: groupingLocked == null
+                ? const Value.absent()
+                : Value(groupingLocked),
+          ),
+        );
+      }
+    });
+    return () => _db.transaction(() async {
+      for (final p in before) {
+        await (_db.update(_db.persons)..where((r) => r.id.equals(p.id))).write(
+          PersonsCompanion(
+            hidden: hidden == null ? const Value.absent() : Value(p.hidden),
+            favorite: favorite == null
+                ? const Value.absent()
+                : Value(p.favorite),
+            pinned: pinned == null ? const Value.absent() : Value(p.pinned),
+            groupingLocked: groupingLocked == null
+                ? const Value.absent()
+                : Value(p.groupingLocked),
+          ),
+        );
+      }
+    });
+  }
+
+  Future<Future<void> Function()> setFacesHidden(
+    Iterable<int> ids,
+    bool hidden,
+  ) async {
+    final before = await facesByIds(ids);
+    await _db.transaction(() async {
+      for (final chunk in _chunks(ids)) {
+        await (_db.update(_db.faces)..where((f) => f.id.isIn(chunk))).write(
+          FacesCompanion(hidden: Value(hidden)),
+        );
+      }
+    });
+    return () => _db.transaction(() async {
+      for (final f in before) {
+        await (_db.update(_db.faces)..where((r) => r.id.equals(f.id))).write(
+          FacesCompanion(hidden: Value(f.hidden)),
+        );
+      }
+    });
+  }
+
+  Future<List<FaceItem>> personFaces(int personId) =>
+      watchFaces(personId).first;
+
+  Future<void> clearAssignments(Iterable<int> ids) => _db.transaction(() async {
+    for (final chunk in _chunks(ids)) {
+      await (_db.update(_db.faces)..where((f) => f.id.isIn(chunk))).write(
+        const FacesCompanion(
+          personId: Value(null),
+          reviewDismissed: Value(false),
+        ),
+      );
+      await (_db.delete(
+        _db.reviewMatches,
+      )..where((m) => m.faceId.isIn(chunk))).go();
+    }
+  });
+
+  Future<void> bestCover(int id) async => _setBestAvatar(
+    id,
+    (await personFaces(id)).where((f) => !f.hidden).map((f) => f.id),
+  );
+
+  Future<void> deletePeople(Iterable<int> ids) => _db.transaction(() async {
+    for (final id in ids.toSet()) {
+      await deletePerson(id);
+    }
+  });
+
+  Future<void> mergeMany(
+    Iterable<int> ids,
+    int targetId, {
+    String? name,
+    int? coverFaceId,
+  }) => _db.transaction(() async {
+    if (await person(targetId) == null) {
+      throw StateError('The target person no longer exists.');
+    }
+    for (final id in ids.toSet()) {
+      if (id != targetId) await mergePeople(sourceId: id, targetId: targetId);
+    }
+    if (name != null) await renamePerson(targetId, name);
+    if (coverFaceId != null) await setAvatar(targetId, coverFaceId);
+  });
+
+  Future<List<FaceItem>> availableFaces({int? excludePersonId}) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT id FROM faces WHERE hidden = 0 ${excludePersonId == null ? '' : 'AND (person_id IS NULL OR person_id != ?)'} ORDER BY quality_score DESC',
+          variables: [
+            if (excludePersonId != null) Variable.withInt(excludePersonId),
+          ],
+        )
+        .get();
+    return facesByIds(rows.map((r) => r.read<int>('id')));
+  }
+
+  Future<int> splitFaces(int sourceId, Iterable<int> faces, String? name) =>
+      _db.transaction(() async {
+        final id = await createPerson(name: name, faceIds: faces);
+        await rejectFaces(faces, fromPersonId: sourceId);
+        await markDistinct(sourceId, id);
+        return id;
+      });
+
+  Future<int?> faceTimestamp(int id) async => (await (_db.select(
+    _db.faces,
+  )..where((f) => f.id.equals(id))).getSingleOrNull())?.timestampMs;
+
+  Future<Map<String, Object?>> faceDetails(int id) async {
+    final row = await (_db.select(
+      _db.faces,
+    )..where((f) => f.id.equals(id))).getSingle();
+    return {
+      'Face': row.id,
+      'Person': row.personId,
+      'Media': row.mediaId,
+      'Timestamp (ms)': row.timestampMs,
+      'Frame': row.frameNumber,
+      'Quality': row.qualityScore,
+      'Detection confidence': row.detScore,
+      'Face size (px)': row.facePx,
+      'Sharpness': row.sharpness,
+      'Yaw': row.yaw,
+      'Pitch': row.pitch,
+      'Roll': row.roll,
+      'Model': row.modelId,
+      'Hidden': row.hidden,
+    };
+  }
+
+  Future<Map<String, Object?>> personDetails(int id) async {
+    final rows = await _db
+        .customSelect(
+          '''
+      SELECT COUNT(DISTINCT m.id) AS media_count,
+      COUNT(DISTINCT CASE WHEN m.kind = 'photo' THEN m.id END) AS photos,
+      COUNT(DISTINCT CASE WHEN m.kind = 'video' THEN m.id END) AS videos,
+      MIN(m.taken_at) AS first_seen, MAX(m.taken_at) AS last_seen
+      FROM media m JOIN media_detections d ON d.media_id = m.id
+      JOIN faces f ON d.kind = 'f' AND d.ref_id = f.id WHERE f.person_id = ?
+    ''',
+          variables: [Variable.withInt(id)],
+        )
+        .getSingle();
+    final p = await person(id);
+    return {'Person': id, 'Name': p?.name, 'Faces': p?.faceCount, ...rows.data};
+  }
+
+  Future<List<(FaceItem, double)>> similarFaces(int id) async {
+    final source = await (_db.select(
+      _db.faces,
+    )..where((f) => f.id.equals(id))).getSingle();
+    final rows =
+        await (_db.select(_db.faces)..where(
+              (f) =>
+                  f.modelId.equals(source.modelId) &
+                  f.id.equals(id).not() &
+                  f.hidden.equals(false),
+            ))
+            .get();
+    final data = [
+      (id, source.embedding),
+      for (final r in rows) (r.id, r.embedding),
+    ];
+    final hits = await Isolate.run(() {
+      final query = embeddingFromBlob(data.first.$2);
+      final scores = <(int, double)>[];
+      for (final (key, blob) in data.skip(1)) {
+        final vector = embeddingFromBlob(blob);
+        var score = 0.0;
+        for (var i = 0; i < query.length; i++) {
+          score += query[i] * vector[i];
+        }
+        scores.add((key, score));
+      }
+      scores.sort((a, b) => b.$2.compareTo(a.$2));
+      return scores.take(50).toList();
+    });
+    final faces = {
+      for (final f in await facesByIds(hits.map((h) => h.$1))) f.id: f,
+    };
+    return [
+      for (final h in hits)
+        if (faces.containsKey(h.$1)) (faces[h.$1]!, h.$2),
+    ];
+  }
 
   /// Faces' ids of a review group stored as JSON.
   static List<int> decodeFaceIds(String json) => [

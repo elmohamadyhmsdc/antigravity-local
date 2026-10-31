@@ -11,6 +11,7 @@ import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
 import '../settings/background_screen.dart';
+import 'video_scan_details.dart';
 
 String _eta(AppLocalizations l10n, Duration d) {
   if (d.inSeconds < 90) return l10n.etaSeconds(d.inSeconds.clamp(5, 90));
@@ -49,6 +50,11 @@ class ScanProgressCard extends ConsumerWidget {
     if (progress.phase == ScanPhase.idle) return const SizedBox.shrink();
 
     final processed = progress.done + progress.failed;
+    final video = progress.video;
+    final faces = progress.facesFound + (video?.facesFound ?? 0);
+    final itemsText = video == null
+        ? l10n.scanPhotosOf(processed, progress.total)
+        : l10n.scanItemsOf(processed, progress.total);
     final lines = <String>[];
     Widget? action;
     var dismissible = false;
@@ -68,17 +74,25 @@ class ScanProgressCard extends ConsumerWidget {
           child: Text(l10n.pause),
         );
       case ScanPhase.running:
-        headline = progress.grouping ? l10n.scanSorting : l10n.scanRunning;
-        if (progress.message != null) lines.add(progress.message!);
-        lines.add(l10n.scanPhotosOf(processed, progress.total));
-        lines.add(l10n.scanFacesFound(progress.facesFound));
+        headline = progress.grouping
+            ? l10n.scanSorting
+            : video != null
+            ? videoStageTitle(l10n, video)
+            : l10n.scanRunning;
+        if (progress.message != null && video == null) {
+          lines.add(progress.message!);
+        }
+        lines.add(itemsText);
+        lines.add(l10n.scanFacesFound(faces));
         if (progress.facesLinked > 0) {
           lines.add(l10n.scanFacesLinked(progress.facesLinked));
         }
         if (progress.failed > 0) {
           lines.add(l10n.scanFailedCount(progress.failed));
         }
-        if (progress.eta != null) lines.add(_eta(l10n, progress.eta!));
+        if (progress.eta != null && video == null) {
+          lines.add(_eta(l10n, progress.eta!));
+        }
         action = TextButton(
           key: const Key('scan-pause'),
           onPressed: engine.pause,
@@ -87,7 +101,7 @@ class ScanProgressCard extends ConsumerWidget {
       case ScanPhase.waiting:
         headline = l10n.scanWaiting;
         lines.add(progress.message ?? l10n.gpuBusyMessage);
-        lines.add(l10n.scanPhotosOf(processed, progress.total));
+        lines.add(itemsText);
         action = TextButton(
           key: const Key('scan-pause'),
           onPressed: engine.pause,
@@ -97,7 +111,7 @@ class ScanProgressCard extends ConsumerWidget {
         headline = l10n.scanPaused;
         lines.add(pauseReasonText(l10n, progress));
         if (progress.total > 0) {
-          lines.add(l10n.scanPhotosOf(processed, progress.total));
+          lines.add(itemsText);
         }
         final reason = progress.pauseReason;
         if (reason == PauseReason.noAlbums) {
@@ -133,8 +147,12 @@ class ScanProgressCard extends ConsumerWidget {
         }
     }
 
-    if (progress.charactersFound > 0) {
-      lines.add(l10n.charactersFound(progress.charactersFound));
+    if (progress.charactersFound + (video?.charactersFound ?? 0) > 0) {
+      lines.add(
+        l10n.charactersFound(
+          progress.charactersFound + (video?.charactersFound ?? 0),
+        ),
+      );
     }
     return Card(
       key: const Key('scan-progress-card'),
@@ -182,6 +200,11 @@ class ScanProgressCard extends ConsumerWidget {
                   height: compact ? 140 : 180,
                 ),
               ),
+            if (video != null && !progress.grouping)
+              VideoScanDetails(
+                progress: video,
+                active: progress.phase == ScanPhase.running,
+              ),
             if (progress.phase != ScanPhase.paused || (progress.total > 0))
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
@@ -215,10 +238,9 @@ class _ScanMediaPreview extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final video = progress.currentKind == 'video';
     final milliseconds = progress.previewTimestampMs;
-    final seconds = (milliseconds ?? 0) ~/ 1000;
     final timestamp = milliseconds == null
         ? ''
-        : ' · ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+        : ' · ${videoTime(Duration(milliseconds: milliseconds))}';
     final label =
         '${video ? l10n.scanCurrentVideo : l10n.scanCurrentPhoto}$timestamp';
     Widget image(List<int>? bytes) => bytes == null

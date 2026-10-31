@@ -160,6 +160,24 @@ void main() {
   );
 
   test(
+    'video download reports received bytes without changing result integrity',
+    () async {
+      final received = <int>[];
+      await api.downloadVideoWithProgress(
+        'vid_test',
+        target,
+        onProgress: received.add,
+      );
+      await checkResult();
+      expect(received, isNotEmpty);
+      expect(received.last, payload.length);
+      for (var i = 1; i < received.length; i++) {
+        expect(received[i], greaterThan(received[i - 1]));
+      }
+    },
+  );
+
+  test(
     'a persisted partial result resumes at its existing byte offset',
     () async {
       await target.writeAsBytes(Uint8List.sublistView(payload, 0, 700013));

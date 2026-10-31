@@ -29,8 +29,9 @@ import 'reface_face_choices.dart';
 import 'reface_options.dart';
 
 class RefaceScreen extends ConsumerStatefulWidget {
-  const RefaceScreen({super.key, this.personId});
+  const RefaceScreen({super.key, this.personId, this.faceId});
   final int? personId;
+  final int? faceId;
   @override
   ConsumerState<RefaceScreen> createState() => _RefaceScreenState();
 }
@@ -67,6 +68,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   List<RefaceFaceGroup> _videoFaces = [];
   String? _targetModelId;
   bool _useImportedSource = false;
+  bool _directSource = false;
   final List<RefaceFaceGroup> _importedSources = [];
   int? _importedSource;
   String? _importedModelId;
@@ -299,7 +301,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.personId != null) {
+    if (widget.faceId != null) {
+      Future<void>.microtask(() => _loadFace(widget.faceId!));
+    } else if (widget.personId != null) {
       Future<void>.microtask(() => _loadPerson(widget.personId!));
     }
   }
@@ -333,6 +337,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       if (!mounted) return;
       setState(() {
         _person = id;
+        _directSource = false;
         _useImportedSource = false;
         _loraIdentity = false;
         _identitySet = null;
@@ -340,6 +345,27 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         _faces = faces;
         _sources.clear();
         _sources.addAll(faces.take(20).map((f) => f.id));
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    }
+  }
+
+  Future<void> _loadFace(int id) async {
+    try {
+      final db = ref.read(databaseProvider);
+      final face = await (db.select(
+        db.faces,
+      )..where((f) => f.id.equals(id))).getSingle();
+      if (!mounted) return;
+      setState(() {
+        _directSource = true;
+        _person = face.personId;
+        _personName = 'Face ${face.id}';
+        _faces = [face];
+        _sources
+          ..clear()
+          ..add(face.id);
       });
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
@@ -542,7 +568,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         _identityMode != 'dfm' &&
         (_useImportedSource
             ? _importedSource == null
-            : (_person == null || _sources.isEmpty))) {
+            : ((!_directSource && _person == null) || _sources.isEmpty))) {
       error = l10n.selectIdentityRequired;
     }
     setState(() => _error = error);
@@ -592,13 +618,19 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           : _useImportedSource
           ? _importedSources[_importedSource!].encode()
           : StudioRepository.encodeFaces(
-              (await ref
-                      .read(identityRepositoryProvider)
-                      .selection(
-                        personId: _person!,
-                        faceIds: _sources,
-                        modelId: caps.embeddingModelId,
-                      ))
+              (_directSource
+                      ? await (ref
+                                .read(databaseProvider)
+                                .select(ref.read(databaseProvider).faces)
+                              ..where((f) => f.id.isIn(_sources)))
+                            .get()
+                      : await ref
+                            .read(identityRepositoryProvider)
+                            .selection(
+                              personId: _person!,
+                              faceIds: _sources,
+                              modelId: caps.embeddingModelId,
+                            ))
                   .take(_loraIdentity ? 60 : 100),
               caps.embeddingModelId,
             );

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../core/router.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../shared/person_picker.dart';
+import 'action_sheet.dart';
+import 'people_actions.dart';
 
 /// A person's faces (or the unsorted ones when `personId` is null) - S09, the face picker.
 final facesProvider = StreamProvider.autoDispose.family<List<FaceItem>, int?>(
@@ -29,6 +29,27 @@ class FaceGrid extends ConsumerStatefulWidget {
 class _FaceGridState extends ConsumerState<FaceGrid> {
   final _selected = <int>{};
   var _selectMode = false;
+  var _hidden = false;
+
+  Future<void> _menu(List<FaceItem> faces) async {
+    final l = AppLocalizations.of(context);
+    final action = await showPeopleActionSheet(
+      context,
+      title: l.selectedCount(faces.length),
+      cropPath: faces.length == 1 ? faces.single.cropPath : null,
+      actions: faceMenuActions(faces),
+    );
+    if (action == null || !mounted) return;
+    if (action == 'select') {
+      setState(() {
+        _selectMode = true;
+        _selected.addAll(faces.map((f) => f.id));
+      });
+      return;
+    }
+    await runFaceAction(context, ref, faces, action);
+    if (mounted) _clearSelection();
+  }
 
   bool get _selecting => _selectMode || _selected.isNotEmpty;
 
@@ -50,11 +71,12 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
       error: (_, _) => RetryState(
         onRetry: () => ref.invalidate(facesProvider(widget.personId)),
       ),
-      data: (items) {
+      data: (all) {
+        final items = all.where((f) => f.hidden == _hidden).toList();
         // faces that left (assigned elsewhere, deleted) drop out of the selection
         final ids = {for (final f in items) f.id};
         _selected.removeWhere((id) => !ids.contains(id));
-        if (items.isEmpty) {
+        if (all.isEmpty) {
           return EmptyState(
             icon: Icons.face_retouching_off,
             title: widget.personId == null
@@ -70,6 +92,15 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
                 spacing: 12,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  FilterChip(
+                    key: const Key('faces-hidden'),
+                    label: Text(l10n.peopleAction('hidden')),
+                    selected: _hidden,
+                    onSelected: (v) => setState(() {
+                      _hidden = v;
+                      _selected.clear();
+                    }),
+                  ),
                   TextButton.icon(
                     key: const Key('face-selection-mode'),
                     onPressed: _selecting
@@ -85,30 +116,43 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
                       onPressed: () => setState(() => _selected.addAll(ids)),
                       child: Text(l10n.selectAll),
                     ),
+                  if (_selecting)
+                    TextButton(
+                      key: const Key('face-selection-invert'),
+                      onPressed: () => setState(() {
+                        final next = ids.difference(_selected);
+                        _selected
+                          ..clear()
+                          ..addAll(next);
+                      }),
+                      child: Text(l10n.peopleAction('invert')),
+                    ),
                 ],
               ),
             ),
             Expanded(
-              child: GridView.builder(
-                key: const Key('face-grid'),
-                padding: const EdgeInsets.all(4),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 110,
-                  mainAxisSpacing: 4,
-                  crossAxisSpacing: 4,
-                ),
-                itemCount: items.length,
-                itemBuilder: (context, i) => _FaceTile(
-                  face: items[i],
-                  selected: _selected.contains(items[i].id),
-                  selecting: _selecting,
-                  onToggle: () => _toggle(items[i].id),
-                  onOpen: () {
-                    final media = items[i].mediaId;
-                    if (media != null) context.push('${Routes.media}/$media');
-                  },
-                ),
-              ),
+              child: items.isEmpty
+                  ? Center(child: Text(l10n.peopleAction('noResults')))
+                  : GridView.builder(
+                      key: const Key('face-grid'),
+                      padding: const EdgeInsets.all(4),
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 110,
+                            mainAxisSpacing: 4,
+                            crossAxisSpacing: 4,
+                          ),
+                      itemCount: items.length,
+                      itemBuilder: (context, i) => _FaceTile(
+                        face: items[i],
+                        selected: _selected.contains(items[i].id),
+                        selecting: _selecting,
+                        onToggle: () => _toggle(items[i].id),
+                        onMenu: () => _menu([items[i]]),
+                        onOpen: () =>
+                            runFaceAction(context, ref, [items[i]], 'original'),
+                      ),
+                    ),
             ),
             if (_selected.isNotEmpty)
               _SelectionBar(
@@ -121,6 +165,9 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
                 onReject: () => _reject(context),
                 onDelete: () => _delete(context),
                 onCover: () => _cover(context),
+                onMore: () => _menu(
+                  items.where((f) => _selected.contains(f.id)).toList(),
+                ),
               ),
           ],
         );
@@ -196,6 +243,7 @@ class _FaceTile extends StatelessWidget {
     required this.selecting,
     required this.onToggle,
     required this.onOpen,
+    required this.onMenu,
   });
 
   final FaceItem face;
@@ -203,6 +251,7 @@ class _FaceTile extends StatelessWidget {
   final bool selecting;
   final VoidCallback onToggle;
   final VoidCallback onOpen;
+  final VoidCallback onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +259,7 @@ class _FaceTile extends StatelessWidget {
     return GestureDetector(
       key: Key('face-${face.id}'),
       onTap: selecting ? onToggle : onOpen,
-      onLongPress: onToggle,
+      onLongPress: selecting ? onToggle : onMenu,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Stack(
@@ -227,6 +276,27 @@ class _FaceTile extends StatelessWidget {
                   selected ? Icons.check_circle : Icons.radio_button_unchecked,
                   color: selected ? scheme.onPrimary : Colors.white70,
                   size: 22,
+                ),
+              ),
+            if (!selecting)
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Tooltip(
+                  message: AppLocalizations.of(context).peopleAction('more'),
+                  triggerMode: TooltipTriggerMode.manual,
+                  child: GestureDetector(
+                    onLongPress: onMenu,
+                    child: IconButton(
+                      key: Key('face-menu-${face.id}'),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.more_horiz, size: 18),
+                      onPressed: onMenu,
+                    ),
+                  ),
                 ),
               ),
           ],
@@ -247,6 +317,7 @@ class _SelectionBar extends StatelessWidget {
     required this.onReject,
     required this.onDelete,
     required this.onCover,
+    required this.onMore,
   });
 
   final int count;
@@ -258,6 +329,7 @@ class _SelectionBar extends StatelessWidget {
   final VoidCallback onReject;
   final VoidCallback onDelete;
   final VoidCallback onCover;
+  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
@@ -308,6 +380,12 @@ class _SelectionBar extends StatelessWidget {
                 tooltip: l10n.delete,
                 icon: const Icon(Icons.delete_outline),
                 onPressed: onDelete,
+              ),
+              IconButton(
+                key: const Key('selection-more'),
+                tooltip: l10n.peopleAction('more'),
+                onPressed: onMore,
+                icon: const Icon(Icons.more_horiz),
               ),
             ],
           ),

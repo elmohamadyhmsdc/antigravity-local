@@ -11,6 +11,8 @@ import '../people/person_detail_screen.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../shared/screen_layout.dart';
+import '../review/review_media_viewer.dart';
+import '../../data/repositories/review_visual_repository.dart';
 
 final _pcScoreProvider = FutureProvider.autoDispose.family<double?, (int, int)>(
   (ref, pair) =>
@@ -203,12 +205,32 @@ class _Side extends ConsumerWidget {
               mainAxisSpacing: 3,
               crossAxisSpacing: 3,
               children: [
-                for (final f in faces.take(6))
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: CropImage(path: f.cropPath, cacheWidth: 160),
+                for (final (i, f) in faces.take(6).indexed)
+                  InkWell(
+                    onTap: () => openReviewMedia(
+                      context,
+                      [for (final face in faces) ReviewTarget('f', face.id)],
+                      initialTarget: i,
+                      title: personName(l10n, person),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: CropImage(path: f.cropPath, cacheWidth: 160),
+                    ),
                   ),
               ],
+            ),
+            TextButton(
+              key: Key('merge-view-all-${person.id}'),
+              onPressed: faces.isEmpty
+                  ? null
+                  : () => reviewPersonPhotos(
+                      context,
+                      ref,
+                      person.id,
+                      personName(l10n, person),
+                    ),
+              child: Text(l10n.reviewViewAll(faces.length)),
             ),
           ],
         ),

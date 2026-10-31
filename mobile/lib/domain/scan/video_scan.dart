@@ -8,6 +8,7 @@ import 'package:drift/drift.dart';
 
 import '../../data/api/api_exception.dart';
 import '../../data/api/dtos/analyze.dart';
+import '../../data/api/dtos/jobs.dart';
 import '../../data/api/video_api.dart';
 import '../../data/db/app_database.dart';
 import '../../data/media/media_library.dart';
@@ -16,6 +17,7 @@ import '../../data/repositories/library_repository.dart';
 import 'photo_result_store.dart';
 import 'video_hash.dart';
 import 'video_sampling.dart';
+import 'video_scan_progress.dart';
 
 class VideoScanPaused implements Exception {
   const VideoScanPaused();
@@ -52,8 +54,126 @@ class VideoScan {
     required SettingsSnapshot prefs,
     required bool Function() paused,
     required void Function(String stage, double progress) report,
+    void Function(VideoScanProgress progress)? onProgress,
     void Function(Uint8List bytes, int? timestampMs)? onPreview,
   }) async {
+    final startedAt = DateTime.now();
+    var stageStartedAt = startedAt;
+    VideoScanStage? activeStage;
+    final stageWatch = Stopwatch();
+    int? processedBytes, totalBytes;
+    String? fileName;
+    int? fileBytes;
+    var byteBaseline = 0;
+    int? sampleBaseline;
+    var framesSaved = 0;
+    VideoJobStatus? currentJob;
+    DateTime? serverUpdatedAt;
+    var outcome = const StoreOutcome();
+
+    void publish(VideoScanStage stage, [double? fraction]) {
+      final now = DateTime.now();
+      if (stage != activeStage) {
+        activeStage = stage;
+        stageStartedAt = now;
+        stageWatch.reset();
+        stageWatch.start();
+        byteBaseline = processedBytes ?? 0;
+        sampleBaseline = currentJob?.framesDone == null
+            ? null
+            : currentJob!.framesDone! + currentJob!.skippedSamples;
+      }
+      final seconds = stageWatch.elapsedMilliseconds / 1000;
+      final transfer =
+          stage == VideoScanStage.upload || stage == VideoScanStage.download;
+      final speed =
+          transfer &&
+              seconds >= 1 &&
+              processedBytes != null &&
+              processedBytes! > byteBaseline
+          ? (processedBytes! - byteBaseline) / seconds
+          : null;
+      double? remaining;
+      if (speed != null && totalBytes != null) {
+        remaining = (totalBytes - processedBytes!).clamp(0, totalBytes) / speed;
+      } else if (stage == VideoScanStage.analyze &&
+          seconds >= 2 &&
+          sampleBaseline != null &&
+          currentJob?.framesDone != null &&
+          currentJob?.totalSamples != null) {
+        final done = currentJob!.framesDone! + currentJob!.skippedSamples;
+        final advanced = done - sampleBaseline!;
+        if (advanced >= 2 && done < currentJob!.totalSamples!) {
+          remaining = (currentJob!.totalSamples! - done) * seconds / advanced;
+        }
+      }
+      if (stage != VideoScanStage.importing) {
+        report(stage.name, fraction ?? 0);
+      }
+      onProgress?.call(
+        VideoScanProgress(
+          stage: stage,
+          startedAt: startedAt,
+          stageStartedAt: stageStartedAt,
+          updatedAt: now,
+          fraction: fraction,
+          durationMs: media.durationMs,
+          fileName: fileName,
+          fileBytes: fileBytes,
+          width: media.width,
+          height: media.height,
+          processedBytes: transfer || stage == VideoScanStage.prepare
+              ? processedBytes
+              : null,
+          totalBytes: transfer || stage == VideoScanStage.prepare
+              ? totalBytes
+              : null,
+          bytesPerSecond: speed,
+          eta:
+              remaining != null &&
+                  remaining.isFinite &&
+                  remaining > 0 &&
+                  remaining < 365 * 86400
+              ? Duration(seconds: remaining.ceil())
+              : null,
+          framesDone: currentJob?.framesDone,
+          totalSamples: currentJob?.totalSamples,
+          analyzedTimestampMs: currentJob?.analyzedTimestampMs,
+          frameInterval: currentJob?.frameInterval,
+          skippedSamples: currentJob?.skippedSamples ?? 0,
+          framesSaved: framesSaved,
+          facesFound: outcome.newFaces,
+          bodiesFound: outcome.newBodies,
+          charactersFound: outcome.newCharacters,
+          serverStage: currentJob?.stage,
+          serverMessage: currentJob?.message,
+          warning: currentJob?.warning,
+          serverUpdatedAt: serverUpdatedAt,
+          incrementalResults: currentJob?.incrementalResults ?? false,
+        ),
+      );
+    }
+
+    void receiveJob(VideoJobStatus job) {
+      currentJob = job;
+      serverUpdatedAt = DateTime.now();
+      final stage =
+          job.status == 'queued' ||
+              job.status == 'pending' ||
+              job.status == 'paused'
+          ? VideoScanStage.queue
+          : job.stage == 'finalize'
+          ? VideoScanStage.finish
+          : VideoScanStage.analyze;
+      publish(
+        stage,
+        stage == VideoScanStage.analyze &&
+                (job.status == 'running' || job.status == 'completed')
+            ? job.progress
+            : null,
+      );
+    }
+
     void checkPause() {
       if (paused()) throw const VideoScanPaused();
     }
@@ -78,6 +198,11 @@ class VideoScan {
         saved?['duration'] != media.durationMs) {
       saved = null;
     }
+    if (saved != null) {
+      final path = saved['path'] as String?;
+      fileName = path == null ? null : File(path).uri.pathSegments.last;
+      fileBytes = saved['size'] as int?;
+    }
 
     Future<void> persist() async {
       if (saved == null) {
@@ -87,7 +212,6 @@ class VideoScan {
       }
     }
 
-    var outcome = const StoreOutcome();
     String? warning;
     var workerRetries = 0;
     var nextFrame =
@@ -131,13 +255,27 @@ class VideoScan {
         newCharacters: outcome.newCharacters + stored.newCharacters,
       );
       nextFrame = frame + 1;
+      framesSaved++;
+      final liveImport =
+          currentJob?.incrementalResults == true &&
+          currentJob?.status == 'running' &&
+          currentJob?.stage != 'finalize';
+      // The legacy callback marks a committed frame, not entry into the stage.
       report('import', 0);
+      publish(
+        liveImport ? VideoScanStage.analyze : VideoScanStage.importing,
+        liveImport ? currentJob?.progress : null,
+      );
     }
 
     for (var restart = 0; restart < 3; restart++) {
       checkPause();
       if (saved == null) {
-        report('prepare', 0);
+        currentJob = null;
+        serverUpdatedAt = null;
+        processedBytes = null;
+        totalBytes = null;
+        publish(VideoScanStage.prepare);
         final file = await library.videoFile(media.assetId);
         if (file == null || !await file.exists()) {
           throw ApiException.badResponse(
@@ -145,12 +283,20 @@ class VideoScan {
           );
         }
         final path = file.path;
+        totalBytes = await file.length();
+        fileBytes = totalBytes;
+        fileName = file.uri.pathSegments.last;
+        processedBytes = 0;
+        publish(VideoScanStage.prepare, 0);
         final String hash;
         try {
           hash = await videoFileHash(
             File(path),
             cancelled: paused,
-            onProgress: (progress) => report('prepare', progress),
+            onProgress: (progress) {
+              processedBytes = (progress * totalBytes!).round();
+              publish(VideoScanStage.prepare, progress);
+            },
           );
         } on VideoHashCancelled {
           throw const VideoScanPaused();
@@ -165,6 +311,7 @@ class VideoScan {
           'width': media.width,
           'height': media.height,
           'duration': media.durationMs,
+          'size': fileBytes,
           'sha': hash,
           'path': path,
           'request': {
@@ -198,6 +345,8 @@ class VideoScan {
             throw ApiException.badResponse('The video could not be read.');
           }
           final total = await file.length();
+          fileBytes = total;
+          fileName = file.uri.pathSegments.last;
           if (total <= 0) throw ApiException.badResponse('The video is empty.');
           var head = await api.blobOffset(hash);
           var offset = head.offset;
@@ -206,6 +355,9 @@ class VideoScan {
               'The PC returned an invalid upload size.',
             );
           }
+          totalBytes = total;
+          processedBytes = offset;
+          publish(VideoScanStage.upload, offset / total);
           final source = await file.open();
           try {
             var stalled = 0;
@@ -220,18 +372,34 @@ class VideoScan {
                   'The video changed during upload.',
                 );
               }
-              final next = await api.uploadChunk(hash, bytes, offset, total);
+              final telemetry = Stopwatch()..start();
+              final next = api is VideoTransferProgressApi
+                  ? await (api as VideoTransferProgressApi).uploadVideoChunk(
+                      hash,
+                      bytes,
+                      offset,
+                      total,
+                      onProgress: (sent) {
+                        if (telemetry.elapsedMilliseconds < 200) return;
+                        telemetry.reset();
+                        processedBytes = offset + sent.clamp(0, bytes.length);
+                        publish(VideoScanStage.upload, processedBytes! / total);
+                      },
+                    )
+                  : await api.uploadChunk(hash, bytes, offset, total);
               if (next == offset && ++stalled > 3) {
                 throw ApiException.badResponse('The upload is not advancing.');
               }
               if (next != offset) stalled = 0;
               offset = next;
-              report('upload', offset / total);
+              processedBytes = offset;
+              publish(VideoScanStage.upload, offset / total);
             }
           } finally {
             await source.close();
           }
           checkPause();
+          publish(VideoScanStage.queue);
           final job = await api.createVideoJob(
             Map<String, dynamic>.from(saved['request'] as Map),
           );
@@ -239,6 +407,7 @@ class VideoScan {
           saved['id'] = id;
           await persist();
         }
+        publish(VideoScanStage.queue);
         var streamed = false;
         while (true) {
           if (paused()) {
@@ -250,6 +419,7 @@ class VideoScan {
             throw const VideoScanPaused();
           }
           var job = await api.videoJob(id);
+          receiveJob(job);
           if (job.previewBytes case final bytes?) {
             onPreview?.call(bytes, job.previewTimestampMs);
           }
@@ -283,7 +453,9 @@ class VideoScan {
               complete = batch.completed;
             }
             if (complete) {
-              warning = (await api.videoJob(id)).warning;
+              job = await api.videoJob(id);
+              receiveJob(job);
+              warning = job.warning;
               break;
             }
           }
@@ -296,6 +468,7 @@ class VideoScan {
               );
             }
             job = await api.controlVideoJob(id, resume: true);
+            receiveJob(job);
             if (job.status == 'paused') {
               throw ApiException(
                 code: 'resource_pressure',
@@ -305,7 +478,6 @@ class VideoScan {
               );
             }
           }
-          report('analyze', job.progress);
           if (job.status == 'failed') {
             try {
               await api.deleteVideoJob(id);
@@ -324,12 +496,42 @@ class VideoScan {
         }
         checkPause();
         if (!streamed) {
+          processedBytes = 0;
+          totalBytes = null;
+          publish(VideoScanStage.download);
           final manifest = await api.videoResult(id);
           final temp = await Directory.systemTemp.createTemp('ag_video_');
           try {
             final result = File('${temp.path}/detections.ndjson');
-            report('download', 0);
-            await api.downloadVideoResult(id, result);
+            totalBytes = manifest.size;
+            processedBytes = 0;
+            publish(VideoScanStage.download, 0);
+            final telemetry = Stopwatch()..start();
+            if (api is VideoTransferProgressApi) {
+              await (api as VideoTransferProgressApi).downloadVideoWithProgress(
+                id,
+                result,
+                onProgress: (received) {
+                  if (telemetry.elapsedMilliseconds < 200) return;
+                  telemetry.reset();
+                  processedBytes = received;
+                  publish(
+                    VideoScanStage.download,
+                    manifest.size > 0 ? received / manifest.size : null,
+                  );
+                },
+              );
+            } else {
+              await api.downloadVideoResult(id, result);
+            }
+            processedBytes = await result.length();
+            publish(
+              VideoScanStage.download,
+              manifest.size > 0
+                  ? (processedBytes! / manifest.size).clamp(0.0, 1.0)
+                  : 1,
+            );
+            publish(VideoScanStage.verify);
             final path = result.path;
             if (await result.length() != manifest.size ||
                 await isolatedFileSha256(path) != manifest.sha256) {
@@ -338,6 +540,7 @@ class VideoScan {
               );
             }
             var previous = -1;
+            publish(VideoScanStage.importing);
             await for (final line
                 in result
                     .openRead()
@@ -360,6 +563,7 @@ class VideoScan {
             await temp.delete(recursive: true);
           }
         }
+        publish(VideoScanStage.finish);
         await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
           MediaCompanion(
             scanStatus: const Value('done'),

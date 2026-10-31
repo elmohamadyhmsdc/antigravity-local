@@ -15,6 +15,7 @@ import '../grouping/grouping_runner.dart';
 import 'photo_result_store.dart';
 import 'scan_state.dart';
 import 'video_scan.dart';
+import 'video_scan_progress.dart';
 
 /// How long the engine keeps retrying a busy / unreachable PC before it pauses by itself.
 class ScanPolicy {
@@ -258,6 +259,7 @@ class ScanEngine {
     MediaRow? current;
     Uint8List? previewBytes;
     int? previewTimestampMs;
+    VideoScanProgress? videoProgress;
 
     void prepareNextPhoto() {
       _preparedPhoto = () async {
@@ -293,7 +295,14 @@ class ScanEngine {
       }
       return ScanProgress(
         phase: phase,
-        message: message,
+        message:
+            message ??
+            (videoProgress == null
+                ? null
+                : _describeVideo(
+                    videoProgress!.stage.name,
+                    videoProgress!.fraction ?? 0,
+                  )),
         total: counts.remaining,
         done: done,
         failed: failed,
@@ -307,6 +316,7 @@ class ScanEngine {
         currentKind: current?.kind,
         previewBytes: previewBytes,
         previewTimestampMs: previewTimestampMs,
+        video: videoProgress,
       );
     }
 
@@ -351,6 +361,7 @@ class ScanEngine {
       current = row;
       previewBytes = null;
       previewTimestampMs = null;
+      videoProgress = null;
       _emit(snapshot());
       final watch = Stopwatch()..start();
 
@@ -366,6 +377,18 @@ class ScanEngine {
           previewBytes = bytes;
           previewTimestampMs = timestamp;
           _emit(snapshot());
+        },
+        onVideoProgress: (progress) {
+          videoProgress = progress;
+          _emit(
+            snapshot(
+              message: _describeVideo(
+                progress.stage.name,
+                progress.fraction ?? 0,
+              ),
+            ),
+          );
+          unawaited(notify());
         },
       );
       switch (result) {
@@ -387,6 +410,7 @@ class ScanEngine {
       current = null;
       previewBytes = null;
       previewTimestampMs = null;
+      videoProgress = null;
       durations.addLast(watch.elapsedMilliseconds / 1000.0);
       if (durations.length > 15) durations.removeFirst();
       _emit(snapshot());
@@ -420,6 +444,7 @@ class ScanEngine {
     required String? modelId,
     required ScanProgress Function({ScanPhase phase, String? message}) snapshot,
     required void Function(Uint8List bytes, int? timestampMs) preview,
+    required void Function(VideoScanProgress progress) onVideoProgress,
     Uint8List? preparedPhoto,
     required void Function() prepareNextPhoto,
   }) async {
@@ -477,10 +502,8 @@ class ScanEngine {
             library: media as VideoMediaLibrary,
             prefs: prefs,
             paused: () => _pauseRequested,
-            report: (stage, progress) {
-              _emit(snapshot(message: _describeVideo(stage, progress)));
-              unawaited(_keepAlive.update(_describe(_progress)));
-            },
+            report: (_, _) {},
+            onProgress: onVideoProgress,
             onPreview: preview,
           );
           return _Scanned(

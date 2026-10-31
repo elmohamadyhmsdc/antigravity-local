@@ -30,8 +30,14 @@ class VideoMediaView extends StatefulWidget {
     required this.people,
     required this.showBodies,
     required this.onTapBox,
+    this.initialTimestampMs,
+    this.focusKind,
+    this.focusRefId,
   });
   final String assetId;
+  final int? initialTimestampMs;
+  final String? focusKind;
+  final int? focusRefId;
   final MediaLibrary library;
   final List<MediaDetection> detections;
   final Map<int, PersonSummary> people;
@@ -43,6 +49,8 @@ class VideoMediaView extends StatefulWidget {
 }
 
 class _VideoMediaViewState extends State<VideoMediaView> {
+  bool _focused(MediaDetection d) =>
+      d.kind == widget.focusKind && d.refId == widget.focusRefId;
   VideoPlayerController? _player;
   bool _loading = true;
   bool _error = false;
@@ -63,6 +71,16 @@ class _VideoMediaViewState extends State<VideoMediaView> {
       if (file == null) throw const FileSystemException('Video unavailable');
       player = VideoPlayerController.file(file);
       await player.initialize();
+      if (widget.initialTimestampMs != null) {
+        await player.seekTo(
+          Duration(
+            milliseconds: widget.initialTimestampMs!.clamp(
+              0,
+              player.value.duration.inMilliseconds,
+            ),
+          ),
+        );
+      }
       if (!mounted) {
         await player.dispose();
         return;
@@ -143,28 +161,37 @@ class _VideoMediaViewState extends State<VideoMediaView> {
                             widget.onTapBox(d);
                           },
                           child: DecoratedBox(
+                            key: _focused(d)
+                                ? const Key('review-video-highlight')
+                                : null,
                             decoration: BoxDecoration(
                               border: Border.all(
-                                width: 2,
-                                color: d.isFace
+                                width: _focused(d) ? 3 : 2,
+                                color: _focused(d)
+                                    ? Colors.amberAccent
+                                    : d.isFace
                                     ? (d.personId == null
                                           ? Colors.amber
                                           : Colors.greenAccent)
                                     : Colors.lightBlueAccent,
                               ),
                             ),
-                            child: d.personId == null
+                            child: d.personId == null && !_focused(d)
                                 ? null
                                 : Align(
                                     alignment: Alignment.topLeft,
                                     child: ColoredBox(
                                       color: Colors.black54,
                                       child: Text(
-                                        personNameOf(
-                                          l10n,
-                                          d.personId!,
-                                          widget.people,
-                                        ),
+                                        _focused(d)
+                                            ? (d.isFace
+                                                  ? l10n.reviewFace
+                                                  : l10n.reviewBody)
+                                            : personNameOf(
+                                                l10n,
+                                                d.personId!,
+                                                widget.people,
+                                              ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
