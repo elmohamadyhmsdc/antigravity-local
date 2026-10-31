@@ -266,6 +266,16 @@ def get_sd15_pipeline(device: str, dtype):
     )
     pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
 
+    hyper_sd_path = Path(__file__).parent / "models" / "Hyper-SD15-8steps-CFG-lora.safetensors"
+    if hyper_sd_path.exists():
+        try:
+            pipe.load_lora_weights(str(hyper_sd_path.parent), weight_name=hyper_sd_path.name)
+            pipe.fuse_lora()
+            pipe._hyper_sd = True
+            print("Hyper-SD 8-step LoRA fused into UNet successfully.", file=sys.stderr)
+        except Exception as e:
+            print(f"Hyper-SD LoRA loading failed: {e}", file=sys.stderr)
+
     ip_loaded = False
     ip_src = ensure_ip_adapter()
     if ip_src is not None:
@@ -568,7 +578,7 @@ def generate(payload: dict, device: str, dtype, parser_proc, parser) -> dict:
         image=gen_in_15,
         mask_image=gen_mask_15,
         control_image=control_image_15,
-        num_inference_steps=20, # Fast base gen
+        num_inference_steps=8 if getattr(pipe_sd15, '_hyper_sd', False) else 20, # Fast base gen
         generator=generator,
         guidance_scale=guidance,
         strength=1.0,

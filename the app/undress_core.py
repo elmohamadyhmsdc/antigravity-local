@@ -43,7 +43,8 @@ DEFAULT_NEGATIVE_PROMPT = (
     "anime, cartoon, painting, blurry, low quality, bad anatomy, 3d render"
 )
 
-INPAINT_MODEL_ID = "Uminosachi/realisticVisionV51_v51VAE-inpainting"
+INPAINT_MODEL_ID = "andregn/Realistic_Vision_V6.0-inpainting"
+FALLBACK_INPAINT_MODEL_ID = "Uminosachi/realisticVisionV51_v51VAE-inpainting"
 SDXL_INPAINT_MODEL_ID = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
 
 CONTROLNET_MODEL_ID = "lllyasviel/control_v11p_sd15_inpaint"
@@ -99,6 +100,10 @@ def ensure_local_model(repo_id: str, marker: str) -> str:
     existing = hf_cache_snapshot(repo_id, marker)
     if existing is not None:
         return str(existing)
+    if repo_id == INPAINT_MODEL_ID:
+        fallback = hf_cache_snapshot(FALLBACK_INPAINT_MODEL_ID, marker)
+        if fallback is not None:
+            return str(fallback)
     from huggingface_hub import snapshot_download
 
     dest = UNDRESS_MODELS_DIR / repo_id.replace("/", "--")

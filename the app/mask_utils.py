@@ -1,26 +1,72 @@
 from pathlib import Path
+from typing import Optional, Tuple
 
 import cv2
 import numpy as np
-import mediapipe as mp
-from mediapipe.tasks.python import BaseOptions
-from mediapipe.tasks.python.vision import ImageSegmenter, ImageSegmenterOptions
 from PIL import Image
 
 from undress_core import build_inpaint_mask
 
+_RMBG_MODEL_PATH = Path(__file__).parent / "models" / "rmbg.onnx"
 _SELFIE_SEGMENTER_MODEL = Path(__file__).parent / "models" / "selfie_segmenter.tflite"
 
-def generate_body_mask(image_pil, face_app):
-    """
-    Generates an inpainting mask for the body.
-    White = Area to Inpaint (Body/Clothes).
-    Black = Keep (Face, Background).
-    """
-    image_np = np.array(image_pil)
+_RMBG_SESSION = None
 
-    person_mask_uint8 = np.zeros((h, w), np.uint8)
+
+def _get_rmbg_session():
+    """Lazily loads RMBG 1.4 ONNX session with CUDA GPU acceleration."""
+    global _RMBG_SESSION
+    if _RMBG_SESSION is not None:
+        return _RMBG_SESSION
+    if not _RMBG_MODEL_PATH.exists():
+        return None
+    try:
+        from cuda_dll_dirs import add_nvidia_dll_dirs
+        add_nvidia_dll_dirs()
+        import onnxruntime as ort
+        so = ort.SessionOptions()
+        so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        _RMBG_SESSION = ort.InferenceSession(
+            str(_RMBG_MODEL_PATH),
+            sess_options=so,
+            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+        )
+        return _RMBG_SESSION
+    except Exception as e:
+        print(f"[RMBG] Failed to load RMBG session: {e}")
+        return None
+
+
+def get_segmentation_mask(image_np: np.ndarray) -> np.ndarray:
+    """
+    Computes a binary segmentation mask for the foreground person/subject.
+    Input: image_np (H, W, 3) in RGB or BGR.
+    Output: uint8 array of shape (H, W) where 255 is foreground (person).
+    Prefers RMBG 1.4 (ONNX) if available, with graceful fallback to MediaPipe.
+    """
+    h, w = image_np.shape[:2]
+    sess = _get_rmbg_session()
+    if sess is not None:
+        try:
+            resized = cv2.resize(image_np, (1024, 1024), interpolation=cv2.INTER_LINEAR)
+            rgb = resized.astype(np.float32) / 255.0
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+            norm = (rgb - mean) / std
+            blob = norm.transpose(2, 0, 1)[None].astype(np.float32)
+
+            out = sess.run(None, {"input": blob})[0]
+            mask = cv2.resize(out[0, 0], (w, h), interpolation=cv2.INTER_LINEAR)
+            return (mask > 0.5).astype(np.uint8) * 255
+        except Exception as e:
+            print(f"[RMBG] Inference failed, falling back: {e}")
+
+    # Fallback to MediaPipe
     if _SELFIE_SEGMENTER_MODEL.exists():
+        import mediapipe as mp
+        from mediapipe.tasks.python import BaseOptions
+        from mediapipe.tasks.python.vision import ImageSegmenter, ImageSegmenterOptions
+
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_np)
         options = ImageSegmenterOptions(
             base_options=BaseOptions(model_asset_path=str(_SELFIE_SEGMENTER_MODEL)),
@@ -29,17 +75,27 @@ def generate_body_mask(image_pil, face_app):
         with ImageSegmenter.create_from_options(options) as segmenter:
             result = segmenter.segment(mp_image)
             confidence_mask = result.confidence_masks[0].numpy_view()
-        person_mask_uint8 = (np.squeeze(confidence_mask) > 0.5).astype(np.uint8) * 255
+        return (np.squeeze(confidence_mask) > 0.5).astype(np.uint8) * 255
     else:
-        # Legacy solutions API — only present on older mediapipe wheels (venv_ai).
-        # Main venv 0.10.35 ships Tasks only; skip rather than crash import-time.
-        import mediapipe.python.solutions.selfie_segmentation as mp_selfie_segmentation_sol
+        try:
+            import mediapipe.python.solutions.selfie_segmentation as mp_selfie_segmentation_sol
+            with mp_selfie_segmentation_sol.SelfieSegmentation(model_selection=1) as selfie_segmentation:
+                results = selfie_segmentation.process(image_np)
+                return (results.segmentation_mask > 0.5).astype(np.uint8) * 255
+        except Exception:
+            return np.zeros((h, w), np.uint8)
 
-        with mp_selfie_segmentation_sol.SelfieSegmentation(model_selection=1) as selfie_segmentation:
-            results = selfie_segmentation.process(image_np)
-            person_mask_uint8 = (results.segmentation_mask > 0.5).astype(np.uint8) * 255
 
-    image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+def generate_body_mask(image_pil, face_app):
+    """
+    Generates an inpainting mask for the body.
+    White = Area to Inpaint (Body/Clothes).
+    Black = Keep (Face, Background).
+    """
+    image_np = np.array(image_pil)
+    person_mask_uint8 = get_segmentation_mask(image_np)
+
+    image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR) if len(image_np.shape) == 3 else image_np
     faces = face_app.get(image_bgr)
     if not faces:
         return Image.fromarray(person_mask_uint8)
@@ -55,32 +111,16 @@ def get_person_bbox(image_bgr, face_app, margin_ratio: float = 0.08):
     unioned with the detected face box), or None if no person/face is found.
 
     Expects a BGR numpy array (OpenCV convention, matching the rest of this
-    codebase). Uses MediaPipe's Tasks API (ImageSegmenter). If the selfie
-    segmenter model hasn't been downloaded yet, falls back to the face box alone.
+    codebase). Uses RMBG 1.4 (or MediaPipe fallback).
     """
     image_np = np.asarray(image_bgr)
     h, w = image_np.shape[:2]
 
+    person_mask = get_segmentation_mask(image_np) > 127
     person_box = None
-    if _SELFIE_SEGMENTER_MODEL.exists():
-        image_rgb = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
-        options = ImageSegmenterOptions(
-            base_options=BaseOptions(model_asset_path=str(_SELFIE_SEGMENTER_MODEL)),
-            output_confidence_masks=True,
-        )
-        with ImageSegmenter.create_from_options(options) as segmenter:
-            result = segmenter.segment(mp_image)
-            confidence_mask = result.confidence_masks[0].numpy_view()
-        # numpy_view() can return (H, W, 1) rather than (H, W) depending on
-        # the model - squeeze to 2D so np.where() yields exactly (ys, xs).
-        person_mask = np.squeeze(confidence_mask) > 0.5
-
-        ys, xs = np.where(person_mask)
-        if len(xs) > 0:
-            person_box = (int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max()))
-    else:
-        print(f"[PERSON_BBOX] {_SELFIE_SEGMENTER_MODEL} not found; using face box only (no body crop)")
+    ys, xs = np.where(person_mask)
+    if len(xs) > 0:
+        person_box = (int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max()))
 
     faces = face_app.get(image_np)
     face_box = None

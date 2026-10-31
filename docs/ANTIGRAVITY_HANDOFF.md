@@ -1013,3 +1013,37 @@ faces near one shared direction, which is why different characters merged.
   - Documented: `docs/plans/2026-10-31-anime-character-detection-design.md` and `docs/plans/2026-10-31-anime-character-detection-plan.md`.
   - Preserved terminal policy; no phone or server state altered.
 
+
+
+## AI Model Upgrades & Hardware Compatibility (RTX 4050 6GB) — 2026-10-31
+
+- **User Request**: Survey and identify superior AI models suited for the hardware profile (RTX 4050 6GB Laptop GPU), switch to upgraded models for Mobile APIs, keep existing models as fallbacks, download approved models (Realistic Vision V6 Inpainting, RMBG ONNX, Hyper-SD LoRA), and provide exact file breakdown for manual Florence-2 download.
+- **Downloaded & Staged Models**:
+  1. **Hyper-SD Acceleration LoRA**: Downloaded `Hyper-SD15-8steps-CFG-lora.safetensors` (256.7 MB) to `the app/models/Hyper-SD15-8steps-CFG-lora.safetensors`. Accelerates inpainting from 20-30 steps down to 8 steps with CFG prompt adherence and zero added VRAM.
+  2. **RMBG 1.4 Background Removal ONNX**: Downloaded `rmbg.onnx` (168.0 MB) to `the app/models/rmbg.onnx` from `briaai/RMBG-1.4`. Delivers sub-pixel hair and edge matting for subject isolation.
+  3. **Realistic Vision V6.0 Inpainting**: Downloaded full Diffusers model (`andregn/Realistic_Vision_V6.0-inpainting`, 2.4 GB) to `the app/models/undress/andregn--Realistic_Vision_V6.0-inpainting/` (`model_index.json`, `scheduler/`, `text_encoder/`, `tokenizer/`, `unet/`, `vae/`). Generated `diffusion_pytorch_model.safetensors` in `unet/` for zero-pickle fast memory-mapped loading.
+  4. **Florence-2 Vision-Language Captioner**: User downloaded `florence-2-base-nsfw-v2-ext` (1.08 GB `model.safetensors` + config/tokenizers) into `the app/models/florence-2-base-nsfw-v2-ext`. Applied upstream compatibility fixes for modern transformers:
+     - Fixed `vision_config.model_type` to `"davit"`.
+     - Fixed tied weights mapping dictionary (`encoder.embed_tokens.weight` and `decoder.embed_tokens.weight` -> `shared.weight`) preventing random reinitialization of word embeddings.
+     - Preserved trained `lm_head.weight` from checkpoint (prevented destructive overwrite by `_tie_or_clone_weights`).
+     - Added aspect ratio support in DaViT unpooling for non-square photos.
+     - Created `the app/florence_captioner.py` with `FlorenceCaptioner` and integrated optional natural language captioning into `the app/lora_dataset.py`.
+- **Code & Engine Integration**:
+  1. `the app/undress_core.py`: Set `INPAINT_MODEL_ID = "andregn/Realistic_Vision_V6.0-inpainting"` with `FALLBACK_INPAINT_MODEL_ID = "Uminosachi/realisticVisionV51_v51VAE-inpainting"`. Updated `ensure_local_model` to resolve to the upgraded V6 snapshot when present and fall back gracefully to V5.1.
+  2. `the app/mobile_api/model_readiness.py`: Updated `restyle_missing_models` candidates to evaluate both V6 and V5.1, preserving full engine readiness (`restyle_missing_models: []`).
+  3. `the app/reface.py`: Updated `RefaceEngine.__init__` to select `hyperswap_1c_256` automatically when `quality_profile == "detail"` and present on disk, defaulting to `hyperswap_1b_256` for balanced/fast.
+  4. `the app/reface_engine_v3.py`: Added `hyperswap_1c_256` to `SWAPPER_PREFERENCE`.
+  5. `the app/download_upgrades.py`: Added dedicated model upgrade downloader script.
+  6. `the app/florence_captioner.py`: Dedicated Vision-Language captioning module loading Florence-2 with CUDA fp16 / CPU fp32 and automatic cleanup.
+  7. `the app/lora_dataset.py`: Updated `build_caption`, `_write_dataset_records`, `build_dataset`, and `build_dataset_from_uploads` to support Florence-2 natural language captions alongside WD14 tags.
+  8. `the app/mask_utils.py`: Wired `rmbg.onnx` (BRIA RMBG 1.4 BiRefNet) with CUDA acceleration for high-fidelity person segmentation and background matting, falling back to MediaPipe if missing.
+  9. `the app/undress_engine.py`: Fused `Hyper-SD15-8steps-CFG-lora.safetensors` into the SD1.5 UNet weights on load (zero added VRAM), reducing base generation steps from 20 to 8 steps for 2.5x speedup.
+- **Preserved Database & Face Compatibility**:
+  - Preserved `buffalo_l` (`w600k_r50`) as the active face embedding model to protect compatibility with existing 17,000+ photo embeddings in the phone's SQLCipher database and ensure compatibility with `HyperSwap` and `InSwapper` weights.
+- **Verification (Actual)**:
+  - Offline inpainting pipeline loading test via `venv_ai`: `StableDiffusionInpaintPipeline` loaded cleanly in 7.0s with zero errors.
+  - Florence-2 inference test via `venv_ai`: loaded cleanly in GPU fp16, successfully parsed and generated detailed captions on real photo fixture (`alexandra daddario (1).jpg`).
+  - Model readiness probe: `python -m mobile_api --check-models` passed with all engines `true` and `restyle_missing_models: []`.
+  - Python tests: `test_lora_dataset.py` passed all tasks (1-6 + upload-path); `test_reface_unified.py` 8/8 passed, `test_mobile_artifacts.py` 8/8 passed, `test_mobile_api_contract.py` 29/29 passed, `test_mobile_stateless.py` 5/5 passed, `test_mobile_dashboard.py` 12/12 passed.
+  - Pre-existing recorded 7 Restyle CPU test failures in `test_undress.py` preserved unmodified.
+  - Preserved terminal policy; no running user server, phone database, or live queue state altered.

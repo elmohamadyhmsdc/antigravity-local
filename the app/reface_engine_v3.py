@@ -48,7 +48,7 @@ from face_swappers import SWAPPERS, available_swappers, load_swapper
 # hyperswap_1b 0.430 / inswapper 0.421 / hyperswap_1c 0.411 identity, 369 vs
 # 403 ms/frame, equal flicker. 1b won 5 of 8 person/clip pairs - a small,
 # person-dependent edge, so inswapper stays as the fallback.
-SWAPPER_PREFERENCE = ["hyperswap_1b_256", "inswapper_128"]
+SWAPPER_PREFERENCE = ["hyperswap_1b_256", "hyperswap_1c_256", "inswapper_128"]
 # The restorer the UI preselects; also from eval_reface.py. 2026-10-14 on
 # hyperswap_1b: identity none 0.517 / gpen_1024 0.514 / gpen_512 0.508 /
 # restoreformer++ 0.490 / gfpgan 0.485 / codeformer 0.430; sharpness vs the

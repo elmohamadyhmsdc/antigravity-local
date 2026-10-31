@@ -193,13 +193,29 @@ def _is_blurry(image_bgr: np.ndarray) -> bool:
     return cv2.Laplacian(gray, cv2.CV_64F).var() < BLUR_LAPLACIAN_THRESHOLD
 
 
-def build_caption(image_bgr: np.ndarray, trigger_word: str, quality_score: float, tagger: Optional[WD14Tagger] = None) -> str:
+def build_caption(
+    image_bgr: np.ndarray,
+    trigger_word: str,
+    quality_score: float,
+    tagger: Optional[WD14Tagger] = None,
+    captioner=None,
+) -> str:
     """
     Builds the caption using the idea.txt trick: trigger word + class first,
-    then descriptive tags, then explicit quality-flag tags for low-quality or
-    blurry sources so the LoRA learns those are photo defects, not identity.
+    then natural language description (e.g. Florence-2 if provided),
+    then descriptive tags (WD14 tagger),
+    then explicit quality-flag tags for low-quality or blurry sources so the
+    LoRA learns those are photo defects, not identity.
     """
     parts = [f"{trigger_word} person"]
+
+    if captioner is not None and getattr(captioner, "available", False):
+        try:
+            desc = captioner.caption(image_bgr)
+            if desc:
+                parts.append(desc)
+        except Exception as e:
+            print(f"[CAPTIONER] caption generation failed: {e}")
 
     if tagger is not None and tagger.available:
         parts.extend(tagger.tag(image_bgr))
@@ -239,7 +255,8 @@ def _get_or_create_trigger_word(person_id: int) -> str:
 
 
 def _write_dataset_records(face_records, trigger_word: str, slug: str, output_root: Path, repeats: int,
-                            face_app, restorer: FaceRestorer, tagger: "WD14Tagger", progress=None) -> Dict:
+                            face_app, restorer: FaceRestorer, tagger: "WD14Tagger", progress=None,
+                            captioner=None) -> Dict:
     """Shared write loop: turns a list of face-record-shaped dicts (either pulled
     from the database or synthesized fresh by detect_face_record_from_image)
     into the sd-scripts folder layout. Both build_dataset() and
@@ -265,7 +282,8 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
             cv2.imwrite(str(img_path), crop)
 
             caption = build_caption(crop, trigger_word=trigger_word,
-                                     quality_score=float(face.get("quality_score", 0.0)), tagger=tagger)
+                                     quality_score=float(face.get("quality_score", 0.0)),
+                                     tagger=tagger, captioner=captioner)
             (dataset_dir / f"{stem}.txt").write_text(caption, encoding="utf-8")
             image_count += 1
 
@@ -288,7 +306,7 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
 
 def build_dataset(person_id: int, person_name: str, face_app, output_root: Path = None,
                    repeats: int = DEFAULT_REPEATS, restorer: Optional[FaceRestorer] = None,
-                   tagger: Optional["WD14Tagger"] = None) -> Dict:
+                   tagger: Optional["WD14Tagger"] = None, captioner=None) -> Dict:
     """
     Builds an sd-scripts-compatible dataset for one person from faces already
     mined into the gallery database (database.py's get_faces_by_person):
@@ -308,7 +326,8 @@ def build_dataset(person_id: int, person_name: str, face_app, output_root: Path 
     trigger_word = _get_or_create_trigger_word(person_id)
     slug = _slugify(person_name)
     faces = get_faces_by_person(person_id)
-    return _write_dataset_records(faces, trigger_word, slug, output_root, repeats, face_app, restorer, tagger)
+    return _write_dataset_records(faces, trigger_word, slug, output_root, repeats, face_app, restorer, tagger,
+                                 captioner=captioner)
 
 
 def detect_face_record_from_image(image_path: str, face_app, anchor_embedding=None) -> Optional[Dict]:
@@ -357,7 +376,7 @@ def detect_face_record_from_image(image_path: str, face_app, anchor_embedding=No
 def build_dataset_from_uploads(image_paths, person_id: int, person_name: str, face_app,
                                 output_root: Path = None, repeats: int = DEFAULT_REPEATS,
                                 restorer: Optional[FaceRestorer] = None, tagger: Optional["WD14Tagger"] = None,
-                                progress=None) -> Dict:
+                                progress=None, captioner=None) -> Dict:
     """
     Builds an sd-scripts-compatible dataset directly from a list of uploaded
     image paths, without requiring those photos to already be mined into the
@@ -413,7 +432,8 @@ def build_dataset_from_uploads(image_paths, person_id: int, person_name: str, fa
             records.append(record)
 
     result = _write_dataset_records(records, trigger_word, slug, output_root, repeats, face_app, restorer, tagger,
-                                    progress=(lambda f, text: progress(0.5 + f / 2, text)) if progress else None)
+                                    progress=(lambda f, text: progress(0.5 + f / 2, text)) if progress else None,
+                                    captioner=captioner)
     if progress:
         progress(1.0, "Done")
     result.update(skipped_no_face_count=skipped_no_face, video_count=video_count,
