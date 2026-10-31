@@ -181,7 +181,8 @@ class VideoJobs:
             opts = parse_analyze_options(json.dumps(params))
             engine_opts = AnalyzeOptions(min_face_quality=opts.min_face_quality,
                                          detect_characters=opts.detect_characters,
-                                         detect_bodies=opts.detect_bodies, body_score=opts.body_score)
+                                         detect_bodies=opts.detect_bodies, body_score=opts.body_score,
+                                         outlines=opts.return_outlines)
             with self.lock:
                 job.update(status="running", started_at=job["started_at"] or stamp(),
                            error=None, details={**job['details'], "fps": fps, "total_frames": total,

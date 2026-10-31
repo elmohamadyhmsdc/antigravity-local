@@ -55,6 +55,7 @@ class AnalyzeOptions:
     detect_bodies: bool = True
     body_score: float = 0.5
     detect_characters: bool = False
+    outlines: bool = False
 
 
 @dataclass
@@ -69,6 +70,8 @@ class FrameAnalysis:
     image_h: int = 0
     timings_ms: Dict[str, float] = field(default_factory=dict)
     characters: list = field(default_factory=list)
+    face_outlines: list = field(default_factory=list)
+    body_outlines: list = field(default_factory=list)
 
     @property
     def body_of_face(self) -> Dict[int, int]:

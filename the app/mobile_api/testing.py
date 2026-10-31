@@ -65,6 +65,21 @@ def unit(seed: int) -> np.ndarray:
     return v / np.linalg.norm(v)
 
 
+def _fake_octagon(bbox):
+    x1, y1, x2, y2 = [float(v) for v in bbox[:4]]
+    w, h = x2 - x1, y2 - y1
+    return np.array([
+        [x1 + 0.3 * w, y1],
+        [x1 + 0.7 * w, y1],
+        [x2, y1 + 0.3 * h],
+        [x2, y1 + 0.7 * h],
+        [x1 + 0.7 * w, y2],
+        [x1 + 0.3 * w, y2],
+        [x1, y1 + 0.7 * h],
+        [x1, y1 + 0.3 * h],
+    ], dtype=np.float32)
+
+
 class FakeEngines:
     """Two faces (one good, one that fails the detector gate) and one body tied to the first face."""
     model_id = "buffalo_l@1"
@@ -88,9 +103,15 @@ class FakeEngines:
         bodies = [FakeBody((20, 30, 260, 460), (130, 90))] if options.detect_bodies else []
         appearances = [pl.appearance_descriptor(img, b.bbox, b.kpts, b.kpt_scores) for b in bodies]
         pairs = pl.associate_faces_bodies([f.bbox for f in faces], bodies, face_kps=[f.kps for f in faces]) if bodies else []
+        f_out = []
+        b_out = []
+        if getattr(options, "outlines", False):
+            f_out = [_fake_octagon(f.bbox) if p else None for f, p in zip(faces, passes)]
+            b_out = [_fake_octagon(b.bbox) for b in bodies]
         return FrameAnalysis(faces=faces, quality=quality, passes_gate=passes, bodies=bodies,
                              appearances=appearances, pairs=list(pairs), image_w=w, image_h=h,
-                             timings_ms={"detect": 1.5, "quality": 0.5})
+                             timings_ms={"detect": 1.5, "quality": 0.5},
+                             face_outlines=f_out, body_outlines=b_out)
 
 
 class FakeProbe:

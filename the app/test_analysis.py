@@ -192,5 +192,19 @@ def test_finer_grid_retry_is_skipped_for_found_faces_and_already_detailed_frames
         check(len(faces) == int(found), "an empty frame stays empty; no fabricated detections")
 
 
+@test
+def test_analyze_frame_leaves_outline_lists_empty():
+    from analysis import AnalyzeOptions, analyze_frame
+    from mobile_api.testing import FakeFace, unit
+    import face_quality
+
+    face = FakeFace((60, 50, 200, 230), unit(1))
+    r = analyze_frame(None, None, _img(), AnalyzeOptions(outlines=True),
+                      detect=lambda im: [face],
+                      assess=lambda im, f: face_quality.assess(f, None))
+    check(r.face_outlines == [], "analyze_frame leaves face_outlines empty")
+    check(r.body_outlines == [], "analyze_frame leaves body_outlines empty")
+
+
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

@@ -549,6 +549,31 @@ def test_analyze_options_are_honoured():
 
 
 @test
+def test_analyze_return_outlines_option_and_keys():
+    with Env() as e:
+        # Without return_outlines: no outline key on face or body
+        r = _analyze(e, options={})
+        check(r.status_code == 200, r.text)
+        body = r.json()
+        check(all("outline" not in f for f in body["faces"]), "faces must omit outline key when off")
+        check(all("outline" not in b for b in body["bodies"]), "bodies must omit outline key when off")
+
+        # With return_outlines: true
+        r = _analyze(e, options={"return_outlines": True})
+        check(r.status_code == 200, r.text)
+        body = r.json()
+        for f in body["faces"]:
+            check("outline" in f, "face must have outline key when return_outlines=true")
+            if f["passes_gate"]:
+                check(isinstance(f["outline"], list) and len(f["outline"]) >= 3, "stored face outline must be a list of points")
+            else:
+                check(f["outline"] is None, "gated-out face outline must be null")
+        for b in body["bodies"]:
+            check("outline" in b, "body must have outline key when return_outlines=true")
+            check(isinstance(b["outline"], list) and len(b["outline"]) >= 3, "body outline must be a list of points")
+
+
+@test
 def test_analyze_rejects_a_different_embedding_model_and_unreadable_or_oversized_images():
     with Env() as e:
         r = _analyze(e, options={"model_id": "arcface@9"})

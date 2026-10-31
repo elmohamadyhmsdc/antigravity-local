@@ -50,5 +50,19 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(analysis_to_response(result,image,AnalyzeRequestOptions()),
                          analysis_to_response(restored,image,AnalyzeRequestOptions()))
 
+    def test_json_transport_preserves_outlines(self):
+        image = np.zeros((480, 640, 3), np.uint8)
+        result = FakeEngines().analyze(image, AnalyzeOptions(outlines=True))
+        self.assertTrue(len(result.face_outlines) > 0)
+        self.assertIsNone(result.face_outlines[1])
+        self.assertIsNotNone(result.face_outlines[0])
+
+        restored = decode_result(json.loads(json.dumps(encode_result(result))))
+        self.assertEqual(len(restored.face_outlines), len(result.face_outlines))
+        self.assertIsNone(restored.face_outlines[1])
+        np.testing.assert_allclose(restored.face_outlines[0], result.face_outlines[0])
+        self.assertEqual(len(restored.body_outlines), len(result.body_outlines))
+        np.testing.assert_allclose(restored.body_outlines[0], result.body_outlines[0])
+
 
 if __name__ == '__main__': unittest.main(verbosity=2)

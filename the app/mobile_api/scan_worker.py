@@ -32,7 +32,9 @@ def encode_result(result):
         appearances=result.appearances, pairs=result.pairs, image_w=result.image_w,
         image_h=result.image_h, timings_ms=result.timings_ms,
         characters=[dict(bbox=c.bbox, score=c.score, descriptor=c.descriptor, model_id=c.model_id)
-                    for c in result.characters]))
+                    for c in result.characters],
+        face_outlines=[f.tolist() if isinstance(f, np.ndarray) else f for f in getattr(result, 'face_outlines', [])],
+        body_outlines=[b.tolist() if isinstance(b, np.ndarray) else b for b in getattr(result, 'body_outlines', [])]))
 
 
 def decode_result(value):
@@ -48,6 +50,16 @@ def decode_result(value):
     value['characters'] = [Character(np.asarray(c['bbox'], np.float32), c['score'],
                                      np.asarray(c['descriptor'], np.float32), c['model_id'])
                            for c in value.get('characters', [])]
+    if 'face_outlines' in value:
+        value['face_outlines'] = [
+            np.asarray(poly, dtype=np.float32) if poly is not None else None
+            for poly in value['face_outlines']
+        ]
+    if 'body_outlines' in value:
+        value['body_outlines'] = [
+            np.asarray(poly, dtype=np.float32) if poly is not None else None
+            for poly in value['body_outlines']
+        ]
     return FrameAnalysis(**value)
 
 

@@ -107,6 +107,28 @@ class VideoTests(unittest.TestCase):
         self.assertFalse(self.ctx.workspace.has_blob(self.sha))
         self.assertFalse(self.ctx.workspace.job_dir(job_id).exists())
 
+    def test_video_job_with_return_outlines(self):
+        body = {
+            "type": "analyze_video",
+            "params": {"frame_interval": 1, "return_outlines": True},
+            "inputs": {"video": self.sha},
+            "client_job_id": "phone-outlines-test",
+        }
+        job_id = self.create(body)
+        job = self.wait(job_id)
+        self.assertEqual(job["status"], "completed", job)
+        content = self.client.get(f"/v1/jobs/{job_id}/result/detections.ndjson", headers=self.headers).content
+        lines = [json.loads(line) for line in content.splitlines()]
+        self.assertTrue(len(lines) > 0)
+        self.assertIn("outline", lines[0]["faces"][0])
+        self.assertIsNotNone(lines[0]["faces"][0]["outline"])
+        self.assertEqual(len(lines[0]["faces"][0]["outline"]), 8)
+        self.assertIn("outline", lines[0]["faces"][1])
+        self.assertIsNone(lines[0]["faces"][1]["outline"])
+        self.assertIn("outline", lines[0]["bodies"][0])
+        self.assertIsNotNone(lines[0]["bodies"][0]["outline"])
+        self.assertEqual(len(lines[0]["bodies"][0]["outline"]), 8)
+
     def test_live_batches_are_verified_owned_and_recovered_after_restart(self):
         entered, release = threading.Event(), threading.Event()
         class LongCapture(Capture):

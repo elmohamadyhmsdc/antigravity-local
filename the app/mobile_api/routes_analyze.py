@@ -36,7 +36,8 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
             raise ApiError(413, "too_large", "The image is larger than the server accepts.")
         engine_options = AnalyzeOptions(min_face_quality=opts.min_face_quality,
                                         detect_characters=opts.detect_characters,
-                                        detect_bodies=opts.detect_bodies, body_score=opts.body_score)
+                                        detect_bodies=opts.detect_bodies, body_score=opts.body_score,
+                                        outlines=opts.return_outlines)
         try:
             def compute():
                 with ctx.compute_lock:

@@ -27,6 +27,7 @@ class InsightEngines:
         self._lock = threading.Lock()
         self._face_app = None
         self._body = None
+        self._outline_engine = None
         from .scan_worker import ScanWorker
         self._scan_worker = ScanWorker(log) if isolate_scans else None
 
@@ -60,7 +61,15 @@ class InsightEngines:
             if self._scan_worker is not None:
                 return self._scan_worker.analyze(img, options)
             self.load(faces=True)  # character mode also needs faces (real-face filter)
-            return analysis.analyze_frame(self._face_app, self._body, img, options)
+            res = analysis.analyze_frame(self._face_app, self._body, img, options)
+            if getattr(options, "outlines", False):
+                if self._outline_engine is None:
+                    from outlines import OutlineEngine
+                    self._outline_engine = OutlineEngine()
+                f_out, b_out = self._outline_engine.compute(img, res)
+                res.face_outlines = f_out
+                res.body_outlines = b_out
+            return res
 
     def unload(self):
         import gc
@@ -69,6 +78,7 @@ class InsightEngines:
                 self._scan_worker.close()
             self._face_app = None
             self._body = None
+            self._outline_engine = None
         gc.collect()
 
 

@@ -16,6 +16,7 @@ import numpy as np
 import face_quality
 import person_linking as pl
 from analysis import FrameAnalysis, body_crop, face_crop
+from outlines import encode_outline
 
 from . import EMBEDDING_DIM, EMBEDDING_MODEL_ID
 from .errors import bad_request
@@ -82,6 +83,7 @@ class AnalyzeRequestOptions:
     return_crops: bool = True
     model_id: Optional[str] = None
     detect_characters: bool = False
+    return_outlines: bool = False
 
 
 def _number(opts: dict, key: str, default: float, lo: float, hi: float) -> float:
@@ -117,14 +119,16 @@ def parse_analyze_options(raw: Optional[str]) -> AnalyzeRequestOptions:
         body_score=_number(opts, "body_score", 0.5, 0.0, 1.0),
         return_crops=_flag(opts, "return_crops", True),
         model_id=model_id,
+        return_outlines=_flag(opts, "return_outlines", False),
     )
 
 
 # --- analyze response -----------------------------------------------------------
 
-def face_json(face, q: Dict, passes: bool, img: np.ndarray, with_crop: bool) -> Dict:
+def face_json(face, q: Dict, passes: bool, img: np.ndarray, with_crop: bool,
+              outline: Optional[Any] = None, return_outlines: bool = False) -> Dict:
     emb = face.normed_embedding
-    return {
+    d = {
         "bbox": bbox_xywh(face.bbox),
         "kps": [[round(float(x), 1), round(float(y), 1)] for x, y in np.asarray(face.kps).reshape(-1, 2)],
         "det_score": round(float(face.det_score), 4),
@@ -134,14 +138,18 @@ def face_json(face, q: Dict, passes: bool, img: np.ndarray, with_crop: bool) -> 
         "passes_gate": bool(passes),
         "crop_jpeg": jpeg_b64(face_crop(img, face), FACE_CROP_MAX_PX) if (with_crop and passes) else None,
     }
+    if return_outlines:
+        d["outline"] = encode_outline(outline) if outline is not None else None
+    return d
 
 
-def body_json(body, appearance, img: np.ndarray, with_crop: bool) -> Dict:
+def body_json(body, appearance, img: np.ndarray, with_crop: bool,
+              outline: Optional[Any] = None, return_outlines: bool = False) -> Dict:
     kpts = None
     if body.kpts is not None and body.kpt_scores is not None:
         kpts = [[round(float(x), 1), round(float(y), 1), round(float(s), 3)]
                 for (x, y), s in zip(body.kpts, body.kpt_scores)]
-    return {
+    d = {
         "bbox": bbox_xywh(body.bbox),
         "score": round(float(body.score), 4),
         "kpts": kpts,
@@ -149,15 +157,35 @@ def body_json(body, appearance, img: np.ndarray, with_crop: bool) -> Dict:
         "extent": None if body.kpt_scores is None else pl.body_extent(body.kpt_scores),
         "crop_jpeg": jpeg_b64(body_crop(img, body.bbox, BODY_CROP_MAX_HEIGHT), 10 ** 6) if with_crop else None,
     }
+    if return_outlines:
+        d["outline"] = encode_outline(outline) if outline is not None else None
+    return d
 
 
 def analysis_to_response(result: FrameAnalysis, img: np.ndarray, options: AnalyzeRequestOptions,
                          model_id: str = EMBEDDING_MODEL_ID) -> Dict:
     """AnalyzeImageResponse. Faces without an embedding are impossible with the recognition model
     loaded, so every face is returned and pair indices stay valid."""
-    faces = [face_json(f, q, p, img, options.return_crops)
-             for f, q, p in zip(result.faces, result.quality, result.passes_gate)]
-    bodies = [body_json(b, a, img, options.return_crops) for b, a in zip(result.bodies, result.appearances)]
+    ret_out = getattr(options, "return_outlines", False)
+    f_outs = getattr(result, "face_outlines", [])
+    b_outs = getattr(result, "body_outlines", [])
+
+    faces = [
+        face_json(
+            f, q, p, img, options.return_crops,
+            outline=f_outs[i] if i < len(f_outs) else None,
+            return_outlines=ret_out,
+        )
+        for i, (f, q, p) in enumerate(zip(result.faces, result.quality, result.passes_gate))
+    ]
+    bodies = [
+        body_json(
+            b, a, img, options.return_crops,
+            outline=b_outs[i] if i < len(b_outs) else None,
+            return_outlines=ret_out,
+        )
+        for i, (b, a) in enumerate(zip(result.bodies, result.appearances))
+    ]
     pairs = [{"face_index": int(fi), "body_index": int(bi), "score": round(float(s), 3)}
              for fi, bi, s in result.pairs]
     out = {"model_id": model_id, "image_w": int(result.image_w), "image_h": int(result.image_h),
