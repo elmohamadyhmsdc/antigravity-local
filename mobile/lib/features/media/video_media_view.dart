@@ -172,9 +172,13 @@ class _VideoMediaViewState extends State<VideoMediaView> {
                               outline: d.outline,
                               fillColor: d.isFace
                                   ? (_focused(d)
-                                        ? Colors.amberAccent.withValues(alpha: 0.15)
+                                        ? Colors.amberAccent.withValues(
+                                            alpha: 0.15,
+                                          )
                                         : null)
-                                  : Colors.lightBlueAccent.withValues(alpha: 0.18),
+                                  : Colors.lightBlueAccent.withValues(
+                                      alpha: 0.18,
+                                    ),
                               borderColor: _focused(d)
                                   ? Colors.amberAccent
                                   : d.isFace

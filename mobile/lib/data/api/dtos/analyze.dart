@@ -382,20 +382,29 @@ class OutlineTargetDto {
     if (kpts != null) 'kpts': kpts,
   };
 
-  factory OutlineTargetDto.fromJson(Map<String, dynamic> json) => OutlineTargetDto(
-    kind: field<String>(json, 'kind'),
-    bbox: BBox.fromJson(map(json['bbox'], 'bbox')),
-    kps: json['kps'] == null
-        ? null
-        : (json['kps'] as List<dynamic>)
-            .map((pt) => (pt as List<dynamic>).map((v) => (v as num).toDouble()).toList())
-            .toList(),
-    kpts: json['kpts'] == null
-        ? null
-        : (json['kpts'] as List<dynamic>)
-            .map((pt) => (pt as List<dynamic>).map((v) => (v as num).toDouble()).toList())
-            .toList(),
-  );
+  factory OutlineTargetDto.fromJson(Map<String, dynamic> json) =>
+      OutlineTargetDto(
+        kind: field<String>(json, 'kind'),
+        bbox: BBox.fromJson(map(json['bbox'], 'bbox')),
+        kps: json['kps'] == null
+            ? null
+            : (json['kps'] as List<dynamic>)
+                  .map(
+                    (pt) => (pt as List<dynamic>)
+                        .map((v) => (v as num).toDouble())
+                        .toList(),
+                  )
+                  .toList(),
+        kpts: json['kpts'] == null
+            ? null
+            : (json['kpts'] as List<dynamic>)
+                  .map(
+                    (pt) => (pt as List<dynamic>)
+                        .map((v) => (v as num).toDouble())
+                        .toList(),
+                  )
+                  .toList(),
+      );
 }
 
 /// Response from POST /v1/analyze/outlines.
@@ -413,7 +422,10 @@ class AnalyzeOutlinesResponse {
               ? null
               : (rawList[i] as List<dynamic>).map((pt) {
                   final p = pt as List<dynamic>;
-                  return Offset((p[0] as num).toDouble(), (p[1] as num).toDouble());
+                  return Offset(
+                    (p[0] as num).toDouble(),
+                    (p[1] as num).toDouble(),
+                  );
                 }).toList(),
       ],
     );

@@ -57,19 +57,12 @@ List<Offset>? decodeOutline(String? text) {
 /// If [outline] is provided (box-relative coordinates), maps it to [box]
 /// and builds a closed cubic Bézier spline (Catmull-Rom with tension 0.5).
 /// Otherwise falls back to an oval (for faces) or rounded rectangle (for bodies).
-Path detectionPath(
-  Rect box, {
-  List<Offset>? outline,
-  required bool isFace,
-}) {
+Path detectionPath(Rect box, {List<Offset>? outline, required bool isFace}) {
   final path = Path();
   if (outline != null && outline.length >= 3) {
     final mapped = [
       for (final p in outline)
-        Offset(
-          box.left + p.dx * box.width,
-          box.top + p.dy * box.height,
-        ),
+        Offset(box.left + p.dx * box.width, box.top + p.dy * box.height),
     ];
     final n = mapped.length;
     path.moveTo(mapped[0].dx, mapped[0].dy);
@@ -91,10 +84,7 @@ Path detectionPath(
   } else {
     final shorter = box.width < box.height ? box.width : box.height;
     path.addRRect(
-      RRect.fromRectAndRadius(
-        box,
-        Radius.circular(shorter * 0.08),
-      ),
+      RRect.fromRectAndRadius(box, Radius.circular(shorter * 0.08)),
     );
   }
   return path;
@@ -119,9 +109,18 @@ class DetectionBoxPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final path = detectionPath(Offset.zero & size, outline: outline, isFace: isFace);
+    final path = detectionPath(
+      Offset.zero & size,
+      outline: outline,
+      isFace: isFace,
+    );
     if (fillColor != null) {
-      canvas.drawPath(path, Paint()..color = fillColor!..style = PaintingStyle.fill);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = fillColor!
+          ..style = PaintingStyle.fill,
+      );
     }
     canvas.drawPath(
       path,

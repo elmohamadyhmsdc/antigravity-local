@@ -861,20 +861,42 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                           child: CustomPaint(
                                             painter: DetectionBoxPainter(
                                               isFace: true,
-                                              outline: _analysis!.faces[i].outline == null
+                                              outline:
+                                                  _analysis!.faces[i].outline ==
+                                                      null
                                                   ? null
                                                   : [
-                                                      for (final p in _analysis!.faces[i].outline!)
+                                                      for (final p
+                                                          in _analysis!
+                                                              .faces[i]
+                                                              .outline!)
                                                         Offset(
-                                                          (p.dx - _analysis!.faces[i].bbox.x) /
-                                                              _analysis!.faces[i].bbox.w,
-                                                          (p.dy - _analysis!.faces[i].bbox.y) /
-                                                              _analysis!.faces[i].bbox.h,
+                                                          (p.dx -
+                                                                  _analysis!
+                                                                      .faces[i]
+                                                                      .bbox
+                                                                      .x) /
+                                                              _analysis!
+                                                                  .faces[i]
+                                                                  .bbox
+                                                                  .w,
+                                                          (p.dy -
+                                                                  _analysis!
+                                                                      .faces[i]
+                                                                      .bbox
+                                                                      .y) /
+                                                              _analysis!
+                                                                  .faces[i]
+                                                                  .bbox
+                                                                  .h,
                                                         ),
                                                     ],
                                               fillColor: _targets.contains(i)
-                                                  ? Colors.greenAccent.withValues(alpha: 0.20)
-                                                  : Colors.black.withValues(alpha: 0.10),
+                                                  ? Colors.greenAccent
+                                                        .withValues(alpha: 0.20)
+                                                  : Colors.black.withValues(
+                                                      alpha: 0.10,
+                                                    ),
                                               borderColor: _targets.contains(i)
                                                   ? Colors.greenAccent
                                                   : Colors.white,

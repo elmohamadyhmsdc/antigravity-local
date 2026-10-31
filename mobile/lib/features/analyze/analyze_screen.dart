@@ -328,7 +328,10 @@ class DetectionsPainter extends CustomPainter {
           ? null
           : [
               for (final p in b.outline!)
-                Offset((p.dx - b.bbox.x) / b.bbox.w, (p.dy - b.bbox.y) / b.bbox.h),
+                Offset(
+                  (p.dx - b.bbox.x) / b.bbox.w,
+                  (p.dy - b.bbox.y) / b.bbox.h,
+                ),
             ];
       final bodyPath = detectionPath(rect, outline: outline, isFace: false);
       canvas.drawPath(bodyPath, bodyFill);
@@ -361,7 +364,10 @@ class DetectionsPainter extends CustomPainter {
           ? null
           : [
               for (final p in f.outline!)
-                Offset((p.dx - f.bbox.x) / f.bbox.w, (p.dy - f.bbox.y) / f.bbox.h),
+                Offset(
+                  (p.dx - f.bbox.x) / f.bbox.w,
+                  (p.dy - f.bbox.y) / f.bbox.h,
+                ),
             ];
       final facePath = detectionPath(rect, outline: outline, isFace: true);
       canvas.drawPath(

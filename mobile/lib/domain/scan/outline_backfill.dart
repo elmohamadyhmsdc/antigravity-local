@@ -75,7 +75,9 @@ class OutlineBackfill {
       var targetH = height ?? 0;
 
       if (targetAssetId == null) {
-        final m = await (db.select(db.media)..where((t) => t.id.equals(mediaId))).getSingleOrNull();
+        final m = await (db.select(
+          db.media,
+        )..where((t) => t.id.equals(mediaId))).getSingleOrNull();
         if (m == null || m.kind != 'photo') return false;
         targetAssetId = m.assetId;
         targetW = m.width ?? 0;
@@ -83,10 +85,11 @@ class OutlineBackfill {
       }
 
       // 2. Fetch detections for this photo where outline IS NULL
-      final detections = await (db.select(db.mediaDetections)
-            ..where((t) => t.mediaId.equals(mediaId) & t.outline.isNull())
-            ..limit(32))
-          .get();
+      final detections =
+          await (db.select(db.mediaDetections)
+                ..where((t) => t.mediaId.equals(mediaId) & t.outline.isNull())
+                ..limit(32))
+              .get();
 
       if (detections.isEmpty) return false;
 
@@ -116,7 +119,9 @@ class OutlineBackfill {
         );
         List<List<double>>? kps;
         if (d.kind == 'f') {
-          final face = await (db.select(db.faces)..where((t) => t.id.equals(d.refId))).getSingleOrNull();
+          final face = await (db.select(
+            db.faces,
+          )..where((t) => t.id.equals(d.refId))).getSingleOrNull();
           if (face?.kps != null) {
             try {
               final rawKps = jsonDecode(face!.kps!) as List<dynamic>;
@@ -132,11 +137,7 @@ class OutlineBackfill {
             }
           }
         }
-        targets.add(OutlineTargetDto(
-          kind: d.kind,
-          bbox: box,
-          kps: kps,
-        ));
+        targets.add(OutlineTargetDto(kind: d.kind, bbox: box, kps: kps));
       }
 
       // 6. Call API
@@ -152,7 +153,8 @@ class OutlineBackfill {
             final box = targets[i].bbox;
             final encoded = encodeOutline(outline, box);
             if (encoded != null) {
-              await (db.update(db.mediaDetections)..where((t) => t.id.equals(d.id)))
+              await (db.update(db.mediaDetections)
+                    ..where((t) => t.id.equals(d.id)))
                   .write(MediaDetectionsCompanion(outline: Value(encoded)));
             }
           }

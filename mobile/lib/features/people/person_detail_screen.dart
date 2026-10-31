@@ -340,7 +340,9 @@ class _BodiesTab extends ConsumerWidget {
               key: Key('body-${b.id}'),
               onTap: () {
                 if (b.mediaId != null) {
-                  context.push('${Routes.media}/${b.mediaId}?personId=$personId');
+                  context.push(
+                    '${Routes.media}/${b.mediaId}?personId=$personId',
+                  );
                 }
               },
               onLongPress: () => _bodyMenu(context, ref, b),

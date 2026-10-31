@@ -444,53 +444,73 @@ void main() {
     expect(await c.crops(), await a.crops());
   });
 
-  test('restoring an old backup without outline sets outline to null', () async {
-    final photo = await seedMedia(a.db, asset: 'content://media/99');
-    final f = await seedFace(a.db, seed: 99);
-    await a.db.into(a.db.mediaDetections).insert(
-      MediaDetectionsCompanion.insert(
-        mediaId: photo,
-        kind: 'f',
-        refId: f,
-        x: 0.1,
-        y: 0.1,
-        w: 0.2,
-        h: 0.2,
-        outline: const Value('[[0.1, 0.1], [0.3, 0.3]]'),
-      ),
-    );
-    final file = await a.backup.export(Directory('${a.dir.path}/with_outlines'));
-    final archive = ZipDecoder().decodeBytes(await file.readAsBytes());
-    final newArchive = Archive();
-    late Uint8List strippedBytes;
-    for (final f in archive.files) {
-      if (f.name == 'db/media_detections.0000.jsonl') {
-        final lines = utf8.decode(f.content as List<int>).split('\n');
-        final stripped = lines.map((l) {
-          if (l.trim().isEmpty) return l;
-          final map = jsonDecode(l) as Map<String, dynamic>;
-          map.remove('outline');
-          return jsonEncode(map);
-        }).join('\n');
-        strippedBytes = Uint8List.fromList(utf8.encode(stripped));
-        newArchive.addFile(ArchiveFile.bytes(f.name, strippedBytes));
-      } else if (f.name == 'manifest.json') {
-        // Will add after updating hash
-      } else {
-        newArchive.addFile(ArchiveFile.bytes(f.name, f.content as List<int>));
+  test(
+    'restoring an old backup without outline sets outline to null',
+    () async {
+      final photo = await seedMedia(a.db, asset: 'content://media/99');
+      final f = await seedFace(a.db, seed: 99);
+      await a.db
+          .into(a.db.mediaDetections)
+          .insert(
+            MediaDetectionsCompanion.insert(
+              mediaId: photo,
+              kind: 'f',
+              refId: f,
+              x: 0.1,
+              y: 0.1,
+              w: 0.2,
+              h: 0.2,
+              outline: const Value('[[0.1, 0.1], [0.3, 0.3]]'),
+            ),
+          );
+      final file = await a.backup.export(
+        Directory('${a.dir.path}/with_outlines'),
+      );
+      final archive = ZipDecoder().decodeBytes(await file.readAsBytes());
+      final newArchive = Archive();
+      late Uint8List strippedBytes;
+      for (final f in archive.files) {
+        if (f.name == 'db/media_detections.0000.jsonl') {
+          final lines = utf8.decode(f.content as List<int>).split('\n');
+          final stripped = lines
+              .map((l) {
+                if (l.trim().isEmpty) return l;
+                final map = jsonDecode(l) as Map<String, dynamic>;
+                map.remove('outline');
+                return jsonEncode(map);
+              })
+              .join('\n');
+          strippedBytes = Uint8List.fromList(utf8.encode(stripped));
+          newArchive.addFile(ArchiveFile.bytes(f.name, strippedBytes));
+        } else if (f.name == 'manifest.json') {
+          // Will add after updating hash
+        } else {
+          newArchive.addFile(ArchiveFile.bytes(f.name, f.content as List<int>));
+        }
       }
-    }
-    final manifest = jsonDecode(utf8.decode(archive.findFile('manifest.json')!.content as List<int>)) as Map<String, dynamic>;
-    (manifest['db_files'] as Map<String, dynamic>)['db/media_detections.0000.jsonl'] = sha256.convert(strippedBytes).toString();
-    newArchive.addFile(ArchiveFile.bytes('manifest.json', utf8.encode(jsonEncode(manifest))));
-    final legacyFile = File('${a.dir.path}/legacy_no_outline.agbackup');
-    await legacyFile.writeAsBytes(ZipEncoder().encode(newArchive));
+      final manifest =
+          jsonDecode(
+                utf8.decode(
+                  archive.findFile('manifest.json')!.content as List<int>,
+                ),
+              )
+              as Map<String, dynamic>;
+      (manifest['db_files']
+          as Map<String, dynamic>)['db/media_detections.0000.jsonl'] = sha256
+          .convert(strippedBytes)
+          .toString();
+      newArchive.addFile(
+        ArchiveFile.bytes('manifest.json', utf8.encode(jsonEncode(manifest))),
+      );
+      final legacyFile = File('${a.dir.path}/legacy_no_outline.agbackup');
+      await legacyFile.writeAsBytes(ZipEncoder().encode(newArchive));
 
-    await b.backup.restore(legacyFile);
-    final restoredDets = await b.db.select(b.db.mediaDetections).get();
-    expect(restoredDets, hasLength(1));
-    expect(restoredDets.single.outline, isNull);
-  });
+      await b.backup.restore(legacyFile);
+      final restoredDets = await b.db.select(b.db.mediaDetections).get();
+      expect(restoredDets, hasLength(1));
+      expect(restoredDets.single.outline, isNull);
+    },
+  );
 
   test('an empty library backs up and restores', () async {
     final file = await a.backup.export(Directory('${a.dir.path}/out'));

@@ -1086,3 +1086,36 @@ faces near one shared direction, which is why different characters merged.
 - Tests: test_mask_utils, test_florence_captioner, test_lora_dataset, test_mobile_artifacts,
   test_mobile_api_contract 30/30, test_mobile_stateless 5/5, test_reface_unified, test_reface_desktop,
   test_compositor 52/52 all pass; test_undress 58/65, the same 7 pre-existing CPU mask failures.
+
+## Exact face & body outlines implementation — 2026-10-31
+
+- **Plan Executed**: Complete execution of `docs/plans/2026-10-31-exact-face-body-outlines-plan.md` across Tasks 1 through 9.
+- **PC Outline Engine (`the app/outlines.py`)**:
+  - `OutlineEngine` generates exact contours from masks: BiSeNet face parser (`bisenet_resnet_34.onnx`) on aligned crop mapped back to image pixels, and RMBG-1.4 background removal (`rmbg.onnx`) on padded body crop with COCO 17-keypoint skeleton disambiguation.
+  - Converts masks into 3-64 point simplified polygon coordinates via `cv2.approxPolyDP`.
+  - Added visual inspection debug utility `the app/debug_outlines.py` with 3 golden visual review PNGs in `docs/reviews/outlines-2026-10-31/`.
+  - GPU timings on RTX 4050:
+    - Face outline: ~17.8 ms (BiSeNet CUDA).
+    - Body outline: ~170.2 - 236.8 ms (RMBG-1.4 batching on CUDA).
+    - Full scan at 2560px with outlines: 177.0 ms outline stage timing.
+- **API Wire Schema & Scan Worker**:
+  - `POST /v1/analyze/image`: added optional `return_outlines: true` flag. Without it, responses are byte-identical and zero outline computation cost is paid.
+  - `POST /v1/analyze/outlines`: new on-demand endpoint accepting multipart JPEG + `targets` JSON (up to 32 targets: `kind`, `bbox`, `kps`, `kpts`). Computes outlines on demand without re-running detection or embedding.
+  - `scan_worker.py`: IPC protocol carries `face_outlines` and `body_outlines` across anonymous pipes without intermediate files.
+  - OpenAPI & Contract (`openapi.yaml`): Added `/v1/analyze/outlines` path, `OutlineTarget`, and `AnalyzeOutlinesResponse` schemas. Regenerated contract fixtures byte-identically and validated with `validate_contract.py`.
+- **Mobile Storage Schema v13 (`mobile/lib/data/db/`)**:
+  - Added nullable `outline` column to `MediaDetections`. Bumped schema version to 13 with idempotent migration in `app_database.dart`.
+  - `PhotoResultStore`: stores normalized box-relative outline JSON points (`encodeOutline`) across all detection storage sites.
+  - Lossless backup/restore: verified old v12 backup files restore with `outline: null`.
+- **Overlays & Splines (`mobile/lib/domain/geometry/outline.dart`)**:
+  - Deleted `createBodySilhouettePath` entirely (verified 0 uses across repo).
+  - Implemented `detectionPath` with smooth closed Catmull-Rom cubic Bézier splines (tension $T_i = (P_{i+1} - P_{i-1}) / 6$).
+  - Updated painters and overlays across all product screens: `ReviewHighlightPainter` (`review_media_viewer.dart`), `HighlightedPhoto` (`highlighted_photo.dart`), `MediaScreen` (`media_screen.dart`), `VideoMediaView` (`video_media_view.dart`), `AnalyzeScreen` (`analyze_screen.dart`), `RefaceScreen` (`reface_screen.dart`), and `RestyleScreen` (`restyle_screen.dart`).
+- **On-Demand Outline Backfill (`mobile/lib/domain/scan/outline_backfill.dart`)**:
+  - `OutlineBackfill` service: triggers when viewing photos with uncomputed outlines (`outline == null`).
+  - Downscales photo (<= 2560 px), queries `POST /v1/analyze/outlines`, updates database in a single transaction.
+  - Debounced per session; skips videos and busy server; fails silently to preserve fallback shapes without blocking UI.
+- **Verification Summary**:
+  - Python tests: `test_outlines.py` (9/9), `test_analysis.py` (8/8), `test_mobile_scan_worker.py` (3/3), `test_mobile_api_contract.py` (31/31), `test_mobile_stateless.py` (5/5), `test_mobile_video.py` (18/18), `validate_contract.py` (all passed), `test_mobile_scan_gpu.py` (real GPU scan at 512, 1600, 2560 px passed).
+  - Flutter verification: `flutter analyze` 0 issues; `dart format` clean; 597 tests passed.
+  - All existing uncommitted and untracked files preserved intact.

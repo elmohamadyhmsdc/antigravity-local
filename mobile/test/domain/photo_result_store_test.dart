@@ -135,20 +135,22 @@ void main() {
       () async {
         final media = await photo('a_outlines');
         final face = unitVec(1);
-        final faceWithOutline = Map<String, dynamic>.from(faceJson(face, box: [100, 100, 200, 240]))
-          ..['outline'] = [
-            [110.0, 110.0],
-            [290.0, 110.0],
-            [290.0, 330.0],
-            [110.0, 330.0],
-          ];
-        final bodyWithOutline = Map<String, dynamic>.from(bodyJson(box: [50, 60, 400, 700]))
-          ..['outline'] = [
-            [60.0, 70.0],
-            [440.0, 70.0],
-            [440.0, 750.0],
-            [60.0, 750.0],
-          ];
+        final faceWithOutline =
+            Map<String, dynamic>.from(faceJson(face, box: [100, 100, 200, 240]))
+              ..['outline'] = [
+                [110.0, 110.0],
+                [290.0, 110.0],
+                [290.0, 330.0],
+                [110.0, 330.0],
+              ];
+        final bodyWithOutline =
+            Map<String, dynamic>.from(bodyJson(box: [50, 60, 400, 700]))
+              ..['outline'] = [
+                [60.0, 70.0],
+                [440.0, 70.0],
+                [440.0, 750.0],
+                [60.0, 750.0],
+              ];
 
         await store.store(
           media,
@@ -171,8 +173,12 @@ void main() {
         await store.store(
           media,
           analysis(
-            faces: [faceJson(face, box: [100, 100, 200, 240])],
-            bodies: [bodyJson(box: [50, 60, 400, 700])],
+            faces: [
+              faceJson(face, box: [100, 100, 200, 240]),
+            ],
+            bodies: [
+              bodyJson(box: [50, 60, 400, 700]),
+            ],
             pairs: [(0, 0)],
           ),
         );

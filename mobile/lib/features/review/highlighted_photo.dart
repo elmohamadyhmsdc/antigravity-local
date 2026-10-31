@@ -87,10 +87,9 @@ class HighlightedPhoto extends ConsumerWidget {
         }
         if (v.outline == null && v.mediaId != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.read(outlineBackfillProvider).backfillPhoto(
-              v.mediaId!,
-              assetId: v.assetId,
-            );
+            ref
+                .read(outlineBackfillProvider)
+                .backfillPhoto(v.mediaId!, assetId: v.assetId);
           });
         }
         final photo = ref.watch(_photoProvider((v.assetId!, maxSide)));

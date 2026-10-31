@@ -58,7 +58,10 @@ void main() {
       expect(decodeOutline('   '), isNull);
       expect(decodeOutline('not a json'), isNull);
       expect(decodeOutline('{"x": 1}'), isNull);
-      expect(decodeOutline('[1, 2]'), isNull); // fewer than 6 values (< 3 points)
+      expect(
+        decodeOutline('[1, 2]'),
+        isNull,
+      ); // fewer than 6 values (< 3 points)
       expect(decodeOutline('[1, 2, 3, 4, 5]'), isNull); // odd number of values
       expect(decodeOutline('[1, 2, "three", 4, 5, 6]'), isNull);
       expect(decodeOutline('[1, 2, null, 4, 5, 6]'), isNull);
@@ -69,12 +72,16 @@ void main() {
       const zeroBox = BBox(x: 0, y: 0, w: 0, h: 100);
       expect(encodeOutline(null, box), isNull);
       expect(encodeOutline([], box), isNull);
-      expect(encodeOutline([const Offset(1, 2), const Offset(3, 4)], box), isNull);
       expect(
-        encodeOutline(
-          [const Offset(1, 2), const Offset(3, 4), const Offset(5, 6)],
-          zeroBox,
-        ),
+        encodeOutline([const Offset(1, 2), const Offset(3, 4)], box),
+        isNull,
+      );
+      expect(
+        encodeOutline([
+          const Offset(1, 2),
+          const Offset(3, 4),
+          const Offset(5, 6),
+        ], zeroBox),
         isNull,
       );
     });
@@ -97,10 +104,14 @@ void main() {
         return Offset(0.5 + 0.35 * cos(angle), 0.5 + 0.45 * sin(angle));
       });
 
-      final mappedPoints = outline.map((p) => Offset(
-        rect.left + p.dx * rect.width,
-        rect.top + p.dy * rect.height,
-      )).toList();
+      final mappedPoints = outline
+          .map(
+            (p) => Offset(
+              rect.left + p.dx * rect.width,
+              rect.top + p.dy * rect.height,
+            ),
+          )
+          .toList();
 
       var minX = mappedPoints[0].dx;
       var maxX = mappedPoints[0].dx;
@@ -125,17 +136,20 @@ void main() {
       expect(pathBounds.bottom, closeTo(expectedBounds.bottom, tolerance));
     });
 
-    test('fixture parse gives 12 points for face 0, null for face 1, 20 for body', () {
-      final json = fixture('AnalyzeImageResponse.two_faces_one_body');
-      final response = AnalyzeImageResponse.fromJson(json);
+    test(
+      'fixture parse gives 12 points for face 0, null for face 1, 20 for body',
+      () {
+        final json = fixture('AnalyzeImageResponse.two_faces_one_body');
+        final response = AnalyzeImageResponse.fromJson(json);
 
-      expect(response.faces[0].outline, isNotNull);
-      expect(response.faces[0].outline!.length, 12);
+        expect(response.faces[0].outline, isNotNull);
+        expect(response.faces[0].outline!.length, 12);
 
-      expect(response.faces[1].outline, isNull);
+        expect(response.faces[1].outline, isNull);
 
-      expect(response.bodies[0].outline, isNotNull);
-      expect(response.bodies[0].outline!.length, 20);
-    });
+        expect(response.bodies[0].outline, isNotNull);
+        expect(response.bodies[0].outline!.length, 20);
+      },
+    );
   });
 }

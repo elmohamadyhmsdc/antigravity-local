@@ -88,7 +88,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='ag_scan_acceptance_') as tmp:
         with connection(Path(tmp)) as (client, headers):
             for size in (512, 1600, 2560):
-                frame = cv2.resize(image, (size, max(1, round(image.shape[0]*size/image.shape[1]))))
+                scale = size / max(image.shape[:2])
+                frame = cv2.resize(image, (max(1, round(image.shape[1] * scale)), max(1, round(image.shape[0] * scale))))
                 payload = cv2.imencode('.jpg', frame)[1].tobytes()
                 print(f'SCAN {size}px faces + bodies + pose', flush=True)
                 response = client.post('/v1/analyze/image', headers=headers,

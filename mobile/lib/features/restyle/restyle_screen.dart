@@ -217,19 +217,23 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
                         child: CustomPaint(
                           painter: DetectionBoxPainter(
                             isFace: true,
-                            outline: _analysis != null &&
+                            outline:
+                                _analysis != null &&
                                     _analysis!.faces.isNotEmpty &&
                                     _face < _analysis!.faces.length &&
                                     _analysis!.faces[_face].outline != null
                                 ? [
-                                    for (final p in _analysis!.faces[_face].outline!)
+                                    for (final p
+                                        in _analysis!.faces[_face].outline!)
                                       Offset(
                                         (p.dx - box.x) / box.w,
                                         (p.dy - box.y) / box.h,
                                       ),
                                   ]
                                 : null,
-                            fillColor: Colors.greenAccent.withValues(alpha: 0.15),
+                            fillColor: Colors.greenAccent.withValues(
+                              alpha: 0.15,
+                            ),
                             borderColor: Colors.greenAccent,
                             borderWidth: 3,
                           ),

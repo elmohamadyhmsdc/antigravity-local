@@ -113,9 +113,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       }
       if (file == null || !file.existsSync()) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.googleLensError)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l10n.googleLensError)));
         }
         return;
       }
@@ -123,9 +123,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       await channel.invokeMethod('searchImage', {'path': file.path});
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.googleLensError)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.googleLensError)));
       }
     }
   }
@@ -150,12 +150,14 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         row.value!.kind == 'photo' &&
         detections.any((d) => d.outline == null)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(outlineBackfillProvider).backfillPhoto(
-          row.value!.id,
-          assetId: row.value!.assetId,
-          width: row.value!.width,
-          height: row.value!.height,
-        );
+        ref
+            .read(outlineBackfillProvider)
+            .backfillPhoto(
+              row.value!.id,
+              assetId: row.value!.assetId,
+              width: row.value!.width,
+              height: row.value!.height,
+            );
       });
     }
 
@@ -212,9 +214,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                 IconButton(
                   key: const Key('toggle-faces'),
                   tooltip: _showFaces ? l10n.hideFaces : l10n.showFaces,
-                  icon: Icon(
-                    _showFaces ? Icons.face : Icons.face_outlined,
-                  ),
+                  icon: Icon(_showFaces ? Icons.face : Icons.face_outlined),
                   onPressed: () => setState(() => _showFaces = !_showFaces),
                 ),
               if (bodies.isNotEmpty)
@@ -265,10 +265,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                 ),
               ),
               _WhoIsHere(
-                faces: [
-                  ...faces,
-                  ...bodies.where((b) => b.personId != null),
-                ],
+                faces: [...faces, ...bodies.where((b) => b.personId != null)],
                 people: people,
                 mediaScanned: media.scanStatus == 'done',
                 onOpen: (d) => _boxMenu(context, d, people),
@@ -410,8 +407,7 @@ class _MediaPageViewItem extends ConsumerStatefulWidget {
   final int? initialTimestampMs;
 
   @override
-  ConsumerState<_MediaPageViewItem> createState() =>
-      _MediaPageViewItemState();
+  ConsumerState<_MediaPageViewItem> createState() => _MediaPageViewItemState();
 }
 
 class _MediaPageViewItemState extends ConsumerState<_MediaPageViewItem> {
@@ -439,16 +435,11 @@ class _MediaPageViewItemState extends ConsumerState<_MediaPageViewItem> {
 
     return row.when(
       loading: () => const LoadingBox(),
-      error: (_, _) => EmptyState(
-        icon: Icons.photo_outlined,
-        title: l10n.photoGone,
-      ),
+      error: (_, _) =>
+          EmptyState(icon: Icons.photo_outlined, title: l10n.photoGone),
       data: (media) {
         if (media == null) {
-          return EmptyState(
-            icon: Icons.photo_outlined,
-            title: l10n.photoGone,
-          );
+          return EmptyState(icon: Icons.photo_outlined, title: l10n.photoGone);
         }
         if (media.kind == 'video') {
           return VideoMediaView(
@@ -563,7 +554,9 @@ class _AnnotatedPhoto extends StatelessWidget {
                                 ? (d.personId == null
                                       ? Colors.amber.withValues(alpha: 0.10)
                                       : scheme.primary.withValues(alpha: 0.12))
-                                : Colors.lightBlueAccent.withValues(alpha: 0.18),
+                                : Colors.lightBlueAccent.withValues(
+                                    alpha: 0.18,
+                                  ),
                             borderColor: d.isFace
                                 ? (d.personId == null
                                       ? Colors.amber

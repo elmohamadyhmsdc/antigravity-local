@@ -323,7 +323,9 @@ class _ReviewSourceState extends ConsumerState<_ReviewSource> {
     final v = widget.visual;
     if (v.assetId == null || v.mediaKind == 'video') return null;
     if (v.outline == null && v.mediaId != null) {
-      ref.read(outlineBackfillProvider).backfillPhoto(v.mediaId!, assetId: v.assetId);
+      ref
+          .read(outlineBackfillProvider)
+          .backfillPhoto(v.mediaId!, assetId: v.assetId);
     }
     try {
       final bytes = await ref
@@ -481,7 +483,9 @@ class ReviewHighlightPainter extends CustomPainter {
     );
 
     // Colored translucent fill inside the body or face
-    final fillColor = Colors.amberAccent.withValues(alpha: isFace ? 0.08 : 0.22);
+    final fillColor = Colors.amberAccent.withValues(
+      alpha: isFace ? 0.08 : 0.22,
+    );
     canvas.drawPath(
       targetPath,
       Paint()

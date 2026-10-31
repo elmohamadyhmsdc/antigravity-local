@@ -10,70 +10,102 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('outline overlays & painters', () {
-    test('ReviewHighlightPainter carries outline and shouldRepaint compares outline', () {
-      final outline1 = [const Offset(0.1, 0.1), const Offset(0.9, 0.1), const Offset(0.5, 0.9)];
-      final outline2 = [const Offset(0.2, 0.2), const Offset(0.8, 0.2), const Offset(0.5, 0.8)];
+    test(
+      'ReviewHighlightPainter carries outline and shouldRepaint compares outline',
+      () {
+        final outline1 = [
+          const Offset(0.1, 0.1),
+          const Offset(0.9, 0.1),
+          const Offset(0.5, 0.9),
+        ];
+        final outline2 = [
+          const Offset(0.2, 0.2),
+          const Offset(0.8, 0.2),
+          const Offset(0.5, 0.8),
+        ];
 
-      final p1 = ReviewHighlightPainter(
-        const Rect.fromLTWH(0.1, 0.1, 0.5, 0.5),
-        label: 'Face',
-        isFace: true,
-        outline: outline1,
-      );
-      final p1Same = ReviewHighlightPainter(
-        const Rect.fromLTWH(0.1, 0.1, 0.5, 0.5),
-        label: 'Face',
-        isFace: true,
-        outline: [const Offset(0.1, 0.1), const Offset(0.9, 0.1), const Offset(0.5, 0.9)],
-      );
-      final p2 = ReviewHighlightPainter(
-        const Rect.fromLTWH(0.1, 0.1, 0.5, 0.5),
-        label: 'Face',
-        isFace: true,
-        outline: outline2,
-      );
+        final p1 = ReviewHighlightPainter(
+          const Rect.fromLTWH(0.1, 0.1, 0.5, 0.5),
+          label: 'Face',
+          isFace: true,
+          outline: outline1,
+        );
+        final p1Same = ReviewHighlightPainter(
+          const Rect.fromLTWH(0.1, 0.1, 0.5, 0.5),
+          label: 'Face',
+          isFace: true,
+          outline: [
+            const Offset(0.1, 0.1),
+            const Offset(0.9, 0.1),
+            const Offset(0.5, 0.9),
+          ],
+        );
+        final p2 = ReviewHighlightPainter(
+          const Rect.fromLTWH(0.1, 0.1, 0.5, 0.5),
+          label: 'Face',
+          isFace: true,
+          outline: outline2,
+        );
 
-      expect(p1.outline, outline1);
-      expect(p1.shouldRepaint(p1Same), isFalse);
-      expect(p1.shouldRepaint(p2), isTrue);
-    });
+        expect(p1.outline, outline1);
+        expect(p1.shouldRepaint(p1Same), isFalse);
+        expect(p1.shouldRepaint(p2), isTrue);
+      },
+    );
 
-    test('DetectionBoxPainter carries outline and shouldRepaint compares outline', () {
-      final outline1 = [const Offset(0.1, 0.1), const Offset(0.9, 0.1), const Offset(0.5, 0.9)];
-      final outline2 = [const Offset(0.2, 0.2), const Offset(0.8, 0.2), const Offset(0.5, 0.8)];
+    test(
+      'DetectionBoxPainter carries outline and shouldRepaint compares outline',
+      () {
+        final outline1 = [
+          const Offset(0.1, 0.1),
+          const Offset(0.9, 0.1),
+          const Offset(0.5, 0.9),
+        ];
+        final outline2 = [
+          const Offset(0.2, 0.2),
+          const Offset(0.8, 0.2),
+          const Offset(0.5, 0.8),
+        ];
 
-      const painterNoOutline = DetectionBoxPainter(
-        isFace: true,
-        borderColor: Colors.amber,
-      );
-      final painterWithOutline1 = DetectionBoxPainter(
-        isFace: true,
-        borderColor: Colors.amber,
-        outline: outline1,
-      );
-      final painterWithOutline2 = DetectionBoxPainter(
-        isFace: true,
-        borderColor: Colors.amber,
-        outline: outline2,
-      );
+        const painterNoOutline = DetectionBoxPainter(
+          isFace: true,
+          borderColor: Colors.amber,
+        );
+        final painterWithOutline1 = DetectionBoxPainter(
+          isFace: true,
+          borderColor: Colors.amber,
+          outline: outline1,
+        );
+        final painterWithOutline2 = DetectionBoxPainter(
+          isFace: true,
+          borderColor: Colors.amber,
+          outline: outline2,
+        );
 
-      expect(painterNoOutline.outline, isNull);
-      expect(painterWithOutline1.outline, outline1);
-      expect(painterWithOutline1.shouldRepaint(painterNoOutline), isTrue);
-      expect(painterWithOutline1.shouldRepaint(painterWithOutline2), isTrue);
-      expect(
-        painterWithOutline1.shouldRepaint(
-          DetectionBoxPainter(
-            isFace: true,
-            borderColor: Colors.amber,
-            outline: [const Offset(0.1, 0.1), const Offset(0.9, 0.1), const Offset(0.5, 0.9)],
+        expect(painterNoOutline.outline, isNull);
+        expect(painterWithOutline1.outline, outline1);
+        expect(painterWithOutline1.shouldRepaint(painterNoOutline), isTrue);
+        expect(painterWithOutline1.shouldRepaint(painterWithOutline2), isTrue);
+        expect(
+          painterWithOutline1.shouldRepaint(
+            DetectionBoxPainter(
+              isFace: true,
+              borderColor: Colors.amber,
+              outline: [
+                const Offset(0.1, 0.1),
+                const Offset(0.9, 0.1),
+                const Offset(0.5, 0.9),
+              ],
+            ),
           ),
-        ),
-        isFalse,
-      );
-    });
+          isFalse,
+        );
+      },
+    );
 
-    testWidgets('DetectionBoxPainter renders without error for face and body', (tester) async {
+    testWidgets('DetectionBoxPainter renders without error for face and body', (
+      tester,
+    ) async {
       final outline = [
         const Offset(0.2, 0.1),
         const Offset(0.8, 0.15),
@@ -117,8 +149,12 @@ void main() {
         ),
       );
 
-      final facePaint = tester.widget<CustomPaint>(find.byKey(const Key('face-paint')));
-      final bodyPaint = tester.widget<CustomPaint>(find.byKey(const Key('body-paint')));
+      final facePaint = tester.widget<CustomPaint>(
+        find.byKey(const Key('face-paint')),
+      );
+      final bodyPaint = tester.widget<CustomPaint>(
+        find.byKey(const Key('body-paint')),
+      );
 
       expect((facePaint.painter as DetectionBoxPainter).outline, outline);
       expect((facePaint.painter as DetectionBoxPainter).isFace, isTrue);
@@ -127,7 +163,9 @@ void main() {
       expect((bodyPaint.painter as DetectionBoxPainter).isFace, isFalse);
     });
 
-    testWidgets('DetectionsPainter paints with outline and without outline', (tester) async {
+    testWidgets('DetectionsPainter paints with outline and without outline', (
+      tester,
+    ) async {
       final responseWithOutlines = AnalyzeImageResponse(
         modelId: 'buffalo_l@1',
         imageW: 1000,
@@ -144,7 +182,16 @@ void main() {
             ],
             detScore: 0.95,
             embedding: Float32List(512),
-            quality: const FaceQuality(score: 0.85, version: 2, facePx: 150, sharpness: 250, detScore: 0.95, embeddingNorm: 1.0, pose: null, parts: {}),
+            quality: const FaceQuality(
+              score: 0.85,
+              version: 2,
+              facePx: 150,
+              sharpness: 250,
+              detScore: 0.95,
+              embeddingNorm: 1.0,
+              pose: null,
+              parts: {},
+            ),
             passesGate: true,
             outline: const [
               Offset(120, 110),
@@ -186,7 +233,9 @@ void main() {
         ),
       );
 
-      final paintWidget = tester.widget<CustomPaint>(find.byKey(const Key('analyze-paint')));
+      final paintWidget = tester.widget<CustomPaint>(
+        find.byKey(const Key('analyze-paint')),
+      );
       expect(paintWidget.painter, isA<DetectionsPainter>());
       final painter = paintWidget.painter as DetectionsPainter;
       expect(painter.result.faces.single.outline, hasLength(4));

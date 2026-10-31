@@ -129,10 +129,7 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
             );
           }
-          return MediaTile(
-            item: items[at],
-            filter: widget.filter,
-          );
+          return MediaTile(item: items[at], filter: widget.filter);
         },
       ),
     );

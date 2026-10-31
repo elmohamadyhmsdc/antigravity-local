@@ -223,7 +223,9 @@ void main() {
         fixture('AnalyzeImageOptions.default'),
       );
       expect(
-        const AnalyzeOptions(modelId: 'buffalo_l@1').toJson()['return_outlines'],
+        const AnalyzeOptions(
+          modelId: 'buffalo_l@1',
+        ).toJson()['return_outlines'],
         isTrue,
       );
       expect(const AnalyzeOptions().toJson().containsKey('model_id'), isFalse);
