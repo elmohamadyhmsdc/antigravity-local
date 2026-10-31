@@ -129,7 +129,10 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
             );
           }
-          return MediaTile(item: items[at]);
+          return MediaTile(
+            item: items[at],
+            filter: widget.filter,
+          );
         },
       ),
     );
@@ -138,9 +141,10 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
 
 /// One photo in a grid: thumbnail, how many faces were found, whether it is scanned yet.
 class MediaTile extends ConsumerWidget {
-  const MediaTile({super.key, required this.item});
+  const MediaTile({super.key, required this.item, this.filter});
 
   final MediaListItem item;
+  final MediaFilter? filter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -148,7 +152,21 @@ class MediaTile extends ConsumerWidget {
     final thumbs = ref.watch(thumbnailServiceProvider);
     return GestureDetector(
       key: Key('media-${item.id}'),
-      onTap: () => context.push('${Routes.media}/${item.id}'),
+      onTap: () {
+        final f = filter;
+        final params = <String, String>{};
+        if (f != null) {
+          if (f.personId != null) params['personId'] = '${f.personId}';
+          if (f.scan != ScanFilter.all) params['scan'] = f.scan.name;
+          if (f.hasFaces != null) params['hasFaces'] = '${f.hasFaces}';
+          if (f.kind != null) params['kind'] = f.kind!;
+        }
+        final uri = Uri(
+          path: '${Routes.media}/${item.id}',
+          queryParameters: params.isEmpty ? null : params,
+        );
+        context.push(uri.toString());
+      },
       child: Stack(
         fit: StackFit.expand,
         children: [

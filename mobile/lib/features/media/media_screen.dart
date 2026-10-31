@@ -1,10 +1,13 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:photo_manager/photo_manager.dart';
 
 import '../../core/router.dart';
 import '../../data/db/app_database.dart';
@@ -33,44 +36,108 @@ class _Loaded {
   final int height;
 }
 
-/// S06 - one photo with the faces (and optionally bodies) the PC found, drawn as boxes. Tap a box to
-/// say who it is, that it is not them, or to open the person. "Who is in this photo" sits underneath.
+/// S06 - one photo/video viewer with swipe navigation (PageView) across the active filter,
+/// toggleable face/body annotations, and Google Lens visual search.
 class MediaScreen extends ConsumerStatefulWidget {
   const MediaScreen({
     super.key,
     required this.mediaId,
     this.initialTimestampMs,
+    this.filter,
   });
 
   final int mediaId;
   final int? initialTimestampMs;
+  final MediaFilter? filter;
 
   @override
   ConsumerState<MediaScreen> createState() => _MediaScreenState();
 }
 
 class _MediaScreenState extends ConsumerState<MediaScreen> {
-  Future<_Loaded?>? _image;
-  String? _assetId;
+  late List<int> _mediaIds;
+  int _currentIndex = 0;
+  PageController? _pageController;
   var _showBodies = false;
+  var _showFaces = true;
 
-  Future<_Loaded?> _load(String assetId) async {
-    final bytes = await ref.read(mediaLibraryProvider).viewerImage(assetId);
-    if (bytes == null) return null;
-    final decoded = await ui.instantiateImageCodec(bytes);
-    final frame = await decoded.getNextFrame();
-    final loaded = _Loaded(bytes, frame.image.width, frame.image.height);
-    frame.image.dispose();
-    decoded.dispose();
-    return loaded;
+  @override
+  void initState() {
+    super.initState();
+    _mediaIds = [widget.mediaId];
+    _currentIndex = 0;
+    _pageController = PageController(initialPage: 0);
+    _loadIds();
+  }
+
+  Future<void> _loadIds() async {
+    try {
+      final queries = ref.read(mediaQueriesProvider);
+      final filter = widget.filter ?? const MediaFilter();
+      final list = await queries.ids(filter);
+      if (!mounted || list.isEmpty) return;
+      final index = list.indexOf(widget.mediaId);
+      setState(() {
+        _mediaIds = list;
+        _currentIndex = index >= 0 ? index : 0;
+        _pageController?.dispose();
+        _pageController = PageController(initialPage: _currentIndex);
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _pageController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _searchGoogleLens(BuildContext context, MediaRow media) async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      final lib = ref.read(mediaLibraryProvider);
+      final entity = await AssetEntity.fromId(media.assetId);
+      File? file = await entity?.originFile;
+      file ??= await entity?.file;
+      if (file == null) {
+        final bytes = await lib.viewerImage(media.assetId);
+        if (bytes != null) {
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = File(
+            '${tempDir.path}/lens_${media.id}_${media.assetId.replaceAll(RegExp(r'[^\w\.-]'), '_')}.jpg',
+          );
+          await tempFile.writeAsBytes(bytes);
+          file = tempFile;
+        }
+      }
+      if (file == null || !file.existsSync()) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.googleLensError)),
+          );
+        }
+        return;
+      }
+      const channel = MethodChannel('antigravity/lens');
+      await channel.invokeMethod('searchImage', {'path': file.path});
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.googleLensError)),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final row = ref.watch(mediaRowProvider(widget.mediaId));
+    final activeId = (_mediaIds.isNotEmpty && _currentIndex < _mediaIds.length)
+        ? _mediaIds[_currentIndex]
+        : widget.mediaId;
+    final row = ref.watch(mediaRowProvider(activeId));
     final detections =
-        ref.watch(detectionsProvider(widget.mediaId)).value ??
+        ref.watch(detectionsProvider(activeId)).value ??
         const <MediaDetection>[];
     final people = {
       for (final p
@@ -83,7 +150,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       error: (e, _) => Scaffold(
         appBar: AppBar(),
         body: RetryState(
-          onRetry: () => ref.invalidate(mediaRowProvider(widget.mediaId)),
+          onRetry: () => ref.invalidate(mediaRowProvider(activeId)),
         ),
       ),
       data: (media) {
@@ -92,10 +159,6 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
             appBar: AppBar(),
             body: EmptyState(icon: Icons.photo_outlined, title: l10n.photoGone),
           );
-        }
-        if (media.kind != 'video' && _assetId != media.assetId) {
-          _assetId = media.assetId;
-          _image = _load(media.assetId);
         }
         final taken = media.takenAt == null
             ? null
@@ -131,6 +194,15 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                   (media.kind == 'video' ? l10n.videoTitle : l10n.photoTitle),
             ),
             actions: [
+              if (faces.isNotEmpty)
+                IconButton(
+                  key: const Key('toggle-faces'),
+                  tooltip: _showFaces ? l10n.hideFaces : l10n.showFaces,
+                  icon: Icon(
+                    _showFaces ? Icons.face : Icons.face_outlined,
+                  ),
+                  onPressed: () => setState(() => _showFaces = !_showFaces),
+                ),
               if (bodies.isNotEmpty)
                 IconButton(
                   key: const Key('toggle-bodies'),
@@ -142,58 +214,54 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                   ),
                   onPressed: () => setState(() => _showBodies = !_showBodies),
                 ),
+              IconButton(
+                key: const Key('google-lens'),
+                tooltip: l10n.searchGoogleLens,
+                icon: const Icon(Icons.camera_alt_outlined),
+                onPressed: () => _searchGoogleLens(context, media),
+              ),
             ],
           ),
-          body: media.kind == 'video'
-              ? VideoMediaView(
-                  key: ValueKey(media.assetId),
-                  assetId: media.assetId,
-                  initialTimestampMs: widget.initialTimestampMs,
-                  library: ref.watch(mediaLibraryProvider),
-                  detections: detections,
-                  people: people,
-                  showBodies: _showBodies,
-                  onTapBox: (d) => _boxMenu(context, d, people),
-                )
-              : Column(
-                  children: [
-                    Expanded(
-                      child: FutureBuilder<_Loaded?>(
-                        future: _image,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState !=
-                              ConnectionState.done) {
-                            return const LoadingBox();
-                          }
-                          final image = snapshot.data;
-                          if (image == null) {
-                            return EmptyState(
-                              icon: Icons.photo_outlined,
-                              title: l10n.photoGone,
-                              body: l10n.photoGoneBody,
-                            );
-                          }
-                          return _AnnotatedPhoto(
-                            image: image,
-                            detections: [...faces, if (_showBodies) ...bodies],
-                            people: people,
-                            onTapBox: (d) => _boxMenu(context, d, people),
-                          );
-                        },
-                      ),
-                    ),
-                    _WhoIsHere(
-                      faces: [
-                        ...faces,
-                        ...bodies.where((b) => b.personId != null),
-                      ],
+          body: Column(
+            children: [
+              Expanded(
+                child: PageView.builder(
+                  key: const Key('media-page-view'),
+                  controller: _pageController,
+                  itemCount: _mediaIds.length,
+                  onPageChanged: (i) {
+                    setState(() {
+                      _currentIndex = i;
+                    });
+                  },
+                  itemBuilder: (context, i) {
+                    final itemMediaId = _mediaIds[i];
+                    return _MediaPageViewItem(
+                      key: ValueKey(itemMediaId),
+                      mediaId: itemMediaId,
+                      showFaces: _showFaces,
+                      showBodies: _showBodies,
                       people: people,
-                      mediaScanned: media.scanStatus == 'done',
-                      onOpen: (d) => _boxMenu(context, d, people),
-                      onEdit: (d) => _reassign(context, d),
-                    ),
-                  ],
+                      onTapBox: (d) => _boxMenu(context, d, people),
+                      initialTimestampMs: (itemMediaId == widget.mediaId)
+                          ? widget.initialTimestampMs
+                          : null,
+                    );
+                  },
                 ),
+              ),
+              _WhoIsHere(
+                faces: [
+                  ...faces,
+                  ...bodies.where((b) => b.personId != null),
+                ],
+                people: people,
+                mediaScanned: media.scanStatus == 'done',
+                onOpen: (d) => _boxMenu(context, d, people),
+                onEdit: (d) => _reassign(context, d),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -306,6 +374,120 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         );
         if (ok) await repo.deleteFaces([d.refId]);
     }
+  }
+}
+
+class _MediaPageViewItem extends ConsumerStatefulWidget {
+  const _MediaPageViewItem({
+    super.key,
+    required this.mediaId,
+    required this.showFaces,
+    required this.showBodies,
+    required this.people,
+    required this.onTapBox,
+    this.initialTimestampMs,
+  });
+
+  final int mediaId;
+  final bool showFaces;
+  final bool showBodies;
+  final Map<int, PersonSummary> people;
+  final void Function(MediaDetection) onTapBox;
+  final int? initialTimestampMs;
+
+  @override
+  ConsumerState<_MediaPageViewItem> createState() =>
+      _MediaPageViewItemState();
+}
+
+class _MediaPageViewItemState extends ConsumerState<_MediaPageViewItem> {
+  Future<_Loaded?>? _image;
+  String? _assetId;
+
+  Future<_Loaded?> _load(String assetId) async {
+    final bytes = await ref.read(mediaLibraryProvider).viewerImage(assetId);
+    if (bytes == null) return null;
+    final decoded = await ui.instantiateImageCodec(bytes);
+    final frame = await decoded.getNextFrame();
+    final loaded = _Loaded(bytes, frame.image.width, frame.image.height);
+    frame.image.dispose();
+    decoded.dispose();
+    return loaded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final row = ref.watch(mediaRowProvider(widget.mediaId));
+    final detections =
+        ref.watch(detectionsProvider(widget.mediaId)).value ??
+        const <MediaDetection>[];
+
+    return row.when(
+      loading: () => const LoadingBox(),
+      error: (_, _) => EmptyState(
+        icon: Icons.photo_outlined,
+        title: l10n.photoGone,
+      ),
+      data: (media) {
+        if (media == null) {
+          return EmptyState(
+            icon: Icons.photo_outlined,
+            title: l10n.photoGone,
+          );
+        }
+        if (media.kind == 'video') {
+          return VideoMediaView(
+            key: ValueKey(media.assetId),
+            assetId: media.assetId,
+            initialTimestampMs: widget.initialTimestampMs,
+            library: ref.watch(mediaLibraryProvider),
+            detections: detections,
+            people: widget.people,
+            showBodies: widget.showBodies,
+            showFaces: widget.showFaces,
+            onTapBox: widget.onTapBox,
+          );
+        }
+        if (_assetId != media.assetId) {
+          _assetId = media.assetId;
+          _image = _load(media.assetId);
+        }
+        final faces = [
+          for (final d in detections)
+            if (d.isFace) d,
+        ];
+        final bodies = [
+          for (final d in detections)
+            if (!d.isFace) d,
+        ];
+        return FutureBuilder<_Loaded?>(
+          future: _image,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const LoadingBox();
+            }
+            final image = snapshot.data;
+            if (image == null) {
+              return EmptyState(
+                icon: Icons.photo_outlined,
+                title: l10n.photoGone,
+                body: l10n.photoGoneBody,
+              );
+            }
+            return _AnnotatedPhoto(
+              image: image,
+              detections: [
+                if (widget.showFaces) ...faces,
+                if (widget.showBodies) ...bodies,
+              ],
+              people: widget.people,
+              onTapBox: widget.onTapBox,
+            );
+          },
+        );
+      },
+    );
   }
 }
 

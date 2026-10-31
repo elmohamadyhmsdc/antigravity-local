@@ -169,5 +169,33 @@ void main() {
       },
       session: testSession,
     );
+
+    appTest(
+      'media viewer provides face box toggle, Google Lens search, and swipe navigation',
+      (tester, env) async {
+        final sara = await seedPerson(env.db, name: 'Sara');
+        final photo1 = await seedMedia(env.db, asset: 'a', takenAt: 2000);
+        final photo2 = await seedMedia(env.db, asset: 'b', takenAt: 1000);
+        await seedFace(env.db, mediaId: photo1, personId: sara, seed: 1);
+        await seedFace(env.db, mediaId: photo2, seed: 2);
+
+        await _open(tester, env, '/media/$photo1');
+        expect(find.byKey(const Key('media-page-view')), findsOneWidget);
+        expect(find.byKey(const Key('toggle-faces')), findsOneWidget);
+        expect(find.byKey(const Key('google-lens')), findsOneWidget);
+
+        // Toggle faces
+        await tester.tap(find.byKey(const Key('toggle-faces')));
+        await _settle(tester);
+
+        // Swipe left to photo2
+        await tester.drag(
+          find.byKey(const Key('media-page-view')),
+          const Offset(-400, 0),
+        );
+        await _settle(tester);
+      },
+      session: testSession,
+    );
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/analyze/analyze_screen.dart';
+import '../data/repositories/media_queries.dart';
 import '../features/backup/backup_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/insights/insights_screen.dart';
@@ -216,12 +217,41 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: '${Routes.media}/:id',
-        builder: (context, state) => MediaScreen(
-          mediaId: int.parse(state.pathParameters['id']!),
-          initialTimestampMs: int.tryParse(
-            state.uri.queryParameters['at'] ?? '',
-          ),
-        ),
+        builder: (context, state) {
+          final personId = int.tryParse(
+            state.uri.queryParameters['personId'] ?? '',
+          );
+          final scanName = state.uri.queryParameters['scan'];
+          final scan = scanName != null
+              ? ScanFilter.values.firstWhere(
+                  (s) => s.name == scanName,
+                  orElse: () => ScanFilter.all,
+                )
+              : ScanFilter.all;
+          final hasFaces = state.uri.queryParameters['hasFaces'] == null
+              ? null
+              : state.uri.queryParameters['hasFaces'] == 'true';
+          final kind = state.uri.queryParameters['kind'];
+          final filter =
+              (personId != null ||
+                  scan != ScanFilter.all ||
+                  hasFaces != null ||
+                  kind != null)
+              ? MediaFilter(
+                  personId: personId,
+                  scan: scan,
+                  hasFaces: hasFaces,
+                  kind: kind,
+                )
+              : null;
+          return MediaScreen(
+            mediaId: int.parse(state.pathParameters['id']!),
+            initialTimestampMs: int.tryParse(
+              state.uri.queryParameters['at'] ?? '',
+            ),
+            filter: filter,
+          );
+        },
       ),
       GoRoute(
         path: '${Routes.merge}/:a/:b',

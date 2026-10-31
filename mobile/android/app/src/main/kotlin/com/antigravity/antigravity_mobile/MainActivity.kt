@@ -48,6 +48,72 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler(CropExportBridge(appContext)::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/wakelock")
             .setMethodCallHandler(wakeLockBridge::handle)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/lens")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "searchImage") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val path = call.argument<String>("path")
+                if (path == null) {
+                    result.error("no_path", "Image path is required", null)
+                    return@setMethodCallHandler
+                }
+                val file = java.io.File(path)
+                if (!file.exists()) {
+                    result.error("not_found", "File not found", null)
+                    return@setMethodCallHandler
+                }
+                try {
+                    val uri: android.net.Uri = androidx.core.content.FileProvider.getUriForFile(
+                        appContext,
+                        "${appContext.packageName}.fileprovider",
+                        file
+                    )
+                    val pm = appContext.packageManager
+
+                    val lensIntent = Intent(Intent.ACTION_SEND).apply {
+                        setPackage("com.google.ar.lens")
+                        type = "image/*"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    if (lensIntent.resolveActivity(pm) != null) {
+                        startActivity(lensIntent)
+                        result.success("lens")
+                        return@setMethodCallHandler
+                    }
+
+                    val gsaIntent = Intent(Intent.ACTION_SEND).apply {
+                        setPackage("com.google.android.googlequicksearchbox")
+                        type = "image/*"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    if (gsaIntent.resolveActivity(pm) != null) {
+                        startActivity(gsaIntent)
+                        result.success("google_app")
+                        return@setMethodCallHandler
+                    }
+
+                    val chooser = Intent.createChooser(
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "image/*"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        },
+                        "Search with Google Lens"
+                    ).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(chooser)
+                    result.success("chooser")
+                } catch (e: Exception) {
+                    result.error("lens_failed", e.message, null)
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/studio_notifications")
             .setMethodCallHandler { call, result ->
                 if (call.method != "completed") {

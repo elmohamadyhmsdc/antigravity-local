@@ -1576,6 +1576,12 @@ abstract class AppLocalizations {
   /// **'Hide bodies'**
   String get hideBodies;
 
+  /// No description provided for @hideFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide faces'**
+  String get hideFaces;
+
   /// No description provided for @keepPerson.
   ///
   /// In en, this message translates to:
@@ -2283,6 +2289,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show bodies'**
   String get showBodies;
+
+  /// No description provided for @showFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Show faces'**
+  String get showFaces;
+
+  /// No description provided for @searchGoogleLens.
+  ///
+  /// In en, this message translates to:
+  /// **'Search with Google Lens'**
+  String get searchGoogleLens;
+
+  /// No description provided for @googleLensError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not launch Google Lens'**
+  String get googleLensError;
 
   /// No description provided for @similarityPercent.
   ///

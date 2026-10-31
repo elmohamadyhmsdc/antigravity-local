@@ -933,3 +933,28 @@ faces near one shared direction, which is why different characters merged.
   6. `mobile/test/support/fakes.dart` & `mobile/test/domain/scan_engine_test.dart`: Added `failures` support in `FakeMediaLibrary` and a regression test confirming that when an asset throws `CompressError`, the photo is marked failed and the remaining scan completes uninterrupted.
 - **Status & Policy**: Preserved terminal policy; changes made to source files. Provided verification and build commands for the user. No phone or server state altered.
 
+## Media Viewer: Swipe navigation, face box toggle & Google Lens search — 2026-10-31
+
+- **User Request**: In Person Details (Photos & Videos tab) and media viewer, enable swiping left and right between photos, add a face box toggle button next to the body button on top to hide/show face circles/boxes, and add a "Search by Google Lens" option.
+- **Changes**:
+  1. **Swipe Navigation (`PageView.builder`)**:
+     - Added `MediaQueries.ids(MediaFilter)` to fetch ordered media IDs (`ORDER BY COALESCE(m.taken_at, m.modified_at) DESC, m.id DESC`) matching the active filter.
+     - Updated `MediaGrid` and `person_detail_screen.dart` to pass the active filter in query parameters (`personId`, `scan`, `hasFaces`, `kind`) to `Routes.media`.
+     - Updated `router.dart` to parse filter parameters and pass `MediaFilter?` to `MediaScreen`.
+     - Replaced single-item view in `MediaScreen` with a horizontal `PageView.builder` using `PageController` initialized at the tapped item's index. As the user swipes left/right, `_currentIndex` updates the active media, dynamically updating the AppBar timestamp, detections, and "Who is here" section.
+     - Zoom via `InteractiveViewer` remains active; when unzoomed (scale = 1.0), horizontal swipe gestures navigate between photos.
+  2. **Face Box Toggle**:
+     - Added `_showFaces` state in `MediaScreen` (defaults to `true`).
+     - Added `Key('toggle-faces')` `IconButton` (`Icons.face` / `Icons.face_outlined`) next to `Key('toggle-bodies')` in the AppBar actions.
+     - Wired `_showFaces` into `_AnnotatedPhoto` and `VideoMediaView` (`this.showFaces = true`), so toggling hides/shows face circles/bounding boxes.
+  3. **Search by Google Lens**:
+     - Added `file_paths.xml` in `res/xml/` and registered `androidx.core.content.FileProvider` in `AndroidManifest.xml`.
+     - Added package visibility entries (`com.google.ar.lens` and `com.google.android.googlequicksearchbox`) in `<queries>`.
+     - Added `antigravity/lens` MethodChannel in `MainActivity.kt`: tries `com.google.ar.lens` directly, falls back to Google App (`com.google.android.googlequicksearchbox`), and falls back to standard chooser with `FileProvider` URI and read permission flags.
+     - Added Google Lens button (`Key('google-lens')`, `Icons.camera_alt_outlined`) in `MediaScreen` AppBar actions; resolves image file or exports temporary JPEG and invokes native Lens search.
+  4. **Localization & Tests**:
+     - Added `showFaces`, `hideFaces`, `searchGoogleLens`, `googleLensError` to `app_en.arb`, `app_localizations.dart`, and `app_localizations_en.dart`.
+     - Added unit tests for `MediaQueries.ids()` in `media_queries_test.dart` and widget tests for face toggle, Google Lens button, and swipe navigation in `library_test.dart`.
+- **Verification**: `flutter analyze --no-pub` on all modified source and test files passed with **0 issues**. Preserved terminal policy; provided verification commands for user.
+
+

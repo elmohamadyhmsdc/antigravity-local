@@ -212,6 +212,22 @@ class MediaQueries {
     ];
   }
 
+  Future<List<int>> ids(MediaFilter filter) async {
+    final (where, vars) = _where(filter);
+    final rows = await _db
+        .customSelect(
+          '''
+          SELECT m.id
+          FROM media m WHERE $where
+          ORDER BY COALESCE(m.taken_at, m.modified_at) DESC, m.id DESC
+          ''',
+          variables: vars,
+          readsFrom: {_db.media, _db.faces, _db.bodies, _db.mediaDetections},
+        )
+        .get();
+    return [for (final r in rows) r.read<int>('id')];
+  }
+
   static DateTime? _date(int? ms) =>
       ms == null || ms == 0 ? null : DateTime.fromMillisecondsSinceEpoch(ms);
 

@@ -560,6 +560,7 @@
     }
   },
   "hideBodies": "Hide bodies",
+  "hideFaces": "Hide faces",
   "keepPerson": "Keep {label}",
   "@keepPerson": {
     "placeholders": {
@@ -937,6 +938,9 @@
   "settingsQualityGateHint": "Faces below this quality are ignored. Raise it for cleaner groups, lower it to catch more faces. Applies to new scans.",
   "settingsScanDefaults": "Scanning",
   "showBodies": "Show bodies",
+  "showFaces": "Show faces",
+  "searchGoogleLens": "Search with Google Lens",
+  "googleLensError": "Could not launch Google Lens",
   "similarityPercent": "{percent}% alike",
   "@similarityPercent": {
     "placeholders": {

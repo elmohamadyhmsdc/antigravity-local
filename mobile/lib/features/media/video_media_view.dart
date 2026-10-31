@@ -29,6 +29,7 @@ class VideoMediaView extends StatefulWidget {
     required this.detections,
     required this.people,
     required this.showBodies,
+    this.showFaces = true,
     required this.onTapBox,
     this.initialTimestampMs,
     this.focusKind,
@@ -42,6 +43,7 @@ class VideoMediaView extends StatefulWidget {
   final List<MediaDetection> detections;
   final Map<int, PersonSummary> people;
   final bool showBodies;
+  final bool showFaces;
   final ValueChanged<MediaDetection> onTapBox;
 
   @override
@@ -131,7 +133,7 @@ class _VideoMediaViewState extends State<VideoMediaView> {
     }.toList()..sort();
     final boxes = [
       for (final d in widget.detections)
-        if ((d.isFace || widget.showBodies) &&
+        if ((d.isFace ? widget.showFaces : widget.showBodies) &&
             d.timestampMs != null &&
             (d.timestampMs! - position).abs() <= 150)
           d,

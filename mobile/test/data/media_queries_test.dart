@@ -54,6 +54,13 @@ void main() {
         pending,
         failed,
       ]);
+      expect(await queries.ids(const MediaFilter()), [
+        video,
+        withFaces,
+        withoutFaces,
+        pending,
+        failed,
+      ]);
       final first = (await queries.page(
         const MediaFilter(kind: 'photo'),
         offset: 0,

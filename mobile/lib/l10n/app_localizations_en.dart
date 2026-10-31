@@ -1058,6 +1058,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hideBodies => 'Hide bodies';
 
   @override
+  String get hideFaces => 'Hide faces';
+
+  @override
   String keepPerson(String label) {
     return 'Keep $label';
   }
@@ -1524,6 +1527,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get showBodies => 'Show bodies';
+
+  @override
+  String get showFaces => 'Show faces';
+
+  @override
+  String get searchGoogleLens => 'Search with Google Lens';
+
+  @override
+  String get googleLensError => 'Could not launch Google Lens';
 
   @override
   String similarityPercent(int percent) {
