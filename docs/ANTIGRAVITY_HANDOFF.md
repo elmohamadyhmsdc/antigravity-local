@@ -994,3 +994,22 @@ faces near one shared direction, which is why different characters merged.
   - Flutter test suite: **35/35 tests passed** across `review_viewer_test.dart`, `analyze_test.dart`, `redesign_screens_test.dart`, `reface_all_faces_test.dart`, and `reface_direct_identity_test.dart`.
   - Python compile check: `the app/gallery_page.py` compiles cleanly without errors.
   - Preserved terminal policy; no phone or server state altered.
+
+## Universal Anime & Cartoon Character Detection Pipeline — 2026-10-31
+
+- **User Request**: Unify anime and cartoon detection across all scanned photos and videos without requiring albums to be tagged as "Illustrated/Anime". Detect both face and body for anime/cartoon figures, routing real humans to People and anime figures to Characters with distinct profiles.
+- **Architecture & Implementation**:
+  1. **Model Staging**: Staged `anime_face_detect.onnx` (44.5 MB, YOLOv8) and `ccip_character.onnx` (150 MB, caformer-24) from local `d:\test\face gallary` into `the app/models/`.
+  2. **YOLOv8 Anime Face Detector** (`the app/anime_detector.py`): Implemented `AnimeFaceDetector` with letterbox padding (114/255 fill), ONNX Runtime session with CUDA and CPU fallback, geometry gates (`0.35 <= AR <= 1.8`, `MIN_FACE_PX = 20`), and NMS suppression.
+  3. **Overlap Veto & Baby-Face Protection** (`the app/face_routing.py`): Implemented `overlaps_real_face` (IoU >= 0.50 OR containment >= 0.60) and `route_detections` with sensitivity veto at 0.40 against human face detections to prevent real infants/babies from falsely routing to Characters.
+  4. **Character Embedding** (`the app/character_embedder.py`): Implemented `CcipEmbedder` with asymmetric portrait crops (0.8h above, 1.2h below, 0.5w sides), torso outfit hue (16-d) and hat hue (8-d) yielding a 792-d appearance vector.
+  5. **Backend Analysis Integration** (`the app/analysis.py`, `character_detection.py`): Updated `analyze_frame` to run the dual-detector pipeline. `detect_characters` now associates anime face detections with body detections, generating character descriptors and populating `characters` while preserving real faces in `faces`.
+  6. **Mobile Universal Character Scanning** (`mobile/lib/domain/scan/scan_engine.dart`, `mobile/lib/domain/scan/video_scan.dart`): Added capability-driven character detection so photos and video frames automatically run character detection whenever the server supports it (`row.illustrated || canDetectCharacters`), removing the constraint of manual album tagging.
+  7. **Mobile Character UI Integration** (`mobile/lib/features/people/people_screen.dart`): Added character count badge to the Characters button in the People screen AppBar (`Icons.auto_awesome_outlined`), providing quick access to character profiles.
+- **Verification**:
+  - Python tests: **36/36 tests passed** (25 unit tests across `test_anime_detector.py`, `test_face_routing.py`, `test_character_embedder.py`, `test_character_detection.py`, plus 7/7 in `test_analysis.py` and 4/4 in `test_drawn_faces.py`).
+  - Flutter analysis: `flutter analyze` on modified files reports **0 issues**.
+  - Flutter tests: `scan_engine_test.dart` passed **33/33 tests**.
+  - Documented: `docs/plans/2026-10-31-anime-character-detection-design.md` and `docs/plans/2026-10-31-anime-character-detection-plan.md`.
+  - Preserved terminal policy; no phone or server state altered.
+
