@@ -1173,3 +1173,41 @@ faces near one shared direction, which is why different characters merged.
 - Known gaps: deleting a character face is not remembered against a rescan (no suppression
   for CCIP faces); Home shows only people's review count; character videos are deduplicated
   by CCIP cosine inside a file, not tracked/compacted like people.
+
+## Fix: Human body detection wiped by character detection mode — 2026-11-01
+
+- **Symptom**: User observed on mobile that body detection appeared to only work on anime and cartoon characters, while human bodies for people were missing ("في نسخة الموبايل، اتأكد إن الـ body detection على الـ persons شغال، لأنه شغال على الـ anime والـ cartoon بس تقريباً.").
+- **Root Cause**:
+  1. In `the app/analysis.py`, under `if want_characters:`, line 227 unconditionally set `bodies = []` ("Illustrated characters never become human body identities").
+  2. In `mobile/lib/domain/scan/scan_engine.dart` and `video_scan.dart`, universal character detection sets `isCharScan = row.illustrated || _canDetectCharacters`. Because the PC server always supports character detection (`yolox_m_humanart.onnx` is installed), `_canDetectCharacters` is `true` across all scans.
+  3. Consequently, every single library photo and video frame was scanned with `detect_characters: true`. The server's `bodies = []` line stripped all human bodies, resulting in `response.bodies = []`, zero human body records stored in `bodies` or `media_detections`, and zero body boxes/outlines/outfit links appearing for real persons in the mobile UI. Only cartoon/anime characters had bodies because their bodies were packaged separately inside `response.characters[].body`.
+- **Changes**:
+  1. `the app/analysis.py`:
+     - Preserved `faces_orig` to guard against false character assignment.
+     - When real human faces (`real`) are present, faceless bodies are kept as human bodies rather than falsely promoted to cartoon characters.
+     - Separated character bodies (`char_body_boxes`) and bodies containing drawn faces (`drawn_face_boxes`).
+     - When `options.detect_bodies` is `True`, all human bodies are preserved in `bodies`, associated with human faces in `pairs = pl.associate_faces_bodies(...)`, their outfit descriptors are computed in `appearances`, and exact outlines are generated in `OutlineEngine`.
+  2. `the app/test_analysis.py`: Added regression test `test_analyze_frame_preserves_human_bodies_when_character_detection_is_enabled`.
+  3. `the app/test_character_detection.py`: Added regression test `test_real_person_with_detect_bodies_and_characters_preserves_body`.
+- **Verification**:
+  - `py_compile` on `analysis.py`, `test_analysis.py`, and `test_character_detection.py` passed with exit code 0.
+  - `test_analysis.py`: **9/9 tests passed**.
+  - `test_character_detection.py`: **16/16 tests passed**.
+  - `test_mobile_api_contract.py`: **31/31 contract tests passed**.
+- **Process State**:
+  - The mobile API process (PID 30172 and its child worker processes) was stopped upon explicit user instruction ("هي البروسيس بتاعت الـ API شغالة دلوقتي، وقفها").
+  - `control.json` cleaned up; `MobileDashboardController.status()` verifies `{'state': 'stopped'}`.
+  - Restarting the server (`run_mobile_api.bat` or the Streamlit Dashboard) will run with the new code so human body detection works for both persons and characters on mobile scans.
+
+## Bump scanVersion to 2 (mobile auto-rescan for missing bodies) — 2026-11-01
+
+- **Reason**: Following the server-side fix for human body detection wiped under character detection, previously scanned media rows on phone SQLite had `scan_status = 'done'` with `scan_version = 1`. To allow the mobile app to automatically pick up missing human bodies without touching or disrupting existing face identities, groupings, names, or manual merges, `scanVersion` was bumped to `2`.
+- **Changes**:
+  - `mobile/lib/data/repositories/library_repository.dart`: Updated `const scanVersion = 1;` -> `const scanVersion = 2;`.
+  - When the app is rebuilt and opened, `LibraryRepository.syncAssets` will match `(row.scanStatus == 'done' && row.scanVersion < scanVersion)` (1 < 2) and requeue those items as `scanStatus = 'pending'`, allowing `photo_result_store.dart` to rescan them, retain existing faces and persons, and cleanly insert the missing bodies, outlines, and appearances.
+- **Verification**:
+  - `flutter analyze`: clean (0 issues, ran in 112s).
+  - `flutter test test/data/library_repository_test.dart test/domain/photo_result_store_test.dart`: **27/27 passed**.
+  - `flutter test test/domain/scan_engine_test.dart`: **33/33 passed**.
+  - `flutter test test/domain/character_detection_test.dart`: **11/11 passed**.
+- **Next steps**: User will build and install the new APK on the phone and start the server (`run_mobile_api.bat`).

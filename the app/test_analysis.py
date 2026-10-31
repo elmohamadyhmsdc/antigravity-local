@@ -59,6 +59,32 @@ def test_analyze_frame_returns_faces_quality_gate_bodies_and_pairs():
 
 
 @test
+def test_analyze_frame_preserves_human_bodies_when_character_detection_is_enabled():
+    from analysis import AnalyzeOptions, analyze_frame
+    from mobile_api.testing import FakeBody, FakeFace, unit
+    import face_quality
+
+    good = FakeFace((60, 50, 200, 230), unit(1))
+    body = FakeBody((20, 30, 260, 460), (130, 90))
+
+    class Bodies:
+        available = True
+
+        def analyze(self, img, score_thr=0.5):
+            return [body]
+
+    img = _img()
+    opts = AnalyzeOptions(detect_bodies=True, detect_characters=True)
+    result = analyze_frame(None, Bodies(), img, opts,
+                           detect=lambda im: [good],
+                           assess=lambda im, f: face_quality.assess(f, None))
+    check(len(result.faces) == 1, f"human face preserved: {len(result.faces)}")
+    check(len(result.bodies) == 1, f"human body preserved with character scan on: {len(result.bodies)}")
+    check(len(result.pairs) == 1, f"pair created: {len(result.pairs)}")
+    check(len(result.characters) == 0, f"no false character: {len(result.characters)}")
+
+
+@test
 def test_analyze_frame_skips_bodies_when_off_or_unavailable():
     from analysis import AnalyzeOptions, analyze_frame
     from mobile_api.testing import FakeFace, unit

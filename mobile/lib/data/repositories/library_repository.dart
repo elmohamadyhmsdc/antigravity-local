@@ -4,7 +4,7 @@ import '../db/app_database.dart';
 import '../media/media_library.dart';
 
 /// Bump when what a scan extracts changes, so older results are redone.
-const scanVersion = 1;
+const scanVersion = 2;
 
 /// How many photos are where in the scan queue. The queue is the `media` table itself:
 /// `scan_status` = pending (waiting) | scanning (a worker has it) | done | failed | skipped

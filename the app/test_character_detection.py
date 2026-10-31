@@ -95,6 +95,21 @@ class CharacterTests(unittest.TestCase):
         self.assertEqual(drawn.faces, [])
         self.assertEqual(len(drawn.characters), 2)
 
+    def test_real_person_with_detect_bodies_and_characters_preserves_body(self):
+        class Bodies:
+            available = True
+            def analyze(self, img, score_thr):
+                return [body((0, 0, 128, 256))]
+        face = SimpleNamespace(bbox=np.array([40, 10, 88, 72], np.float32), det_score=.9, kps=None,
+                               embedding=np.ones(512, np.float32))
+        opts = AnalyzeOptions(detect_bodies=True, detect_characters=True)
+        res = analyze_frame(None, Bodies(), drawing(), opts, detect=lambda _: [face],
+                            assess=lambda img, f: {"quality_score": .7})
+        self.assertEqual(len(res.faces), 1)
+        self.assertEqual(len(res.bodies), 1)
+        self.assertEqual(len(res.pairs), 1)
+        self.assertEqual(res.characters, [])
+
     def test_missing_body_model_is_an_error_not_an_empty_success(self):
         with self.assertRaisesRegex(RuntimeError, 'HumanArt'):
             analyze_frame(None, None, drawing(), AnalyzeOptions(detect_characters=True))

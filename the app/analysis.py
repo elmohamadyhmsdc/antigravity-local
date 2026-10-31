@@ -214,17 +214,40 @@ def analyze_frame(face_app, body, img, options,
         characters = detect_characters(img, bodies, anime_faces=anime_faces)
         # A body around a clear real face is a real person: keep the face (it goes to
         # People) and drop that "character".
+        faces_orig = list(faces)
         real = [i for i, f in enumerate(faces)
                 if passes[i] and not drawn[i] and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY]
-        characters = [c for c in characters
-                      if not any(_centre_inside(faces[i].bbox, c.bbox) for i in real)]
+        if real:
+            # In photos with real human people, characters must have an anime face.
+            # Faceless bodies in a photo with real people are human bodies, never cartoons.
+            characters = [c for c in characters
+                          if getattr(c, "face_bbox", None) is not None
+                          and not any(_centre_inside(faces[i].bbox, c.bbox) for i in real)]
+        else:
+            characters = [c for c in characters
+                          if not any(_centre_inside(faces[i].bbox, c.bbox) for i in real)]
         attach_identity(img, characters, get_ccip_embedder())
         timings["characters"] = (time.perf_counter() - t) * 1000.0
         faces = [faces[i] for i in real]
         quality = [quality[i] for i in real]
         passes = [True] * len(real)
-        # Illustrated characters never become human body identities.
-        bodies = []
+        # Illustrated characters never become human body identities,
+        # but real human bodies must be preserved when detect_bodies is requested.
+        if options.detect_bodies:
+            char_body_boxes = [
+                c.body_bbox if getattr(c, "body_bbox", None) is not None else c.bbox
+                for c in characters
+            ]
+            drawn_face_boxes = [f.bbox for i, f in enumerate(faces_orig) if drawn[i]]
+            def _is_char_body(b):
+                if any(np.allclose(b.bbox, cbox, atol=1.0) for cbox in char_body_boxes):
+                    return True
+                if any(_centre_inside(dbox, b.bbox) for dbox in drawn_face_boxes):
+                    return True
+                return False
+            bodies = [b for b in bodies if not _is_char_body(b)]
+        else:
+            bodies = []
     pairs = pl.associate_faces_bodies([f.bbox for f in faces], bodies,
                                       face_kps=[f.kps for f in faces]) if bodies else []
     if any(drawn) and not want_characters:
