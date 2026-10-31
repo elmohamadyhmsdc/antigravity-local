@@ -97,6 +97,7 @@ class ScanEngine {
   final _controller = StreamController<ScanProgress>.broadcast();
   ScanProgress _progress = const ScanProgress();
   bool _active = false;
+  bool _canDetectCharacters = false;
   Completer<void>? _settled;
   bool _pauseRequested = false;
   bool _allowReconnectResume = true;
@@ -206,11 +207,12 @@ class ScanEngine {
     }
     final prefs = await _settings.load();
     _emit(const ScanProgress(phase: ScanPhase.preparing));
+    final caps = await api.capabilities();
+    _canDetectCharacters = caps.engines.characterDetection;
     final characterAlbums = prefs.characterAlbumIds.toSet().intersection(
       prefs.albumIds.toSet(),
     );
-    if (characterAlbums.isNotEmpty &&
-        !(await api.capabilities()).engines.characterDetection) {
+    if (characterAlbums.isNotEmpty && !_canDetectCharacters) {
       await _pause(
         PauseReason.error,
         'Character detection is unavailable. Update the PC server and check its body models.',
@@ -531,23 +533,25 @@ class ScanEngine {
             report: (_, _) {},
             onProgress: onVideoProgress,
             onPreview: preview,
+            characterScan: row.illustrated || _canDetectCharacters,
           );
           return _Scanned(
             outcome,
             (await _settings.load()).modelId ?? modelId ?? 'buffalo_l@1',
           );
         }
+        final isCharScan = row.illustrated || _canDetectCharacters;
         final response = await api.analyzeImage(
           bytes!,
           options: AnalyzeOptions(
             detectBodies: prefs.scanBodies,
-            detectCharacters: row.illustrated,
+            detectCharacters: isCharScan,
             minQuality: prefs.qualityGate,
             modelId: modelId,
           ),
         );
         // Illustrated files only carry face vectors when a real face was found.
-        final faceModel = !row.illustrated || response.faces.isNotEmpty;
+        final faceModel = !isCharScan || response.faces.isNotEmpty;
         if (faceModel && modelId != null && response.modelId != modelId) {
           return _stop(row.id, PauseReason.modelMismatch, response.modelId);
         }

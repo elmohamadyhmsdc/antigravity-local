@@ -65,6 +65,7 @@ class VideoScan {
     required void Function(String stage, double progress) report,
     void Function(VideoScanProgress progress)? onProgress,
     void Function(Uint8List bytes, int? timestampMs)? onPreview,
+    bool characterScan = false,
   }) async {
     final startedAt = DateTime.now();
     var stageStartedAt = startedAt;
@@ -223,6 +224,7 @@ class VideoScan {
 
     String? warning;
     var workerRetries = 0;
+    final isCharScan = media.illustrated || characterScan;
     var nextFrame =
         (await LibraryRepository(db).mediaById(media.id))?.lastScannedFrame ??
         0;
@@ -417,7 +419,7 @@ class VideoScan {
               filename: 'frame.jpg',
               options: AnalyzeOptions(
                 detectBodies: prefs.scanBodies,
-                detectCharacters: media.illustrated,
+                detectCharacters: isCharScan,
                 minQuality: prefs.qualityGate,
                 modelId: prefs.modelId,
               ),
@@ -427,7 +429,7 @@ class VideoScan {
               analysis,
               frame,
               timeOf(frame),
-              characterScan: media.illustrated,
+              characterScan: isCharScan,
             );
             publish(VideoScanStage.analyze, done / samples.length);
           }
@@ -522,7 +524,7 @@ class VideoScan {
                   : 'fixed',
               'min_quality': prefs.qualityGate,
               'detect_bodies': prefs.scanBodies,
-              'detect_characters': media.illustrated,
+              'detect_characters': isCharScan,
               'model_id': prefs.modelId,
               'start_frame': current.lastScannedFrame,
             },
