@@ -81,6 +81,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
     final unsorted = ref.watch(unsortedCountProvider).value ?? 0;
     final review = ref.watch(reviewCountsProvider).value?.total ?? 0;
     final questions = ref.watch(reviewQuestionsProvider).value?.length ?? 0;
+    final charactersCount = ref.watch(charactersProvider).value?.length ?? 0;
     final allPeople = people.value ?? const <PersonSummary>[];
     final q = _query.trim().toLowerCase();
     final visible = allPeople
@@ -111,7 +112,11 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
             key: const Key('open-characters'),
             tooltip: l10n.charactersTitle,
             onPressed: () => context.push(Routes.characters),
-            icon: const Icon(Icons.auto_awesome_outlined),
+            icon: Badge(
+              isLabelVisible: charactersCount > 0,
+              label: Text('$charactersCount'),
+              child: const Icon(Icons.auto_awesome_outlined),
+            ),
           ),
           IconButton(
             key: const Key('open-review'),
