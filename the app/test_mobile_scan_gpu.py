@@ -93,11 +93,24 @@ def main():
                 print(f'SCAN {size}px faces + bodies + pose', flush=True)
                 response = client.post('/v1/analyze/image', headers=headers,
                     files={'image': ('fixture.jpg', payload, 'image/jpeg')},
-                    data={'options': json.dumps({'detect_bodies': True, 'min_quality': .4})})
+                    data={'options': json.dumps({'detect_bodies': True, 'min_quality': .4, 'return_outlines': True})})
                 assert response.status_code == 200, response.text[:1000]
                 data = response.json()
                 assert client.get('/v1/health').status_code == 200
-                print(f"PASS {size}px: {len(data['faces'])} faces, {len(data['bodies'])} bodies", flush=True)
+                outline_ms = data.get("timings_ms", {}).get("outline", 0)
+                fw, fh = frame.shape[1], frame.shape[0]
+                for f in data['faces']:
+                    if f.get('passes_gate'):
+                        assert f.get('outline') is not None, 'Stored face must have outline'
+                        assert len(f['outline']) >= 8, f"Expected >= 8 points, got {len(f['outline'])}"
+                        for pt in f['outline']:
+                            assert -50 <= pt[0] <= fw + 50 and -50 <= pt[1] <= fh + 50
+                for b in data['bodies']:
+                    assert b.get('outline') is not None, 'Body must have outline'
+                    assert len(b['outline']) >= 8, f"Expected >= 8 points, got {len(b['outline'])}"
+                    for pt in b['outline']:
+                        assert -50 <= pt[0] <= fw + 50 and -50 <= pt[1] <= fh + 50
+                print(f"PASS {size}px: {len(data['faces'])} faces, {len(data['bodies'])} bodies, outline {outline_ms} ms", flush=True)
             if not args.live: assert engines._scan_worker.loaded
             print('PASS: real scan, all local models; server responsive after every request.', flush=True)
     print('Loaded Streamlit:', 'streamlit' in sys.modules, flush=True)
