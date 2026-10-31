@@ -47,6 +47,20 @@ def get_anime_detector():
     return _anime_detector
 
 
+_ccip_embedder: Optional[Any] = None
+
+
+def get_ccip_embedder():
+    """Lazily load the CCIP character identity model if it is installed."""
+    global _ccip_embedder
+    if _ccip_embedder is None:
+        model_path = os.path.join(os.path.dirname(__file__), "models", "ccip_character.onnx")
+        if os.path.exists(model_path):
+            from character_embedder import CcipEmbedder
+            _ccip_embedder = CcipEmbedder(model_path)
+    return _ccip_embedder
+
+
 @dataclass
 class AnalyzeOptions:
     """The subset of ScanOptions analysis needs. Any object with these three
@@ -195,16 +209,17 @@ def analyze_frame(face_app, body, img, options,
         timings["body"] = (time.perf_counter() - t) * 1000.0
     characters = []
     if want_characters:
-        from character_detection import detect_characters
+        from character_detection import attach_identity, detect_characters
         t = time.perf_counter()
         characters = detect_characters(img, bodies, anime_faces=anime_faces)
-        timings["characters"] = (time.perf_counter() - t) * 1000.0
         # A body around a clear real face is a real person: keep the face (it goes to
         # People) and drop that "character".
         real = [i for i, f in enumerate(faces)
                 if passes[i] and not drawn[i] and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY]
         characters = [c for c in characters
                       if not any(_centre_inside(faces[i].bbox, c.bbox) for i in real)]
+        attach_identity(img, characters, get_ccip_embedder())
+        timings["characters"] = (time.perf_counter() - t) * 1000.0
         faces = [faces[i] for i in real]
         quality = [quality[i] for i in real]
         passes = [True] * len(real)

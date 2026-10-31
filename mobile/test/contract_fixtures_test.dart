@@ -13,11 +13,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 final _fixtureDir = Directory('../the app/mobile_api/contract/fixtures');
 
-/// 512 x float32 little-endian, base64 - see openapi.yaml `Embedding`.
-Float32List decodeEmbedding(String b64) {
+/// float32 little-endian, base64 - see openapi.yaml `Embedding` (512) and the character
+/// face's CCIP vector (768), whose length follows its sibling `embedding_model_id`.
+Float32List decodeEmbedding(String b64, [int dim = 512]) {
   final bytes = base64Decode(b64);
-  expect(bytes.length, 2048, reason: 'embedding must be 512 float32');
-  return bytes.buffer.asFloat32List(bytes.offsetInBytes, 512);
+  expect(bytes.length, dim * 4, reason: 'embedding must be $dim float32');
+  return bytes.buffer.asFloat32List(bytes.offsetInBytes, dim);
 }
 
 double norm(Float32List v) {
@@ -28,14 +29,20 @@ double norm(Float32List v) {
   return sqrt(sum);
 }
 
-Iterable<String> embeddingsIn(Object? node, [String? key]) sync* {
+/// Every embedding in a document with its length in values.
+Iterable<(String, int)> embeddingsIn(
+  Object? node, [
+  String? key,
+  int dim = 512,
+]) sync* {
   if (node is Map) {
+    final ccip = '${node['embedding_model_id'] ?? ''}'.startsWith('ccip');
     for (final e in node.entries) {
-      yield* embeddingsIn(e.value, e.key as String);
+      yield* embeddingsIn(e.value, e.key as String, ccip ? 768 : dim);
     }
   } else if (node is List) {
     for (final v in node) {
-      yield* embeddingsIn(v, key);
+      yield* embeddingsIn(v, key, dim);
     }
   } else if (node is String &&
       (key == 'embedding' ||
@@ -43,7 +50,7 @@ Iterable<String> embeddingsIn(Object? node, [String? key]) sync* {
           key == 'proto' ||
           key == 'weak_face_embedding' ||
           key == 'members')) {
-    yield node;
+    yield (node, dim);
   }
 }
 
@@ -76,8 +83,8 @@ void main() {
         3,
         reason: 'expected <Schema>.<variant>.json',
       );
-      for (final s in embeddingsIn(json)) {
-        final v = decodeEmbedding(s);
+      for (final (s, dim) in embeddingsIn(json)) {
+        final v = decodeEmbedding(s, dim);
         expect(v.every((x) => x.isFinite), isTrue);
         expect(
           norm(v),

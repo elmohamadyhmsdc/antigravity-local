@@ -90,8 +90,11 @@ class PersonAvatar extends StatelessWidget {
 }
 
 /// "Sara", or "Person 12" for someone who was never named.
-String personName(AppLocalizations l10n, PersonSummary person) =>
-    person.isNamed ? person.name!.trim() : l10n.personFallbackName(person.id);
+String personName(AppLocalizations l10n, PersonSummary person) => person.isNamed
+    ? person.name!.trim()
+    : person.kind == 'character'
+    ? l10n.characterFallback(person.id)
+    : l10n.personFallbackName(person.id);
 
 String personNameOf(
   AppLocalizations l10n,

@@ -16,7 +16,7 @@ Future<void> loadFacesIntoIndex(
   while (true) {
     final rows = await db
         .customSelect(
-          'SELECT id, embedding FROM faces WHERE id > ? ORDER BY id LIMIT ?',
+          "SELECT id, embedding FROM faces WHERE id > ? AND kind = 'person' ORDER BY id LIMIT ?",
           variables: [Variable.withInt(lastId), Variable.withInt(pageSize)],
           readsFrom: {db.faces},
         )

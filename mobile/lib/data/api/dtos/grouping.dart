@@ -25,17 +25,17 @@ class GroupingModel {
 
   Map<String, dynamic> toJson() => {
     'pid': pid,
-    'proto': encodeEmbedding(proto),
-    'members': [for (final m in members) encodeEmbedding(m)],
+    'proto': encodeVector(proto),
+    'members': [for (final m in members) encodeVector(m)],
     'count': count,
   };
 
   factory GroupingModel.fromJson(Map<String, dynamic> json) => GroupingModel(
     pid: integer(json, 'pid', 'models[]'),
-    proto: decodeEmbedding(field<String>(json, 'proto', 'models[]')),
+    proto: decodeVectorAuto(field<String>(json, 'proto', 'models[]')),
     members: [
       for (final m in list(json['members'], 'models[].members'))
-        decodeEmbedding(m as String),
+        decodeVectorAuto(m as String),
     ],
     count: integer(json, 'count', 'models[]'),
   );
@@ -60,7 +60,7 @@ class GroupingFace {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'embedding': encodeEmbedding(embedding),
+    'embedding': encodeVector(embedding),
     'quality': quality,
     'frame_key': frameKey,
     'rejected_person_ids': rejectedPersonIds,
@@ -68,7 +68,7 @@ class GroupingFace {
 
   factory GroupingFace.fromJson(Map<String, dynamic> json) => GroupingFace(
     id: integer(json, 'id', 'pending[]'),
-    embedding: decodeEmbedding(field<String>(json, 'embedding', 'pending[]')),
+    embedding: decodeVectorAuto(field<String>(json, 'embedding', 'pending[]')),
     quality: number(json, 'quality', 'pending[]'),
     frameKey: json['frame_key'] as String?,
     rejectedPersonIds: [
@@ -108,7 +108,7 @@ class GroupingBody {
     'anchor_person_id': anchorPersonId,
     'appearance': appearance,
     if (weakFaceEmbedding != null)
-      'weak_face_embedding': encodeEmbedding(weakFaceEmbedding!),
+      'weak_face_embedding': encodeVector(weakFaceEmbedding!),
     'rejected_person_ids': rejectedPersonIds,
   };
 
@@ -123,7 +123,7 @@ class GroupingBody {
       appearance: appearance == null
           ? null
           : numbers(appearance, 'bodies[].appearance'),
-      weakFaceEmbedding: weak is String ? decodeEmbedding(weak) : null,
+      weakFaceEmbedding: weak is String ? decodeVectorAuto(weak) : null,
       rejectedPersonIds: [
         for (final p in list(
           json['rejected_person_ids'],

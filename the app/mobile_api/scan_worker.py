@@ -31,7 +31,10 @@ def encode_result(result):
         bodies=[dict(bbox=b.bbox, score=b.score, kpts=b.kpts, kpt_scores=b.kpt_scores) for b in result.bodies],
         appearances=result.appearances, pairs=result.pairs, image_w=result.image_w,
         image_h=result.image_h, timings_ms=result.timings_ms,
-        characters=[dict(bbox=c.bbox, score=c.score, descriptor=c.descriptor, model_id=c.model_id)
+        characters=[dict(bbox=c.bbox, score=c.score, descriptor=c.descriptor, model_id=c.model_id,
+                         face_bbox=c.face_bbox, face_score=c.face_score, face_embedding=c.face_embedding,
+                         body_bbox=c.body_bbox, body_score=c.body_score, body_kpts=c.body_kpts,
+                         body_kpt_scores=c.body_kpt_scores, body_appearance=c.body_appearance)
                     for c in result.characters],
         face_outlines=[f.tolist() if isinstance(f, np.ndarray) else f for f in getattr(result, 'face_outlines', [])],
         body_outlines=[b.tolist() if isinstance(b, np.ndarray) else b for b in getattr(result, 'body_outlines', [])]))
@@ -47,8 +50,16 @@ def decode_result(value):
     value['faces'] = [SimpleNamespace(**f) for f in value['faces']]
     value['bodies'] = [SimpleNamespace(**b) for b in value['bodies']]
     from character_detection import Character
+    def optional(c, key):
+        return None if c.get(key) is None else np.asarray(c[key], np.float32)
     value['characters'] = [Character(np.asarray(c['bbox'], np.float32), c['score'],
-                                     np.asarray(c['descriptor'], np.float32), c['model_id'])
+                                     np.asarray(c['descriptor'], np.float32), c['model_id'],
+                                     face_bbox=optional(c, 'face_bbox'), face_score=c.get('face_score') or 0.0,
+                                     face_embedding=optional(c, 'face_embedding'),
+                                     body_bbox=optional(c, 'body_bbox'), body_score=c.get('body_score') or 0.0,
+                                     body_kpts=optional(c, 'body_kpts'),
+                                     body_kpt_scores=optional(c, 'body_kpt_scores'),
+                                     body_appearance=optional(c, 'body_appearance'))
                            for c in value.get('characters', [])]
     if 'face_outlines' in value:
         value['face_outlines'] = [

@@ -133,7 +133,7 @@ class DrawnFaceSweep {
     while (true) {
       final rows = await _db
           .customSelect(
-            'SELECT id, embedding FROM faces WHERE id > ? ORDER BY id LIMIT 2000',
+            "SELECT id, embedding FROM faces WHERE id > ? AND kind = 'person' ORDER BY id LIMIT 2000",
             variables: [Variable.withInt(after)],
             readsFrom: {_db.faces},
           )

@@ -21,6 +21,49 @@ Float32List decodeEmbedding(String base64Text) {
   return out;
 }
 
+/// Drawn (anime/cartoon) faces are identified by CCIP: 768 x float32, unit length.
+const characterEmbeddingModelId = 'ccip-caformer24@1';
+const characterEmbeddingDim = 768;
+
+/// Any identity vector of a known length, base64 little-endian float32.
+Float32List decodeVector(String base64Text, int dim) {
+  final bytes = base64Decode(base64Text);
+  if (bytes.length != dim * 4) {
+    throw FormatException(
+      'A vector must be ${dim * 4} bytes, got ${bytes.length}',
+    );
+  }
+  return vectorFromBlob(Uint8List.fromList(bytes));
+}
+
+/// A stored identity vector of any length (people: 512, characters: 768).
+Float32List vectorFromBlob(Uint8List blob) {
+  if (blob.isEmpty || blob.length % 4 != 0) {
+    throw FormatException('Stored vector has ${blob.length} bytes');
+  }
+  final view = ByteData.sublistView(blob);
+  final out = Float32List(blob.length ~/ 4);
+  for (var i = 0; i < out.length; i++) {
+    out[i] = view.getFloat32(i * 4, Endian.little);
+  }
+  return out;
+}
+
+/// Base64 little-endian float32 of a vector of any length (people: 512, characters: 768).
+String encodeVector(Float32List vector) {
+  final out = ByteData(vector.length * 4);
+  for (var i = 0; i < vector.length; i++) {
+    out.setFloat32(i * 4, vector[i], Endian.little);
+  }
+  return base64Encode(out.buffer.asUint8List());
+}
+
+/// The reverse of [encodeVector]; the length is whatever the sender used.
+Float32List decodeVectorAuto(String base64Text) {
+  final bytes = base64Decode(base64Text);
+  return vectorFromBlob(Uint8List.fromList(bytes));
+}
+
 String encodeEmbedding(Float32List vector) {
   if (vector.length != embeddingDim) {
     throw ArgumentError(

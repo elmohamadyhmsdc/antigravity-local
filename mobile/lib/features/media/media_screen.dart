@@ -141,8 +141,10 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         ref.watch(detectionsProvider(activeId)).value ??
         const <MediaDetection>[];
     final people = {
-      for (final p
-          in ref.watch(peopleProvider).value ?? const <PersonSummary>[])
+      for (final p in [
+        ...ref.watch(peopleProvider).value ?? const <PersonSummary>[],
+        ...ref.watch(charactersProvider).value ?? const <PersonSummary>[],
+      ])
         p.id: p,
     };
 
@@ -280,15 +282,21 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
 
   /// "Who is this?" for one face (or a body without a person): pick or name someone.
   Future<void> _reassign(BuildContext context, MediaDetection d) async {
-    final repo = ref.read(peopleRepositoryProvider);
+    final repo = peopleRepositoryFor(ref, d.figure);
     final choice = await pickPerson(
       context,
       excludePersonId: d.personId,
       allowNew: d.isFace,
+      kind: d.figure,
     );
     if (choice == null) return;
     if (d.isFace) {
-      final target = await resolveChoice(ref, choice, faceIds: [d.refId]);
+      final target = await resolveChoice(
+        ref,
+        choice,
+        faceIds: [d.refId],
+        kind: d.figure,
+      );
       if (!choice.isNew) await repo.assignFaces([d.refId], target);
     } else if (choice.personId != null) {
       await repo.linkBody(d.refId, choice.personId!);

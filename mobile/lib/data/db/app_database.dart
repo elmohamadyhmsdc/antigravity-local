@@ -79,7 +79,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 13;
+  static const currentSchemaVersion = 14;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -224,6 +224,23 @@ class AppDatabase extends _$AppDatabase {
       if (from < 13) {
         await addMissing(mediaDetections, [mediaDetections.outline]);
       }
+      if (from < 14) {
+        await addMissing(persons, [persons.kind]);
+        await addMissing(faces, [faces.kind]);
+        await addMissing(bodies, [bodies.kind]);
+        await addMissing(reviewGroups, [reviewGroups.kind]);
+        // Characters now have faces and bodies like people. The old one-box samples
+        // carry no face or body, so their files are scanned again.
+        await customStatement('''
+          UPDATE media SET scan_status = 'pending', scan_version = 0,
+            last_scanned_frame = 0, scan_attempts = 0, scan_error = NULL
+          WHERE id IN (SELECT media_id FROM character_samples)''');
+        await customStatement('DELETE FROM character_samples');
+        await customStatement('DELETE FROM character_identities');
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS faces_kind ON faces (kind)',
+        );
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -235,11 +252,11 @@ class AppDatabase extends _$AppDatabase {
     return customSelect(
       '''
       SELECT
-        (SELECT COUNT(*) FROM persons) AS people,
-        (SELECT COUNT(*) FROM faces) AS faces,
+        (SELECT COUNT(*) FROM persons WHERE kind = 'person') AS people,
+        (SELECT COUNT(*) FROM faces WHERE kind = 'person') AS faces,
         (SELECT COUNT(*) FROM media WHERE kind = 'photo') AS photos,
         (SELECT COUNT(*) FROM media WHERE kind = 'video') AS videos,
-        (SELECT COUNT(*) FROM faces WHERE person_id IS NULL AND review_dismissed = 0) AS unsorted
+        (SELECT COUNT(*) FROM faces WHERE person_id IS NULL AND review_dismissed = 0 AND kind = 'person') AS unsorted
       ''',
       readsFrom: {persons, faces, media},
     ).watchSingle().map(

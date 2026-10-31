@@ -25,17 +25,17 @@ class InsightsRepository {
       .customSelect(
         '''
     SELECT
-      (SELECT COUNT(*) FROM persons) AS people,
-      (SELECT COUNT(*) FROM faces) AS faces,
+      (SELECT COUNT(*) FROM persons WHERE kind = 'person') AS people,
+      (SELECT COUNT(*) FROM faces WHERE kind = 'person') AS faces,
       (SELECT COUNT(*) FROM media WHERE kind = 'photo') AS photos,
       (SELECT COUNT(*) FROM media WHERE kind = 'video') AS videos,
       (SELECT COUNT(*) FROM media WHERE scan_status = 'done') AS scanned,
       (SELECT COUNT(*) FROM media WHERE scan_status = 'failed') AS failed,
-      (SELECT COUNT(*) FROM faces WHERE person_id IS NOT NULL) AS identified_faces,
-      (SELECT COUNT(*) FROM faces WHERE person_id IS NULL AND review_dismissed = 0) AS unsorted,
-      (SELECT COUNT(*) FROM bodies) AS bodies,
+      (SELECT COUNT(*) FROM faces WHERE person_id IS NOT NULL AND kind = 'person') AS identified_faces,
+      (SELECT COUNT(*) FROM faces WHERE person_id IS NULL AND review_dismissed = 0 AND kind = 'person') AS unsorted,
+      (SELECT COUNT(*) FROM bodies WHERE kind = 'person') AS bodies,
       (SELECT COUNT(*) FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
-        WHERE COALESCE(f.person_id, b.person_id) IS NOT NULL) AS identified_bodies
+        WHERE b.kind = 'person' AND COALESCE(f.person_id, b.person_id) IS NOT NULL) AS identified_bodies
     ''',
         readsFrom: {
           db.persons,
@@ -60,6 +60,7 @@ class InsightsRepository {
         )
         SELECT p.id, p.name, COUNT(DISTINCT s.media_id) AS media_count
         FROM persons p JOIN sightings s ON s.person_id = p.id
+        WHERE p.kind = 'person'
         GROUP BY p.id ORDER BY media_count DESC, p.id LIMIT 10
       ''',
               readsFrom: {db.persons, db.faces, db.bodies, db.mediaDetections},

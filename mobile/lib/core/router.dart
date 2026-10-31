@@ -10,7 +10,6 @@ import '../features/library/library_screen.dart';
 import '../features/media/media_screen.dart';
 import '../features/merge/merge_screen.dart';
 import '../features/people/people_screen.dart';
-import '../features/characters/characters_screen.dart';
 import '../features/people/person_detail_screen.dart';
 import '../features/people/unsorted_screen.dart';
 import '../features/onboarding/manual_pair_screen.dart';
@@ -112,7 +111,7 @@ GoRouter createRouter({
     routes: [
       GoRoute(
         path: Routes.characters,
-        builder: (context, state) => const CharactersScreen(),
+        builder: (context, state) => const PeopleScreen(kind: 'character'),
       ),
       GoRoute(
         path: Routes.connection,
@@ -206,7 +205,11 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.unsorted,
-        builder: (context, state) => const UnsortedScreen(),
+        builder: (context, state) => UnsortedScreen(
+          kind: state.uri.queryParameters['kind'] == 'character'
+              ? 'character'
+              : 'person',
+        ),
       ),
       GoRoute(
         path: '${Routes.people}/:id',
@@ -262,8 +265,12 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.review,
-        builder: (context, state) =>
-            ReviewEntryScreen(view: state.uri.queryParameters['view']),
+        builder: (context, state) => ReviewEntryScreen(
+          view: state.uri.queryParameters['view'],
+          kind: state.uri.queryParameters['kind'] == 'character'
+              ? 'character'
+              : 'person',
+        ),
       ),
       GoRoute(
         path: Routes.sources,

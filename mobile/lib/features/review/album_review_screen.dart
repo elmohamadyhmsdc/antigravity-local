@@ -14,10 +14,11 @@ import 'highlighted_photo.dart';
 import 'review_media_viewer.dart';
 
 /// How many suggestions wait inside one person's album (faces by likeness, bodies by outfit).
-int albumReviewCount(WidgetRef ref, int personId) {
+int albumReviewCount(WidgetRef ref, int personId, [String kind = 'person']) {
   final faces = ref.watch(personMatchesProvider(personId)).value?.length ?? 0;
   final bodies =
-      (ref.watch(reviewBodyLinksProvider).value ?? const <ReviewBodyLinkItem>[])
+      (ref.watch(reviewBodyLinksProvider(kind)).value ??
+              const <ReviewBodyLinkItem>[])
           .where((l) => l.person.id == personId)
           .length;
   return faces + bodies;
@@ -47,7 +48,7 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
     final l = AppLocalizations.of(context);
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final review = ref.read(reviewRepositoryProvider);
+    final review = reviewRepositoryFor(ref, widget.person.kind);
     final id = widget.person.id;
     bool on(ReviewTarget t) => !_off.contains('${t.kind}:${t.id}');
     setState(() => _saving = true);
@@ -93,7 +94,7 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
     final id = widget.person.id;
     final name = personName(l, widget.person);
     final faces = ref.watch(personMatchesProvider(id));
-    final links = ref.watch(reviewBodyLinksProvider);
+    final links = ref.watch(reviewBodyLinksProvider(widget.person.kind));
     if (faces.isLoading || links.isLoading) {
       return Scaffold(appBar: AppBar(), body: const LoadingBox());
     }

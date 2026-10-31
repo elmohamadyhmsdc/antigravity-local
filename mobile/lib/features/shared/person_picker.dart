@@ -23,6 +23,7 @@ Future<PersonChoice?> pickPerson(
   int? excludePersonId,
   String? title,
   bool allowNew = true,
+  String kind = 'person',
 }) {
   return showModalBottomSheet<PersonChoice>(
     context: context,
@@ -35,6 +36,7 @@ Future<PersonChoice?> pickPerson(
         excludePersonId: excludePersonId,
         title: title,
         allowNew: allowNew,
+        kind: kind,
       ),
     ),
   );
@@ -45,11 +47,13 @@ class _PersonPickerSheet extends ConsumerStatefulWidget {
     required this.excludePersonId,
     required this.title,
     required this.allowNew,
+    required this.kind,
   });
 
   final int? excludePersonId;
   final String? title;
   final bool allowNew;
+  final String kind;
 
   @override
   ConsumerState<_PersonPickerSheet> createState() => _PersonPickerSheetState();
@@ -73,7 +77,9 @@ class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final peopleState = ref.watch(peopleProvider);
+    final peopleState = ref.watch(
+      widget.kind == 'character' ? charactersProvider : peopleProvider,
+    );
     final people = peopleState.value ?? const <PersonSummary>[];
     final shown = [
       for (final p in people)
@@ -149,7 +155,13 @@ class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
                   ),
                 if (peopleState.isLoading) const LoadingBox(),
                 if (peopleState.hasError)
-                  RetryState(onRetry: () => ref.invalidate(peopleProvider)),
+                  RetryState(
+                    onRetry: () => ref.invalidate(
+                      widget.kind == 'character'
+                          ? charactersProvider
+                          : peopleProvider,
+                    ),
+                  ),
                 if (!peopleState.isLoading &&
                     !peopleState.hasError &&
                     shown.isEmpty)
@@ -219,8 +231,9 @@ Future<int> resolveChoice(
   WidgetRef ref,
   PersonChoice choice, {
   Iterable<int> faceIds = const [],
+  String kind = 'person',
 }) async {
-  final people = ref.read(peopleRepositoryProvider);
+  final people = peopleRepositoryFor(ref, kind);
   if (choice.isNew) {
     return people.createPerson(name: choice.newName, faceIds: faceIds);
   }

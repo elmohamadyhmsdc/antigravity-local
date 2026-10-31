@@ -95,15 +95,21 @@ for needed in ("/v1/health", "/v1/capabilities", "/v1/pair/complete", "/v1/blobs
 EMBEDDING_KEYS = {"embedding", "proto", "weak_face_embedding", "target_embeddings"}
 
 
-def embeddings_in(node, key=None):
+CCIP_BYTES = 768 * 4  # character faces: CCIP, announced by embedding_model_id
+FACE_BYTES = 512 * 4
+
+
+def embeddings_in(node, key=None, size=FACE_BYTES):
+    """Yield (base64 text, expected byte length) for every embedding in a document."""
     if isinstance(node, dict):
+        size = CCIP_BYTES if str(node.get("embedding_model_id", "")).startswith("ccip") else size
         for k, v in node.items():
-            yield from embeddings_in(v, k)
+            yield from embeddings_in(v, k, size)
     elif isinstance(node, list):
         for v in node:
-            yield from embeddings_in(v, key)
+            yield from embeddings_in(v, key, size)
     elif isinstance(node, str) and (key in EMBEDDING_KEYS or key == "members"):
-        yield node
+        yield node, size
 
 
 fixtures = sorted((HERE / "fixtures").glob("*.json"))
@@ -122,14 +128,15 @@ for path in fixtures:
 
     bad = []
     n = 0
-    for s in embeddings_in(data):
+    for s, size in embeddings_in(data):
         n += 1
         raw = base64.b64decode(s)
         v = np.frombuffer(raw, dtype="<f4")
-        if len(raw) != 2048 or not np.isfinite(v).all() or abs(float(np.linalg.norm(v)) - 1.0) > 1e-3:
+        if len(raw) != size or not np.isfinite(v).all() or abs(float(np.linalg.norm(v)) - 1.0) > 1e-3:
             bad.append(s[:12])
     if n:
-        check(not bad, f"{path.name}: {n} embeddings are 512 finite unit float32", f"bad: {bad[:3]}")
+        check(not bad, f"{path.name}: {n} embeddings are finite unit float32 of the announced size",
+              f"bad: {bad[:3]}")
 
 # --------------------------------------------------------------------------- 4. negatives
 

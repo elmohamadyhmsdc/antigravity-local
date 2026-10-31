@@ -124,6 +124,9 @@ class ReviewRepository {
   final AppDatabase _db;
   final PeopleRepository _people;
 
+  /// 'person' or 'character': each kind has its own review plan, stored side by side.
+  String get kind => _people.kind;
+
   Stream<void> _changes() => _db
       .tableUpdates(
         TableUpdateQuery.onAllTables([
@@ -147,15 +150,34 @@ class ReviewRepository {
   Future<void> replaceAll(
     GroupingPlanResponse review,
   ) => _db.transaction(() async {
-    await _db.delete(_db.reviewMatches).go();
-    await _db.delete(_db.reviewGroups).go();
-    await _db.delete(_db.reviewDuplicates).go();
-    await _db.delete(_db.reviewBodyLinks).go();
+    final own = [Variable.withString(kind)];
+    await _db.customUpdate(
+      'DELETE FROM review_matches WHERE face_id IN (SELECT id FROM faces WHERE kind = ?)',
+      variables: own,
+      updates: {_db.reviewMatches},
+    );
+    await (_db.delete(
+      _db.reviewGroups,
+    )..where((g) => g.kind.equals(kind))).go();
+    await _db.customUpdate(
+      'DELETE FROM review_duplicates WHERE person_a IN (SELECT id FROM persons WHERE kind = ?)',
+      variables: own,
+      updates: {_db.reviewDuplicates},
+    );
+    await _db.customUpdate(
+      'DELETE FROM review_body_links WHERE body_id IN (SELECT id FROM bodies WHERE kind = ?)',
+      variables: own,
+      updates: {_db.reviewBodyLinks},
+    );
 
     final persons = {
       for (final r
           in await _db
-              .customSelect('SELECT id FROM persons', readsFrom: {_db.persons})
+              .customSelect(
+                'SELECT id FROM persons WHERE kind = ?',
+                variables: own,
+                readsFrom: {_db.persons},
+              )
               .get())
         r.read<int>('id'),
     };
@@ -163,7 +185,8 @@ class ReviewRepository {
       for (final r
           in await _db
               .customSelect(
-                'SELECT id FROM faces WHERE person_id IS NULL AND review_dismissed = 0',
+                'SELECT id FROM faces WHERE person_id IS NULL AND review_dismissed = 0 AND kind = ?',
+                variables: own,
                 readsFrom: {_db.faces},
               )
               .get())
@@ -172,7 +195,11 @@ class ReviewRepository {
     final bodies = {
       for (final r
           in await _db
-              .customSelect('SELECT id FROM bodies', readsFrom: {_db.bodies})
+              .customSelect(
+                'SELECT id FROM bodies WHERE kind = ?',
+                variables: own,
+                readsFrom: {_db.bodies},
+              )
               .get())
         r.read<int>('id'),
     };
@@ -213,6 +240,7 @@ class ReviewRepository {
               cohesion: g.cohesion,
               quality: g.quality,
               autoCreate: Value(g.autoCreate),
+              kind: Value(kind),
             ),
       ]);
       b.insertAll(_db.reviewDuplicates, [
@@ -251,7 +279,8 @@ class ReviewRepository {
     final matches =
         (await _db
                 .customSelect(
-                  "SELECT COUNT(DISTINCT m.person_id || ':' || COALESCE(f.track_id, -f.id)) AS n FROM review_matches m JOIN faces f ON f.id = m.face_id WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)",
+                  "SELECT COUNT(DISTINCT m.person_id || ':' || COALESCE(f.track_id, -f.id)) AS n FROM review_matches m JOIN faces f ON f.id = m.face_id WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND f.kind = ? AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)",
+                  variables: [Variable.withString(kind)],
                   readsFrom: {_db.reviewMatches, _db.faces, _db.faceRejections},
                 )
                 .getSingle())
@@ -260,8 +289,13 @@ class ReviewRepository {
     final duplicates =
         (await _db
                 .customSelect(
-                  'SELECT COUNT(*) AS n FROM review_duplicates d WHERE NOT EXISTS (SELECT 1 FROM person_distinct p WHERE p.person_a = d.person_a AND p.person_b = d.person_b)',
-                  readsFrom: {_db.reviewDuplicates, _db.personDistinct},
+                  'SELECT COUNT(*) AS n FROM review_duplicates d JOIN persons pa ON pa.id = d.person_a WHERE pa.kind = ? AND NOT EXISTS (SELECT 1 FROM person_distinct p WHERE p.person_a = d.person_a AND p.person_b = d.person_b)',
+                  variables: [Variable.withString(kind)],
+                  readsFrom: {
+                    _db.reviewDuplicates,
+                    _db.personDistinct,
+                    _db.persons,
+                  },
                 )
                 .getSingle())
             .read<int>('n');
@@ -272,9 +306,10 @@ class ReviewRepository {
           SELECT COUNT(DISTINCT l.person_id || ':' || COALESCE(b.track_id, -b.id)) AS n
           FROM review_body_links l JOIN bodies b ON b.id = l.body_id
           LEFT JOIN faces f ON f.id = b.face_id
-          WHERE f.person_id IS NULL AND b.person_id IS NULL
+          WHERE f.person_id IS NULL AND b.person_id IS NULL AND b.kind = ?
             AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = l.person_id)
           ''',
+                  variables: [Variable.withString(kind)],
                   readsFrom: {_db.reviewBodyLinks, _db.bodies, _db.faces},
                 )
                 .getSingle())
@@ -304,10 +339,11 @@ class ReviewRepository {
           '''
           SELECT m.face_id, m.person_id, m.score, m.decision, f.crop_path, f.track_id
           FROM review_matches m JOIN faces f ON f.id = m.face_id
-          WHERE f.person_id IS NULL AND f.review_dismissed = 0
+          WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND f.kind = ?
             AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)
           ORDER BY m.person_id, m.score DESC
           ''',
+          variables: [Variable.withString(kind)],
           readsFrom: {_db.reviewMatches, _db.faces, _db.faceRejections},
         )
         .get();
@@ -345,7 +381,9 @@ class ReviewRepository {
 
   /// Groups whose faces are still unsorted (a face sorted since the plan was made drops out).
   Future<List<ReviewGroupItem>> groupItems() async {
-    final rows = await _db.select(_db.reviewGroups).get();
+    final rows = await (_db.select(
+      _db.reviewGroups,
+    )..where((g) => g.kind.equals(kind))).get();
     if (rows.isEmpty) return const [];
     final faces = <int, ReviewGroupFace>{};
     final all = rows
@@ -443,10 +481,11 @@ class ReviewRepository {
           SELECT l.body_id, l.person_id, l.method, l.confidence, b.media_id, b.crop_path, b.track_id
           FROM review_body_links l JOIN bodies b ON b.id = l.body_id
           LEFT JOIN faces f ON f.id = b.face_id
-          WHERE f.person_id IS NULL AND b.person_id IS NULL
+          WHERE f.person_id IS NULL AND b.person_id IS NULL AND b.kind = ?
             AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = l.person_id)
           ORDER BY l.confidence DESC
           ''',
+          variables: [Variable.withString(kind)],
           readsFrom: {_db.reviewBodyLinks, _db.bodies, _db.faces},
         )
         .get();

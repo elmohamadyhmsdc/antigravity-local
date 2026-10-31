@@ -58,6 +58,10 @@ class Persons extends Table {
   BoolColumn get pinned => boolean().withDefault(const Constant(false))();
   BoolColumn get groupingLocked =>
       boolean().withDefault(const Constant(false))();
+
+  // v14: 'person' | 'character' (a drawn figure). Characters live in the same tables and
+  // go through the same grouping/review/merge code, but every people query is scoped by kind.
+  TextColumn get kind => text().withDefault(const Constant('person'))();
 }
 
 /// A reusable choice of real source faces. Deleting a person/face cannot leave
@@ -156,6 +160,9 @@ class Faces extends Table {
   // v12: one appearance of a person in a video. Every face of it shares the id of
   // its first face; only a few varied views are rows, other frames are detections.
   IntColumn get trackId => integer().nullable()();
+
+  // v14: 'person' | 'character' - a drawn face (model ccip-caformer24@1, 768-d embedding).
+  TextColumn get kind => text().withDefault(const Constant('person'))();
 }
 
 /// Deletion decisions survive rescans and removal/reimport of the media row.
@@ -214,6 +221,9 @@ class Bodies extends Table {
 
   // v12: like faces.track_id, in the bodies' own id space.
   IntColumn get trackId => integer().nullable()();
+
+  // v14: 'person' | 'character'
+  TextColumn get kind => text().withDefault(const Constant('person'))();
 }
 
 /// "This face is not that person" - auto-grouping never redoes a correction.
@@ -358,6 +368,9 @@ class ReviewGroups extends Table {
   RealColumn get cohesion => real()();
   RealColumn get quality => real()();
   BoolColumn get autoCreate => boolean().withDefault(const Constant(false))();
+
+  // v14: 'person' | 'character' - each kind's review plan is replaced on its own.
+  TextColumn get kind => text().withDefault(const Constant('person'))();
 }
 
 @DataClassName('ReviewDuplicateRow')

@@ -225,6 +225,20 @@ def analyze_fixture():
                         "model_id": "character-appearance@1", "descriptor": [round(float(v), 6) for v in descriptor],
                         "crop_jpeg": None}],
     })
+    ccip = np.zeros(768, "<f4")
+    ccip[0] = 1.0
+    write("AnalyzeImageResponse.character_face_body", {
+        "model_id": "buffalo_l@1", "image_w": 128, "image_h": 256,
+        "faces": [], "bodies": [], "pairs": [],
+        "characters": [{"bbox": {"x": 0, "y": 0, "w": 128, "h": 256}, "score": .95,
+                        "model_id": "character-appearance@1", "descriptor": [round(float(v), 6) for v in descriptor],
+                        "crop_jpeg": None,
+                        "face": {"bbox": {"x": 40, "y": 10, "w": 48, "h": 62}, "score": .91,
+                                 "embedding_model_id": "ccip-caformer24@1",
+                                 "embedding": base64.b64encode(ccip.tobytes()).decode("ascii"), "crop_jpeg": None},
+                        "body": {"bbox": {"x": 0, "y": 0, "w": 128, "h": 256}, "score": .88, "kpts": None,
+                                 "appearance": [0.0] * 80, "crop_jpeg": None}}],
+    })
     write("AnalyzeOutlinesResponse.two_targets", {
         "outlines": [face_a["outline"], body["outline"]],
     })

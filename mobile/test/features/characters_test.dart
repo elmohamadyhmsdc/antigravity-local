@@ -2,7 +2,7 @@ import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
 import 'package:antigravity_mobile/data/api/dtos/embedding.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
-import 'package:antigravity_mobile/domain/scan/character_descriptor.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -39,7 +39,7 @@ void main() {
       expect(find.text('1 character appearances found'), findsOneWidget);
       expect(find.text('Character 1'), findsOneWidget);
       expect(
-        await env.db.select(env.db.characterSamples).get(),
+        await env.db.select(env.db.persons).get(),
         isEmpty,
         reason: 'testing one photo must never write the user library',
       );
@@ -48,50 +48,65 @@ void main() {
     session: testSession,
   );
 
-  appTest('character rename and separate controls correct a group', (
-    tester,
-    env,
-  ) async {
-    final db = env.db;
-    final identity = await db
-        .into(db.characterIdentities)
-        .insert(CharacterIdentitiesCompanion.insert(createdAt: 1));
-    for (var i = 0; i < 2; i++) {
-      final media = await db
-          .into(db.media)
-          .insert(MediaCompanion.insert(assetId: 'art$i', kind: 'photo'));
-      await db
-          .into(db.characterSamples)
+  appTest(
+    'characters are listed like people, apart from people, and open the same detail page',
+    (tester, env) async {
+      final db = env.db;
+      Future<int> person(String kind, String name) => db
+          .into(db.persons)
           .insert(
-            CharacterSamplesCompanion.insert(
-              identityId: identity,
-              mediaId: media,
-              modelId: characterModelId,
-              descriptor: packFloat32(List.filled(160, 0)),
-              bboxX: .1,
-              bboxY: .1,
-              bboxW: .5,
-              bboxH: .8,
-              score: .95,
+            PersonsCompanion.insert(
+              name: Value(name),
+              kind: Value(kind),
               createdAt: 1,
             ),
           );
-    }
-    await env.pump(
-      tester,
-      extra: [initialLocationProvider.overrideWithValue('/characters')],
-    );
-    await tester.tap(find.text('Character 1'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Rename'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Hero');
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
-    expect(find.text('Hero'), findsOneWidget);
-    await tester.tap(find.byTooltip('Separate this character').first);
-    await tester.pumpAndSettle();
-    expect((await db.select(db.characterIdentities).get()).length, 2);
-    expect((await db.select(db.characterSamples).get()).length, 2);
-  }, session: testSession);
+      final hero = await person('character', 'Hero');
+      final human = await person('person', 'Alice');
+      for (final (kind, owner, n) in [
+        ('character', hero, 2),
+        ('person', human, 1),
+      ]) {
+        for (var i = 0; i < n; i++) {
+          await db
+              .into(db.faces)
+              .insert(
+                FacesCompanion.insert(
+                  personId: Value(owner),
+                  modelId: kind == 'character'
+                      ? characterEmbeddingModelId
+                      : 'buffalo_l@1',
+                  embedding: packFloat32(
+                    List.filled(kind == 'character' ? 768 : 512, 0),
+                  ),
+                  qualityScore: .9,
+                  qualityVersion: 2,
+                  detScore: .9,
+                  facePx: 80,
+                  sharpness: 1,
+                  bboxX: 0,
+                  bboxY: 0,
+                  bboxW: .2,
+                  bboxH: .2,
+                  kind: Value(kind),
+                  createdAt: 1,
+                ),
+              );
+        }
+      }
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/characters')],
+      );
+      expect(find.text('Hero'), findsOneWidget);
+      expect(find.text('Alice'), findsNothing);
+      expect(find.text('2 faces'), findsOneWidget);
+      await tester.tap(find.byKey(Key('person-$hero')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('person-title')), findsOneWidget);
+      // a drawn character is never a face-swap source
+      expect(find.byKey(const Key('person-use-studio')), findsNothing);
+    },
+    session: testSession,
+  );
 }

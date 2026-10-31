@@ -422,6 +422,73 @@ void main() {
       },
     );
     test(
+      'v13 upgrade gives people, faces, bodies and review groups a kind and rescans old character photos',
+      () async {
+        final file = File(p.join(dir.path, 'v13.db'));
+        final before = AppDatabase(NativeDatabase(file));
+        await before
+            .into(before.persons)
+            .insert(
+              PersonsCompanion.insert(name: const Value('Keep'), createdAt: 1),
+            );
+        await _addFace(before, personId: 1);
+        final art = await before
+            .into(before.media)
+            .insert(
+              MediaCompanion.insert(
+                assetId: 'art',
+                kind: 'photo',
+                scanStatus: const Value('done'),
+                scanVersion: const Value(3),
+              ),
+            );
+        final identity = await before
+            .into(before.characterIdentities)
+            .insert(CharacterIdentitiesCompanion.insert(createdAt: 1));
+        await before
+            .into(before.characterSamples)
+            .insert(
+              CharacterSamplesCompanion.insert(
+                identityId: identity,
+                mediaId: art,
+                modelId: 'character-appearance@1',
+                descriptor: Uint8List(640),
+                bboxX: 0,
+                bboxY: 0,
+                bboxW: .5,
+                bboxH: .5,
+                score: .9,
+                createdAt: 1,
+              ),
+            );
+        await before.close();
+        final legacy = raw.sqlite3.open(file.path);
+        legacy.execute(
+          'ALTER TABLE persons DROP COLUMN kind; ALTER TABLE faces DROP COLUMN kind; '
+          'ALTER TABLE bodies DROP COLUMN kind; ALTER TABLE review_groups DROP COLUMN kind; '
+          'PRAGMA user_version = 13;',
+        );
+        legacy.close();
+
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
+        expect((await after.select(after.persons).get()).single.kind, 'person');
+        expect((await after.select(after.faces).get()).single.kind, 'person');
+        expect(await after.select(after.characterSamples).get(), isEmpty);
+        expect(await after.select(after.characterIdentities).get(), isEmpty);
+        final rescanned = await (after.select(
+          after.media,
+        )..where((m) => m.id.equals(art))).getSingle();
+        expect(rescanned.scanStatus, 'pending');
+        expect(rescanned.scanVersion, 0);
+        expect(
+          (await after.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          AppDatabase.currentSchemaVersion,
+        );
+      },
+    );
+    test(
       'v10 upgrade drops characters found by the old global switch and rescans those files',
       () async {
         final file = File(p.join(dir.path, 'v10.db'));

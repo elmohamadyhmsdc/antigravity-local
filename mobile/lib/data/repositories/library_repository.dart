@@ -81,6 +81,35 @@ class LibraryRepository {
 
   /// Diffs MediaStore against what is known: new files are queued, edited files are queued again,
   /// unchanged scanned files are left alone. Idempotent - running it twice queues nothing new.
+  /// Drawn characters found in one file go (faces, bodies, their detections), and so do
+  /// unnamed characters left with nothing. The file is scanned again right after.
+  Future<void> _dropCharactersOf(int mediaId) async {
+    final id = [Variable.withInt(mediaId)];
+    await _db.customUpdate(
+      "DELETE FROM media_detections WHERE media_id = ?1 AND "
+      "((kind = 'f' AND ref_id IN (SELECT id FROM faces WHERE media_id = ?1 AND kind = 'character')) "
+      "OR (kind = 'b' AND ref_id IN (SELECT id FROM bodies WHERE media_id = ?1 AND kind = 'character')))",
+      variables: id,
+      updates: {_db.mediaDetections},
+    );
+    await _db.customUpdate(
+      "DELETE FROM bodies WHERE media_id = ? AND kind = 'character'",
+      variables: id,
+      updates: {_db.bodies},
+    );
+    await _db.customUpdate(
+      "DELETE FROM faces WHERE media_id = ? AND kind = 'character'",
+      variables: id,
+      updates: {_db.faces},
+    );
+    await _db.customUpdate(
+      "DELETE FROM persons WHERE kind = 'character' AND (name IS NULL OR name = '') "
+      'AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.person_id = persons.id) '
+      'AND NOT EXISTS (SELECT 1 FROM bodies b WHERE b.person_id = persons.id)',
+      updates: {_db.persons},
+    );
+  }
+
   Future<SyncResult> syncAssets(List<AssetInfo> assets) async {
     if (assets.isEmpty) return const SyncResult();
     return _db.transaction(() async {
@@ -120,15 +149,7 @@ class LibraryRepository {
           if (row.illustrated != a.illustrated) {
             // Its album was marked/unmarked as anime/cartoon: rescan it in the other
             // mode. Characters of a file that is no longer illustrated are wrong.
-            if (!a.illustrated) {
-              await (_db.delete(
-                _db.characterSamples,
-              )..where((s) => s.mediaId.equals(row.id))).go();
-              await _db.customStatement(
-                'DELETE FROM character_identities WHERE id NOT IN '
-                '(SELECT identity_id FROM character_samples)',
-              );
-            }
+            if (!a.illustrated) await _dropCharactersOf(row.id);
             await (_db.delete(_db.settings)..where(
                   (s) => s.key.isIn([
                     'video.job.${row.id}',

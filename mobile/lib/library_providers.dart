@@ -141,8 +141,62 @@ final characterRepositoryProvider = Provider<CharacterRepository>(
     ref.watch(fileStoreProvider),
   ),
 );
-final charactersProvider = StreamProvider.autoDispose<List<CharacterSummary>>(
-  (ref) => ref.watch(characterRepositoryProvider).watch(),
+
+/// The same repository as people, scoped to drawn characters (kind = 'character').
+final characterPeopleRepositoryProvider = Provider<PeopleRepository>(
+  (ref) => PeopleRepository(
+    ref.watch(databaseProvider),
+    ref.watch(fileStoreProvider),
+    index: ref.watch(embeddingIndexProvider),
+    kind: 'character',
+  ),
+);
+
+/// People or characters, by kind ('person' | 'character').
+final peopleRepositoryByKindProvider =
+    Provider.family<PeopleRepository, String>(
+      (ref, kind) => ref.watch(
+        kind == 'character'
+            ? characterPeopleRepositoryProvider
+            : peopleRepositoryProvider,
+      ),
+    );
+
+/// The review plan of one kind.
+final reviewRepositoryByKindProvider =
+    Provider.family<ReviewRepository, String>(
+      (ref, kind) => ref.watch(
+        kind == 'character'
+            ? characterReviewRepositoryProvider
+            : reviewRepositoryProvider,
+      ),
+    );
+
+PeopleRepository peopleRepositoryFor(WidgetRef ref, String kind) =>
+    ref.read(peopleRepositoryByKindProvider(kind));
+
+ReviewRepository reviewRepositoryFor(WidgetRef ref, String kind) =>
+    ref.read(reviewRepositoryByKindProvider(kind));
+
+/// Pending review decisions / unsorted faces / questions of one kind.
+final reviewCountsByKindProvider = StreamProvider.autoDispose
+    .family<ReviewCounts, String>(
+      (ref, kind) =>
+          ref.watch(reviewRepositoryByKindProvider(kind)).watchCounts(),
+    );
+
+final reviewQuestionsByKindProvider = StreamProvider.autoDispose
+    .family<List<ReviewQuestion>, String>(
+      (ref, kind) =>
+          ref.watch(reviewRepositoryByKindProvider(kind)).watchQuestions(),
+    );
+
+final charactersProvider = StreamProvider.autoDispose<List<PersonSummary>>(
+  (ref) => ref.watch(characterPeopleRepositoryProvider).watchPeople(),
+);
+
+final characterUnsortedCountProvider = StreamProvider.autoDispose<int>(
+  (ref) => ref.watch(characterPeopleRepositoryProvider).watchUnsortedCount(),
 );
 
 final reviewRepositoryProvider = Provider<ReviewRepository>(
@@ -176,12 +230,31 @@ final scanCountsProvider = StreamProvider.autoDispose<ScanCounts>(
 
 // ---- grouping + scan ---------------------------------------------------------------------
 
+final characterReviewRepositoryProvider = Provider<ReviewRepository>(
+  (ref) => ReviewRepository(
+    ref.watch(databaseProvider),
+    ref.watch(characterPeopleRepositoryProvider),
+  ),
+);
+
+final characterGroupingRunnerProvider = Provider<GroupingRunner>(
+  (ref) => GroupingRunner(
+    db: ref.watch(databaseProvider),
+    api: () => ref.read(mobileApiProvider),
+    settings: ref.watch(appSettingsProvider),
+    review: ref.watch(characterReviewRepositoryProvider),
+    kind: 'character',
+  ),
+);
+
+/// Sorts people, then drawn characters with the same steps and their own thresholds.
 final groupingRunnerProvider = Provider<GroupingRunner>(
   (ref) => GroupingRunner(
     db: ref.watch(databaseProvider),
     api: () => ref.read(mobileApiProvider),
     settings: ref.watch(appSettingsProvider),
     review: ref.watch(reviewRepositoryProvider),
+    then: ref.watch(characterGroupingRunnerProvider),
   ),
 );
 

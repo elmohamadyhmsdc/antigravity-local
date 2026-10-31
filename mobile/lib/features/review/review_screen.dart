@@ -18,25 +18,33 @@ import 'review_media_viewer.dart';
 import 'review_photo_tile.dart';
 import 'review_words.dart';
 
-final reviewMatchesProvider =
-    StreamProvider.autoDispose<List<ReviewMatchGroup>>(
-      (ref) => ref.watch(reviewRepositoryProvider).watchMatches(),
+/// The review lists of one kind ('person' | 'character').
+final reviewMatchesProvider = StreamProvider.autoDispose
+    .family<List<ReviewMatchGroup>, String>(
+      (ref, kind) =>
+          ref.watch(reviewRepositoryByKindProvider(kind)).watchMatches(),
     );
 
-final reviewGroupsProvider = StreamProvider.autoDispose<List<ReviewGroupItem>>(
-  (ref) => ref.watch(reviewRepositoryProvider).watchGroups(),
-);
+final reviewGroupsProvider = StreamProvider.autoDispose
+    .family<List<ReviewGroupItem>, String>(
+      (ref, kind) =>
+          ref.watch(reviewRepositoryByKindProvider(kind)).watchGroups(),
+    );
 
 /// S10 - everything the PC wants a decision on, in four tabs: faces that look like a known person,
 /// new groups of faces, people who may be the same, bodies matched by outfit.
 class ReviewScreen extends ConsumerWidget {
-  const ReviewScreen({super.key});
+  const ReviewScreen({super.key, this.kind = 'person'});
+
+  /// 'person' or 'character': characters are reviewed with exactly the same four tabs.
+  final String kind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final counts =
-        ref.watch(reviewCountsProvider).value ?? const ReviewCounts();
+        ref.watch(reviewCountsByKindProvider(kind)).value ??
+        const ReviewCounts();
     return DefaultTabController(
       length: 4,
       child: Scaffold(
@@ -51,7 +59,9 @@ class ReviewScreen extends ConsumerWidget {
               key: const Key('review-open-quick'),
               tooltip: l10n.quickReviewTitle,
               icon: const Icon(Icons.swipe_outlined),
-              onPressed: () => context.push('${Routes.review}?view=quick'),
+              onPressed: () => context.push(
+                '${Routes.review}?view=quick${kind == 'character' ? '&kind=character' : ''}',
+              ),
             ),
             IconButton(
               key: const Key('review-sort-now'),
@@ -92,14 +102,14 @@ class ReviewScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
-            const _CompactVideosBanner(),
-            const Expanded(
+            if (kind == 'person') const _CompactVideosBanner(),
+            Expanded(
               child: TabBarView(
                 children: [
-                  _MatchesTab(),
-                  _GroupsTab(),
-                  _DuplicatesTab(),
-                  _OutfitsTab(),
+                  _MatchesTab(kind: kind),
+                  _GroupsTab(kind: kind),
+                  _DuplicatesTab(kind: kind),
+                  _OutfitsTab(kind: kind),
                 ],
               ),
             ),
@@ -233,16 +243,19 @@ Future<void> sortNow(BuildContext context, WidgetRef ref) async {
 // ---------------------------------------------------------------------------------------------
 
 class _MatchesTab extends ConsumerWidget {
-  const _MatchesTab();
+  const _MatchesTab({required this.kind});
+
+  final String kind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final groups = ref.watch(reviewMatchesProvider);
+    final groups = ref.watch(reviewMatchesProvider(kind));
     return groups.when(
       loading: () => const LoadingBox(),
-      error: (_, _) =>
-          RetryState(onRetry: () => ref.invalidate(reviewMatchesProvider)),
+      error: (_, _) => RetryState(
+        onRetry: () => ref.invalidate(reviewMatchesProvider(kind)),
+      ),
       data: (items) {
         if (items.isEmpty) {
           return EmptyState(
@@ -268,7 +281,7 @@ class _MatchesTab extends ConsumerWidget {
                   cancelLabel: l10n.cancel,
                 );
                 if (!ok) return;
-                final repo = ref.read(reviewRepositoryProvider);
+                final repo = reviewRepositoryFor(ref, kind);
                 for (final g in items) {
                   await repo.acceptMatches([
                     for (final f in g.faces) f.faceId,
@@ -335,7 +348,7 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
       for (final f in g.faces)
         if (!_off.contains(f.faceId)) f.faceId,
     ];
-    final repo = ref.read(reviewRepositoryProvider);
+    final repo = reviewRepositoryFor(ref, g.person.kind);
     return Card(
       key: Key('match-card-${g.person.id}'),
       margin: const EdgeInsets.only(bottom: 12),
@@ -432,16 +445,18 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
 // ---------------------------------------------------------------------------------------------
 
 class _GroupsTab extends ConsumerWidget {
-  const _GroupsTab();
+  const _GroupsTab({required this.kind});
+
+  final String kind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final groups = ref.watch(reviewGroupsProvider);
+    final groups = ref.watch(reviewGroupsProvider(kind));
     return groups.when(
       loading: () => const LoadingBox(),
       error: (_, _) =>
-          RetryState(onRetry: () => ref.invalidate(reviewGroupsProvider)),
+          RetryState(onRetry: () => ref.invalidate(reviewGroupsProvider(kind))),
       data: (items) {
         if (items.isEmpty) {
           return EmptyState(
@@ -458,7 +473,7 @@ class _GroupsTab extends ConsumerWidget {
               icon: const Icon(Icons.group_add_outlined),
               label: Text(l10n.createAllGroups(items.length)),
               onPressed: () async {
-                final review = ref.read(reviewRepositoryProvider);
+                final review = reviewRepositoryFor(ref, kind);
                 for (final g in items) {
                   await review.createPersonFromGroup(
                     faceIds: [for (final f in g.faces) f.faceId],
@@ -468,7 +483,8 @@ class _GroupsTab extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 8),
-            for (final g in items) _GroupCard(key: ValueKey(g.id), group: g),
+            for (final g in items)
+              _GroupCard(key: ValueKey(g.id), group: g, kind: kind),
           ],
         );
       },
@@ -477,9 +493,10 @@ class _GroupsTab extends ConsumerWidget {
 }
 
 class _GroupCard extends ConsumerStatefulWidget {
-  const _GroupCard({super.key, required this.group});
+  const _GroupCard({super.key, required this.group, required this.kind});
 
   final ReviewGroupItem group;
+  final String kind;
 
   @override
   ConsumerState<_GroupCard> createState() => _GroupCardState();
@@ -598,15 +615,12 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
                   onPressed: ids.isEmpty
                       ? null
                       : () async {
-                          await ref
-                              .read(reviewRepositoryProvider)
-                              .createPersonFromGroup(
-                                name: _name.text,
-                                faceIds: ids,
-                              );
-                          await ref
-                              .read(reviewRepositoryProvider)
-                              .forgetGroup(g.id);
+                          final review = reviewRepositoryFor(ref, widget.kind);
+                          await review.createPersonFromGroup(
+                            name: _name.text,
+                            faceIds: ids,
+                          );
+                          await review.forgetGroup(g.id);
                         },
                   child: Text(l10n.createPerson),
                 ),
@@ -619,21 +633,19 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
                             context,
                             allowNew: false,
                             title: l10n.addToPerson,
+                            kind: widget.kind,
                           );
                           if (choice?.personId == null) return;
-                          await ref
-                              .read(reviewRepositoryProvider)
-                              .assignGroup(ids, choice!.personId!);
-                          await ref
-                              .read(reviewRepositoryProvider)
-                              .forgetGroup(g.id);
+                          final review = reviewRepositoryFor(ref, widget.kind);
+                          await review.assignGroup(ids, choice!.personId!);
+                          await review.forgetGroup(g.id);
                         },
                   child: Text(l10n.addToPerson),
                 ),
                 TextButton(
                   key: Key('group-dismiss-${g.id}'),
                   onPressed: () =>
-                      ref.read(reviewRepositoryProvider).dismissGroup(g.id),
+                      reviewRepositoryFor(ref, widget.kind).dismissGroup(g.id),
                   child: Text(l10n.notAPerson),
                 ),
               ],
@@ -648,16 +660,19 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
 // ---------------------------------------------------------------------------------------------
 
 class _DuplicatesTab extends ConsumerWidget {
-  const _DuplicatesTab();
+  const _DuplicatesTab({required this.kind});
+
+  final String kind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final items = ref.watch(reviewDuplicatesProvider);
+    final items = ref.watch(reviewDuplicatesProvider(kind));
     return items.when(
       loading: () => const LoadingBox(),
-      error: (_, _) =>
-          RetryState(onRetry: () => ref.invalidate(reviewDuplicatesProvider)),
+      error: (_, _) => RetryState(
+        onRetry: () => ref.invalidate(reviewDuplicatesProvider(kind)),
+      ),
       data: (pairs) {
         if (pairs.isEmpty) {
           return EmptyState(
@@ -762,16 +777,19 @@ class _PersonChip extends ConsumerWidget {
 // ---------------------------------------------------------------------------------------------
 
 class _OutfitsTab extends ConsumerWidget {
-  const _OutfitsTab();
+  const _OutfitsTab({required this.kind});
+
+  final String kind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final items = ref.watch(reviewBodyLinksProvider);
+    final items = ref.watch(reviewBodyLinksProvider(kind));
     return items.when(
       loading: () => const LoadingBox(),
-      error: (_, _) =>
-          RetryState(onRetry: () => ref.invalidate(reviewBodyLinksProvider)),
+      error: (_, _) => RetryState(
+        onRetry: () => ref.invalidate(reviewBodyLinksProvider(kind)),
+      ),
       data: (links) {
         if (links.isEmpty) {
           return EmptyState(
@@ -779,7 +797,7 @@ class _OutfitsTab extends ConsumerWidget {
             title: l10n.reviewOutfitsEmpty,
           );
         }
-        final repo = ref.read(reviewRepositoryProvider);
+        final repo = reviewRepositoryFor(ref, kind);
         return ListView(
           key: const Key('review-outfits'),
           padding: const EdgeInsets.all(20),
@@ -810,7 +828,7 @@ class _OutfitCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final name = personName(l, link.person);
-    final repo = ref.read(reviewRepositoryProvider);
+    final repo = reviewRepositoryFor(ref, link.person.kind);
     void view() => openReviewMedia(
       context,
       [ReviewTarget('b', link.bodyId)],

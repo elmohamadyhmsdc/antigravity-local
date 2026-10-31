@@ -17,8 +17,13 @@ enum PeopleSort { mostFaces, name, newest }
 
 /// S07 - everyone found in the library: a grid of cover + name + face count, an "Unsorted" card for
 /// faces that belong to nobody yet, search and sort.
+///
+/// The same screen lists drawn characters (`kind: 'character'`): they are grouped, reviewed,
+/// merged and split exactly like people, in their own list.
 class PeopleScreen extends ConsumerStatefulWidget {
-  const PeopleScreen({super.key});
+  const PeopleScreen({super.key, this.kind = 'person'});
+
+  final String kind;
 
   @override
   ConsumerState<PeopleScreen> createState() => _PeopleScreenState();
@@ -77,11 +82,29 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final people = ref.watch(peopleProvider);
-    final unsorted = ref.watch(unsortedCountProvider).value ?? 0;
-    final review = ref.watch(reviewCountsProvider).value?.total ?? 0;
-    final questions = ref.watch(reviewQuestionsProvider).value?.length ?? 0;
-    final charactersCount = ref.watch(charactersProvider).value?.length ?? 0;
+    final characters = widget.kind == 'character';
+    final listProvider = characters ? charactersProvider : peopleProvider;
+    final people = ref.watch(listProvider);
+    final unsorted =
+        ref
+            .watch(
+              characters
+                  ? characterUnsortedCountProvider
+                  : unsortedCountProvider,
+            )
+            .value ??
+        0;
+    final review =
+        ref.watch(reviewCountsByKindProvider(widget.kind)).value?.total ?? 0;
+    final questions =
+        ref.watch(reviewQuestionsByKindProvider(widget.kind)).value?.length ??
+        0;
+    final charactersCount = characters
+        ? 0
+        : ref.watch(charactersProvider).value?.length ?? 0;
+    final reviewRoute = characters
+        ? '${Routes.review}?kind=character'
+        : Routes.review;
     final allPeople = people.value ?? const <PersonSummary>[];
     final q = _query.trim().toLowerCase();
     final visible = allPeople
@@ -97,8 +120,16 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.navPeople),
+        title: Text(characters ? l10n.charactersTitle : l10n.navPeople),
         actions: [
+          if (characters)
+            IconButton(
+              key: const Key('test-character-photo'),
+              tooltip: l10n.charactersTestPhoto,
+              onPressed: () =>
+                  context.push('${Routes.analyze}?characters=true'),
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+            ),
           IconButton(
             key: const Key('people-select'),
             tooltip: l10n.peopleAction('selection'),
@@ -108,20 +139,21 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
               _selected.clear();
             }),
           ),
-          IconButton(
-            key: const Key('open-characters'),
-            tooltip: l10n.charactersTitle,
-            onPressed: () => context.push(Routes.characters),
-            icon: Badge(
-              isLabelVisible: charactersCount > 0,
-              label: Text('$charactersCount'),
-              child: const Icon(Icons.auto_awesome_outlined),
+          if (!characters)
+            IconButton(
+              key: const Key('open-characters'),
+              tooltip: l10n.charactersTitle,
+              onPressed: () => context.push(Routes.characters),
+              icon: Badge(
+                isLabelVisible: charactersCount > 0,
+                label: Text('$charactersCount'),
+                child: const Icon(Icons.auto_awesome_outlined),
+              ),
             ),
-          ),
           IconButton(
             key: const Key('open-review'),
             tooltip: l10n.reviewTitle,
-            onPressed: () => context.push(Routes.review),
+            onPressed: () => context.push(reviewRoute),
             icon: Badge(
               isLabelVisible: review > 0,
               label: Text('$review'),
@@ -200,14 +232,16 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
           icon: Icons.people_outline,
           title: '$e',
           actionLabel: l10n.retry,
-          onAction: () => ref.invalidate(peopleProvider),
+          onAction: () => ref.invalidate(listProvider),
         ),
         data: (all) {
           if (all.isEmpty && unsorted == 0) {
             return EmptyState(
-              icon: Icons.groups_outlined,
-              title: l10n.noPeopleTitle,
-              body: l10n.noPeopleBody,
+              icon: characters
+                  ? Icons.auto_awesome_outlined
+                  : Icons.groups_outlined,
+              title: characters ? l10n.charactersEmpty : l10n.noPeopleTitle,
+              body: characters ? l10n.charactersEmptyHint : l10n.noPeopleBody,
               actionLabel: l10n.scanLibrary,
               onAction: () => context.push(Routes.sources),
             );
@@ -246,7 +280,9 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   icon: Icons.swipe_outlined,
                   title: l10n.peopleReviewBanner(questions),
                   body: l10n.peopleReviewBannerBody,
-                  onTap: () => context.push('${Routes.review}?view=quick'),
+                  onTap: () => context.push(
+                    '$reviewRoute${characters ? '&' : '?'}view=quick',
+                  ),
                 ),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -380,7 +416,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                           final textScaleDelta = (textScaler.scale(14) - 14)
                               .clamp(0.0, 30.0);
                           final mainAxisExtent =
-                              60.0 + (avatarRadius * 2) + textScaleDelta * 2.5;
+                              64.0 + (avatarRadius * 2) + textScaleDelta * 2.5;
 
                           return GridView(
                             key: const Key('people-grid'),
@@ -405,6 +441,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                                 _UnsortedCard(
                                   count: unsorted,
                                   avatarRadius: avatarRadius,
+                                  kind: widget.kind,
                                 ),
                               for (final p in shown)
                                 _PersonCard(
@@ -652,10 +689,15 @@ class _PersonCard extends StatelessWidget {
 }
 
 class _UnsortedCard extends StatelessWidget {
-  const _UnsortedCard({required this.count, this.avatarRadius = 34});
+  const _UnsortedCard({
+    required this.count,
+    this.avatarRadius = 34,
+    this.kind = 'person',
+  });
 
   final int count;
   final double avatarRadius;
+  final String kind;
 
   @override
   Widget build(BuildContext context) {
@@ -669,7 +711,11 @@ class _UnsortedCard extends StatelessWidget {
       child: InkWell(
         key: const Key('unsorted-card'),
         borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push(Routes.unsorted),
+        onTap: () => context.push(
+          kind == 'character'
+              ? '${Routes.unsorted}?kind=character'
+              : Routes.unsorted,
+        ),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           decoration: BoxDecoration(

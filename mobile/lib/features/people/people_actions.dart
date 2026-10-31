@@ -49,7 +49,8 @@ List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
       people.every((p) => p.groupingLocked) ? 'unlock' : 'lock',
       Icons.lock_outline,
     ),
-    if (single) const PeopleMenuAction('studio', Icons.face_retouching_natural),
+    if (single && people.first.kind == 'person')
+      const PeopleMenuAction('studio', Icons.face_retouching_natural),
     const PeopleMenuAction('export', Icons.ios_share),
     if (single) const PeopleMenuAction('details', Icons.info_outline),
     const PeopleMenuAction(
@@ -84,7 +85,8 @@ List<PeopleMenuAction> faceMenuActions(List<FaceItem> faces) {
         const PeopleMenuAction('cover', Icons.account_circle_outlined),
       ],
       const PeopleMenuAction('similar', Icons.person_search_outlined),
-      const PeopleMenuAction('studio', Icons.face_retouching_natural),
+      if (faces.single.kind == 'person')
+        const PeopleMenuAction('studio', Icons.face_retouching_natural),
       const PeopleMenuAction('save', Icons.save_alt),
       const PeopleMenuAction('details', Icons.info_outline),
     ],
@@ -212,7 +214,8 @@ Future<void> runPersonAction(
   String action,
 ) async {
   if (people.isEmpty || action == 'select') return;
-  final repo = ref.read(peopleRepositoryProvider);
+  final kind = people.first.kind;
+  final repo = peopleRepositoryFor(ref, kind);
   final l = AppLocalizations.of(context);
   final ids = people.map((p) => p.id).toList();
   final p = people.first;
@@ -331,6 +334,7 @@ Future<void> runPersonAction(
           excludePersonId: p.id,
           allowNew: false,
           title: l.peopleAction('distinct'),
+          kind: kind,
         );
         if (choice?.personId == null) return;
         await repo.markDistinct(p.id, choice!.personId!);
@@ -387,13 +391,14 @@ Future<void> _merge(
   WidgetRef ref,
   List<PersonSummary> source,
 ) async {
-  final repo = ref.read(peopleRepositoryProvider);
+  final repo = peopleRepositoryFor(ref, source.first.kind);
   final l = AppLocalizations.of(context);
   final choice = await pickPerson(
     context,
     excludePersonId: source.length == 1 ? source.single.id : null,
     title: l.mergeWith,
     allowNew: false,
+    kind: source.first.kind,
   );
   if (choice?.personId == null || !context.mounted) return;
   final target = await repo.person(choice!.personId!);
@@ -491,7 +496,8 @@ Future<void> runFaceAction(
   String action,
 ) async {
   if (faces.isEmpty || action == 'select') return;
-  final repo = ref.read(peopleRepositoryProvider);
+  final kind = faces.first.kind;
+  final repo = peopleRepositoryFor(ref, kind);
   final l = AppLocalizations.of(context);
   final ids = faces.map((f) => f.id).toList();
   final f = faces.first;
@@ -510,6 +516,7 @@ Future<void> runFaceAction(
         final choice = await pickPerson(
           context,
           title: l.assignFacesTitle(ids.length),
+          kind: kind,
         );
         if (choice == null) return;
         if (choice.isNew) {

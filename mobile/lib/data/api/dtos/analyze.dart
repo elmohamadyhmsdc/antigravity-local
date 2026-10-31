@@ -216,6 +216,44 @@ class DetectedBody {
   }
 }
 
+/// The drawn face of a character. `embedding` is null when the server has no CCIP model.
+class CharacterFace {
+  const CharacterFace({
+    required this.bbox,
+    required this.score,
+    this.embedding,
+    this.cropJpeg,
+  });
+
+  final BBox bbox;
+  final double score;
+  final Float32List? embedding; // characterEmbeddingDim, unit length
+  final Uint8List? cropJpeg;
+
+  factory CharacterFace.fromJson(Map<String, dynamic> json) {
+    final embedding = json['embedding'];
+    if (embedding != null) {
+      final model = field<String>(
+        json,
+        'embedding_model_id',
+        'characters[].face',
+      );
+      if (model != characterEmbeddingModelId) {
+        throw FormatException('Unsupported character face model: $model');
+      }
+    }
+    final crop = json['crop_jpeg'];
+    return CharacterFace(
+      bbox: BBox.fromJson(map(json['bbox'], 'characters[].face.bbox')),
+      score: number(json, 'score', 'characters[].face'),
+      embedding: embedding is String
+          ? decodeVector(embedding, characterEmbeddingDim)
+          : null,
+      cropJpeg: crop is String ? base64Decode(crop) : null,
+    );
+  }
+}
+
 class DetectedCharacter {
   const DetectedCharacter({
     required this.bbox,
@@ -223,6 +261,8 @@ class DetectedCharacter {
     required this.descriptor,
     this.modelId = characterModelId,
     this.cropJpeg,
+    this.face,
+    this.body,
   });
 
   final BBox bbox;
@@ -230,6 +270,10 @@ class DetectedCharacter {
   final String modelId;
   final List<double> descriptor;
   final Uint8List? cropJpeg;
+
+  /// Like a person, a character may have a face, a body, or both.
+  final CharacterFace? face;
+  final DetectedBody? body;
 
   factory DetectedCharacter.fromJson(Map<String, dynamic> json) {
     final descriptor = numbers(json['descriptor'], 'characters[].descriptor');
@@ -249,6 +293,15 @@ class DetectedCharacter {
       cropJpeg: json['crop_jpeg'] is String
           ? base64Decode(json['crop_jpeg'] as String)
           : null,
+      face: json['face'] == null
+          ? null
+          : CharacterFace.fromJson(map(json['face'], 'characters[].face')),
+      body: json['body'] == null
+          ? null
+          : DetectedBody.fromJson(
+              map(json['body'], 'characters[].body'),
+              'characters[].body',
+            ),
     );
   }
 }

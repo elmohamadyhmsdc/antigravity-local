@@ -20,6 +20,7 @@ class PersonSummary {
     this.favorite = false,
     this.pinned = false,
     this.groupingLocked = false,
+    this.kind = 'person',
   });
 
   final int id;
@@ -28,6 +29,9 @@ class PersonSummary {
   final String? avatarCropPath;
   final DateTime createdAt;
   final bool hidden, favorite, pinned, groupingLocked;
+
+  /// 'person' or 'character' (a drawn figure).
+  final String kind;
 
   bool get isNamed => (name ?? '').trim().isNotEmpty;
 }
@@ -42,6 +46,7 @@ class FaceItem {
     required this.facePx,
     required this.dismissed,
     this.hidden = false,
+    this.kind = 'person',
   });
 
   final int id;
@@ -52,6 +57,7 @@ class FaceItem {
   final double facePx;
   final bool dismissed;
   final bool hidden;
+  final String kind; // 'person' | 'character'
 }
 
 class BodyItem {
@@ -95,6 +101,7 @@ class PeopleRepository {
     this._db,
     this._files, {
     this._index,
+    this.kind = 'person',
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
@@ -103,12 +110,16 @@ class PeopleRepository {
   final EmbeddingIndex? _index;
   final DateTime Function() _clock;
 
+  /// 'person' (real faces, buffalo_l) or 'character' (drawn faces, CCIP). Lists, the unsorted
+  /// pool, and new people are scoped to it; everything done to a given id works for both.
+  final String kind;
+
   int get _now => _clock().millisecondsSinceEpoch;
 
   // ---- reading --------------------------------------------------------------------
 
   static const _personSql = '''
-    SELECT p.id, p.name, p.created_at, p.hidden, p.favorite, p.pinned, p.grouping_locked,
+    SELECT p.id, p.name, p.created_at, p.hidden, p.favorite, p.pinned, p.grouping_locked, p.kind,
       (SELECT COUNT(*) FROM faces f WHERE f.person_id = p.id) AS face_count,
       COALESCE(
         (SELECT crop_path FROM faces WHERE id = p.avatar_face_id AND person_id = p.id AND hidden = 0),
@@ -128,11 +139,13 @@ class PeopleRepository {
     favorite: r.read<bool>('favorite'),
     pinned: r.read<bool>('pinned'),
     groupingLocked: r.read<bool>('grouping_locked'),
+    kind: r.read<String>('kind'),
   );
 
   Stream<List<PersonSummary>> watchPeople() => _db
       .customSelect(
-        '$_personSql ORDER BY face_count DESC, p.id',
+        '$_personSql WHERE p.kind = ? ORDER BY face_count DESC, p.id',
+        variables: [Variable.withString(kind)],
         readsFrom: {_db.persons, _db.faces},
       )
       .watch()
@@ -141,7 +154,8 @@ class PeopleRepository {
   Future<List<PersonSummary>> people() async =>
       (await _db
               .customSelect(
-                '$_personSql ORDER BY face_count DESC, p.id',
+                '$_personSql WHERE p.kind = ? ORDER BY face_count DESC, p.id',
+                variables: [Variable.withString(kind)],
                 readsFrom: {_db.persons, _db.faces},
               )
               .get())
@@ -177,18 +191,24 @@ class PeopleRepository {
     facePx: r.read<double>('face_px'),
     dismissed: r.read<bool>('review_dismissed'),
     hidden: r.read<bool>('hidden'),
+    kind: r.read<String>('kind'),
   );
 
   static const _faceCols =
-      'id, person_id, media_id, quality_score, crop_path, face_px, review_dismissed, hidden';
+      'id, person_id, media_id, quality_score, crop_path, face_px, review_dismissed, hidden, kind';
 
   /// A person's faces, best quality first. `personId == null` lists the unsorted faces.
   Stream<List<FaceItem>> watchFaces(int? personId) => _db
       .customSelect(
         personId == null
-            ? 'SELECT $_faceCols FROM faces WHERE person_id IS NULL ORDER BY quality_score DESC, id'
+            ? 'SELECT $_faceCols FROM faces WHERE person_id IS NULL AND kind = ? ORDER BY quality_score DESC, id'
             : 'SELECT $_faceCols FROM faces WHERE person_id = ? ORDER BY quality_score DESC, id',
-        variables: [if (personId != null) Variable.withInt(personId)],
+        variables: [
+          if (personId != null)
+            Variable.withInt(personId)
+          else
+            Variable.withString(kind),
+        ],
         readsFrom: {_db.faces},
       )
       .watch()
@@ -211,7 +231,8 @@ class PeopleRepository {
 
   Stream<int> watchUnsortedCount() => _db
       .customSelect(
-        'SELECT COUNT(*) AS n FROM faces WHERE person_id IS NULL AND hidden = 0',
+        'SELECT COUNT(*) AS n FROM faces WHERE person_id IS NULL AND hidden = 0 AND kind = ?',
+        variables: [Variable.withString(kind)],
         readsFrom: {_db.faces},
       )
       .watchSingle()
@@ -272,6 +293,7 @@ class PeopleRepository {
                 name: Value(
                   trimmed == null || trimmed.isEmpty ? null : trimmed,
                 ),
+                kind: Value(kind),
                 createdAt: _now,
               ),
             );
@@ -766,8 +788,9 @@ class PeopleRepository {
   Future<List<FaceItem>> availableFaces({int? excludePersonId}) async {
     final rows = await _db
         .customSelect(
-          'SELECT id FROM faces WHERE hidden = 0 ${excludePersonId == null ? '' : 'AND (person_id IS NULL OR person_id != ?)'} ORDER BY quality_score DESC',
+          'SELECT id FROM faces WHERE hidden = 0 AND kind = ? ${excludePersonId == null ? '' : 'AND (person_id IS NULL OR person_id != ?)'} ORDER BY quality_score DESC',
           variables: [
+            Variable.withString(kind),
             if (excludePersonId != null) Variable.withInt(excludePersonId),
           ],
         )
@@ -844,10 +867,10 @@ class PeopleRepository {
       for (final r in rows) (r.id, r.embedding),
     ];
     final hits = await Isolate.run(() {
-      final query = embeddingFromBlob(data.first.$2);
+      final query = vectorFromBlob(data.first.$2);
       final scores = <(int, double)>[];
       for (final (key, blob) in data.skip(1)) {
-        final vector = embeddingFromBlob(blob);
+        final vector = vectorFromBlob(blob);
         var score = 0.0;
         for (var i = 0; i < query.length; i++) {
           score += query[i] * vector[i];

@@ -1119,3 +1119,57 @@ faces near one shared direction, which is why different characters merged.
   - Python tests: `test_outlines.py` (9/9), `test_analysis.py` (8/8), `test_mobile_scan_worker.py` (3/3), `test_mobile_api_contract.py` (31/31), `test_mobile_stateless.py` (5/5), `test_mobile_video.py` (18/18), `validate_contract.py` (all passed), `test_mobile_scan_gpu.py` (real GPU scan at 512, 1600, 2560 px passed).
   - Flutter verification: `flutter analyze` 0 issues; `dart format` clean; 597 tests passed.
   - All existing uncommitted and untracked files preserved intact.
+
+## Characters get a face and a body like people — step 1 (server) — 2026-10-31
+
+- Goal (user): the Characters screen must work exactly like People - face and body
+  detection, the same face/body pick buttons, grouping and Merge.
+- Done on the PC (uncommitted): `character_detection.Character` now carries `face_*`
+  (anime face box, score, CCIP 768-d unit embedding) and `body_*` (box, keypoints,
+  outfit appearance) next to the old whole-figure `bbox` + 160-d `descriptor`.
+  `detect_characters` gives each body to at most one face; `attach_identity` fills the
+  CCIP embedding (`analysis.get_ccip_embedder`, `models/ccip_character.onnx`) and the
+  body appearance. Without the CCIP model `face_embedding` stays None.
+- Wire: `characters[].face` (`embedding_model_id` `ccip-caformer24@1`, base64 768 x f4)
+  and `characters[].body` are additive; `openapi.yaml` (`CharacterFace`,
+  `CharacterBody`), fixture `AnalyzeImageResponse.character_face_body`, and
+  `validate_contract.py` (embedding size follows `embedding_model_id`) are updated.
+  The scan worker IPC carries the new fields. A server restart is needed.
+- Checked: `test_character_detection.py` 15, `test_mobile_api_contract.py` 31/31,
+  `test_analysis.py` 8/8, contract validator, drawn_faces/face_routing/embedder/anime
+  detector tests, scan-worker test. Not yet run on real anime photos with the CCIP model.
+- Not done (next): phone schema v14 (`persons.kind`, character faces/bodies in
+  `faces`/`bodies` with model `ccip-caformer24@1`), a character grouping profile
+  (CCIP thresholds are unmeasured; `/v1/grouping/plan` validates 512-d today), and
+  `PeopleScreen`/detail/merge/review parametrised by kind. About 190 uses of
+  faces/bodies in ~25 phone files must exclude character rows from people logic.
+
+## Characters work like people — step 2 (phone + grouping) — 2026-10-31
+
+- Phone schema **v14**: `kind` ('person' | 'character') on `persons`, `faces`, `bodies`,
+  `review_groups`. Characters are rows in the same tables (face model `ccip-caformer24@1`,
+  768-d embedding; body outfit descriptor) instead of `character_samples`/`character_identities`
+  (kept empty, legacy). The migration deletes the old one-box samples and requeues their
+  photos for a rescan. `CharacterRepository.store` writes face + body + detections.
+- Every people-only query filters `kind = 'person'` (index loader, drawn-face sweep, video
+  compactor, insights, library stats, photo store rescan lookups). `PeopleRepository`,
+  `ReviewRepository`, `GroupingInputs`, `PlanApplier`, `GroupingRunner` take a `kind`;
+  the people runner is followed by the character runner (`then`), so a scan or "Sort now"
+  groups both. Providers: `*ByKindProvider`, `peopleRepositoryFor`, `reviewRepositoryFor`.
+- UI: `/characters` is `PeopleScreen(kind: 'character')` - same grid, search, filters, long-press
+  menu (merge, rename, split, lock, pin, ...), Unsorted card, review banner, detail page with the
+  same four tabs, Merge screen, Review (4 tabs) and quick review (`?kind=character`). No "use in
+  Studio" for characters. `CharactersScreen` is gone; its photo-test button lives on the
+  characters grid.
+- Server: `strictness: "character"` (768-d CCIP, `person_linking.STRICTNESS["character"]`,
+  `grouping_core` takes the dimension from the profile). **Thresholds are not measured** (cosine
+  similarity ~0.82 = deepghs' published same-character distance 0.178; auto-match 0.86, cluster cut
+  0.18, auto-fold 0.92). Check on real anime folders before loosening.
+- Checked on the PC: `flutter analyze` clean; `flutter test` 609 pass, 1 fail
+  (`background_test` "scan progress card shows battery notice": `pumpAndSettle` times out on a
+  running progress indicator; it failed before these changes too). Python: character 15,
+  character grouping 3, grouping core 11, API contract 31, analysis 8, gallery 33, stateless 5,
+  contract validator. Nothing tried on the phone; needs a server restart and a new APK.
+- Known gaps: deleting a character face is not remembered against a rescan (no suppression
+  for CCIP faces); Home shows only people's review count; character videos are deduplicated
+  by CCIP cosine inside a file, not tracked/compacted like people.

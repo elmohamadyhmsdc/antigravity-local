@@ -50,6 +50,13 @@ STRICTNESS: Dict[str, GroupingParams] = {
     "loose": GroupingParams(match_auto=0.34, match_margin=0.07, suggest=0.22, cluster_distance=0.75,
                             seed_quality=0.40, auto_create_size=2, auto_create_cohesion=0.35,
                             merge_suggest=0.35, merge_auto=0.55, body_auto=0.82, body_margin=0.05, body_suggest=0.74),
+    # Drawn characters (CCIP caformer-24 embeddings, 768-d). deepghs publishes 0.178 as the cosine
+    # distance below which two images show one character (similarity ~0.82); these sit just
+    # above it on purpose - a wrong automatic merge is worse than a pair left for the user's
+    # Merge. NOT yet measured on this library: eval it before loosening.
+    "character": GroupingParams(match_auto=0.86, match_margin=0.05, suggest=0.74, cluster_distance=0.18,
+                                seed_quality=0.55, min_group_size=2, auto_create_size=3,
+                                auto_create_cohesion=0.82, merge_suggest=0.80, merge_auto=0.92),
 }
 
 

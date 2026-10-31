@@ -6,6 +6,7 @@ edge details and foreground silhouette contribute independently. No downloads.
 Keep similarity in sync with mobile/lib/domain/scan/character_descriptor.dart.
 """
 from dataclasses import dataclass
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -18,10 +19,21 @@ MATCH_MARGIN = 0.06
 
 @dataclass
 class Character:
+    """One drawn figure. Like a person it can have a face, a body, or both:
+    `bbox` is the whole figure, the face_* fields the anime face (with its CCIP
+    identity embedding once `attach_identity` ran) and the body_* fields the body."""
     bbox: np.ndarray
     score: float
     descriptor: np.ndarray
     model_id: str = MODEL_ID
+    face_bbox: Optional[np.ndarray] = None
+    face_score: float = 0.0
+    face_embedding: Optional[np.ndarray] = None  # CCIP, unit length
+    body_bbox: Optional[np.ndarray] = None
+    body_score: float = 0.0
+    body_kpts: Optional[np.ndarray] = None
+    body_kpt_scores: Optional[np.ndarray] = None
+    body_appearance: Optional[np.ndarray] = None  # outfit descriptor, as for people
 
 
 def describe(img, bbox):
@@ -121,14 +133,18 @@ def detect_characters(img, bodies, anime_faces=None):
             cy = (abox[1] + abox[3]) / 2.0
             matched_body_idx = None
             for bi, b in enumerate(bodies):
+                if bi in used_bodies:
+                    continue  # one body belongs to one face
                 bbox = b.bbox
                 if bbox[0] <= cx <= bbox[2] and bbox[1] <= cy <= bbox[3]:
                     matched_body_idx = bi
                     break
 
+            matched_body = None
             if matched_body_idx is not None:
                 used_bodies.add(matched_body_idx)
-                char_box = bodies[matched_body_idx].bbox
+                matched_body = bodies[matched_body_idx]
+                char_box = matched_body.bbox
             else:
                 # Expand face box to include hair and upper torso
                 bw = abox[2] - abox[0]
@@ -143,7 +159,9 @@ def detect_characters(img, bodies, anime_faces=None):
             if descriptor is None:
                 descriptor = describe(img, abox)
             if descriptor is not None:
-                found.append(Character(np.asarray(char_box, np.float32), ascore, descriptor))
+                found.append(Character(np.asarray(char_box, np.float32), ascore, descriptor,
+                                       face_bbox=np.asarray(abox, np.float32), face_score=ascore,
+                                       **_body_fields(matched_body)))
 
     # 2. For any bodies not already matched to an anime face, process them
     for bi, body in enumerate(bodies):
@@ -151,6 +169,38 @@ def detect_characters(img, bodies, anime_faces=None):
             continue
         descriptor = describe(img, body.bbox)
         if descriptor is not None:
-            found.append(Character(np.asarray(body.bbox, np.float32), float(body.score), descriptor))
+            found.append(Character(np.asarray(body.bbox, np.float32), float(body.score), descriptor,
+                                   **_body_fields(body)))
 
     return found
+
+
+def _body_fields(body):
+    if body is None:
+        return {}
+    kpts = getattr(body, "kpts", None)
+    scores = getattr(body, "kpt_scores", None)
+    return dict(body_bbox=np.asarray(body.bbox, np.float32), body_score=float(body.score),
+                body_kpts=None if kpts is None else np.asarray(kpts, np.float32),
+                body_kpt_scores=None if scores is None else np.asarray(scores, np.float32))
+
+
+def attach_identity(img, characters, embedder=None):
+    """Give every character what a person has: a face identity embedding (CCIP, from the
+    anime face) and a body outfit descriptor. Without the CCIP model a character keeps
+    its appearance descriptor only."""
+    import person_linking as pl
+    for c in characters:
+        if c.body_bbox is not None:
+            c.body_appearance = pl.appearance_descriptor(img, c.body_bbox, c.body_kpts, c.body_kpt_scores)
+        if embedder is not None and c.face_bbox is not None:
+            l, t, r, b = _portrait(c.face_bbox, img.shape[1], img.shape[0])
+            crop = img[t:b, l:r]
+            if min(crop.shape[:2], default=0) >= 2:
+                c.face_embedding = embedder.embed_crop(crop)
+    return characters
+
+
+def _portrait(bbox, w, h):
+    from character_embedder import asymmetric_ccip_crop
+    return asymmetric_ccip_crop([float(v) for v in bbox], w, h)

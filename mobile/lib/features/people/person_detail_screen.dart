@@ -31,18 +31,24 @@ final personBodiesProvider = StreamProvider.autoDispose
     );
 
 final personMatchesProvider = StreamProvider.autoDispose
-    .family<List<ReviewMatchFace>, int>(
-      (ref, id) => ref.watch(reviewRepositoryProvider).watchMatchesFor(id),
+    .family<List<ReviewMatchFace>, int>((ref, id) {
+      final kind = ref.watch(personProvider(id)).value?.kind ?? 'person';
+      return ref
+          .watch(reviewRepositoryByKindProvider(kind))
+          .watchMatchesFor(id);
+    });
+
+/// Possible duplicate people / outfit links of one kind ('person' | 'character').
+final reviewDuplicatesProvider = StreamProvider.autoDispose
+    .family<List<ReviewDuplicateItem>, String>(
+      (ref, kind) =>
+          ref.watch(reviewRepositoryByKindProvider(kind)).watchDuplicates(),
     );
 
-final reviewDuplicatesProvider =
-    StreamProvider.autoDispose<List<ReviewDuplicateItem>>(
-      (ref) => ref.watch(reviewRepositoryProvider).watchDuplicates(),
-    );
-
-final reviewBodyLinksProvider =
-    StreamProvider.autoDispose<List<ReviewBodyLinkItem>>(
-      (ref) => ref.watch(reviewRepositoryProvider).watchBodyLinks(),
+final reviewBodyLinksProvider = StreamProvider.autoDispose
+    .family<List<ReviewBodyLinkItem>, String>(
+      (ref, kind) =>
+          ref.watch(reviewRepositoryByKindProvider(kind)).watchBodyLinks(),
     );
 
 /// S08 - one person: faces, photos, bodies and what the PC suggests about them.
@@ -60,7 +66,11 @@ class PersonDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final person = ref.watch(personProvider(personId));
-    final pending = albumReviewCount(ref, personId);
+    final pending = albumReviewCount(
+      ref,
+      personId,
+      person.value?.kind ?? 'person',
+    );
     return person.when(
       loading: () => Scaffold(appBar: AppBar(), body: const LoadingBox()),
       error: (e, _) => Scaffold(
@@ -115,13 +125,15 @@ class PersonDetailScreen extends ConsumerWidget {
                 ),
               ),
               actions: [
-                IconButton.filledTonal(
-                  key: const Key('person-use-studio'),
-                  tooltip: l10n.useInStudio,
-                  onPressed: () =>
-                      context.push('${Routes.reface}?person=$personId'),
-                  icon: const Icon(Icons.face_retouching_natural),
-                ),
+                // A drawn character cannot be a face-swap source (ArcFace only).
+                if (p.kind == 'person')
+                  IconButton.filledTonal(
+                    key: const Key('person-use-studio'),
+                    tooltip: l10n.useInStudio,
+                    onPressed: () =>
+                        context.push('${Routes.reface}?person=$personId'),
+                    icon: const Icon(Icons.face_retouching_natural),
+                  ),
                 PopupMenuButton<String>(
                   key: const Key('person-menu'),
                   onSelected: (v) {
@@ -207,7 +219,7 @@ class PersonDetailScreen extends ConsumerWidget {
                 Expanded(
                   child: TabBarView(
                     children: [
-                      FaceGrid(personId: personId),
+                      FaceGrid(personId: personId, kind: p.kind),
                       MediaGrid(
                         filter: MediaFilter(personId: personId),
                         empty: EmptyState(
@@ -276,6 +288,7 @@ class PersonDetailScreen extends ConsumerWidget {
       excludePersonId: p.id,
       allowNew: false,
       title: l10n.mergeWith,
+      kind: p.kind,
     );
     if (choice?.personId != null && context.mounted) {
       context.push('${Routes.merge}/${p.id}/${choice!.personId}');
@@ -298,7 +311,9 @@ class PersonDetailScreen extends ConsumerWidget {
     );
     if (!ok) return;
     await ref.read(peopleRepositoryProvider).deletePerson(p.id);
-    if (context.mounted) leave(context, Routes.people);
+    if (context.mounted) {
+      leave(context, p.kind == 'character' ? Routes.characters : Routes.people);
+    }
   }
 }
 
@@ -439,13 +454,13 @@ class _SuggestionsTabState extends ConsumerState<_SuggestionsTab> {
         const <ReviewMatchFace>[];
     final duplicates = [
       for (final d
-          in ref.watch(reviewDuplicatesProvider).value ??
+          in ref.watch(reviewDuplicatesProvider(p.kind)).value ??
               const <ReviewDuplicateItem>[])
         if (d.a.id == p.id || d.b.id == p.id) d,
     ];
     final links = [
       for (final l
-          in ref.watch(reviewBodyLinksProvider).value ??
+          in ref.watch(reviewBodyLinksProvider(p.kind)).value ??
               const <ReviewBodyLinkItem>[])
         if (l.person.id == p.id) l,
     ];
@@ -460,7 +475,7 @@ class _SuggestionsTabState extends ConsumerState<_SuggestionsTab> {
       for (final m in matches)
         if (!_deselected.contains(m.faceId)) m.faceId,
     ];
-    final repo = ref.read(reviewRepositoryProvider);
+    final repo = reviewRepositoryFor(ref, p.kind);
 
     return ListView(
       key: const Key('suggestions-list'),
@@ -585,7 +600,7 @@ class _BodyLinkTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final repo = ref.read(reviewRepositoryProvider);
+    final repo = reviewRepositoryFor(ref, link.person.kind);
     return ListTile(
       key: Key('body-link-${link.bodyId}'),
       contentPadding: EdgeInsets.zero,

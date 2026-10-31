@@ -728,6 +728,51 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/Base64Jpeg" }
             - { type: "null" }
+        face:
+          description: The drawn face, when the anime face detector found one. Optional, so older servers stay valid.
+          oneOf:
+            - { $ref: "#/components/schemas/CharacterFace" }
+            - { type: "null" }
+        body:
+          description: The body of the figure, when the body detector found one.
+          oneOf:
+            - { $ref: "#/components/schemas/CharacterBody" }
+            - { type: "null" }
+
+    CharacterFace:
+      type: object
+      required: [bbox, score, embedding_model_id, embedding]
+      properties:
+        bbox: { $ref: "#/components/schemas/BBox" }
+        score: { type: number, minimum: 0, maximum: 1 }
+        embedding_model_id: { type: string, enum: ["ccip-caformer24@1"] }
+        embedding:
+          description: 768 x float32 little-endian, unit length (CCIP). Null when the CCIP model is not installed.
+          oneOf:
+            - { type: string, minLength: 4096, maxLength: 4096 }
+            - { type: "null" }
+        crop_jpeg:
+          oneOf:
+            - { $ref: "#/components/schemas/Base64Jpeg" }
+            - { type: "null" }
+
+    CharacterBody:
+      type: object
+      required: [bbox, score]
+      properties:
+        bbox: { $ref: "#/components/schemas/BBox" }
+        score: { type: number, minimum: 0, maximum: 1 }
+        kpts:
+          description: 17 COCO keypoints as [x, y, score], or null
+          type: [array, "null"]
+        appearance:
+          description: Outfit descriptor, the same one people bodies carry
+          type: [array, "null"]
+          items: { type: number }
+        crop_jpeg:
+          oneOf:
+            - { $ref: "#/components/schemas/Base64Jpeg" }
+            - { type: "null" }
 
     AnalyzeImageResponse:
       type: object
@@ -858,7 +903,7 @@ components:
           description: apply supports match, cluster, bodies; review supports all four
           items: { type: string, enum: [match, cluster, duplicates, bodies] }
           uniqueItems: true
-        strictness: { type: string, enum: [strict, balanced, loose] }
+        strictness: { type: string, enum: [strict, balanced, loose, character], description: "character = drawn characters: embeddings are CCIP (768 floats), not ArcFace (512)" }
         models:
           type: array
           items: { $ref: "#/components/schemas/GroupingModel" }

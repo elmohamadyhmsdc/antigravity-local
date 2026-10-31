@@ -74,8 +74,8 @@ class VideoCompactor {
             .customSelect(
               '''
               SELECT m.id FROM media m WHERE m.kind = 'video' AND m.scan_status = 'done' AND (
-                EXISTS (SELECT 1 FROM faces f WHERE f.media_id = m.id AND f.frame_number IS NOT NULL AND f.track_id IS NULL)
-                OR EXISTS (SELECT 1 FROM bodies b WHERE b.media_id = m.id AND b.frame_number IS NOT NULL AND b.track_id IS NULL))
+                EXISTS (SELECT 1 FROM faces f WHERE f.media_id = m.id AND f.kind = 'person' AND f.frame_number IS NOT NULL AND f.track_id IS NULL)
+                OR EXISTS (SELECT 1 FROM bodies b WHERE b.media_id = m.id AND b.kind = 'person' AND b.frame_number IS NOT NULL AND b.track_id IS NULL))
               ORDER BY m.id
               ''',
               readsFrom: {_db.media, _db.faces, _db.bodies},
@@ -88,8 +88,8 @@ class VideoCompactor {
       .customSelect(
         '''
         SELECT COUNT(*) AS n FROM media m WHERE m.kind = 'video' AND m.scan_status = 'done' AND (
-          EXISTS (SELECT 1 FROM faces f WHERE f.media_id = m.id AND f.frame_number IS NOT NULL AND f.track_id IS NULL)
-          OR EXISTS (SELECT 1 FROM bodies b WHERE b.media_id = m.id AND b.frame_number IS NOT NULL AND b.track_id IS NULL))
+          EXISTS (SELECT 1 FROM faces f WHERE f.media_id = m.id AND f.kind = 'person' AND f.frame_number IS NOT NULL AND f.track_id IS NULL)
+          OR EXISTS (SELECT 1 FROM bodies b WHERE b.media_id = m.id AND b.kind = 'person' AND b.frame_number IS NOT NULL AND b.track_id IS NULL))
         ''',
         readsFrom: {_db.media, _db.faces, _db.bodies},
       )
@@ -158,7 +158,7 @@ class VideoCompactor {
             f.bbox_x, f.bbox_y, f.bbox_w, f.bbox_h, f.timestamp_ms, f.frame_number,
             (EXISTS (SELECT 1 FROM identity_set_faces s WHERE s.face_id = f.id)
               OR EXISTS (SELECT 1 FROM persons p WHERE p.avatar_face_id = f.id)) AS pinned
-          FROM faces f WHERE f.media_id = ? AND f.frame_number IS NOT NULL
+          FROM faces f WHERE f.media_id = ? AND f.kind = 'person' AND f.frame_number IS NOT NULL
           ORDER BY f.frame_number, f.id
           ''',
           variables: [Variable.withInt(mediaId)],
@@ -218,7 +218,7 @@ class VideoCompactor {
             f.track_id AS face_track, b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h,
             b.timestamp_ms, b.frame_number
           FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
-          WHERE b.media_id = ? AND b.frame_number IS NOT NULL
+          WHERE b.media_id = ? AND b.kind = 'person' AND b.frame_number IS NOT NULL
           ORDER BY b.frame_number, b.id
           ''',
           variables: [Variable.withInt(mediaId)],

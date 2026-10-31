@@ -19,3 +19,7 @@ const round3Stages = ['match', 'cluster', 'duplicates', 'bodies'];
 /// A scan asks the PC to group after this many new faces / photos (and always when it ends).
 const groupEveryNewFaces = 100;
 const groupEveryPhotos = 200;
+
+/// Drawn characters are grouped with their own thresholds (CCIP embeddings, not ArcFace). The
+/// server maps this name to `person_linking.STRICTNESS['character']`.
+const characterStrictness = 'character';

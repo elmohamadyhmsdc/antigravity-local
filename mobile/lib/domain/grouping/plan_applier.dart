@@ -21,11 +21,14 @@ class FacePlanResult {
 /// leaves half a grouping round behind. Anything the user did since the plan was requested wins:
 /// a face that has a person by now is left alone, a person that was deleted is not resurrected.
 class PlanApplier {
-  PlanApplier(this._db, {DateTime Function()? clock})
+  PlanApplier(this._db, {this.kind = 'person', DateTime Function()? clock})
     : _clock = clock ?? DateTime.now;
 
   final AppDatabase _db;
   final DateTime Function() _clock;
+
+  /// 'person' or 'character': new people are created as, and links are cleared only for, this kind.
+  final String kind;
 
   /// Round 1 (`apply`, match + cluster): confident matches go to existing people, big cohesive
   /// groups become new people (real ids, the best-quality face as cover).
@@ -68,7 +71,10 @@ class PlanApplier {
       final personId = await _db
           .into(_db.persons)
           .insert(
-            PersonsCompanion.insert(createdAt: _clock().millisecondsSinceEpoch),
+            PersonsCompanion.insert(
+              kind: Value(kind),
+              createdAt: _clock().millisecondsSinceEpoch,
+            ),
           );
       await _db.customUpdate(
         'UPDATE faces SET person_id = ? WHERE person_id IS NULL AND id IN (${List.filled(g.faceIds.length, '?').join(',')})',
@@ -124,7 +130,8 @@ class PlanApplier {
     GroupingPlanResponse plan,
   ) => _db.transaction(() async {
     await _db.customUpdate(
-      "UPDATE bodies SET person_id = NULL, link_method = NULL, link_confidence = NULL WHERE link_method IN ('appearance', 'weak_face') AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.id = bodies.person_id AND p.grouping_locked = 1)",
+      "UPDATE bodies SET person_id = NULL, link_method = NULL, link_confidence = NULL WHERE link_method IN ('appearance', 'weak_face') AND bodies.kind = ? AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.id = bodies.person_id AND p.grouping_locked = 1)",
+      variables: [Variable.withString(kind)],
       updates: {_db.bodies},
     );
     final people = await _personIds();
@@ -150,7 +157,8 @@ class PlanApplier {
     for (final r
         in await _db
             .customSelect(
-              'SELECT id FROM persons WHERE grouping_locked = 0',
+              'SELECT id FROM persons WHERE grouping_locked = 0 AND kind = ?',
+              variables: [Variable.withString(kind)],
               readsFrom: {_db.persons},
             )
             .get())

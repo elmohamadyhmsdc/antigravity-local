@@ -179,6 +179,46 @@ class CharacterTests(unittest.TestCase):
         with self.assertRaises(Exception):
             parse_analyze_options('{"detect_characters":1}')
 
+    def test_character_has_face_and_body_like_a_person_through_worker_and_wire(self):
+        import base64
+        from analysis import FrameAnalysis
+        from character_detection import attach_identity
+        from mobile_api.scan_worker import encode_result, decode_result
+        from mobile_api.schemas import AnalyzeRequestOptions, analysis_to_response
+
+        class Embedder:
+            def embed_crop(self, crop):
+                v = np.zeros(768, np.float32)
+                v[0] = 1.0
+                return v
+
+        img = drawing()
+        face = {'bbox': [40, 10, 88, 72], 'score': .9}
+        with_both, face_only = detect_characters(img, [body()], anime_faces=[face]), \
+            detect_characters(img, [], anime_faces=[face])
+        self.assertEqual(len(with_both), 1)  # the body is used by its face, not a second figure
+        c = with_both[0]
+        self.assertEqual(list(c.face_bbox), [40, 10, 88, 72])
+        self.assertEqual(list(c.body_bbox), [0, 0, 128, 256])
+        self.assertIsNone(face_only[0].body_bbox)
+        attach_identity(img, [c, face_only[0]], Embedder())
+        self.assertEqual(c.face_embedding.shape, (768,))
+        self.assertIsNotNone(c.body_appearance)
+        self.assertIsNone(face_only[0].body_appearance)
+
+        result = FrameAnalysis([], [], [], [], [], [], image_w=128, image_h=256, characters=[c, face_only[0]])
+        decoded = decode_result(json.loads(json.dumps(encode_result(result))))
+        wire = analysis_to_response(decoded, img, AnalyzeRequestOptions(detect_characters=True))
+        first, second = wire['characters']
+        raw = base64.b64decode(first['face']['embedding'], validate=True)
+        self.assertEqual(len(raw), 768 * 4)
+        self.assertEqual(first['face']['embedding_model_id'], 'ccip-caformer24@1')
+        self.assertTrue(first['face']['crop_jpeg'])
+        self.assertEqual(len(first['body']['appearance']), len(c.body_appearance))
+        self.assertTrue(first['body']['crop_jpeg'])
+        self.assertIsNone(second['body'])
+        self.assertEqual(len(first['descriptor']), DIM)
+
     def test_desktop_persistence_same_frame_constraint_rescan_and_reload(self):
         from character_library import store_character
         from database import JsonDatabase

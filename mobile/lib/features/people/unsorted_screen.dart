@@ -7,7 +7,10 @@ import 'face_grid.dart';
 
 /// Faces that belong to nobody yet - pick some and assign them to a person (S09 on unsorted faces).
 class UnsortedScreen extends StatelessWidget {
-  const UnsortedScreen({super.key});
+  const UnsortedScreen({super.key, this.kind = 'person'});
+
+  /// 'person' or 'character'.
+  final String kind;
 
   @override
   Widget build(BuildContext context) {
@@ -19,11 +22,15 @@ class UnsortedScreen extends StatelessWidget {
           IconButton(
             tooltip: l10n.reviewTitle,
             icon: const Icon(Icons.fact_check_outlined),
-            onPressed: () => context.push(Routes.review),
+            onPressed: () => context.push(
+              kind == 'character'
+                  ? '${Routes.review}?kind=character'
+                  : Routes.review,
+            ),
           ),
         ],
       ),
-      body: const FaceGrid(personId: null),
+      body: FaceGrid(personId: null, kind: kind),
     );
   }
 }

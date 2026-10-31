@@ -20,9 +20,12 @@ import 'review_words.dart';
 /// `?view=quick` pick one regardless. Chosen once, so switching numbers on from the quick review's
 /// menu does not swap the screen under the user.
 class ReviewEntryScreen extends ConsumerStatefulWidget {
-  const ReviewEntryScreen({super.key, this.view});
+  const ReviewEntryScreen({super.key, this.view, this.kind = 'person'});
 
   final String? view;
+
+  /// 'person' or 'character'.
+  final String kind;
 
   @override
   ConsumerState<ReviewEntryScreen> createState() => _ReviewEntryScreenState();
@@ -44,21 +47,27 @@ class _ReviewEntryScreenState extends ConsumerState<ReviewEntryScreen> {
     };
     return switch (_all) {
       null => Scaffold(appBar: AppBar(), body: const LoadingBox()),
-      true => const ReviewScreen(),
-      false => const QuickReviewScreen(),
+      true => ReviewScreen(kind: widget.kind),
+      false => QuickReviewScreen(kind: widget.kind),
     };
   }
 }
 
 /// Opens the full four-tab review ("See all").
-void openAllReview(BuildContext context) =>
-    context.push('${Routes.review}?view=all');
+void openAllReview(
+  BuildContext context, [
+  String kind = 'person',
+]) => context.push(
+  '${Routes.review}?view=all${kind == 'character' ? '&kind=character' : ''}',
+);
 
 /// S10 quick review - one question at a time with the face highlighted on the whole photo, big
 /// Yes / No / Not sure buttons (or swipe right / left), most useful questions first. Every answer is
 /// the same correction the four tabs record; "Not sure" parks the question on this phone.
 class QuickReviewScreen extends ConsumerStatefulWidget {
-  const QuickReviewScreen({super.key});
+  const QuickReviewScreen({super.key, this.kind = 'person'});
+
+  final String kind;
 
   @override
   ConsumerState<QuickReviewScreen> createState() => _QuickReviewScreenState();
@@ -73,8 +82,8 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
   var _busy = false;
   var _drag = 0.0;
 
-  ReviewRepository get _review => ref.read(reviewRepositoryProvider);
-  PeopleRepository get _people => ref.read(peopleRepositoryProvider);
+  ReviewRepository get _review => reviewRepositoryFor(ref, widget.kind);
+  PeopleRepository get _people => peopleRepositoryFor(ref, widget.kind);
 
   Future<void> _run(ReviewQuestion q, Future<bool> Function() action) async {
     if (_busy) return;
@@ -208,7 +217,7 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final questions = ref.watch(reviewQuestionsProvider);
+    final questions = ref.watch(reviewQuestionsByKindProvider(widget.kind));
     final advanced = ref.watch(reviewAdvancedProvider);
     return Scaffold(
       appBar: AppBar(
@@ -222,7 +231,7 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
           ),
           TextButton(
             key: const Key('quick-see-all'),
-            onPressed: () => openAllReview(context),
+            onPressed: () => openAllReview(context, widget.kind),
             child: Text(l.quickSeeAll),
           ),
           PopupMenuButton<String>(
@@ -245,22 +254,31 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
       ),
       body: questions.when(
         loading: () => const LoadingBox(),
-        error: (_, _) =>
-            RetryState(onRetry: () => ref.invalidate(reviewQuestionsProvider)),
+        error: (_, _) => RetryState(
+          onRetry: () =>
+              ref.invalidate(reviewQuestionsByKindProvider(widget.kind)),
+        ),
         data: (all) {
           final open = [
             for (final q in all)
               if (_done[q.key] != (q.score, q.evidence)) q,
           ];
           if (open.isEmpty) {
-            final left = ref.watch(reviewCountsProvider).value?.total ?? 0;
+            final left =
+                ref
+                    .watch(reviewCountsByKindProvider(widget.kind))
+                    .value
+                    ?.total ??
+                0;
             return EmptyState(
               key: const Key('quick-all-done'),
               icon: Icons.task_alt,
               title: l.quickAllDone,
               body: left > 0 ? l.quickAllDoneSnoozed(left) : l.quickAllDoneBody,
               actionLabel: left > 0 ? l.quickSeeAll : null,
-              onAction: left > 0 ? () => openAllReview(context) : null,
+              onAction: left > 0
+                  ? () => openAllReview(context, widget.kind)
+                  : null,
             );
           }
           final q = open.first;
@@ -268,6 +286,7 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
           return _QuestionView(
             key: ValueKey(q.key),
             question: q,
+            kind: widget.kind,
             position: _answered + 1,
             total: total,
             advanced: advanced,
@@ -300,6 +319,7 @@ class _QuestionView extends ConsumerWidget {
   const _QuestionView({
     super.key,
     required this.question,
+    required this.kind,
     required this.position,
     required this.total,
     required this.advanced,
@@ -314,6 +334,7 @@ class _QuestionView extends ConsumerWidget {
   });
 
   final ReviewQuestion question;
+  final String kind;
   final int position, total;
   final bool advanced, busy;
   final double drag;
@@ -452,6 +473,7 @@ class _QuestionView extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             child: q.kind == ReviewQuestionKind.group
                 ? _GroupAnswer(
+                    kind: kind,
                     busy: busy,
                     onSave: onGroup,
                     onNo: onNo,
@@ -565,12 +587,14 @@ class _YesNoBar extends StatelessWidget {
 /// faces to someone who already exists.
 class _GroupAnswer extends ConsumerStatefulWidget {
   const _GroupAnswer({
+    required this.kind,
     required this.busy,
     required this.onSave,
     required this.onNo,
     required this.onNotSure,
   });
 
+  final String kind;
   final bool busy;
   final void Function(String name, PersonSummary? person) onSave;
   final VoidCallback onNo, onNotSure;
@@ -596,7 +620,14 @@ class _GroupAnswerState extends ConsumerState<_GroupAnswer> {
     final l = AppLocalizations.of(context);
     final people = [
       for (final p
-          in ref.watch(peopleProvider).value ?? const <PersonSummary>[])
+          in ref
+                  .watch(
+                    widget.kind == 'character'
+                        ? charactersProvider
+                        : peopleProvider,
+                  )
+                  .value ??
+              const <PersonSummary>[])
         if (!p.hidden && p.isNamed) p,
     ];
     // typing an existing name exactly is the same as picking that person

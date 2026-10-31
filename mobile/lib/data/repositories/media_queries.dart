@@ -93,10 +93,14 @@ class MediaDetection {
     this.frameNumber,
     this.timestampMs,
     this.outline,
+    this.figure = 'person',
   });
 
   final int id;
   final String kind; // f | b
+
+  /// Whose face or body: 'person', or 'character' for a drawn figure.
+  final String figure;
   final int refId; // faces.id / bodies.id
   final double x, y, w, h;
   final int? personId;
@@ -243,7 +247,8 @@ class MediaQueries {
           CASE WHEN d.kind = 'f' THEN f.person_id
                ELSE COALESCE((SELECT person_id FROM faces WHERE id = b.face_id), b.person_id) END AS person_id,
           CASE WHEN d.kind = 'f' THEN f.crop_path ELSE b.crop_path END AS crop_path,
-          b.link_method AS link_method
+          b.link_method AS link_method,
+          CASE WHEN d.kind = 'f' THEN f.kind ELSE b.kind END AS figure
         FROM media_detections d
         LEFT JOIN faces f ON d.kind = 'f' AND f.id = d.ref_id
         LEFT JOIN bodies b ON d.kind = 'b' AND b.id = d.ref_id
@@ -270,6 +275,7 @@ class MediaQueries {
               personId: r.readNullable<int>('person_id'),
               cropPath: r.readNullable<String>('crop_path'),
               linkMethod: r.readNullable<String>('link_method'),
+              figure: r.readNullable<String>('figure') ?? 'person',
               outline: decodeOutline(r.readNullable<String>('outline')),
             ),
         ],

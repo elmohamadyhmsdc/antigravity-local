@@ -37,11 +37,13 @@ class GroupingRunner {
     required this._api,
     required this._settings,
     required this._review,
+    this.kind = 'person',
+    this._then,
     PlanApplier? applier,
     GroupingInputs? inputs,
     this._memberCap = groupingMemberCap,
-  }) : _applier = applier ?? PlanApplier(_db),
-       _inputs = inputs ?? GroupingInputs(_db);
+  }) : _applier = applier ?? PlanApplier(_db, kind: kind),
+       _inputs = inputs ?? GroupingInputs(_db, kind: kind);
 
   final AppDatabase _db;
   final MobileApi? Function() _api;
@@ -50,6 +52,12 @@ class GroupingRunner {
   final PlanApplier _applier;
   final GroupingInputs _inputs;
   final int _memberCap;
+
+  /// Another kind's runner that follows this one (people, then characters).
+  final GroupingRunner? _then;
+
+  /// 'person' or 'character': each kind is grouped on its own, with its own strictness profile.
+  final String kind;
 
   Future<GroupingRun>? _running;
   bool _runningIncremental = false;
@@ -64,10 +72,15 @@ class GroupingRunner {
           : running.then((_) => run());
     }
     _runningIncremental = incremental;
-    return _running = _run(incremental: incremental).whenComplete(() {
-      _running = null;
-      _runningIncremental = false;
-    });
+    return _running = _run(incremental: incremental)
+        .then((result) async {
+          await _then?.run(incremental: incremental);
+          return result;
+        })
+        .whenComplete(() {
+          _running = null;
+          _runningIncremental = false;
+        });
   }
 
   Future<int> _count(String sql) async =>
@@ -76,11 +89,13 @@ class GroupingRunner {
   Future<GroupingRun> _run({required bool incremental}) async {
     final api = _api();
     if (api == null) return const GroupingRun(skipped: true);
-    final strictness = (await _settings.load()).strictness;
+    final strictness = kind == 'character'
+        ? characterStrictness
+        : (await _settings.load()).strictness;
 
     var result = const FacePlanResult();
     if (await _count(
-          'SELECT COUNT(*) AS n FROM faces WHERE person_id IS NULL',
+          "SELECT COUNT(*) AS n FROM faces WHERE person_id IS NULL AND kind = '$kind'",
         ) >
         0) {
       final plan = await api.groupingPlan(
@@ -103,8 +118,10 @@ class GroupingRunner {
     }
 
     var bodiesLinked = 0;
-    if (await _count('SELECT COUNT(*) AS n FROM bodies') > 0 &&
-        await _count('SELECT COUNT(*) AS n FROM persons') > 0) {
+    if (await _count("SELECT COUNT(*) AS n FROM bodies WHERE kind = '$kind'") >
+            0 &&
+        await _count("SELECT COUNT(*) AS n FROM persons WHERE kind = '$kind'") >
+            0) {
       final plan = await api.groupingPlan(
         await _inputs.request(
           mode: 'apply',

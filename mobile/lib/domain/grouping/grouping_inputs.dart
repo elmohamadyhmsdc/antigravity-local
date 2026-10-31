@@ -41,11 +41,12 @@ GroupingModel buildPersonModel(
   assert(faces.isNotEmpty);
   final unit = [for (final f in faces) _normalized(f.embedding)];
   final q = [for (final f in faces) f.quality.clamp(0.05, 1.0).toDouble()];
-  final sum = Float64List(embeddingDim);
+  final dim = unit.first.length; // 512 for people, 768 for characters
+  final sum = Float64List(dim);
   for (var i = 0; i < unit.length; i++) {
     final w = q[i] * q[i];
     final e = unit[i];
-    for (var d = 0; d < embeddingDim; d++) {
+    for (var d = 0; d < dim; d++) {
       sum[d] += e[d] * w;
     }
   }
@@ -72,14 +73,18 @@ const _derivedLinks = ['appearance', 'weak_face'];
 
 /// Reads the library out of the database in the shapes the PC's grouping function takes.
 class GroupingInputs {
-  GroupingInputs(this._db);
+  GroupingInputs(this._db, {this.kind = 'person'});
 
   final AppDatabase _db;
+
+  /// 'person' (buffalo_l, 512-d) or 'character' (CCIP, 768-d): only that kind's rows are read.
+  final String kind;
 
   Future<List<GroupingModel>> models({int cap = groupingMemberCap}) async {
     final people = await _db
         .customSelect(
-          'SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL AND EXISTS (SELECT 1 FROM persons p WHERE p.id = faces.person_id AND p.grouping_locked = 0) ORDER BY person_id',
+          'SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL AND EXISTS (SELECT 1 FROM persons p WHERE p.id = faces.person_id AND p.grouping_locked = 0 AND p.kind = ?) ORDER BY person_id',
+          variables: [Variable.withString(kind)],
           readsFrom: {_db.faces, _db.persons},
         )
         .get();
@@ -98,7 +103,7 @@ class GroupingInputs {
         buildPersonModel(pid, [
           for (final r in rows)
             FaceVector(
-              embeddingFromBlob(r.read<Uint8List>('embedding')),
+              vectorFromBlob(r.read<Uint8List>('embedding')),
               r.read<double>('quality_score'),
             ),
         ], cap: cap),
@@ -113,7 +118,8 @@ class GroupingInputs {
     for (final r
         in await _db
             .customSelect(
-              'SELECT fr.face_id, fr.person_id FROM face_rejections fr JOIN faces f ON f.id = fr.face_id WHERE f.person_id IS NULL',
+              'SELECT fr.face_id, fr.person_id FROM face_rejections fr JOIN faces f ON f.id = fr.face_id WHERE f.person_id IS NULL AND f.kind = ?',
+              variables: [Variable.withString(kind)],
               readsFrom: {_db.faceRejections, _db.faces},
             )
             .get()) {
@@ -123,7 +129,8 @@ class GroupingInputs {
     }
     final rows = await _db
         .customSelect(
-          'SELECT id, embedding, quality_score, media_id, frame_number FROM faces WHERE person_id IS NULL ORDER BY id',
+          'SELECT id, embedding, quality_score, media_id, frame_number FROM faces WHERE person_id IS NULL AND kind = ? ORDER BY id',
+          variables: [Variable.withString(kind)],
           readsFrom: {_db.faces},
         )
         .get();
@@ -131,7 +138,7 @@ class GroupingInputs {
       for (final r in rows)
         GroupingFace(
           id: r.read<int>('id'),
-          embedding: embeddingFromBlob(r.read<Uint8List>('embedding')),
+          embedding: vectorFromBlob(r.read<Uint8List>('embedding')),
           quality: r.read<double>('quality_score'),
           frameKey: frameKeyOf(
             r.readNullable<int>('media_id'),
@@ -146,7 +153,8 @@ class GroupingInputs {
     for (final r
         in await _db
             .customSelect(
-              'SELECT id FROM faces WHERE person_id IS NULL AND review_dismissed = 1 ORDER BY id',
+              'SELECT id FROM faces WHERE person_id IS NULL AND review_dismissed = 1 AND kind = ? ORDER BY id',
+              variables: [Variable.withString(kind)],
               readsFrom: {_db.faces},
             )
             .get())
@@ -157,8 +165,9 @@ class GroupingInputs {
     for (final r
         in await _db
             .customSelect(
-              'SELECT person_a, person_b FROM person_distinct ORDER BY person_a, person_b',
-              readsFrom: {_db.personDistinct},
+              'SELECT d.person_a, d.person_b FROM person_distinct d JOIN persons p ON p.id = d.person_a WHERE p.kind = ? ORDER BY d.person_a, d.person_b',
+              variables: [Variable.withString(kind)],
+              readsFrom: {_db.personDistinct, _db.persons},
             )
             .get())
       (r.read<int>('person_a'), r.read<int>('person_b')),
@@ -175,8 +184,9 @@ class GroupingInputs {
     for (final r
         in await _db
             .customSelect(
-              'SELECT body_id, person_id FROM body_rejections',
-              readsFrom: {_db.bodyRejections},
+              'SELECT r.body_id, r.person_id FROM body_rejections r JOIN bodies b ON b.id = r.body_id WHERE b.kind = ?',
+              variables: [Variable.withString(kind)],
+              readsFrom: {_db.bodyRejections, _db.bodies},
             )
             .get()) {
       rejected
@@ -189,8 +199,10 @@ class GroupingInputs {
           SELECT b.id, b.media_id, b.frame_number, b.appearance, b.weak_face_embedding, b.person_id,
                  b.link_method, bf.person_id AS face_person_id
           FROM bodies b LEFT JOIN faces bf ON bf.id = b.face_id
+          WHERE b.kind = ?
           ORDER BY b.id
           ''',
+          variables: [Variable.withString(kind)],
           readsFrom: {_db.bodies, _db.faces},
         )
         .get();
@@ -213,7 +225,7 @@ class GroupingInputs {
         frameNumber: r.readNullable<int>('frame_number'),
         anchorPersonId: anchor,
         appearance: appearance == null ? null : _floats(appearance),
-        weakFaceEmbedding: weak == null ? null : embeddingFromBlob(weak),
+        weakFaceEmbedding: weak == null ? null : vectorFromBlob(weak),
         rejectedPersonIds: rejected[r.read<int>('id')] ?? const [],
       );
       all.add(body);

@@ -30,6 +30,7 @@ import numpy as np
 import person_linking as pl
 
 EMBEDDING_DIM = 512
+CHARACTER_EMBEDDING_DIM = 768  # CCIP; used when strictness == "character"
 MODES = ("apply", "review")
 STAGES = ("match", "cluster", "duplicates", "bodies")
 APPLY_STAGES = ("match", "cluster", "bodies")
@@ -227,16 +228,16 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
 # Wire format (GroupingPlanRequest in, GroupingPlanResponse out)
 # ---------------------------------------------------------------------------
 
-def decode_embedding(text: Any, what: str = "embedding") -> np.ndarray:
-    """512 x float32 little-endian, base64 -> float32 vector."""
+def decode_embedding(text: Any, what: str = "embedding", dim: int = EMBEDDING_DIM) -> np.ndarray:
+    """`dim` (512 for people, 768 for characters) x float32 little-endian, base64 -> float32 vector."""
     if not isinstance(text, str):
         raise GroupingRequestError(f"{what} must be a base64 string")
     try:
         raw = base64.b64decode(text, validate=True)
     except ValueError:
         raise GroupingRequestError(f"{what} is not valid base64")
-    if len(raw) != EMBEDDING_DIM * 4:
-        raise GroupingRequestError(f"{what} must be {EMBEDDING_DIM} float32 values")
+    if len(raw) != dim * 4:
+        raise GroupingRequestError(f"{what} must be {dim} float32 values")
     vec = np.frombuffer(raw, dtype="<f4").astype(np.float32)
     if not np.isfinite(vec).all():
         raise GroupingRequestError(f"{what} contains NaN or infinity")
@@ -290,6 +291,7 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
     strictness = req.get("strictness")
     _expect(isinstance(strictness, str) and strictness in pl.STRICTNESS,
             f"strictness must be one of {', '.join(pl.STRICTNESS)}")
+    dim = CHARACTER_EMBEDDING_DIM if strictness == "character" else EMBEDDING_DIM
     cap = req.get("max_suggestions_per_person", DEFAULT_MAX_SUGGESTIONS_PER_PERSON)
     _expect(isinstance(cap, int) and not isinstance(cap, bool) and cap >= 1,
             "max_suggestions_per_person must be a positive integer")
@@ -307,8 +309,8 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
         count = _int(m.get("count"), f"models[{i}].count")
         _expect(count >= 1, f"models[{i}].count must be at least 1")
         models[pid] = pl.PersonModel(
-            pid, decode_embedding(m.get("proto"), f"models[{i}].proto"),
-            np.stack([decode_embedding(x, f"models[{i}].members[{j}]") for j, x in enumerate(members_json)]),
+            pid, decode_embedding(m.get("proto"), f"models[{i}].proto", dim),
+            np.stack([decode_embedding(x, f"models[{i}].members[{j}]", dim) for j, x in enumerate(members_json)]),
             count)
 
     pending_json = _list(req, "pending")
@@ -325,7 +327,7 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
                 f"pending[{i}].quality must be a number")
         key = f.get("frame_key")
         _expect(key is None or isinstance(key, str), f"pending[{i}].frame_key must be a string or null")
-        pending.append(PendingFace(fid, decode_embedding(f.get("embedding"), f"pending[{i}].embedding"),
+        pending.append(PendingFace(fid, decode_embedding(f.get("embedding"), f"pending[{i}].embedding", dim),
                                    float(quality), key,
                                    set(_int_list(f.get("rejected_person_ids", []), f"pending[{i}].rejected_person_ids"))))
 
@@ -341,7 +343,7 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
             frame_number=_opt_int(b.get("frame_number"), f"bodies[{i}].frame_number"),
             anchor_person_id=_opt_int(b.get("anchor_person_id"), f"bodies[{i}].anchor_person_id"),
             appearance=_appearance(b.get("appearance"), f"bodies[{i}].appearance"),
-            weak_face_embedding=None if weak is None else decode_embedding(weak, f"bodies[{i}].weak_face_embedding"),
+            weak_face_embedding=None if weak is None else decode_embedding(weak, f"bodies[{i}].weak_face_embedding", dim),
             rejected_person_ids=set(_int_list(b.get("rejected_person_ids", []), f"bodies[{i}].rejected_person_ids"))))
 
     distinct = []

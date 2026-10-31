@@ -15,12 +15,27 @@ final facesProvider = StreamProvider.autoDispose.family<List<FaceItem>, int?>(
   (ref, personId) => ref.watch(peopleRepositoryProvider).watchFaces(personId),
 );
 
+/// The faces of one kind that belong to nobody yet.
+final unsortedFacesProvider = StreamProvider.autoDispose
+    .family<List<FaceItem>, String>(
+      (ref, kind) => ref
+          .watch(
+            kind == 'character'
+                ? characterPeopleRepositoryProvider
+                : peopleRepositoryProvider,
+          )
+          .watchFaces(null),
+    );
+
 /// Tap a face to open its photo; long-press (or tap once something is selected) to select faces and
 /// assign, move, reject, delete them or make one the person's cover.
 class FaceGrid extends ConsumerStatefulWidget {
-  const FaceGrid({super.key, required this.personId});
+  const FaceGrid({super.key, required this.personId, this.kind = 'person'});
 
   final int? personId;
+
+  /// 'person' or 'character': which unsorted pool and which people the faces can be assigned to.
+  final String kind;
 
   @override
   ConsumerState<FaceGrid> createState() => _FaceGridState();
@@ -65,12 +80,13 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final faces = ref.watch(facesProvider(widget.personId));
+    final source = widget.personId == null
+        ? unsortedFacesProvider(widget.kind)
+        : facesProvider(widget.personId);
+    final faces = ref.watch(source);
     return faces.when(
       loading: () => const LoadingBox(),
-      error: (_, _) => RetryState(
-        onRetry: () => ref.invalidate(facesProvider(widget.personId)),
-      ),
+      error: (_, _) => RetryState(onRetry: () => ref.invalidate(source)),
       data: (all) {
         final items = all.where((f) => f.hidden == _hidden).toList();
         // faces that left (assigned elsewhere, deleted) drop out of the selection
@@ -178,15 +194,21 @@ class _FaceGridState extends ConsumerState<FaceGrid> {
   Future<void> _assign(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final repo = ref.read(peopleRepositoryProvider);
+    final repo = peopleRepositoryFor(ref, widget.kind);
     final choice = await pickPerson(
       context,
       excludePersonId: widget.personId,
       title: l10n.assignFacesTitle(_selected.length),
+      kind: widget.kind,
     );
     if (choice == null || !mounted) return;
     final ids = _selected.toList();
-    final target = await resolveChoice(ref, choice, faceIds: ids);
+    final target = await resolveChoice(
+      ref,
+      choice,
+      faceIds: ids,
+      kind: widget.kind,
+    );
     if (!choice.isNew) await repo.assignFaces(ids, target);
     if (!mounted) return;
     _clearSelection();

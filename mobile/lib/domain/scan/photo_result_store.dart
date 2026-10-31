@@ -587,7 +587,7 @@ class PhotoResultStore {
               AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id)
               AND NOT EXISTS (SELECT 1 FROM identity_set_faces s WHERE s.face_id = f.id)
               AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.avatar_face_id = f.id)) AS free
-          FROM faces f WHERE f.media_id = ? AND f.track_id IS NOT NULL ORDER BY f.id
+          FROM faces f WHERE f.media_id = ? AND f.kind = 'person' AND f.track_id IS NOT NULL ORDER BY f.id
           ''',
           variables: [Variable.withInt(mediaId)],
           readsFrom: {_db.faces},
@@ -642,7 +642,7 @@ class PhotoResultStore {
           '''
           SELECT b.id, b.track_id, b.appearance, b.score, f.track_id AS face_track
           FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
-          WHERE b.media_id = ? AND b.track_id IS NOT NULL ORDER BY b.id
+          WHERE b.media_id = ? AND b.kind = 'person' AND b.track_id IS NOT NULL ORDER BY b.id
           ''',
           variables: [Variable.withInt(mediaId)],
           readsFrom: {_db.bodies, _db.faces},
@@ -683,7 +683,7 @@ class PhotoResultStore {
           FROM media_detections d JOIN $table t ON t.id = d.ref_id
           WHERE d.media_id = ? AND d.kind = ? AND d.frame_number < ?
             AND (?4 IS NULL OR d.timestamp_ms IS NULL OR d.timestamp_ms >= ?4 - $trackMotionGapMs)
-            AND t.track_id IS NOT NULL
+            AND t.track_id IS NOT NULL AND t.kind = 'person'
           ORDER BY d.frame_number DESC
           ''',
           variables: [
@@ -774,7 +774,7 @@ class PhotoResultStore {
   Future<List<_Existing>> _facesOfMedia(int mediaId, int? frameNumber) async {
     final rows = await _db
         .customSelect(
-          'SELECT id, bbox_x, bbox_y, bbox_w, bbox_h, embedding, quality_score, quality_version, track_id FROM faces WHERE media_id = ? AND frame_number IS ?',
+          "SELECT id, bbox_x, bbox_y, bbox_w, bbox_h, embedding, quality_score, quality_version, track_id FROM faces WHERE media_id = ? AND frame_number IS ? AND kind = 'person'",
           variables: [Variable.withInt(mediaId), Variable<int>(frameNumber)],
           readsFrom: {_db.faces},
         )
@@ -803,7 +803,7 @@ class PhotoResultStore {
   ) async {
     final rows = await _db
         .customSelect(
-          'SELECT id, face_id, bbox_x, bbox_y, bbox_w, bbox_h, appearance, track_id FROM bodies WHERE media_id = ? AND frame_number IS ?',
+          "SELECT id, face_id, bbox_x, bbox_y, bbox_w, bbox_h, appearance, track_id FROM bodies WHERE media_id = ? AND frame_number IS ? AND kind = 'person'",
           variables: [Variable.withInt(mediaId), Variable<int>(frameNumber)],
           readsFrom: {_db.bodies},
         )

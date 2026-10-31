@@ -108,6 +108,16 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('person'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -118,6 +128,7 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
     favorite,
     pinned,
     groupingLocked,
+    kind,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -184,6 +195,12 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
         ),
       );
     }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
     return context;
   }
 
@@ -225,6 +242,10 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
         DriftSqlType.bool,
         data['${effectivePrefix}grouping_locked'],
       )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
     );
   }
 
@@ -243,6 +264,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
   final bool favorite;
   final bool pinned;
   final bool groupingLocked;
+  final String kind;
   const PersonRow({
     required this.id,
     this.name,
@@ -252,6 +274,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
     required this.favorite,
     required this.pinned,
     required this.groupingLocked,
+    required this.kind,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -268,6 +291,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
     map['favorite'] = Variable<bool>(favorite);
     map['pinned'] = Variable<bool>(pinned);
     map['grouping_locked'] = Variable<bool>(groupingLocked);
+    map['kind'] = Variable<String>(kind);
     return map;
   }
 
@@ -283,6 +307,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
       favorite: Value(favorite),
       pinned: Value(pinned),
       groupingLocked: Value(groupingLocked),
+      kind: Value(kind),
     );
   }
 
@@ -300,6 +325,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
       favorite: serializer.fromJson<bool>(json['favorite']),
       pinned: serializer.fromJson<bool>(json['pinned']),
       groupingLocked: serializer.fromJson<bool>(json['groupingLocked']),
+      kind: serializer.fromJson<String>(json['kind']),
     );
   }
   @override
@@ -314,6 +340,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
       'favorite': serializer.toJson<bool>(favorite),
       'pinned': serializer.toJson<bool>(pinned),
       'groupingLocked': serializer.toJson<bool>(groupingLocked),
+      'kind': serializer.toJson<String>(kind),
     };
   }
 
@@ -326,6 +353,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
     bool? favorite,
     bool? pinned,
     bool? groupingLocked,
+    String? kind,
   }) => PersonRow(
     id: id ?? this.id,
     name: name.present ? name.value : this.name,
@@ -335,6 +363,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
     favorite: favorite ?? this.favorite,
     pinned: pinned ?? this.pinned,
     groupingLocked: groupingLocked ?? this.groupingLocked,
+    kind: kind ?? this.kind,
   );
   PersonRow copyWithCompanion(PersonsCompanion data) {
     return PersonRow(
@@ -350,6 +379,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
       groupingLocked: data.groupingLocked.present
           ? data.groupingLocked.value
           : this.groupingLocked,
+      kind: data.kind.present ? data.kind.value : this.kind,
     );
   }
 
@@ -363,7 +393,8 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
           ..write('hidden: $hidden, ')
           ..write('favorite: $favorite, ')
           ..write('pinned: $pinned, ')
-          ..write('groupingLocked: $groupingLocked')
+          ..write('groupingLocked: $groupingLocked, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -378,6 +409,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
     favorite,
     pinned,
     groupingLocked,
+    kind,
   );
   @override
   bool operator ==(Object other) =>
@@ -390,7 +422,8 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
           other.hidden == this.hidden &&
           other.favorite == this.favorite &&
           other.pinned == this.pinned &&
-          other.groupingLocked == this.groupingLocked);
+          other.groupingLocked == this.groupingLocked &&
+          other.kind == this.kind);
 }
 
 class PersonsCompanion extends UpdateCompanion<PersonRow> {
@@ -402,6 +435,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
   final Value<bool> favorite;
   final Value<bool> pinned;
   final Value<bool> groupingLocked;
+  final Value<String> kind;
   const PersonsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -411,6 +445,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
     this.favorite = const Value.absent(),
     this.pinned = const Value.absent(),
     this.groupingLocked = const Value.absent(),
+    this.kind = const Value.absent(),
   });
   PersonsCompanion.insert({
     this.id = const Value.absent(),
@@ -421,6 +456,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
     this.favorite = const Value.absent(),
     this.pinned = const Value.absent(),
     this.groupingLocked = const Value.absent(),
+    this.kind = const Value.absent(),
   }) : createdAt = Value(createdAt);
   static Insertable<PersonRow> custom({
     Expression<int>? id,
@@ -431,6 +467,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
     Expression<bool>? favorite,
     Expression<bool>? pinned,
     Expression<bool>? groupingLocked,
+    Expression<String>? kind,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -441,6 +478,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
       if (favorite != null) 'favorite': favorite,
       if (pinned != null) 'pinned': pinned,
       if (groupingLocked != null) 'grouping_locked': groupingLocked,
+      if (kind != null) 'kind': kind,
     });
   }
 
@@ -453,6 +491,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
     Value<bool>? favorite,
     Value<bool>? pinned,
     Value<bool>? groupingLocked,
+    Value<String>? kind,
   }) {
     return PersonsCompanion(
       id: id ?? this.id,
@@ -463,6 +502,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
       favorite: favorite ?? this.favorite,
       pinned: pinned ?? this.pinned,
       groupingLocked: groupingLocked ?? this.groupingLocked,
+      kind: kind ?? this.kind,
     );
   }
 
@@ -493,6 +533,9 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
     if (groupingLocked.present) {
       map['grouping_locked'] = Variable<bool>(groupingLocked.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
     return map;
   }
 
@@ -506,7 +549,8 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
           ..write('hidden: $hidden, ')
           ..write('favorite: $favorite, ')
           ..write('pinned: $pinned, ')
-          ..write('groupingLocked: $groupingLocked')
+          ..write('groupingLocked: $groupingLocked, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -1700,6 +1744,16 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('person'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1728,6 +1782,7 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
     createdAt,
     hidden,
     trackId,
+    kind,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1936,6 +1991,12 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
         trackId.isAcceptableOrUnknown(data['track_id']!, _trackIdMeta),
       );
     }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
     return context;
   }
 
@@ -2049,6 +2110,10 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
         DriftSqlType.int,
         data['${effectivePrefix}track_id'],
       ),
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
     );
   }
 
@@ -2085,6 +2150,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
   final int createdAt;
   final bool hidden;
   final int? trackId;
+  final String kind;
   const FaceRow({
     required this.id,
     this.mediaId,
@@ -2112,6 +2178,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     required this.createdAt,
     required this.hidden,
     this.trackId,
+    required this.kind,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2164,6 +2231,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     if (!nullToAbsent || trackId != null) {
       map['track_id'] = Variable<int>(trackId);
     }
+    map['kind'] = Variable<String>(kind);
     return map;
   }
 
@@ -2211,6 +2279,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       trackId: trackId == null && nullToAbsent
           ? const Value.absent()
           : Value(trackId),
+      kind: Value(kind),
     );
   }
 
@@ -2246,6 +2315,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       createdAt: serializer.fromJson<int>(json['createdAt']),
       hidden: serializer.fromJson<bool>(json['hidden']),
       trackId: serializer.fromJson<int?>(json['trackId']),
+      kind: serializer.fromJson<String>(json['kind']),
     );
   }
   @override
@@ -2278,6 +2348,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       'createdAt': serializer.toJson<int>(createdAt),
       'hidden': serializer.toJson<bool>(hidden),
       'trackId': serializer.toJson<int?>(trackId),
+      'kind': serializer.toJson<String>(kind),
     };
   }
 
@@ -2308,6 +2379,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     int? createdAt,
     bool? hidden,
     Value<int?> trackId = const Value.absent(),
+    String? kind,
   }) => FaceRow(
     id: id ?? this.id,
     mediaId: mediaId.present ? mediaId.value : this.mediaId,
@@ -2337,6 +2409,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     createdAt: createdAt ?? this.createdAt,
     hidden: hidden ?? this.hidden,
     trackId: trackId.present ? trackId.value : this.trackId,
+    kind: kind ?? this.kind,
   );
   FaceRow copyWithCompanion(FacesCompanion data) {
     return FaceRow(
@@ -2378,6 +2451,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       hidden: data.hidden.present ? data.hidden.value : this.hidden,
       trackId: data.trackId.present ? data.trackId.value : this.trackId,
+      kind: data.kind.present ? data.kind.value : this.kind,
     );
   }
 
@@ -2409,7 +2483,8 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           ..write('reviewDismissed: $reviewDismissed, ')
           ..write('createdAt: $createdAt, ')
           ..write('hidden: $hidden, ')
-          ..write('trackId: $trackId')
+          ..write('trackId: $trackId, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -2442,6 +2517,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     createdAt,
     hidden,
     trackId,
+    kind,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -2472,7 +2548,8 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           other.reviewDismissed == this.reviewDismissed &&
           other.createdAt == this.createdAt &&
           other.hidden == this.hidden &&
-          other.trackId == this.trackId);
+          other.trackId == this.trackId &&
+          other.kind == this.kind);
 }
 
 class FacesCompanion extends UpdateCompanion<FaceRow> {
@@ -2502,6 +2579,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
   final Value<int> createdAt;
   final Value<bool> hidden;
   final Value<int?> trackId;
+  final Value<String> kind;
   const FacesCompanion({
     this.id = const Value.absent(),
     this.mediaId = const Value.absent(),
@@ -2529,6 +2607,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     this.createdAt = const Value.absent(),
     this.hidden = const Value.absent(),
     this.trackId = const Value.absent(),
+    this.kind = const Value.absent(),
   });
   FacesCompanion.insert({
     this.id = const Value.absent(),
@@ -2557,6 +2636,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     required int createdAt,
     this.hidden = const Value.absent(),
     this.trackId = const Value.absent(),
+    this.kind = const Value.absent(),
   }) : modelId = Value(modelId),
        embedding = Value(embedding),
        qualityScore = Value(qualityScore),
@@ -2596,6 +2676,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     Expression<int>? createdAt,
     Expression<bool>? hidden,
     Expression<int>? trackId,
+    Expression<String>? kind,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2624,6 +2705,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
       if (createdAt != null) 'created_at': createdAt,
       if (hidden != null) 'hidden': hidden,
       if (trackId != null) 'track_id': trackId,
+      if (kind != null) 'kind': kind,
     });
   }
 
@@ -2654,6 +2736,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     Value<int>? createdAt,
     Value<bool>? hidden,
     Value<int?>? trackId,
+    Value<String>? kind,
   }) {
     return FacesCompanion(
       id: id ?? this.id,
@@ -2682,6 +2765,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
       createdAt: createdAt ?? this.createdAt,
       hidden: hidden ?? this.hidden,
       trackId: trackId ?? this.trackId,
+      kind: kind ?? this.kind,
     );
   }
 
@@ -2766,6 +2850,9 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     if (trackId.present) {
       map['track_id'] = Variable<int>(trackId.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
     return map;
   }
 
@@ -2797,7 +2884,8 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
           ..write('reviewDismissed: $reviewDismissed, ')
           ..write('createdAt: $createdAt, ')
           ..write('hidden: $hidden, ')
-          ..write('trackId: $trackId')
+          ..write('trackId: $trackId, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -3399,6 +3487,16 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('person'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3422,6 +3520,7 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
     cropPath,
     createdAt,
     trackId,
+    kind,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3585,6 +3684,12 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
         trackId.isAcceptableOrUnknown(data['track_id']!, _trackIdMeta),
       );
     }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
     return context;
   }
 
@@ -3678,6 +3783,10 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
         DriftSqlType.int,
         data['${effectivePrefix}track_id'],
       ),
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
     );
   }
 
@@ -3709,6 +3818,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
   final String? cropPath;
   final int createdAt;
   final int? trackId;
+  final String kind;
   const BodyRow({
     required this.id,
     this.mediaId,
@@ -3731,6 +3841,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     this.cropPath,
     required this.createdAt,
     this.trackId,
+    required this.kind,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3784,6 +3895,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     if (!nullToAbsent || trackId != null) {
       map['track_id'] = Variable<int>(trackId);
     }
+    map['kind'] = Variable<String>(kind);
     return map;
   }
 
@@ -3836,6 +3948,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       trackId: trackId == null && nullToAbsent
           ? const Value.absent()
           : Value(trackId),
+      kind: Value(kind),
     );
   }
 
@@ -3868,6 +3981,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       cropPath: serializer.fromJson<String?>(json['cropPath']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       trackId: serializer.fromJson<int?>(json['trackId']),
+      kind: serializer.fromJson<String>(json['kind']),
     );
   }
   @override
@@ -3895,6 +4009,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       'cropPath': serializer.toJson<String?>(cropPath),
       'createdAt': serializer.toJson<int>(createdAt),
       'trackId': serializer.toJson<int?>(trackId),
+      'kind': serializer.toJson<String>(kind),
     };
   }
 
@@ -3920,6 +4035,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     Value<String?> cropPath = const Value.absent(),
     int? createdAt,
     Value<int?> trackId = const Value.absent(),
+    String? kind,
   }) => BodyRow(
     id: id ?? this.id,
     mediaId: mediaId.present ? mediaId.value : this.mediaId,
@@ -3948,6 +4064,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     cropPath: cropPath.present ? cropPath.value : this.cropPath,
     createdAt: createdAt ?? this.createdAt,
     trackId: trackId.present ? trackId.value : this.trackId,
+    kind: kind ?? this.kind,
   );
   BodyRow copyWithCompanion(BodiesCompanion data) {
     return BodyRow(
@@ -3986,6 +4103,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       cropPath: data.cropPath.present ? data.cropPath.value : this.cropPath,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       trackId: data.trackId.present ? data.trackId.value : this.trackId,
+      kind: data.kind.present ? data.kind.value : this.kind,
     );
   }
 
@@ -4012,7 +4130,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           ..write('timestampMs: $timestampMs, ')
           ..write('cropPath: $cropPath, ')
           ..write('createdAt: $createdAt, ')
-          ..write('trackId: $trackId')
+          ..write('trackId: $trackId, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -4040,6 +4159,7 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     cropPath,
     createdAt,
     trackId,
+    kind,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -4068,7 +4188,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           other.timestampMs == this.timestampMs &&
           other.cropPath == this.cropPath &&
           other.createdAt == this.createdAt &&
-          other.trackId == this.trackId);
+          other.trackId == this.trackId &&
+          other.kind == this.kind);
 }
 
 class BodiesCompanion extends UpdateCompanion<BodyRow> {
@@ -4093,6 +4214,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
   final Value<String?> cropPath;
   final Value<int> createdAt;
   final Value<int?> trackId;
+  final Value<String> kind;
   const BodiesCompanion({
     this.id = const Value.absent(),
     this.mediaId = const Value.absent(),
@@ -4115,6 +4237,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     this.cropPath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.trackId = const Value.absent(),
+    this.kind = const Value.absent(),
   });
   BodiesCompanion.insert({
     this.id = const Value.absent(),
@@ -4138,6 +4261,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     this.cropPath = const Value.absent(),
     required int createdAt,
     this.trackId = const Value.absent(),
+    this.kind = const Value.absent(),
   }) : bboxX = Value(bboxX),
        bboxY = Value(bboxY),
        bboxW = Value(bboxW),
@@ -4166,6 +4290,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     Expression<String>? cropPath,
     Expression<int>? createdAt,
     Expression<int>? trackId,
+    Expression<String>? kind,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4189,6 +4314,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
       if (cropPath != null) 'crop_path': cropPath,
       if (createdAt != null) 'created_at': createdAt,
       if (trackId != null) 'track_id': trackId,
+      if (kind != null) 'kind': kind,
     });
   }
 
@@ -4214,6 +4340,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     Value<String?>? cropPath,
     Value<int>? createdAt,
     Value<int?>? trackId,
+    Value<String>? kind,
   }) {
     return BodiesCompanion(
       id: id ?? this.id,
@@ -4237,6 +4364,7 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
       cropPath: cropPath ?? this.cropPath,
       createdAt: createdAt ?? this.createdAt,
       trackId: trackId ?? this.trackId,
+      kind: kind ?? this.kind,
     );
   }
 
@@ -4306,6 +4434,9 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     if (trackId.present) {
       map['track_id'] = Variable<int>(trackId.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
     return map;
   }
 
@@ -4332,7 +4463,8 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
           ..write('timestampMs: $timestampMs, ')
           ..write('cropPath: $cropPath, ')
           ..write('createdAt: $createdAt, ')
-          ..write('trackId: $trackId')
+          ..write('trackId: $trackId, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -7602,6 +7734,16 @@ class $ReviewGroupsTable extends ReviewGroups
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('person'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -7609,6 +7751,7 @@ class $ReviewGroupsTable extends ReviewGroups
     cohesion,
     quality,
     autoCreate,
+    kind,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -7655,6 +7798,12 @@ class $ReviewGroupsTable extends ReviewGroups
         autoCreate.isAcceptableOrUnknown(data['auto_create']!, _autoCreateMeta),
       );
     }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
     return context;
   }
 
@@ -7684,6 +7833,10 @@ class $ReviewGroupsTable extends ReviewGroups
         DriftSqlType.bool,
         data['${effectivePrefix}auto_create'],
       )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
     );
   }
 
@@ -7699,12 +7852,14 @@ class ReviewGroupRow extends DataClass implements Insertable<ReviewGroupRow> {
   final double cohesion;
   final double quality;
   final bool autoCreate;
+  final String kind;
   const ReviewGroupRow({
     required this.id,
     required this.faceIds,
     required this.cohesion,
     required this.quality,
     required this.autoCreate,
+    required this.kind,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -7714,6 +7869,7 @@ class ReviewGroupRow extends DataClass implements Insertable<ReviewGroupRow> {
     map['cohesion'] = Variable<double>(cohesion);
     map['quality'] = Variable<double>(quality);
     map['auto_create'] = Variable<bool>(autoCreate);
+    map['kind'] = Variable<String>(kind);
     return map;
   }
 
@@ -7724,6 +7880,7 @@ class ReviewGroupRow extends DataClass implements Insertable<ReviewGroupRow> {
       cohesion: Value(cohesion),
       quality: Value(quality),
       autoCreate: Value(autoCreate),
+      kind: Value(kind),
     );
   }
 
@@ -7738,6 +7895,7 @@ class ReviewGroupRow extends DataClass implements Insertable<ReviewGroupRow> {
       cohesion: serializer.fromJson<double>(json['cohesion']),
       quality: serializer.fromJson<double>(json['quality']),
       autoCreate: serializer.fromJson<bool>(json['autoCreate']),
+      kind: serializer.fromJson<String>(json['kind']),
     );
   }
   @override
@@ -7749,6 +7907,7 @@ class ReviewGroupRow extends DataClass implements Insertable<ReviewGroupRow> {
       'cohesion': serializer.toJson<double>(cohesion),
       'quality': serializer.toJson<double>(quality),
       'autoCreate': serializer.toJson<bool>(autoCreate),
+      'kind': serializer.toJson<String>(kind),
     };
   }
 
@@ -7758,12 +7917,14 @@ class ReviewGroupRow extends DataClass implements Insertable<ReviewGroupRow> {
     double? cohesion,
     double? quality,
     bool? autoCreate,
+    String? kind,
   }) => ReviewGroupRow(
     id: id ?? this.id,
     faceIds: faceIds ?? this.faceIds,
     cohesion: cohesion ?? this.cohesion,
     quality: quality ?? this.quality,
     autoCreate: autoCreate ?? this.autoCreate,
+    kind: kind ?? this.kind,
   );
   ReviewGroupRow copyWithCompanion(ReviewGroupsCompanion data) {
     return ReviewGroupRow(
@@ -7774,6 +7935,7 @@ class ReviewGroupRow extends DataClass implements Insertable<ReviewGroupRow> {
       autoCreate: data.autoCreate.present
           ? data.autoCreate.value
           : this.autoCreate,
+      kind: data.kind.present ? data.kind.value : this.kind,
     );
   }
 
@@ -7784,13 +7946,15 @@ class ReviewGroupRow extends DataClass implements Insertable<ReviewGroupRow> {
           ..write('faceIds: $faceIds, ')
           ..write('cohesion: $cohesion, ')
           ..write('quality: $quality, ')
-          ..write('autoCreate: $autoCreate')
+          ..write('autoCreate: $autoCreate, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, faceIds, cohesion, quality, autoCreate);
+  int get hashCode =>
+      Object.hash(id, faceIds, cohesion, quality, autoCreate, kind);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -7799,7 +7963,8 @@ class ReviewGroupRow extends DataClass implements Insertable<ReviewGroupRow> {
           other.faceIds == this.faceIds &&
           other.cohesion == this.cohesion &&
           other.quality == this.quality &&
-          other.autoCreate == this.autoCreate);
+          other.autoCreate == this.autoCreate &&
+          other.kind == this.kind);
 }
 
 class ReviewGroupsCompanion extends UpdateCompanion<ReviewGroupRow> {
@@ -7808,12 +7973,14 @@ class ReviewGroupsCompanion extends UpdateCompanion<ReviewGroupRow> {
   final Value<double> cohesion;
   final Value<double> quality;
   final Value<bool> autoCreate;
+  final Value<String> kind;
   const ReviewGroupsCompanion({
     this.id = const Value.absent(),
     this.faceIds = const Value.absent(),
     this.cohesion = const Value.absent(),
     this.quality = const Value.absent(),
     this.autoCreate = const Value.absent(),
+    this.kind = const Value.absent(),
   });
   ReviewGroupsCompanion.insert({
     this.id = const Value.absent(),
@@ -7821,6 +7988,7 @@ class ReviewGroupsCompanion extends UpdateCompanion<ReviewGroupRow> {
     required double cohesion,
     required double quality,
     this.autoCreate = const Value.absent(),
+    this.kind = const Value.absent(),
   }) : faceIds = Value(faceIds),
        cohesion = Value(cohesion),
        quality = Value(quality);
@@ -7830,6 +7998,7 @@ class ReviewGroupsCompanion extends UpdateCompanion<ReviewGroupRow> {
     Expression<double>? cohesion,
     Expression<double>? quality,
     Expression<bool>? autoCreate,
+    Expression<String>? kind,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -7837,6 +8006,7 @@ class ReviewGroupsCompanion extends UpdateCompanion<ReviewGroupRow> {
       if (cohesion != null) 'cohesion': cohesion,
       if (quality != null) 'quality': quality,
       if (autoCreate != null) 'auto_create': autoCreate,
+      if (kind != null) 'kind': kind,
     });
   }
 
@@ -7846,6 +8016,7 @@ class ReviewGroupsCompanion extends UpdateCompanion<ReviewGroupRow> {
     Value<double>? cohesion,
     Value<double>? quality,
     Value<bool>? autoCreate,
+    Value<String>? kind,
   }) {
     return ReviewGroupsCompanion(
       id: id ?? this.id,
@@ -7853,6 +8024,7 @@ class ReviewGroupsCompanion extends UpdateCompanion<ReviewGroupRow> {
       cohesion: cohesion ?? this.cohesion,
       quality: quality ?? this.quality,
       autoCreate: autoCreate ?? this.autoCreate,
+      kind: kind ?? this.kind,
     );
   }
 
@@ -7874,6 +8046,9 @@ class ReviewGroupsCompanion extends UpdateCompanion<ReviewGroupRow> {
     if (autoCreate.present) {
       map['auto_create'] = Variable<bool>(autoCreate.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
     return map;
   }
 
@@ -7884,7 +8059,8 @@ class ReviewGroupsCompanion extends UpdateCompanion<ReviewGroupRow> {
           ..write('faceIds: $faceIds, ')
           ..write('cohesion: $cohesion, ')
           ..write('quality: $quality, ')
-          ..write('autoCreate: $autoCreate')
+          ..write('autoCreate: $autoCreate, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -13909,6 +14085,7 @@ typedef $$PersonsTableCreateCompanionBuilder =
       Value<bool> favorite,
       Value<bool> pinned,
       Value<bool> groupingLocked,
+      Value<String> kind,
     });
 typedef $$PersonsTableUpdateCompanionBuilder =
     PersonsCompanion Function({
@@ -13920,6 +14097,7 @@ typedef $$PersonsTableUpdateCompanionBuilder =
       Value<bool> favorite,
       Value<bool> pinned,
       Value<bool> groupingLocked,
+      Value<String> kind,
     });
 
 final class $$PersonsTableReferences
@@ -14250,6 +14428,11 @@ class $$PersonsTableFilterComposer
 
   ColumnFilters<bool> get groupingLocked => $composableBuilder(
     column: $table.groupingLocked,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14677,6 +14860,11 @@ class $$PersonsTableOrderingComposer
     column: $table.groupingLocked,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PersonsTableAnnotationComposer
@@ -14715,6 +14903,9 @@ class $$PersonsTableAnnotationComposer
     column: $table.groupingLocked,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   Expression<T> facesRefs<T extends Object>(
     Expression<T> Function($$FacesTableAnnotationComposer a) f,
@@ -15144,6 +15335,7 @@ class $$PersonsTableTableManager
                 Value<bool> favorite = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 Value<bool> groupingLocked = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => PersonsCompanion(
                 id: id,
                 name: name,
@@ -15153,6 +15345,7 @@ class $$PersonsTableTableManager
                 favorite: favorite,
                 pinned: pinned,
                 groupingLocked: groupingLocked,
+                kind: kind,
               ),
           createCompanionCallback:
               ({
@@ -15164,6 +15357,7 @@ class $$PersonsTableTableManager
                 Value<bool> favorite = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 Value<bool> groupingLocked = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => PersonsCompanion.insert(
                 id: id,
                 name: name,
@@ -15173,6 +15367,7 @@ class $$PersonsTableTableManager
                 favorite: favorite,
                 pinned: pinned,
                 groupingLocked: groupingLocked,
+                kind: kind,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -16396,6 +16591,7 @@ typedef $$FacesTableCreateCompanionBuilder =
       required int createdAt,
       Value<bool> hidden,
       Value<int?> trackId,
+      Value<String> kind,
     });
 typedef $$FacesTableUpdateCompanionBuilder =
     FacesCompanion Function({
@@ -16425,6 +16621,7 @@ typedef $$FacesTableUpdateCompanionBuilder =
       Value<int> createdAt,
       Value<bool> hidden,
       Value<int?> trackId,
+      Value<String> kind,
     });
 
 final class $$FacesTableReferences
@@ -16666,6 +16863,11 @@ class $$FacesTableFilterComposer extends Composer<_$AppDatabase, $FacesTable> {
 
   ColumnFilters<int> get trackId => $composableBuilder(
     column: $table.trackId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16945,6 +17147,11 @@ class $$FacesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MediaTableOrderingComposer get mediaId {
     final $$MediaTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -17084,6 +17291,9 @@ class $$FacesTableAnnotationComposer
 
   GeneratedColumn<int> get trackId =>
       $composableBuilder(column: $table.trackId, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   $$MediaTableAnnotationComposer get mediaId {
     final $$MediaTableAnnotationComposer composer = $composerBuilder(
@@ -17293,6 +17503,7 @@ class $$FacesTableTableManager
                 Value<int> createdAt = const Value.absent(),
                 Value<bool> hidden = const Value.absent(),
                 Value<int?> trackId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => FacesCompanion(
                 id: id,
                 mediaId: mediaId,
@@ -17320,6 +17531,7 @@ class $$FacesTableTableManager
                 createdAt: createdAt,
                 hidden: hidden,
                 trackId: trackId,
+                kind: kind,
               ),
           createCompanionCallback:
               ({
@@ -17349,6 +17561,7 @@ class $$FacesTableTableManager
                 required int createdAt,
                 Value<bool> hidden = const Value.absent(),
                 Value<int?> trackId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => FacesCompanion.insert(
                 id: id,
                 mediaId: mediaId,
@@ -17376,6 +17589,7 @@ class $$FacesTableTableManager
                 createdAt: createdAt,
                 hidden: hidden,
                 trackId: trackId,
+                kind: kind,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -17798,6 +18012,7 @@ typedef $$BodiesTableCreateCompanionBuilder =
       Value<String?> cropPath,
       required int createdAt,
       Value<int?> trackId,
+      Value<String> kind,
     });
 typedef $$BodiesTableUpdateCompanionBuilder =
     BodiesCompanion Function({
@@ -17822,6 +18037,7 @@ typedef $$BodiesTableUpdateCompanionBuilder =
       Value<String?> cropPath,
       Value<int> createdAt,
       Value<int?> trackId,
+      Value<String> kind,
     });
 
 final class $$BodiesTableReferences
@@ -18014,6 +18230,11 @@ class $$BodiesTableFilterComposer
 
   ColumnFilters<int> get trackId => $composableBuilder(
     column: $table.trackId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18236,6 +18457,11 @@ class $$BodiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MediaTableOrderingComposer get mediaId {
     final $$MediaTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -18382,6 +18608,9 @@ class $$BodiesTableAnnotationComposer
 
   GeneratedColumn<int> get trackId =>
       $composableBuilder(column: $table.trackId, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   $$MediaTableAnnotationComposer get mediaId {
     final $$MediaTableAnnotationComposer composer = $composerBuilder(
@@ -18558,6 +18787,7 @@ class $$BodiesTableTableManager
                 Value<String?> cropPath = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int?> trackId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => BodiesCompanion(
                 id: id,
                 mediaId: mediaId,
@@ -18580,6 +18810,7 @@ class $$BodiesTableTableManager
                 cropPath: cropPath,
                 createdAt: createdAt,
                 trackId: trackId,
+                kind: kind,
               ),
           createCompanionCallback:
               ({
@@ -18604,6 +18835,7 @@ class $$BodiesTableTableManager
                 Value<String?> cropPath = const Value.absent(),
                 required int createdAt,
                 Value<int?> trackId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => BodiesCompanion.insert(
                 id: id,
                 mediaId: mediaId,
@@ -18626,6 +18858,7 @@ class $$BodiesTableTableManager
                 cropPath: cropPath,
                 createdAt: createdAt,
                 trackId: trackId,
+                kind: kind,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -21552,6 +21785,7 @@ typedef $$ReviewGroupsTableCreateCompanionBuilder =
       required double cohesion,
       required double quality,
       Value<bool> autoCreate,
+      Value<String> kind,
     });
 typedef $$ReviewGroupsTableUpdateCompanionBuilder =
     ReviewGroupsCompanion Function({
@@ -21560,6 +21794,7 @@ typedef $$ReviewGroupsTableUpdateCompanionBuilder =
       Value<double> cohesion,
       Value<double> quality,
       Value<bool> autoCreate,
+      Value<String> kind,
     });
 
 class $$ReviewGroupsTableFilterComposer
@@ -21593,6 +21828,11 @@ class $$ReviewGroupsTableFilterComposer
 
   ColumnFilters<bool> get autoCreate => $composableBuilder(
     column: $table.autoCreate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -21630,6 +21870,11 @@ class $$ReviewGroupsTableOrderingComposer
     column: $table.autoCreate,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ReviewGroupsTableAnnotationComposer
@@ -21657,6 +21902,9 @@ class $$ReviewGroupsTableAnnotationComposer
     column: $table.autoCreate,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 }
 
 class $$ReviewGroupsTableTableManager
@@ -21695,12 +21943,14 @@ class $$ReviewGroupsTableTableManager
                 Value<double> cohesion = const Value.absent(),
                 Value<double> quality = const Value.absent(),
                 Value<bool> autoCreate = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => ReviewGroupsCompanion(
                 id: id,
                 faceIds: faceIds,
                 cohesion: cohesion,
                 quality: quality,
                 autoCreate: autoCreate,
+                kind: kind,
               ),
           createCompanionCallback:
               ({
@@ -21709,12 +21959,14 @@ class $$ReviewGroupsTableTableManager
                 required double cohesion,
                 required double quality,
                 Value<bool> autoCreate = const Value.absent(),
+                Value<String> kind = const Value.absent(),
               }) => ReviewGroupsCompanion.insert(
                 id: id,
                 faceIds: faceIds,
                 cohesion: cohesion,
                 quality: quality,
                 autoCreate: autoCreate,
+                kind: kind,
               ),
           withReferenceMapper: (p0) => p0
               .map(

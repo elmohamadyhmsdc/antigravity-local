@@ -21,6 +21,7 @@ from outlines import encode_outline
 from . import EMBEDDING_DIM, EMBEDDING_MODEL_ID
 from .errors import bad_request
 
+CHARACTER_FACE_MODEL_ID = "ccip-caformer24@1"  # 768 x float32 little-endian, unit length
 FACE_CROP_MAX_PX = 256
 BODY_CROP_MAX_HEIGHT = 384
 CROP_JPEG_QUALITY = 85
@@ -162,6 +163,35 @@ def body_json(body, appearance, img: np.ndarray, with_crop: bool,
     return d
 
 
+def character_json(c, img: np.ndarray, with_crop: bool) -> Dict:
+    """A drawn figure shaped like a person: the whole figure plus an optional `face`
+    (anime face box, CCIP embedding, crop) and an optional `body` (box, keypoints,
+    outfit descriptor, crop). `descriptor` stays for phones that only know the figure."""
+    face = None
+    if getattr(c, "face_bbox", None) is not None:
+        face = {"bbox": bbox_xywh(c.face_bbox), "score": round(float(c.face_score), 4),
+                "embedding_model_id": CHARACTER_FACE_MODEL_ID,
+                "embedding": None if c.face_embedding is None
+                else base64.b64encode(np.asarray(c.face_embedding, dtype="<f4").tobytes()).decode("ascii"),
+                "crop_jpeg": jpeg_b64(body_crop(img, c.face_bbox, FACE_CROP_MAX_PX),
+                                      FACE_CROP_MAX_PX) if with_crop else None}
+    body = None
+    if getattr(c, "body_bbox", None) is not None:
+        kpts = None
+        if c.body_kpts is not None and c.body_kpt_scores is not None:
+            kpts = [[round(float(x), 1), round(float(y), 1), round(float(s), 3)]
+                    for (x, y), s in zip(c.body_kpts, c.body_kpt_scores)]
+        body = {"bbox": bbox_xywh(c.body_bbox), "score": round(float(c.body_score), 4), "kpts": kpts,
+                "appearance": None if c.body_appearance is None
+                else [round(float(v), 4) for v in c.body_appearance],
+                "crop_jpeg": jpeg_b64(body_crop(img, c.body_bbox, BODY_CROP_MAX_HEIGHT),
+                                      10 ** 6) if with_crop else None}
+    return {"bbox": bbox_xywh(c.bbox), "score": round(float(c.score), 4), "model_id": c.model_id,
+            "descriptor": [round(float(v), 6) for v in c.descriptor],
+            "crop_jpeg": jpeg_b64(body_crop(img, c.bbox, BODY_CROP_MAX_HEIGHT), 10 ** 6) if with_crop else None,
+            "face": face, "body": body}
+
+
 def analysis_to_response(result: FrameAnalysis, img: np.ndarray, options: AnalyzeRequestOptions,
                          model_id: str = EMBEDDING_MODEL_ID) -> Dict:
     """AnalyzeImageResponse. Faces without an embedding are impossible with the recognition model
@@ -190,12 +220,7 @@ def analysis_to_response(result: FrameAnalysis, img: np.ndarray, options: Analyz
              for fi, bi, s in result.pairs]
     out = {"model_id": model_id, "image_w": int(result.image_w), "image_h": int(result.image_h),
            "faces": faces, "bodies": bodies, "pairs": pairs}
-    out["characters"] = [{"bbox": bbox_xywh(c.bbox), "score": round(float(c.score), 4),
-                           "model_id": c.model_id,
-                           "descriptor": [round(float(v), 6) for v in c.descriptor],
-                           "crop_jpeg": jpeg_b64(body_crop(img, c.bbox, BODY_CROP_MAX_HEIGHT),
-                                                  10 ** 6) if options.return_crops else None}
-                          for c in result.characters]
+    out["characters"] = [character_json(c, img, options.return_crops) for c in result.characters]
     if result.timings_ms:
         out["timings_ms"] = py(result.timings_ms)
     return out
