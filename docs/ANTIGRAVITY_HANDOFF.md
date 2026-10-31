@@ -957,4 +957,14 @@ faces near one shared direction, which is why different characters merged.
      - Added unit tests for `MediaQueries.ids()` in `media_queries_test.dart` and widget tests for face toggle, Google Lens button, and swipe navigation in `library_test.dart`.
 - **Verification**: `flutter analyze --no-pub` on all modified source and test files passed with **0 issues**. Preserved terminal policy; provided verification commands for user.
 
+## Architectural Reference & Solutions Mapping from Face Gallery — 2026-10-31
+
+- **User Request**: Save all findings, architectural solutions, and exact paths from `d:\test\face gallary` in a Markdown reference file inside the application workspace for future access.
+- **Created Documentation**: Added `docs/face-gallery-reference-2026-10-31.md`:
+  - **Complete Path Directory**: Mapped key documents (`CLAUDE.md`, `docs/DECISIONS.md`, `docs/PROJECT_PLAN.md`, `BUILD.md`, `Offline_Media_Recognition_Architecture.md`), Kotlin vision classes (`FacePipeline.kt`, `AnimeFaceDetector.kt`, `FaceDedup.kt`, `IllustrationClassifier.kt`, `CcipEmbedder.kt`, `CharacterAppearanceFeatures.kt`), clustering engines (`CharacterClusterer.kt`, `CharSimilarity.kt`, `PairCalibration.kt`), and desktop python tools (`tools/facelab/export_characters_models.py`, `tools/artifacts/cartoon/baseline.md`).
+  - **5-Layer Cartoon/Anime Pipeline**: Documented the evolution across 12 ADRs (D-086 to D-132) — why generic classifiers failed (D-097 emptied the People tab); routing by detector (`SCRFD` -> People, `deepghs/anime_face_detection` YOLOv8 -> Characters); baby-face veto via SCRFD at 0.40 threshold with IoU >= 0.5 or containment >= 0.6; realistic manga tie-breaker (`photo_vs_illustration.onnx` only on overlap with 0.85 threshold); geometry gates (`0.35 <= AR <= 1.8`, `min_px = 20`) filtering text graphics; and 792-d character embedding (768-d CCIP + 16-d outfit + 8-d hat hue).
+  - **Non-Anime Problem Solutions**: Documented out-of-line entity splitting & `PropertyQuery` preventing large-library OOM crash loops (D-131/D-132); self-healing 1x1 blank preview cache fix (D-129); track compaction capping video faces at 5 per track; adaptive device thresholds via `IdentityFeedback` (D-124); and rescan dismissal tracking.
+  - **Actionable Roadmap**: Prioritized concrete integration steps into `the app` and `mobile/`.
+- **Status & Policy**: Documentation task; no source code modified, no tests run, no phone or server state altered.
+
 
