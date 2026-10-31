@@ -225,6 +225,19 @@ def analyze_fixture():
                         "model_id": "character-appearance@1", "descriptor": [round(float(v), 6) for v in descriptor],
                         "crop_jpeg": None}],
     })
+    write("AnalyzeOutlinesResponse.two_targets", {
+        "outlines": [face_a["outline"], body["outline"]],
+    })
+    write("OutlineTarget.face", {
+        "kind": "f",
+        "bbox": face_a["bbox"],
+        "kps": face_a["kps"],
+    })
+    write("OutlineTarget.body", {
+        "kind": "b",
+        "bbox": body["bbox"],
+        "kpts": body["kpts"],
+    })
 
 
 # --------------------------------------------------------------------------- grouping

@@ -178,6 +178,33 @@ paths:
         "413": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
 
+  /v1/analyze/outlines:
+    post:
+      summary: Compute outlines for known face and body bounding boxes
+      description: Returns 503 gpu_busy while a heavy job is running.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image, targets]
+              properties:
+                image: { type: string, format: binary }
+                targets:
+                  type: array
+                  maxItems: 32
+                  items: { $ref: "#/components/schemas/OutlineTarget" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyzeOutlinesResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
   /v1/grouping/plan:
     post:
       summary: Pure function - decide how faces/bodies should be grouped
@@ -725,6 +752,39 @@ components:
         timings_ms:
           type: object
           additionalProperties: { type: number }
+
+    OutlineTarget:
+      type: object
+      required: [kind, bbox]
+      properties:
+        kind:
+          type: string
+          enum: [f, b]
+        bbox: { $ref: "#/components/schemas/BBox" }
+        kps:
+          description: 5 landmarks (eyes, nose, mouth corners) as [x, y]
+          type: [array, "null"]
+          minItems: 5
+          maxItems: 5
+          items: { type: array, minItems: 2, maxItems: 2, items: { type: number } }
+        kpts:
+          description: 17 COCO keypoints as [x, y, score]
+          type: [array, "null"]
+          minItems: 17
+          maxItems: 17
+          items: { type: array, minItems: 3, maxItems: 3, items: { type: number } }
+
+    AnalyzeOutlinesResponse:
+      type: object
+      required: [outlines]
+      properties:
+        outlines:
+          type: array
+          items:
+            description: Polygon around the real face/body shape, image pixels, 3-64 [x, y] points, not closed. Null when unavailable.
+            oneOf:
+              - { type: array, minItems: 3, maxItems: 64, items: { type: array, minItems: 2, maxItems: 2, items: { type: number } } }
+              - { type: "null" }
 
     # -------------------------------------------------------------- grouping
     GroupingModel:

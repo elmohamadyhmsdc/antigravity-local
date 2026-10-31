@@ -120,6 +120,31 @@ class ScanWorker:
                     'The image analysis worker stopped. The server is online; retry this image.',
                     retryable=True, headers={'Retry-After': '2'}) from error
 
+    def outlines(self, img, targets):
+        with self._lock:
+            self._start()
+            message = json.dumps({'type': 'outlines',
+                'shape': list(img.shape),
+                'pixels': base64.b64encode(np.ascontiguousarray(img, dtype=np.uint8)).decode('ascii'),
+                'targets': targets}, separators=(',', ':')).encode('utf-8') + b'\n'
+            try:
+                self.process.stdin.write(message)
+                self.process.stdin.flush()
+                raw = self.responses.get(timeout=self.timeout)
+                if raw is None:
+                    self.process.wait(timeout=5)
+                    raise RuntimeError(f'inference process exited with code {self.process.returncode} '
+                                       f'(0x{self.process.returncode & 0xffffffff:08X})')
+                response = json.loads(raw)
+                if response.get('error'): raise RuntimeError(response['error'])
+                return response['outlines']
+            except (OSError, ValueError, RuntimeError, queue.Empty, subprocess.TimeoutExpired) as error:
+                self.log(f'[scan worker] outlines failed: {error}')
+                self.close()
+                raise ApiError(503, 'engine_unavailable',
+                    'The image analysis worker stopped. The server is online; retry this image.',
+                    retryable=True, headers={'Retry-After': '2'}) from error
+
     def close(self):
         with self._lock:
             process, self.process = self.process, None
@@ -152,8 +177,12 @@ def main():
             if len(shape) != 3 or shape[2] != 3 or min(shape) < 1 or max(shape) > 4096:
                 raise ValueError('Invalid image shape')
             image = np.frombuffer(base64.b64decode(request['pixels'], validate=True), np.uint8).reshape(shape)
-            result = engines.analyze(image, AnalyzeOptions(**request['options']))
-            response = {'result': encode_result(result)}
+            if request.get('type') == 'outlines':
+                outlines = engines.compute_outlines(image, request.get('targets', []))
+                response = {'outlines': outlines}
+            else:
+                result = engines.analyze(image, AnalyzeOptions(**request['options']))
+                response = {'result': encode_result(result)}
         except Exception as error:
             traceback.print_exc()
             response = {'error': str(error)}

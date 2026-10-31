@@ -157,6 +157,13 @@ class FakeMobileApi implements MobileApi {
   }
 
   @override
+  Future<List<List<Offset>?>> analyzeOutlines(
+    Uint8List jpegBytes,
+    List<OutlineTargetDto> targets, {
+    String filename = 'photo.jpg',
+  }) async => List.filled(targets.length, null);
+
+  @override
   Future<GroupingPlanResponse> groupingPlan(GroupingPlanRequest request) async {
     groupingCalls.add(request);
     if (groupingError != null) throw groupingError!;

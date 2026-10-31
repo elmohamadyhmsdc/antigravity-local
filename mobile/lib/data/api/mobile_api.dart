@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:dio/dio.dart';
 
@@ -54,6 +55,13 @@ abstract interface class MobileApi {
     Uint8List jpegBytes, {
     String filename = 'photo.jpg',
     AnalyzeOptions options = const AnalyzeOptions(),
+  });
+
+  /// POST /v1/analyze/outlines - compute exact outlines for existing boxes without re-running detection.
+  Future<List<List<Offset>?>> analyzeOutlines(
+    Uint8List jpegBytes,
+    List<OutlineTargetDto> targets, {
+    String filename = 'photo.jpg',
   });
 
   /// POST /v1/grouping/plan - a pure function on the PC (nothing is stored there).
@@ -472,6 +480,27 @@ class HttpMobileApi
       });
       final response = await _dio.post('/v1/analyze/image', data: form);
       return AnalyzeImageResponse.fromJson(_json(response));
+    });
+  }
+
+  @override
+  Future<List<List<Offset>?>> analyzeOutlines(
+    Uint8List jpegBytes,
+    List<OutlineTargetDto> targets, {
+    String filename = 'photo.jpg',
+  }) {
+    return _guard(() async {
+      final form = FormData.fromMap({
+        'image': MultipartFile.fromBytes(
+          jpegBytes,
+          filename: filename,
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+        'targets': jsonEncode(targets.map((t) => t.toJson()).toList()),
+      });
+      final response = await _dio.post('/v1/analyze/outlines', data: form);
+      final parsed = AnalyzeOutlinesResponse.fromJson(_json(response));
+      return parsed.outlines;
     });
   }
 

@@ -598,6 +598,34 @@ def test_analyze_rejects_a_different_embedding_model_and_unreadable_or_oversized
         check(r.status_code == 400 and r.json()["error"]["code"] == "bad_request", f"{r.status_code} {r.text}")
 
 
+@test
+def test_analyze_outlines_endpoint():
+    with Env() as e:
+        targets = [
+            {"kind": "f", "bbox": {"x": 60, "y": 50, "w": 140, "h": 180}, "kps": [[80, 80], [120, 80], [100, 110], [85, 140], [115, 140]]},
+            {"kind": "b", "bbox": {"x": 20, "y": 30, "w": 240, "h": 430}},
+        ]
+        files = {"image": ("test.jpg", jpeg_bytes(), "image/jpeg")}
+        r = e.client.post("/v1/analyze/outlines", files=files, data={"targets": json.dumps(targets)}, headers=e.auth)
+        check(r.status_code == 200, f"{r.status_code} {r.text}")
+        body = r.json()
+        check_schema("AnalyzeOutlinesResponse", body)
+        check(len(body["outlines"]) == 2, "outlines length")
+        for out in body["outlines"]:
+            check(isinstance(out, list) and len(out) >= 3, "outline is a polygon")
+
+        # Negatives: invalid JSON targets, missing bbox, > 32 targets
+        r = e.client.post("/v1/analyze/outlines", files=files, data={"targets": "not json"}, headers=e.auth)
+        check(r.status_code == 400 and r.json()["error"]["code"] == "bad_request", "invalid json")
+
+        r = e.client.post("/v1/analyze/outlines", files=files, data={"targets": json.dumps([{"kind": "x"}])}, headers=e.auth)
+        check(r.status_code == 400 and r.json()["error"]["code"] == "bad_request", "invalid target")
+
+        too_many = [{"kind": "f", "bbox": {"x": 0, "y": 0, "w": 10, "h": 10}}] * 33
+        r = e.client.post("/v1/analyze/outlines", files=files, data={"targets": json.dumps(too_many)}, headers=e.auth)
+        check(r.status_code == 400 and r.json()["error"]["code"] == "bad_request", "too many targets")
+
+
 # --------------------------------------------------------------------------- pairing page, tls, discovery, workspace
 
 @test

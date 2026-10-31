@@ -13,6 +13,7 @@ import numpy as np
 import face_quality
 import person_linking as pl
 from analysis import FrameAnalysis
+from outlines import encode_outline
 
 from .auth import AuthStore
 from .gpu_guard import GpuGuard
@@ -112,6 +113,23 @@ class FakeEngines:
                              appearances=appearances, pairs=list(pairs), image_w=w, image_h=h,
                              timings_ms={"detect": 1.5, "quality": 0.5},
                              face_outlines=f_out, body_outlines=b_out)
+
+    def compute_outlines(self, img, targets: list) -> list:
+        if self.fail_with is not None:
+            raise self.fail_with
+        outlines = []
+        for t in targets:
+            bbox = t.get("bbox", {})
+            if isinstance(bbox, dict):
+                x = float(bbox.get("x", 0))
+                y = float(bbox.get("y", 0))
+                w = float(bbox.get("w", 0))
+                h = float(bbox.get("h", 0))
+                b = (x, y, x + w, y + h)
+            else:
+                b = (bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3])
+            outlines.append(encode_outline(_fake_octagon(b)))
+        return outlines
 
 
 class FakeProbe:

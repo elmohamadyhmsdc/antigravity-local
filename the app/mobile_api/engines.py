@@ -71,6 +71,60 @@ class InsightEngines:
                 res.body_outlines = b_out
             return res
 
+    def compute_outlines(self, img, targets: list) -> list:
+        with self._lock:
+            if self._scan_worker is not None:
+                return self._scan_worker.outlines(img, targets)
+            if self._outline_engine is None:
+                from outlines import OutlineEngine
+                self._outline_engine = OutlineEngine()
+
+            from outlines import encode_outline
+            import numpy as np
+            from types import SimpleNamespace
+
+            results = [None] * len(targets)
+            body_indices = []
+            body_objs = []
+
+            for i, t in enumerate(targets):
+                kind = t.get("kind")
+                bbox = t.get("bbox", {})
+                if isinstance(bbox, dict):
+                    bx = float(bbox.get("x", 0))
+                    by = float(bbox.get("y", 0))
+                    bw = float(bbox.get("w", 0))
+                    bh = float(bbox.get("h", 0))
+                    b_arr = np.array([bx, by, bx + bw, by + bh], dtype=np.float32)
+                else:
+                    b_arr = np.array(bbox, dtype=np.float32)
+
+                if kind == "f":
+                    kps = np.asarray(t["kps"], dtype=np.float32) if t.get("kps") is not None else None
+                    face_obj = SimpleNamespace(bbox=b_arr, kps=kps)
+                    poly = self._outline_engine.face_outline(img, face_obj)
+                    results[i] = encode_outline(poly)
+                elif kind == "b":
+                    kpts_raw = t.get("kpts")
+                    kpts = np.asarray(kpts_raw, dtype=np.float32) if kpts_raw is not None else None
+                    kpt_scores = None
+                    if kpts is not None and kpts.size > 0:
+                        if kpts.shape[-1] >= 3:
+                            kpt_scores = kpts[:, 2]
+                            kpts = kpts[:, :2]
+                        else:
+                            kpt_scores = np.ones(len(kpts), dtype=np.float32)
+                    body_obj = SimpleNamespace(bbox=b_arr, kpts=kpts, kpt_scores=kpt_scores)
+                    body_indices.append(i)
+                    body_objs.append(body_obj)
+
+            if body_objs:
+                b_polys = self._outline_engine.body_outlines(img, body_objs)
+                for idx, poly in zip(body_indices, b_polys):
+                    results[idx] = encode_outline(poly)
+
+            return results
+
     def unload(self):
         import gc
         with self._lock:

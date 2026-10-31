@@ -257,4 +257,32 @@ void main() {
       expect(() => AnalyzeImageResponse.fromJson(fewer), throwsFormatException);
     });
   });
+
+  group('AnalyzeOutlinesResponse and OutlineTargetDto', () {
+    test('AnalyzeOutlinesResponse.two_targets fixture parses completely', () {
+      final json = fixture('AnalyzeOutlinesResponse.two_targets');
+      final r = AnalyzeOutlinesResponse.fromJson(json);
+      expect(r.outlines, hasLength(2));
+      expect(r.outlines[0], isNotNull);
+      expect(r.outlines[0]!.length, greaterThanOrEqualTo(3));
+      expect(r.outlines[1], isNotNull);
+      expect(r.outlines[1]!.length, greaterThanOrEqualTo(3));
+    });
+
+    test('OutlineTargetDto round trips and serializes to fixtures', () {
+      final faceJson = fixture('OutlineTarget.face');
+      final targetFace = OutlineTargetDto.fromJson(faceJson);
+      expect(targetFace.kind, 'f');
+      expect(targetFace.bbox.x, 412.5);
+      expect(targetFace.kps, hasLength(5));
+      expect(targetFace.toJson(), faceJson);
+
+      final bodyJson = fixture('OutlineTarget.body');
+      final targetBody = OutlineTargetDto.fromJson(bodyJson);
+      expect(targetBody.kind, 'b');
+      expect(targetBody.bbox.x, 330.0);
+      expect(targetBody.kpts, hasLength(17));
+      expect(targetBody.toJson(), bodyJson);
+    });
+  });
 }

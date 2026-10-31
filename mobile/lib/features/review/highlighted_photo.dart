@@ -85,6 +85,14 @@ class HighlightedPhoto extends ConsumerWidget {
         if (v.assetId == null || v.mediaKind == 'video') {
           return crop(v.cropPath);
         }
+        if (v.outline == null && v.mediaId != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(outlineBackfillProvider).backfillPhoto(
+              v.mediaId!,
+              assetId: v.assetId,
+            );
+          });
+        }
         final photo = ref.watch(_photoProvider((v.assetId!, maxSide)));
         return photo.when(
           loading: () => const Center(child: CircularProgressIndicator()),

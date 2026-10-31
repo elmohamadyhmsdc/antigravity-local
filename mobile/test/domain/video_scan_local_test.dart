@@ -45,6 +45,13 @@ class FramePc extends VideoPc implements MobileApi {
   }
 
   @override
+  Future<List<List<Offset>?>> analyzeOutlines(
+    Uint8List jpegBytes,
+    List<OutlineTargetDto> targets, {
+    String filename = 'photo.jpg',
+  }) async => List.filled(targets.length, null);
+
+  @override
   Future<Capabilities> capabilities() => throw UnimplementedError();
   @override
   Future<Health> health() => throw UnimplementedError();

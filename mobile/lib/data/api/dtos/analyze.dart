@@ -360,3 +360,62 @@ class AnalyzeOptions {
     if (returnOutlines) 'return_outlines': true,
   };
 }
+
+/// Target for POST /v1/analyze/outlines.
+class OutlineTargetDto {
+  const OutlineTargetDto({
+    required this.kind,
+    required this.bbox,
+    this.kps,
+    this.kpts,
+  });
+
+  final String kind; // 'f' or 'b'
+  final BBox bbox;
+  final List<List<double>>? kps;
+  final List<List<double>>? kpts;
+
+  Map<String, dynamic> toJson() => {
+    'kind': kind,
+    'bbox': bbox.toJson(),
+    if (kps != null) 'kps': kps,
+    if (kpts != null) 'kpts': kpts,
+  };
+
+  factory OutlineTargetDto.fromJson(Map<String, dynamic> json) => OutlineTargetDto(
+    kind: field<String>(json, 'kind'),
+    bbox: BBox.fromJson(map(json['bbox'], 'bbox')),
+    kps: json['kps'] == null
+        ? null
+        : (json['kps'] as List<dynamic>)
+            .map((pt) => (pt as List<dynamic>).map((v) => (v as num).toDouble()).toList())
+            .toList(),
+    kpts: json['kpts'] == null
+        ? null
+        : (json['kpts'] as List<dynamic>)
+            .map((pt) => (pt as List<dynamic>).map((v) => (v as num).toDouble()).toList())
+            .toList(),
+  );
+}
+
+/// Response from POST /v1/analyze/outlines.
+class AnalyzeOutlinesResponse {
+  const AnalyzeOutlinesResponse({required this.outlines});
+
+  final List<List<Offset>?> outlines;
+
+  factory AnalyzeOutlinesResponse.fromJson(Map<String, dynamic> json) {
+    final rawList = list(json['outlines'], 'outlines');
+    return AnalyzeOutlinesResponse(
+      outlines: [
+        for (var i = 0; i < rawList.length; i++)
+          rawList[i] == null
+              ? null
+              : (rawList[i] as List<dynamic>).map((pt) {
+                  final p = pt as List<dynamic>;
+                  return Offset((p[0] as num).toDouble(), (p[1] as num).toDouble());
+                }).toList(),
+      ],
+    );
+  }
+}

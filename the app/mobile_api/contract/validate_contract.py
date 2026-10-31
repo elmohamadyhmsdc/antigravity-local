@@ -84,6 +84,7 @@ check(not bad_schemas, f"all {len(SCHEMAS)} component schemas are valid JSON Sch
 
 paths = SPEC["paths"]
 for needed in ("/v1/health", "/v1/capabilities", "/v1/pair/complete", "/v1/blobs/{sha256}", "/v1/analyze/image",
+               "/v1/analyze/outlines",
                "/v1/grouping/plan", "/v1/jobs", "/v1/jobs/{job_id}", "/v1/jobs/{job_id}/events",
                "/v1/jobs/{job_id}/stop", "/v1/jobs/{job_id}/resume", "/v1/jobs/{job_id}/result",
                "/v1/jobs/{job_id}/result/{name}"):
@@ -151,6 +152,9 @@ must_fail("AnalyzeImageResponse", "character_no_face", lambda d: d["characters"]
           "a truncated character descriptor")
 must_fail("AnalyzeImageResponse", "character_no_face", lambda d: d["characters"][0].__setitem__("model_id", "buffalo_l@1"),
           "a human embedding model in a character detection")
+must_fail("AnalyzeOutlinesResponse", "two_targets", lambda d: d["outlines"].append([[1.0, 2.0]]),
+          "an outline with only 1 point")
+must_fail("OutlineTarget", "face", lambda d: d.__setitem__("kind", "z"), "an unknown target kind")
 must_fail("JobCreate", "train_lora", lambda d: d["inputs"].pop("dataset"),
           "train_lora without the dataset blob")
 must_fail("JobCreate", "train_lora", lambda d: d["params"].__setitem__("output_name", "../evil"),

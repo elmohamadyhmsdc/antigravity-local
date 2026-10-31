@@ -146,6 +146,19 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         p.id: p,
     };
 
+    if (row.value != null &&
+        row.value!.kind == 'photo' &&
+        detections.any((d) => d.outline == null)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(outlineBackfillProvider).backfillPhoto(
+          row.value!.id,
+          assetId: row.value!.assetId,
+          width: row.value!.width,
+          height: row.value!.height,
+        );
+      });
+    }
+
     return row.when(
       loading: () => Scaffold(appBar: AppBar(), body: const LoadingBox()),
       error: (e, _) => Scaffold(

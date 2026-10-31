@@ -27,6 +27,7 @@ import 'data/repositories/review_repository.dart';
 import 'domain/backup/backup_service.dart';
 import 'domain/grouping/grouping_runner.dart';
 import 'domain/scan/drawn_face_sweep.dart';
+import 'domain/scan/outline_backfill.dart';
 import 'domain/scan/photo_result_store.dart';
 import 'domain/scan/video_compactor.dart';
 import 'domain/storage/storage_sweeper.dart';
@@ -264,6 +265,18 @@ final scanProgressProvider = StreamProvider<ScanProgress>((ref) async* {
 });
 
 // ---- backup ----------------------------------------------------------------------------------
+
+final outlineBackfillProvider = Provider<OutlineBackfill>((ref) {
+  return OutlineBackfill(
+    db: ref.watch(databaseProvider),
+    media: ref.watch(mediaLibraryProvider),
+    api: () => ref.read(mobileApiProvider),
+    isServerReady: () {
+      final status = ref.read(serverStatusProvider).value;
+      return status is ServerReady;
+    },
+  );
+});
 
 final backupServiceProvider = Provider<BackupService>(
   (ref) => BackupService(
