@@ -1,4 +1,6 @@
+import 'dart:ui';
 import 'package:drift/drift.dart';
+import '../../domain/geometry/outline.dart';
 
 import '../db/app_database.dart';
 
@@ -90,6 +92,7 @@ class MediaDetection {
     this.linkMethod,
     this.frameNumber,
     this.timestampMs,
+    this.outline,
   });
 
   final int id;
@@ -101,6 +104,7 @@ class MediaDetection {
   final String? linkMethod; // bodies only
   final int? frameNumber;
   final int? timestampMs;
+  final List<Offset>? outline;
 
   bool get isFace => kind == 'f';
 }
@@ -235,7 +239,7 @@ class MediaQueries {
   Stream<List<MediaDetection>> watchDetections(int mediaId) => _db
       .customSelect(
         '''
-        SELECT d.id, d.kind, d.ref_id, d.x, d.y, d.w, d.h, d.frame_number, d.timestamp_ms,
+        SELECT d.id, d.kind, d.ref_id, d.x, d.y, d.w, d.h, d.frame_number, d.timestamp_ms, d.outline,
           CASE WHEN d.kind = 'f' THEN f.person_id
                ELSE COALESCE((SELECT person_id FROM faces WHERE id = b.face_id), b.person_id) END AS person_id,
           CASE WHEN d.kind = 'f' THEN f.crop_path ELSE b.crop_path END AS crop_path,
@@ -266,6 +270,7 @@ class MediaQueries {
               personId: r.readNullable<int>('person_id'),
               cropPath: r.readNullable<String>('crop_path'),
               linkMethod: r.readNullable<String>('link_method'),
+              outline: decodeOutline(r.readNullable<String>('outline')),
             ),
         ],
       );

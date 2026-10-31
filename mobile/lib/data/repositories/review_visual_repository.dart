@@ -1,4 +1,6 @@
+import 'dart:ui';
 import 'package:drift/drift.dart';
+import '../../domain/geometry/outline.dart';
 import '../db/app_database.dart';
 
 class ReviewTarget {
@@ -21,6 +23,7 @@ class ReviewVisual {
     required this.h,
     required this.timestampMs,
     required this.cropPath,
+    this.outline,
   });
   final ReviewTarget target;
   final int? mediaId;
@@ -29,6 +32,7 @@ class ReviewVisual {
   final double x, y, w, h;
   final int? timestampMs;
   final String? cropPath;
+  final List<Offset>? outline;
 }
 
 class ReviewVisualRepository {
@@ -54,7 +58,7 @@ class ReviewVisualRepository {
           SELECT t.id AS target_id, m.id AS media_id, m.asset_id, m.kind AS media_kind,
             COALESCE(d.x, t.bbox_x) AS x, COALESCE(d.y, t.bbox_y) AS y,
             COALESCE(d.w, t.bbox_w) AS w, COALESCE(d.h, t.bbox_h) AS h,
-            COALESCE(d.timestamp_ms, t.timestamp_ms) AS timestamp_ms, t.crop_path
+            COALESCE(d.timestamp_ms, t.timestamp_ms) AS timestamp_ms, t.crop_path, d.outline AS outline
           FROM $table t LEFT JOIN media_detections d ON d.ref_id = t.id AND d.kind = '$kind'
           LEFT JOIN media m ON m.id = COALESCE(d.media_id, t.media_id)
           WHERE t.id IN (${List.filled(chunk.length, '?').join(',')}) ORDER BY t.id, m.id, timestamp_ms
@@ -72,6 +76,7 @@ class ReviewVisualRepository {
               h: r.read<double>('h'),
               timestampMs: r.readNullable<int>('timestamp_ms'),
               cropPath: r.readNullable<String>('crop_path'),
+              outline: decodeOutline(r.readNullable<String>('outline')),
             ),
           );
         }

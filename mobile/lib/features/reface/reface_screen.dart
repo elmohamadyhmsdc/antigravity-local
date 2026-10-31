@@ -27,6 +27,7 @@ import 'reface_video_trimmer.dart';
 import 'reface_faces.dart';
 import 'reface_face_choices.dart';
 import 'reface_options.dart';
+import '../../domain/geometry/outline.dart';
 
 class RefaceScreen extends ConsumerStatefulWidget {
   const RefaceScreen({super.key, this.personId, this.faceId});
@@ -857,27 +858,27 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                               _targets.add(i);
                                             }
                                           }),
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: _targets.contains(i)
-                                                    ? Colors.greenAccent
-                                                    : Colors.white,
-                                                width: 3,
-                                              ),
-                                              color: _targets.contains(i)
+                                          child: CustomPaint(
+                                            painter: DetectionBoxPainter(
+                                              isFace: true,
+                                              outline: _analysis!.faces[i].outline == null
+                                                  ? null
+                                                  : [
+                                                      for (final p in _analysis!.faces[i].outline!)
+                                                        Offset(
+                                                          (p.dx - _analysis!.faces[i].bbox.x) /
+                                                              _analysis!.faces[i].bbox.w,
+                                                          (p.dy - _analysis!.faces[i].bbox.y) /
+                                                              _analysis!.faces[i].bbox.h,
+                                                        ),
+                                                    ],
+                                              fillColor: _targets.contains(i)
                                                   ? Colors.greenAccent.withValues(alpha: 0.20)
                                                   : Colors.black.withValues(alpha: 0.10),
-                                            ),
-                                            alignment: Alignment.center,
-                                            child: Text(
-                                              '',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                                backgroundColor: Colors.black54,
-                                              ),
+                                              borderColor: _targets.contains(i)
+                                                  ? Colors.greenAccent
+                                                  : Colors.white,
+                                              borderWidth: 3,
                                             ),
                                           ),
                                         ),

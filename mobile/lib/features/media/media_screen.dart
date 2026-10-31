@@ -19,6 +19,7 @@ import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../shared/person_picker.dart';
 import 'video_media_view.dart';
+import '../../domain/geometry/outline.dart';
 
 final mediaRowProvider = StreamProvider.autoDispose.family<MediaRow?, int>(
   (ref, id) => ref.watch(libraryRepositoryProvider).watchMedia(id),
@@ -541,24 +542,21 @@ class _AnnotatedPhoto extends StatelessWidget {
                         key: Key('box-${d.kind}-${d.refId}'),
                         behavior: HitTestBehavior.opaque,
                         onTap: () => onTapBox(d),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            shape: d.isFace ? BoxShape.circle : BoxShape.rectangle,
-                            color: d.isFace
+                        child: CustomPaint(
+                          painter: DetectionBoxPainter(
+                            isFace: d.isFace,
+                            outline: d.outline,
+                            fillColor: d.isFace
                                 ? (d.personId == null
                                       ? Colors.amber.withValues(alpha: 0.10)
                                       : scheme.primary.withValues(alpha: 0.12))
                                 : Colors.lightBlueAccent.withValues(alpha: 0.18),
-                            border: Border.all(
-                              width: d.isFace ? 2.5 : 2.0,
-                              color: d.isFace
-                                  ? (d.personId == null
-                                        ? Colors.amber
-                                        : scheme.primary)
-                                  : Colors.lightBlueAccent,
-                            ),
-                            borderRadius:
-                                d.isFace ? null : BorderRadius.circular(12),
+                            borderColor: d.isFace
+                                ? (d.personId == null
+                                      ? Colors.amber
+                                      : scheme.primary)
+                                : Colors.lightBlueAccent,
+                            borderWidth: d.isFace ? 2.5 : 2.0,
                           ),
                           child:
                               d.personId != null &&

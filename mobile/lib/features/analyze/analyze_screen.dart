@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/api/dtos/analyze.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
-import '../review/review_media_viewer.dart';
+import '../../domain/geometry/outline.dart';
 import '../shared/screen_layout.dart';
 import 'analyze_controller.dart';
 
@@ -324,7 +324,13 @@ class DetectionsPainter extends CustomPainter {
 
     for (final b in result.bodies) {
       final rect = _rect(b.bbox, size);
-      final bodyPath = ReviewHighlightPainter.createBodySilhouettePath(rect);
+      final outline = b.outline == null
+          ? null
+          : [
+              for (final p in b.outline!)
+                Offset((p.dx - b.bbox.x) / b.bbox.w, (p.dy - b.bbox.y) / b.bbox.h),
+            ];
+      final bodyPath = detectionPath(rect, outline: outline, isFace: false);
       canvas.drawPath(bodyPath, bodyFill);
       canvas.drawPath(bodyPath, bodyStroke);
 
@@ -343,7 +349,7 @@ class DetectionsPainter extends CustomPainter {
     }
     for (final c in result.characters) {
       final rect = _rect(c.bbox, size);
-      final bodyPath = ReviewHighlightPainter.createBodySilhouettePath(rect);
+      final bodyPath = detectionPath(rect, isFace: false);
       canvas.drawPath(bodyPath, bodyFill);
       canvas.drawPath(bodyPath, bodyStroke);
     }
@@ -351,8 +357,15 @@ class DetectionsPainter extends CustomPainter {
       final f = result.faces[i];
       final color = f.passesGate ? faceColor : skippedColor;
       final rect = _rect(f.bbox, size);
-      canvas.drawOval(
-        rect,
+      final outline = f.outline == null
+          ? null
+          : [
+              for (final p in f.outline!)
+                Offset((p.dx - f.bbox.x) / f.bbox.w, (p.dy - f.bbox.y) / f.bbox.h),
+            ];
+      final facePath = detectionPath(rect, outline: outline, isFace: true);
+      canvas.drawPath(
+        facePath,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3

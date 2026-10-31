@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../data/media/media_library.dart';
 import '../../data/repositories/media_queries.dart';
+import '../../domain/geometry/outline.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../shared/empty_state.dart';
@@ -162,35 +163,26 @@ class _VideoMediaViewState extends State<VideoMediaView> {
                             await player.pause();
                             widget.onTapBox(d);
                           },
-                          child: DecoratedBox(
+                          child: CustomPaint(
                             key: _focused(d)
                                 ? const Key('review-video-highlight')
                                 : null,
-                            decoration: BoxDecoration(
-                              shape: d.isFace
-                                  ? BoxShape.circle
-                                  : BoxShape.rectangle,
-                              color: d.isFace
+                            painter: DetectionBoxPainter(
+                              isFace: d.isFace,
+                              outline: d.outline,
+                              fillColor: d.isFace
                                   ? (_focused(d)
-                                        ? Colors.amberAccent.withValues(
-                                            alpha: 0.15,
-                                          )
+                                        ? Colors.amberAccent.withValues(alpha: 0.15)
                                         : null)
-                                  : Colors.lightBlueAccent.withValues(
-                                      alpha: 0.18,
-                                    ),
-                              border: Border.all(
-                                width: _focused(d) ? 3 : 2,
-                                color: _focused(d)
-                                    ? Colors.amberAccent
-                                    : d.isFace
-                                    ? (d.personId == null
-                                          ? Colors.amber
-                                          : Colors.greenAccent)
-                                    : Colors.lightBlueAccent,
-                              ),
-                              borderRadius:
-                                  d.isFace ? null : BorderRadius.circular(12),
+                                  : Colors.lightBlueAccent.withValues(alpha: 0.18),
+                              borderColor: _focused(d)
+                                  ? Colors.amberAccent
+                                  : d.isFace
+                                  ? (d.personId == null
+                                        ? Colors.amber
+                                        : Colors.greenAccent)
+                                  : Colors.lightBlueAccent,
+                              borderWidth: _focused(d) ? 3.0 : 2.0,
                             ),
                             child: d.personId == null && !_focused(d)
                                 ? null

@@ -115,6 +115,7 @@ class HighlightedPhoto extends ConsumerWidget {
                                 ? (kind == 'f' ? l.reviewFace : l.reviewBody)
                                 : '',
                             isFace: kind == 'f',
+                            outline: v.outline,
                           ),
                         ),
                       ),

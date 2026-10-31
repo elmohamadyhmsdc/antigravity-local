@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/router.dart';
 import '../../data/api/dtos/analyze.dart';
+import '../../domain/geometry/outline.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
@@ -213,14 +214,24 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
                         top: box.y / _analysis!.imageH * c.maxHeight,
                         width: box.w / _analysis!.imageW * c.maxWidth,
                         height: box.h / _analysis!.imageH * c.maxHeight,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.greenAccent,
-                              width: 3,
-                            ),
-                            color: Colors.greenAccent.withValues(alpha: 0.15),
+                        child: CustomPaint(
+                          painter: DetectionBoxPainter(
+                            isFace: true,
+                            outline: _analysis != null &&
+                                    _analysis!.faces.isNotEmpty &&
+                                    _face < _analysis!.faces.length &&
+                                    _analysis!.faces[_face].outline != null
+                                ? [
+                                    for (final p in _analysis!.faces[_face].outline!)
+                                      Offset(
+                                        (p.dx - box.x) / box.w,
+                                        (p.dy - box.y) / box.h,
+                                      ),
+                                  ]
+                                : null,
+                            fillColor: Colors.greenAccent.withValues(alpha: 0.15),
+                            borderColor: Colors.greenAccent,
+                            borderWidth: 3,
                           ),
                         ),
                       ),

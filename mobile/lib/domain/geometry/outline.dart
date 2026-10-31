@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:ui';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../data/api/dtos/analyze.dart';
 
@@ -97,4 +98,45 @@ Path detectionPath(
     );
   }
   return path;
+}
+
+/// CustomPainter rendering a face or body detection overlay using [detectionPath].
+class DetectionBoxPainter extends CustomPainter {
+  const DetectionBoxPainter({
+    required this.isFace,
+    this.outline,
+    this.fillColor,
+    required this.borderColor,
+    this.borderWidth = 2.0,
+  });
+
+  final bool isFace;
+  final List<Offset>? outline;
+  final Color? fillColor;
+  final Color borderColor;
+  final double borderWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final path = detectionPath(Offset.zero & size, outline: outline, isFace: isFace);
+    if (fillColor != null) {
+      canvas.drawPath(path, Paint()..color = fillColor!..style = PaintingStyle.fill);
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = borderWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(DetectionBoxPainter oldDelegate) =>
+      oldDelegate.isFace != isFace ||
+      oldDelegate.fillColor != fillColor ||
+      oldDelegate.borderColor != borderColor ||
+      oldDelegate.borderWidth != borderWidth ||
+      !listEquals(oldDelegate.outline, outline);
 }
