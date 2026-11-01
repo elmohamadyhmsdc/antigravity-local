@@ -13,6 +13,7 @@ Hard rule used everywhere: two faces (or two bodies) seen in the same photo or
 video frame are never the same person.
 """
 
+import bisect
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from typing import Callable, Dict, Hashable, Iterable, List, Optional, Sequence, Tuple
@@ -40,16 +41,25 @@ class GroupingParams:
     body_auto: float = 0.86         # outfit similarity to auto-link a faceless body (same video/photo)
     body_margin: float = 0.06
     body_suggest: float = 0.78
+    # Event-context linking (roadmap section 7.2): a faceless body in ANOTHER photo taken within the window of a
+    # photo where the same outfit is on an identified body. Starting values; Phase 0 (eval_body_links.py)
+    # calibrates them against the curated library. The tolerance a lighting change needs is why they sit above body_*.
+    event_auto: float = 0.90
+    event_suggest: float = 0.82
+    event_window_ms: int = 6 * 3600 * 1000
+    event_skin_share: float = 0.55  # torso histogram mass in skin hues above which the outfit says nothing
 
 
 STRICTNESS: Dict[str, GroupingParams] = {
     "strict": GroupingParams(match_auto=0.48, match_margin=0.14, suggest=0.30, cluster_distance=0.64,
                              seed_quality=0.55, auto_create_size=4, auto_create_cohesion=0.45,
-                             merge_suggest=0.45, merge_auto=0.65, body_auto=0.90, body_margin=0.08, body_suggest=0.82),
+                             merge_suggest=0.45, merge_auto=0.65, body_auto=0.90, body_margin=0.08, body_suggest=0.82,
+                             event_auto=0.92, event_suggest=0.85),
     "balanced": GroupingParams(),
     "loose": GroupingParams(match_auto=0.34, match_margin=0.07, suggest=0.22, cluster_distance=0.75,
                             seed_quality=0.40, auto_create_size=2, auto_create_cohesion=0.35,
-                            merge_suggest=0.35, merge_auto=0.55, body_auto=0.82, body_margin=0.05, body_suggest=0.74),
+                            merge_suggest=0.35, merge_auto=0.55, body_auto=0.82, body_margin=0.05, body_suggest=0.74,
+                            event_auto=0.87, event_suggest=0.78),
     # Drawn characters (CCIP caformer-24 embeddings, 768-d). deepghs publishes 0.178 as the cosine
     # distance below which two images show one character (similarity ~0.82); these sit just
     # above it on purpose - a wrong automatic merge is worse than a pair left for the user's
@@ -571,6 +581,70 @@ def appearance_similarity(a, b) -> float:
     return total / weight if weight else 0.0
 
 
+def appearance_similarity_many(a, matrix) -> np.ndarray:
+    """appearance_similarity(a, row) for every row of `matrix` (m x 80), vectorised and identical in value."""
+    a = np.asarray(a, dtype=np.float32)
+    matrix = np.asarray(matrix, dtype=np.float32).reshape(-1, len(a))
+    total = np.zeros(len(matrix), dtype=np.float64)
+    weight = np.zeros(len(matrix), dtype=np.float64)
+    for r, wt in enumerate(REGION_WEIGHTS):
+        ra = a[r * REGION_LEN:(r + 1) * REGION_LEN]
+        if not ra.any():
+            continue
+        rows = matrix[:, r * REGION_LEN:(r + 1) * REGION_LEN]
+        both = rows.any(axis=1)
+        total += wt * (rows @ ra) * both
+        weight += wt * both
+    return np.divide(total, weight, out=np.zeros_like(total), where=weight > 0)
+
+
+# Torso hue bins 0-1 (OpenCV hue 0-30) at saturation bins 0-1 (50-190): where skin lives. Orange / beige / brown
+# clothes land here too, which is the point: such an outfit cannot be told from a bare torso by this descriptor.
+_SKIN_HUE_BINS = (0, 1)
+_SKIN_SAT_BINS = (0, 1)
+
+
+def skin_dominated(descriptor, share: float = 0.55) -> bool:
+    """True when the TORSO region of an 80-float outfit descriptor is mostly skin-coloured. On bare skin the
+    descriptor measures skin tone, so two different shirtless people of similar tone score >= 0.9: such a body
+    must not be linked by outfit (roadmap section 7.2). A body with no torso region is not skin-dominated."""
+    if descriptor is None:
+        return False
+    torso = np.asarray(descriptor, dtype=np.float32)[:REGION_LEN]
+    if not torso.any():
+        return False
+    p = torso.astype(np.float64) ** 2           # the descriptor is the square root of the histogram
+    chroma = p[:_H_BINS * (len(_S_EDGES) - 1)].reshape(_H_BINS, len(_S_EDGES) - 1)
+    skin = sum(chroma[h, s] for h in _SKIN_HUE_BINS for s in _SKIN_SAT_BINS)
+    return bool(skin >= share * p.sum())
+
+
+def bone_ratio_veto(kpts_a, scores_a, kpts_b, scores_b, spread: float) -> bool:
+    """SOFT veto (roadmap 7.1): only when both bodies are frontal, upright and full-length, and the
+    shoulder-width / torso-length ratio differs by more than `spread` (relative). Never a positive signal.
+    `spread <= 0` disables it; the value comes from Phase 0's measured within-person spread (not wired into
+    link_faceless_bodies yet: the grouping request carries no keypoints)."""
+    if spread <= 0:
+        return False
+
+    def ratio(k, s):
+        k, s = np.asarray(k, dtype=np.float64), np.asarray(s, dtype=np.float64)
+        if any(s[i] < KPT_VISIBLE for i in (5, 6, 11, 12, 15, 16)):
+            return None
+        sh, hp = (k[5] + k[6]) / 2, (k[11] + k[12]) / 2
+        torso = float(np.linalg.norm(hp - sh))
+        width = float(np.linalg.norm(k[5] - k[6]))
+        tilt = abs(hp[0] - sh[0]) / max(abs(hp[1] - sh[1]), 1e-6)
+        if torso < 1.0 or tilt > 0.47 or width < 0.6 * torso:       # tilt > ~25 deg: not upright; narrow: not frontal
+            return None
+        return width / torso
+
+    ra, rb = ratio(kpts_a, scores_a), ratio(kpts_b, scores_b)
+    if ra is None or rb is None:
+        return False
+    return abs(ra - rb) / max(ra, rb) > spread
+
+
 # ---------------------------------------------------------------------------
 # Bodies without a usable face
 # ---------------------------------------------------------------------------
@@ -579,9 +653,54 @@ def appearance_similarity(a, b) -> float:
 class BodyLink:
     body_id: int
     person_id: int
-    method: str          # "appearance" or "weak_face"
+    method: str          # "appearance", "weak_face" or "event_outfit"
     confidence: float
     decision: str        # "auto" or "suggest"
+
+
+class _EventTimeline:
+    """Identified bodies that carry an outfit and a time, sorted by time (roadmap section 7.2)."""
+
+    def __init__(self, anchors: Sequence[Tuple[Dict, int]], params: GroupingParams):
+        rows = sorted((a for a in anchors
+                       if a[0].get("taken_at") is not None and a[0].get("appearance") is not None
+                       and not skin_dominated(a[0]["appearance"], params.event_skin_share)),
+                      key=lambda a: a[0]["taken_at"])
+        self.times = [a[0]["taken_at"] for a in rows]
+        self.pids = [a[1] for a in rows]
+        self.media = [a[0].get("media_id") for a in rows]
+        self.matrix = (np.asarray([a[0]["appearance"] for a in rows], dtype=np.float32)
+                       if rows else np.zeros((0, 2 * REGION_LEN), dtype=np.float32))
+
+    def link(self, body: Dict, frame_people: set, rejected: set, params: GroupingParams) -> Optional["BodyLink"]:
+        """The person whose identified body wore this outfit within the window, in another photo."""
+        t, app = body.get("taken_at"), body.get("appearance")
+        if t is None or app is None or not self.times or skin_dominated(app, params.event_skin_share):
+            return None
+        lo = bisect.bisect_left(self.times, t - params.event_window_ms)
+        hi = bisect.bisect_right(self.times, t + params.event_window_ms)
+        if hi <= lo:
+            return None
+        sims = appearance_similarity_many(app, self.matrix[lo:hi])
+        per_person: Dict[int, float] = {}
+        for k, sim in enumerate(sims):
+            pid, media = self.pids[lo + k], self.media[lo + k]
+            if pid in rejected or pid in frame_people:
+                continue            # corrected before, or already in this very frame
+            if media is not None and media == body.get("media_id"):
+                continue            # the same photo/video is the other rule's business
+            if sim > per_person.get(pid, 0.0):
+                per_person[pid] = float(sim)
+        if not per_person:
+            return None
+        ranked = sorted(per_person.items(), key=lambda t: -t[1])
+        pid, sim = ranked[0]
+        runner = ranked[1][1] if len(ranked) > 1 else 0.0
+        if sim >= params.event_auto and sim - runner >= params.body_margin:
+            return BodyLink(body["id"], pid, "event_outfit", round(sim, 4), "auto")
+        if sim >= params.event_suggest:   # two people in a near-equal outfit end up here: ask, never decide
+            return BodyLink(body["id"], pid, "event_outfit", round(sim, 4), "suggest")
+        return None
 
 
 def link_faceless_bodies(bodies: Sequence[Dict], anchor_person: Callable[[Dict], Optional[int]],
@@ -603,6 +722,12 @@ def link_faceless_bodies(bodies: Sequence[Dict], anchor_person: Callable[[Dict],
             anchors_by_media[b.get("media_id")].append((b, pid))
         else:
             loose.append(b)
+
+    # Event context only exists when bodies carry `taken_at`; without it every result is what it always was.
+    timeline = None
+    if any(b.get("taken_at") is not None for b in loose):
+        built = _EventTimeline([(b, pid) for rows in anchors_by_media.values() for b, pid in rows], params)
+        timeline = built if built.times else None
 
     proposals: List[BodyLink] = []
     for b in loose:
@@ -637,6 +762,10 @@ def link_faceless_bodies(bodies: Sequence[Dict], anchor_person: Callable[[Dict],
                     best = BodyLink(b["id"], pid, "appearance", round(sim, 4), "auto")
                 elif sim >= params.body_suggest and best is None:
                     best = BodyLink(b["id"], pid, "appearance", round(sim, 4), "suggest")
+        if best is None and timeline is not None:
+            frame_people = {pid for a, pid in anchors_by_media.get(b.get("media_id"), [])
+                            if a.get("frame_number") == b.get("frame_number")}
+            best = timeline.link(b, frame_people, set(b.get("rejected_person_ids") or ()), params)
         if best is not None:
             proposals.append(best)
 

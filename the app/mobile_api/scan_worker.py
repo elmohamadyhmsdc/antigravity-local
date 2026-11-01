@@ -25,6 +25,17 @@ MAX_MESSAGE = 96 * 1024 * 1024
 
 def encode_result(result):
     from .schemas import py
+    payload = _encode_base(result)
+    # Only present when requested, so an older parent process never sees an unknown key.
+    if getattr(result, 'sensitive', None) is not None:
+        payload['sensitive'] = py(result.sensitive)
+    if getattr(result, 'body_embeddings', None) is not None:
+        payload['body_embeddings'] = py(result.body_embeddings)
+    return payload
+
+
+def _encode_base(result):
+    from .schemas import py
     return py(dict(faces=[dict(bbox=f.bbox, kps=f.kps, det_score=f.det_score,
                                normed_embedding=f.normed_embedding) for f in result.faces],
         quality=result.quality, passes_gate=result.passes_gate,
@@ -159,6 +170,33 @@ class ScanWorker:
                     'The image analysis worker stopped. The server is online; retry this image.',
                     retryable=True, headers={'Retry-After': '2'}) from error
 
+    def sensitive(self, img, bodies, embeddings=False):
+        """Roadmap section 8 backfill: regions for `bodies` (dicts: bbox xyxy px, kpts, kpt_scores)."""
+        from .schemas import py
+        with self._lock:
+            self._start()
+            message = json.dumps({'type': 'sensitive',
+                'shape': list(img.shape),
+                'pixels': base64.b64encode(np.ascontiguousarray(img, dtype=np.uint8)).decode('ascii'),
+                'bodies': py(bodies), 'embeddings': bool(embeddings)}, separators=(',', ':')).encode('utf-8') + b'\n'
+            try:
+                self.process.stdin.write(message)
+                self.process.stdin.flush()
+                raw = self.responses.get(timeout=self.timeout)
+                if raw is None:
+                    self.process.wait(timeout=5)
+                    raise RuntimeError(f'inference process exited with code {self.process.returncode} '
+                                       f'(0x{self.process.returncode & 0xffffffff:08X})')
+                response = json.loads(raw)
+                if response.get('error'): raise RuntimeError(response['error'])
+                return response['sensitive']
+            except (OSError, ValueError, RuntimeError, queue.Empty, subprocess.TimeoutExpired) as error:
+                self.log(f'[scan worker] sensitive failed: {error}')
+                self.close()
+                raise ApiError(503, 'engine_unavailable',
+                    'The image analysis worker stopped. The server is online; retry this image.',
+                    retryable=True, headers={'Retry-After': '2'}) from error
+
     def close(self):
         with self._lock:
             process, self.process = self.process, None
@@ -194,6 +232,10 @@ def main():
             if request.get('type') == 'outlines':
                 outlines = engines.compute_outlines(image, request.get('targets', []))
                 response = {'outlines': outlines}
+            elif request.get('type') == 'sensitive':
+                bodies = [{'bbox': b['bbox'], 'kpts': b.get('kpts'), 'kpt_scores': b.get('kpt_scores')}
+                          for b in request.get('bodies', [])]
+                response = {'sensitive': engines.compute_sensitive(image, bodies, bool(request.get('embeddings')))}
             else:
                 result = engines.analyze(image, AnalyzeOptions(**request['options']))
                 response = {'result': encode_result(result)}

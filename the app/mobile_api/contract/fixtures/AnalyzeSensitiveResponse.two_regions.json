@@ -1,0 +1,29 @@
+{
+  "model_version": 1,
+  "regions": [
+    {
+      "label": "FEMALE_BREAST_EXPOSED",
+      "exposed": true,
+      "score": 0.9127,
+      "bbox": {
+        "x": 455.0,
+        "y": 560.0,
+        "w": 120.0,
+        "h": 90.0
+      },
+      "body_index": 0
+    },
+    {
+      "label": "BELLY_COVERED",
+      "exposed": false,
+      "score": 0.4412,
+      "bbox": {
+        "x": 90.0,
+        "y": 700.0,
+        "w": 60.0,
+        "h": 50.0
+      },
+      "body_index": null
+    }
+  ]
+}

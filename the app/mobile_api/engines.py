@@ -19,6 +19,10 @@ import analysis
 from . import APP_DIR, EMBEDDING_DIM, EMBEDDING_MODEL_ID
 
 
+def _bodies_as_dicts(bodies) -> list:
+    return [{"bbox": [float(v) for v in b.bbox[:4]], "kpts": b.kpts, "kpt_scores": b.kpt_scores} for b in bodies]
+
+
 class InsightEngines:
     model_id = EMBEDDING_MODEL_ID
 
@@ -28,6 +32,8 @@ class InsightEngines:
         self._face_app = None
         self._body = None
         self._outline_engine = None
+        self._sensitive_detector = None
+        self._embedder = None
         from .scan_worker import ScanWorker
         self._scan_worker = ScanWorker(log) if isolate_scans else None
 
@@ -69,7 +75,50 @@ class InsightEngines:
                 f_out, b_out = self._outline_engine.compute(img, res)
                 res.face_outlines = f_out
                 res.body_outlines = b_out
+            wants_embeddings = getattr(options, "body_embeddings", False)
+            if getattr(options, "sensitive", False) or wants_embeddings:
+                res.sensitive = self._detect_sensitive(img, _bodies_as_dicts(res.bodies))
+            if wants_embeddings:
+                res.body_embeddings = self._embed_bodies(img, res)
             return res
+
+    def _embed_bodies(self, img, res) -> list:
+        """Roadmap 7.5: chest / lower-body DINOv2 embeddings and morphology for the bodies with exposed regions."""
+        return self._embed_dicts(img, _bodies_as_dicts(res.bodies), res.sensitive or [])
+
+    def _embed_dicts(self, img, bodies: list, regions: list) -> list:
+        if self._embedder is None:
+            from body_embeddings import DinoEmbedder
+            self._embedder = DinoEmbedder()
+        from body_embeddings import analyse_bodies
+        return analyse_bodies(img, bodies, regions, self._embedder)
+
+    def _detect_sensitive(self, img, bodies: list) -> list:
+        """Roadmap section 8: regions with `body_index`. Loaded on first use only."""
+        if self._sensitive_detector is None:
+            from sensitive_detection import SensitiveDetector, env_model_path
+            self._sensitive_detector = SensitiveDetector(env_model_path())
+        from sensitive_detection import detect_for_bodies
+        return detect_for_bodies(self._sensitive_detector, img, bodies)
+
+    def compute_sensitive(self, img, bodies: list, embeddings: bool = False):
+        """Backfill for photos scanned before the feature (`bodies`: dicts with bbox xyxy px, kpts, kpt_scores).
+        A list of regions; with `embeddings` a dict {regions, bodies} (roadmap 7.5 for photos scanned earlier)."""
+        with self._lock:
+            if self._scan_worker is not None:
+                return self._scan_worker.sensitive(img, bodies, embeddings)
+            regions = self._detect_sensitive(img, bodies)
+            if not embeddings:
+                return regions
+            return {"regions": regions, "bodies": self._embed_dicts(img, bodies, regions)}
+
+    def compute_garments(self, img, bodies: list) -> list:
+        """Roadmap Phase 7: WD14 garment scores per body (list of tag lists, in order). Raw evidence only."""
+        with self._lock:
+            if getattr(self, "_garment_tagger", None) is None:
+                from garment_tags import GarmentTagger
+                self._garment_tagger = GarmentTagger()
+            return self._garment_tagger.tag_bodies(img, bodies)
 
     def compute_outlines(self, img, targets: list) -> list:
         with self._lock:
@@ -133,6 +182,8 @@ class InsightEngines:
             self._face_app = None
             self._body = None
             self._outline_engine = None
+            self._sensitive_detector = None
+            self._embedder = None
         gc.collect()
 
 
@@ -226,6 +277,10 @@ class CapabilityProbe:
             "body_detection": self._has("models", "body", "yolox_m_humanart.onnx")
                               and self._has("models", "body", "rtmpose_m_body7.onnx"),
             "character_detection": self._has("models", "body", "yolox_m_humanart.onnx"),
+            "sensitive_detection": self._has("models", "sensitive", "640m.onnx"),
+            "body_embeddings": self._has("models", "sensitive", "640m.onnx")
+                               and self._has("models", "reid", "dinov2_vits14.onnx"),
+            "garment_tags": self._has("models", "wd14_tagger_model.onnx") and self._has("models", "wd14_tagger_tags.csv"),
         }
 
     def snapshot(self) -> Dict:

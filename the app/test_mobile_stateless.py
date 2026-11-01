@@ -195,6 +195,17 @@ try:
     jpg = cv2.imencode(".jpg", img)[1].tobytes()
     r = client.post("/v1/analyze/image", files={"image": ("a.jpg", jpg, "image/jpeg")}, headers=auth)
     assert r.status_code == 200 and r.json()["faces"], r.text
+    # roadmap section 8: regions are computed and returned, never kept on the PC
+    r = client.post("/v1/analyze/image", files={"image": ("a.jpg", jpg, "image/jpeg")},
+                    data={"options": json.dumps({"return_sensitive": True})}, headers=auth)
+    assert r.status_code == 200 and r.json()["sensitive_regions"], r.text
+    r = client.post("/v1/analyze/sensitive", files={"image": ("a.jpg", jpg, "image/jpeg")}, headers=auth)
+    assert r.status_code == 200 and r.json()["regions"], r.text
+    stored = [p for p in tmp.rglob("*") if p.is_file() and p.suffix.lower() in (".jpg", ".jpeg", ".png", ".npy", ".npz")]
+    assert not stored, f"image/embedding files kept on the PC: {stored}"
+    for p in tmp.rglob("*"):
+        if p.is_file() and p.stat().st_size < 5_000_000:
+            assert b"BREAST_EXPOSED" not in p.read_bytes(), f"a sensitive region was written to {p}"
     assert TestClient(create_pair_app(ctx)).get("/pair").status_code == 200
     ctx.workspace.purge_expired_jobs()
 finally:

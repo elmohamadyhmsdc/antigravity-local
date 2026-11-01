@@ -69,7 +69,11 @@ GroupingModel buildPersonModel(
 String? frameKeyOf(int? mediaId, int? frameNumber) =>
     mediaId == null ? null : '$mediaId:${frameNumber ?? ''}';
 
-const _derivedLinks = ['appearance', 'weak_face'];
+const _derivedLinks = ['appearance', 'weak_face', 'event_outfit'];
+
+/// Event-context window (matches person_linking.GroupingParams.event_window_ms): identified bodies
+/// further than this from every faceless body are not sent.
+const eventWindowMs = 6 * 3600 * 1000;
 
 /// Reads the library out of the database in the shapes the PC's grouping function takes.
 class GroupingInputs {
@@ -197,18 +201,20 @@ class GroupingInputs {
         .customSelect(
           '''
           SELECT b.id, b.media_id, b.frame_number, b.appearance, b.weak_face_embedding, b.person_id,
-                 b.link_method, bf.person_id AS face_person_id
-          FROM bodies b LEFT JOIN faces bf ON bf.id = b.face_id
+                 b.link_method, bf.person_id AS face_person_id, m.taken_at AS taken_at
+          FROM bodies b LEFT JOIN faces bf ON bf.id = b.face_id LEFT JOIN media m ON m.id = b.media_id
           WHERE b.kind = ?
           ORDER BY b.id
           ''',
           variables: [Variable.withString(kind)],
-          readsFrom: {_db.bodies, _db.faces},
+          readsFrom: {_db.bodies, _db.faces, _db.media},
         )
         .get();
 
     final all = <GroupingBody>[];
     final looseWithEvidenceMedia = <int?>{};
+    final looseTimes =
+        <int>[]; // taken_at of faceless bodies with an outfit (event context)
     for (final r in rows) {
       final facePerson = r.readNullable<int>('face_person_id');
       var anchor = facePerson ?? r.readNullable<int>('person_id');
@@ -227,21 +233,48 @@ class GroupingInputs {
         appearance: appearance == null ? null : _floats(appearance),
         weakFaceEmbedding: weak == null ? null : vectorFromBlob(weak),
         rejectedPersonIds: rejected[r.read<int>('id')] ?? const [],
+        takenAt: r.readNullable<int>('taken_at'),
       );
       all.add(body);
       if (anchor == null &&
           (body.appearance != null || body.weakFaceEmbedding != null)) {
         looseWithEvidenceMedia.add(body.mediaId);
+        final t = body.takenAt;
+        if (t != null && body.appearance != null) looseTimes.add(t);
       }
     }
+    looseTimes.sort();
     return [
       for (final b in all)
-        if (looseWithEvidenceMedia.contains(b.mediaId) &&
-            (b.anchorPersonId != null ||
-                b.appearance != null ||
-                b.weakFaceEmbedding != null))
+        if ((looseWithEvidenceMedia.contains(b.mediaId) &&
+                (b.anchorPersonId != null ||
+                    b.appearance != null ||
+                    b.weakFaceEmbedding != null)) ||
+            _anchorForEvent(b, looseTimes))
           b,
     ];
+  }
+
+  /// An identified body whose outfit and time could explain a faceless body of another photo taken
+  /// within [eventWindowMs] (binary search over the sorted times of those faceless bodies).
+  static bool _anchorForEvent(GroupingBody b, List<int> looseTimes) {
+    final t = b.takenAt;
+    if (b.anchorPersonId == null ||
+        t == null ||
+        b.appearance == null ||
+        looseTimes.isEmpty) {
+      return false;
+    }
+    var lo = 0, hi = looseTimes.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (looseTimes[mid] < t - eventWindowMs) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo < looseTimes.length && looseTimes[lo] <= t + eventWindowMs;
   }
 
   static List<double> _floats(Uint8List blob) {

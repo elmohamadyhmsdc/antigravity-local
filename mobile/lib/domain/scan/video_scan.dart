@@ -66,6 +66,10 @@ class VideoScan {
     void Function(VideoScanProgress progress)? onProgress,
     void Function(Uint8List bytes, int? timestampMs)? onPreview,
     bool characterScan = false,
+
+    /// The PC has the sensitive-region model: sampled frames also ask for regions (roadmap S4); any
+    /// frame with a counting region flags the whole clip.
+    bool sensitiveScan = false,
   }) async {
     final startedAt = DateTime.now();
     var stageStartedAt = startedAt;
@@ -428,6 +432,7 @@ class VideoScan {
                 facelessCharacters: media.illustrated,
                 forceKind: corrections.forceKind,
                 kindOverrides: corrections.dtos(timestampMs: timeOf(frame)),
+                returnSensitive: sensitiveScan && !media.illustrated,
               ),
             );
             status(timeOf(frame));

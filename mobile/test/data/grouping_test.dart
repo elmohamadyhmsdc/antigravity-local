@@ -250,7 +250,12 @@ void main() {
       () async {
         final sara = await seedPerson(db);
         final withLoose = await seedMedia(db, asset: 'm1');
-        final allKnown = await seedMedia(db, asset: 'm2');
+        // a month away from the others: far outside the event window, so it cannot explain a faceless body
+        final allKnown = await seedMedia(
+          db,
+          asset: 'm2',
+          takenAt: 1000 + 30 * 24 * 3600 * 1000,
+        );
         final noEvidence = await seedMedia(db, asset: 'm3');
         final face = await seedFace(
           db,

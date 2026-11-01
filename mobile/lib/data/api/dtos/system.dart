@@ -53,6 +53,9 @@ class Engines {
     required this.loraGenerate,
     required this.bodyDetection,
     this.characterDetection = false,
+    this.sensitiveDetection = false,
+    this.bodyEmbeddings = false,
+    this.garmentTags = false,
   });
 
   final bool reface;
@@ -65,6 +68,15 @@ class Engines {
   final bool loraGenerate;
   final bool bodyDetection;
   final bool characterDetection;
+
+  /// Roadmap section 8: the PC can return exposed / covered body-part regions.
+  final bool sensitiveDetection;
+
+  /// Roadmap Phase 7: the WD14 tagger is installed, so garment tags can be asked for.
+  final bool garmentTags;
+
+  /// Roadmap 7.5: the DINOv2 model is installed, so exposed-region embeddings can be asked for.
+  final bool bodyEmbeddings;
 
   factory Engines.fromJson(Map<String, dynamic> json) => Engines(
     reface: json['reface'] as bool? ?? false,
@@ -79,6 +91,9 @@ class Engines {
     loraGenerate: field<bool>(json, 'lora_generate', 'engines'),
     bodyDetection: field<bool>(json, 'body_detection', 'engines'),
     characterDetection: json['character_detection'] as bool? ?? false,
+    sensitiveDetection: json['sensitive_detection'] as bool? ?? false,
+    garmentTags: json['garment_tags'] as bool? ?? false,
+    bodyEmbeddings: json['body_embeddings'] as bool? ?? false,
   );
 }
 

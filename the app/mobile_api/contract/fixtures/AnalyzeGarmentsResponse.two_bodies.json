@@ -1,0 +1,22 @@
+{
+  "model_version": 1,
+  "bodies": [
+    {
+      "tags": [
+        {
+          "tag": "t-shirt",
+          "category": "upper",
+          "score": 0.8123
+        },
+        {
+          "tag": "jeans",
+          "category": "lower",
+          "score": 0.4412
+        }
+      ]
+    },
+    {
+      "tags": []
+    }
+  ]
+}

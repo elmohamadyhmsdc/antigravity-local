@@ -1,0 +1,12 @@
+{
+  "label": "FEMALE_BREAST_EXPOSED",
+  "exposed": true,
+  "score": 0.9127,
+  "bbox": {
+    "x": 455.0,
+    "y": 560.0,
+    "w": 120.0,
+    "h": 90.0
+  },
+  "body_index": 0
+}

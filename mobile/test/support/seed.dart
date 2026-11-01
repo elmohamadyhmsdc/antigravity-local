@@ -270,6 +270,7 @@ AnalyzeImageResponse analysis({
   List<Map<String, dynamic>> bodies = const [],
   List<(int, int)> pairs = const [],
   String modelId = 'buffalo_l@1',
+  List<Map<String, dynamic>>? sensitive,
 }) => AnalyzeImageResponse.fromJson({
   'model_id': modelId,
   'image_w': 1000,
@@ -280,4 +281,19 @@ AnalyzeImageResponse analysis({
     for (final (f, b) in pairs)
       {'face_index': f, 'body_index': b, 'score': 0.8},
   ],
+  'sensitive_regions': ?sensitive,
 });
+
+/// A SensitiveRegion as the PC sends it (pixel box).
+Map<String, dynamic> regionJson(
+  String label, {
+  double score = 0.9,
+  List<double> box = const [100, 100, 100, 100],
+  int? body,
+}) => {
+  'label': label,
+  'exposed': label.endsWith('_EXPOSED'),
+  'score': score,
+  'bbox': {'x': box[0], 'y': box[1], 'w': box[2], 'h': box[3]},
+  'body_index': body,
+};

@@ -5224,6 +5224,12 @@ abstract class AppLocalizations {
   /// **'Recognised by a small or blurry face'**
   String get quickByWeakFace;
 
+  /// No description provided for @quickByEventOutfit.
+  ///
+  /// In en, this message translates to:
+  /// **'Same outfit, same day'**
+  String get quickByEventOutfit;
+
   /// No description provided for @quickSnoozed.
   ///
   /// In en, this message translates to:
@@ -5463,6 +5469,618 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Exporting training pictures'**
   String get exportTrainingNotification;
+
+  /// No description provided for @bodiesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bodies'**
+  String get bodiesTitle;
+
+  /// No description provided for @bodiesTabAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get bodiesTabAll;
+
+  /// No description provided for @bodiesTabPoses.
+  ///
+  /// In en, this message translates to:
+  /// **'Poses'**
+  String get bodiesTabPoses;
+
+  /// No description provided for @bodiesTabOutfits.
+  ///
+  /// In en, this message translates to:
+  /// **'Outfits'**
+  String get bodiesTabOutfits;
+
+  /// No description provided for @bodiesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No bodies to show. Scan photos that show people first.'**
+  String get bodiesEmpty;
+
+  /// No description provided for @bodiesPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing pose data…'**
+  String get bodiesPreparing;
+
+  /// No description provided for @bodiesSimilarTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Similar poses'**
+  String get bodiesSimilarTitle;
+
+  /// No description provided for @bodiesClearFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get bodiesClearFilter;
+
+  /// No description provided for @bodiesNothingMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing matches this filter.'**
+  String get bodiesNothingMatches;
+
+  /// No description provided for @poseTagLying.
+  ///
+  /// In en, this message translates to:
+  /// **'Lying'**
+  String get poseTagLying;
+
+  /// No description provided for @poseTagStanding.
+  ///
+  /// In en, this message translates to:
+  /// **'Standing'**
+  String get poseTagStanding;
+
+  /// No description provided for @poseTagSitting.
+  ///
+  /// In en, this message translates to:
+  /// **'Sitting'**
+  String get poseTagSitting;
+
+  /// No description provided for @poseTagArmsUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Both arms up'**
+  String get poseTagArmsUp;
+
+  /// No description provided for @poseTagOneArmUp.
+  ///
+  /// In en, this message translates to:
+  /// **'One arm up'**
+  String get poseTagOneArmUp;
+
+  /// No description provided for @poseTagArmsSpread.
+  ///
+  /// In en, this message translates to:
+  /// **'Arms spread'**
+  String get poseTagArmsSpread;
+
+  /// No description provided for @poseTagHandsOnHips.
+  ///
+  /// In en, this message translates to:
+  /// **'Hands on hips'**
+  String get poseTagHandsOnHips;
+
+  /// No description provided for @poseTagFrontal.
+  ///
+  /// In en, this message translates to:
+  /// **'Facing the camera'**
+  String get poseTagFrontal;
+
+  /// No description provided for @poseTagProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get poseTagProfile;
+
+  /// No description provided for @poseTagBack.
+  ///
+  /// In en, this message translates to:
+  /// **'From behind'**
+  String get poseTagBack;
+
+  /// No description provided for @outfitColorWhite.
+  ///
+  /// In en, this message translates to:
+  /// **'White'**
+  String get outfitColorWhite;
+
+  /// No description provided for @outfitColorLightGrey.
+  ///
+  /// In en, this message translates to:
+  /// **'Light grey'**
+  String get outfitColorLightGrey;
+
+  /// No description provided for @outfitColorDarkGrey.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark grey'**
+  String get outfitColorDarkGrey;
+
+  /// No description provided for @outfitColorBlack.
+  ///
+  /// In en, this message translates to:
+  /// **'Black'**
+  String get outfitColorBlack;
+
+  /// No description provided for @outfitColorRed.
+  ///
+  /// In en, this message translates to:
+  /// **'Mostly red'**
+  String get outfitColorRed;
+
+  /// No description provided for @outfitColorOrange.
+  ///
+  /// In en, this message translates to:
+  /// **'Mostly orange'**
+  String get outfitColorOrange;
+
+  /// No description provided for @outfitColorYellow.
+  ///
+  /// In en, this message translates to:
+  /// **'Mostly yellow'**
+  String get outfitColorYellow;
+
+  /// No description provided for @outfitColorGreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Mostly green'**
+  String get outfitColorGreen;
+
+  /// No description provided for @outfitColorCyan.
+  ///
+  /// In en, this message translates to:
+  /// **'Mostly cyan'**
+  String get outfitColorCyan;
+
+  /// No description provided for @outfitColorBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Mostly blue'**
+  String get outfitColorBlue;
+
+  /// No description provided for @outfitColorPurple.
+  ///
+  /// In en, this message translates to:
+  /// **'Mostly purple'**
+  String get outfitColorPurple;
+
+  /// No description provided for @outfitColorPink.
+  ///
+  /// In en, this message translates to:
+  /// **'Mostly pink'**
+  String get outfitColorPink;
+
+  /// No description provided for @bodyActionSimilarPose.
+  ///
+  /// In en, this message translates to:
+  /// **'Find similar pose'**
+  String get bodyActionSimilarPose;
+
+  /// No description provided for @bodyActionNamePose.
+  ///
+  /// In en, this message translates to:
+  /// **'Name this pose'**
+  String get bodyActionNamePose;
+
+  /// No description provided for @bodyActionNameOutfit.
+  ///
+  /// In en, this message translates to:
+  /// **'Name this outfit'**
+  String get bodyActionNameOutfit;
+
+  /// No description provided for @bodyActionOpenPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the photo'**
+  String get bodyActionOpenPhoto;
+
+  /// No description provided for @categoryNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get categoryNameHint;
+
+  /// No description provided for @categoryNamePoseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Name this pose'**
+  String get categoryNamePoseTitle;
+
+  /// No description provided for @categoryNameOutfitTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Name this outfit'**
+  String get categoryNameOutfitTitle;
+
+  /// No description provided for @categoryLowerOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Match the lower half only'**
+  String get categoryLowerOnly;
+
+  /// No description provided for @categoryNoPose.
+  ///
+  /// In en, this message translates to:
+  /// **'This pose cannot be measured: the hips or shoulders are not visible.'**
+  String get categoryNoPose;
+
+  /// No description provided for @categoryNoOutfit.
+  ///
+  /// In en, this message translates to:
+  /// **'This body has no outfit colours to compare.'**
+  String get categoryNoOutfit;
+
+  /// No description provided for @categoryPreviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 match} other{{count} matches}}'**
+  String categoryPreviewTitle(int count);
+
+  /// No description provided for @categoryPreviewHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Untick the ones that do not belong. They are never added again.'**
+  String get categoryPreviewHint;
+
+  /// No description provided for @categorySave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get categorySave;
+
+  /// No description provided for @categoryNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing saved yet. Open a body and name its pose or outfit.'**
+  String get categoryNone;
+
+  /// No description provided for @categoryDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this group'**
+  String get categoryDelete;
+
+  /// No description provided for @categoryRemoveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from this group'**
+  String get categoryRemoveBody;
+
+  /// No description provided for @categoryBodyCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 body} other{{count} bodies}}'**
+  String categoryBodyCount(int count);
+
+  /// No description provided for @bodyActionSimilarExposed.
+  ///
+  /// In en, this message translates to:
+  /// **'Find similar photos of this body area'**
+  String get bodyActionSimilarExposed;
+
+  /// No description provided for @bodiesSimilarColoursTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Similar colours'**
+  String get bodiesSimilarColoursTitle;
+
+  /// No description provided for @bodyActionSimilarColours.
+  ///
+  /// In en, this message translates to:
+  /// **'Find similar colours'**
+  String get bodyActionSimilarColours;
+
+  /// No description provided for @bodyActionMarkTattoo.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark a tattoo'**
+  String get bodyActionMarkTattoo;
+
+  /// No description provided for @groupTagGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Group photos'**
+  String get groupTagGroup;
+
+  /// No description provided for @groupTagLineup.
+  ///
+  /// In en, this message translates to:
+  /// **'Side by side'**
+  String get groupTagLineup;
+
+  /// No description provided for @groupTagAllFacing.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone facing the camera'**
+  String get groupTagAllFacing;
+
+  /// No description provided for @markTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark a tattoo'**
+  String get markTitle;
+
+  /// No description provided for @markNeedsPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Marking needs a body that belongs to a known person.'**
+  String get markNeedsPerson;
+
+  /// No description provided for @markNoSegment.
+  ///
+  /// In en, this message translates to:
+  /// **'No limb or torso area of this body can be measured.'**
+  String get markNoSegment;
+
+  /// No description provided for @markPickSegment.
+  ///
+  /// In en, this message translates to:
+  /// **'Where on the body?'**
+  String get markPickSegment;
+
+  /// No description provided for @markTapToPlace.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the tattoo on the picture, then set its size.'**
+  String get markTapToPlace;
+
+  /// No description provided for @markSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get markSize;
+
+  /// No description provided for @markSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save mark'**
+  String get markSave;
+
+  /// No description provided for @markSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Tattoo saved. Search for it from the person\'s page.'**
+  String get markSaved;
+
+  /// No description provided for @markPatchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The original photo could not be read.'**
+  String get markPatchFailed;
+
+  /// No description provided for @marksTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tattoos'**
+  String get marksTitle;
+
+  /// No description provided for @marksNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No tattoos marked yet. Open a photo of this person, tap their body and choose Mark a tattoo.'**
+  String get marksNone;
+
+  /// No description provided for @marksSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search other photos'**
+  String get marksSearch;
+
+  /// No description provided for @marksSearching.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching…'**
+  String get marksSearching;
+
+  /// No description provided for @marksNoHits.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching photos found.'**
+  String get marksNoHits;
+
+  /// No description provided for @marksNoServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to the PC to search.'**
+  String get marksNoServer;
+
+  /// No description provided for @marksYes.
+  ///
+  /// In en, this message translates to:
+  /// **'It is them'**
+  String get marksYes;
+
+  /// No description provided for @marksNo.
+  ///
+  /// In en, this message translates to:
+  /// **'Not them'**
+  String get marksNo;
+
+  /// No description provided for @marksStrong.
+  ///
+  /// In en, this message translates to:
+  /// **'Strong match'**
+  String get marksStrong;
+
+  /// No description provided for @marksWeak.
+  ///
+  /// In en, this message translates to:
+  /// **'Possible match'**
+  String get marksWeak;
+
+  /// No description provided for @marksDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this mark'**
+  String get marksDelete;
+
+  /// No description provided for @quickByTattoo.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching tattoo'**
+  String get quickByTattoo;
+
+  /// No description provided for @markSegRUpperArm.
+  ///
+  /// In en, this message translates to:
+  /// **'Right upper arm'**
+  String get markSegRUpperArm;
+
+  /// No description provided for @markSegLUpperArm.
+  ///
+  /// In en, this message translates to:
+  /// **'Left upper arm'**
+  String get markSegLUpperArm;
+
+  /// No description provided for @markSegRForearm.
+  ///
+  /// In en, this message translates to:
+  /// **'Right forearm'**
+  String get markSegRForearm;
+
+  /// No description provided for @markSegLForearm.
+  ///
+  /// In en, this message translates to:
+  /// **'Left forearm'**
+  String get markSegLForearm;
+
+  /// No description provided for @markSegRThigh.
+  ///
+  /// In en, this message translates to:
+  /// **'Right thigh'**
+  String get markSegRThigh;
+
+  /// No description provided for @markSegLThigh.
+  ///
+  /// In en, this message translates to:
+  /// **'Left thigh'**
+  String get markSegLThigh;
+
+  /// No description provided for @markSegRLowerLeg.
+  ///
+  /// In en, this message translates to:
+  /// **'Right lower leg'**
+  String get markSegRLowerLeg;
+
+  /// No description provided for @markSegLLowerLeg.
+  ///
+  /// In en, this message translates to:
+  /// **'Left lower leg'**
+  String get markSegLLowerLeg;
+
+  /// No description provided for @markSegChest.
+  ///
+  /// In en, this message translates to:
+  /// **'Chest'**
+  String get markSegChest;
+
+  /// No description provided for @markSegAbdomen.
+  ///
+  /// In en, this message translates to:
+  /// **'Abdomen'**
+  String get markSegAbdomen;
+
+  /// No description provided for @markSegRibs.
+  ///
+  /// In en, this message translates to:
+  /// **'Ribs'**
+  String get markSegRibs;
+
+  /// No description provided for @markSegUpperBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Upper back'**
+  String get markSegUpperBack;
+
+  /// No description provided for @markSegLowerBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Lower back'**
+  String get markSegLowerBack;
+
+  /// No description provided for @markSegHips.
+  ///
+  /// In en, this message translates to:
+  /// **'Hips'**
+  String get markSegHips;
+
+  /// No description provided for @bodiesTabAreas.
+  ///
+  /// In en, this message translates to:
+  /// **'Areas'**
+  String get bodiesTabAreas;
+
+  /// No description provided for @clustersToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Group body areas (experimental)'**
+  String get clustersToggle;
+
+  /// No description provided for @clustersToggleNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Groups photos that show the same body area, so a whole group can be given to a person with one tap. Turn it on only after checking the groups are right.'**
+  String get clustersToggleNote;
+
+  /// No description provided for @clustersEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No groups yet. They appear once photos with exposed body areas have been scanned.'**
+  String get clustersEmpty;
+
+  /// No description provided for @clusterTitleChest.
+  ///
+  /// In en, this message translates to:
+  /// **'Chest area · group {id}'**
+  String clusterTitleChest(int id);
+
+  /// No description provided for @clusterTitleButtocks.
+  ///
+  /// In en, this message translates to:
+  /// **'Lower-body area · group {id}'**
+  String clusterTitleButtocks(int id);
+
+  /// No description provided for @clusterAssign.
+  ///
+  /// In en, this message translates to:
+  /// **'Give this group to a person'**
+  String get clusterAssign;
+
+  /// No description provided for @clusterBelongsTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Belongs to {name}'**
+  String clusterBelongsTo(String name);
+
+  /// No description provided for @clusterLinked.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 photo linked} other{{count} photos linked}}'**
+  String clusterLinked(int count);
+
+  /// No description provided for @clusterBridgeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos show both groups'**
+  String get clusterBridgeTitle;
+
+  /// No description provided for @clusterBridgeAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Also give group {to} to the same person ({bridges} photos show both)'**
+  String clusterBridgeAction(int to, int bridges);
+
+  /// No description provided for @quickByCluster.
+  ///
+  /// In en, this message translates to:
+  /// **'Same body area as photos of this person'**
+  String get quickByCluster;
 }
 
 class _AppLocalizationsDelegate

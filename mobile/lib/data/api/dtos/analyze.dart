@@ -185,7 +185,16 @@ class DetectedBody {
     this.extent,
     this.cropJpeg,
     this.outline,
+    this.chestEmbedding,
+    this.buttocksEmbedding,
+    this.morphology,
   });
+
+  /// Roadmap 7.5 (only with `AnalyzeOptions.returnBodyEmbeddings`): DINOv2 384-d unit vectors of the exposed
+  /// chest / lower-body patch and the measurable descriptors; null when the body has none.
+  final Float32List? chestEmbedding;
+  final Float32List? buttocksEmbedding;
+  final Map<String, dynamic>? morphology;
 
   final BBox bbox;
   final double score;
@@ -217,9 +226,19 @@ class DetectedBody {
       extent: json['extent'] as String?,
       cropJpeg: crop is String ? base64Decode(crop) : null,
       outline: _parseOutline(json['outline']),
+      chestEmbedding: _patchEmbedding(json['chest_embedding']),
+      buttocksEmbedding: _patchEmbedding(json['buttocks_embedding']),
+      morphology: json['morphology'] is Map<String, dynamic>
+          ? json['morphology'] as Map<String, dynamic>
+          : null,
     );
   }
 }
+
+const patchEmbeddingDim = 384;
+
+Float32List? _patchEmbedding(Object? value) =>
+    value is String ? decodeVector(value, patchEmbeddingDim) : null;
 
 /// The drawn face of a character. `embedding` is null when the server has no CCIP model.
 class CharacterFace {
@@ -339,7 +358,11 @@ class AnalyzeImageResponse {
     required this.pairs,
     this.timingsMs = const {},
     this.characters = const [],
+    this.sensitiveRegions,
   });
+
+  /// Null = not asked for (`AnalyzeOptions.returnSensitive` false, or an older server).
+  final List<SensitiveRegionDto>? sensitiveRegions;
 
   final String modelId;
   final int imageW;
@@ -374,6 +397,15 @@ class AnalyzeImageResponse {
         json['pairs'],
         'pairs',
       ).map((p) => FaceBodyPair.fromJson(map(p, 'pairs[]'))).toList(),
+      sensitiveRegions: json['sensitive_regions'] == null
+          ? null
+          : [
+              for (final r in list(
+                json['sensitive_regions'],
+                'sensitive_regions',
+              ))
+                SensitiveRegionDto.fromJson(map(r, 'sensitive_regions[]')),
+            ],
       timingsMs: timings == null
           ? const {}
           : {
@@ -401,7 +433,17 @@ class AnalyzeOptions {
     this.facelessCharacters = true,
     this.forceKind,
     this.kindOverrides = const [],
+    this.returnSensitive = false,
+    this.returnBodyEmbeddings = false,
   });
+
+  /// Also ask for exposed / covered body-part regions (roadmap section 8). Only set when the
+  /// server's capabilities say `sensitive_detection`; otherwise it answers 409 `model_missing`.
+  final bool returnSensitive;
+
+  /// Roadmap 7.5 (Phase 8): also ask for chest / lower-body embeddings and morphology of exposed regions.
+  /// Only when the server advertises `body_embeddings`.
+  final bool returnBodyEmbeddings;
 
   final bool detectBodies;
   final double minQuality;
@@ -427,6 +469,8 @@ class AnalyzeOptions {
     'body_score': bodyScore,
     if (modelId != null) 'model_id': modelId,
     if (returnOutlines) 'return_outlines': true,
+    if (returnSensitive) 'return_sensitive': true,
+    if (returnBodyEmbeddings) 'return_body_embeddings': true,
     if (!facelessCharacters) 'faceless_characters': false,
     if (forceKind != null) 'force_kind': forceKind,
     if (kindOverrides.isNotEmpty)
@@ -525,4 +569,200 @@ class AnalyzeOutlinesResponse {
       ],
     );
   }
+}
+
+/// openapi.yaml `SensitiveRegion`: an exposed / covered body-part box (NudeNet), pixel coordinates.
+class SensitiveRegionDto {
+  const SensitiveRegionDto({
+    required this.label,
+    required this.exposed,
+    required this.score,
+    required this.bbox,
+    this.bodyIndex,
+  });
+
+  final String label; // NudeNet v3 label, e.g. FEMALE_BREAST_EXPOSED
+  final bool exposed;
+  final double score;
+  final BBox bbox;
+
+  /// Index into `AnalyzeImageResponse.bodies`; null when no body fits.
+  final int? bodyIndex;
+
+  factory SensitiveRegionDto.fromJson(Map<String, dynamic> json) =>
+      SensitiveRegionDto(
+        label: field<String>(json, 'label', 'sensitive_regions[]'),
+        exposed: field<bool>(json, 'exposed', 'sensitive_regions[]'),
+        score: number(json, 'score', 'sensitive_regions[]'),
+        bbox: BBox.fromJson(map(json['bbox'], 'sensitive_regions[].bbox')),
+        bodyIndex: json['body_index'] == null
+            ? null
+            : integer(json, 'body_index', 'sensitive_regions[]'),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'label': label,
+    'exposed': exposed,
+    'score': score,
+    'bbox': bbox.toJson(),
+    'body_index': bodyIndex,
+  };
+}
+
+/// A stored body sent to POST /v1/analyze/sensitive: its pixel box and (when known) keypoints, which
+/// decide which body a region belongs to.
+class SensitiveBodyTargetDto {
+  const SensitiveBodyTargetDto({required this.bbox, this.kpts});
+
+  final BBox bbox;
+  final List<List<double>>? kpts; // 17 x [x, y, score], image pixels
+
+  Map<String, dynamic> toJson() => {
+    'bbox': bbox.toJson(),
+    if (kpts != null) 'kpts': kpts,
+  };
+
+  factory SensitiveBodyTargetDto.fromJson(Map<String, dynamic> json) =>
+      SensitiveBodyTargetDto(
+        bbox: BBox.fromJson(map(json['bbox'], 'bbox')),
+        kpts: json['kpts'] == null
+            ? null
+            : [
+                for (final pt in json['kpts'] as List<dynamic>)
+                  [for (final v in pt as List<dynamic>) (v as num).toDouble()],
+              ],
+      );
+}
+
+/// Response from POST /v1/analyze/sensitive.
+class BodyEmbeddingsDto {
+  const BodyEmbeddingsDto({
+    this.chestEmbedding,
+    this.buttocksEmbedding,
+    this.morphology,
+  });
+
+  final Float32List? chestEmbedding;
+  final Float32List? buttocksEmbedding;
+  final Map<String, dynamic>? morphology;
+
+  factory BodyEmbeddingsDto.fromJson(Map<String, dynamic> json) =>
+      BodyEmbeddingsDto(
+        chestEmbedding: _patchEmbedding(json['chest_embedding']),
+        buttocksEmbedding: _patchEmbedding(json['buttocks_embedding']),
+        morphology: json['morphology'] is Map<String, dynamic>
+            ? json['morphology'] as Map<String, dynamic>
+            : null,
+      );
+}
+
+class AnalyzeSensitiveResponse {
+  const AnalyzeSensitiveResponse({
+    required this.modelVersion,
+    required this.regions,
+    this.bodies,
+  });
+
+  final int modelVersion;
+  final List<SensitiveRegionDto> regions;
+
+  /// Only when asked with `embeddings`: one entry per requested body, in order.
+  final List<BodyEmbeddingsDto>? bodies;
+
+  factory AnalyzeSensitiveResponse.fromJson(Map<String, dynamic> json) =>
+      AnalyzeSensitiveResponse(
+        modelVersion: integer(json, 'model_version'),
+        regions: [
+          for (final r in list(json['regions'], 'regions'))
+            SensitiveRegionDto.fromJson(map(r, 'regions[]')),
+        ],
+        bodies: json['bodies'] == null
+            ? null
+            : [
+                for (final b in list(json['bodies'], 'bodies'))
+                  BodyEmbeddingsDto.fromJson(map(b, 'bodies[]')),
+              ],
+      );
+}
+
+/// One garment tag with its raw WD14 score (roadmap Phase 7). Evidence only: no tag is a filter yet.
+class GarmentTagDto {
+  const GarmentTagDto({
+    required this.tag,
+    required this.category,
+    required this.score,
+  });
+
+  final String tag;
+  final String
+  category; // upper | outerwear | lower | full_body | pattern | accessory | footwear
+  final double score;
+
+  factory GarmentTagDto.fromJson(Map<String, dynamic> json) => GarmentTagDto(
+    tag: field<String>(json, 'tag', 'tags[]'),
+    category: field<String>(json, 'category', 'tags[]'),
+    score: number(json, 'score', 'tags[]'),
+  );
+}
+
+/// Response from POST /v1/analyze/garments: one tag list per requested body, in order.
+class AnalyzeGarmentsResponse {
+  const AnalyzeGarmentsResponse({
+    required this.modelVersion,
+    required this.bodies,
+  });
+
+  final int modelVersion;
+  final List<List<GarmentTagDto>> bodies;
+
+  factory AnalyzeGarmentsResponse.fromJson(Map<String, dynamic> json) =>
+      AnalyzeGarmentsResponse(
+        modelVersion: integer(json, 'model_version'),
+        bodies: [
+          for (final b in list(json['bodies'], 'bodies'))
+            [
+              for (final t in list(map(b, 'bodies[]')['tags'], 'tags'))
+                GarmentTagDto.fromJson(map(t, 'tags[]')),
+            ],
+        ],
+      );
+}
+
+/// One candidate's answer from POST /v1/analyze/marks.
+class MarkMatchDto {
+  const MarkMatchDto({
+    required this.index,
+    required this.inliers,
+    required this.matches,
+    required this.inlierRatio,
+    required this.mirrored,
+  });
+
+  final int index;
+  final int inliers;
+  final int matches;
+  final double inlierRatio;
+  final bool mirrored;
+
+  factory MarkMatchDto.fromJson(Map<String, dynamic> json) => MarkMatchDto(
+    index: integer(json, 'index', 'results[]'),
+    inliers: integer(json, 'inliers', 'results[]'),
+    matches: integer(json, 'matches', 'results[]'),
+    inlierRatio: number(json, 'inlier_ratio', 'results[]'),
+    mirrored: field<bool>(json, 'mirrored', 'results[]'),
+  );
+}
+
+class AnalyzeMarksResponse {
+  const AnalyzeMarksResponse({required this.results});
+
+  final List<MarkMatchDto> results;
+
+  factory AnalyzeMarksResponse.fromJson(Map<String, dynamic> json) =>
+      AnalyzeMarksResponse(
+        results: [
+          for (final r in list(json['results'], 'results'))
+            MarkMatchDto.fromJson(map(r, 'results[]')),
+        ],
+      );
 }

@@ -744,6 +744,68 @@ class $MediaTable extends Media with TableInfo<$MediaTable, MediaRow> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _sensitiveOverrideMeta = const VerificationMeta(
+    'sensitiveOverride',
+  );
+  @override
+  late final GeneratedColumn<String> sensitiveOverride =
+      GeneratedColumn<String>(
+        'sensitive_override',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _isSensitiveMeta = const VerificationMeta(
+    'isSensitive',
+  );
+  @override
+  late final GeneratedColumn<bool> isSensitive = GeneratedColumn<bool>(
+    'is_sensitive',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_sensitive" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _sensitiveVersionMeta = const VerificationMeta(
+    'sensitiveVersion',
+  );
+  @override
+  late final GeneratedColumn<int> sensitiveVersion = GeneratedColumn<int>(
+    'sensitive_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _bodyEmbeddingVersionMeta =
+      const VerificationMeta('bodyEmbeddingVersion');
+  @override
+  late final GeneratedColumn<int> bodyEmbeddingVersion = GeneratedColumn<int>(
+    'body_embedding_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _garmentVersionMeta = const VerificationMeta(
+    'garmentVersion',
+  );
+  @override
+  late final GeneratedColumn<int> garmentVersion = GeneratedColumn<int>(
+    'garment_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -762,6 +824,11 @@ class $MediaTable extends Media with TableInfo<$MediaTable, MediaRow> {
     scanAttempts,
     scanError,
     illustrated,
+    sensitiveOverride,
+    isSensitive,
+    sensitiveVersion,
+    bodyEmbeddingVersion,
+    garmentVersion,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -884,6 +951,51 @@ class $MediaTable extends Media with TableInfo<$MediaTable, MediaRow> {
         ),
       );
     }
+    if (data.containsKey('sensitive_override')) {
+      context.handle(
+        _sensitiveOverrideMeta,
+        sensitiveOverride.isAcceptableOrUnknown(
+          data['sensitive_override']!,
+          _sensitiveOverrideMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_sensitive')) {
+      context.handle(
+        _isSensitiveMeta,
+        isSensitive.isAcceptableOrUnknown(
+          data['is_sensitive']!,
+          _isSensitiveMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sensitive_version')) {
+      context.handle(
+        _sensitiveVersionMeta,
+        sensitiveVersion.isAcceptableOrUnknown(
+          data['sensitive_version']!,
+          _sensitiveVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('body_embedding_version')) {
+      context.handle(
+        _bodyEmbeddingVersionMeta,
+        bodyEmbeddingVersion.isAcceptableOrUnknown(
+          data['body_embedding_version']!,
+          _bodyEmbeddingVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('garment_version')) {
+      context.handle(
+        _garmentVersionMeta,
+        garmentVersion.isAcceptableOrUnknown(
+          data['garment_version']!,
+          _garmentVersionMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -957,6 +1069,26 @@ class $MediaTable extends Media with TableInfo<$MediaTable, MediaRow> {
         DriftSqlType.bool,
         data['${effectivePrefix}illustrated'],
       )!,
+      sensitiveOverride: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sensitive_override'],
+      ),
+      isSensitive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_sensitive'],
+      )!,
+      sensitiveVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sensitive_version'],
+      )!,
+      bodyEmbeddingVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_embedding_version'],
+      )!,
+      garmentVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}garment_version'],
+      )!,
     );
   }
 
@@ -983,6 +1115,11 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
   final int scanAttempts;
   final String? scanError;
   final bool illustrated;
+  final String? sensitiveOverride;
+  final bool isSensitive;
+  final int sensitiveVersion;
+  final int bodyEmbeddingVersion;
+  final int garmentVersion;
   const MediaRow({
     required this.id,
     required this.assetId,
@@ -1000,6 +1137,11 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
     required this.scanAttempts,
     this.scanError,
     required this.illustrated,
+    this.sensitiveOverride,
+    required this.isSensitive,
+    required this.sensitiveVersion,
+    required this.bodyEmbeddingVersion,
+    required this.garmentVersion,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1032,6 +1174,13 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
       map['scan_error'] = Variable<String>(scanError);
     }
     map['illustrated'] = Variable<bool>(illustrated);
+    if (!nullToAbsent || sensitiveOverride != null) {
+      map['sensitive_override'] = Variable<String>(sensitiveOverride);
+    }
+    map['is_sensitive'] = Variable<bool>(isSensitive);
+    map['sensitive_version'] = Variable<int>(sensitiveVersion);
+    map['body_embedding_version'] = Variable<int>(bodyEmbeddingVersion);
+    map['garment_version'] = Variable<int>(garmentVersion);
     return map;
   }
 
@@ -1065,6 +1214,13 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
           ? const Value.absent()
           : Value(scanError),
       illustrated: Value(illustrated),
+      sensitiveOverride: sensitiveOverride == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sensitiveOverride),
+      isSensitive: Value(isSensitive),
+      sensitiveVersion: Value(sensitiveVersion),
+      bodyEmbeddingVersion: Value(bodyEmbeddingVersion),
+      garmentVersion: Value(garmentVersion),
     );
   }
 
@@ -1090,6 +1246,15 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
       scanAttempts: serializer.fromJson<int>(json['scanAttempts']),
       scanError: serializer.fromJson<String?>(json['scanError']),
       illustrated: serializer.fromJson<bool>(json['illustrated']),
+      sensitiveOverride: serializer.fromJson<String?>(
+        json['sensitiveOverride'],
+      ),
+      isSensitive: serializer.fromJson<bool>(json['isSensitive']),
+      sensitiveVersion: serializer.fromJson<int>(json['sensitiveVersion']),
+      bodyEmbeddingVersion: serializer.fromJson<int>(
+        json['bodyEmbeddingVersion'],
+      ),
+      garmentVersion: serializer.fromJson<int>(json['garmentVersion']),
     );
   }
   @override
@@ -1112,6 +1277,11 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
       'scanAttempts': serializer.toJson<int>(scanAttempts),
       'scanError': serializer.toJson<String?>(scanError),
       'illustrated': serializer.toJson<bool>(illustrated),
+      'sensitiveOverride': serializer.toJson<String?>(sensitiveOverride),
+      'isSensitive': serializer.toJson<bool>(isSensitive),
+      'sensitiveVersion': serializer.toJson<int>(sensitiveVersion),
+      'bodyEmbeddingVersion': serializer.toJson<int>(bodyEmbeddingVersion),
+      'garmentVersion': serializer.toJson<int>(garmentVersion),
     };
   }
 
@@ -1132,6 +1302,11 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
     int? scanAttempts,
     Value<String?> scanError = const Value.absent(),
     bool? illustrated,
+    Value<String?> sensitiveOverride = const Value.absent(),
+    bool? isSensitive,
+    int? sensitiveVersion,
+    int? bodyEmbeddingVersion,
+    int? garmentVersion,
   }) => MediaRow(
     id: id ?? this.id,
     assetId: assetId ?? this.assetId,
@@ -1149,6 +1324,13 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
     scanAttempts: scanAttempts ?? this.scanAttempts,
     scanError: scanError.present ? scanError.value : this.scanError,
     illustrated: illustrated ?? this.illustrated,
+    sensitiveOverride: sensitiveOverride.present
+        ? sensitiveOverride.value
+        : this.sensitiveOverride,
+    isSensitive: isSensitive ?? this.isSensitive,
+    sensitiveVersion: sensitiveVersion ?? this.sensitiveVersion,
+    bodyEmbeddingVersion: bodyEmbeddingVersion ?? this.bodyEmbeddingVersion,
+    garmentVersion: garmentVersion ?? this.garmentVersion,
   );
   MediaRow copyWithCompanion(MediaCompanion data) {
     return MediaRow(
@@ -1182,6 +1364,21 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
       illustrated: data.illustrated.present
           ? data.illustrated.value
           : this.illustrated,
+      sensitiveOverride: data.sensitiveOverride.present
+          ? data.sensitiveOverride.value
+          : this.sensitiveOverride,
+      isSensitive: data.isSensitive.present
+          ? data.isSensitive.value
+          : this.isSensitive,
+      sensitiveVersion: data.sensitiveVersion.present
+          ? data.sensitiveVersion.value
+          : this.sensitiveVersion,
+      bodyEmbeddingVersion: data.bodyEmbeddingVersion.present
+          ? data.bodyEmbeddingVersion.value
+          : this.bodyEmbeddingVersion,
+      garmentVersion: data.garmentVersion.present
+          ? data.garmentVersion.value
+          : this.garmentVersion,
     );
   }
 
@@ -1203,13 +1400,18 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
           ..write('takenAt: $takenAt, ')
           ..write('scanAttempts: $scanAttempts, ')
           ..write('scanError: $scanError, ')
-          ..write('illustrated: $illustrated')
+          ..write('illustrated: $illustrated, ')
+          ..write('sensitiveOverride: $sensitiveOverride, ')
+          ..write('isSensitive: $isSensitive, ')
+          ..write('sensitiveVersion: $sensitiveVersion, ')
+          ..write('bodyEmbeddingVersion: $bodyEmbeddingVersion, ')
+          ..write('garmentVersion: $garmentVersion')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     assetId,
     kind,
@@ -1226,7 +1428,12 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
     scanAttempts,
     scanError,
     illustrated,
-  );
+    sensitiveOverride,
+    isSensitive,
+    sensitiveVersion,
+    bodyEmbeddingVersion,
+    garmentVersion,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1246,7 +1453,12 @@ class MediaRow extends DataClass implements Insertable<MediaRow> {
           other.takenAt == this.takenAt &&
           other.scanAttempts == this.scanAttempts &&
           other.scanError == this.scanError &&
-          other.illustrated == this.illustrated);
+          other.illustrated == this.illustrated &&
+          other.sensitiveOverride == this.sensitiveOverride &&
+          other.isSensitive == this.isSensitive &&
+          other.sensitiveVersion == this.sensitiveVersion &&
+          other.bodyEmbeddingVersion == this.bodyEmbeddingVersion &&
+          other.garmentVersion == this.garmentVersion);
 }
 
 class MediaCompanion extends UpdateCompanion<MediaRow> {
@@ -1266,6 +1478,11 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
   final Value<int> scanAttempts;
   final Value<String?> scanError;
   final Value<bool> illustrated;
+  final Value<String?> sensitiveOverride;
+  final Value<bool> isSensitive;
+  final Value<int> sensitiveVersion;
+  final Value<int> bodyEmbeddingVersion;
+  final Value<int> garmentVersion;
   const MediaCompanion({
     this.id = const Value.absent(),
     this.assetId = const Value.absent(),
@@ -1283,6 +1500,11 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     this.scanAttempts = const Value.absent(),
     this.scanError = const Value.absent(),
     this.illustrated = const Value.absent(),
+    this.sensitiveOverride = const Value.absent(),
+    this.isSensitive = const Value.absent(),
+    this.sensitiveVersion = const Value.absent(),
+    this.bodyEmbeddingVersion = const Value.absent(),
+    this.garmentVersion = const Value.absent(),
   });
   MediaCompanion.insert({
     this.id = const Value.absent(),
@@ -1301,6 +1523,11 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     this.scanAttempts = const Value.absent(),
     this.scanError = const Value.absent(),
     this.illustrated = const Value.absent(),
+    this.sensitiveOverride = const Value.absent(),
+    this.isSensitive = const Value.absent(),
+    this.sensitiveVersion = const Value.absent(),
+    this.bodyEmbeddingVersion = const Value.absent(),
+    this.garmentVersion = const Value.absent(),
   }) : assetId = Value(assetId),
        kind = Value(kind);
   static Insertable<MediaRow> custom({
@@ -1320,6 +1547,11 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     Expression<int>? scanAttempts,
     Expression<String>? scanError,
     Expression<bool>? illustrated,
+    Expression<String>? sensitiveOverride,
+    Expression<bool>? isSensitive,
+    Expression<int>? sensitiveVersion,
+    Expression<int>? bodyEmbeddingVersion,
+    Expression<int>? garmentVersion,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1338,6 +1570,12 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
       if (scanAttempts != null) 'scan_attempts': scanAttempts,
       if (scanError != null) 'scan_error': scanError,
       if (illustrated != null) 'illustrated': illustrated,
+      if (sensitiveOverride != null) 'sensitive_override': sensitiveOverride,
+      if (isSensitive != null) 'is_sensitive': isSensitive,
+      if (sensitiveVersion != null) 'sensitive_version': sensitiveVersion,
+      if (bodyEmbeddingVersion != null)
+        'body_embedding_version': bodyEmbeddingVersion,
+      if (garmentVersion != null) 'garment_version': garmentVersion,
     });
   }
 
@@ -1358,6 +1596,11 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     Value<int>? scanAttempts,
     Value<String?>? scanError,
     Value<bool>? illustrated,
+    Value<String?>? sensitiveOverride,
+    Value<bool>? isSensitive,
+    Value<int>? sensitiveVersion,
+    Value<int>? bodyEmbeddingVersion,
+    Value<int>? garmentVersion,
   }) {
     return MediaCompanion(
       id: id ?? this.id,
@@ -1376,6 +1619,11 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
       scanAttempts: scanAttempts ?? this.scanAttempts,
       scanError: scanError ?? this.scanError,
       illustrated: illustrated ?? this.illustrated,
+      sensitiveOverride: sensitiveOverride ?? this.sensitiveOverride,
+      isSensitive: isSensitive ?? this.isSensitive,
+      sensitiveVersion: sensitiveVersion ?? this.sensitiveVersion,
+      bodyEmbeddingVersion: bodyEmbeddingVersion ?? this.bodyEmbeddingVersion,
+      garmentVersion: garmentVersion ?? this.garmentVersion,
     );
   }
 
@@ -1430,6 +1678,21 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
     if (illustrated.present) {
       map['illustrated'] = Variable<bool>(illustrated.value);
     }
+    if (sensitiveOverride.present) {
+      map['sensitive_override'] = Variable<String>(sensitiveOverride.value);
+    }
+    if (isSensitive.present) {
+      map['is_sensitive'] = Variable<bool>(isSensitive.value);
+    }
+    if (sensitiveVersion.present) {
+      map['sensitive_version'] = Variable<int>(sensitiveVersion.value);
+    }
+    if (bodyEmbeddingVersion.present) {
+      map['body_embedding_version'] = Variable<int>(bodyEmbeddingVersion.value);
+    }
+    if (garmentVersion.present) {
+      map['garment_version'] = Variable<int>(garmentVersion.value);
+    }
     return map;
   }
 
@@ -1451,7 +1714,12 @@ class MediaCompanion extends UpdateCompanion<MediaRow> {
           ..write('takenAt: $takenAt, ')
           ..write('scanAttempts: $scanAttempts, ')
           ..write('scanError: $scanError, ')
-          ..write('illustrated: $illustrated')
+          ..write('illustrated: $illustrated, ')
+          ..write('sensitiveOverride: $sensitiveOverride, ')
+          ..write('isSensitive: $isSensitive, ')
+          ..write('sensitiveVersion: $sensitiveVersion, ')
+          ..write('bodyEmbeddingVersion: $bodyEmbeddingVersion, ')
+          ..write('garmentVersion: $garmentVersion')
           ..write(')'))
         .toString();
   }
@@ -3889,6 +4157,474 @@ class KindOverridesCompanion extends UpdateCompanion<KindOverrideRow> {
   }
 }
 
+class $BodyClustersTable extends BodyClusters
+    with TableInfo<$BodyClustersTable, BodyClusterRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BodyClustersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('person'),
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _clusterTypeMeta = const VerificationMeta(
+    'clusterType',
+  );
+  @override
+  late final GeneratedColumn<String> clusterType = GeneratedColumn<String>(
+    'cluster_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _centroidEmbeddingMeta = const VerificationMeta(
+    'centroidEmbedding',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> centroidEmbedding =
+      GeneratedColumn<Uint8List>(
+        'centroid_embedding',
+        aliasedName,
+        false,
+        type: DriftSqlType.blob,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _bodyCountMeta = const VerificationMeta(
+    'bodyCount',
+  );
+  @override
+  late final GeneratedColumn<int> bodyCount = GeneratedColumn<int>(
+    'body_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    kind,
+    personId,
+    clusterType,
+    centroidEmbedding,
+    bodyCount,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'body_clusters';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BodyClusterRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    }
+    if (data.containsKey('cluster_type')) {
+      context.handle(
+        _clusterTypeMeta,
+        clusterType.isAcceptableOrUnknown(
+          data['cluster_type']!,
+          _clusterTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_clusterTypeMeta);
+    }
+    if (data.containsKey('centroid_embedding')) {
+      context.handle(
+        _centroidEmbeddingMeta,
+        centroidEmbedding.isAcceptableOrUnknown(
+          data['centroid_embedding']!,
+          _centroidEmbeddingMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_centroidEmbeddingMeta);
+    }
+    if (data.containsKey('body_count')) {
+      context.handle(
+        _bodyCountMeta,
+        bodyCount.isAcceptableOrUnknown(data['body_count']!, _bodyCountMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BodyClusterRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BodyClusterRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      ),
+      clusterType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cluster_type'],
+      )!,
+      centroidEmbedding: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}centroid_embedding'],
+      )!,
+      bodyCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_count'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $BodyClustersTable createAlias(String alias) {
+    return $BodyClustersTable(attachedDatabase, alias);
+  }
+}
+
+class BodyClusterRow extends DataClass implements Insertable<BodyClusterRow> {
+  final int id;
+  final String kind;
+  final int? personId;
+  final String clusterType;
+  final Uint8List centroidEmbedding;
+  final int bodyCount;
+  final int createdAt;
+  const BodyClusterRow({
+    required this.id,
+    required this.kind,
+    this.personId,
+    required this.clusterType,
+    required this.centroidEmbedding,
+    required this.bodyCount,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || personId != null) {
+      map['person_id'] = Variable<int>(personId);
+    }
+    map['cluster_type'] = Variable<String>(clusterType);
+    map['centroid_embedding'] = Variable<Uint8List>(centroidEmbedding);
+    map['body_count'] = Variable<int>(bodyCount);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  BodyClustersCompanion toCompanion(bool nullToAbsent) {
+    return BodyClustersCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      personId: personId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(personId),
+      clusterType: Value(clusterType),
+      centroidEmbedding: Value(centroidEmbedding),
+      bodyCount: Value(bodyCount),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory BodyClusterRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BodyClusterRow(
+      id: serializer.fromJson<int>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      personId: serializer.fromJson<int?>(json['personId']),
+      clusterType: serializer.fromJson<String>(json['clusterType']),
+      centroidEmbedding: serializer.fromJson<Uint8List>(
+        json['centroidEmbedding'],
+      ),
+      bodyCount: serializer.fromJson<int>(json['bodyCount']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'kind': serializer.toJson<String>(kind),
+      'personId': serializer.toJson<int?>(personId),
+      'clusterType': serializer.toJson<String>(clusterType),
+      'centroidEmbedding': serializer.toJson<Uint8List>(centroidEmbedding),
+      'bodyCount': serializer.toJson<int>(bodyCount),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  BodyClusterRow copyWith({
+    int? id,
+    String? kind,
+    Value<int?> personId = const Value.absent(),
+    String? clusterType,
+    Uint8List? centroidEmbedding,
+    int? bodyCount,
+    int? createdAt,
+  }) => BodyClusterRow(
+    id: id ?? this.id,
+    kind: kind ?? this.kind,
+    personId: personId.present ? personId.value : this.personId,
+    clusterType: clusterType ?? this.clusterType,
+    centroidEmbedding: centroidEmbedding ?? this.centroidEmbedding,
+    bodyCount: bodyCount ?? this.bodyCount,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  BodyClusterRow copyWithCompanion(BodyClustersCompanion data) {
+    return BodyClusterRow(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      clusterType: data.clusterType.present
+          ? data.clusterType.value
+          : this.clusterType,
+      centroidEmbedding: data.centroidEmbedding.present
+          ? data.centroidEmbedding.value
+          : this.centroidEmbedding,
+      bodyCount: data.bodyCount.present ? data.bodyCount.value : this.bodyCount,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyClusterRow(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('personId: $personId, ')
+          ..write('clusterType: $clusterType, ')
+          ..write('centroidEmbedding: $centroidEmbedding, ')
+          ..write('bodyCount: $bodyCount, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    kind,
+    personId,
+    clusterType,
+    $driftBlobEquality.hash(centroidEmbedding),
+    bodyCount,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BodyClusterRow &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.personId == this.personId &&
+          other.clusterType == this.clusterType &&
+          $driftBlobEquality.equals(
+            other.centroidEmbedding,
+            this.centroidEmbedding,
+          ) &&
+          other.bodyCount == this.bodyCount &&
+          other.createdAt == this.createdAt);
+}
+
+class BodyClustersCompanion extends UpdateCompanion<BodyClusterRow> {
+  final Value<int> id;
+  final Value<String> kind;
+  final Value<int?> personId;
+  final Value<String> clusterType;
+  final Value<Uint8List> centroidEmbedding;
+  final Value<int> bodyCount;
+  final Value<int> createdAt;
+  const BodyClustersCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.clusterType = const Value.absent(),
+    this.centroidEmbedding = const Value.absent(),
+    this.bodyCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  BodyClustersCompanion.insert({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.personId = const Value.absent(),
+    required String clusterType,
+    required Uint8List centroidEmbedding,
+    this.bodyCount = const Value.absent(),
+    required int createdAt,
+  }) : clusterType = Value(clusterType),
+       centroidEmbedding = Value(centroidEmbedding),
+       createdAt = Value(createdAt);
+  static Insertable<BodyClusterRow> custom({
+    Expression<int>? id,
+    Expression<String>? kind,
+    Expression<int>? personId,
+    Expression<String>? clusterType,
+    Expression<Uint8List>? centroidEmbedding,
+    Expression<int>? bodyCount,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (personId != null) 'person_id': personId,
+      if (clusterType != null) 'cluster_type': clusterType,
+      if (centroidEmbedding != null) 'centroid_embedding': centroidEmbedding,
+      if (bodyCount != null) 'body_count': bodyCount,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  BodyClustersCompanion copyWith({
+    Value<int>? id,
+    Value<String>? kind,
+    Value<int?>? personId,
+    Value<String>? clusterType,
+    Value<Uint8List>? centroidEmbedding,
+    Value<int>? bodyCount,
+    Value<int>? createdAt,
+  }) {
+    return BodyClustersCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      personId: personId ?? this.personId,
+      clusterType: clusterType ?? this.clusterType,
+      centroidEmbedding: centroidEmbedding ?? this.centroidEmbedding,
+      bodyCount: bodyCount ?? this.bodyCount,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (clusterType.present) {
+      map['cluster_type'] = Variable<String>(clusterType.value);
+    }
+    if (centroidEmbedding.present) {
+      map['centroid_embedding'] = Variable<Uint8List>(centroidEmbedding.value);
+    }
+    if (bodyCount.present) {
+      map['body_count'] = Variable<int>(bodyCount.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyClustersCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('personId: $personId, ')
+          ..write('clusterType: $clusterType, ')
+          ..write('centroidEmbedding: $centroidEmbedding, ')
+          ..write('bodyCount: $bodyCount, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -4131,6 +4867,69 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
     requiredDuringInsert: false,
     defaultValue: const Constant('person'),
   );
+  static const VerificationMeta _chestEmbeddingMeta = const VerificationMeta(
+    'chestEmbedding',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> chestEmbedding =
+      GeneratedColumn<Uint8List>(
+        'chest_embedding',
+        aliasedName,
+        true,
+        type: DriftSqlType.blob,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _buttocksEmbeddingMeta = const VerificationMeta(
+    'buttocksEmbedding',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> buttocksEmbedding =
+      GeneratedColumn<Uint8List>(
+        'buttocks_embedding',
+        aliasedName,
+        true,
+        type: DriftSqlType.blob,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _chestClusterIdMeta = const VerificationMeta(
+    'chestClusterId',
+  );
+  @override
+  late final GeneratedColumn<int> chestClusterId = GeneratedColumn<int>(
+    'chest_cluster_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES body_clusters (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _buttocksClusterIdMeta = const VerificationMeta(
+    'buttocksClusterId',
+  );
+  @override
+  late final GeneratedColumn<int> buttocksClusterId = GeneratedColumn<int>(
+    'buttocks_cluster_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES body_clusters (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _morphologyMeta = const VerificationMeta(
+    'morphology',
+  );
+  @override
+  late final GeneratedColumn<String> morphology = GeneratedColumn<String>(
+    'morphology',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4155,6 +4954,11 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
     createdAt,
     trackId,
     kind,
+    chestEmbedding,
+    buttocksEmbedding,
+    chestClusterId,
+    buttocksClusterId,
+    morphology,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4324,6 +5128,48 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
         kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
       );
     }
+    if (data.containsKey('chest_embedding')) {
+      context.handle(
+        _chestEmbeddingMeta,
+        chestEmbedding.isAcceptableOrUnknown(
+          data['chest_embedding']!,
+          _chestEmbeddingMeta,
+        ),
+      );
+    }
+    if (data.containsKey('buttocks_embedding')) {
+      context.handle(
+        _buttocksEmbeddingMeta,
+        buttocksEmbedding.isAcceptableOrUnknown(
+          data['buttocks_embedding']!,
+          _buttocksEmbeddingMeta,
+        ),
+      );
+    }
+    if (data.containsKey('chest_cluster_id')) {
+      context.handle(
+        _chestClusterIdMeta,
+        chestClusterId.isAcceptableOrUnknown(
+          data['chest_cluster_id']!,
+          _chestClusterIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('buttocks_cluster_id')) {
+      context.handle(
+        _buttocksClusterIdMeta,
+        buttocksClusterId.isAcceptableOrUnknown(
+          data['buttocks_cluster_id']!,
+          _buttocksClusterIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('morphology')) {
+      context.handle(
+        _morphologyMeta,
+        morphology.isAcceptableOrUnknown(data['morphology']!, _morphologyMeta),
+      );
+    }
     return context;
   }
 
@@ -4421,6 +5267,26 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
         DriftSqlType.string,
         data['${effectivePrefix}kind'],
       )!,
+      chestEmbedding: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}chest_embedding'],
+      ),
+      buttocksEmbedding: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}buttocks_embedding'],
+      ),
+      chestClusterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chest_cluster_id'],
+      ),
+      buttocksClusterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}buttocks_cluster_id'],
+      ),
+      morphology: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}morphology'],
+      ),
     );
   }
 
@@ -4453,6 +5319,11 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
   final int createdAt;
   final int? trackId;
   final String kind;
+  final Uint8List? chestEmbedding;
+  final Uint8List? buttocksEmbedding;
+  final int? chestClusterId;
+  final int? buttocksClusterId;
+  final String? morphology;
   const BodyRow({
     required this.id,
     this.mediaId,
@@ -4476,6 +5347,11 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     required this.createdAt,
     this.trackId,
     required this.kind,
+    this.chestEmbedding,
+    this.buttocksEmbedding,
+    this.chestClusterId,
+    this.buttocksClusterId,
+    this.morphology,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4530,6 +5406,21 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       map['track_id'] = Variable<int>(trackId);
     }
     map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || chestEmbedding != null) {
+      map['chest_embedding'] = Variable<Uint8List>(chestEmbedding);
+    }
+    if (!nullToAbsent || buttocksEmbedding != null) {
+      map['buttocks_embedding'] = Variable<Uint8List>(buttocksEmbedding);
+    }
+    if (!nullToAbsent || chestClusterId != null) {
+      map['chest_cluster_id'] = Variable<int>(chestClusterId);
+    }
+    if (!nullToAbsent || buttocksClusterId != null) {
+      map['buttocks_cluster_id'] = Variable<int>(buttocksClusterId);
+    }
+    if (!nullToAbsent || morphology != null) {
+      map['morphology'] = Variable<String>(morphology);
+    }
     return map;
   }
 
@@ -4583,6 +5474,21 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           ? const Value.absent()
           : Value(trackId),
       kind: Value(kind),
+      chestEmbedding: chestEmbedding == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chestEmbedding),
+      buttocksEmbedding: buttocksEmbedding == null && nullToAbsent
+          ? const Value.absent()
+          : Value(buttocksEmbedding),
+      chestClusterId: chestClusterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chestClusterId),
+      buttocksClusterId: buttocksClusterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(buttocksClusterId),
+      morphology: morphology == null && nullToAbsent
+          ? const Value.absent()
+          : Value(morphology),
     );
   }
 
@@ -4616,6 +5522,13 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       createdAt: serializer.fromJson<int>(json['createdAt']),
       trackId: serializer.fromJson<int?>(json['trackId']),
       kind: serializer.fromJson<String>(json['kind']),
+      chestEmbedding: serializer.fromJson<Uint8List?>(json['chestEmbedding']),
+      buttocksEmbedding: serializer.fromJson<Uint8List?>(
+        json['buttocksEmbedding'],
+      ),
+      chestClusterId: serializer.fromJson<int?>(json['chestClusterId']),
+      buttocksClusterId: serializer.fromJson<int?>(json['buttocksClusterId']),
+      morphology: serializer.fromJson<String?>(json['morphology']),
     );
   }
   @override
@@ -4644,6 +5557,11 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       'createdAt': serializer.toJson<int>(createdAt),
       'trackId': serializer.toJson<int?>(trackId),
       'kind': serializer.toJson<String>(kind),
+      'chestEmbedding': serializer.toJson<Uint8List?>(chestEmbedding),
+      'buttocksEmbedding': serializer.toJson<Uint8List?>(buttocksEmbedding),
+      'chestClusterId': serializer.toJson<int?>(chestClusterId),
+      'buttocksClusterId': serializer.toJson<int?>(buttocksClusterId),
+      'morphology': serializer.toJson<String?>(morphology),
     };
   }
 
@@ -4670,6 +5588,11 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     int? createdAt,
     Value<int?> trackId = const Value.absent(),
     String? kind,
+    Value<Uint8List?> chestEmbedding = const Value.absent(),
+    Value<Uint8List?> buttocksEmbedding = const Value.absent(),
+    Value<int?> chestClusterId = const Value.absent(),
+    Value<int?> buttocksClusterId = const Value.absent(),
+    Value<String?> morphology = const Value.absent(),
   }) => BodyRow(
     id: id ?? this.id,
     mediaId: mediaId.present ? mediaId.value : this.mediaId,
@@ -4699,6 +5622,19 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     createdAt: createdAt ?? this.createdAt,
     trackId: trackId.present ? trackId.value : this.trackId,
     kind: kind ?? this.kind,
+    chestEmbedding: chestEmbedding.present
+        ? chestEmbedding.value
+        : this.chestEmbedding,
+    buttocksEmbedding: buttocksEmbedding.present
+        ? buttocksEmbedding.value
+        : this.buttocksEmbedding,
+    chestClusterId: chestClusterId.present
+        ? chestClusterId.value
+        : this.chestClusterId,
+    buttocksClusterId: buttocksClusterId.present
+        ? buttocksClusterId.value
+        : this.buttocksClusterId,
+    morphology: morphology.present ? morphology.value : this.morphology,
   );
   BodyRow copyWithCompanion(BodiesCompanion data) {
     return BodyRow(
@@ -4738,6 +5674,21 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       trackId: data.trackId.present ? data.trackId.value : this.trackId,
       kind: data.kind.present ? data.kind.value : this.kind,
+      chestEmbedding: data.chestEmbedding.present
+          ? data.chestEmbedding.value
+          : this.chestEmbedding,
+      buttocksEmbedding: data.buttocksEmbedding.present
+          ? data.buttocksEmbedding.value
+          : this.buttocksEmbedding,
+      chestClusterId: data.chestClusterId.present
+          ? data.chestClusterId.value
+          : this.chestClusterId,
+      buttocksClusterId: data.buttocksClusterId.present
+          ? data.buttocksClusterId.value
+          : this.buttocksClusterId,
+      morphology: data.morphology.present
+          ? data.morphology.value
+          : this.morphology,
     );
   }
 
@@ -4765,7 +5716,12 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           ..write('cropPath: $cropPath, ')
           ..write('createdAt: $createdAt, ')
           ..write('trackId: $trackId, ')
-          ..write('kind: $kind')
+          ..write('kind: $kind, ')
+          ..write('chestEmbedding: $chestEmbedding, ')
+          ..write('buttocksEmbedding: $buttocksEmbedding, ')
+          ..write('chestClusterId: $chestClusterId, ')
+          ..write('buttocksClusterId: $buttocksClusterId, ')
+          ..write('morphology: $morphology')
           ..write(')'))
         .toString();
   }
@@ -4794,6 +5750,11 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     createdAt,
     trackId,
     kind,
+    $driftBlobEquality.hash(chestEmbedding),
+    $driftBlobEquality.hash(buttocksEmbedding),
+    chestClusterId,
+    buttocksClusterId,
+    morphology,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -4823,7 +5784,18 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           other.cropPath == this.cropPath &&
           other.createdAt == this.createdAt &&
           other.trackId == this.trackId &&
-          other.kind == this.kind);
+          other.kind == this.kind &&
+          $driftBlobEquality.equals(
+            other.chestEmbedding,
+            this.chestEmbedding,
+          ) &&
+          $driftBlobEquality.equals(
+            other.buttocksEmbedding,
+            this.buttocksEmbedding,
+          ) &&
+          other.chestClusterId == this.chestClusterId &&
+          other.buttocksClusterId == this.buttocksClusterId &&
+          other.morphology == this.morphology);
 }
 
 class BodiesCompanion extends UpdateCompanion<BodyRow> {
@@ -4849,6 +5821,11 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
   final Value<int> createdAt;
   final Value<int?> trackId;
   final Value<String> kind;
+  final Value<Uint8List?> chestEmbedding;
+  final Value<Uint8List?> buttocksEmbedding;
+  final Value<int?> chestClusterId;
+  final Value<int?> buttocksClusterId;
+  final Value<String?> morphology;
   const BodiesCompanion({
     this.id = const Value.absent(),
     this.mediaId = const Value.absent(),
@@ -4872,6 +5849,11 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     this.createdAt = const Value.absent(),
     this.trackId = const Value.absent(),
     this.kind = const Value.absent(),
+    this.chestEmbedding = const Value.absent(),
+    this.buttocksEmbedding = const Value.absent(),
+    this.chestClusterId = const Value.absent(),
+    this.buttocksClusterId = const Value.absent(),
+    this.morphology = const Value.absent(),
   });
   BodiesCompanion.insert({
     this.id = const Value.absent(),
@@ -4896,6 +5878,11 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     required int createdAt,
     this.trackId = const Value.absent(),
     this.kind = const Value.absent(),
+    this.chestEmbedding = const Value.absent(),
+    this.buttocksEmbedding = const Value.absent(),
+    this.chestClusterId = const Value.absent(),
+    this.buttocksClusterId = const Value.absent(),
+    this.morphology = const Value.absent(),
   }) : bboxX = Value(bboxX),
        bboxY = Value(bboxY),
        bboxW = Value(bboxW),
@@ -4925,6 +5912,11 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     Expression<int>? createdAt,
     Expression<int>? trackId,
     Expression<String>? kind,
+    Expression<Uint8List>? chestEmbedding,
+    Expression<Uint8List>? buttocksEmbedding,
+    Expression<int>? chestClusterId,
+    Expression<int>? buttocksClusterId,
+    Expression<String>? morphology,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4949,6 +5941,11 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
       if (createdAt != null) 'created_at': createdAt,
       if (trackId != null) 'track_id': trackId,
       if (kind != null) 'kind': kind,
+      if (chestEmbedding != null) 'chest_embedding': chestEmbedding,
+      if (buttocksEmbedding != null) 'buttocks_embedding': buttocksEmbedding,
+      if (chestClusterId != null) 'chest_cluster_id': chestClusterId,
+      if (buttocksClusterId != null) 'buttocks_cluster_id': buttocksClusterId,
+      if (morphology != null) 'morphology': morphology,
     });
   }
 
@@ -4975,6 +5972,11 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     Value<int>? createdAt,
     Value<int?>? trackId,
     Value<String>? kind,
+    Value<Uint8List?>? chestEmbedding,
+    Value<Uint8List?>? buttocksEmbedding,
+    Value<int?>? chestClusterId,
+    Value<int?>? buttocksClusterId,
+    Value<String?>? morphology,
   }) {
     return BodiesCompanion(
       id: id ?? this.id,
@@ -4999,6 +6001,11 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
       createdAt: createdAt ?? this.createdAt,
       trackId: trackId ?? this.trackId,
       kind: kind ?? this.kind,
+      chestEmbedding: chestEmbedding ?? this.chestEmbedding,
+      buttocksEmbedding: buttocksEmbedding ?? this.buttocksEmbedding,
+      chestClusterId: chestClusterId ?? this.chestClusterId,
+      buttocksClusterId: buttocksClusterId ?? this.buttocksClusterId,
+      morphology: morphology ?? this.morphology,
     );
   }
 
@@ -5071,6 +6078,21 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     if (kind.present) {
       map['kind'] = Variable<String>(kind.value);
     }
+    if (chestEmbedding.present) {
+      map['chest_embedding'] = Variable<Uint8List>(chestEmbedding.value);
+    }
+    if (buttocksEmbedding.present) {
+      map['buttocks_embedding'] = Variable<Uint8List>(buttocksEmbedding.value);
+    }
+    if (chestClusterId.present) {
+      map['chest_cluster_id'] = Variable<int>(chestClusterId.value);
+    }
+    if (buttocksClusterId.present) {
+      map['buttocks_cluster_id'] = Variable<int>(buttocksClusterId.value);
+    }
+    if (morphology.present) {
+      map['morphology'] = Variable<String>(morphology.value);
+    }
     return map;
   }
 
@@ -5098,7 +6120,12 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
           ..write('cropPath: $cropPath, ')
           ..write('createdAt: $createdAt, ')
           ..write('trackId: $trackId, ')
-          ..write('kind: $kind')
+          ..write('kind: $kind, ')
+          ..write('chestEmbedding: $chestEmbedding, ')
+          ..write('buttocksEmbedding: $buttocksEmbedding, ')
+          ..write('chestClusterId: $chestClusterId, ')
+          ..write('buttocksClusterId: $buttocksClusterId, ')
+          ..write('morphology: $morphology')
           ..write(')'))
         .toString();
   }
@@ -14343,6 +15370,3890 @@ class CharacterSamplesCompanion extends UpdateCompanion<CharacterSampleRow> {
   }
 }
 
+class $BodyMarksTable extends BodyMarks
+    with TableInfo<$BodyMarksTable, BodyMarkRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BodyMarksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _sourceBodyIdMeta = const VerificationMeta(
+    'sourceBodyId',
+  );
+  @override
+  late final GeneratedColumn<int> sourceBodyId = GeneratedColumn<int>(
+    'source_body_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _segmentMeta = const VerificationMeta(
+    'segment',
+  );
+  @override
+  late final GeneratedColumn<String> segment = GeneratedColumn<String>(
+    'segment',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _anchorMeta = const VerificationMeta('anchor');
+  @override
+  late final GeneratedColumn<String> anchor = GeneratedColumn<String>(
+    'anchor',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _patchPathMeta = const VerificationMeta(
+    'patchPath',
+  );
+  @override
+  late final GeneratedColumn<String> patchPath = GeneratedColumn<String>(
+    'patch_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    personId,
+    sourceBodyId,
+    segment,
+    anchor,
+    patchPath,
+    label,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'body_marks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BodyMarkRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_personIdMeta);
+    }
+    if (data.containsKey('source_body_id')) {
+      context.handle(
+        _sourceBodyIdMeta,
+        sourceBodyId.isAcceptableOrUnknown(
+          data['source_body_id']!,
+          _sourceBodyIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('segment')) {
+      context.handle(
+        _segmentMeta,
+        segment.isAcceptableOrUnknown(data['segment']!, _segmentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_segmentMeta);
+    }
+    if (data.containsKey('anchor')) {
+      context.handle(
+        _anchorMeta,
+        anchor.isAcceptableOrUnknown(data['anchor']!, _anchorMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_anchorMeta);
+    }
+    if (data.containsKey('patch_path')) {
+      context.handle(
+        _patchPathMeta,
+        patchPath.isAcceptableOrUnknown(data['patch_path']!, _patchPathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_patchPathMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BodyMarkRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BodyMarkRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      )!,
+      sourceBodyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}source_body_id'],
+      ),
+      segment: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}segment'],
+      )!,
+      anchor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}anchor'],
+      )!,
+      patchPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}patch_path'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $BodyMarksTable createAlias(String alias) {
+    return $BodyMarksTable(attachedDatabase, alias);
+  }
+}
+
+class BodyMarkRow extends DataClass implements Insertable<BodyMarkRow> {
+  final int id;
+  final int personId;
+  final int? sourceBodyId;
+  final String segment;
+  final String anchor;
+  final String patchPath;
+  final String? label;
+  final int createdAt;
+  const BodyMarkRow({
+    required this.id,
+    required this.personId,
+    this.sourceBodyId,
+    required this.segment,
+    required this.anchor,
+    required this.patchPath,
+    this.label,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['person_id'] = Variable<int>(personId);
+    if (!nullToAbsent || sourceBodyId != null) {
+      map['source_body_id'] = Variable<int>(sourceBodyId);
+    }
+    map['segment'] = Variable<String>(segment);
+    map['anchor'] = Variable<String>(anchor);
+    map['patch_path'] = Variable<String>(patchPath);
+    if (!nullToAbsent || label != null) {
+      map['label'] = Variable<String>(label);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  BodyMarksCompanion toCompanion(bool nullToAbsent) {
+    return BodyMarksCompanion(
+      id: Value(id),
+      personId: Value(personId),
+      sourceBodyId: sourceBodyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceBodyId),
+      segment: Value(segment),
+      anchor: Value(anchor),
+      patchPath: Value(patchPath),
+      label: label == null && nullToAbsent
+          ? const Value.absent()
+          : Value(label),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory BodyMarkRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BodyMarkRow(
+      id: serializer.fromJson<int>(json['id']),
+      personId: serializer.fromJson<int>(json['personId']),
+      sourceBodyId: serializer.fromJson<int?>(json['sourceBodyId']),
+      segment: serializer.fromJson<String>(json['segment']),
+      anchor: serializer.fromJson<String>(json['anchor']),
+      patchPath: serializer.fromJson<String>(json['patchPath']),
+      label: serializer.fromJson<String?>(json['label']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'personId': serializer.toJson<int>(personId),
+      'sourceBodyId': serializer.toJson<int?>(sourceBodyId),
+      'segment': serializer.toJson<String>(segment),
+      'anchor': serializer.toJson<String>(anchor),
+      'patchPath': serializer.toJson<String>(patchPath),
+      'label': serializer.toJson<String?>(label),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  BodyMarkRow copyWith({
+    int? id,
+    int? personId,
+    Value<int?> sourceBodyId = const Value.absent(),
+    String? segment,
+    String? anchor,
+    String? patchPath,
+    Value<String?> label = const Value.absent(),
+    int? createdAt,
+  }) => BodyMarkRow(
+    id: id ?? this.id,
+    personId: personId ?? this.personId,
+    sourceBodyId: sourceBodyId.present ? sourceBodyId.value : this.sourceBodyId,
+    segment: segment ?? this.segment,
+    anchor: anchor ?? this.anchor,
+    patchPath: patchPath ?? this.patchPath,
+    label: label.present ? label.value : this.label,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  BodyMarkRow copyWithCompanion(BodyMarksCompanion data) {
+    return BodyMarkRow(
+      id: data.id.present ? data.id.value : this.id,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      sourceBodyId: data.sourceBodyId.present
+          ? data.sourceBodyId.value
+          : this.sourceBodyId,
+      segment: data.segment.present ? data.segment.value : this.segment,
+      anchor: data.anchor.present ? data.anchor.value : this.anchor,
+      patchPath: data.patchPath.present ? data.patchPath.value : this.patchPath,
+      label: data.label.present ? data.label.value : this.label,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyMarkRow(')
+          ..write('id: $id, ')
+          ..write('personId: $personId, ')
+          ..write('sourceBodyId: $sourceBodyId, ')
+          ..write('segment: $segment, ')
+          ..write('anchor: $anchor, ')
+          ..write('patchPath: $patchPath, ')
+          ..write('label: $label, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    personId,
+    sourceBodyId,
+    segment,
+    anchor,
+    patchPath,
+    label,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BodyMarkRow &&
+          other.id == this.id &&
+          other.personId == this.personId &&
+          other.sourceBodyId == this.sourceBodyId &&
+          other.segment == this.segment &&
+          other.anchor == this.anchor &&
+          other.patchPath == this.patchPath &&
+          other.label == this.label &&
+          other.createdAt == this.createdAt);
+}
+
+class BodyMarksCompanion extends UpdateCompanion<BodyMarkRow> {
+  final Value<int> id;
+  final Value<int> personId;
+  final Value<int?> sourceBodyId;
+  final Value<String> segment;
+  final Value<String> anchor;
+  final Value<String> patchPath;
+  final Value<String?> label;
+  final Value<int> createdAt;
+  const BodyMarksCompanion({
+    this.id = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.sourceBodyId = const Value.absent(),
+    this.segment = const Value.absent(),
+    this.anchor = const Value.absent(),
+    this.patchPath = const Value.absent(),
+    this.label = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  BodyMarksCompanion.insert({
+    this.id = const Value.absent(),
+    required int personId,
+    this.sourceBodyId = const Value.absent(),
+    required String segment,
+    required String anchor,
+    required String patchPath,
+    this.label = const Value.absent(),
+    required int createdAt,
+  }) : personId = Value(personId),
+       segment = Value(segment),
+       anchor = Value(anchor),
+       patchPath = Value(patchPath),
+       createdAt = Value(createdAt);
+  static Insertable<BodyMarkRow> custom({
+    Expression<int>? id,
+    Expression<int>? personId,
+    Expression<int>? sourceBodyId,
+    Expression<String>? segment,
+    Expression<String>? anchor,
+    Expression<String>? patchPath,
+    Expression<String>? label,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (personId != null) 'person_id': personId,
+      if (sourceBodyId != null) 'source_body_id': sourceBodyId,
+      if (segment != null) 'segment': segment,
+      if (anchor != null) 'anchor': anchor,
+      if (patchPath != null) 'patch_path': patchPath,
+      if (label != null) 'label': label,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  BodyMarksCompanion copyWith({
+    Value<int>? id,
+    Value<int>? personId,
+    Value<int?>? sourceBodyId,
+    Value<String>? segment,
+    Value<String>? anchor,
+    Value<String>? patchPath,
+    Value<String?>? label,
+    Value<int>? createdAt,
+  }) {
+    return BodyMarksCompanion(
+      id: id ?? this.id,
+      personId: personId ?? this.personId,
+      sourceBodyId: sourceBodyId ?? this.sourceBodyId,
+      segment: segment ?? this.segment,
+      anchor: anchor ?? this.anchor,
+      patchPath: patchPath ?? this.patchPath,
+      label: label ?? this.label,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (sourceBodyId.present) {
+      map['source_body_id'] = Variable<int>(sourceBodyId.value);
+    }
+    if (segment.present) {
+      map['segment'] = Variable<String>(segment.value);
+    }
+    if (anchor.present) {
+      map['anchor'] = Variable<String>(anchor.value);
+    }
+    if (patchPath.present) {
+      map['patch_path'] = Variable<String>(patchPath.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyMarksCompanion(')
+          ..write('id: $id, ')
+          ..write('personId: $personId, ')
+          ..write('sourceBodyId: $sourceBodyId, ')
+          ..write('segment: $segment, ')
+          ..write('anchor: $anchor, ')
+          ..write('patchPath: $patchPath, ')
+          ..write('label: $label, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BodyPoseFeaturesTable extends BodyPoseFeatures
+    with TableInfo<$BodyPoseFeaturesTable, BodyPoseFeatureRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BodyPoseFeaturesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bodyIdMeta = const VerificationMeta('bodyId');
+  @override
+  late final GeneratedColumn<int> bodyId = GeneratedColumn<int>(
+    'body_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _featureMeta = const VerificationMeta(
+    'feature',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> feature = GeneratedColumn<Uint8List>(
+    'feature',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _visibleMaskMeta = const VerificationMeta(
+    'visibleMask',
+  );
+  @override
+  late final GeneratedColumn<int> visibleMask = GeneratedColumn<int>(
+    'visible_mask',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scaleSourceMeta = const VerificationMeta(
+    'scaleSource',
+  );
+  @override
+  late final GeneratedColumn<String> scaleSource = GeneratedColumn<String>(
+    'scale_source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tagsMeta = const VerificationMeta('tags');
+  @override
+  late final GeneratedColumn<String> tags = GeneratedColumn<String>(
+    'tags',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    bodyId,
+    version,
+    feature,
+    visibleMask,
+    scaleSource,
+    tags,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'body_pose_features';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BodyPoseFeatureRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('body_id')) {
+      context.handle(
+        _bodyIdMeta,
+        bodyId.isAcceptableOrUnknown(data['body_id']!, _bodyIdMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_versionMeta);
+    }
+    if (data.containsKey('feature')) {
+      context.handle(
+        _featureMeta,
+        feature.isAcceptableOrUnknown(data['feature']!, _featureMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_featureMeta);
+    }
+    if (data.containsKey('visible_mask')) {
+      context.handle(
+        _visibleMaskMeta,
+        visibleMask.isAcceptableOrUnknown(
+          data['visible_mask']!,
+          _visibleMaskMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_visibleMaskMeta);
+    }
+    if (data.containsKey('scale_source')) {
+      context.handle(
+        _scaleSourceMeta,
+        scaleSource.isAcceptableOrUnknown(
+          data['scale_source']!,
+          _scaleSourceMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_scaleSourceMeta);
+    }
+    if (data.containsKey('tags')) {
+      context.handle(
+        _tagsMeta,
+        tags.isAcceptableOrUnknown(data['tags']!, _tagsMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {bodyId};
+  @override
+  BodyPoseFeatureRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BodyPoseFeatureRow(
+      bodyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_id'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      feature: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}feature'],
+      )!,
+      visibleMask: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}visible_mask'],
+      )!,
+      scaleSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scale_source'],
+      )!,
+      tags: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tags'],
+      )!,
+    );
+  }
+
+  @override
+  $BodyPoseFeaturesTable createAlias(String alias) {
+    return $BodyPoseFeaturesTable(attachedDatabase, alias);
+  }
+}
+
+class BodyPoseFeatureRow extends DataClass
+    implements Insertable<BodyPoseFeatureRow> {
+  final int bodyId;
+  final int version;
+  final Uint8List feature;
+  final int visibleMask;
+  final String scaleSource;
+  final String tags;
+  const BodyPoseFeatureRow({
+    required this.bodyId,
+    required this.version,
+    required this.feature,
+    required this.visibleMask,
+    required this.scaleSource,
+    required this.tags,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['body_id'] = Variable<int>(bodyId);
+    map['version'] = Variable<int>(version);
+    map['feature'] = Variable<Uint8List>(feature);
+    map['visible_mask'] = Variable<int>(visibleMask);
+    map['scale_source'] = Variable<String>(scaleSource);
+    map['tags'] = Variable<String>(tags);
+    return map;
+  }
+
+  BodyPoseFeaturesCompanion toCompanion(bool nullToAbsent) {
+    return BodyPoseFeaturesCompanion(
+      bodyId: Value(bodyId),
+      version: Value(version),
+      feature: Value(feature),
+      visibleMask: Value(visibleMask),
+      scaleSource: Value(scaleSource),
+      tags: Value(tags),
+    );
+  }
+
+  factory BodyPoseFeatureRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BodyPoseFeatureRow(
+      bodyId: serializer.fromJson<int>(json['bodyId']),
+      version: serializer.fromJson<int>(json['version']),
+      feature: serializer.fromJson<Uint8List>(json['feature']),
+      visibleMask: serializer.fromJson<int>(json['visibleMask']),
+      scaleSource: serializer.fromJson<String>(json['scaleSource']),
+      tags: serializer.fromJson<String>(json['tags']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bodyId': serializer.toJson<int>(bodyId),
+      'version': serializer.toJson<int>(version),
+      'feature': serializer.toJson<Uint8List>(feature),
+      'visibleMask': serializer.toJson<int>(visibleMask),
+      'scaleSource': serializer.toJson<String>(scaleSource),
+      'tags': serializer.toJson<String>(tags),
+    };
+  }
+
+  BodyPoseFeatureRow copyWith({
+    int? bodyId,
+    int? version,
+    Uint8List? feature,
+    int? visibleMask,
+    String? scaleSource,
+    String? tags,
+  }) => BodyPoseFeatureRow(
+    bodyId: bodyId ?? this.bodyId,
+    version: version ?? this.version,
+    feature: feature ?? this.feature,
+    visibleMask: visibleMask ?? this.visibleMask,
+    scaleSource: scaleSource ?? this.scaleSource,
+    tags: tags ?? this.tags,
+  );
+  BodyPoseFeatureRow copyWithCompanion(BodyPoseFeaturesCompanion data) {
+    return BodyPoseFeatureRow(
+      bodyId: data.bodyId.present ? data.bodyId.value : this.bodyId,
+      version: data.version.present ? data.version.value : this.version,
+      feature: data.feature.present ? data.feature.value : this.feature,
+      visibleMask: data.visibleMask.present
+          ? data.visibleMask.value
+          : this.visibleMask,
+      scaleSource: data.scaleSource.present
+          ? data.scaleSource.value
+          : this.scaleSource,
+      tags: data.tags.present ? data.tags.value : this.tags,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyPoseFeatureRow(')
+          ..write('bodyId: $bodyId, ')
+          ..write('version: $version, ')
+          ..write('feature: $feature, ')
+          ..write('visibleMask: $visibleMask, ')
+          ..write('scaleSource: $scaleSource, ')
+          ..write('tags: $tags')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    bodyId,
+    version,
+    $driftBlobEquality.hash(feature),
+    visibleMask,
+    scaleSource,
+    tags,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BodyPoseFeatureRow &&
+          other.bodyId == this.bodyId &&
+          other.version == this.version &&
+          $driftBlobEquality.equals(other.feature, this.feature) &&
+          other.visibleMask == this.visibleMask &&
+          other.scaleSource == this.scaleSource &&
+          other.tags == this.tags);
+}
+
+class BodyPoseFeaturesCompanion extends UpdateCompanion<BodyPoseFeatureRow> {
+  final Value<int> bodyId;
+  final Value<int> version;
+  final Value<Uint8List> feature;
+  final Value<int> visibleMask;
+  final Value<String> scaleSource;
+  final Value<String> tags;
+  const BodyPoseFeaturesCompanion({
+    this.bodyId = const Value.absent(),
+    this.version = const Value.absent(),
+    this.feature = const Value.absent(),
+    this.visibleMask = const Value.absent(),
+    this.scaleSource = const Value.absent(),
+    this.tags = const Value.absent(),
+  });
+  BodyPoseFeaturesCompanion.insert({
+    this.bodyId = const Value.absent(),
+    required int version,
+    required Uint8List feature,
+    required int visibleMask,
+    required String scaleSource,
+    this.tags = const Value.absent(),
+  }) : version = Value(version),
+       feature = Value(feature),
+       visibleMask = Value(visibleMask),
+       scaleSource = Value(scaleSource);
+  static Insertable<BodyPoseFeatureRow> custom({
+    Expression<int>? bodyId,
+    Expression<int>? version,
+    Expression<Uint8List>? feature,
+    Expression<int>? visibleMask,
+    Expression<String>? scaleSource,
+    Expression<String>? tags,
+  }) {
+    return RawValuesInsertable({
+      if (bodyId != null) 'body_id': bodyId,
+      if (version != null) 'version': version,
+      if (feature != null) 'feature': feature,
+      if (visibleMask != null) 'visible_mask': visibleMask,
+      if (scaleSource != null) 'scale_source': scaleSource,
+      if (tags != null) 'tags': tags,
+    });
+  }
+
+  BodyPoseFeaturesCompanion copyWith({
+    Value<int>? bodyId,
+    Value<int>? version,
+    Value<Uint8List>? feature,
+    Value<int>? visibleMask,
+    Value<String>? scaleSource,
+    Value<String>? tags,
+  }) {
+    return BodyPoseFeaturesCompanion(
+      bodyId: bodyId ?? this.bodyId,
+      version: version ?? this.version,
+      feature: feature ?? this.feature,
+      visibleMask: visibleMask ?? this.visibleMask,
+      scaleSource: scaleSource ?? this.scaleSource,
+      tags: tags ?? this.tags,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bodyId.present) {
+      map['body_id'] = Variable<int>(bodyId.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (feature.present) {
+      map['feature'] = Variable<Uint8List>(feature.value);
+    }
+    if (visibleMask.present) {
+      map['visible_mask'] = Variable<int>(visibleMask.value);
+    }
+    if (scaleSource.present) {
+      map['scale_source'] = Variable<String>(scaleSource.value);
+    }
+    if (tags.present) {
+      map['tags'] = Variable<String>(tags.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyPoseFeaturesCompanion(')
+          ..write('bodyId: $bodyId, ')
+          ..write('version: $version, ')
+          ..write('feature: $feature, ')
+          ..write('visibleMask: $visibleMask, ')
+          ..write('scaleSource: $scaleSource, ')
+          ..write('tags: $tags')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PoseCategoriesTable extends PoseCategories
+    with TableInfo<$PoseCategoriesTable, PoseCategoryRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PoseCategoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 1,
+      maxTextLength: 80,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('person'),
+  );
+  static const VerificationMeta _exemplarBodyIdMeta = const VerificationMeta(
+    'exemplarBodyId',
+  );
+  @override
+  late final GeneratedColumn<int> exemplarBodyId = GeneratedColumn<int>(
+    'exemplar_body_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _exemplarFeatureMeta = const VerificationMeta(
+    'exemplarFeature',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> exemplarFeature =
+      GeneratedColumn<Uint8List>(
+        'exemplar_feature',
+        aliasedName,
+        false,
+        type: DriftSqlType.blob,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _exemplarMaskMeta = const VerificationMeta(
+    'exemplarMask',
+  );
+  @override
+  late final GeneratedColumn<int> exemplarMask = GeneratedColumn<int>(
+    'exemplar_mask',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _exemplarScaleSourceMeta =
+      const VerificationMeta('exemplarScaleSource');
+  @override
+  late final GeneratedColumn<String> exemplarScaleSource =
+      GeneratedColumn<String>(
+        'exemplar_scale_source',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _thresholdMeta = const VerificationMeta(
+    'threshold',
+  );
+  @override
+  late final GeneratedColumn<double> threshold = GeneratedColumn<double>(
+    'threshold',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    kind,
+    exemplarBodyId,
+    exemplarFeature,
+    exemplarMask,
+    exemplarScaleSource,
+    threshold,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pose_categories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PoseCategoryRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('exemplar_body_id')) {
+      context.handle(
+        _exemplarBodyIdMeta,
+        exemplarBodyId.isAcceptableOrUnknown(
+          data['exemplar_body_id']!,
+          _exemplarBodyIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('exemplar_feature')) {
+      context.handle(
+        _exemplarFeatureMeta,
+        exemplarFeature.isAcceptableOrUnknown(
+          data['exemplar_feature']!,
+          _exemplarFeatureMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_exemplarFeatureMeta);
+    }
+    if (data.containsKey('exemplar_mask')) {
+      context.handle(
+        _exemplarMaskMeta,
+        exemplarMask.isAcceptableOrUnknown(
+          data['exemplar_mask']!,
+          _exemplarMaskMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_exemplarMaskMeta);
+    }
+    if (data.containsKey('exemplar_scale_source')) {
+      context.handle(
+        _exemplarScaleSourceMeta,
+        exemplarScaleSource.isAcceptableOrUnknown(
+          data['exemplar_scale_source']!,
+          _exemplarScaleSourceMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_exemplarScaleSourceMeta);
+    }
+    if (data.containsKey('threshold')) {
+      context.handle(
+        _thresholdMeta,
+        threshold.isAcceptableOrUnknown(data['threshold']!, _thresholdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_thresholdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PoseCategoryRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PoseCategoryRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      exemplarBodyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}exemplar_body_id'],
+      ),
+      exemplarFeature: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}exemplar_feature'],
+      )!,
+      exemplarMask: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}exemplar_mask'],
+      )!,
+      exemplarScaleSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}exemplar_scale_source'],
+      )!,
+      threshold: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}threshold'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PoseCategoriesTable createAlias(String alias) {
+    return $PoseCategoriesTable(attachedDatabase, alias);
+  }
+}
+
+class PoseCategoryRow extends DataClass implements Insertable<PoseCategoryRow> {
+  final int id;
+  final String name;
+  final String kind;
+  final int? exemplarBodyId;
+  final Uint8List exemplarFeature;
+  final int exemplarMask;
+  final String exemplarScaleSource;
+  final double threshold;
+  final int createdAt;
+  const PoseCategoryRow({
+    required this.id,
+    required this.name,
+    required this.kind,
+    this.exemplarBodyId,
+    required this.exemplarFeature,
+    required this.exemplarMask,
+    required this.exemplarScaleSource,
+    required this.threshold,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || exemplarBodyId != null) {
+      map['exemplar_body_id'] = Variable<int>(exemplarBodyId);
+    }
+    map['exemplar_feature'] = Variable<Uint8List>(exemplarFeature);
+    map['exemplar_mask'] = Variable<int>(exemplarMask);
+    map['exemplar_scale_source'] = Variable<String>(exemplarScaleSource);
+    map['threshold'] = Variable<double>(threshold);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  PoseCategoriesCompanion toCompanion(bool nullToAbsent) {
+    return PoseCategoriesCompanion(
+      id: Value(id),
+      name: Value(name),
+      kind: Value(kind),
+      exemplarBodyId: exemplarBodyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(exemplarBodyId),
+      exemplarFeature: Value(exemplarFeature),
+      exemplarMask: Value(exemplarMask),
+      exemplarScaleSource: Value(exemplarScaleSource),
+      threshold: Value(threshold),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory PoseCategoryRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PoseCategoryRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      kind: serializer.fromJson<String>(json['kind']),
+      exemplarBodyId: serializer.fromJson<int?>(json['exemplarBodyId']),
+      exemplarFeature: serializer.fromJson<Uint8List>(json['exemplarFeature']),
+      exemplarMask: serializer.fromJson<int>(json['exemplarMask']),
+      exemplarScaleSource: serializer.fromJson<String>(
+        json['exemplarScaleSource'],
+      ),
+      threshold: serializer.fromJson<double>(json['threshold']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'kind': serializer.toJson<String>(kind),
+      'exemplarBodyId': serializer.toJson<int?>(exemplarBodyId),
+      'exemplarFeature': serializer.toJson<Uint8List>(exemplarFeature),
+      'exemplarMask': serializer.toJson<int>(exemplarMask),
+      'exemplarScaleSource': serializer.toJson<String>(exemplarScaleSource),
+      'threshold': serializer.toJson<double>(threshold),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  PoseCategoryRow copyWith({
+    int? id,
+    String? name,
+    String? kind,
+    Value<int?> exemplarBodyId = const Value.absent(),
+    Uint8List? exemplarFeature,
+    int? exemplarMask,
+    String? exemplarScaleSource,
+    double? threshold,
+    int? createdAt,
+  }) => PoseCategoryRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    kind: kind ?? this.kind,
+    exemplarBodyId: exemplarBodyId.present
+        ? exemplarBodyId.value
+        : this.exemplarBodyId,
+    exemplarFeature: exemplarFeature ?? this.exemplarFeature,
+    exemplarMask: exemplarMask ?? this.exemplarMask,
+    exemplarScaleSource: exemplarScaleSource ?? this.exemplarScaleSource,
+    threshold: threshold ?? this.threshold,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  PoseCategoryRow copyWithCompanion(PoseCategoriesCompanion data) {
+    return PoseCategoryRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      exemplarBodyId: data.exemplarBodyId.present
+          ? data.exemplarBodyId.value
+          : this.exemplarBodyId,
+      exemplarFeature: data.exemplarFeature.present
+          ? data.exemplarFeature.value
+          : this.exemplarFeature,
+      exemplarMask: data.exemplarMask.present
+          ? data.exemplarMask.value
+          : this.exemplarMask,
+      exemplarScaleSource: data.exemplarScaleSource.present
+          ? data.exemplarScaleSource.value
+          : this.exemplarScaleSource,
+      threshold: data.threshold.present ? data.threshold.value : this.threshold,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PoseCategoryRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('kind: $kind, ')
+          ..write('exemplarBodyId: $exemplarBodyId, ')
+          ..write('exemplarFeature: $exemplarFeature, ')
+          ..write('exemplarMask: $exemplarMask, ')
+          ..write('exemplarScaleSource: $exemplarScaleSource, ')
+          ..write('threshold: $threshold, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    kind,
+    exemplarBodyId,
+    $driftBlobEquality.hash(exemplarFeature),
+    exemplarMask,
+    exemplarScaleSource,
+    threshold,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PoseCategoryRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.kind == this.kind &&
+          other.exemplarBodyId == this.exemplarBodyId &&
+          $driftBlobEquality.equals(
+            other.exemplarFeature,
+            this.exemplarFeature,
+          ) &&
+          other.exemplarMask == this.exemplarMask &&
+          other.exemplarScaleSource == this.exemplarScaleSource &&
+          other.threshold == this.threshold &&
+          other.createdAt == this.createdAt);
+}
+
+class PoseCategoriesCompanion extends UpdateCompanion<PoseCategoryRow> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> kind;
+  final Value<int?> exemplarBodyId;
+  final Value<Uint8List> exemplarFeature;
+  final Value<int> exemplarMask;
+  final Value<String> exemplarScaleSource;
+  final Value<double> threshold;
+  final Value<int> createdAt;
+  const PoseCategoriesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.exemplarBodyId = const Value.absent(),
+    this.exemplarFeature = const Value.absent(),
+    this.exemplarMask = const Value.absent(),
+    this.exemplarScaleSource = const Value.absent(),
+    this.threshold = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  PoseCategoriesCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.kind = const Value.absent(),
+    this.exemplarBodyId = const Value.absent(),
+    required Uint8List exemplarFeature,
+    required int exemplarMask,
+    required String exemplarScaleSource,
+    required double threshold,
+    required int createdAt,
+  }) : name = Value(name),
+       exemplarFeature = Value(exemplarFeature),
+       exemplarMask = Value(exemplarMask),
+       exemplarScaleSource = Value(exemplarScaleSource),
+       threshold = Value(threshold),
+       createdAt = Value(createdAt);
+  static Insertable<PoseCategoryRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? kind,
+    Expression<int>? exemplarBodyId,
+    Expression<Uint8List>? exemplarFeature,
+    Expression<int>? exemplarMask,
+    Expression<String>? exemplarScaleSource,
+    Expression<double>? threshold,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (kind != null) 'kind': kind,
+      if (exemplarBodyId != null) 'exemplar_body_id': exemplarBodyId,
+      if (exemplarFeature != null) 'exemplar_feature': exemplarFeature,
+      if (exemplarMask != null) 'exemplar_mask': exemplarMask,
+      if (exemplarScaleSource != null)
+        'exemplar_scale_source': exemplarScaleSource,
+      if (threshold != null) 'threshold': threshold,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  PoseCategoriesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String>? kind,
+    Value<int?>? exemplarBodyId,
+    Value<Uint8List>? exemplarFeature,
+    Value<int>? exemplarMask,
+    Value<String>? exemplarScaleSource,
+    Value<double>? threshold,
+    Value<int>? createdAt,
+  }) {
+    return PoseCategoriesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      kind: kind ?? this.kind,
+      exemplarBodyId: exemplarBodyId ?? this.exemplarBodyId,
+      exemplarFeature: exemplarFeature ?? this.exemplarFeature,
+      exemplarMask: exemplarMask ?? this.exemplarMask,
+      exemplarScaleSource: exemplarScaleSource ?? this.exemplarScaleSource,
+      threshold: threshold ?? this.threshold,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (exemplarBodyId.present) {
+      map['exemplar_body_id'] = Variable<int>(exemplarBodyId.value);
+    }
+    if (exemplarFeature.present) {
+      map['exemplar_feature'] = Variable<Uint8List>(exemplarFeature.value);
+    }
+    if (exemplarMask.present) {
+      map['exemplar_mask'] = Variable<int>(exemplarMask.value);
+    }
+    if (exemplarScaleSource.present) {
+      map['exemplar_scale_source'] = Variable<String>(
+        exemplarScaleSource.value,
+      );
+    }
+    if (threshold.present) {
+      map['threshold'] = Variable<double>(threshold.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PoseCategoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('kind: $kind, ')
+          ..write('exemplarBodyId: $exemplarBodyId, ')
+          ..write('exemplarFeature: $exemplarFeature, ')
+          ..write('exemplarMask: $exemplarMask, ')
+          ..write('exemplarScaleSource: $exemplarScaleSource, ')
+          ..write('threshold: $threshold, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $OutfitCategoriesTable extends OutfitCategories
+    with TableInfo<$OutfitCategoriesTable, OutfitCategoryRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $OutfitCategoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 1,
+      maxTextLength: 80,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('person'),
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _exemplarBodyIdMeta = const VerificationMeta(
+    'exemplarBodyId',
+  );
+  @override
+  late final GeneratedColumn<int> exemplarBodyId = GeneratedColumn<int>(
+    'exemplar_body_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _exemplarAppearanceMeta =
+      const VerificationMeta('exemplarAppearance');
+  @override
+  late final GeneratedColumn<Uint8List> exemplarAppearance =
+      GeneratedColumn<Uint8List>(
+        'exemplar_appearance',
+        aliasedName,
+        false,
+        type: DriftSqlType.blob,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _lowerOnlyMeta = const VerificationMeta(
+    'lowerOnly',
+  );
+  @override
+  late final GeneratedColumn<bool> lowerOnly = GeneratedColumn<bool>(
+    'lower_only',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("lower_only" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _thresholdMeta = const VerificationMeta(
+    'threshold',
+  );
+  @override
+  late final GeneratedColumn<double> threshold = GeneratedColumn<double>(
+    'threshold',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    kind,
+    personId,
+    exemplarBodyId,
+    exemplarAppearance,
+    lowerOnly,
+    threshold,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'outfit_categories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<OutfitCategoryRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    }
+    if (data.containsKey('exemplar_body_id')) {
+      context.handle(
+        _exemplarBodyIdMeta,
+        exemplarBodyId.isAcceptableOrUnknown(
+          data['exemplar_body_id']!,
+          _exemplarBodyIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('exemplar_appearance')) {
+      context.handle(
+        _exemplarAppearanceMeta,
+        exemplarAppearance.isAcceptableOrUnknown(
+          data['exemplar_appearance']!,
+          _exemplarAppearanceMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_exemplarAppearanceMeta);
+    }
+    if (data.containsKey('lower_only')) {
+      context.handle(
+        _lowerOnlyMeta,
+        lowerOnly.isAcceptableOrUnknown(data['lower_only']!, _lowerOnlyMeta),
+      );
+    }
+    if (data.containsKey('threshold')) {
+      context.handle(
+        _thresholdMeta,
+        threshold.isAcceptableOrUnknown(data['threshold']!, _thresholdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_thresholdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  OutfitCategoryRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return OutfitCategoryRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      ),
+      exemplarBodyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}exemplar_body_id'],
+      ),
+      exemplarAppearance: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}exemplar_appearance'],
+      )!,
+      lowerOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}lower_only'],
+      )!,
+      threshold: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}threshold'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $OutfitCategoriesTable createAlias(String alias) {
+    return $OutfitCategoriesTable(attachedDatabase, alias);
+  }
+}
+
+class OutfitCategoryRow extends DataClass
+    implements Insertable<OutfitCategoryRow> {
+  final int id;
+  final String name;
+  final String kind;
+  final int? personId;
+  final int? exemplarBodyId;
+  final Uint8List exemplarAppearance;
+  final bool lowerOnly;
+  final double threshold;
+  final int createdAt;
+  const OutfitCategoryRow({
+    required this.id,
+    required this.name,
+    required this.kind,
+    this.personId,
+    this.exemplarBodyId,
+    required this.exemplarAppearance,
+    required this.lowerOnly,
+    required this.threshold,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || personId != null) {
+      map['person_id'] = Variable<int>(personId);
+    }
+    if (!nullToAbsent || exemplarBodyId != null) {
+      map['exemplar_body_id'] = Variable<int>(exemplarBodyId);
+    }
+    map['exemplar_appearance'] = Variable<Uint8List>(exemplarAppearance);
+    map['lower_only'] = Variable<bool>(lowerOnly);
+    map['threshold'] = Variable<double>(threshold);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  OutfitCategoriesCompanion toCompanion(bool nullToAbsent) {
+    return OutfitCategoriesCompanion(
+      id: Value(id),
+      name: Value(name),
+      kind: Value(kind),
+      personId: personId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(personId),
+      exemplarBodyId: exemplarBodyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(exemplarBodyId),
+      exemplarAppearance: Value(exemplarAppearance),
+      lowerOnly: Value(lowerOnly),
+      threshold: Value(threshold),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory OutfitCategoryRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return OutfitCategoryRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      kind: serializer.fromJson<String>(json['kind']),
+      personId: serializer.fromJson<int?>(json['personId']),
+      exemplarBodyId: serializer.fromJson<int?>(json['exemplarBodyId']),
+      exemplarAppearance: serializer.fromJson<Uint8List>(
+        json['exemplarAppearance'],
+      ),
+      lowerOnly: serializer.fromJson<bool>(json['lowerOnly']),
+      threshold: serializer.fromJson<double>(json['threshold']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'kind': serializer.toJson<String>(kind),
+      'personId': serializer.toJson<int?>(personId),
+      'exemplarBodyId': serializer.toJson<int?>(exemplarBodyId),
+      'exemplarAppearance': serializer.toJson<Uint8List>(exemplarAppearance),
+      'lowerOnly': serializer.toJson<bool>(lowerOnly),
+      'threshold': serializer.toJson<double>(threshold),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  OutfitCategoryRow copyWith({
+    int? id,
+    String? name,
+    String? kind,
+    Value<int?> personId = const Value.absent(),
+    Value<int?> exemplarBodyId = const Value.absent(),
+    Uint8List? exemplarAppearance,
+    bool? lowerOnly,
+    double? threshold,
+    int? createdAt,
+  }) => OutfitCategoryRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    kind: kind ?? this.kind,
+    personId: personId.present ? personId.value : this.personId,
+    exemplarBodyId: exemplarBodyId.present
+        ? exemplarBodyId.value
+        : this.exemplarBodyId,
+    exemplarAppearance: exemplarAppearance ?? this.exemplarAppearance,
+    lowerOnly: lowerOnly ?? this.lowerOnly,
+    threshold: threshold ?? this.threshold,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  OutfitCategoryRow copyWithCompanion(OutfitCategoriesCompanion data) {
+    return OutfitCategoryRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      exemplarBodyId: data.exemplarBodyId.present
+          ? data.exemplarBodyId.value
+          : this.exemplarBodyId,
+      exemplarAppearance: data.exemplarAppearance.present
+          ? data.exemplarAppearance.value
+          : this.exemplarAppearance,
+      lowerOnly: data.lowerOnly.present ? data.lowerOnly.value : this.lowerOnly,
+      threshold: data.threshold.present ? data.threshold.value : this.threshold,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OutfitCategoryRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('kind: $kind, ')
+          ..write('personId: $personId, ')
+          ..write('exemplarBodyId: $exemplarBodyId, ')
+          ..write('exemplarAppearance: $exemplarAppearance, ')
+          ..write('lowerOnly: $lowerOnly, ')
+          ..write('threshold: $threshold, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    kind,
+    personId,
+    exemplarBodyId,
+    $driftBlobEquality.hash(exemplarAppearance),
+    lowerOnly,
+    threshold,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is OutfitCategoryRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.kind == this.kind &&
+          other.personId == this.personId &&
+          other.exemplarBodyId == this.exemplarBodyId &&
+          $driftBlobEquality.equals(
+            other.exemplarAppearance,
+            this.exemplarAppearance,
+          ) &&
+          other.lowerOnly == this.lowerOnly &&
+          other.threshold == this.threshold &&
+          other.createdAt == this.createdAt);
+}
+
+class OutfitCategoriesCompanion extends UpdateCompanion<OutfitCategoryRow> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> kind;
+  final Value<int?> personId;
+  final Value<int?> exemplarBodyId;
+  final Value<Uint8List> exemplarAppearance;
+  final Value<bool> lowerOnly;
+  final Value<double> threshold;
+  final Value<int> createdAt;
+  const OutfitCategoriesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.exemplarBodyId = const Value.absent(),
+    this.exemplarAppearance = const Value.absent(),
+    this.lowerOnly = const Value.absent(),
+    this.threshold = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  OutfitCategoriesCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.kind = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.exemplarBodyId = const Value.absent(),
+    required Uint8List exemplarAppearance,
+    this.lowerOnly = const Value.absent(),
+    required double threshold,
+    required int createdAt,
+  }) : name = Value(name),
+       exemplarAppearance = Value(exemplarAppearance),
+       threshold = Value(threshold),
+       createdAt = Value(createdAt);
+  static Insertable<OutfitCategoryRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? kind,
+    Expression<int>? personId,
+    Expression<int>? exemplarBodyId,
+    Expression<Uint8List>? exemplarAppearance,
+    Expression<bool>? lowerOnly,
+    Expression<double>? threshold,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (kind != null) 'kind': kind,
+      if (personId != null) 'person_id': personId,
+      if (exemplarBodyId != null) 'exemplar_body_id': exemplarBodyId,
+      if (exemplarAppearance != null) 'exemplar_appearance': exemplarAppearance,
+      if (lowerOnly != null) 'lower_only': lowerOnly,
+      if (threshold != null) 'threshold': threshold,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  OutfitCategoriesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String>? kind,
+    Value<int?>? personId,
+    Value<int?>? exemplarBodyId,
+    Value<Uint8List>? exemplarAppearance,
+    Value<bool>? lowerOnly,
+    Value<double>? threshold,
+    Value<int>? createdAt,
+  }) {
+    return OutfitCategoriesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      kind: kind ?? this.kind,
+      personId: personId ?? this.personId,
+      exemplarBodyId: exemplarBodyId ?? this.exemplarBodyId,
+      exemplarAppearance: exemplarAppearance ?? this.exemplarAppearance,
+      lowerOnly: lowerOnly ?? this.lowerOnly,
+      threshold: threshold ?? this.threshold,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (exemplarBodyId.present) {
+      map['exemplar_body_id'] = Variable<int>(exemplarBodyId.value);
+    }
+    if (exemplarAppearance.present) {
+      map['exemplar_appearance'] = Variable<Uint8List>(
+        exemplarAppearance.value,
+      );
+    }
+    if (lowerOnly.present) {
+      map['lower_only'] = Variable<bool>(lowerOnly.value);
+    }
+    if (threshold.present) {
+      map['threshold'] = Variable<double>(threshold.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OutfitCategoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('kind: $kind, ')
+          ..write('personId: $personId, ')
+          ..write('exemplarBodyId: $exemplarBodyId, ')
+          ..write('exemplarAppearance: $exemplarAppearance, ')
+          ..write('lowerOnly: $lowerOnly, ')
+          ..write('threshold: $threshold, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BodyPoseMatchesTable extends BodyPoseMatches
+    with TableInfo<$BodyPoseMatchesTable, BodyPoseMatchRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BodyPoseMatchesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bodyIdMeta = const VerificationMeta('bodyId');
+  @override
+  late final GeneratedColumn<int> bodyId = GeneratedColumn<int>(
+    'body_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<int> categoryId = GeneratedColumn<int>(
+    'category_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES pose_categories (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _similarityMeta = const VerificationMeta(
+    'similarity',
+  );
+  @override
+  late final GeneratedColumn<double> similarity = GeneratedColumn<double>(
+    'similarity',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [bodyId, categoryId, similarity, state];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'body_pose_matches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BodyPoseMatchRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('body_id')) {
+      context.handle(
+        _bodyIdMeta,
+        bodyId.isAcceptableOrUnknown(data['body_id']!, _bodyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyIdMeta);
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryIdMeta);
+    }
+    if (data.containsKey('similarity')) {
+      context.handle(
+        _similarityMeta,
+        similarity.isAcceptableOrUnknown(data['similarity']!, _similarityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_similarityMeta);
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stateMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {bodyId, categoryId};
+  @override
+  BodyPoseMatchRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BodyPoseMatchRow(
+      bodyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_id'],
+      )!,
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}category_id'],
+      )!,
+      similarity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}similarity'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+    );
+  }
+
+  @override
+  $BodyPoseMatchesTable createAlias(String alias) {
+    return $BodyPoseMatchesTable(attachedDatabase, alias);
+  }
+}
+
+class BodyPoseMatchRow extends DataClass
+    implements Insertable<BodyPoseMatchRow> {
+  final int bodyId;
+  final int categoryId;
+  final double similarity;
+  final String state;
+  const BodyPoseMatchRow({
+    required this.bodyId,
+    required this.categoryId,
+    required this.similarity,
+    required this.state,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['body_id'] = Variable<int>(bodyId);
+    map['category_id'] = Variable<int>(categoryId);
+    map['similarity'] = Variable<double>(similarity);
+    map['state'] = Variable<String>(state);
+    return map;
+  }
+
+  BodyPoseMatchesCompanion toCompanion(bool nullToAbsent) {
+    return BodyPoseMatchesCompanion(
+      bodyId: Value(bodyId),
+      categoryId: Value(categoryId),
+      similarity: Value(similarity),
+      state: Value(state),
+    );
+  }
+
+  factory BodyPoseMatchRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BodyPoseMatchRow(
+      bodyId: serializer.fromJson<int>(json['bodyId']),
+      categoryId: serializer.fromJson<int>(json['categoryId']),
+      similarity: serializer.fromJson<double>(json['similarity']),
+      state: serializer.fromJson<String>(json['state']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bodyId': serializer.toJson<int>(bodyId),
+      'categoryId': serializer.toJson<int>(categoryId),
+      'similarity': serializer.toJson<double>(similarity),
+      'state': serializer.toJson<String>(state),
+    };
+  }
+
+  BodyPoseMatchRow copyWith({
+    int? bodyId,
+    int? categoryId,
+    double? similarity,
+    String? state,
+  }) => BodyPoseMatchRow(
+    bodyId: bodyId ?? this.bodyId,
+    categoryId: categoryId ?? this.categoryId,
+    similarity: similarity ?? this.similarity,
+    state: state ?? this.state,
+  );
+  BodyPoseMatchRow copyWithCompanion(BodyPoseMatchesCompanion data) {
+    return BodyPoseMatchRow(
+      bodyId: data.bodyId.present ? data.bodyId.value : this.bodyId,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      similarity: data.similarity.present
+          ? data.similarity.value
+          : this.similarity,
+      state: data.state.present ? data.state.value : this.state,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyPoseMatchRow(')
+          ..write('bodyId: $bodyId, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('similarity: $similarity, ')
+          ..write('state: $state')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(bodyId, categoryId, similarity, state);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BodyPoseMatchRow &&
+          other.bodyId == this.bodyId &&
+          other.categoryId == this.categoryId &&
+          other.similarity == this.similarity &&
+          other.state == this.state);
+}
+
+class BodyPoseMatchesCompanion extends UpdateCompanion<BodyPoseMatchRow> {
+  final Value<int> bodyId;
+  final Value<int> categoryId;
+  final Value<double> similarity;
+  final Value<String> state;
+  final Value<int> rowid;
+  const BodyPoseMatchesCompanion({
+    this.bodyId = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.similarity = const Value.absent(),
+    this.state = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BodyPoseMatchesCompanion.insert({
+    required int bodyId,
+    required int categoryId,
+    required double similarity,
+    required String state,
+    this.rowid = const Value.absent(),
+  }) : bodyId = Value(bodyId),
+       categoryId = Value(categoryId),
+       similarity = Value(similarity),
+       state = Value(state);
+  static Insertable<BodyPoseMatchRow> custom({
+    Expression<int>? bodyId,
+    Expression<int>? categoryId,
+    Expression<double>? similarity,
+    Expression<String>? state,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (bodyId != null) 'body_id': bodyId,
+      if (categoryId != null) 'category_id': categoryId,
+      if (similarity != null) 'similarity': similarity,
+      if (state != null) 'state': state,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BodyPoseMatchesCompanion copyWith({
+    Value<int>? bodyId,
+    Value<int>? categoryId,
+    Value<double>? similarity,
+    Value<String>? state,
+    Value<int>? rowid,
+  }) {
+    return BodyPoseMatchesCompanion(
+      bodyId: bodyId ?? this.bodyId,
+      categoryId: categoryId ?? this.categoryId,
+      similarity: similarity ?? this.similarity,
+      state: state ?? this.state,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bodyId.present) {
+      map['body_id'] = Variable<int>(bodyId.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<int>(categoryId.value);
+    }
+    if (similarity.present) {
+      map['similarity'] = Variable<double>(similarity.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyPoseMatchesCompanion(')
+          ..write('bodyId: $bodyId, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('similarity: $similarity, ')
+          ..write('state: $state, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BodyOutfitMatchesTable extends BodyOutfitMatches
+    with TableInfo<$BodyOutfitMatchesTable, BodyOutfitMatchRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BodyOutfitMatchesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bodyIdMeta = const VerificationMeta('bodyId');
+  @override
+  late final GeneratedColumn<int> bodyId = GeneratedColumn<int>(
+    'body_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<int> categoryId = GeneratedColumn<int>(
+    'category_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES outfit_categories (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _similarityMeta = const VerificationMeta(
+    'similarity',
+  );
+  @override
+  late final GeneratedColumn<double> similarity = GeneratedColumn<double>(
+    'similarity',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [bodyId, categoryId, similarity, state];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'body_outfit_matches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BodyOutfitMatchRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('body_id')) {
+      context.handle(
+        _bodyIdMeta,
+        bodyId.isAcceptableOrUnknown(data['body_id']!, _bodyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyIdMeta);
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryIdMeta);
+    }
+    if (data.containsKey('similarity')) {
+      context.handle(
+        _similarityMeta,
+        similarity.isAcceptableOrUnknown(data['similarity']!, _similarityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_similarityMeta);
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stateMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {bodyId, categoryId};
+  @override
+  BodyOutfitMatchRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BodyOutfitMatchRow(
+      bodyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_id'],
+      )!,
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}category_id'],
+      )!,
+      similarity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}similarity'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+    );
+  }
+
+  @override
+  $BodyOutfitMatchesTable createAlias(String alias) {
+    return $BodyOutfitMatchesTable(attachedDatabase, alias);
+  }
+}
+
+class BodyOutfitMatchRow extends DataClass
+    implements Insertable<BodyOutfitMatchRow> {
+  final int bodyId;
+  final int categoryId;
+  final double similarity;
+  final String state;
+  const BodyOutfitMatchRow({
+    required this.bodyId,
+    required this.categoryId,
+    required this.similarity,
+    required this.state,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['body_id'] = Variable<int>(bodyId);
+    map['category_id'] = Variable<int>(categoryId);
+    map['similarity'] = Variable<double>(similarity);
+    map['state'] = Variable<String>(state);
+    return map;
+  }
+
+  BodyOutfitMatchesCompanion toCompanion(bool nullToAbsent) {
+    return BodyOutfitMatchesCompanion(
+      bodyId: Value(bodyId),
+      categoryId: Value(categoryId),
+      similarity: Value(similarity),
+      state: Value(state),
+    );
+  }
+
+  factory BodyOutfitMatchRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BodyOutfitMatchRow(
+      bodyId: serializer.fromJson<int>(json['bodyId']),
+      categoryId: serializer.fromJson<int>(json['categoryId']),
+      similarity: serializer.fromJson<double>(json['similarity']),
+      state: serializer.fromJson<String>(json['state']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bodyId': serializer.toJson<int>(bodyId),
+      'categoryId': serializer.toJson<int>(categoryId),
+      'similarity': serializer.toJson<double>(similarity),
+      'state': serializer.toJson<String>(state),
+    };
+  }
+
+  BodyOutfitMatchRow copyWith({
+    int? bodyId,
+    int? categoryId,
+    double? similarity,
+    String? state,
+  }) => BodyOutfitMatchRow(
+    bodyId: bodyId ?? this.bodyId,
+    categoryId: categoryId ?? this.categoryId,
+    similarity: similarity ?? this.similarity,
+    state: state ?? this.state,
+  );
+  BodyOutfitMatchRow copyWithCompanion(BodyOutfitMatchesCompanion data) {
+    return BodyOutfitMatchRow(
+      bodyId: data.bodyId.present ? data.bodyId.value : this.bodyId,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      similarity: data.similarity.present
+          ? data.similarity.value
+          : this.similarity,
+      state: data.state.present ? data.state.value : this.state,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyOutfitMatchRow(')
+          ..write('bodyId: $bodyId, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('similarity: $similarity, ')
+          ..write('state: $state')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(bodyId, categoryId, similarity, state);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BodyOutfitMatchRow &&
+          other.bodyId == this.bodyId &&
+          other.categoryId == this.categoryId &&
+          other.similarity == this.similarity &&
+          other.state == this.state);
+}
+
+class BodyOutfitMatchesCompanion extends UpdateCompanion<BodyOutfitMatchRow> {
+  final Value<int> bodyId;
+  final Value<int> categoryId;
+  final Value<double> similarity;
+  final Value<String> state;
+  final Value<int> rowid;
+  const BodyOutfitMatchesCompanion({
+    this.bodyId = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.similarity = const Value.absent(),
+    this.state = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BodyOutfitMatchesCompanion.insert({
+    required int bodyId,
+    required int categoryId,
+    required double similarity,
+    required String state,
+    this.rowid = const Value.absent(),
+  }) : bodyId = Value(bodyId),
+       categoryId = Value(categoryId),
+       similarity = Value(similarity),
+       state = Value(state);
+  static Insertable<BodyOutfitMatchRow> custom({
+    Expression<int>? bodyId,
+    Expression<int>? categoryId,
+    Expression<double>? similarity,
+    Expression<String>? state,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (bodyId != null) 'body_id': bodyId,
+      if (categoryId != null) 'category_id': categoryId,
+      if (similarity != null) 'similarity': similarity,
+      if (state != null) 'state': state,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BodyOutfitMatchesCompanion copyWith({
+    Value<int>? bodyId,
+    Value<int>? categoryId,
+    Value<double>? similarity,
+    Value<String>? state,
+    Value<int>? rowid,
+  }) {
+    return BodyOutfitMatchesCompanion(
+      bodyId: bodyId ?? this.bodyId,
+      categoryId: categoryId ?? this.categoryId,
+      similarity: similarity ?? this.similarity,
+      state: state ?? this.state,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bodyId.present) {
+      map['body_id'] = Variable<int>(bodyId.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<int>(categoryId.value);
+    }
+    if (similarity.present) {
+      map['similarity'] = Variable<double>(similarity.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyOutfitMatchesCompanion(')
+          ..write('bodyId: $bodyId, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('similarity: $similarity, ')
+          ..write('state: $state, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SensitiveRegionsTable extends SensitiveRegions
+    with TableInfo<$SensitiveRegionsTable, SensitiveRegionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SensitiveRegionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
+    'mediaId',
+  );
+  @override
+  late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
+    'media_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES media (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _bodyIdMeta = const VerificationMeta('bodyId');
+  @override
+  late final GeneratedColumn<int> bodyId = GeneratedColumn<int>(
+    'body_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _exposedMeta = const VerificationMeta(
+    'exposed',
+  );
+  @override
+  late final GeneratedColumn<bool> exposed = GeneratedColumn<bool>(
+    'exposed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("exposed" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _scoreMeta = const VerificationMeta('score');
+  @override
+  late final GeneratedColumn<double> score = GeneratedColumn<double>(
+    'score',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _xMeta = const VerificationMeta('x');
+  @override
+  late final GeneratedColumn<double> x = GeneratedColumn<double>(
+    'x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _yMeta = const VerificationMeta('y');
+  @override
+  late final GeneratedColumn<double> y = GeneratedColumn<double>(
+    'y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _wMeta = const VerificationMeta('w');
+  @override
+  late final GeneratedColumn<double> w = GeneratedColumn<double>(
+    'w',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hMeta = const VerificationMeta('h');
+  @override
+  late final GeneratedColumn<double> h = GeneratedColumn<double>(
+    'h',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _frameNumberMeta = const VerificationMeta(
+    'frameNumber',
+  );
+  @override
+  late final GeneratedColumn<int> frameNumber = GeneratedColumn<int>(
+    'frame_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _timestampMsMeta = const VerificationMeta(
+    'timestampMs',
+  );
+  @override
+  late final GeneratedColumn<int> timestampMs = GeneratedColumn<int>(
+    'timestamp_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _modelVersionMeta = const VerificationMeta(
+    'modelVersion',
+  );
+  @override
+  late final GeneratedColumn<int> modelVersion = GeneratedColumn<int>(
+    'model_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userStateMeta = const VerificationMeta(
+    'userState',
+  );
+  @override
+  late final GeneratedColumn<String> userState = GeneratedColumn<String>(
+    'user_state',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    mediaId,
+    bodyId,
+    label,
+    exposed,
+    score,
+    x,
+    y,
+    w,
+    h,
+    frameNumber,
+    timestampMs,
+    modelVersion,
+    userState,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sensitive_regions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SensitiveRegionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('media_id')) {
+      context.handle(
+        _mediaIdMeta,
+        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_mediaIdMeta);
+    }
+    if (data.containsKey('body_id')) {
+      context.handle(
+        _bodyIdMeta,
+        bodyId.isAcceptableOrUnknown(data['body_id']!, _bodyIdMeta),
+      );
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_labelMeta);
+    }
+    if (data.containsKey('exposed')) {
+      context.handle(
+        _exposedMeta,
+        exposed.isAcceptableOrUnknown(data['exposed']!, _exposedMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_exposedMeta);
+    }
+    if (data.containsKey('score')) {
+      context.handle(
+        _scoreMeta,
+        score.isAcceptableOrUnknown(data['score']!, _scoreMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scoreMeta);
+    }
+    if (data.containsKey('x')) {
+      context.handle(_xMeta, x.isAcceptableOrUnknown(data['x']!, _xMeta));
+    } else if (isInserting) {
+      context.missing(_xMeta);
+    }
+    if (data.containsKey('y')) {
+      context.handle(_yMeta, y.isAcceptableOrUnknown(data['y']!, _yMeta));
+    } else if (isInserting) {
+      context.missing(_yMeta);
+    }
+    if (data.containsKey('w')) {
+      context.handle(_wMeta, w.isAcceptableOrUnknown(data['w']!, _wMeta));
+    } else if (isInserting) {
+      context.missing(_wMeta);
+    }
+    if (data.containsKey('h')) {
+      context.handle(_hMeta, h.isAcceptableOrUnknown(data['h']!, _hMeta));
+    } else if (isInserting) {
+      context.missing(_hMeta);
+    }
+    if (data.containsKey('frame_number')) {
+      context.handle(
+        _frameNumberMeta,
+        frameNumber.isAcceptableOrUnknown(
+          data['frame_number']!,
+          _frameNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('timestamp_ms')) {
+      context.handle(
+        _timestampMsMeta,
+        timestampMs.isAcceptableOrUnknown(
+          data['timestamp_ms']!,
+          _timestampMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('model_version')) {
+      context.handle(
+        _modelVersionMeta,
+        modelVersion.isAcceptableOrUnknown(
+          data['model_version']!,
+          _modelVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_modelVersionMeta);
+    }
+    if (data.containsKey('user_state')) {
+      context.handle(
+        _userStateMeta,
+        userState.isAcceptableOrUnknown(data['user_state']!, _userStateMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SensitiveRegionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SensitiveRegionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      mediaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}media_id'],
+      )!,
+      bodyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_id'],
+      ),
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      )!,
+      exposed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}exposed'],
+      )!,
+      score: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}score'],
+      )!,
+      x: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}x'],
+      )!,
+      y: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}y'],
+      )!,
+      w: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}w'],
+      )!,
+      h: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}h'],
+      )!,
+      frameNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}frame_number'],
+      ),
+      timestampMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}timestamp_ms'],
+      ),
+      modelVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}model_version'],
+      )!,
+      userState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_state'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SensitiveRegionsTable createAlias(String alias) {
+    return $SensitiveRegionsTable(attachedDatabase, alias);
+  }
+}
+
+class SensitiveRegionRow extends DataClass
+    implements Insertable<SensitiveRegionRow> {
+  final int id;
+  final int mediaId;
+  final int? bodyId;
+  final String label;
+  final bool exposed;
+  final double score;
+  final double x;
+  final double y;
+  final double w;
+  final double h;
+  final int? frameNumber;
+  final int? timestampMs;
+  final int modelVersion;
+  final String? userState;
+  final int createdAt;
+  const SensitiveRegionRow({
+    required this.id,
+    required this.mediaId,
+    this.bodyId,
+    required this.label,
+    required this.exposed,
+    required this.score,
+    required this.x,
+    required this.y,
+    required this.w,
+    required this.h,
+    this.frameNumber,
+    this.timestampMs,
+    required this.modelVersion,
+    this.userState,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['media_id'] = Variable<int>(mediaId);
+    if (!nullToAbsent || bodyId != null) {
+      map['body_id'] = Variable<int>(bodyId);
+    }
+    map['label'] = Variable<String>(label);
+    map['exposed'] = Variable<bool>(exposed);
+    map['score'] = Variable<double>(score);
+    map['x'] = Variable<double>(x);
+    map['y'] = Variable<double>(y);
+    map['w'] = Variable<double>(w);
+    map['h'] = Variable<double>(h);
+    if (!nullToAbsent || frameNumber != null) {
+      map['frame_number'] = Variable<int>(frameNumber);
+    }
+    if (!nullToAbsent || timestampMs != null) {
+      map['timestamp_ms'] = Variable<int>(timestampMs);
+    }
+    map['model_version'] = Variable<int>(modelVersion);
+    if (!nullToAbsent || userState != null) {
+      map['user_state'] = Variable<String>(userState);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  SensitiveRegionsCompanion toCompanion(bool nullToAbsent) {
+    return SensitiveRegionsCompanion(
+      id: Value(id),
+      mediaId: Value(mediaId),
+      bodyId: bodyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bodyId),
+      label: Value(label),
+      exposed: Value(exposed),
+      score: Value(score),
+      x: Value(x),
+      y: Value(y),
+      w: Value(w),
+      h: Value(h),
+      frameNumber: frameNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(frameNumber),
+      timestampMs: timestampMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timestampMs),
+      modelVersion: Value(modelVersion),
+      userState: userState == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userState),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory SensitiveRegionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SensitiveRegionRow(
+      id: serializer.fromJson<int>(json['id']),
+      mediaId: serializer.fromJson<int>(json['mediaId']),
+      bodyId: serializer.fromJson<int?>(json['bodyId']),
+      label: serializer.fromJson<String>(json['label']),
+      exposed: serializer.fromJson<bool>(json['exposed']),
+      score: serializer.fromJson<double>(json['score']),
+      x: serializer.fromJson<double>(json['x']),
+      y: serializer.fromJson<double>(json['y']),
+      w: serializer.fromJson<double>(json['w']),
+      h: serializer.fromJson<double>(json['h']),
+      frameNumber: serializer.fromJson<int?>(json['frameNumber']),
+      timestampMs: serializer.fromJson<int?>(json['timestampMs']),
+      modelVersion: serializer.fromJson<int>(json['modelVersion']),
+      userState: serializer.fromJson<String?>(json['userState']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'mediaId': serializer.toJson<int>(mediaId),
+      'bodyId': serializer.toJson<int?>(bodyId),
+      'label': serializer.toJson<String>(label),
+      'exposed': serializer.toJson<bool>(exposed),
+      'score': serializer.toJson<double>(score),
+      'x': serializer.toJson<double>(x),
+      'y': serializer.toJson<double>(y),
+      'w': serializer.toJson<double>(w),
+      'h': serializer.toJson<double>(h),
+      'frameNumber': serializer.toJson<int?>(frameNumber),
+      'timestampMs': serializer.toJson<int?>(timestampMs),
+      'modelVersion': serializer.toJson<int>(modelVersion),
+      'userState': serializer.toJson<String?>(userState),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  SensitiveRegionRow copyWith({
+    int? id,
+    int? mediaId,
+    Value<int?> bodyId = const Value.absent(),
+    String? label,
+    bool? exposed,
+    double? score,
+    double? x,
+    double? y,
+    double? w,
+    double? h,
+    Value<int?> frameNumber = const Value.absent(),
+    Value<int?> timestampMs = const Value.absent(),
+    int? modelVersion,
+    Value<String?> userState = const Value.absent(),
+    int? createdAt,
+  }) => SensitiveRegionRow(
+    id: id ?? this.id,
+    mediaId: mediaId ?? this.mediaId,
+    bodyId: bodyId.present ? bodyId.value : this.bodyId,
+    label: label ?? this.label,
+    exposed: exposed ?? this.exposed,
+    score: score ?? this.score,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    w: w ?? this.w,
+    h: h ?? this.h,
+    frameNumber: frameNumber.present ? frameNumber.value : this.frameNumber,
+    timestampMs: timestampMs.present ? timestampMs.value : this.timestampMs,
+    modelVersion: modelVersion ?? this.modelVersion,
+    userState: userState.present ? userState.value : this.userState,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  SensitiveRegionRow copyWithCompanion(SensitiveRegionsCompanion data) {
+    return SensitiveRegionRow(
+      id: data.id.present ? data.id.value : this.id,
+      mediaId: data.mediaId.present ? data.mediaId.value : this.mediaId,
+      bodyId: data.bodyId.present ? data.bodyId.value : this.bodyId,
+      label: data.label.present ? data.label.value : this.label,
+      exposed: data.exposed.present ? data.exposed.value : this.exposed,
+      score: data.score.present ? data.score.value : this.score,
+      x: data.x.present ? data.x.value : this.x,
+      y: data.y.present ? data.y.value : this.y,
+      w: data.w.present ? data.w.value : this.w,
+      h: data.h.present ? data.h.value : this.h,
+      frameNumber: data.frameNumber.present
+          ? data.frameNumber.value
+          : this.frameNumber,
+      timestampMs: data.timestampMs.present
+          ? data.timestampMs.value
+          : this.timestampMs,
+      modelVersion: data.modelVersion.present
+          ? data.modelVersion.value
+          : this.modelVersion,
+      userState: data.userState.present ? data.userState.value : this.userState,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SensitiveRegionRow(')
+          ..write('id: $id, ')
+          ..write('mediaId: $mediaId, ')
+          ..write('bodyId: $bodyId, ')
+          ..write('label: $label, ')
+          ..write('exposed: $exposed, ')
+          ..write('score: $score, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('frameNumber: $frameNumber, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('modelVersion: $modelVersion, ')
+          ..write('userState: $userState, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    mediaId,
+    bodyId,
+    label,
+    exposed,
+    score,
+    x,
+    y,
+    w,
+    h,
+    frameNumber,
+    timestampMs,
+    modelVersion,
+    userState,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SensitiveRegionRow &&
+          other.id == this.id &&
+          other.mediaId == this.mediaId &&
+          other.bodyId == this.bodyId &&
+          other.label == this.label &&
+          other.exposed == this.exposed &&
+          other.score == this.score &&
+          other.x == this.x &&
+          other.y == this.y &&
+          other.w == this.w &&
+          other.h == this.h &&
+          other.frameNumber == this.frameNumber &&
+          other.timestampMs == this.timestampMs &&
+          other.modelVersion == this.modelVersion &&
+          other.userState == this.userState &&
+          other.createdAt == this.createdAt);
+}
+
+class SensitiveRegionsCompanion extends UpdateCompanion<SensitiveRegionRow> {
+  final Value<int> id;
+  final Value<int> mediaId;
+  final Value<int?> bodyId;
+  final Value<String> label;
+  final Value<bool> exposed;
+  final Value<double> score;
+  final Value<double> x;
+  final Value<double> y;
+  final Value<double> w;
+  final Value<double> h;
+  final Value<int?> frameNumber;
+  final Value<int?> timestampMs;
+  final Value<int> modelVersion;
+  final Value<String?> userState;
+  final Value<int> createdAt;
+  const SensitiveRegionsCompanion({
+    this.id = const Value.absent(),
+    this.mediaId = const Value.absent(),
+    this.bodyId = const Value.absent(),
+    this.label = const Value.absent(),
+    this.exposed = const Value.absent(),
+    this.score = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.w = const Value.absent(),
+    this.h = const Value.absent(),
+    this.frameNumber = const Value.absent(),
+    this.timestampMs = const Value.absent(),
+    this.modelVersion = const Value.absent(),
+    this.userState = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  SensitiveRegionsCompanion.insert({
+    this.id = const Value.absent(),
+    required int mediaId,
+    this.bodyId = const Value.absent(),
+    required String label,
+    required bool exposed,
+    required double score,
+    required double x,
+    required double y,
+    required double w,
+    required double h,
+    this.frameNumber = const Value.absent(),
+    this.timestampMs = const Value.absent(),
+    required int modelVersion,
+    this.userState = const Value.absent(),
+    required int createdAt,
+  }) : mediaId = Value(mediaId),
+       label = Value(label),
+       exposed = Value(exposed),
+       score = Value(score),
+       x = Value(x),
+       y = Value(y),
+       w = Value(w),
+       h = Value(h),
+       modelVersion = Value(modelVersion),
+       createdAt = Value(createdAt);
+  static Insertable<SensitiveRegionRow> custom({
+    Expression<int>? id,
+    Expression<int>? mediaId,
+    Expression<int>? bodyId,
+    Expression<String>? label,
+    Expression<bool>? exposed,
+    Expression<double>? score,
+    Expression<double>? x,
+    Expression<double>? y,
+    Expression<double>? w,
+    Expression<double>? h,
+    Expression<int>? frameNumber,
+    Expression<int>? timestampMs,
+    Expression<int>? modelVersion,
+    Expression<String>? userState,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (mediaId != null) 'media_id': mediaId,
+      if (bodyId != null) 'body_id': bodyId,
+      if (label != null) 'label': label,
+      if (exposed != null) 'exposed': exposed,
+      if (score != null) 'score': score,
+      if (x != null) 'x': x,
+      if (y != null) 'y': y,
+      if (w != null) 'w': w,
+      if (h != null) 'h': h,
+      if (frameNumber != null) 'frame_number': frameNumber,
+      if (timestampMs != null) 'timestamp_ms': timestampMs,
+      if (modelVersion != null) 'model_version': modelVersion,
+      if (userState != null) 'user_state': userState,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  SensitiveRegionsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? mediaId,
+    Value<int?>? bodyId,
+    Value<String>? label,
+    Value<bool>? exposed,
+    Value<double>? score,
+    Value<double>? x,
+    Value<double>? y,
+    Value<double>? w,
+    Value<double>? h,
+    Value<int?>? frameNumber,
+    Value<int?>? timestampMs,
+    Value<int>? modelVersion,
+    Value<String?>? userState,
+    Value<int>? createdAt,
+  }) {
+    return SensitiveRegionsCompanion(
+      id: id ?? this.id,
+      mediaId: mediaId ?? this.mediaId,
+      bodyId: bodyId ?? this.bodyId,
+      label: label ?? this.label,
+      exposed: exposed ?? this.exposed,
+      score: score ?? this.score,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      w: w ?? this.w,
+      h: h ?? this.h,
+      frameNumber: frameNumber ?? this.frameNumber,
+      timestampMs: timestampMs ?? this.timestampMs,
+      modelVersion: modelVersion ?? this.modelVersion,
+      userState: userState ?? this.userState,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (mediaId.present) {
+      map['media_id'] = Variable<int>(mediaId.value);
+    }
+    if (bodyId.present) {
+      map['body_id'] = Variable<int>(bodyId.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (exposed.present) {
+      map['exposed'] = Variable<bool>(exposed.value);
+    }
+    if (score.present) {
+      map['score'] = Variable<double>(score.value);
+    }
+    if (x.present) {
+      map['x'] = Variable<double>(x.value);
+    }
+    if (y.present) {
+      map['y'] = Variable<double>(y.value);
+    }
+    if (w.present) {
+      map['w'] = Variable<double>(w.value);
+    }
+    if (h.present) {
+      map['h'] = Variable<double>(h.value);
+    }
+    if (frameNumber.present) {
+      map['frame_number'] = Variable<int>(frameNumber.value);
+    }
+    if (timestampMs.present) {
+      map['timestamp_ms'] = Variable<int>(timestampMs.value);
+    }
+    if (modelVersion.present) {
+      map['model_version'] = Variable<int>(modelVersion.value);
+    }
+    if (userState.present) {
+      map['user_state'] = Variable<String>(userState.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SensitiveRegionsCompanion(')
+          ..write('id: $id, ')
+          ..write('mediaId: $mediaId, ')
+          ..write('bodyId: $bodyId, ')
+          ..write('label: $label, ')
+          ..write('exposed: $exposed, ')
+          ..write('score: $score, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('frameNumber: $frameNumber, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('modelVersion: $modelVersion, ')
+          ..write('userState: $userState, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BodyGarmentTagsTable extends BodyGarmentTags
+    with TableInfo<$BodyGarmentTagsTable, BodyGarmentTagRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BodyGarmentTagsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bodyIdMeta = const VerificationMeta('bodyId');
+  @override
+  late final GeneratedColumn<int> bodyId = GeneratedColumn<int>(
+    'body_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _tagMeta = const VerificationMeta('tag');
+  @override
+  late final GeneratedColumn<String> tag = GeneratedColumn<String>(
+    'tag',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scoreMeta = const VerificationMeta('score');
+  @override
+  late final GeneratedColumn<double> score = GeneratedColumn<double>(
+    'score',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [bodyId, tag, category, score];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'body_garment_tags';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BodyGarmentTagRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('body_id')) {
+      context.handle(
+        _bodyIdMeta,
+        bodyId.isAcceptableOrUnknown(data['body_id']!, _bodyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyIdMeta);
+    }
+    if (data.containsKey('tag')) {
+      context.handle(
+        _tagMeta,
+        tag.isAcceptableOrUnknown(data['tag']!, _tagMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tagMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('score')) {
+      context.handle(
+        _scoreMeta,
+        score.isAcceptableOrUnknown(data['score']!, _scoreMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scoreMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {bodyId, tag};
+  @override
+  BodyGarmentTagRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BodyGarmentTagRow(
+      bodyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_id'],
+      )!,
+      tag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tag'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      score: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}score'],
+      )!,
+    );
+  }
+
+  @override
+  $BodyGarmentTagsTable createAlias(String alias) {
+    return $BodyGarmentTagsTable(attachedDatabase, alias);
+  }
+}
+
+class BodyGarmentTagRow extends DataClass
+    implements Insertable<BodyGarmentTagRow> {
+  final int bodyId;
+  final String tag;
+  final String category;
+  final double score;
+  const BodyGarmentTagRow({
+    required this.bodyId,
+    required this.tag,
+    required this.category,
+    required this.score,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['body_id'] = Variable<int>(bodyId);
+    map['tag'] = Variable<String>(tag);
+    map['category'] = Variable<String>(category);
+    map['score'] = Variable<double>(score);
+    return map;
+  }
+
+  BodyGarmentTagsCompanion toCompanion(bool nullToAbsent) {
+    return BodyGarmentTagsCompanion(
+      bodyId: Value(bodyId),
+      tag: Value(tag),
+      category: Value(category),
+      score: Value(score),
+    );
+  }
+
+  factory BodyGarmentTagRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BodyGarmentTagRow(
+      bodyId: serializer.fromJson<int>(json['bodyId']),
+      tag: serializer.fromJson<String>(json['tag']),
+      category: serializer.fromJson<String>(json['category']),
+      score: serializer.fromJson<double>(json['score']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bodyId': serializer.toJson<int>(bodyId),
+      'tag': serializer.toJson<String>(tag),
+      'category': serializer.toJson<String>(category),
+      'score': serializer.toJson<double>(score),
+    };
+  }
+
+  BodyGarmentTagRow copyWith({
+    int? bodyId,
+    String? tag,
+    String? category,
+    double? score,
+  }) => BodyGarmentTagRow(
+    bodyId: bodyId ?? this.bodyId,
+    tag: tag ?? this.tag,
+    category: category ?? this.category,
+    score: score ?? this.score,
+  );
+  BodyGarmentTagRow copyWithCompanion(BodyGarmentTagsCompanion data) {
+    return BodyGarmentTagRow(
+      bodyId: data.bodyId.present ? data.bodyId.value : this.bodyId,
+      tag: data.tag.present ? data.tag.value : this.tag,
+      category: data.category.present ? data.category.value : this.category,
+      score: data.score.present ? data.score.value : this.score,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyGarmentTagRow(')
+          ..write('bodyId: $bodyId, ')
+          ..write('tag: $tag, ')
+          ..write('category: $category, ')
+          ..write('score: $score')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(bodyId, tag, category, score);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BodyGarmentTagRow &&
+          other.bodyId == this.bodyId &&
+          other.tag == this.tag &&
+          other.category == this.category &&
+          other.score == this.score);
+}
+
+class BodyGarmentTagsCompanion extends UpdateCompanion<BodyGarmentTagRow> {
+  final Value<int> bodyId;
+  final Value<String> tag;
+  final Value<String> category;
+  final Value<double> score;
+  final Value<int> rowid;
+  const BodyGarmentTagsCompanion({
+    this.bodyId = const Value.absent(),
+    this.tag = const Value.absent(),
+    this.category = const Value.absent(),
+    this.score = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BodyGarmentTagsCompanion.insert({
+    required int bodyId,
+    required String tag,
+    required String category,
+    required double score,
+    this.rowid = const Value.absent(),
+  }) : bodyId = Value(bodyId),
+       tag = Value(tag),
+       category = Value(category),
+       score = Value(score);
+  static Insertable<BodyGarmentTagRow> custom({
+    Expression<int>? bodyId,
+    Expression<String>? tag,
+    Expression<String>? category,
+    Expression<double>? score,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (bodyId != null) 'body_id': bodyId,
+      if (tag != null) 'tag': tag,
+      if (category != null) 'category': category,
+      if (score != null) 'score': score,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BodyGarmentTagsCompanion copyWith({
+    Value<int>? bodyId,
+    Value<String>? tag,
+    Value<String>? category,
+    Value<double>? score,
+    Value<int>? rowid,
+  }) {
+    return BodyGarmentTagsCompanion(
+      bodyId: bodyId ?? this.bodyId,
+      tag: tag ?? this.tag,
+      category: category ?? this.category,
+      score: score ?? this.score,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bodyId.present) {
+      map['body_id'] = Variable<int>(bodyId.value);
+    }
+    if (tag.present) {
+      map['tag'] = Variable<String>(tag.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (score.present) {
+      map['score'] = Variable<double>(score.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyGarmentTagsCompanion(')
+          ..write('bodyId: $bodyId, ')
+          ..write('tag: $tag, ')
+          ..write('category: $category, ')
+          ..write('score: $score, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -14353,6 +19264,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $KindOverridesTable kindOverrides = $KindOverridesTable(this);
+  late final $BodyClustersTable bodyClusters = $BodyClustersTable(this);
   late final $BodiesTable bodies = $BodiesTable(this);
   late final $FaceRejectionsTable faceRejections = $FaceRejectionsTable(this);
   late final $BodyRejectionsTable bodyRejections = $BodyRejectionsTable(this);
@@ -14386,6 +19298,25 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CharacterIdentitiesTable characterIdentities =
       $CharacterIdentitiesTable(this);
   late final $CharacterSamplesTable characterSamples = $CharacterSamplesTable(
+    this,
+  );
+  late final $BodyMarksTable bodyMarks = $BodyMarksTable(this);
+  late final $BodyPoseFeaturesTable bodyPoseFeatures = $BodyPoseFeaturesTable(
+    this,
+  );
+  late final $PoseCategoriesTable poseCategories = $PoseCategoriesTable(this);
+  late final $OutfitCategoriesTable outfitCategories = $OutfitCategoriesTable(
+    this,
+  );
+  late final $BodyPoseMatchesTable bodyPoseMatches = $BodyPoseMatchesTable(
+    this,
+  );
+  late final $BodyOutfitMatchesTable bodyOutfitMatches =
+      $BodyOutfitMatchesTable(this);
+  late final $SensitiveRegionsTable sensitiveRegions = $SensitiveRegionsTable(
+    this,
+  );
+  late final $BodyGarmentTagsTable bodyGarmentTags = $BodyGarmentTagsTable(
     this,
   );
   late final Index mediaScanStatus = Index(
@@ -14456,6 +19387,34 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'character_samples_media',
     'CREATE INDEX character_samples_media ON character_samples (media_id)',
   );
+  late final Index bodyClustersPerson = Index(
+    'body_clusters_person',
+    'CREATE INDEX body_clusters_person ON body_clusters (person_id)',
+  );
+  late final Index bodyMarksPerson = Index(
+    'body_marks_person',
+    'CREATE INDEX body_marks_person ON body_marks (person_id)',
+  );
+  late final Index bodyPoseMatchesCat = Index(
+    'body_pose_matches_cat',
+    'CREATE INDEX body_pose_matches_cat ON body_pose_matches (category_id)',
+  );
+  late final Index bodyOutfitMatchesCat = Index(
+    'body_outfit_matches_cat',
+    'CREATE INDEX body_outfit_matches_cat ON body_outfit_matches (category_id)',
+  );
+  late final Index sensitiveRegionsMedia = Index(
+    'sensitive_regions_media',
+    'CREATE INDEX sensitive_regions_media ON sensitive_regions (media_id)',
+  );
+  late final Index sensitiveRegionsBody = Index(
+    'sensitive_regions_body',
+    'CREATE INDEX sensitive_regions_body ON sensitive_regions (body_id)',
+  );
+  late final Index bodyGarmentTagsTag = Index(
+    'body_garment_tags_tag',
+    'CREATE INDEX body_garment_tags_tag ON body_garment_tags (tag)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -14466,6 +19425,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     faces,
     faceSuppressions,
     kindOverrides,
+    bodyClusters,
     bodies,
     faceRejections,
     bodyRejections,
@@ -14490,6 +19450,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     jobEvents,
     characterIdentities,
     characterSamples,
+    bodyMarks,
+    bodyPoseFeatures,
+    poseCategories,
+    outfitCategories,
+    bodyPoseMatches,
+    bodyOutfitMatches,
+    sensitiveRegions,
+    bodyGarmentTags,
     mediaScanStatus,
     facesPersonId,
     facesMediaId,
@@ -14507,6 +19475,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     resultsCreatedAt,
     characterSamplesIdentity,
     characterSamplesMedia,
+    bodyClustersPerson,
+    bodyMarksPerson,
+    bodyPoseMatchesCat,
+    bodyOutfitMatchesCat,
+    sensitiveRegionsMedia,
+    sensitiveRegionsBody,
+    bodyGarmentTagsTag,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -14533,6 +19508,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_clusters', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
         'media',
         limitUpdateKind: UpdateKind.delete,
       ),
@@ -14548,6 +19530,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('bodies', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'body_clusters',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('bodies', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'body_clusters',
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('bodies', kind: UpdateKind.update)],
@@ -14720,6 +19716,97 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       ),
       result: [TableUpdate('character_samples', kind: UpdateKind.delete)],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_marks', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_marks', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_pose_features', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('pose_categories', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('outfit_categories', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('outfit_categories', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_pose_matches', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'pose_categories',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_pose_matches', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_outfit_matches', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'outfit_categories',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_outfit_matches', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'media',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('sensitive_regions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('sensitive_regions', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_garment_tags', kind: UpdateKind.delete)],
+    ),
   ]);
 }
 
@@ -14784,6 +19871,24 @@ final class $$PersonsTableReferences
     ).filter((f) => f.targetPersonId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_kindOverridesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BodyClustersTable, List<BodyClusterRow>>
+  _bodyClustersRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodyClusters,
+    aliasName: 'persons__id__body_clusters__person_id',
+  );
+
+  $$BodyClustersTableProcessedTableManager get bodyClustersRefs {
+    final manager = $$BodyClustersTableTableManager(
+      $_db,
+      $_db.bodyClusters,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_bodyClustersRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -15046,6 +20151,44 @@ final class $$PersonsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$BodyMarksTable, List<BodyMarkRow>>
+  _bodyMarksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodyMarks,
+    aliasName: 'persons__id__body_marks__person_id',
+  );
+
+  $$BodyMarksTableProcessedTableManager get bodyMarksRefs {
+    final manager = $$BodyMarksTableTableManager(
+      $_db,
+      $_db.bodyMarks,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_bodyMarksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$OutfitCategoriesTable, List<OutfitCategoryRow>>
+  _outfitCategoriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.outfitCategories,
+    aliasName: 'persons__id__outfit_categories__person_id',
+  );
+
+  $$OutfitCategoriesTableProcessedTableManager get outfitCategoriesRefs {
+    final manager = $$OutfitCategoriesTableTableManager(
+      $_db,
+      $_db.outfitCategories,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _outfitCategoriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$PersonsTableFilterComposer
@@ -15143,6 +20286,31 @@ class $$PersonsTableFilterComposer
           }) => $$KindOverridesTableFilterComposer(
             $db: $db,
             $table: $db.kindOverrides,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> bodyClustersRefs(
+    Expression<bool> Function($$BodyClustersTableFilterComposer f) f,
+  ) {
+    final $$BodyClustersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyClusters,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyClustersTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyClusters,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15501,6 +20669,56 @@ class $$PersonsTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> bodyMarksRefs(
+    Expression<bool> Function($$BodyMarksTableFilterComposer f) f,
+  ) {
+    final $$BodyMarksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyMarks,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyMarksTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyMarks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> outfitCategoriesRefs(
+    Expression<bool> Function($$OutfitCategoriesTableFilterComposer f) f,
+  ) {
+    final $$OutfitCategoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.outfitCategories,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OutfitCategoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.outfitCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PersonsTableOrderingComposer
@@ -15639,6 +20857,31 @@ class $$PersonsTableAnnotationComposer
           }) => $$KindOverridesTableAnnotationComposer(
             $db: $db,
             $table: $db.kindOverrides,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> bodyClustersRefs<T extends Object>(
+    Expression<T> Function($$BodyClustersTableAnnotationComposer a) f,
+  ) {
+    final $$BodyClustersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyClusters,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyClustersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyClusters,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -15997,6 +21240,56 @@ class $$PersonsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> bodyMarksRefs<T extends Object>(
+    Expression<T> Function($$BodyMarksTableAnnotationComposer a) f,
+  ) {
+    final $$BodyMarksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyMarks,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyMarksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyMarks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> outfitCategoriesRefs<T extends Object>(
+    Expression<T> Function($$OutfitCategoriesTableAnnotationComposer a) f,
+  ) {
+    final $$OutfitCategoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.outfitCategories,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OutfitCategoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.outfitCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PersonsTableTableManager
@@ -16015,6 +21308,7 @@ class $$PersonsTableTableManager
           PrefetchHooks Function({
             bool facesRefs,
             bool kindOverridesRefs,
+            bool bodyClustersRefs,
             bool bodiesRefs,
             bool faceRejectionsRefs,
             bool bodyRejectionsRefs,
@@ -16029,6 +21323,8 @@ class $$PersonsTableTableManager
             bool datasetsRefs,
             bool lorasRefs,
             bool identitySetsRefs,
+            bool bodyMarksRefs,
+            bool outfitCategoriesRefs,
           })
         > {
   $$PersonsTableTableManager(_$AppDatabase db, $PersonsTable table)
@@ -16098,6 +21394,7 @@ class $$PersonsTableTableManager
               ({
                 facesRefs = false,
                 kindOverridesRefs = false,
+                bodyClustersRefs = false,
                 bodiesRefs = false,
                 faceRejectionsRefs = false,
                 bodyRejectionsRefs = false,
@@ -16112,12 +21409,15 @@ class $$PersonsTableTableManager
                 datasetsRefs = false,
                 lorasRefs = false,
                 identitySetsRefs = false,
+                bodyMarksRefs = false,
+                outfitCategoriesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (facesRefs) db.faces,
                     if (kindOverridesRefs) db.kindOverrides,
+                    if (bodyClustersRefs) db.bodyClusters,
                     if (bodiesRefs) db.bodies,
                     if (faceRejectionsRefs) db.faceRejections,
                     if (bodyRejectionsRefs) db.bodyRejections,
@@ -16132,6 +21432,8 @@ class $$PersonsTableTableManager
                     if (datasetsRefs) db.datasets,
                     if (lorasRefs) db.loras,
                     if (identitySetsRefs) db.identitySets,
+                    if (bodyMarksRefs) db.bodyMarks,
+                    if (outfitCategoriesRefs) db.outfitCategories,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -16171,6 +21473,27 @@ class $$PersonsTableTableManager
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.targetPersonId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (bodyClustersRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          BodyClusterRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._bodyClustersRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).bodyClustersRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -16460,6 +21783,48 @@ class $$PersonsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (bodyMarksRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          BodyMarkRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._bodyMarksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).bodyMarksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (outfitCategoriesRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          OutfitCategoryRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._outfitCategoriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).outfitCategoriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -16483,6 +21848,7 @@ typedef $$PersonsTableProcessedTableManager =
       PrefetchHooks Function({
         bool facesRefs,
         bool kindOverridesRefs,
+        bool bodyClustersRefs,
         bool bodiesRefs,
         bool faceRejectionsRefs,
         bool bodyRejectionsRefs,
@@ -16497,6 +21863,8 @@ typedef $$PersonsTableProcessedTableManager =
         bool datasetsRefs,
         bool lorasRefs,
         bool identitySetsRefs,
+        bool bodyMarksRefs,
+        bool outfitCategoriesRefs,
       })
     >;
 typedef $$MediaTableCreateCompanionBuilder =
@@ -16517,6 +21885,11 @@ typedef $$MediaTableCreateCompanionBuilder =
       Value<int> scanAttempts,
       Value<String?> scanError,
       Value<bool> illustrated,
+      Value<String?> sensitiveOverride,
+      Value<bool> isSensitive,
+      Value<int> sensitiveVersion,
+      Value<int> bodyEmbeddingVersion,
+      Value<int> garmentVersion,
     });
 typedef $$MediaTableUpdateCompanionBuilder =
     MediaCompanion Function({
@@ -16536,6 +21909,11 @@ typedef $$MediaTableUpdateCompanionBuilder =
       Value<int> scanAttempts,
       Value<String?> scanError,
       Value<bool> illustrated,
+      Value<String?> sensitiveOverride,
+      Value<bool> isSensitive,
+      Value<int> sensitiveVersion,
+      Value<int> bodyEmbeddingVersion,
+      Value<int> garmentVersion,
     });
 
 final class $$MediaTableReferences
@@ -16614,6 +21992,26 @@ final class $$MediaTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _characterSamplesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SensitiveRegionsTable, List<SensitiveRegionRow>>
+  _sensitiveRegionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.sensitiveRegions,
+    aliasName: 'media__id__sensitive_regions__media_id',
+  );
+
+  $$SensitiveRegionsTableProcessedTableManager get sensitiveRegionsRefs {
+    final manager = $$SensitiveRegionsTableTableManager(
+      $_db,
+      $_db.sensitiveRegions,
+    ).filter((f) => f.mediaId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _sensitiveRegionsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -16706,6 +22104,31 @@ class $$MediaTableFilterComposer extends Composer<_$AppDatabase, $MediaTable> {
 
   ColumnFilters<bool> get illustrated => $composableBuilder(
     column: $table.illustrated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sensitiveOverride => $composableBuilder(
+    column: $table.sensitiveOverride,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isSensitive => $composableBuilder(
+    column: $table.isSensitive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sensitiveVersion => $composableBuilder(
+    column: $table.sensitiveVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bodyEmbeddingVersion => $composableBuilder(
+    column: $table.bodyEmbeddingVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get garmentVersion => $composableBuilder(
+    column: $table.garmentVersion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16808,6 +22231,31 @@ class $$MediaTableFilterComposer extends Composer<_$AppDatabase, $MediaTable> {
     );
     return f(composer);
   }
+
+  Expression<bool> sensitiveRegionsRefs(
+    Expression<bool> Function($$SensitiveRegionsTableFilterComposer f) f,
+  ) {
+    final $$SensitiveRegionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sensitiveRegions,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SensitiveRegionsTableFilterComposer(
+            $db: $db,
+            $table: $db.sensitiveRegions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MediaTableOrderingComposer
@@ -16898,6 +22346,31 @@ class $$MediaTableOrderingComposer
     column: $table.illustrated,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sensitiveOverride => $composableBuilder(
+    column: $table.sensitiveOverride,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isSensitive => $composableBuilder(
+    column: $table.isSensitive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sensitiveVersion => $composableBuilder(
+    column: $table.sensitiveVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bodyEmbeddingVersion => $composableBuilder(
+    column: $table.bodyEmbeddingVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get garmentVersion => $composableBuilder(
+    column: $table.garmentVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MediaTableAnnotationComposer
@@ -16968,6 +22441,31 @@ class $$MediaTableAnnotationComposer
 
   GeneratedColumn<bool> get illustrated => $composableBuilder(
     column: $table.illustrated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sensitiveOverride => $composableBuilder(
+    column: $table.sensitiveOverride,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isSensitive => $composableBuilder(
+    column: $table.isSensitive,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sensitiveVersion => $composableBuilder(
+    column: $table.sensitiveVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get bodyEmbeddingVersion => $composableBuilder(
+    column: $table.bodyEmbeddingVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get garmentVersion => $composableBuilder(
+    column: $table.garmentVersion,
     builder: (column) => column,
   );
 
@@ -17070,6 +22568,31 @@ class $$MediaTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> sensitiveRegionsRefs<T extends Object>(
+    Expression<T> Function($$SensitiveRegionsTableAnnotationComposer a) f,
+  ) {
+    final $$SensitiveRegionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sensitiveRegions,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SensitiveRegionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.sensitiveRegions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MediaTableTableManager
@@ -17090,6 +22613,7 @@ class $$MediaTableTableManager
             bool bodiesRefs,
             bool mediaDetectionsRefs,
             bool characterSamplesRefs,
+            bool sensitiveRegionsRefs,
           })
         > {
   $$MediaTableTableManager(_$AppDatabase db, $MediaTable table)
@@ -17121,6 +22645,11 @@ class $$MediaTableTableManager
                 Value<int> scanAttempts = const Value.absent(),
                 Value<String?> scanError = const Value.absent(),
                 Value<bool> illustrated = const Value.absent(),
+                Value<String?> sensitiveOverride = const Value.absent(),
+                Value<bool> isSensitive = const Value.absent(),
+                Value<int> sensitiveVersion = const Value.absent(),
+                Value<int> bodyEmbeddingVersion = const Value.absent(),
+                Value<int> garmentVersion = const Value.absent(),
               }) => MediaCompanion(
                 id: id,
                 assetId: assetId,
@@ -17138,6 +22667,11 @@ class $$MediaTableTableManager
                 scanAttempts: scanAttempts,
                 scanError: scanError,
                 illustrated: illustrated,
+                sensitiveOverride: sensitiveOverride,
+                isSensitive: isSensitive,
+                sensitiveVersion: sensitiveVersion,
+                bodyEmbeddingVersion: bodyEmbeddingVersion,
+                garmentVersion: garmentVersion,
               ),
           createCompanionCallback:
               ({
@@ -17157,6 +22691,11 @@ class $$MediaTableTableManager
                 Value<int> scanAttempts = const Value.absent(),
                 Value<String?> scanError = const Value.absent(),
                 Value<bool> illustrated = const Value.absent(),
+                Value<String?> sensitiveOverride = const Value.absent(),
+                Value<bool> isSensitive = const Value.absent(),
+                Value<int> sensitiveVersion = const Value.absent(),
+                Value<int> bodyEmbeddingVersion = const Value.absent(),
+                Value<int> garmentVersion = const Value.absent(),
               }) => MediaCompanion.insert(
                 id: id,
                 assetId: assetId,
@@ -17174,6 +22713,11 @@ class $$MediaTableTableManager
                 scanAttempts: scanAttempts,
                 scanError: scanError,
                 illustrated: illustrated,
+                sensitiveOverride: sensitiveOverride,
+                isSensitive: isSensitive,
+                sensitiveVersion: sensitiveVersion,
+                bodyEmbeddingVersion: bodyEmbeddingVersion,
+                garmentVersion: garmentVersion,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -17189,6 +22733,7 @@ class $$MediaTableTableManager
                 bodiesRefs = false,
                 mediaDetectionsRefs = false,
                 characterSamplesRefs = false,
+                sensitiveRegionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -17197,6 +22742,7 @@ class $$MediaTableTableManager
                     if (bodiesRefs) db.bodies,
                     if (mediaDetectionsRefs) db.mediaDetections,
                     if (characterSamplesRefs) db.characterSamples,
+                    if (sensitiveRegionsRefs) db.sensitiveRegions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -17277,6 +22823,27 @@ class $$MediaTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (sensitiveRegionsRefs)
+                        await $_getPrefetchedData<
+                          MediaRow,
+                          $MediaTable,
+                          SensitiveRegionRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MediaTableReferences
+                              ._sensitiveRegionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MediaTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).sensitiveRegionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.mediaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -17302,6 +22869,7 @@ typedef $$MediaTableProcessedTableManager =
         bool bodiesRefs,
         bool mediaDetectionsRefs,
         bool characterSamplesRefs,
+        bool sensitiveRegionsRefs,
       })
     >;
 typedef $$FacesTableCreateCompanionBuilder =
@@ -19162,6 +24730,559 @@ typedef $$KindOverridesTableProcessedTableManager =
       KindOverrideRow,
       PrefetchHooks Function({bool targetPersonId})
     >;
+typedef $$BodyClustersTableCreateCompanionBuilder =
+    BodyClustersCompanion Function({
+      Value<int> id,
+      Value<String> kind,
+      Value<int?> personId,
+      required String clusterType,
+      required Uint8List centroidEmbedding,
+      Value<int> bodyCount,
+      required int createdAt,
+    });
+typedef $$BodyClustersTableUpdateCompanionBuilder =
+    BodyClustersCompanion Function({
+      Value<int> id,
+      Value<String> kind,
+      Value<int?> personId,
+      Value<String> clusterType,
+      Value<Uint8List> centroidEmbedding,
+      Value<int> bodyCount,
+      Value<int> createdAt,
+    });
+
+final class $$BodyClustersTableReferences
+    extends BaseReferences<_$AppDatabase, $BodyClustersTable, BodyClusterRow> {
+  $$BodyClustersTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('body_clusters__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager? get personId {
+    final $_column = $_itemColumn<int>('person_id');
+    if ($_column == null) return null;
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$BodiesTable, List<BodyRow>>
+  _chestClusterBodiesTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodies,
+    aliasName: 'body_clusters__id__bodies__chest_cluster_id',
+  );
+
+  $$BodiesTableProcessedTableManager get chestClusterBodies {
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.chestClusterId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_chestClusterBodiesTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BodiesTable, List<BodyRow>>
+  _buttocksClusterBodiesTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.bodies,
+        aliasName: 'body_clusters__id__bodies__buttocks_cluster_id',
+      );
+
+  $$BodiesTableProcessedTableManager get buttocksClusterBodies {
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.buttocksClusterId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _buttocksClusterBodiesTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$BodyClustersTableFilterComposer
+    extends Composer<_$AppDatabase, $BodyClustersTable> {
+  $$BodyClustersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get clusterType => $composableBuilder(
+    column: $table.clusterType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get centroidEmbedding => $composableBuilder(
+    column: $table.centroidEmbedding,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bodyCount => $composableBuilder(
+    column: $table.bodyCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> chestClusterBodies(
+    Expression<bool> Function($$BodiesTableFilterComposer f) f,
+  ) {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.chestClusterId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> buttocksClusterBodies(
+    Expression<bool> Function($$BodiesTableFilterComposer f) f,
+  ) {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.buttocksClusterId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$BodyClustersTableOrderingComposer
+    extends Composer<_$AppDatabase, $BodyClustersTable> {
+  $$BodyClustersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get clusterType => $composableBuilder(
+    column: $table.clusterType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get centroidEmbedding => $composableBuilder(
+    column: $table.centroidEmbedding,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bodyCount => $composableBuilder(
+    column: $table.bodyCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyClustersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BodyClustersTable> {
+  $$BodyClustersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get clusterType => $composableBuilder(
+    column: $table.clusterType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<Uint8List> get centroidEmbedding => $composableBuilder(
+    column: $table.centroidEmbedding,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get bodyCount =>
+      $composableBuilder(column: $table.bodyCount, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> chestClusterBodies<T extends Object>(
+    Expression<T> Function($$BodiesTableAnnotationComposer a) f,
+  ) {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.chestClusterId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> buttocksClusterBodies<T extends Object>(
+    Expression<T> Function($$BodiesTableAnnotationComposer a) f,
+  ) {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.buttocksClusterId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$BodyClustersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BodyClustersTable,
+          BodyClusterRow,
+          $$BodyClustersTableFilterComposer,
+          $$BodyClustersTableOrderingComposer,
+          $$BodyClustersTableAnnotationComposer,
+          $$BodyClustersTableCreateCompanionBuilder,
+          $$BodyClustersTableUpdateCompanionBuilder,
+          (BodyClusterRow, $$BodyClustersTableReferences),
+          BodyClusterRow,
+          PrefetchHooks Function({
+            bool personId,
+            bool chestClusterBodies,
+            bool buttocksClusterBodies,
+          })
+        > {
+  $$BodyClustersTableTableManager(_$AppDatabase db, $BodyClustersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BodyClustersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BodyClustersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BodyClustersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                Value<String> clusterType = const Value.absent(),
+                Value<Uint8List> centroidEmbedding = const Value.absent(),
+                Value<int> bodyCount = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => BodyClustersCompanion(
+                id: id,
+                kind: kind,
+                personId: personId,
+                clusterType: clusterType,
+                centroidEmbedding: centroidEmbedding,
+                bodyCount: bodyCount,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                required String clusterType,
+                required Uint8List centroidEmbedding,
+                Value<int> bodyCount = const Value.absent(),
+                required int createdAt,
+              }) => BodyClustersCompanion.insert(
+                id: id,
+                kind: kind,
+                personId: personId,
+                clusterType: clusterType,
+                centroidEmbedding: centroidEmbedding,
+                bodyCount: bodyCount,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BodyClustersTable, BodyClusterRow>(table),
+                  $$BodyClustersTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                personId = false,
+                chestClusterBodies = false,
+                buttocksClusterBodies = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (chestClusterBodies) db.bodies,
+                    if (buttocksClusterBodies) db.bodies,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (personId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.personId,
+                                    referencedTable:
+                                        $$BodyClustersTableReferences
+                                            ._personIdTable(db),
+                                    referencedColumn:
+                                        $$BodyClustersTableReferences
+                                            ._personIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (chestClusterBodies)
+                        await $_getPrefetchedData<
+                          BodyClusterRow,
+                          $BodyClustersTable,
+                          BodyRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodyClustersTableReferences
+                              ._chestClusterBodiesTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodyClustersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).chestClusterBodies,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.chestClusterId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (buttocksClusterBodies)
+                        await $_getPrefetchedData<
+                          BodyClusterRow,
+                          $BodyClustersTable,
+                          BodyRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodyClustersTableReferences
+                              ._buttocksClusterBodiesTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodyClustersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).buttocksClusterBodies,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.buttocksClusterId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$BodyClustersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BodyClustersTable,
+      BodyClusterRow,
+      $$BodyClustersTableFilterComposer,
+      $$BodyClustersTableOrderingComposer,
+      $$BodyClustersTableAnnotationComposer,
+      $$BodyClustersTableCreateCompanionBuilder,
+      $$BodyClustersTableUpdateCompanionBuilder,
+      (BodyClusterRow, $$BodyClustersTableReferences),
+      BodyClusterRow,
+      PrefetchHooks Function({
+        bool personId,
+        bool chestClusterBodies,
+        bool buttocksClusterBodies,
+      })
+    >;
 typedef $$BodiesTableCreateCompanionBuilder =
     BodiesCompanion Function({
       Value<int> id,
@@ -19186,6 +25307,11 @@ typedef $$BodiesTableCreateCompanionBuilder =
       required int createdAt,
       Value<int?> trackId,
       Value<String> kind,
+      Value<Uint8List?> chestEmbedding,
+      Value<Uint8List?> buttocksEmbedding,
+      Value<int?> chestClusterId,
+      Value<int?> buttocksClusterId,
+      Value<String?> morphology,
     });
 typedef $$BodiesTableUpdateCompanionBuilder =
     BodiesCompanion Function({
@@ -19211,6 +25337,11 @@ typedef $$BodiesTableUpdateCompanionBuilder =
       Value<int> createdAt,
       Value<int?> trackId,
       Value<String> kind,
+      Value<Uint8List?> chestEmbedding,
+      Value<Uint8List?> buttocksEmbedding,
+      Value<int?> chestClusterId,
+      Value<int?> buttocksClusterId,
+      Value<String?> morphology,
     });
 
 final class $$BodiesTableReferences
@@ -19268,6 +25399,42 @@ final class $$BodiesTableReferences
     );
   }
 
+  static $BodyClustersTable _chestClusterIdTable(_$AppDatabase db) => db
+      .bodyClusters
+      .createAlias('bodies__chest_cluster_id__body_clusters__id');
+
+  $$BodyClustersTableProcessedTableManager? get chestClusterId {
+    final $_column = $_itemColumn<int>('chest_cluster_id');
+    if ($_column == null) return null;
+    final manager = $$BodyClustersTableTableManager(
+      $_db,
+      $_db.bodyClusters,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_chestClusterIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $BodyClustersTable _buttocksClusterIdTable(_$AppDatabase db) => db
+      .bodyClusters
+      .createAlias('bodies__buttocks_cluster_id__body_clusters__id');
+
+  $$BodyClustersTableProcessedTableManager? get buttocksClusterId {
+    final $_column = $_itemColumn<int>('buttocks_cluster_id');
+    if ($_column == null) return null;
+    final manager = $$BodyClustersTableTableManager(
+      $_db,
+      $_db.bodyClusters,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_buttocksClusterIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
   static MultiTypedResultKey<$BodyRejectionsTable, List<BodyRejectionRow>>
   _bodyRejectionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.bodyRejections,
@@ -19300,6 +25467,163 @@ final class $$BodiesTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _reviewBodyLinksRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BodyMarksTable, List<BodyMarkRow>>
+  _bodyMarksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodyMarks,
+    aliasName: 'bodies__id__body_marks__source_body_id',
+  );
+
+  $$BodyMarksTableProcessedTableManager get bodyMarksRefs {
+    final manager = $$BodyMarksTableTableManager(
+      $_db,
+      $_db.bodyMarks,
+    ).filter((f) => f.sourceBodyId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_bodyMarksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BodyPoseFeaturesTable, List<BodyPoseFeatureRow>>
+  _bodyPoseFeaturesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodyPoseFeatures,
+    aliasName: 'bodies__id__body_pose_features__body_id',
+  );
+
+  $$BodyPoseFeaturesTableProcessedTableManager get bodyPoseFeaturesRefs {
+    final manager = $$BodyPoseFeaturesTableTableManager(
+      $_db,
+      $_db.bodyPoseFeatures,
+    ).filter((f) => f.bodyId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _bodyPoseFeaturesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PoseCategoriesTable, List<PoseCategoryRow>>
+  _poseCategoriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.poseCategories,
+    aliasName: 'bodies__id__pose_categories__exemplar_body_id',
+  );
+
+  $$PoseCategoriesTableProcessedTableManager get poseCategoriesRefs {
+    final manager = $$PoseCategoriesTableTableManager(
+      $_db,
+      $_db.poseCategories,
+    ).filter((f) => f.exemplarBodyId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_poseCategoriesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$OutfitCategoriesTable, List<OutfitCategoryRow>>
+  _outfitCategoriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.outfitCategories,
+    aliasName: 'bodies__id__outfit_categories__exemplar_body_id',
+  );
+
+  $$OutfitCategoriesTableProcessedTableManager get outfitCategoriesRefs {
+    final manager = $$OutfitCategoriesTableTableManager(
+      $_db,
+      $_db.outfitCategories,
+    ).filter((f) => f.exemplarBodyId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _outfitCategoriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BodyPoseMatchesTable, List<BodyPoseMatchRow>>
+  _bodyPoseMatchesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodyPoseMatches,
+    aliasName: 'bodies__id__body_pose_matches__body_id',
+  );
+
+  $$BodyPoseMatchesTableProcessedTableManager get bodyPoseMatchesRefs {
+    final manager = $$BodyPoseMatchesTableTableManager(
+      $_db,
+      $_db.bodyPoseMatches,
+    ).filter((f) => f.bodyId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _bodyPoseMatchesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BodyOutfitMatchesTable, List<BodyOutfitMatchRow>>
+  _bodyOutfitMatchesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.bodyOutfitMatches,
+        aliasName: 'bodies__id__body_outfit_matches__body_id',
+      );
+
+  $$BodyOutfitMatchesTableProcessedTableManager get bodyOutfitMatchesRefs {
+    final manager = $$BodyOutfitMatchesTableTableManager(
+      $_db,
+      $_db.bodyOutfitMatches,
+    ).filter((f) => f.bodyId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _bodyOutfitMatchesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SensitiveRegionsTable, List<SensitiveRegionRow>>
+  _sensitiveRegionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.sensitiveRegions,
+    aliasName: 'bodies__id__sensitive_regions__body_id',
+  );
+
+  $$SensitiveRegionsTableProcessedTableManager get sensitiveRegionsRefs {
+    final manager = $$SensitiveRegionsTableTableManager(
+      $_db,
+      $_db.sensitiveRegions,
+    ).filter((f) => f.bodyId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _sensitiveRegionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BodyGarmentTagsTable, List<BodyGarmentTagRow>>
+  _bodyGarmentTagsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodyGarmentTags,
+    aliasName: 'bodies__id__body_garment_tags__body_id',
+  );
+
+  $$BodyGarmentTagsTableProcessedTableManager get bodyGarmentTagsRefs {
+    final manager = $$BodyGarmentTagsTableTableManager(
+      $_db,
+      $_db.bodyGarmentTags,
+    ).filter((f) => f.bodyId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _bodyGarmentTagsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -19411,6 +25735,21 @@ class $$BodiesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<Uint8List> get chestEmbedding => $composableBuilder(
+    column: $table.chestEmbedding,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get buttocksEmbedding => $composableBuilder(
+    column: $table.buttocksEmbedding,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get morphology => $composableBuilder(
+    column: $table.morphology,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$MediaTableFilterComposer get mediaId {
     final $$MediaTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -19480,6 +25819,52 @@ class $$BodiesTableFilterComposer
     return composer;
   }
 
+  $$BodyClustersTableFilterComposer get chestClusterId {
+    final $$BodyClustersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.chestClusterId,
+      referencedTable: $db.bodyClusters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyClustersTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyClusters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodyClustersTableFilterComposer get buttocksClusterId {
+    final $$BodyClustersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.buttocksClusterId,
+      referencedTable: $db.bodyClusters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyClustersTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyClusters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<bool> bodyRejectionsRefs(
     Expression<bool> Function($$BodyRejectionsTableFilterComposer f) f,
   ) {
@@ -19521,6 +25906,206 @@ class $$BodiesTableFilterComposer
           }) => $$ReviewBodyLinksTableFilterComposer(
             $db: $db,
             $table: $db.reviewBodyLinks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> bodyMarksRefs(
+    Expression<bool> Function($$BodyMarksTableFilterComposer f) f,
+  ) {
+    final $$BodyMarksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyMarks,
+      getReferencedColumn: (t) => t.sourceBodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyMarksTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyMarks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> bodyPoseFeaturesRefs(
+    Expression<bool> Function($$BodyPoseFeaturesTableFilterComposer f) f,
+  ) {
+    final $$BodyPoseFeaturesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyPoseFeatures,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyPoseFeaturesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyPoseFeatures,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> poseCategoriesRefs(
+    Expression<bool> Function($$PoseCategoriesTableFilterComposer f) f,
+  ) {
+    final $$PoseCategoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.poseCategories,
+      getReferencedColumn: (t) => t.exemplarBodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PoseCategoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.poseCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> outfitCategoriesRefs(
+    Expression<bool> Function($$OutfitCategoriesTableFilterComposer f) f,
+  ) {
+    final $$OutfitCategoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.outfitCategories,
+      getReferencedColumn: (t) => t.exemplarBodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OutfitCategoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.outfitCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> bodyPoseMatchesRefs(
+    Expression<bool> Function($$BodyPoseMatchesTableFilterComposer f) f,
+  ) {
+    final $$BodyPoseMatchesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyPoseMatches,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyPoseMatchesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyPoseMatches,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> bodyOutfitMatchesRefs(
+    Expression<bool> Function($$BodyOutfitMatchesTableFilterComposer f) f,
+  ) {
+    final $$BodyOutfitMatchesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyOutfitMatches,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyOutfitMatchesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyOutfitMatches,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> sensitiveRegionsRefs(
+    Expression<bool> Function($$SensitiveRegionsTableFilterComposer f) f,
+  ) {
+    final $$SensitiveRegionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sensitiveRegions,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SensitiveRegionsTableFilterComposer(
+            $db: $db,
+            $table: $db.sensitiveRegions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> bodyGarmentTagsRefs(
+    Expression<bool> Function($$BodyGarmentTagsTableFilterComposer f) f,
+  ) {
+    final $$BodyGarmentTagsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyGarmentTags,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyGarmentTagsTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyGarmentTags,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19635,6 +26220,21 @@ class $$BodiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<Uint8List> get chestEmbedding => $composableBuilder(
+    column: $table.chestEmbedding,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get buttocksEmbedding => $composableBuilder(
+    column: $table.buttocksEmbedding,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get morphology => $composableBuilder(
+    column: $table.morphology,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MediaTableOrderingComposer get mediaId {
     final $$MediaTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -19695,6 +26295,52 @@ class $$BodiesTableOrderingComposer
           }) => $$PersonsTableOrderingComposer(
             $db: $db,
             $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodyClustersTableOrderingComposer get chestClusterId {
+    final $$BodyClustersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.chestClusterId,
+      referencedTable: $db.bodyClusters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyClustersTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodyClusters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodyClustersTableOrderingComposer get buttocksClusterId {
+    final $$BodyClustersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.buttocksClusterId,
+      referencedTable: $db.bodyClusters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyClustersTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodyClusters,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -19785,6 +26431,21 @@ class $$BodiesTableAnnotationComposer
   GeneratedColumn<String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
 
+  GeneratedColumn<Uint8List> get chestEmbedding => $composableBuilder(
+    column: $table.chestEmbedding,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<Uint8List> get buttocksEmbedding => $composableBuilder(
+    column: $table.buttocksEmbedding,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get morphology => $composableBuilder(
+    column: $table.morphology,
+    builder: (column) => column,
+  );
+
   $$MediaTableAnnotationComposer get mediaId {
     final $$MediaTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -19854,6 +26515,52 @@ class $$BodiesTableAnnotationComposer
     return composer;
   }
 
+  $$BodyClustersTableAnnotationComposer get chestClusterId {
+    final $$BodyClustersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.chestClusterId,
+      referencedTable: $db.bodyClusters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyClustersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyClusters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodyClustersTableAnnotationComposer get buttocksClusterId {
+    final $$BodyClustersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.buttocksClusterId,
+      referencedTable: $db.bodyClusters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyClustersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyClusters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   Expression<T> bodyRejectionsRefs<T extends Object>(
     Expression<T> Function($$BodyRejectionsTableAnnotationComposer a) f,
   ) {
@@ -19903,6 +26610,207 @@ class $$BodiesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> bodyMarksRefs<T extends Object>(
+    Expression<T> Function($$BodyMarksTableAnnotationComposer a) f,
+  ) {
+    final $$BodyMarksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyMarks,
+      getReferencedColumn: (t) => t.sourceBodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyMarksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyMarks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> bodyPoseFeaturesRefs<T extends Object>(
+    Expression<T> Function($$BodyPoseFeaturesTableAnnotationComposer a) f,
+  ) {
+    final $$BodyPoseFeaturesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyPoseFeatures,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyPoseFeaturesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyPoseFeatures,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> poseCategoriesRefs<T extends Object>(
+    Expression<T> Function($$PoseCategoriesTableAnnotationComposer a) f,
+  ) {
+    final $$PoseCategoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.poseCategories,
+      getReferencedColumn: (t) => t.exemplarBodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PoseCategoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.poseCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> outfitCategoriesRefs<T extends Object>(
+    Expression<T> Function($$OutfitCategoriesTableAnnotationComposer a) f,
+  ) {
+    final $$OutfitCategoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.outfitCategories,
+      getReferencedColumn: (t) => t.exemplarBodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OutfitCategoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.outfitCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> bodyPoseMatchesRefs<T extends Object>(
+    Expression<T> Function($$BodyPoseMatchesTableAnnotationComposer a) f,
+  ) {
+    final $$BodyPoseMatchesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyPoseMatches,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyPoseMatchesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyPoseMatches,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> bodyOutfitMatchesRefs<T extends Object>(
+    Expression<T> Function($$BodyOutfitMatchesTableAnnotationComposer a) f,
+  ) {
+    final $$BodyOutfitMatchesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.bodyOutfitMatches,
+          getReferencedColumn: (t) => t.bodyId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$BodyOutfitMatchesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.bodyOutfitMatches,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> sensitiveRegionsRefs<T extends Object>(
+    Expression<T> Function($$SensitiveRegionsTableAnnotationComposer a) f,
+  ) {
+    final $$SensitiveRegionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sensitiveRegions,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SensitiveRegionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.sensitiveRegions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> bodyGarmentTagsRefs<T extends Object>(
+    Expression<T> Function($$BodyGarmentTagsTableAnnotationComposer a) f,
+  ) {
+    final $$BodyGarmentTagsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyGarmentTags,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyGarmentTagsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyGarmentTags,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$BodiesTableTableManager
@@ -19922,8 +26830,18 @@ class $$BodiesTableTableManager
             bool mediaId,
             bool faceId,
             bool personId,
+            bool chestClusterId,
+            bool buttocksClusterId,
             bool bodyRejectionsRefs,
             bool reviewBodyLinksRefs,
+            bool bodyMarksRefs,
+            bool bodyPoseFeaturesRefs,
+            bool poseCategoriesRefs,
+            bool outfitCategoriesRefs,
+            bool bodyPoseMatchesRefs,
+            bool bodyOutfitMatchesRefs,
+            bool sensitiveRegionsRefs,
+            bool bodyGarmentTagsRefs,
           })
         > {
   $$BodiesTableTableManager(_$AppDatabase db, $BodiesTable table)
@@ -19961,6 +26879,11 @@ class $$BodiesTableTableManager
                 Value<int> createdAt = const Value.absent(),
                 Value<int?> trackId = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<Uint8List?> chestEmbedding = const Value.absent(),
+                Value<Uint8List?> buttocksEmbedding = const Value.absent(),
+                Value<int?> chestClusterId = const Value.absent(),
+                Value<int?> buttocksClusterId = const Value.absent(),
+                Value<String?> morphology = const Value.absent(),
               }) => BodiesCompanion(
                 id: id,
                 mediaId: mediaId,
@@ -19984,6 +26907,11 @@ class $$BodiesTableTableManager
                 createdAt: createdAt,
                 trackId: trackId,
                 kind: kind,
+                chestEmbedding: chestEmbedding,
+                buttocksEmbedding: buttocksEmbedding,
+                chestClusterId: chestClusterId,
+                buttocksClusterId: buttocksClusterId,
+                morphology: morphology,
               ),
           createCompanionCallback:
               ({
@@ -20009,6 +26937,11 @@ class $$BodiesTableTableManager
                 required int createdAt,
                 Value<int?> trackId = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<Uint8List?> chestEmbedding = const Value.absent(),
+                Value<Uint8List?> buttocksEmbedding = const Value.absent(),
+                Value<int?> chestClusterId = const Value.absent(),
+                Value<int?> buttocksClusterId = const Value.absent(),
+                Value<String?> morphology = const Value.absent(),
               }) => BodiesCompanion.insert(
                 id: id,
                 mediaId: mediaId,
@@ -20032,6 +26965,11 @@ class $$BodiesTableTableManager
                 createdAt: createdAt,
                 trackId: trackId,
                 kind: kind,
+                chestEmbedding: chestEmbedding,
+                buttocksEmbedding: buttocksEmbedding,
+                chestClusterId: chestClusterId,
+                buttocksClusterId: buttocksClusterId,
+                morphology: morphology,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -20046,14 +26984,32 @@ class $$BodiesTableTableManager
                 mediaId = false,
                 faceId = false,
                 personId = false,
+                chestClusterId = false,
+                buttocksClusterId = false,
                 bodyRejectionsRefs = false,
                 reviewBodyLinksRefs = false,
+                bodyMarksRefs = false,
+                bodyPoseFeaturesRefs = false,
+                poseCategoriesRefs = false,
+                outfitCategoriesRefs = false,
+                bodyPoseMatchesRefs = false,
+                bodyOutfitMatchesRefs = false,
+                sensitiveRegionsRefs = false,
+                bodyGarmentTagsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (bodyRejectionsRefs) db.bodyRejections,
                     if (reviewBodyLinksRefs) db.reviewBodyLinks,
+                    if (bodyMarksRefs) db.bodyMarks,
+                    if (bodyPoseFeaturesRefs) db.bodyPoseFeatures,
+                    if (poseCategoriesRefs) db.poseCategories,
+                    if (outfitCategoriesRefs) db.outfitCategories,
+                    if (bodyPoseMatchesRefs) db.bodyPoseMatches,
+                    if (bodyOutfitMatchesRefs) db.bodyOutfitMatches,
+                    if (sensitiveRegionsRefs) db.sensitiveRegions,
+                    if (bodyGarmentTagsRefs) db.bodyGarmentTags,
                   ],
                   addJoins:
                       <
@@ -20110,6 +27066,32 @@ class $$BodiesTableTableManager
                                   )
                                   as T;
                         }
+                        if (chestClusterId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.chestClusterId,
+                                    referencedTable: $$BodiesTableReferences
+                                        ._chestClusterIdTable(db),
+                                    referencedColumn: $$BodiesTableReferences
+                                        ._chestClusterIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (buttocksClusterId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.buttocksClusterId,
+                                    referencedTable: $$BodiesTableReferences
+                                        ._buttocksClusterIdTable(db),
+                                    referencedColumn: $$BodiesTableReferences
+                                        ._buttocksClusterIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
 
                         return state;
                       },
@@ -20157,6 +27139,174 @@ class $$BodiesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (bodyMarksRefs)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          BodyMarkRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._bodyMarksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).bodyMarksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sourceBodyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (bodyPoseFeaturesRefs)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          BodyPoseFeatureRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._bodyPoseFeaturesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).bodyPoseFeaturesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.bodyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (poseCategoriesRefs)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          PoseCategoryRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._poseCategoriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).poseCategoriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.exemplarBodyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (outfitCategoriesRefs)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          OutfitCategoryRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._outfitCategoriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).outfitCategoriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.exemplarBodyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (bodyPoseMatchesRefs)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          BodyPoseMatchRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._bodyPoseMatchesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).bodyPoseMatchesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.bodyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (bodyOutfitMatchesRefs)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          BodyOutfitMatchRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._bodyOutfitMatchesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).bodyOutfitMatchesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.bodyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (sensitiveRegionsRefs)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          SensitiveRegionRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._sensitiveRegionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).sensitiveRegionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.bodyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (bodyGarmentTagsRefs)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          BodyGarmentTagRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._bodyGarmentTagsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).bodyGarmentTagsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.bodyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -20181,8 +27331,18 @@ typedef $$BodiesTableProcessedTableManager =
         bool mediaId,
         bool faceId,
         bool personId,
+        bool chestClusterId,
+        bool buttocksClusterId,
         bool bodyRejectionsRefs,
         bool reviewBodyLinksRefs,
+        bool bodyMarksRefs,
+        bool bodyPoseFeaturesRefs,
+        bool poseCategoriesRefs,
+        bool outfitCategoriesRefs,
+        bool bodyPoseMatchesRefs,
+        bool bodyOutfitMatchesRefs,
+        bool sensitiveRegionsRefs,
+        bool bodyGarmentTagsRefs,
       })
     >;
 typedef $$FaceRejectionsTableCreateCompanionBuilder =
@@ -28230,6 +35390,3634 @@ typedef $$CharacterSamplesTableProcessedTableManager =
       CharacterSampleRow,
       PrefetchHooks Function({bool identityId, bool mediaId})
     >;
+typedef $$BodyMarksTableCreateCompanionBuilder =
+    BodyMarksCompanion Function({
+      Value<int> id,
+      required int personId,
+      Value<int?> sourceBodyId,
+      required String segment,
+      required String anchor,
+      required String patchPath,
+      Value<String?> label,
+      required int createdAt,
+    });
+typedef $$BodyMarksTableUpdateCompanionBuilder =
+    BodyMarksCompanion Function({
+      Value<int> id,
+      Value<int> personId,
+      Value<int?> sourceBodyId,
+      Value<String> segment,
+      Value<String> anchor,
+      Value<String> patchPath,
+      Value<String?> label,
+      Value<int> createdAt,
+    });
+
+final class $$BodyMarksTableReferences
+    extends BaseReferences<_$AppDatabase, $BodyMarksTable, BodyMarkRow> {
+  $$BodyMarksTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('body_marks__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager get personId {
+    final $_column = $_itemColumn<int>('person_id')!;
+
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $BodiesTable _sourceBodyIdTable(_$AppDatabase db) =>
+      db.bodies.createAlias('body_marks__source_body_id__bodies__id');
+
+  $$BodiesTableProcessedTableManager? get sourceBodyId {
+    final $_column = $_itemColumn<int>('source_body_id');
+    if ($_column == null) return null;
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sourceBodyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$BodyMarksTableFilterComposer
+    extends Composer<_$AppDatabase, $BodyMarksTable> {
+  $$BodyMarksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get segment => $composableBuilder(
+    column: $table.segment,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get anchor => $composableBuilder(
+    column: $table.anchor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get patchPath => $composableBuilder(
+    column: $table.patchPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableFilterComposer get sourceBodyId {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceBodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyMarksTableOrderingComposer
+    extends Composer<_$AppDatabase, $BodyMarksTable> {
+  $$BodyMarksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get segment => $composableBuilder(
+    column: $table.segment,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get anchor => $composableBuilder(
+    column: $table.anchor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get patchPath => $composableBuilder(
+    column: $table.patchPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableOrderingComposer get sourceBodyId {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceBodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyMarksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BodyMarksTable> {
+  $$BodyMarksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get segment =>
+      $composableBuilder(column: $table.segment, builder: (column) => column);
+
+  GeneratedColumn<String> get anchor =>
+      $composableBuilder(column: $table.anchor, builder: (column) => column);
+
+  GeneratedColumn<String> get patchPath =>
+      $composableBuilder(column: $table.patchPath, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableAnnotationComposer get sourceBodyId {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceBodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyMarksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BodyMarksTable,
+          BodyMarkRow,
+          $$BodyMarksTableFilterComposer,
+          $$BodyMarksTableOrderingComposer,
+          $$BodyMarksTableAnnotationComposer,
+          $$BodyMarksTableCreateCompanionBuilder,
+          $$BodyMarksTableUpdateCompanionBuilder,
+          (BodyMarkRow, $$BodyMarksTableReferences),
+          BodyMarkRow,
+          PrefetchHooks Function({bool personId, bool sourceBodyId})
+        > {
+  $$BodyMarksTableTableManager(_$AppDatabase db, $BodyMarksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BodyMarksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BodyMarksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BodyMarksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> personId = const Value.absent(),
+                Value<int?> sourceBodyId = const Value.absent(),
+                Value<String> segment = const Value.absent(),
+                Value<String> anchor = const Value.absent(),
+                Value<String> patchPath = const Value.absent(),
+                Value<String?> label = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => BodyMarksCompanion(
+                id: id,
+                personId: personId,
+                sourceBodyId: sourceBodyId,
+                segment: segment,
+                anchor: anchor,
+                patchPath: patchPath,
+                label: label,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int personId,
+                Value<int?> sourceBodyId = const Value.absent(),
+                required String segment,
+                required String anchor,
+                required String patchPath,
+                Value<String?> label = const Value.absent(),
+                required int createdAt,
+              }) => BodyMarksCompanion.insert(
+                id: id,
+                personId: personId,
+                sourceBodyId: sourceBodyId,
+                segment: segment,
+                anchor: anchor,
+                patchPath: patchPath,
+                label: label,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BodyMarksTable, BodyMarkRow>(table),
+                  $$BodyMarksTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({personId = false, sourceBodyId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (personId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.personId,
+                                referencedTable: $$BodyMarksTableReferences
+                                    ._personIdTable(db),
+                                referencedColumn: $$BodyMarksTableReferences
+                                    ._personIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (sourceBodyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.sourceBodyId,
+                                referencedTable: $$BodyMarksTableReferences
+                                    ._sourceBodyIdTable(db),
+                                referencedColumn: $$BodyMarksTableReferences
+                                    ._sourceBodyIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$BodyMarksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BodyMarksTable,
+      BodyMarkRow,
+      $$BodyMarksTableFilterComposer,
+      $$BodyMarksTableOrderingComposer,
+      $$BodyMarksTableAnnotationComposer,
+      $$BodyMarksTableCreateCompanionBuilder,
+      $$BodyMarksTableUpdateCompanionBuilder,
+      (BodyMarkRow, $$BodyMarksTableReferences),
+      BodyMarkRow,
+      PrefetchHooks Function({bool personId, bool sourceBodyId})
+    >;
+typedef $$BodyPoseFeaturesTableCreateCompanionBuilder =
+    BodyPoseFeaturesCompanion Function({
+      Value<int> bodyId,
+      required int version,
+      required Uint8List feature,
+      required int visibleMask,
+      required String scaleSource,
+      Value<String> tags,
+    });
+typedef $$BodyPoseFeaturesTableUpdateCompanionBuilder =
+    BodyPoseFeaturesCompanion Function({
+      Value<int> bodyId,
+      Value<int> version,
+      Value<Uint8List> feature,
+      Value<int> visibleMask,
+      Value<String> scaleSource,
+      Value<String> tags,
+    });
+
+final class $$BodyPoseFeaturesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $BodyPoseFeaturesTable,
+          BodyPoseFeatureRow
+        > {
+  $$BodyPoseFeaturesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $BodiesTable _bodyIdTable(_$AppDatabase db) =>
+      db.bodies.createAlias('body_pose_features__body_id__bodies__id');
+
+  $$BodiesTableProcessedTableManager get bodyId {
+    final $_column = $_itemColumn<int>('body_id')!;
+
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bodyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$BodyPoseFeaturesTableFilterComposer
+    extends Composer<_$AppDatabase, $BodyPoseFeaturesTable> {
+  $$BodyPoseFeaturesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get feature => $composableBuilder(
+    column: $table.feature,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get visibleMask => $composableBuilder(
+    column: $table.visibleMask,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scaleSource => $composableBuilder(
+    column: $table.scaleSource,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$BodiesTableFilterComposer get bodyId {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyPoseFeaturesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BodyPoseFeaturesTable> {
+  $$BodyPoseFeaturesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get feature => $composableBuilder(
+    column: $table.feature,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get visibleMask => $composableBuilder(
+    column: $table.visibleMask,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scaleSource => $composableBuilder(
+    column: $table.scaleSource,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$BodiesTableOrderingComposer get bodyId {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyPoseFeaturesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BodyPoseFeaturesTable> {
+  $$BodyPoseFeaturesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get feature =>
+      $composableBuilder(column: $table.feature, builder: (column) => column);
+
+  GeneratedColumn<int> get visibleMask => $composableBuilder(
+    column: $table.visibleMask,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get scaleSource => $composableBuilder(
+    column: $table.scaleSource,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tags =>
+      $composableBuilder(column: $table.tags, builder: (column) => column);
+
+  $$BodiesTableAnnotationComposer get bodyId {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyPoseFeaturesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BodyPoseFeaturesTable,
+          BodyPoseFeatureRow,
+          $$BodyPoseFeaturesTableFilterComposer,
+          $$BodyPoseFeaturesTableOrderingComposer,
+          $$BodyPoseFeaturesTableAnnotationComposer,
+          $$BodyPoseFeaturesTableCreateCompanionBuilder,
+          $$BodyPoseFeaturesTableUpdateCompanionBuilder,
+          (BodyPoseFeatureRow, $$BodyPoseFeaturesTableReferences),
+          BodyPoseFeatureRow,
+          PrefetchHooks Function({bool bodyId})
+        > {
+  $$BodyPoseFeaturesTableTableManager(
+    _$AppDatabase db,
+    $BodyPoseFeaturesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BodyPoseFeaturesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BodyPoseFeaturesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BodyPoseFeaturesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> bodyId = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                Value<Uint8List> feature = const Value.absent(),
+                Value<int> visibleMask = const Value.absent(),
+                Value<String> scaleSource = const Value.absent(),
+                Value<String> tags = const Value.absent(),
+              }) => BodyPoseFeaturesCompanion(
+                bodyId: bodyId,
+                version: version,
+                feature: feature,
+                visibleMask: visibleMask,
+                scaleSource: scaleSource,
+                tags: tags,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> bodyId = const Value.absent(),
+                required int version,
+                required Uint8List feature,
+                required int visibleMask,
+                required String scaleSource,
+                Value<String> tags = const Value.absent(),
+              }) => BodyPoseFeaturesCompanion.insert(
+                bodyId: bodyId,
+                version: version,
+                feature: feature,
+                visibleMask: visibleMask,
+                scaleSource: scaleSource,
+                tags: tags,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BodyPoseFeaturesTable, BodyPoseFeatureRow>(
+                    table,
+                  ),
+                  $$BodyPoseFeaturesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({bodyId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (bodyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.bodyId,
+                                referencedTable:
+                                    $$BodyPoseFeaturesTableReferences
+                                        ._bodyIdTable(db),
+                                referencedColumn:
+                                    $$BodyPoseFeaturesTableReferences
+                                        ._bodyIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$BodyPoseFeaturesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BodyPoseFeaturesTable,
+      BodyPoseFeatureRow,
+      $$BodyPoseFeaturesTableFilterComposer,
+      $$BodyPoseFeaturesTableOrderingComposer,
+      $$BodyPoseFeaturesTableAnnotationComposer,
+      $$BodyPoseFeaturesTableCreateCompanionBuilder,
+      $$BodyPoseFeaturesTableUpdateCompanionBuilder,
+      (BodyPoseFeatureRow, $$BodyPoseFeaturesTableReferences),
+      BodyPoseFeatureRow,
+      PrefetchHooks Function({bool bodyId})
+    >;
+typedef $$PoseCategoriesTableCreateCompanionBuilder =
+    PoseCategoriesCompanion Function({
+      Value<int> id,
+      required String name,
+      Value<String> kind,
+      Value<int?> exemplarBodyId,
+      required Uint8List exemplarFeature,
+      required int exemplarMask,
+      required String exemplarScaleSource,
+      required double threshold,
+      required int createdAt,
+    });
+typedef $$PoseCategoriesTableUpdateCompanionBuilder =
+    PoseCategoriesCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String> kind,
+      Value<int?> exemplarBodyId,
+      Value<Uint8List> exemplarFeature,
+      Value<int> exemplarMask,
+      Value<String> exemplarScaleSource,
+      Value<double> threshold,
+      Value<int> createdAt,
+    });
+
+final class $$PoseCategoriesTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $PoseCategoriesTable, PoseCategoryRow> {
+  $$PoseCategoriesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $BodiesTable _exemplarBodyIdTable(_$AppDatabase db) =>
+      db.bodies.createAlias('pose_categories__exemplar_body_id__bodies__id');
+
+  $$BodiesTableProcessedTableManager? get exemplarBodyId {
+    final $_column = $_itemColumn<int>('exemplar_body_id');
+    if ($_column == null) return null;
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_exemplarBodyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$BodyPoseMatchesTable, List<BodyPoseMatchRow>>
+  _bodyPoseMatchesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodyPoseMatches,
+    aliasName: 'pose_categories__id__body_pose_matches__category_id',
+  );
+
+  $$BodyPoseMatchesTableProcessedTableManager get bodyPoseMatchesRefs {
+    final manager = $$BodyPoseMatchesTableTableManager(
+      $_db,
+      $_db.bodyPoseMatches,
+    ).filter((f) => f.categoryId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _bodyPoseMatchesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$PoseCategoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $PoseCategoriesTable> {
+  $$PoseCategoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get exemplarFeature => $composableBuilder(
+    column: $table.exemplarFeature,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get exemplarMask => $composableBuilder(
+    column: $table.exemplarMask,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get exemplarScaleSource => $composableBuilder(
+    column: $table.exemplarScaleSource,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get threshold => $composableBuilder(
+    column: $table.threshold,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$BodiesTableFilterComposer get exemplarBodyId {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.exemplarBodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> bodyPoseMatchesRefs(
+    Expression<bool> Function($$BodyPoseMatchesTableFilterComposer f) f,
+  ) {
+    final $$BodyPoseMatchesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyPoseMatches,
+      getReferencedColumn: (t) => t.categoryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyPoseMatchesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyPoseMatches,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$PoseCategoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PoseCategoriesTable> {
+  $$PoseCategoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get exemplarFeature => $composableBuilder(
+    column: $table.exemplarFeature,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get exemplarMask => $composableBuilder(
+    column: $table.exemplarMask,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get exemplarScaleSource => $composableBuilder(
+    column: $table.exemplarScaleSource,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get threshold => $composableBuilder(
+    column: $table.threshold,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$BodiesTableOrderingComposer get exemplarBodyId {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.exemplarBodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PoseCategoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PoseCategoriesTable> {
+  $$PoseCategoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get exemplarFeature => $composableBuilder(
+    column: $table.exemplarFeature,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get exemplarMask => $composableBuilder(
+    column: $table.exemplarMask,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get exemplarScaleSource => $composableBuilder(
+    column: $table.exemplarScaleSource,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get threshold =>
+      $composableBuilder(column: $table.threshold, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$BodiesTableAnnotationComposer get exemplarBodyId {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.exemplarBodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> bodyPoseMatchesRefs<T extends Object>(
+    Expression<T> Function($$BodyPoseMatchesTableAnnotationComposer a) f,
+  ) {
+    final $$BodyPoseMatchesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyPoseMatches,
+      getReferencedColumn: (t) => t.categoryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyPoseMatchesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyPoseMatches,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$PoseCategoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PoseCategoriesTable,
+          PoseCategoryRow,
+          $$PoseCategoriesTableFilterComposer,
+          $$PoseCategoriesTableOrderingComposer,
+          $$PoseCategoriesTableAnnotationComposer,
+          $$PoseCategoriesTableCreateCompanionBuilder,
+          $$PoseCategoriesTableUpdateCompanionBuilder,
+          (PoseCategoryRow, $$PoseCategoriesTableReferences),
+          PoseCategoryRow,
+          PrefetchHooks Function({
+            bool exemplarBodyId,
+            bool bodyPoseMatchesRefs,
+          })
+        > {
+  $$PoseCategoriesTableTableManager(
+    _$AppDatabase db,
+    $PoseCategoriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PoseCategoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PoseCategoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PoseCategoriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<int?> exemplarBodyId = const Value.absent(),
+                Value<Uint8List> exemplarFeature = const Value.absent(),
+                Value<int> exemplarMask = const Value.absent(),
+                Value<String> exemplarScaleSource = const Value.absent(),
+                Value<double> threshold = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => PoseCategoriesCompanion(
+                id: id,
+                name: name,
+                kind: kind,
+                exemplarBodyId: exemplarBodyId,
+                exemplarFeature: exemplarFeature,
+                exemplarMask: exemplarMask,
+                exemplarScaleSource: exemplarScaleSource,
+                threshold: threshold,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                Value<String> kind = const Value.absent(),
+                Value<int?> exemplarBodyId = const Value.absent(),
+                required Uint8List exemplarFeature,
+                required int exemplarMask,
+                required String exemplarScaleSource,
+                required double threshold,
+                required int createdAt,
+              }) => PoseCategoriesCompanion.insert(
+                id: id,
+                name: name,
+                kind: kind,
+                exemplarBodyId: exemplarBodyId,
+                exemplarFeature: exemplarFeature,
+                exemplarMask: exemplarMask,
+                exemplarScaleSource: exemplarScaleSource,
+                threshold: threshold,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PoseCategoriesTable, PoseCategoryRow>(table),
+                  $$PoseCategoriesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({exemplarBodyId = false, bodyPoseMatchesRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (bodyPoseMatchesRefs) db.bodyPoseMatches,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (exemplarBodyId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.exemplarBodyId,
+                                    referencedTable:
+                                        $$PoseCategoriesTableReferences
+                                            ._exemplarBodyIdTable(db),
+                                    referencedColumn:
+                                        $$PoseCategoriesTableReferences
+                                            ._exemplarBodyIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (bodyPoseMatchesRefs)
+                        await $_getPrefetchedData<
+                          PoseCategoryRow,
+                          $PoseCategoriesTable,
+                          BodyPoseMatchRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PoseCategoriesTableReferences
+                              ._bodyPoseMatchesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PoseCategoriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).bodyPoseMatchesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.categoryId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$PoseCategoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PoseCategoriesTable,
+      PoseCategoryRow,
+      $$PoseCategoriesTableFilterComposer,
+      $$PoseCategoriesTableOrderingComposer,
+      $$PoseCategoriesTableAnnotationComposer,
+      $$PoseCategoriesTableCreateCompanionBuilder,
+      $$PoseCategoriesTableUpdateCompanionBuilder,
+      (PoseCategoryRow, $$PoseCategoriesTableReferences),
+      PoseCategoryRow,
+      PrefetchHooks Function({bool exemplarBodyId, bool bodyPoseMatchesRefs})
+    >;
+typedef $$OutfitCategoriesTableCreateCompanionBuilder =
+    OutfitCategoriesCompanion Function({
+      Value<int> id,
+      required String name,
+      Value<String> kind,
+      Value<int?> personId,
+      Value<int?> exemplarBodyId,
+      required Uint8List exemplarAppearance,
+      Value<bool> lowerOnly,
+      required double threshold,
+      required int createdAt,
+    });
+typedef $$OutfitCategoriesTableUpdateCompanionBuilder =
+    OutfitCategoriesCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String> kind,
+      Value<int?> personId,
+      Value<int?> exemplarBodyId,
+      Value<Uint8List> exemplarAppearance,
+      Value<bool> lowerOnly,
+      Value<double> threshold,
+      Value<int> createdAt,
+    });
+
+final class $$OutfitCategoriesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $OutfitCategoriesTable,
+          OutfitCategoryRow
+        > {
+  $$OutfitCategoriesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('outfit_categories__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager? get personId {
+    final $_column = $_itemColumn<int>('person_id');
+    if ($_column == null) return null;
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $BodiesTable _exemplarBodyIdTable(_$AppDatabase db) =>
+      db.bodies.createAlias('outfit_categories__exemplar_body_id__bodies__id');
+
+  $$BodiesTableProcessedTableManager? get exemplarBodyId {
+    final $_column = $_itemColumn<int>('exemplar_body_id');
+    if ($_column == null) return null;
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_exemplarBodyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$BodyOutfitMatchesTable, List<BodyOutfitMatchRow>>
+  _bodyOutfitMatchesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.bodyOutfitMatches,
+        aliasName: 'outfit_categories__id__body_outfit_matches__category_id',
+      );
+
+  $$BodyOutfitMatchesTableProcessedTableManager get bodyOutfitMatchesRefs {
+    final manager = $$BodyOutfitMatchesTableTableManager(
+      $_db,
+      $_db.bodyOutfitMatches,
+    ).filter((f) => f.categoryId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _bodyOutfitMatchesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$OutfitCategoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $OutfitCategoriesTable> {
+  $$OutfitCategoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get exemplarAppearance => $composableBuilder(
+    column: $table.exemplarAppearance,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get lowerOnly => $composableBuilder(
+    column: $table.lowerOnly,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get threshold => $composableBuilder(
+    column: $table.threshold,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableFilterComposer get exemplarBodyId {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.exemplarBodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> bodyOutfitMatchesRefs(
+    Expression<bool> Function($$BodyOutfitMatchesTableFilterComposer f) f,
+  ) {
+    final $$BodyOutfitMatchesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyOutfitMatches,
+      getReferencedColumn: (t) => t.categoryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyOutfitMatchesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyOutfitMatches,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$OutfitCategoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $OutfitCategoriesTable> {
+  $$OutfitCategoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get exemplarAppearance => $composableBuilder(
+    column: $table.exemplarAppearance,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get lowerOnly => $composableBuilder(
+    column: $table.lowerOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get threshold => $composableBuilder(
+    column: $table.threshold,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableOrderingComposer get exemplarBodyId {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.exemplarBodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$OutfitCategoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $OutfitCategoriesTable> {
+  $$OutfitCategoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get exemplarAppearance => $composableBuilder(
+    column: $table.exemplarAppearance,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get lowerOnly =>
+      $composableBuilder(column: $table.lowerOnly, builder: (column) => column);
+
+  GeneratedColumn<double> get threshold =>
+      $composableBuilder(column: $table.threshold, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableAnnotationComposer get exemplarBodyId {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.exemplarBodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> bodyOutfitMatchesRefs<T extends Object>(
+    Expression<T> Function($$BodyOutfitMatchesTableAnnotationComposer a) f,
+  ) {
+    final $$BodyOutfitMatchesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.bodyOutfitMatches,
+          getReferencedColumn: (t) => t.categoryId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$BodyOutfitMatchesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.bodyOutfitMatches,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$OutfitCategoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $OutfitCategoriesTable,
+          OutfitCategoryRow,
+          $$OutfitCategoriesTableFilterComposer,
+          $$OutfitCategoriesTableOrderingComposer,
+          $$OutfitCategoriesTableAnnotationComposer,
+          $$OutfitCategoriesTableCreateCompanionBuilder,
+          $$OutfitCategoriesTableUpdateCompanionBuilder,
+          (OutfitCategoryRow, $$OutfitCategoriesTableReferences),
+          OutfitCategoryRow,
+          PrefetchHooks Function({
+            bool personId,
+            bool exemplarBodyId,
+            bool bodyOutfitMatchesRefs,
+          })
+        > {
+  $$OutfitCategoriesTableTableManager(
+    _$AppDatabase db,
+    $OutfitCategoriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$OutfitCategoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$OutfitCategoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$OutfitCategoriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                Value<int?> exemplarBodyId = const Value.absent(),
+                Value<Uint8List> exemplarAppearance = const Value.absent(),
+                Value<bool> lowerOnly = const Value.absent(),
+                Value<double> threshold = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => OutfitCategoriesCompanion(
+                id: id,
+                name: name,
+                kind: kind,
+                personId: personId,
+                exemplarBodyId: exemplarBodyId,
+                exemplarAppearance: exemplarAppearance,
+                lowerOnly: lowerOnly,
+                threshold: threshold,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                Value<String> kind = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                Value<int?> exemplarBodyId = const Value.absent(),
+                required Uint8List exemplarAppearance,
+                Value<bool> lowerOnly = const Value.absent(),
+                required double threshold,
+                required int createdAt,
+              }) => OutfitCategoriesCompanion.insert(
+                id: id,
+                name: name,
+                kind: kind,
+                personId: personId,
+                exemplarBodyId: exemplarBodyId,
+                exemplarAppearance: exemplarAppearance,
+                lowerOnly: lowerOnly,
+                threshold: threshold,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$OutfitCategoriesTable, OutfitCategoryRow>(table),
+                  $$OutfitCategoriesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                personId = false,
+                exemplarBodyId = false,
+                bodyOutfitMatchesRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (bodyOutfitMatchesRefs) db.bodyOutfitMatches,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (personId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.personId,
+                                    referencedTable:
+                                        $$OutfitCategoriesTableReferences
+                                            ._personIdTable(db),
+                                    referencedColumn:
+                                        $$OutfitCategoriesTableReferences
+                                            ._personIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (exemplarBodyId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.exemplarBodyId,
+                                    referencedTable:
+                                        $$OutfitCategoriesTableReferences
+                                            ._exemplarBodyIdTable(db),
+                                    referencedColumn:
+                                        $$OutfitCategoriesTableReferences
+                                            ._exemplarBodyIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (bodyOutfitMatchesRefs)
+                        await $_getPrefetchedData<
+                          OutfitCategoryRow,
+                          $OutfitCategoriesTable,
+                          BodyOutfitMatchRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$OutfitCategoriesTableReferences
+                              ._bodyOutfitMatchesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$OutfitCategoriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).bodyOutfitMatchesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.categoryId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$OutfitCategoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $OutfitCategoriesTable,
+      OutfitCategoryRow,
+      $$OutfitCategoriesTableFilterComposer,
+      $$OutfitCategoriesTableOrderingComposer,
+      $$OutfitCategoriesTableAnnotationComposer,
+      $$OutfitCategoriesTableCreateCompanionBuilder,
+      $$OutfitCategoriesTableUpdateCompanionBuilder,
+      (OutfitCategoryRow, $$OutfitCategoriesTableReferences),
+      OutfitCategoryRow,
+      PrefetchHooks Function({
+        bool personId,
+        bool exemplarBodyId,
+        bool bodyOutfitMatchesRefs,
+      })
+    >;
+typedef $$BodyPoseMatchesTableCreateCompanionBuilder =
+    BodyPoseMatchesCompanion Function({
+      required int bodyId,
+      required int categoryId,
+      required double similarity,
+      required String state,
+      Value<int> rowid,
+    });
+typedef $$BodyPoseMatchesTableUpdateCompanionBuilder =
+    BodyPoseMatchesCompanion Function({
+      Value<int> bodyId,
+      Value<int> categoryId,
+      Value<double> similarity,
+      Value<String> state,
+      Value<int> rowid,
+    });
+
+final class $$BodyPoseMatchesTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $BodyPoseMatchesTable, BodyPoseMatchRow> {
+  $$BodyPoseMatchesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $BodiesTable _bodyIdTable(_$AppDatabase db) =>
+      db.bodies.createAlias('body_pose_matches__body_id__bodies__id');
+
+  $$BodiesTableProcessedTableManager get bodyId {
+    final $_column = $_itemColumn<int>('body_id')!;
+
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bodyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PoseCategoriesTable _categoryIdTable(_$AppDatabase db) => db
+      .poseCategories
+      .createAlias('body_pose_matches__category_id__pose_categories__id');
+
+  $$PoseCategoriesTableProcessedTableManager get categoryId {
+    final $_column = $_itemColumn<int>('category_id')!;
+
+    final manager = $$PoseCategoriesTableTableManager(
+      $_db,
+      $_db.poseCategories,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_categoryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$BodyPoseMatchesTableFilterComposer
+    extends Composer<_$AppDatabase, $BodyPoseMatchesTable> {
+  $$BodyPoseMatchesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<double> get similarity => $composableBuilder(
+    column: $table.similarity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$BodiesTableFilterComposer get bodyId {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PoseCategoriesTableFilterComposer get categoryId {
+    final $$PoseCategoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.poseCategories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PoseCategoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.poseCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyPoseMatchesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BodyPoseMatchesTable> {
+  $$BodyPoseMatchesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<double> get similarity => $composableBuilder(
+    column: $table.similarity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$BodiesTableOrderingComposer get bodyId {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PoseCategoriesTableOrderingComposer get categoryId {
+    final $$PoseCategoriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.poseCategories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PoseCategoriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.poseCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyPoseMatchesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BodyPoseMatchesTable> {
+  $$BodyPoseMatchesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<double> get similarity => $composableBuilder(
+    column: $table.similarity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  $$BodiesTableAnnotationComposer get bodyId {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PoseCategoriesTableAnnotationComposer get categoryId {
+    final $$PoseCategoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.poseCategories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PoseCategoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.poseCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyPoseMatchesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BodyPoseMatchesTable,
+          BodyPoseMatchRow,
+          $$BodyPoseMatchesTableFilterComposer,
+          $$BodyPoseMatchesTableOrderingComposer,
+          $$BodyPoseMatchesTableAnnotationComposer,
+          $$BodyPoseMatchesTableCreateCompanionBuilder,
+          $$BodyPoseMatchesTableUpdateCompanionBuilder,
+          (BodyPoseMatchRow, $$BodyPoseMatchesTableReferences),
+          BodyPoseMatchRow,
+          PrefetchHooks Function({bool bodyId, bool categoryId})
+        > {
+  $$BodyPoseMatchesTableTableManager(
+    _$AppDatabase db,
+    $BodyPoseMatchesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BodyPoseMatchesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BodyPoseMatchesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BodyPoseMatchesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> bodyId = const Value.absent(),
+                Value<int> categoryId = const Value.absent(),
+                Value<double> similarity = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BodyPoseMatchesCompanion(
+                bodyId: bodyId,
+                categoryId: categoryId,
+                similarity: similarity,
+                state: state,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int bodyId,
+                required int categoryId,
+                required double similarity,
+                required String state,
+                Value<int> rowid = const Value.absent(),
+              }) => BodyPoseMatchesCompanion.insert(
+                bodyId: bodyId,
+                categoryId: categoryId,
+                similarity: similarity,
+                state: state,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BodyPoseMatchesTable, BodyPoseMatchRow>(table),
+                  $$BodyPoseMatchesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({bodyId = false, categoryId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (bodyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.bodyId,
+                                referencedTable:
+                                    $$BodyPoseMatchesTableReferences
+                                        ._bodyIdTable(db),
+                                referencedColumn:
+                                    $$BodyPoseMatchesTableReferences
+                                        ._bodyIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (categoryId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.categoryId,
+                                referencedTable:
+                                    $$BodyPoseMatchesTableReferences
+                                        ._categoryIdTable(db),
+                                referencedColumn:
+                                    $$BodyPoseMatchesTableReferences
+                                        ._categoryIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$BodyPoseMatchesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BodyPoseMatchesTable,
+      BodyPoseMatchRow,
+      $$BodyPoseMatchesTableFilterComposer,
+      $$BodyPoseMatchesTableOrderingComposer,
+      $$BodyPoseMatchesTableAnnotationComposer,
+      $$BodyPoseMatchesTableCreateCompanionBuilder,
+      $$BodyPoseMatchesTableUpdateCompanionBuilder,
+      (BodyPoseMatchRow, $$BodyPoseMatchesTableReferences),
+      BodyPoseMatchRow,
+      PrefetchHooks Function({bool bodyId, bool categoryId})
+    >;
+typedef $$BodyOutfitMatchesTableCreateCompanionBuilder =
+    BodyOutfitMatchesCompanion Function({
+      required int bodyId,
+      required int categoryId,
+      required double similarity,
+      required String state,
+      Value<int> rowid,
+    });
+typedef $$BodyOutfitMatchesTableUpdateCompanionBuilder =
+    BodyOutfitMatchesCompanion Function({
+      Value<int> bodyId,
+      Value<int> categoryId,
+      Value<double> similarity,
+      Value<String> state,
+      Value<int> rowid,
+    });
+
+final class $$BodyOutfitMatchesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $BodyOutfitMatchesTable,
+          BodyOutfitMatchRow
+        > {
+  $$BodyOutfitMatchesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $BodiesTable _bodyIdTable(_$AppDatabase db) =>
+      db.bodies.createAlias('body_outfit_matches__body_id__bodies__id');
+
+  $$BodiesTableProcessedTableManager get bodyId {
+    final $_column = $_itemColumn<int>('body_id')!;
+
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bodyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $OutfitCategoriesTable _categoryIdTable(_$AppDatabase db) => db
+      .outfitCategories
+      .createAlias('body_outfit_matches__category_id__outfit_categories__id');
+
+  $$OutfitCategoriesTableProcessedTableManager get categoryId {
+    final $_column = $_itemColumn<int>('category_id')!;
+
+    final manager = $$OutfitCategoriesTableTableManager(
+      $_db,
+      $_db.outfitCategories,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_categoryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$BodyOutfitMatchesTableFilterComposer
+    extends Composer<_$AppDatabase, $BodyOutfitMatchesTable> {
+  $$BodyOutfitMatchesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<double> get similarity => $composableBuilder(
+    column: $table.similarity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$BodiesTableFilterComposer get bodyId {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$OutfitCategoriesTableFilterComposer get categoryId {
+    final $$OutfitCategoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.outfitCategories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OutfitCategoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.outfitCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyOutfitMatchesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BodyOutfitMatchesTable> {
+  $$BodyOutfitMatchesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<double> get similarity => $composableBuilder(
+    column: $table.similarity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$BodiesTableOrderingComposer get bodyId {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$OutfitCategoriesTableOrderingComposer get categoryId {
+    final $$OutfitCategoriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.outfitCategories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OutfitCategoriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.outfitCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyOutfitMatchesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BodyOutfitMatchesTable> {
+  $$BodyOutfitMatchesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<double> get similarity => $composableBuilder(
+    column: $table.similarity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  $$BodiesTableAnnotationComposer get bodyId {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$OutfitCategoriesTableAnnotationComposer get categoryId {
+    final $$OutfitCategoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.outfitCategories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$OutfitCategoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.outfitCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyOutfitMatchesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BodyOutfitMatchesTable,
+          BodyOutfitMatchRow,
+          $$BodyOutfitMatchesTableFilterComposer,
+          $$BodyOutfitMatchesTableOrderingComposer,
+          $$BodyOutfitMatchesTableAnnotationComposer,
+          $$BodyOutfitMatchesTableCreateCompanionBuilder,
+          $$BodyOutfitMatchesTableUpdateCompanionBuilder,
+          (BodyOutfitMatchRow, $$BodyOutfitMatchesTableReferences),
+          BodyOutfitMatchRow,
+          PrefetchHooks Function({bool bodyId, bool categoryId})
+        > {
+  $$BodyOutfitMatchesTableTableManager(
+    _$AppDatabase db,
+    $BodyOutfitMatchesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BodyOutfitMatchesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BodyOutfitMatchesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BodyOutfitMatchesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> bodyId = const Value.absent(),
+                Value<int> categoryId = const Value.absent(),
+                Value<double> similarity = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BodyOutfitMatchesCompanion(
+                bodyId: bodyId,
+                categoryId: categoryId,
+                similarity: similarity,
+                state: state,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int bodyId,
+                required int categoryId,
+                required double similarity,
+                required String state,
+                Value<int> rowid = const Value.absent(),
+              }) => BodyOutfitMatchesCompanion.insert(
+                bodyId: bodyId,
+                categoryId: categoryId,
+                similarity: similarity,
+                state: state,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BodyOutfitMatchesTable, BodyOutfitMatchRow>(
+                    table,
+                  ),
+                  $$BodyOutfitMatchesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({bodyId = false, categoryId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (bodyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.bodyId,
+                                referencedTable:
+                                    $$BodyOutfitMatchesTableReferences
+                                        ._bodyIdTable(db),
+                                referencedColumn:
+                                    $$BodyOutfitMatchesTableReferences
+                                        ._bodyIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (categoryId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.categoryId,
+                                referencedTable:
+                                    $$BodyOutfitMatchesTableReferences
+                                        ._categoryIdTable(db),
+                                referencedColumn:
+                                    $$BodyOutfitMatchesTableReferences
+                                        ._categoryIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$BodyOutfitMatchesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BodyOutfitMatchesTable,
+      BodyOutfitMatchRow,
+      $$BodyOutfitMatchesTableFilterComposer,
+      $$BodyOutfitMatchesTableOrderingComposer,
+      $$BodyOutfitMatchesTableAnnotationComposer,
+      $$BodyOutfitMatchesTableCreateCompanionBuilder,
+      $$BodyOutfitMatchesTableUpdateCompanionBuilder,
+      (BodyOutfitMatchRow, $$BodyOutfitMatchesTableReferences),
+      BodyOutfitMatchRow,
+      PrefetchHooks Function({bool bodyId, bool categoryId})
+    >;
+typedef $$SensitiveRegionsTableCreateCompanionBuilder =
+    SensitiveRegionsCompanion Function({
+      Value<int> id,
+      required int mediaId,
+      Value<int?> bodyId,
+      required String label,
+      required bool exposed,
+      required double score,
+      required double x,
+      required double y,
+      required double w,
+      required double h,
+      Value<int?> frameNumber,
+      Value<int?> timestampMs,
+      required int modelVersion,
+      Value<String?> userState,
+      required int createdAt,
+    });
+typedef $$SensitiveRegionsTableUpdateCompanionBuilder =
+    SensitiveRegionsCompanion Function({
+      Value<int> id,
+      Value<int> mediaId,
+      Value<int?> bodyId,
+      Value<String> label,
+      Value<bool> exposed,
+      Value<double> score,
+      Value<double> x,
+      Value<double> y,
+      Value<double> w,
+      Value<double> h,
+      Value<int?> frameNumber,
+      Value<int?> timestampMs,
+      Value<int> modelVersion,
+      Value<String?> userState,
+      Value<int> createdAt,
+    });
+
+final class $$SensitiveRegionsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $SensitiveRegionsTable,
+          SensitiveRegionRow
+        > {
+  $$SensitiveRegionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $MediaTable _mediaIdTable(_$AppDatabase db) =>
+      db.media.createAlias('sensitive_regions__media_id__media__id');
+
+  $$MediaTableProcessedTableManager get mediaId {
+    final $_column = $_itemColumn<int>('media_id')!;
+
+    final manager = $$MediaTableTableManager(
+      $_db,
+      $_db.media,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_mediaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $BodiesTable _bodyIdTable(_$AppDatabase db) =>
+      db.bodies.createAlias('sensitive_regions__body_id__bodies__id');
+
+  $$BodiesTableProcessedTableManager? get bodyId {
+    final $_column = $_itemColumn<int>('body_id');
+    if ($_column == null) return null;
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bodyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SensitiveRegionsTableFilterComposer
+    extends Composer<_$AppDatabase, $SensitiveRegionsTable> {
+  $$SensitiveRegionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get exposed => $composableBuilder(
+    column: $table.exposed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get frameNumber => $composableBuilder(
+    column: $table.frameNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get modelVersion => $composableBuilder(
+    column: $table.modelVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userState => $composableBuilder(
+    column: $table.userState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$MediaTableFilterComposer get mediaId {
+    final $$MediaTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableFilterComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableFilterComposer get bodyId {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SensitiveRegionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SensitiveRegionsTable> {
+  $$SensitiveRegionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get exposed => $composableBuilder(
+    column: $table.exposed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get frameNumber => $composableBuilder(
+    column: $table.frameNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get modelVersion => $composableBuilder(
+    column: $table.modelVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userState => $composableBuilder(
+    column: $table.userState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$MediaTableOrderingComposer get mediaId {
+    final $$MediaTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableOrderingComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableOrderingComposer get bodyId {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SensitiveRegionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SensitiveRegionsTable> {
+  $$SensitiveRegionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<bool> get exposed =>
+      $composableBuilder(column: $table.exposed, builder: (column) => column);
+
+  GeneratedColumn<double> get score =>
+      $composableBuilder(column: $table.score, builder: (column) => column);
+
+  GeneratedColumn<double> get x =>
+      $composableBuilder(column: $table.x, builder: (column) => column);
+
+  GeneratedColumn<double> get y =>
+      $composableBuilder(column: $table.y, builder: (column) => column);
+
+  GeneratedColumn<double> get w =>
+      $composableBuilder(column: $table.w, builder: (column) => column);
+
+  GeneratedColumn<double> get h =>
+      $composableBuilder(column: $table.h, builder: (column) => column);
+
+  GeneratedColumn<int> get frameNumber => $composableBuilder(
+    column: $table.frameNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get modelVersion => $composableBuilder(
+    column: $table.modelVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get userState =>
+      $composableBuilder(column: $table.userState, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$MediaTableAnnotationComposer get mediaId {
+    final $$MediaTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableAnnotationComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableAnnotationComposer get bodyId {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SensitiveRegionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SensitiveRegionsTable,
+          SensitiveRegionRow,
+          $$SensitiveRegionsTableFilterComposer,
+          $$SensitiveRegionsTableOrderingComposer,
+          $$SensitiveRegionsTableAnnotationComposer,
+          $$SensitiveRegionsTableCreateCompanionBuilder,
+          $$SensitiveRegionsTableUpdateCompanionBuilder,
+          (SensitiveRegionRow, $$SensitiveRegionsTableReferences),
+          SensitiveRegionRow,
+          PrefetchHooks Function({bool mediaId, bool bodyId})
+        > {
+  $$SensitiveRegionsTableTableManager(
+    _$AppDatabase db,
+    $SensitiveRegionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SensitiveRegionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SensitiveRegionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SensitiveRegionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> mediaId = const Value.absent(),
+                Value<int?> bodyId = const Value.absent(),
+                Value<String> label = const Value.absent(),
+                Value<bool> exposed = const Value.absent(),
+                Value<double> score = const Value.absent(),
+                Value<double> x = const Value.absent(),
+                Value<double> y = const Value.absent(),
+                Value<double> w = const Value.absent(),
+                Value<double> h = const Value.absent(),
+                Value<int?> frameNumber = const Value.absent(),
+                Value<int?> timestampMs = const Value.absent(),
+                Value<int> modelVersion = const Value.absent(),
+                Value<String?> userState = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => SensitiveRegionsCompanion(
+                id: id,
+                mediaId: mediaId,
+                bodyId: bodyId,
+                label: label,
+                exposed: exposed,
+                score: score,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                frameNumber: frameNumber,
+                timestampMs: timestampMs,
+                modelVersion: modelVersion,
+                userState: userState,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int mediaId,
+                Value<int?> bodyId = const Value.absent(),
+                required String label,
+                required bool exposed,
+                required double score,
+                required double x,
+                required double y,
+                required double w,
+                required double h,
+                Value<int?> frameNumber = const Value.absent(),
+                Value<int?> timestampMs = const Value.absent(),
+                required int modelVersion,
+                Value<String?> userState = const Value.absent(),
+                required int createdAt,
+              }) => SensitiveRegionsCompanion.insert(
+                id: id,
+                mediaId: mediaId,
+                bodyId: bodyId,
+                label: label,
+                exposed: exposed,
+                score: score,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                frameNumber: frameNumber,
+                timestampMs: timestampMs,
+                modelVersion: modelVersion,
+                userState: userState,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SensitiveRegionsTable, SensitiveRegionRow>(
+                    table,
+                  ),
+                  $$SensitiveRegionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({mediaId = false, bodyId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (mediaId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.mediaId,
+                                referencedTable:
+                                    $$SensitiveRegionsTableReferences
+                                        ._mediaIdTable(db),
+                                referencedColumn:
+                                    $$SensitiveRegionsTableReferences
+                                        ._mediaIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (bodyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.bodyId,
+                                referencedTable:
+                                    $$SensitiveRegionsTableReferences
+                                        ._bodyIdTable(db),
+                                referencedColumn:
+                                    $$SensitiveRegionsTableReferences
+                                        ._bodyIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SensitiveRegionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SensitiveRegionsTable,
+      SensitiveRegionRow,
+      $$SensitiveRegionsTableFilterComposer,
+      $$SensitiveRegionsTableOrderingComposer,
+      $$SensitiveRegionsTableAnnotationComposer,
+      $$SensitiveRegionsTableCreateCompanionBuilder,
+      $$SensitiveRegionsTableUpdateCompanionBuilder,
+      (SensitiveRegionRow, $$SensitiveRegionsTableReferences),
+      SensitiveRegionRow,
+      PrefetchHooks Function({bool mediaId, bool bodyId})
+    >;
+typedef $$BodyGarmentTagsTableCreateCompanionBuilder =
+    BodyGarmentTagsCompanion Function({
+      required int bodyId,
+      required String tag,
+      required String category,
+      required double score,
+      Value<int> rowid,
+    });
+typedef $$BodyGarmentTagsTableUpdateCompanionBuilder =
+    BodyGarmentTagsCompanion Function({
+      Value<int> bodyId,
+      Value<String> tag,
+      Value<String> category,
+      Value<double> score,
+      Value<int> rowid,
+    });
+
+final class $$BodyGarmentTagsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $BodyGarmentTagsTable,
+          BodyGarmentTagRow
+        > {
+  $$BodyGarmentTagsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $BodiesTable _bodyIdTable(_$AppDatabase db) =>
+      db.bodies.createAlias('body_garment_tags__body_id__bodies__id');
+
+  $$BodiesTableProcessedTableManager get bodyId {
+    final $_column = $_itemColumn<int>('body_id')!;
+
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bodyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$BodyGarmentTagsTableFilterComposer
+    extends Composer<_$AppDatabase, $BodyGarmentTagsTable> {
+  $$BodyGarmentTagsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get tag => $composableBuilder(
+    column: $table.tag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$BodiesTableFilterComposer get bodyId {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyGarmentTagsTableOrderingComposer
+    extends Composer<_$AppDatabase, $BodyGarmentTagsTable> {
+  $$BodyGarmentTagsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get tag => $composableBuilder(
+    column: $table.tag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$BodiesTableOrderingComposer get bodyId {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyGarmentTagsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BodyGarmentTagsTable> {
+  $$BodyGarmentTagsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get tag =>
+      $composableBuilder(column: $table.tag, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<double> get score =>
+      $composableBuilder(column: $table.score, builder: (column) => column);
+
+  $$BodiesTableAnnotationComposer get bodyId {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyGarmentTagsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BodyGarmentTagsTable,
+          BodyGarmentTagRow,
+          $$BodyGarmentTagsTableFilterComposer,
+          $$BodyGarmentTagsTableOrderingComposer,
+          $$BodyGarmentTagsTableAnnotationComposer,
+          $$BodyGarmentTagsTableCreateCompanionBuilder,
+          $$BodyGarmentTagsTableUpdateCompanionBuilder,
+          (BodyGarmentTagRow, $$BodyGarmentTagsTableReferences),
+          BodyGarmentTagRow,
+          PrefetchHooks Function({bool bodyId})
+        > {
+  $$BodyGarmentTagsTableTableManager(
+    _$AppDatabase db,
+    $BodyGarmentTagsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BodyGarmentTagsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BodyGarmentTagsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BodyGarmentTagsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> bodyId = const Value.absent(),
+                Value<String> tag = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<double> score = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BodyGarmentTagsCompanion(
+                bodyId: bodyId,
+                tag: tag,
+                category: category,
+                score: score,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int bodyId,
+                required String tag,
+                required String category,
+                required double score,
+                Value<int> rowid = const Value.absent(),
+              }) => BodyGarmentTagsCompanion.insert(
+                bodyId: bodyId,
+                tag: tag,
+                category: category,
+                score: score,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BodyGarmentTagsTable, BodyGarmentTagRow>(table),
+                  $$BodyGarmentTagsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({bodyId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (bodyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.bodyId,
+                                referencedTable:
+                                    $$BodyGarmentTagsTableReferences
+                                        ._bodyIdTable(db),
+                                referencedColumn:
+                                    $$BodyGarmentTagsTableReferences
+                                        ._bodyIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$BodyGarmentTagsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BodyGarmentTagsTable,
+      BodyGarmentTagRow,
+      $$BodyGarmentTagsTableFilterComposer,
+      $$BodyGarmentTagsTableOrderingComposer,
+      $$BodyGarmentTagsTableAnnotationComposer,
+      $$BodyGarmentTagsTableCreateCompanionBuilder,
+      $$BodyGarmentTagsTableUpdateCompanionBuilder,
+      (BodyGarmentTagRow, $$BodyGarmentTagsTableReferences),
+      BodyGarmentTagRow,
+      PrefetchHooks Function({bool bodyId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -28244,6 +39032,8 @@ class $AppDatabaseManager {
       $$FaceSuppressionsTableTableManager(_db, _db.faceSuppressions);
   $$KindOverridesTableTableManager get kindOverrides =>
       $$KindOverridesTableTableManager(_db, _db.kindOverrides);
+  $$BodyClustersTableTableManager get bodyClusters =>
+      $$BodyClustersTableTableManager(_db, _db.bodyClusters);
   $$BodiesTableTableManager get bodies =>
       $$BodiesTableTableManager(_db, _db.bodies);
   $$FaceRejectionsTableTableManager get faceRejections =>
@@ -28291,4 +39081,20 @@ class $AppDatabaseManager {
       $$CharacterIdentitiesTableTableManager(_db, _db.characterIdentities);
   $$CharacterSamplesTableTableManager get characterSamples =>
       $$CharacterSamplesTableTableManager(_db, _db.characterSamples);
+  $$BodyMarksTableTableManager get bodyMarks =>
+      $$BodyMarksTableTableManager(_db, _db.bodyMarks);
+  $$BodyPoseFeaturesTableTableManager get bodyPoseFeatures =>
+      $$BodyPoseFeaturesTableTableManager(_db, _db.bodyPoseFeatures);
+  $$PoseCategoriesTableTableManager get poseCategories =>
+      $$PoseCategoriesTableTableManager(_db, _db.poseCategories);
+  $$OutfitCategoriesTableTableManager get outfitCategories =>
+      $$OutfitCategoriesTableTableManager(_db, _db.outfitCategories);
+  $$BodyPoseMatchesTableTableManager get bodyPoseMatches =>
+      $$BodyPoseMatchesTableTableManager(_db, _db.bodyPoseMatches);
+  $$BodyOutfitMatchesTableTableManager get bodyOutfitMatches =>
+      $$BodyOutfitMatchesTableTableManager(_db, _db.bodyOutfitMatches);
+  $$SensitiveRegionsTableTableManager get sensitiveRegions =>
+      $$SensitiveRegionsTableTableManager(_db, _db.sensitiveRegions);
+  $$BodyGarmentTagsTableTableManager get bodyGarmentTags =>
+      $$BodyGarmentTagsTableTableManager(_db, _db.bodyGarmentTags);
 }

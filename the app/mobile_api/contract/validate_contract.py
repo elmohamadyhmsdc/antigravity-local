@@ -162,6 +162,14 @@ must_fail("AnalyzeImageResponse", "character_no_face", lambda d: d["characters"]
 must_fail("AnalyzeOutlinesResponse", "two_targets", lambda d: d["outlines"].append([[1.0, 2.0]]),
           "an outline with only 1 point")
 must_fail("OutlineTarget", "face", lambda d: d.__setitem__("kind", "z"), "an unknown target kind")
+must_fail("SensitiveRegion", "chest", lambda d: d.__setitem__("score", 1.5), "a sensitive region score above 1")
+must_fail("SensitiveRegion", "chest", lambda d: d.pop("body_index"), "a sensitive region without body_index")
+must_fail("AnalyzeSensitiveResponse", "two_regions", lambda d: d.pop("model_version"),
+          "a sensitive response without model_version")
+must_fail("GarmentTag", "t_shirt", lambda d: d.__setitem__("category", "style"), "an unknown garment category")
+must_fail("AnalyzeGarmentsResponse", "two_bodies", lambda d: d.pop("model_version"),
+          "a garments response without model_version")
+must_fail("SensitiveBodyTarget", "with_kpts", lambda d: d["kpts"].pop(), "16 keypoints in a sensitive body target")
 must_fail("JobCreate", "train_lora", lambda d: d["inputs"].pop("dataset"),
           "train_lora without the dataset blob")
 must_fail("JobCreate", "train_lora", lambda d: d["params"].__setitem__("output_name", "../evil"),

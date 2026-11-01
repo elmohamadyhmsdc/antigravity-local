@@ -89,6 +89,8 @@ class AnalyzeRequestOptions:
     force_kind: Optional[str] = None
     # (kind, part, (x1, y1, x2, y2) normalised, timestamp_ms or None)
     kind_overrides: tuple = ()
+    return_sensitive: bool = False   # roadmap section 8; off = the response is byte-identical to before
+    return_body_embeddings: bool = False   # roadmap 7.5 (Phase 8); implies the regions are computed
 
     def engine_options(self, timestamp_ms: Optional[int] = None, tolerance_ms: int = 0) -> AnalyzeOptions:
         """What analysis.analyze_frame needs. In a video only the corrections made near
@@ -98,7 +100,8 @@ class AnalyzeRequestOptions:
         return AnalyzeOptions(min_face_quality=self.min_face_quality, detect_characters=self.detect_characters,
                               detect_bodies=self.detect_bodies, body_score=self.body_score,
                               outlines=self.return_outlines, faceless_characters=self.faceless_characters,
-                              force_kind=self.force_kind, kind_overrides=overrides)
+                              force_kind=self.force_kind, kind_overrides=overrides,
+                              sensitive=self.return_sensitive, body_embeddings=self.return_body_embeddings)
 
 
 MAX_KIND_OVERRIDES = 4096
@@ -165,6 +168,8 @@ def parse_analyze_options(raw: Optional[str]) -> AnalyzeRequestOptions:
         faceless_characters=_flag(opts, "faceless_characters", True),
         force_kind=_force_kind(opts),
         kind_overrides=_kind_overrides(opts),
+        return_sensitive=_flag(opts, "return_sensitive", False),
+        return_body_embeddings=_flag(opts, "return_body_embeddings", False),
     )
 
 
@@ -275,11 +280,28 @@ def analysis_to_response(result: FrameAnalysis, img: np.ndarray, options: Analyz
         )
         for i, (b, a) in enumerate(zip(result.bodies, result.appearances))
     ]
+    if getattr(options, "return_body_embeddings", False):
+        extras = getattr(result, "body_embeddings", None) or []
+        for i, body in enumerate(bodies):
+            e = extras[i] if i < len(extras) else {}
+            body["chest_embedding"] = e.get("chest_embedding")
+            body["buttocks_embedding"] = e.get("buttocks_embedding")
+            body["morphology"] = e.get("morphology")
     pairs = [{"face_index": int(fi), "body_index": int(bi), "score": round(float(s), 3)}
              for fi, bi, s in result.pairs]
     out = {"model_id": model_id, "image_w": int(result.image_w), "image_h": int(result.image_h),
            "faces": faces, "bodies": bodies, "pairs": pairs}
     out["characters"] = [character_json(c, img, options.return_crops, ret_out) for c in result.characters]
+    if getattr(options, "return_sensitive", False):
+        out["sensitive_regions"] = [sensitive_region_json(r) for r in (getattr(result, "sensitive", None) or [])]
     if result.timings_ms:
         out["timings_ms"] = py(result.timings_ms)
     return out
+
+
+def sensitive_region_json(region: Dict) -> Dict:
+    """SensitiveRegion: pixel box like every other bbox on the wire; body_index null when unattached."""
+    index = region.get("body_index")
+    return {"label": str(region["label"]), "exposed": bool(region["exposed"]),
+            "score": round(float(region["score"]), 4), "bbox": bbox_xywh(region["bbox"]),
+            "body_index": None if index is None else int(index)}

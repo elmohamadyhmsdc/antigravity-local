@@ -1,7 +1,7 @@
 # Body Pose, Clothing, Body Re-Identification & Sensitive Content — Specification & Roadmap
 **Document Path:** `docs/body-pose-and-clothing-filters-roadmap.md`
 **Date:** 2026-11-01 (revised the same day after a review against the code)
-**Status:** Draft — not implemented. Every threshold below is a starting value, to be calibrated in Phase 0.
+**Status:** Implemented 2026-11-02, with the five items left over finished the same day (media-viewer actions and group-photo filters, embeddings backfill, tattoo marking UI, cluster UI behind a default-OFF switch, Phase 7 garment tags stored but not a filter); what remains is listed in the handoff ("Roadmap implementation, follow-up"); calibration of every threshold is still pending the user's labels. Every threshold below is a starting value, to be calibrated in Phase 0.
 **Target:** Mobile Flutter app (`mobile/`) first. The PC (`the app/mobile_api/`, `person_linking.py`) is
 involved where stated; it stays stateless.
 
@@ -16,7 +16,7 @@ installed models. Corrections:
 |---|---|---|
 | 1 | Classify directly from `bodies.kpts` | kpts are normalised by width **and** height separately ([photo_result_store.dart](../mobile/lib/domain/scan/photo_result_store.dart) `_kpts`). Angles/distances must be computed after multiplying back by `media.width/height`. |
 | 2 | 14 colour bins incl. navy/royal/sky blue, red/burgundy, brown/orange, beige | The 80-float descriptor stores hue×saturation for chromatic pixels and **no brightness**. Shades of one hue are indistinguishable. Only coarse hue families + white/grey/black (§5.1). |
-| 3 | "Bhattacharyya distance ≥ 0.84" for same outfit | It is a coefficient (similarity). 0.84 is below the existing same-photo/video thresholds (0.86–0.90); HSV histograms are not reliable across days/lighting (§5.2). |
+| 3 | "Bhattacharyya distance ≥ 0.84" for same outfit | It is a coefficient (similarity). 0.84 is below the existing same-photo/video thresholds (0.82 / 0.86 / 0.90 by strictness, `person_linking.py`); HSV histograms are not reliable across days/lighting (§5.2). |
 | 4 | Pose matching by OKS ≥ 0.85 | OKS compares a prediction to ground truth of the same instance. Replaced by a normalised, visibility-masked, mirror-invariant descriptor (§2.3). |
 | 5 | Ground contact, jumping, kneeling rules | A single 2D image has no ground plane. Dropped or demoted. |
 | 6 | Leg rules on every body | Many bodies are `extent = upper/head`. Every rule is gated by extent and per-keypoint score. |
@@ -27,6 +27,24 @@ installed models. Corrections:
 | 11 | Sports/yoga/combat taxonomy as filters | Not reliable from 17 2D keypoints without hand/foot points (§3.5). |
 | 12 | Body re-ID: bone ratios as a hard exclusion, moles as a fingerprint, tattoo = 99.9%, silhouette/muscle identity, weighted-sum fusion with auto-link at 0.88 | 2D ratios vary as much within one person as between adults; tattoos repeat and flip in mirror selfies; outlines include clothes. Re-designed as calibrated evidence with context rules, DINOv2 visual embeddings, and exposed body matching (§7.5). |
 | 13 | — (added) | Sensitive content & exposed body tracking (§7.5, §8): NudeNet 640m detection, simple boolean tagging (`isSensitive`), no blur/locks; exposed regions serve as biometric identity evidence for linking faceless bodies (§7.5). |
+
+---
+
+### Second review (against the code, 2026-11-01)
+
+| # | Problem | Fix |
+| :-- | :-- | :-- |
+| 14 | `body_clusters` was listed after `bodies` in `backupTables`, but `bodies` references it (`*ClusterId`); the list is in FK order (parents first) | `body_clusters` goes **before** `bodies` (§6.4) |
+| 15 | §6.5 presented in-place body updates as a new rule | [photo_result_store.dart](../mobile/lib/domain/scan/photo_result_store.dart) already matches by IoU 0.5 and `UPDATE`s by id. §6.5 now lists the real work: extend the hard-coded UPDATE column list without ever touching cluster/person/link columns |
+| 16 | Phase 5 switched outfit matching off on NudeNet torso labels, which disables its own beach/swimsuit case (`BELLY_EXPOSED` fires on bikinis, bare chests, gym wear) | Skip outfit matching only when the descriptor is *skin-dominated* (§7.2). Short label names mapped to NudeNet's real labels (§8.1) |
+| 17 | Dependencies: no `S1 → P8` edge, P0 missing from the recommended order, S1 contained Phase 8 work | Diagram and order fixed; S1 = regions only, embeddings/morphology = Phase 8 behind their own flag (§8.2, §9) |
+| 18 | DINOv2 listed as a fixed asset but is not installed | Not installed: Phase 8 fetches the weights and exports to ONNX from `venv_ai`. Downloads are authorized at any size; no approval step |
+| 19 | Bridge photos auto-propagated attribution across clusters (transitive merge from one noisy link) | Suggestion only, with guards (§6.4, §7.5) |
+| 20 | Phase 8 had no calibration although every other cue does | Eval gate before the one-tap UI; "similar photos" search first (§9, Phase 8) |
+| 21 | Pose descriptor used `shoulder_width × 1.35` as a scale fallback; wrong off-frontal and mixed scales were compared | `scale_source` stored and compared like-for-like; fallback frontal only; coverage reported (§2.3) |
+| 22 | Lying "orientation guard" used `faces.roll`, which is ≈ ±90° in both the lying and the sideways-standing case, and faces are often missing | Verify EXIF handling at the source first; roll dropped (§3.1) |
+| 23 | Schema: `BodyClusters.personId` cascade deleted clustering work; `isSensitive` is derived but stored with no recompute; `reid_embedding` on every body with no evidence it helps | `setNull`; recompute rule; `reid` deferred behind the Phase 0 LLR (§6.4, §8.3) |
+| 24 | Body outfit thresholds quoted as 0.86–0.90 | Actual 0.82 / 0.86 / 0.90 by strictness |
 
 ---
 
@@ -43,7 +61,7 @@ installed models. Corrections:
 | Head pose | `faces.yaw/pitch/roll` | degrees, InsightFace `landmark_3d_68` | Only for faces that passed the quality gate. Roll used for lying orientation guard (§3.1). |
 | Image size / date | `media.width/height`, `media.taken_at` | px / epoch ms, nullable | Size needed for kpts; date for event context (§7). |
 
-**Phone-only:** Phases 0–4 run in Dart over these columns. No new models, downloads or contract change.
+**Phone-only:** Phases 1–4 run in Dart over these columns (Phase 0's eval scripts run on the PC, read-only). No new models, downloads or contract change.
 
 **PC:** event-context body linking (Phase 5) extends `person_linking.py`, which stays the single source
 of truth for grouping thresholds. Marks matching (Phase 6) uses OpenCV already in the main `venv`.
@@ -83,11 +101,16 @@ Helpers: `angle(A, B, C)` (flexion at B), `mid(A, B)`, `dist(A, B)`.
 ### 2.3 Pose similarity descriptor (replaces OKS)
 
 1. Translate so `M(11,12)` (or `M(5,6)` when hips are missing) is the origin.
-2. Anthropometric scale factor: `scale = torso_length = |M(5,6) − M(11,12)|` when hips are visible; when hips are missing or occluded, use the anthropometrically calibrated compensation `scale = shoulder_width * 1.35` (matching average human adult torso-to-shoulder ratio).
+2. Scale, with the source recorded as `scale_source`:
+   - `torso`: `scale = |M(5,6) − M(11,12)|` when both hips are visible.
+   - `shoulder`: `scale = shoulder_width · 1.35` only when hips are missing **and** the body is frontal (§3.4). Off-frontal, shoulder span is foreshortened (profile `< 0.35 · torso`) and the scale would blow up, so such bodies get no descriptor ("not comparable").
+   - Two descriptors are compared only when they share the same `scale_source`.
 3. Keep 17 × (x, y) plus a 17-bit visibility mask → 34 floats + mask.
 4. **Mirror:** also build the left↔right flipped version (swap pairs, negate x).
 5. **Distance:** mean Euclidean distance over keypoints visible in both, weighted by the min of the two
-   scores; require ≥ 8 shared visible points, else "not comparable". Similarity =
+   scores; require ≥ 8 shared visible points, else "not comparable". The result also returns
+   `coverage = shared / max(visible_a, visible_b)` and ranking uses `similarity · coverage`, so an
+   upper-body-only pose never ties a full-body pose (a seated and a standing upper body look alike). Similarity =
    `max(sim(a, b), sim(a, mirror(b)))`, `sim = exp(−d² / 2s²)`.
 6. `s` and the match threshold come from Phase 0 — no fixed 0.85.
 7. Rotation alignment (2D Procrustes) is **off**: standing vs lying must stay different.
@@ -107,7 +130,7 @@ Cached in `body_pose_features` (§6.4) so searches never re-parse JSON.
 
 | Pose | Tier | Rule (after §2.2) |
 |---|---|---|
-| **Lying (نايم / مستلقي)** | A | `φ > 60°` with shoulders and hips visible. **Orientation Guard:** To prevent misclassifying sideways photos of standing people (missing EXIF orientation) as Lying: if the body's keypoints satisfy the **Standing** rule (§3.1) after a 90° coordinate rotation, flag as a rotated standing photo and exclude from Lying. A genuine lying posture is confirmed if the limbs/joints are relaxed/bent (does not satisfy rotated Standing), or if the face is upright relative to the frame (`\|faces.roll\| < 35°`, resting head). |
+| **Lying (نايم / مستلقي)** | A | `φ > 60°` with shoulders and hips visible. **Orientation guard:** the cause of a sideways standing person is a missing EXIF rotation, so fix it at the source. Phase 0 first checks whether the scan pipeline bakes the EXIF orientation into the pixels sent to the PC (the `flutter_image_compress` step; there is no `exif` handling in `domain/scan` today). If it does, the case is rare and no guard is needed. If it does not, correct the orientation there. Only if that is impossible: exclude a body from Lying when its keypoints satisfy the **Standing** rule after a 90° coordinate rotation. `faces.roll` is **not** used: a lying person and a sideways standing person both give `\|roll\|` ≈ 90°, and faces are often missing here (quality gate). |
 | **Standing (واقف)** | A | `φ < 25°`, both knees `> 155°`, `hip.y < knee.y < ankle.y`, thigh not foreshortened: `|hip−knee| ≥ 0.7 · |knee−ankle|`. Needs `extent = full`. |
 | **Sitting (قاعد)** | A | `φ < 35°` and either (a) side-ish: knee in `[70°, 135°]`, `|hip.y − knee.y| < 0.35 · torso`; or (b) frontal: thigh foreshortened `|hip−knee| < 0.6 · |knee−ankle|`, knee below hip. A frontal sitter's 2D knee angle is near 180°, which the draft missed. |
 | Squatting (قرفصاء) | B | Knee `< 70°`, `|hip.y − ankle.y| < 0.5 · torso`. Confused with sitting low. |
@@ -279,7 +302,9 @@ the sheet says "from this clip".
 
 ```dart
 /// Additions to existing Bodies table:
-// // 1. Full-body pedestrian Re-ID (OSNet x1.0, 512-d):
+// // 1. Full-body pedestrian Re-ID (OSNet x1.0, 512-d) — DEFERRED: add these two columns only
+// //    after the Phase 0 LLR shows OSNet adds to the 80-float outfit descriptor (§7.3); it is
+// //    clothes-dependent and is combined with the outfit cue by `max`, so the gain is unproven:
 // BlobColumn get reidEmbedding => blob().nullable()(); // 512 x float32 (OSNet x1.0)
 // @ReferenceName('reidClusterBodies')
 // IntColumn get reidClusterId => integer().nullable().references(BodyClusters, #id, onDelete: KeyAction.setNull)();
@@ -303,8 +328,10 @@ the sheet says "from this clip".
 class BodyClusters extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get kind => text().withDefault(const Constant('person'))();
+  // setNull, not cascade: deleting a person must not delete the clustering work. This column is a
+  // cache; `bodies.personId` + `linkMethod` stay the single source of truth for attribution.
   IntColumn get personId => integer().nullable().references(
-    Persons, #id, onDelete: KeyAction.cascade)();
+    Persons, #id, onDelete: KeyAction.setNull)();
   TextColumn get clusterType => text()(); // 'chest' | 'buttocks' | 'full_body'
   BlobColumn get centroidEmbedding => blob()(); // 384 x float32 (DINOv2) or 512 x float32 (OSNet)
   IntColumn get bodyCount => integer().withDefault(const Constant(0))();
@@ -335,6 +362,7 @@ class BodyPoseFeatures extends Table {
   IntColumn get version => integer()();
   BlobColumn get feature => blob()(); // 34 x float32, normalised (§2.3)
   IntColumn get visibleMask => integer()(); // 17 bits
+  TextColumn get scaleSource => text()(); // 'torso' | 'shoulder' (§2.3); compared like-for-like only
   TextColumn get tags => text().withDefault(const Constant(''))(); // tier-A labels
   @override
   Set<Column> get primaryKey => {bodyId};
@@ -397,17 +425,28 @@ class BodyOutfitMatches extends Table {
 ```
 
 - Idempotent migration v15 → v16 in `app_database.dart` (v15 is `kind_overrides`).
-- Persistent tables (`body_clusters`, `body_marks`, `pose_categories`, `outfit_categories`, `body_pose_matches`, `body_outfit_matches`) go into `backupTables` in
-  [backup_service.dart](../mobile/lib/domain/backup/backup_service.dart) after `bodies`;
-  `body_pose_features` is a cache, rebuilt after restore. A v15 backup restores cleanly.
-- **Bridge Photo Representation:** Because `Bodies` maintains both `chestClusterId` and `buttocksClusterId`, a single body photograph displaying both upper and lower exposed anatomy simultaneously links to its chest cluster and buttocks cluster. When either cluster is assigned to a person, the bridge photo propagates attribution across both clusters automatically.
+- `backupTables` in [backup_service.dart](../mobile/lib/domain/backup/backup_service.dart) is in FK order
+  (parents first, deleted in reverse), so placement matters:
+  - `body_clusters` goes **before** `bodies` (`bodies.*ClusterId` references it; it references only `persons`);
+  - `body_marks`, `pose_categories`, `outfit_categories` and `sensitive_regions` go **after** `bodies`;
+  - `body_pose_matches` and `body_outfit_matches` go after their category tables.
+  - `body_pose_features` is a cache, rebuilt after restore. A v15 backup restores cleanly.
+  - The backup round-trip test must restore a library whose bodies point at clusters (FK order is what it proves).
+- **Bridge Photo Representation:** Because `Bodies` maintains both `chestClusterId` and `buttocksClusterId`, a single body photograph displaying both upper and lower exposed anatomy simultaneously links to its chest cluster and buttocks cluster. When either cluster is assigned to a person, the bridge is shown as a **suggestion** to assign the other cluster too (Quick Review card, both clusters side by side). It never propagates automatically: one noisy bridge link would merge two people's clusters transitively. Guards: a cluster pair is suggested only with ≥ 2 independent bridge photos (starting value), and never when `distinct_from`, `body_rejections` or the same-frame cannot-link rule applies.
 
-### 6.5 Mandatory In-Place Update Rule (Rescan Safety)
+### 6.5 In-Place Update Rule (Rescan Safety) — how the scan store already works
 
-During library rescans, version migrations, or sensitive backfills, executing `DELETE FROM bodies WHERE media_id = ?` is **strictly forbidden**:
+[photo_result_store.dart](../mobile/lib/domain/scan/photo_result_store.dart) already matches freshly detected
+boxes to existing rows (`sameBoxIou = 0.5`) and runs `UPDATE bodies SET score, extent, kpts, appearance, face_id ... WHERE id = ?`,
+never delete-and-reinsert. This section keeps that invariant for the new features. During rescans, version migrations, or sensitive backfills, executing `DELETE FROM bodies WHERE media_id = ?` is **strictly forbidden**:
 - **Preservation Invariant:** Rescan and re-detection workers must match freshly detected body boxes against existing `Bodies` rows using spatial overlap (`IoU ≥ 0.50`).
 - **In-Place Mutation:** Attributes (`kpts`, `extent`, `appearance`, `reidEmbedding`, `chestEmbedding`, `buttocksEmbedding`, `reidClusterId`, `chestClusterId`, `buttocksClusterId`, `morphology`) must be updated in-place via `UPDATE bodies SET ... WHERE id = existing.id`.
-- **Relational Integrity:** This guarantees that the primary key `bodies.id` never changes across rescans, preventing accidental cascade deletion of child records in `media_detections`, `body_pose_matches`, `body_outfit_matches`, `body_marks`, and preserving manual assignments (`personId`), user links (`linkMethod`), and user corrections. Only genuinely obsolete bodies (no detection match) may be removed.
+- **Relational Integrity:** This guarantees that the primary key `bodies.id` never changes across rescans, preventing accidental cascade deletion of child records in `media_detections`, `body_pose_matches`, `body_outfit_matches`, `body_marks`, and preserving manual assignments (`personId`), user links (`linkMethod`), and user corrections. Only genuinely obsolete bodies (no detection match) may be removed; verify what the store does with unmatched existing rows today before relying on this sentence.
+
+The actual work this section adds:
+- Extend the hard-coded `UPDATE bodies SET ...` column list with the new analysis columns. A column is written only when the new analysis returned it (`COALESCE(?, column)`), so a rescan without the Phase 8 flag does not null stored embeddings.
+- `personId`, `linkMethod`, `faceId` (already `COALESCE`d), `*ClusterId` and `trackId` are never in that UPDATE, so user corrections and confirmed clusters survive rescans.
+- `_bodiesOfMedia` filters `kind = 'person'` and the exact `frame_number`; characters and video frames keep their own matching. Backfill workers (§8.3) use the same matching.
 
 ---
 
@@ -457,9 +496,12 @@ A faceless body `b` may link to person `P` when:
    are excluded from this rule.
 3. **Same outfit:** `appearance_similarity ≥ event_auto` against the best anchor, with a margin over the
    best anchor of any other person in the window (same rule shape as the existing `body_auto` /
-   `body_margin`). The comparison uses the current 80-float `bodies.appearance` for clothed bodies. When
-   NudeNet detects torso nudity (`exposed_breast` or `exposed_belly`), outfit matching is marked "not
-   applicable" and routes directly to §7.5 exposed body matching.
+   `body_margin`). The comparison uses the current 80-float `bodies.appearance`. Swimwear and beach days are
+   this rule's motivating case, so NudeNet labels must **not** switch it off (`BELLY_EXPOSED` fires on bikinis, bare
+   chests and gym wear). Instead a body is skipped for outfit matching when its descriptor is *skin-dominated*: the
+   share of torso-region histogram mass in the skin-hue/low-saturation bins exceeds a Phase 0 threshold. On bare
+   skin the descriptor measures skin tone, and two different bare torsos of similar tone can score ≥ 0.9. Such
+   bodies go to §7.5 matching or stay unlinked.
 4. **Not contradicted:** `P` not in `b`'s rejections; `P` not already in `b`'s frame; bone-ratio veto
    (§7.1) not triggered; no other person in the window with a near-equal outfit (two people in the same
    uniform → suggestion only).
@@ -542,7 +584,7 @@ performs direct biometric and visual matching on the exposed regions to link the
    - **Phone-Side Isolate Execution:** Clustering (DBSCAN / Agglomerative) is executed **100% locally on the phone in a dedicated Dart isolate** using SIMD `Float32List` operations (<20 ms for 100 bodies). Zero server transfer, fully offline and private.
    - **Cross-Photo Similarity Matrix:** Pairwise Cosine similarity across visual embeddings (`chestEmbedding` / `buttocksEmbedding`) and morphological metrics from `morphology` JSON.
    - **Persistent Body Clusters:** Discovered clusters are stored in the SQLite table `BodyClusters` (§6.4) with their centroid embedding.
-   - **Bridge Photos (Multi-Cluster Representation):** A body photograph displaying both upper and lower exposed regions carries both `chestClusterId` (e.g. Cluster 3) and `buttocksClusterId` (e.g. Cluster 8) in `Bodies` (Schema v16). When either cluster is assigned to a person, the bridge photo propagates attribution across both clusters automatically.
+   - **Bridge Photos (Multi-Cluster Representation):** A body photograph displaying both upper and lower exposed regions carries both `chestClusterId` (e.g. Cluster 3) and `buttocksClusterId` (e.g. Cluster 8) in `Bodies` (Schema v16). When either cluster is assigned to a person, the other is only **suggested** (§6.4 guards); attribution is never propagated automatically across clusters.
    - **One-Tap Assignment:** Displayed in the Bodies Screen (`/bodies`) or Quick Review, allowing the user to confirm the whole cluster to a Person with a single tap.
 
 ### 7.6 Quick Review card
@@ -583,10 +625,12 @@ so the user can locate or query sensitive items if desired, without any complex 
 |---|---|---|---|---|
 | **NudeNet 640m** (YOLOv8m, ONNX) | Boxes for 18 sensitive labels (exposed/covered body parts, faces) | `the app/models/sensitive/640m.onnx` | main `venv` (onnxruntime) | **Installed & verified** (103,538,690 B, SHA256: `5fd488c39acfb268efb4a92bce4fbc95967c059bd7ee1c01026fcaf81aec5c9e`) |
 | **OSNet x1.0** (Pedestrian Re-ID, ONNX) | 512-d visual embedding for full-body clothed figures (`Bodies.reidEmbedding`) | `the app/models/reid/osnet_x1_0.onnx` | main `venv` (onnxruntime) | **Installed & verified** (8,729,355 B, dynamic batch, outputs 512-d embedding) |
-| **DINOv2 ViT-S/14** (Patch Embedding, ONNX) | 384-d visual embedding for exposed/close-up body patches (`Bodies.chestEmbedding` & `buttocksEmbedding`) | `the app/models/reid/dinov2_vits14.onnx` | main `venv` (onnxruntime) | **Phase 8 Specification** (~85 MB FP16 ONNX, exported from `dinov2_vits14`, zero pedestrian bias) |
+| **DINOv2 ViT-S/14** (Patch Embedding, ONNX) | 384-d visual embedding for exposed/close-up body patches (`Bodies.chestEmbedding` & `buttocksEmbedding`) | `the app/models/reid/dinov2_vits14.onnx` | main `venv` (onnxruntime) | **Phase 8 Specification — not installed yet** (~85 MB FP16 ONNX, exported from `dinov2_vits14`, zero pedestrian bias). Phase 8 fetches the weights and exports to ONNX from `venv_ai` (torch); downloads are authorized at any size, no approval step |
 | **RTMPose-m body7** | 17 skeletal keypoints | `the app/models/body/rtmpose_m_body7.onnx` | main `venv` | Installed |
 | **YOLOX-m humanart** | Body bounding boxes | `the app/models/body/yolox_m_humanart.onnx` | main `venv` | Installed |
 | **RMBG 1.4** | Alpha masks and body silhouettes | `the app/models/rmbg.onnx` | main `venv` | Installed |
+
+**Label names.** This document uses short names (`exposed_breast`, `exposed_belly`, `exposed_buttocks`, `exposed_genitalia`). NudeNet v3's labels are `FEMALE_BREAST_EXPOSED`, `MALE_BREAST_EXPOSED`, `BELLY_EXPOSED`, `BUTTOCKS_EXPOSED`, `FEMALE_GENITALIA_EXPOSED`, `MALE_GENITALIA_EXPOSED`, `ANUS_EXPOSED`, plus `*_COVERED`, `FACE_*`, `FEET_*`, `ARMPITS_*`. S1 ships an explicit short-name → label mapping table, verified against the class list of the installed `640m.onnx`; `sensitive_policy.dart` and the fixtures use the real labels.
 
 *Note: Sapiens-seg is completely eliminated (saving 1.3 GB download and GPU VRAM). Age estimation (`genderage.onnx`) is omitted from API contracts and schema (YAGNI). NudeNet 640m and OSNet x1.0 are fully downloaded, verified, and operational on the local machine.*
 
@@ -595,12 +639,12 @@ so the user can locate or query sensitive items if desired, without any complex 
 1. **Scan:** `POST /v1/analyze/image` gains the optional flag `return_sensitive: true`.
    - The scan worker runs NudeNet on the full image (640) → regions `{label, exposed, score, bbox}`.
    - Each region is assigned to a body: its centre must lie inside the body box. When torso keypoints are visible (`score ≥ 0.3`), keypoint plausibility decides (chest labels between that body's shoulders and hips, pelvic labels near its hip midpoint); on close-up crops lacking visible torso keypoints, containment plus largest box overlap decides directly. Ties go to the largest overlap; otherwise `body_index = null`.
-   - **Embeddings, Morphology & Marks:** Full-body figures receive `body.reid_embedding` (512-d OSNet). When exposed body regions are present, the worker extracts `body.chest_embedding` and/or `body.buttocks_embedding` (384-d DINOv2) and calculates `scale_source`, `breast_span_ratio`, `areola_contrast`, `hip_waist_ratio`, `buttocks_span_ratio`, `skin_tone_lab`, and dark spot constellations (`micro_marks`), returning them in `body.morphology`.
+   - **Embeddings, Morphology & Marks — Phase 8, NOT S1.** S1 returns regions and body assignment only. Behind a separate request flag `return_body_embeddings`, full-body figures receive `body.reid_embedding` (512-d OSNet, only after Phase 0 shows it adds value, §7.3). When exposed body regions are present, the worker extracts `body.chest_embedding` and/or `body.buttocks_embedding` (384-d DINOv2) and calculates `scale_source`, `breast_span_ratio`, `areola_contrast`, `hip_waist_ratio`, `buttocks_span_ratio`, `skin_tone_lab`, and dark spot constellations (`micro_marks`), returning them in `body.morphology`.
    - Without the flag the response is byte-identical to today (same pattern as `return_outlines`).
 2. **Backfill:** `POST /v1/analyze/sensitive` takes a JPEG plus body boxes/kpts and returns the same
    output (regions, embeddings, and `morphology`), for photos scanned before this feature (same pattern as `/v1/analyze/outlines`).
 3. **Contract:**
-   - Add `SensitiveRegion`, `BodyMorphology`, and the embedding fields (`reid_embedding`, `chest_embedding`, `buttocks_embedding`) to `openapi.yaml`.
+   - S1: add `SensitiveRegion` to `openapi.yaml`. Phase 8: add `BodyMorphology` and the embedding fields (`reid_embedding`, `chest_embedding`, `buttocks_embedding`).
    - Regenerate fixtures with `make_fixtures.py`, then run `validate_contract.py`.
    - Extend `test_mobile_stateless.py`: no image, embedding, or region is persisted on the PC.
 
@@ -609,7 +653,7 @@ so the user can locate or query sensitive items if desired, without any complex 
 ```dart
 // media
 TextColumn get sensitiveOverride => text().nullable()(); // 'none' | 'sensitive' (user override)
-BoolColumn get isSensitive => boolean().withDefault(const Constant(false))();
+BoolColumn get isSensitive => boolean().withDefault(const Constant(false))(); // derived cache, see §8.3 bullets
 
 @TableIndex(name: 'sensitive_regions_media', columns: {#mediaId})
 @TableIndex(name: 'sensitive_regions_body', columns: {#bodyId})
@@ -636,6 +680,7 @@ class SensitiveRegions extends Table {
 ```
 
 - `sensitive_regions` goes into `backupTables` after `bodies`; the new columns travel automatically.
+- `media.isSensitive` is a derived cache of (regions, per-label thresholds, `userState`, `sensitiveOverride`). One pure function in `sensitive_policy.dart` computes it, and it is recomputed whenever `modelVersion`, the threshold-table version or any of those inputs change; a migration/backfill step does this for existing rows so it can never go stale.
 - A rescan replaces a media item's rows but keeps `userState`: an old row with a user state is matched
   to a new row with the same label and IoU ≥ 0.5.
 - Backfill runner `mobile/lib/domain/sensitive/sensitive_backfill.dart`, modelled on
@@ -690,17 +735,18 @@ flowchart TD
     P5 --> P6["Phase 6: user-marked tattoos"]
     P4 -.optional.-> P7["Phase 7: PC garment tags"]
     P5 --> P8["Phase 8: deep visual embeddings (DINOv2/OSNet)"]
-    S0["S0: sensitive eval (NudeNet)"] --> S1["S1: PC detection (NudeNet)"]
+    S0["S0: sensitive eval (NudeNet)"] --> S1["S1: PC detection, regions only (NudeNet)"]
+    S1 --> P8
     S1 --> S2["S2: phone storage & tagging (isSensitive)"]
     P5 --> S3["S3: person attribution"]
-    P8 --> S3
+    P8 -.optional.-> S3
     S2 --> S3
     S3 --> S4["S4: video sensitive aggregation"]
 ```
 
-Phase 5 and Phase 8 do not depend on Phases 1–4 and can be built first.
+Phase 5 and Phase 8 do not depend on Phases 1–4. Phase 5 needs Phase 0's body-link calibration (`eval_body_links.py`, the pose half of Phase 0 is not required). Phase 8 needs S1 (the exposed regions are its trigger) and passes its own gate (see Phase 8) before anything user-facing ships.
 
-**Recommended order**: S0 → S1 → S2 → Phase 5 → Phase 8 → S3 → S4 → Phase 6, with the pose track (Phases 0–4) afterwards. S1 and S2 do not need Phase 5 or Phase 8: items are flagged per photo.
+**Recommended order**: S0 → S1 → S2 (all models installed; items are flagged per photo), then Phase 0 (body links only) → Phase 5 → S3 → S4, then the pose track (Phases 0–4, pose half), then Phase 8 and Phase 6 once their evals pass. S3 works from Phase 5 links plus manual bulk link; Phase 8 clusters are an optional extra source.
 
 ### Track S — sensitive content (§8)
 
@@ -714,7 +760,7 @@ Phase 5 and Phase 8 do not depend on Phases 1–4 and can be built first.
   `sensitive_policy.dart` and the shared fixtures.
 
 **S1 — PC detection**
-- Implement §8.2 steps 1, 2 and 3.
+- Implement §8.2 steps 1, 2 and 3 for regions and body assignment only; the embeddings/morphology bullet of §8.2 is Phase 8.
 - NudeNet 640m is installed at `the app/models/sensitive/640m.onnx`.
 - `--check-models` checks and reports NudeNet readiness.
 - Tests per §8.6 (PC part).
@@ -753,7 +799,7 @@ Every AI agent or developer implementing any phase of this roadmap must follow t
 3. **Model Locations (Fixed & Roadmap Assets):**
    - NudeNet 640m: `the app/models/sensitive/640m.onnx` (Installed & verified)
    - OSNet Re-ID: `the app/models/reid/osnet_x1_0.onnx` (Installed & verified, full-body Re-ID)
-   - DINOv2 ViT-S/14: `the app/models/reid/dinov2_vits14.onnx` (Phase 8 specification, patch embeddings)
+   - DINOv2 ViT-S/14: `the app/models/reid/dinov2_vits14.onnx` (NOT installed yet; Phase 8 fetches the weights and exports to ONNX from `venv_ai`, no approval step)
    - RTMPose-m: `the app/models/body/rtmpose_m_body7.onnx` (Installed)
    - YOLOX-m: `the app/models/body/yolox_m_humanart.onnx` (Installed)
    - RMBG 1.4: `the app/models/rmbg.onnx` (Installed)
@@ -834,6 +880,8 @@ Every AI agent or developer implementing any phase of this roadmap must follow t
 `outline_backfill.dart`; per-tag precision measured before any tag becomes a filter.
 
 **Phase 8 — Deep Visual Embedding & Exposed Region Matching** (§7.5)
+- **Gate (calibration, like every other cue):** `the app/eval_body_embeddings.py [data_dir]`, read-only. On curated people whose exposed-region photos the user has labelled (same sample sheet as S0), measure same-person vs different-person similarity per embedding type, and pairwise precision / purity of the proposed DBSCAN clusters. Also check that clusters follow identity and not lighting, pose, crop or event (generic embeddings on skin patches tend to). The one-tap cluster assignment UI ships only at pairwise precision ≥ 0.95. Below that, ship a "similar photos" ranked search only: no persistent clusters, no assignment. OSNet `reid` is added only if it improves the Phase 0 LLR over the outfit cue alone.
+- Setup: fetch the DINOv2 ViT-S/14 weights and export to ONNX from `venv_ai`; no approval step, any size.
 - DINOv2 ViT-S/14 (384-d) patch visual embeddings + OSNet x1.0 (512-d full-body Re-ID installed and verified at `the app/models/reid/osnet_x1_0.onnx`).
 - `Bodies.reidEmbedding` (512-d), `Bodies.chestEmbedding` (384-d), `Bodies.buttocksEmbedding` (384-d), `Bodies.morphology` JSON, `BodyClusters` table, bridge photo dual-cluster linkage, phone-local DBSCAN isolate clustering, and one-tap candidate assignment.
 

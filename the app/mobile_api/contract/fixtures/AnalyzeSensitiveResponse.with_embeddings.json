@@ -1,0 +1,45 @@
+{
+  "model_version": 1,
+  "regions": [
+    {
+      "label": "FEMALE_BREAST_EXPOSED",
+      "exposed": true,
+      "score": 0.9127,
+      "bbox": {
+        "x": 455.0,
+        "y": 560.0,
+        "w": 120.0,
+        "h": 90.0
+      },
+      "body_index": 0
+    }
+  ],
+  "bodies": [
+    {
+      "chest_embedding": "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",
+      "buttocks_embedding": null,
+      "morphology": {
+        "scale_source": "kpts",
+        "breast_span_ratio": 0.3142,
+        "areola_contrast": 0.2217,
+        "skin_tone_lab": [
+          62.5,
+          12.1,
+          18.4
+        ],
+        "micro_marks": [
+          [
+            0.1123,
+            0.4211,
+            0.0512
+          ]
+        ]
+      }
+    },
+    {
+      "chest_embedding": null,
+      "buttocks_embedding": null,
+      "morphology": null
+    }
+  ]
+}

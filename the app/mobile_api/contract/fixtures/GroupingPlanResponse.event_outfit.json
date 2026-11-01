@@ -1,0 +1,16 @@
+{
+  "mode": "apply",
+  "assignments": [],
+  "groups": [],
+  "duplicates": [],
+  "body_links": [
+    {
+      "body_id": 12,
+      "person_id": 1,
+      "method": "event_outfit",
+      "confidence": 0.94,
+      "decision": "auto"
+    }
+  ],
+  "unsorted_face_ids": []
+}

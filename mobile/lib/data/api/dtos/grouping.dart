@@ -90,7 +90,11 @@ class GroupingBody {
     this.appearance,
     this.weakFaceEmbedding,
     this.rejectedPersonIds = const [],
+    this.takenAt,
   });
+
+  /// Epoch ms of the photo (event-context linking, roadmap 7.2); null = unknown, never matched by time.
+  final int? takenAt;
 
   final int id;
   final int? mediaId;
@@ -110,6 +114,7 @@ class GroupingBody {
     if (weakFaceEmbedding != null)
       'weak_face_embedding': encodeVector(weakFaceEmbedding!),
     'rejected_person_ids': rejectedPersonIds,
+    if (takenAt != null) 'taken_at': takenAt,
   };
 
   factory GroupingBody.fromJson(Map<String, dynamic> json) {
@@ -124,6 +129,7 @@ class GroupingBody {
           ? null
           : numbers(appearance, 'bodies[].appearance'),
       weakFaceEmbedding: weak is String ? decodeVectorAuto(weak) : null,
+      takenAt: json['taken_at'] as int?,
       rejectedPersonIds: [
         for (final p in list(
           json['rejected_person_ids'],
@@ -311,7 +317,7 @@ class BodyLinkPlan {
 
   final int bodyId;
   final int personId;
-  final String method; // appearance | weak_face
+  final String method; // appearance | weak_face | event_outfit
   final double confidence;
   final String decision; // auto | suggest
 

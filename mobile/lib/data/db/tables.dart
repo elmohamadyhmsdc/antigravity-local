@@ -113,6 +113,23 @@ class Media extends Table {
 
   // v11: in an album the user marked as anime/cartoon (scanned for characters)
   BoolColumn get illustrated => boolean().withDefault(const Constant(false))();
+
+  // v16 (roadmap section 8): `isSensitive` is a DERIVED cache of (sensitive_regions, the per-label
+  // thresholds, regions' user_state, sensitiveOverride) - recomputed by sensitive_policy.dart whenever
+  // one of them changes, never edited on its own. `sensitiveOverride`: the user's word, 'none' |
+  // 'sensitive'. `sensitiveVersion`: the PC model version whose regions this file has (0 = never
+  // checked); a photo with no regions still has a version, so the backfill does not redo it forever.
+  TextColumn get sensitiveOverride => text().nullable()();
+  BoolColumn get isSensitive => boolean().withDefault(const Constant(false))();
+  IntColumn get sensitiveVersion => integer().withDefault(const Constant(0))();
+
+  // v16: the DINOv2 pass (roadmap 7.5) for this photo was done by /v1/analyze/sensitive?embeddings (0 = not yet).
+  // A photo scanned with return_body_embeddings gets it from the scan itself.
+  IntColumn get bodyEmbeddingVersion =>
+      integer().withDefault(const Constant(0))();
+
+  // v16 (roadmap Phase 7): the PC garment-tag version whose tags this photo's bodies have (0 = never asked).
+  IntColumn get garmentVersion => integer().withDefault(const Constant(0))();
 }
 
 @TableIndex(name: 'faces_person_id', columns: {#personId})
@@ -236,7 +253,7 @@ class Bodies extends Table {
   BlobColumn get appearance =>
       blob().nullable()(); // 80 x float32 outfit descriptor
   TextColumn get linkMethod =>
-      text().nullable()(); // manual | appearance | weak_face
+      text().nullable()(); // manual | appearance | weak_face | event_outfit
   RealColumn get linkConfidence => real().nullable()();
   BlobColumn get weakFaceEmbedding => blob().nullable()();
   RealColumn get weakFaceQuality => real().nullable()();
@@ -250,6 +267,26 @@ class Bodies extends Table {
 
   // v14: 'person' | 'character'
   TextColumn get kind => text().withDefault(const Constant('person'))();
+
+  // v16 (roadmap section 7.5, Phase 8): exposed-region embeddings (DINOv2 ViT-S/14, 384 x float32),
+  // their clusters, and the morphology JSON {scale_source, breast_span_ratio, areola_contrast,
+  // hip_waist_ratio, buttocks_span_ratio, skin_tone_lab, micro_marks}. Written in place by a rescan,
+  // never touched by the body UPDATE of the scan store unless the PC returned them.
+  BlobColumn get chestEmbedding => blob().nullable()();
+  BlobColumn get buttocksEmbedding => blob().nullable()();
+  @ReferenceName('chestClusterBodies')
+  IntColumn get chestClusterId => integer().nullable().references(
+    BodyClusters,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  @ReferenceName('buttocksClusterBodies')
+  IntColumn get buttocksClusterId => integer().nullable().references(
+    BodyClusters,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get morphology => text().nullable()();
 }
 
 /// "This face is not that person" - auto-grouping never redoes a correction.
@@ -419,7 +456,7 @@ class ReviewBodyLinks extends Table {
       integer().references(Bodies, #id, onDelete: KeyAction.cascade)();
   IntColumn get personId =>
       integer().references(Persons, #id, onDelete: KeyAction.cascade)();
-  TextColumn get method => text()(); // appearance | weak_face
+  TextColumn get method => text()(); // appearance | weak_face | event_outfit
   RealColumn get confidence => real()();
 
   @override
@@ -550,4 +587,180 @@ class ReviewSnoozes extends Table {
 
   @override
   Set<Column> get primaryKey => {questionKey};
+}
+
+// ---- v16: body pose / outfit categories, sensitive regions, exposed-body clusters, marks ----------
+// (docs/body-pose-and-clothing-filters-roadmap.md sections 6.4, 7.4, 7.5, 8.3)
+
+/// Exposed-region body groups found on the phone (section 7.5). `person_id` is a cache: the single
+/// source of truth for attribution is `bodies.person_id` + `link_method`, so deleting a person must
+/// not delete the clustering work (set null, not cascade).
+@TableIndex(name: 'body_clusters_person', columns: {#personId})
+@DataClassName('BodyClusterRow')
+class BodyClusters extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get kind => text().withDefault(const Constant('person'))();
+  IntColumn get personId => integer().nullable().references(
+    Persons,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get clusterType => text()(); // 'chest' | 'buttocks'
+  BlobColumn get centroidEmbedding => blob()(); // 384 x float32
+  IntColumn get bodyCount => integer().withDefault(const Constant(0))();
+  IntColumn get createdAt => integer()();
+}
+
+/// A tattoo the user marked on a body of a known person (section 7.4).
+@TableIndex(name: 'body_marks_person', columns: {#personId})
+@DataClassName('BodyMarkRow')
+class BodyMarks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get personId =>
+      integer().references(Persons, #id, onDelete: KeyAction.cascade)();
+  IntColumn get sourceBodyId => integer().nullable().references(
+    Bodies,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get segment => text()(); // 'r_forearm', 'chest', 'upper_back', ...
+  TextColumn get anchor =>
+      text()(); // JSON: patch box relative to the segment's anchor keypoints
+  TextColumn get patchPath =>
+      text()(); // relative, 'marks/<id>.png' (in the backup)
+  TextColumn get label => text().nullable()();
+  IntColumn get createdAt => integer()();
+}
+
+/// Cached pose descriptor; rebuilt when the version or the body's kpts change. Not backed up.
+@DataClassName('BodyPoseFeatureRow')
+class BodyPoseFeatures extends Table {
+  IntColumn get bodyId =>
+      integer().references(Bodies, #id, onDelete: KeyAction.cascade)();
+  IntColumn get version => integer()();
+  BlobColumn get feature => blob()(); // 34 x float32, normalised (section 2.3)
+  IntColumn get visibleMask => integer()(); // 17 bits
+  TextColumn get scaleSource =>
+      text()(); // 'torso' | 'shoulder': compared like-for-like only
+  TextColumn get tags => text().withDefault(
+    const Constant(''),
+  )(); // tier-A labels, comma separated
+
+  @override
+  Set<Column> get primaryKey => {bodyId};
+}
+
+@DataClassName('PoseCategoryRow')
+class PoseCategories extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 80)();
+  TextColumn get kind => text().withDefault(const Constant('person'))();
+  IntColumn get exemplarBodyId => integer().nullable().references(
+    Bodies,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  BlobColumn get exemplarFeature =>
+      blob()(); // copy, survives the body's deletion
+  IntColumn get exemplarMask => integer()();
+  TextColumn get exemplarScaleSource => text()();
+  RealColumn get threshold => real()();
+  IntColumn get createdAt => integer()();
+}
+
+@DataClassName('OutfitCategoryRow')
+class OutfitCategories extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 80)();
+  TextColumn get kind => text().withDefault(const Constant('person'))();
+  IntColumn get personId => integer().nullable().references(
+    Persons,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  IntColumn get exemplarBodyId => integer().nullable().references(
+    Bodies,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  BlobColumn get exemplarAppearance => blob()(); // 80 x float32 copy
+  BoolColumn get lowerOnly => boolean().withDefault(const Constant(false))();
+  RealColumn get threshold => real()();
+  IntColumn get createdAt => integer()();
+}
+
+/// state: 'auto' | 'manual' | 'rejected' (the user removed it - never re-added).
+@TableIndex(name: 'body_pose_matches_cat', columns: {#categoryId})
+@DataClassName('BodyPoseMatchRow')
+class BodyPoseMatches extends Table {
+  IntColumn get bodyId =>
+      integer().references(Bodies, #id, onDelete: KeyAction.cascade)();
+  IntColumn get categoryId =>
+      integer().references(PoseCategories, #id, onDelete: KeyAction.cascade)();
+  RealColumn get similarity => real()();
+  TextColumn get state => text()();
+
+  @override
+  Set<Column> get primaryKey => {bodyId, categoryId};
+}
+
+@TableIndex(name: 'body_outfit_matches_cat', columns: {#categoryId})
+@DataClassName('BodyOutfitMatchRow')
+class BodyOutfitMatches extends Table {
+  IntColumn get bodyId =>
+      integer().references(Bodies, #id, onDelete: KeyAction.cascade)();
+  IntColumn get categoryId => integer().references(
+    OutfitCategories,
+    #id,
+    onDelete: KeyAction.cascade,
+  )();
+  RealColumn get similarity => real()();
+  TextColumn get state => text()();
+
+  @override
+  Set<Column> get primaryKey => {bodyId, categoryId};
+}
+
+/// Exposed / covered body-part boxes from the PC (NudeNet, section 8). Local to the phone; no crops
+/// of these areas are stored anywhere.
+@TableIndex(name: 'sensitive_regions_media', columns: {#mediaId})
+@TableIndex(name: 'sensitive_regions_body', columns: {#bodyId})
+@DataClassName('SensitiveRegionRow')
+class SensitiveRegions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get mediaId =>
+      integer().references(Media, #id, onDelete: KeyAction.cascade)();
+  IntColumn get bodyId => integer().nullable().references(
+    Bodies,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get label => text()();
+  BoolColumn get exposed => boolean()();
+  RealColumn get score => real()();
+  RealColumn get x => real()(); // normalised to the image
+  RealColumn get y => real()();
+  RealColumn get w => real()();
+  RealColumn get h => real()();
+  IntColumn get frameNumber => integer().nullable()();
+  IntColumn get timestampMs => integer().nullable()();
+  IntColumn get modelVersion => integer()();
+  TextColumn get userState => text().nullable()(); // 'dismissed' | 'confirmed'
+  IntColumn get createdAt => integer()();
+}
+
+/// Raw WD14 garment scores per body (roadmap Phase 7). Evidence for the user's own labelling: nothing
+/// reads these as a filter until a tag's precision on real photos has been measured. Kept per body so a
+/// deleted body takes its tags with it; `score` is the tagger's probability, not a decision.
+@TableIndex(name: 'body_garment_tags_tag', columns: {#tag})
+@DataClassName('BodyGarmentTagRow')
+class BodyGarmentTags extends Table {
+  IntColumn get bodyId =>
+      integer().references(Bodies, #id, onDelete: KeyAction.cascade)();
+  TextColumn get tag => text()();
+  TextColumn get category => text()();
+  RealColumn get score => real()();
+
+  @override
+  Set<Column> get primaryKey => {bodyId, tag};
 }

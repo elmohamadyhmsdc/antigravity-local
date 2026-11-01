@@ -52,6 +52,27 @@ class FramePc extends VideoPc implements MobileApi {
   }) async => List.filled(targets.length, null);
 
   @override
+  Future<AnalyzeSensitiveResponse> analyzeSensitive(
+    Uint8List jpegBytes,
+    List<SensitiveBodyTargetDto> bodies, {
+    String filename = 'photo.jpg',
+    bool embeddings = false,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<AnalyzeGarmentsResponse> analyzeGarments(
+    Uint8List jpegBytes,
+    List<SensitiveBodyTargetDto> bodies, {
+    String filename = 'photo.jpg',
+  }) => throw UnimplementedError();
+
+  @override
+  Future<AnalyzeMarksResponse> analyzeMarks(
+    Uint8List reference,
+    List<Uint8List> candidates,
+  ) => throw UnimplementedError();
+
+  @override
   Future<Capabilities> capabilities() => throw UnimplementedError();
   @override
   Future<Health> health() => throw UnimplementedError();

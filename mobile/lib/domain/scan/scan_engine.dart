@@ -98,6 +98,13 @@ class ScanEngine {
   ScanProgress _progress = const ScanProgress();
   bool _active = false;
   bool _canDetectCharacters = false;
+
+  /// The PC has the NudeNet model: scans of real photos also ask for exposed / covered regions
+  /// (roadmap section 8). Drawn albums never do.
+  bool _canDetectSensitive = false;
+
+  /// Also the DINOv2 model: scans of real photos ask for exposed-region embeddings (roadmap 7.5).
+  bool _canEmbedBodies = false;
   Completer<void>? _settled;
   bool _pauseRequested = false;
   bool _allowReconnectResume = true;
@@ -211,6 +218,8 @@ class ScanEngine {
     _emit(const ScanProgress(phase: ScanPhase.preparing));
     final caps = await api.capabilities();
     _canDetectCharacters = caps.engines.characterDetection;
+    _canDetectSensitive = caps.engines.sensitiveDetection;
+    _canEmbedBodies = caps.engines.bodyEmbeddings;
     final characterAlbums = prefs.characterAlbumIds.toSet().intersection(
       prefs.albumIds.toSet(),
     );
@@ -538,6 +547,7 @@ class ScanEngine {
             onProgress: onVideoProgress,
             onPreview: preview,
             characterScan: row.illustrated || _canDetectCharacters,
+            sensitiveScan: _canDetectSensitive,
           );
           return _Scanned(
             outcome,
@@ -555,6 +565,8 @@ class ScanEngine {
             facelessCharacters: row.illustrated,
             forceKind: corrections.forceKind,
             kindOverrides: corrections.dtos(),
+            returnSensitive: _canDetectSensitive && !row.illustrated,
+            returnBodyEmbeddings: _canEmbedBodies && !row.illustrated,
           ),
         );
         // Illustrated files only carry face vectors when a real face was found.

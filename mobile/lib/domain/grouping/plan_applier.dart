@@ -130,7 +130,7 @@ class PlanApplier {
     GroupingPlanResponse plan,
   ) => _db.transaction(() async {
     await _db.customUpdate(
-      "UPDATE bodies SET person_id = NULL, link_method = NULL, link_confidence = NULL WHERE link_method IN ('appearance', 'weak_face') AND bodies.kind = ? AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.id = bodies.person_id AND p.grouping_locked = 1)",
+      "UPDATE bodies SET person_id = NULL, link_method = NULL, link_confidence = NULL WHERE link_method IN ('appearance', 'weak_face', 'event_outfit') AND bodies.kind = ? AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.id = bodies.person_id AND p.grouping_locked = 1)",
       variables: [Variable.withString(kind)],
       updates: {_db.bodies},
     );

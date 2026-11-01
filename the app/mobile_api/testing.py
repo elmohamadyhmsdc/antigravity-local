@@ -84,6 +84,9 @@ def _fake_octagon(bbox):
 class FakeEngines:
     """Two faces (one good, one that fails the detector gate) and one body tied to the first face."""
     model_id = "buffalo_l@1"
+    sensitive_ready = True
+    embeddings_ready = True
+    garments_ready = True
 
     def __init__(self):
         self.calls = []
@@ -109,10 +112,51 @@ class FakeEngines:
         if getattr(options, "outlines", False):
             f_out = [_fake_octagon(f.bbox) if p else None for f, p in zip(faces, passes)]
             b_out = [_fake_octagon(b.bbox) for b in bodies]
-        return FrameAnalysis(faces=faces, quality=quality, passes_gate=passes, bodies=bodies,
-                             appearances=appearances, pairs=list(pairs), image_w=w, image_h=h,
-                             timings_ms={"detect": 1.5, "quality": 0.5},
-                             face_outlines=f_out, body_outlines=b_out)
+        result = FrameAnalysis(faces=faces, quality=quality, passes_gate=passes, bodies=bodies,
+                               appearances=appearances, pairs=list(pairs), image_w=w, image_h=h,
+                               timings_ms={"detect": 1.5, "quality": 0.5},
+                               face_outlines=f_out, body_outlines=b_out)
+        if getattr(options, "sensitive", False) or getattr(options, "body_embeddings", False):
+            result.sensitive = self.fake_regions(bodies)
+        if getattr(options, "body_embeddings", False):
+            result.body_embeddings = [self.fake_embedding(i) for i, _ in enumerate(bodies)]
+        return result
+
+    @staticmethod
+    def fake_embedding(index: int) -> dict:
+        import base64
+        v = np.random.default_rng(100 + index).standard_normal(384).astype("<f4")
+        v /= np.linalg.norm(v)
+        return {"chest_embedding": base64.b64encode(v.tobytes()).decode("ascii"), "buttocks_embedding": None,
+                "morphology": {"scale_source": "kpts", "breast_span_ratio": 0.31, "areola_contrast": 0.22,
+                               "skin_tone_lab": [62.5, 12.1, 18.4], "micro_marks": [[0.11, 0.42, 0.05]]}}
+
+    @staticmethod
+    def fake_regions(bodies):
+        """One chest region on the first body, one unattached belly region."""
+        regions = [{"label": "BELLY_COVERED", "exposed": False, "score": 0.5, "bbox": [400.0, 300.0, 460.0, 350.0],
+                    "body_index": None}]
+        if bodies:
+            regions.insert(0, {"label": "FEMALE_BREAST_EXPOSED", "exposed": True, "score": 0.91,
+                               "bbox": [100.0, 140.0, 170.0, 190.0], "body_index": 0})
+        return regions
+
+    def compute_sensitive(self, img, bodies: list, embeddings: bool = False):
+        if self.fail_with is not None:
+            raise self.fail_with
+        self.sensitive_calls = getattr(self, "sensitive_calls", []) + [bodies]
+        regions = self.fake_regions(bodies)
+        if not embeddings:
+            return regions
+        return {"regions": regions, "bodies": [self.fake_embedding(i) for i, _ in enumerate(bodies)]}
+
+    def compute_garments(self, img, bodies: list) -> list:
+        if self.fail_with is not None:
+            raise self.fail_with
+        self.garment_calls = getattr(self, "garment_calls", []) + [bodies]
+        return [[{"tag": "t-shirt", "category": "upper", "score": 0.8123},
+                 {"tag": "jeans", "category": "lower", "score": 0.4412}] if i % 2 == 0 else []
+                for i, _ in enumerate(bodies)]
 
     def compute_outlines(self, img, targets: list) -> list:
         if self.fail_with is not None:
@@ -137,7 +181,8 @@ class FakeProbe:
         self.value = {
             "gpu": {"name": "Fake GPU", "vram_total_mb": 6144, "vram_free_mb": 5000},
             "engines": {"reface": True, "reface_v3": True, "reface_v2": True, "dfm_models": ["RTM_WF_224"], "undress": True,
-                        "lora_train": True, "lora_generate": True, "body_detection": True, "character_detection": True},
+                        "lora_train": True, "lora_generate": True, "body_detection": True, "character_detection": True,
+                        "sensitive_detection": True, "body_embeddings": True, "garment_tags": True},
             "restorers": ["codeformer"],
             "reface_profiles": {"fast": {"restorer": "none", "restore_size": 512, "use_parser": False},
                                 "balanced": {"restorer": "codeformer", "restore_size": 512, "use_parser": True},

@@ -70,6 +70,7 @@ class BodyInput:
     appearance: Optional[Sequence[float]] = None  # 80-float outfit descriptor
     weak_face_embedding: Optional[Sequence[float]] = None
     rejected_person_ids: Set[int] = field(default_factory=set)
+    taken_at: Optional[int] = None                # epoch ms of the photo (event-context linking); None = unknown
 
 
 @dataclass
@@ -211,7 +212,8 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
     if "bodies" in wanted and snapshot.bodies and models:
         records = [{"id": b.id, "media_id": b.media_id, "frame_number": b.frame_number,
                     "appearance": b.appearance, "weak_face_embedding": b.weak_face_embedding,
-                    "rejected_person_ids": b.rejected_person_ids, "anchor_person_id": b.anchor_person_id}
+                    "rejected_person_ids": b.rejected_person_ids, "anchor_person_id": b.anchor_person_id,
+                    "taken_at": b.taken_at}
                    for b in snapshot.bodies]
         for link in pl.link_faceless_bodies(records, lambda b: b["anchor_person_id"], models, params):
             # apply mode returns the suggestions too (the caller applies only "auto"); review shows only those
@@ -344,7 +346,8 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
             anchor_person_id=_opt_int(b.get("anchor_person_id"), f"bodies[{i}].anchor_person_id"),
             appearance=_appearance(b.get("appearance"), f"bodies[{i}].appearance"),
             weak_face_embedding=None if weak is None else decode_embedding(weak, f"bodies[{i}].weak_face_embedding", dim),
-            rejected_person_ids=set(_int_list(b.get("rejected_person_ids", []), f"bodies[{i}].rejected_person_ids"))))
+            rejected_person_ids=set(_int_list(b.get("rejected_person_ids", []), f"bodies[{i}].rejected_person_ids")),
+            taken_at=_opt_int(b.get("taken_at"), f"bodies[{i}].taken_at")))
 
     distinct = []
     for i, p in enumerate(_list(req, "distinct_pairs")):

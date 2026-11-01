@@ -64,6 +64,30 @@ abstract interface class MobileApi {
     String filename = 'photo.jpg',
   });
 
+  /// POST /v1/analyze/garments - raw garment-tag scores per body (roadmap Phase 7). [bodies] are the stored
+  /// boxes in image pixels. Evidence for labelling only; no tag is a filter.
+  Future<AnalyzeGarmentsResponse> analyzeGarments(
+    Uint8List jpegBytes,
+    List<SensitiveBodyTargetDto> bodies, {
+    String filename = 'photo.jpg',
+  });
+
+  /// POST /v1/analyze/sensitive - exposed / covered body-part regions for a photo scanned before
+  /// `return_sensitive` existed. [bodies] are the stored boxes in image pixels.
+  Future<AnalyzeSensitiveResponse> analyzeSensitive(
+    Uint8List jpegBytes,
+    List<SensitiveBodyTargetDto> bodies, {
+    String filename = 'photo.jpg',
+    bool embeddings = false,
+  });
+
+  /// POST /v1/analyze/marks - matches a marked tattoo patch against candidate patches (OpenCV on the PC,
+  /// nothing stored). One answer per candidate, in order.
+  Future<AnalyzeMarksResponse> analyzeMarks(
+    Uint8List reference,
+    List<Uint8List> candidates,
+  );
+
   /// POST /v1/grouping/plan - a pure function on the PC (nothing is stored there).
   Future<GroupingPlanResponse> groupingPlan(GroupingPlanRequest request);
 }
@@ -501,6 +525,74 @@ class HttpMobileApi
       final response = await _dio.post('/v1/analyze/outlines', data: form);
       final parsed = AnalyzeOutlinesResponse.fromJson(_json(response));
       return parsed.outlines;
+    });
+  }
+
+  @override
+  Future<AnalyzeSensitiveResponse> analyzeSensitive(
+    Uint8List jpegBytes,
+    List<SensitiveBodyTargetDto> bodies, {
+    String filename = 'photo.jpg',
+    bool embeddings = false,
+  }) {
+    return _guard(() async {
+      final form = FormData.fromMap({
+        'image': MultipartFile.fromBytes(
+          jpegBytes,
+          filename: filename,
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+        'bodies': jsonEncode(bodies.map((b) => b.toJson()).toList()),
+        if (embeddings) 'embeddings': 'true',
+      });
+      final response = await _dio.post('/v1/analyze/sensitive', data: form);
+      return AnalyzeSensitiveResponse.fromJson(_json(response));
+    });
+  }
+
+  @override
+  Future<AnalyzeGarmentsResponse> analyzeGarments(
+    Uint8List jpegBytes,
+    List<SensitiveBodyTargetDto> bodies, {
+    String filename = 'photo.jpg',
+  }) {
+    return _guard(() async {
+      final form = FormData.fromMap({
+        'image': MultipartFile.fromBytes(
+          jpegBytes,
+          filename: filename,
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+        'bodies': jsonEncode(bodies.map((b) => b.toJson()).toList()),
+      });
+      final response = await _dio.post('/v1/analyze/garments', data: form);
+      return AnalyzeGarmentsResponse.fromJson(_json(response));
+    });
+  }
+
+  @override
+  Future<AnalyzeMarksResponse> analyzeMarks(
+    Uint8List reference,
+    List<Uint8List> candidates,
+  ) {
+    return _guard(() async {
+      final form = FormData.fromMap({
+        'reference': MultipartFile.fromBytes(
+          reference,
+          filename: 'mark.jpg',
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+        'candidates': [
+          for (var i = 0; i < candidates.length; i++)
+            MultipartFile.fromBytes(
+              candidates[i],
+              filename: 'c$i.jpg',
+              contentType: DioMediaType('image', 'jpeg'),
+            ),
+        ],
+      });
+      final response = await _dio.post('/v1/analyze/marks', data: form);
+      return AnalyzeMarksResponse.fromJson(_json(response));
     });
   }
 

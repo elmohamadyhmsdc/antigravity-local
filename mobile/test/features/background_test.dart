@@ -234,7 +234,9 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.byKey(const Key('scan-battery-warning')));
-      await tester.pumpAndSettle();
+      // the running scan card keeps a progress indicator animating, so pumpAndSettle would never settle
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(AlertDialog), findsOneWidget);
     },
     session: testSession,

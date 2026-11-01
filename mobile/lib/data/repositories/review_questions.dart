@@ -18,6 +18,9 @@ Likelihood likelihoodOf(
     ReviewQuestionKind.match => (0.40, 0.32),
     ReviewQuestionKind.duplicate => (0.55, 0.47),
     ReviewQuestionKind.outfit when method == 'weak_face' => (0.40, 0.32),
+    ReviewQuestionKind.outfit when method == 'event_outfit' => (0.90, 0.85),
+    ReviewQuestionKind.outfit when method == 'cluster' => (0.90, 0.80),
+    ReviewQuestionKind.outfit when method == 'tattoo' => (0.90, 0.75),
     ReviewQuestionKind.outfit => (0.84, 0.80),
     ReviewQuestionKind.group => (0.55, 0.45),
   };

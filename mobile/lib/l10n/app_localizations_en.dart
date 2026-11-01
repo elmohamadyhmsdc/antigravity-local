@@ -3249,6 +3249,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get quickByWeakFace => 'Recognised by a small or blurry face';
 
   @override
+  String get quickByEventOutfit => 'Same outfit, same day';
+
+  @override
   String get quickSnoozed =>
       'Saved for later. It comes back when new photos give more evidence.';
 
@@ -3424,4 +3427,354 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get exportTrainingNotification => 'Exporting training pictures';
+
+  @override
+  String get bodiesTitle => 'Bodies';
+
+  @override
+  String get bodiesTabAll => 'All';
+
+  @override
+  String get bodiesTabPoses => 'Poses';
+
+  @override
+  String get bodiesTabOutfits => 'Outfits';
+
+  @override
+  String get bodiesEmpty =>
+      'No bodies to show. Scan photos that show people first.';
+
+  @override
+  String get bodiesPreparing => 'Preparing pose data…';
+
+  @override
+  String get bodiesSimilarTitle => 'Similar poses';
+
+  @override
+  String get bodiesClearFilter => 'Clear';
+
+  @override
+  String get bodiesNothingMatches => 'Nothing matches this filter.';
+
+  @override
+  String get poseTagLying => 'Lying';
+
+  @override
+  String get poseTagStanding => 'Standing';
+
+  @override
+  String get poseTagSitting => 'Sitting';
+
+  @override
+  String get poseTagArmsUp => 'Both arms up';
+
+  @override
+  String get poseTagOneArmUp => 'One arm up';
+
+  @override
+  String get poseTagArmsSpread => 'Arms spread';
+
+  @override
+  String get poseTagHandsOnHips => 'Hands on hips';
+
+  @override
+  String get poseTagFrontal => 'Facing the camera';
+
+  @override
+  String get poseTagProfile => 'Profile';
+
+  @override
+  String get poseTagBack => 'From behind';
+
+  @override
+  String get outfitColorWhite => 'White';
+
+  @override
+  String get outfitColorLightGrey => 'Light grey';
+
+  @override
+  String get outfitColorDarkGrey => 'Dark grey';
+
+  @override
+  String get outfitColorBlack => 'Black';
+
+  @override
+  String get outfitColorRed => 'Mostly red';
+
+  @override
+  String get outfitColorOrange => 'Mostly orange';
+
+  @override
+  String get outfitColorYellow => 'Mostly yellow';
+
+  @override
+  String get outfitColorGreen => 'Mostly green';
+
+  @override
+  String get outfitColorCyan => 'Mostly cyan';
+
+  @override
+  String get outfitColorBlue => 'Mostly blue';
+
+  @override
+  String get outfitColorPurple => 'Mostly purple';
+
+  @override
+  String get outfitColorPink => 'Mostly pink';
+
+  @override
+  String get bodyActionSimilarPose => 'Find similar pose';
+
+  @override
+  String get bodyActionNamePose => 'Name this pose';
+
+  @override
+  String get bodyActionNameOutfit => 'Name this outfit';
+
+  @override
+  String get bodyActionOpenPhoto => 'Open the photo';
+
+  @override
+  String get categoryNameHint => 'Name';
+
+  @override
+  String get categoryNamePoseTitle => 'Name this pose';
+
+  @override
+  String get categoryNameOutfitTitle => 'Name this outfit';
+
+  @override
+  String get categoryLowerOnly => 'Match the lower half only';
+
+  @override
+  String get categoryNoPose =>
+      'This pose cannot be measured: the hips or shoulders are not visible.';
+
+  @override
+  String get categoryNoOutfit => 'This body has no outfit colours to compare.';
+
+  @override
+  String categoryPreviewTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count matches',
+      one: '1 match',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get categoryPreviewHint =>
+      'Untick the ones that do not belong. They are never added again.';
+
+  @override
+  String get categorySave => 'Save';
+
+  @override
+  String get categoryNone =>
+      'Nothing saved yet. Open a body and name its pose or outfit.';
+
+  @override
+  String get categoryDelete => 'Delete this group';
+
+  @override
+  String get categoryRemoveBody => 'Remove from this group';
+
+  @override
+  String categoryBodyCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count bodies',
+      one: '1 body',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get bodyActionSimilarExposed =>
+      'Find similar photos of this body area';
+
+  @override
+  String get bodiesSimilarColoursTitle => 'Similar colours';
+
+  @override
+  String get bodyActionSimilarColours => 'Find similar colours';
+
+  @override
+  String get bodyActionMarkTattoo => 'Mark a tattoo';
+
+  @override
+  String get groupTagGroup => 'Group photos';
+
+  @override
+  String get groupTagLineup => 'Side by side';
+
+  @override
+  String get groupTagAllFacing => 'Everyone facing the camera';
+
+  @override
+  String get markTitle => 'Mark a tattoo';
+
+  @override
+  String get markNeedsPerson =>
+      'Marking needs a body that belongs to a known person.';
+
+  @override
+  String get markNoSegment =>
+      'No limb or torso area of this body can be measured.';
+
+  @override
+  String get markPickSegment => 'Where on the body?';
+
+  @override
+  String get markTapToPlace =>
+      'Tap the tattoo on the picture, then set its size.';
+
+  @override
+  String get markSize => 'Size';
+
+  @override
+  String get markSave => 'Save mark';
+
+  @override
+  String get markSaved =>
+      'Tattoo saved. Search for it from the person\'s page.';
+
+  @override
+  String get markPatchFailed => 'The original photo could not be read.';
+
+  @override
+  String get marksTitle => 'Tattoos';
+
+  @override
+  String get marksNone =>
+      'No tattoos marked yet. Open a photo of this person, tap their body and choose Mark a tattoo.';
+
+  @override
+  String get marksSearch => 'Search other photos';
+
+  @override
+  String get marksSearching => 'Searching…';
+
+  @override
+  String get marksNoHits => 'No matching photos found.';
+
+  @override
+  String get marksNoServer => 'Connect to the PC to search.';
+
+  @override
+  String get marksYes => 'It is them';
+
+  @override
+  String get marksNo => 'Not them';
+
+  @override
+  String get marksStrong => 'Strong match';
+
+  @override
+  String get marksWeak => 'Possible match';
+
+  @override
+  String get marksDelete => 'Delete this mark';
+
+  @override
+  String get quickByTattoo => 'Matching tattoo';
+
+  @override
+  String get markSegRUpperArm => 'Right upper arm';
+
+  @override
+  String get markSegLUpperArm => 'Left upper arm';
+
+  @override
+  String get markSegRForearm => 'Right forearm';
+
+  @override
+  String get markSegLForearm => 'Left forearm';
+
+  @override
+  String get markSegRThigh => 'Right thigh';
+
+  @override
+  String get markSegLThigh => 'Left thigh';
+
+  @override
+  String get markSegRLowerLeg => 'Right lower leg';
+
+  @override
+  String get markSegLLowerLeg => 'Left lower leg';
+
+  @override
+  String get markSegChest => 'Chest';
+
+  @override
+  String get markSegAbdomen => 'Abdomen';
+
+  @override
+  String get markSegRibs => 'Ribs';
+
+  @override
+  String get markSegUpperBack => 'Upper back';
+
+  @override
+  String get markSegLowerBack => 'Lower back';
+
+  @override
+  String get markSegHips => 'Hips';
+
+  @override
+  String get bodiesTabAreas => 'Areas';
+
+  @override
+  String get clustersToggle => 'Group body areas (experimental)';
+
+  @override
+  String get clustersToggleNote =>
+      'Groups photos that show the same body area, so a whole group can be given to a person with one tap. Turn it on only after checking the groups are right.';
+
+  @override
+  String get clustersEmpty =>
+      'No groups yet. They appear once photos with exposed body areas have been scanned.';
+
+  @override
+  String clusterTitleChest(int id) {
+    return 'Chest area · group $id';
+  }
+
+  @override
+  String clusterTitleButtocks(int id) {
+    return 'Lower-body area · group $id';
+  }
+
+  @override
+  String get clusterAssign => 'Give this group to a person';
+
+  @override
+  String clusterBelongsTo(String name) {
+    return 'Belongs to $name';
+  }
+
+  @override
+  String clusterLinked(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count photos linked',
+      one: '1 photo linked',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get clusterBridgeTitle => 'Photos show both groups';
+
+  @override
+  String clusterBridgeAction(int to, int bridges) {
+    return 'Also give group $to to the same person ($bridges photos show both)';
+  }
+
+  @override
+  String get quickByCluster => 'Same body area as photos of this person';
 }

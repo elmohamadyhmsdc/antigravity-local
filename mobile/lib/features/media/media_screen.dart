@@ -15,6 +15,8 @@ import '../../data/repositories/media_queries.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
+import '../bodies/body_naming.dart';
+import '../marks/mark_tattoo.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../people/people_actions.dart' show moveToOtherKind;
@@ -330,6 +332,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     final person = d.personId == null ? null : people[d.personId];
     final action = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: Column(
@@ -384,6 +387,38 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
               ),
               onTap: () => Navigator.pop(context, 'kind'),
             ),
+            if (!d.isFace && d.figure == 'person') ...[
+              ListTile(
+                key: const Key('box-similar-pose'),
+                leading: const Icon(Icons.compare_outlined),
+                title: Text(l10n.bodyActionSimilarPose),
+                onTap: () => Navigator.pop(context, 'similar-pose'),
+              ),
+              ListTile(
+                key: const Key('box-similar-colours'),
+                leading: const Icon(Icons.palette_outlined),
+                title: Text(l10n.bodyActionSimilarColours),
+                onTap: () => Navigator.pop(context, 'similar-colours'),
+              ),
+              ListTile(
+                key: const Key('box-name-pose'),
+                leading: const Icon(Icons.accessibility_new),
+                title: Text(l10n.bodyActionNamePose),
+                onTap: () => Navigator.pop(context, 'name-pose'),
+              ),
+              ListTile(
+                key: const Key('box-mark-tattoo'),
+                leading: const Icon(Icons.draw_outlined),
+                title: Text(l10n.bodyActionMarkTattoo),
+                onTap: () => Navigator.pop(context, 'mark-tattoo'),
+              ),
+              ListTile(
+                key: const Key('box-name-outfit'),
+                leading: const Icon(Icons.checkroom_outlined),
+                title: Text(l10n.bodyActionNameOutfit),
+                onTap: () => Navigator.pop(context, 'name-outfit'),
+              ),
+            ],
             if (d.isFace)
               ListTile(
                 key: const Key('box-delete'),
@@ -399,6 +434,16 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     switch (action) {
       case 'open':
         context.push('${Routes.people}/${person!.id}');
+      case 'similar-pose':
+        context.push('${Routes.bodies}?similar=${d.refId}');
+      case 'similar-colours':
+        context.push('${Routes.bodies}?colours=${d.refId}');
+      case 'name-pose':
+        await nameBodyPose(context, ref, d.refId);
+      case 'mark-tattoo':
+        await showMarkTattoo(context, ref, d.refId);
+      case 'name-outfit':
+        await nameBodyOutfit(context, ref, d.refId);
       case 'assign':
         await _reassign(context, d);
       case 'reject':

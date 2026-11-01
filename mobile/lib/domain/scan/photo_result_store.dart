@@ -13,6 +13,9 @@ import '../../data/repositories/library_repository.dart';
 import '../../data/repositories/character_repository.dart';
 import '../../data/repositories/kind_corrections.dart';
 import '../../data/repositories/face_suppression_store.dart';
+import '../../data/repositories/sensitive_store.dart';
+import '../sensitive/sensitive_policy.dart';
+import '../sensitive/embedding_backfill.dart' show bodyEmbeddingModelVersion;
 import 'drawn_faces.dart';
 import 'scan_math.dart';
 import 'video_tracks.dart';
@@ -346,6 +349,11 @@ class PhotoResultStore {
           if (e.track != null) e.track!,
       };
 
+      final bodyDbIds =
+          <
+            int,
+            int
+          >{}; // analysis body index -> bodies.id (for sensitive regions)
       for (var bi = 0; bi < analysis.bodies.length; bi++) {
         final body = analysis.bodies[bi];
         final fi = faceOfBody[bi];
@@ -362,8 +370,15 @@ class PhotoResultStore {
         }
         if (same != null) {
           usedBodies.add(same.id);
+          bodyDbIds[bi] = same.id;
+          // the keypoints may have moved: the cached pose descriptor is rebuilt lazily
           await _db.customUpdate(
-            'UPDATE bodies SET score = ?, extent = ?, kpts = ?, appearance = ?, face_id = COALESCE(face_id, ?) WHERE id = ?',
+            'DELETE FROM body_pose_features WHERE body_id = ?',
+            variables: [Variable.withInt(same.id)],
+            updates: {_db.bodyPoseFeatures},
+          );
+          await _db.customUpdate(
+            'UPDATE bodies SET score = ?, extent = ?, kpts = ?, appearance = ?, face_id = COALESCE(face_id, ?), chest_embedding = COALESCE(?, chest_embedding), buttocks_embedding = COALESCE(?, buttocks_embedding), morphology = COALESCE(?, morphology) WHERE id = ?',
             variables: [
               Variable.withReal(body.score),
               Variable<String>(body.extent),
@@ -374,6 +389,9 @@ class PhotoResultStore {
                     : appearanceToBlob(body.appearance!),
               ),
               Variable<int>(faceId),
+              Variable<Uint8List>(_blobOf(body.chestEmbedding)),
+              Variable<Uint8List>(_blobOf(body.buttocksEmbedding)),
+              Variable<String>(_morphologyJson(body.morphology)),
               Variable.withInt(same.id),
             ],
             updates: {_db.bodies},
@@ -424,6 +442,7 @@ class PhotoResultStore {
             );
             if (placement
                 case LinkView(:final view) || ReplaceView(:final view)) {
+              bodyDbIds[bi] = view.id;
               await _putDetection(
                 media.id,
                 'b',
@@ -485,6 +504,9 @@ class PhotoResultStore {
                   weak == null ? null : embeddingToBlob(weak),
                 ),
                 weakFaceQuality: Value(weakQuality),
+                chestEmbedding: Value(_blobOf(body.chestEmbedding)),
+                buttocksEmbedding: Value(_blobOf(body.buttocksEmbedding)),
+                morphology: Value(_morphologyJson(body.morphology)),
                 createdAt: now,
               ),
             );
@@ -514,11 +536,38 @@ class PhotoResultStore {
           timestampMs,
           encodeOutline(body.outline, body.bbox),
         );
+        bodyDbIds[bi] = id;
         newBodies++;
         if (faceId == null) {
           keptFaceless++;
           if (body.appearance != null) keptOutfits.add(body.appearance!);
         }
+      }
+
+      if (analysis.bodies.any(
+        (b) => b.chestEmbedding != null || b.buttocksEmbedding != null,
+      )) {
+        await (_db.update(
+          _db.media,
+        )..where((m) => m.id.equals(media.id))).write(
+          const MediaCompanion(
+            bodyEmbeddingVersion: Value(bodyEmbeddingModelVersion),
+          ),
+        );
+      }
+      // Roadmap section 8: exposed / covered regions, only when the PC was asked for them.
+      final sensitive = analysis.sensitiveRegions;
+      if (sensitive != null) {
+        await SensitiveStore(_db, clock: _clock).replaceRegions(
+          media.id,
+          sensitive,
+          imageW: w,
+          imageH: h,
+          bodyIds: bodyDbIds,
+          modelVersion: sensitiveModelVersion,
+          frameNumber: frameNumber,
+          timestampMs: timestampMs,
+        );
       }
 
       newCharacters = await CharacterRepository(_db, _files).store(
@@ -563,6 +612,12 @@ class PhotoResultStore {
     final n = pixels.normalized(w, h);
     return clampBox(n.x, n.y, n.w, n.h);
   }
+
+  static Uint8List? _blobOf(Float32List? v) =>
+      v == null ? null : embeddingToBlob(v);
+
+  static String? _morphologyJson(Map<String, dynamic>? m) =>
+      m == null ? null : jsonEncode(m);
 
   static double _r(double v) => (v * 10000).roundToDouble() / 10000;
 

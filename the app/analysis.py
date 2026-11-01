@@ -79,6 +79,11 @@ class AnalyzeOptions:
     # detections and win over force_kind.
     force_kind: Optional[str] = None
     kind_overrides: tuple = ()
+    # Roadmap section 8: also return exposed / covered body-part regions (NudeNet). Off by default;
+    # engines.InsightEngines.analyze runs it after analyze_frame, so analyze_frame ignores it.
+    sensitive: bool = False
+    # Roadmap 7.5 (Phase 8): DINOv2 chest / lower-body embeddings + morphology per body. Implies the regions.
+    body_embeddings: bool = False
 
 
 @dataclass
@@ -96,6 +101,10 @@ class FrameAnalysis:
     face_outlines: list = field(default_factory=list)
     body_outlines: list = field(default_factory=list)
     forced: List[bool] = field(default_factory=list)  # per face: the user said this is a person
+    # None = not requested. Else sensitive_detection regions (pixels) with `body_index`.
+    sensitive: Optional[list] = None
+    # None = not requested. Else one dict per body: chest_embedding, buttocks_embedding (base64) and morphology.
+    body_embeddings: Optional[list] = None
 
     @property
     def body_of_face(self) -> Dict[int, int]:

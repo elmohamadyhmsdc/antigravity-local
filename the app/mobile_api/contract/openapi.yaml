@@ -205,6 +205,105 @@ paths:
         "413": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
 
+  /v1/analyze/marks:
+    post:
+      summary: Match a marked tattoo patch against candidate skin patches (OpenCV, no model)
+      description: |
+        AKAZE features, ratio test and a RANSAC homography. Each candidate is tried straight and mirrored (mirror
+        selfies); the phone sends the opposite body segment as its own candidate. Nothing is stored. The answer is
+        evidence: a match is a SUGGESTION until the Phase 0 evaluation shows precision.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [reference, candidates]
+              properties:
+                reference: { type: string, format: binary }
+                candidates:
+                  type: array
+                  minItems: 1
+                  maxItems: 64
+                  items: { type: string, format: binary }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyzeMarksResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+
+  /v1/analyze/sensitive:
+    post:
+      summary: Exposed / covered body-part regions for a photo scanned before `return_sensitive` existed
+      description: |
+        Same regions as `AnalyzeImageOptions.return_sensitive`, for a photo the phone already
+        analysed. `bodies` are the phone's stored boxes in image pixels (and keypoints, which decide
+        which body a region belongs to). Nothing is stored. 409 `model_missing` when the model is
+        not installed on the PC; 503 gpu_busy while a heavy job runs.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary }
+                bodies:
+                  type: array
+                  maxItems: 64
+                  items: { $ref: "#/components/schemas/SensitiveBodyTarget" }
+                embeddings:
+                  type: boolean
+                  default: false
+                  description: "Also return `bodies` with the chest / lower-body embeddings and morphology of each target (roadmap 7.5). 409 `model_missing` without the DINOv2 model."
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyzeSensitiveResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/analyze/garments:
+    post:
+      summary: Raw garment-tag scores (WD14) for the bodies of a photo (roadmap Phase 7)
+      description: |
+        Evidence for the user's own labelling, not a filter: the tagger is anime-trained and no tag has a
+        measured precision on real photos yet. `bodies` are the phone's stored boxes in image pixels (the
+        same `SensitiveBodyTarget` as /v1/analyze/sensitive; keypoints are ignored). Nothing is stored.
+        One entry per requested body, in order; a body too small to tag has an empty list. 409
+        `model_missing` without the tagger; 503 gpu_busy while a heavy job runs.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary }
+                bodies:
+                  type: array
+                  maxItems: 64
+                  items: { $ref: "#/components/schemas/SensitiveBodyTarget" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyzeGarmentsResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
   /v1/grouping/plan:
     post:
       summary: Pure function - decide how faces/bodies should be grouped
@@ -502,6 +601,18 @@ components:
             lora_generate: { type: boolean }
             body_detection: { type: boolean }
             character_detection: { type: boolean, default: false }
+            sensitive_detection:
+              type: boolean
+              default: false
+              description: The NudeNet model is installed, so `return_sensitive` and /v1/analyze/sensitive work. Older servers omit this field.
+            body_embeddings:
+              type: boolean
+              default: false
+              description: The DINOv2 model is installed next to the NudeNet one, so `return_body_embeddings` works. Older servers omit this field.
+            garment_tags:
+              type: boolean
+              default: false
+              description: The WD14 tagger is installed, so /v1/analyze/garments works. Older servers omit this field.
         restorers:
           type: array
           items: { type: string }
@@ -636,6 +747,108 @@ components:
           maxItems: 4096
           description: "The user's corrections of single detections; they win over force_kind."
           items: { $ref: "#/components/schemas/KindOverride" }
+        return_sensitive:
+          type: boolean
+          default: false
+          description: "Also return `sensitive_regions` (NudeNet boxes, roadmap section 8). Off: the response is unchanged. 409 `model_missing` when the model is not installed."
+        return_body_embeddings:
+          type: boolean
+          default: false
+          description: "Roadmap 7.5 (Phase 8): also return chest_embedding, buttocks_embedding and morphology on the bodies that have exposed regions (implies the regions are computed). 409 `model_missing` when the DINOv2 model is not installed."
+
+    SensitiveRegion:
+      type: object
+      required: [label, exposed, score, bbox, body_index]
+      properties:
+        label:
+          type: string
+          description: "NudeNet v3 label, e.g. FEMALE_BREAST_EXPOSED, BELLY_COVERED (face labels are never returned)"
+        exposed: { type: boolean, description: "label ends with _EXPOSED" }
+        score: { type: number, minimum: 0, maximum: 1 }
+        bbox: { $ref: "#/components/schemas/BBox" }
+        body_index:
+          type: [integer, "null"]
+          minimum: 0
+          description: "Index into `bodies` of the body this region belongs to; null when no body fits"
+
+    MarkMatch:
+      type: object
+      required: [index, inliers, matches, inlier_ratio, mirrored]
+      properties:
+        index: { type: integer, minimum: 0, description: "Position of the candidate in the request" }
+        inliers: { type: integer, minimum: 0 }
+        matches: { type: integer, minimum: 0 }
+        inlier_ratio: { type: number, minimum: 0, maximum: 1 }
+        mirrored: { type: boolean, description: "The flipped candidate matched better (a mirror selfie)" }
+
+    AnalyzeMarksResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/MarkMatch" }
+
+    BodyEmbeddings:
+      type: object
+      required: [chest_embedding, buttocks_embedding, morphology]
+      properties:
+        chest_embedding:
+          oneOf: [{ $ref: "#/components/schemas/PatchEmbedding" }, { type: "null" }]
+        buttocks_embedding:
+          oneOf: [{ $ref: "#/components/schemas/PatchEmbedding" }, { type: "null" }]
+        morphology:
+          oneOf: [{ $ref: "#/components/schemas/BodyMorphology" }, { type: "null" }]
+
+    SensitiveBodyTarget:
+      type: object
+      required: [bbox]
+      properties:
+        bbox: { $ref: "#/components/schemas/BBox" }
+        kpts:
+          description: 17 COCO keypoints as [x, y, score] in image pixels
+          type: [array, "null"]
+          minItems: 17
+          maxItems: 17
+          items: { type: array, minItems: 3, maxItems: 3, items: { type: number } }
+
+    AnalyzeSensitiveResponse:
+      type: object
+      required: [model_version, regions]
+      properties:
+        bodies:
+          type: array
+          description: "Only with `embeddings`: one entry per requested body, in order"
+          items: { $ref: "#/components/schemas/BodyEmbeddings" }
+        model_version: { type: integer, description: "Bumped when the model or decode changes; the phone rescans older rows" }
+        regions:
+          type: array
+          items: { $ref: "#/components/schemas/SensitiveRegion" }
+
+    GarmentTag:
+      type: object
+      required: [tag, category, score]
+      properties:
+        tag: { type: string, maxLength: 64 }
+        category: { type: string, enum: [upper, outerwear, lower, full_body, pattern, accessory, footwear] }
+        score: { type: number, minimum: 0, maximum: 1 }
+
+    AnalyzeGarmentsResponse:
+      type: object
+      required: [model_version, bodies]
+      properties:
+        model_version: { type: integer, description: "Bumped when the vocabulary or crop changes; the phone re-asks older rows" }
+        bodies:
+          type: array
+          maxItems: 64
+          items:
+            type: object
+            required: [tags]
+            properties:
+              tags:
+                type: array
+                maxItems: 24
+                items: { $ref: "#/components/schemas/GarmentTag" }
 
     KindOverride:
       type: object
@@ -738,6 +951,52 @@ components:
           oneOf:
             - { type: array, minItems: 3, maxItems: 64, items: { type: array, minItems: 2, maxItems: 2, items: { type: number } } }
             - { type: "null" }
+        chest_embedding:
+          description: "Only with `return_body_embeddings`. DINOv2 ViT-S/14 of the exposed chest / torso patch; null when the body has none."
+          oneOf:
+            - { $ref: "#/components/schemas/PatchEmbedding" }
+            - { type: "null" }
+        buttocks_embedding:
+          description: "Only with `return_body_embeddings`. DINOv2 ViT-S/14 of the exposed lower-body patch; null when the body has none."
+          oneOf:
+            - { $ref: "#/components/schemas/PatchEmbedding" }
+            - { type: "null" }
+        morphology:
+          description: "Only with `return_body_embeddings`."
+          oneOf:
+            - { $ref: "#/components/schemas/BodyMorphology" }
+            - { type: "null" }
+
+    PatchEmbedding:
+      type: string
+      description: 384 x float32 little-endian (unit length), base64
+      minLength: 2048
+      maxLength: 2048
+      pattern: "^[A-Za-z0-9+/]{2048}$"
+
+    BodyMorphology:
+      type: object
+      description: |
+        Measurable descriptors of the exposed regions. Ratios are normalised by the shoulder width (chest) or hip
+        width (lower body) when those keypoints are visible (`scale_source: kpts`), else by the body box width
+        (`bbox`); the phone compares ratios only between bodies of the same `scale_source`.
+      required: [scale_source]
+      properties:
+        scale_source: { type: string, enum: [kpts, bbox] }
+        lower_scale_source: { type: string, enum: [kpts, bbox] }
+        breast_span_ratio: { type: number }
+        areola_contrast: { type: [number, "null"] }
+        buttocks_span_ratio: { type: number }
+        hip_waist_ratio: { type: [number, "null"] }
+        skin_tone_lab:
+          type: [array, "null"]
+          minItems: 3
+          maxItems: 3
+          items: { type: number }
+        micro_marks:
+          type: array
+          description: "Dark spots on bare skin as [dx, dy, strength] from the shoulder / hip middle in units of the scale"
+          items: { type: array, minItems: 3, maxItems: 3, items: { type: number } }
 
     FaceBodyPair:
       type: object
@@ -839,6 +1098,10 @@ components:
         pairs:
           type: array
           items: { $ref: "#/components/schemas/FaceBodyPair" }
+        sensitive_regions:
+          type: array
+          description: "Only with `return_sensitive: true`"
+          items: { $ref: "#/components/schemas/SensitiveRegion" }
         timings_ms:
           type: object
           additionalProperties: { type: number }
@@ -935,6 +1198,12 @@ components:
         rejected_person_ids:
           type: array
           items: { type: integer }
+        taken_at:
+          type: [integer, "null"]
+          description: |
+            Epoch milliseconds of the photo, for event-context linking: a faceless body whose outfit
+            matches an identified body of another photo taken within the window (`event_outfit`).
+            Omitted / null = unknown; such bodies are never matched by time.
 
     GroupingPlanRequest:
       type: object
@@ -1005,7 +1274,7 @@ components:
       properties:
         body_id: { type: integer }
         person_id: { type: integer }
-        method: { type: string, enum: [appearance, weak_face] }
+        method: { type: string, enum: [appearance, weak_face, event_outfit] }
         confidence: { type: number }
         decision: { type: string, enum: [auto, suggest] }
 

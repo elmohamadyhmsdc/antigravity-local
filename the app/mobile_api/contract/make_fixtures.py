@@ -133,7 +133,7 @@ def system_fixtures():
         "engines": {
             "reface": True, "reface_v3": True, "reface_v2": True, "dfm_models": ["RTM_WF_224"],
             "undress": True, "lora_train": True, "lora_generate": True, "body_detection": True,
-            "character_detection": True,
+            "character_detection": True, "sensitive_detection": True, "body_embeddings": True, "garment_tags": True,
         },
         "restorers": ["codeformer"],
         "reface_profiles": {"fast": {"restorer": "none", "restore_size": 512, "use_parser": False},
@@ -257,6 +257,33 @@ def analyze_fixture():
         "bbox": body["bbox"],
         "kpts": body["kpts"],
     })
+    chest = {"label": "FEMALE_BREAST_EXPOSED", "exposed": True, "score": 0.9127,
+             "bbox": {"x": 455.0, "y": 560.0, "w": 120.0, "h": 90.0}, "body_index": 0}
+    belly = {"label": "BELLY_COVERED", "exposed": False, "score": 0.4412,
+             "bbox": {"x": 90.0, "y": 700.0, "w": 60.0, "h": 50.0}, "body_index": None}
+    write("SensitiveRegion.chest", chest)
+    write("AnalyzeSensitiveResponse.two_regions", {"model_version": 1, "regions": [chest, belly]})
+    write("AnalyzeSensitiveResponse.with_embeddings", {"model_version": 1, "regions": [chest], "bodies": [
+        {"chest_embedding": b64(unit(np.arange(1, 385, dtype=np.float64))), "buttocks_embedding": None,
+         "morphology": {"scale_source": "kpts", "breast_span_ratio": 0.3142, "areola_contrast": 0.2217,
+                        "skin_tone_lab": [62.5, 12.1, 18.4], "micro_marks": [[0.1123, 0.4211, 0.0512]]}},
+        {"chest_embedding": None, "buttocks_embedding": None, "morphology": None}]})
+    write("GarmentTag.t_shirt", {"tag": "t-shirt", "category": "upper", "score": 0.8123})
+    write("AnalyzeGarmentsResponse.two_bodies", {"model_version": 1, "bodies": [
+        {"tags": [{"tag": "t-shirt", "category": "upper", "score": 0.8123},
+                  {"tag": "jeans", "category": "lower", "score": 0.4412}]},
+        {"tags": []}]})
+    write("SensitiveBodyTarget.with_kpts", {"bbox": body["bbox"], "kpts": body["kpts"]})
+    write("AnalyzeMarksResponse.two_candidates", {"results": [
+        {"index": 0, "inliers": 41, "matches": 58, "inlier_ratio": 0.7069, "mirrored": False},
+        {"index": 1, "inliers": 3, "matches": 11, "inlier_ratio": 0.2727, "mirrored": True}]})
+    write("BodyMorphology.chest", {"scale_source": "kpts", "breast_span_ratio": 0.3142, "areola_contrast": 0.2217,
+                                   "skin_tone_lab": [62.5, 12.1, 18.4], "micro_marks": [[0.1123, 0.4211, 0.0512], [-0.2031, 0.3902, 0.0433]]})
+    write("AnalyzeImageOptions.body_embeddings", {"detect_bodies": True, "min_quality": 0.4, "return_crops": True,
+                                                "body_score": 0.5, "model_id": "buffalo_l@1", "return_sensitive": True,
+                                                "return_body_embeddings": True})
+    write("AnalyzeImageOptions.sensitive", {"detect_bodies": True, "min_quality": 0.4, "return_crops": True,
+                                            "body_score": 0.5, "model_id": "buffalo_l@1", "return_sensitive": True})
 
 
 # --------------------------------------------------------------------------- grouping
@@ -323,6 +350,19 @@ def grouping_fixtures():
     distinct = dict(review_req, distinct_pairs=[[1, 4]])
     write("GroupingPlanRequest.review_distinct_pair", distinct)
     write("GroupingPlanResponse.review_distinct_pair", plan(distinct))
+
+    # Event context (roadmap 7.2): the same outfit on an identified body and, an hour later, on a faceless body of
+    # ANOTHER photo; a third photo three days later is never matched by time. No random numbers: the other
+    # fixtures stay byte-identical.
+    t0 = 1_762_000_000_000
+    event_bodies = [
+        dict(bodies[0], id=11, media_id=21, frame_number=None, taken_at=t0),
+        dict(bodies[1], id=12, media_id=22, frame_number=None, anchor_person_id=None, taken_at=t0 + 3_600_000),
+        dict(bodies[1], id=13, media_id=23, frame_number=None, anchor_person_id=None, taken_at=t0 + 3 * 86_400_000),
+    ]
+    event_req = dict(base, mode="apply", stages=["bodies"], pending=[], bodies=event_bodies)
+    write("GroupingPlanRequest.event_outfit", event_req)
+    write("GroupingPlanResponse.event_outfit", plan(event_req))
 
 
 # --------------------------------------------------------------------------- jobs

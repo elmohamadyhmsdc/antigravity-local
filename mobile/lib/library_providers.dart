@@ -32,6 +32,14 @@ import 'domain/scan/outline_backfill.dart';
 import 'domain/scan/redetect.dart';
 import 'domain/scan/photo_result_store.dart';
 import 'domain/scan/video_compactor.dart';
+import 'domain/marks/body_marks.dart';
+import 'domain/marks/patch_cutter.dart';
+import 'domain/pose/body_categories.dart';
+import 'domain/pose/exposed_matching.dart';
+import 'domain/pose/pose_index.dart';
+import 'domain/garments/garment_backfill.dart';
+import 'domain/sensitive/embedding_backfill.dart';
+import 'domain/sensitive/sensitive_backfill.dart';
 import 'domain/storage/storage_sweeper.dart';
 import 'domain/scan/scan_engine.dart';
 import 'domain/scan/scan_state.dart';
@@ -319,7 +327,8 @@ final videosToCompactProvider = StreamProvider.autoDispose<int>(
   (ref) => ref.watch(videoCompactorProvider).watchPendingCount(),
 );
 
-final scanEngineProvider = Provider<ScanEngine>((ref) {
+// ignore: omit_obvious_property_types - an explicit type breaks the inference cycle through afterRun
+final Provider<ScanEngine> scanEngineProvider = Provider<ScanEngine>((ref) {
   final engine = ScanEngine(
     library: ref.watch(libraryRepositoryProvider),
     media: ref.watch(mediaLibraryProvider),
@@ -348,10 +357,95 @@ final scanEngineProvider = Provider<ScanEngine>((ref) {
     describe: (p) => p.video != null
         ? '${p.message ?? _en.scanRunning} · ${_en.scanNotificationText(p.done + p.failed, p.total, p.facesFound + p.video!.facesFound)}'
         : _en.scanNotificationText(p.done + p.failed, p.total, p.facesFound),
-    afterRun: () => ref.read(cropCacheProvider).evict(),
+    afterRun: () async {
+      await ref.read(cropCacheProvider).evict();
+      // Roadmap section 8.3: photos scanned before the feature get their regions in the background,
+      // only while no scan runs, the user did not pause, and the PC is ready.
+      Future<void>.delayed(const Duration(seconds: 10), () async {
+        final scan = ref.read(scanEngineProvider);
+        // pose descriptors of the bodies this pass added (cheap, local, no PC involved)
+        await ref
+            .read(poseIndexProvider)
+            .rebuild(shouldContinue: () => !scan.isRunning);
+        // saved pose / outfit categories look at the new bodies (a body the user removed stays removed)
+        final categories = ref.read(bodyCategoriesProvider);
+        await categories.rescoreAllPoses();
+        await categories.rescoreAllOutfits();
+        bool idle() =>
+            !scan.isRunning &&
+            scan.progress.phase != ScanPhase.paused &&
+            ref.read(serverStatusProvider).value is ServerReady;
+        await ref.read(sensitiveBackfillProvider).run(shouldContinue: idle);
+        // then the DINOv2 pass for photos scanned before Phase 8 (regions are known by now)
+        await ref.read(embeddingBackfillProvider).run(shouldContinue: idle);
+        // garment tags (Phase 7) only while the user switched them on; evidence, never a filter
+        await ref.read(garmentBackfillProvider).run(shouldContinue: idle);
+      });
+    },
   );
   ref.onDispose(engine.dispose);
   return engine;
+});
+
+final embeddingBackfillProvider = Provider<EmbeddingBackfill>((ref) {
+  return EmbeddingBackfill(
+    db: ref.watch(databaseProvider),
+    media: ref.watch(mediaLibraryProvider),
+    api: () => ref.read(mobileApiProvider),
+  );
+});
+
+final poseIndexProvider = Provider<PoseIndex>(
+  (ref) => PoseIndex(ref.watch(databaseProvider)),
+);
+
+final exposedMatcherProvider = Provider<ExposedMatcher>(
+  (ref) => ExposedMatcher(ref.watch(databaseProvider)),
+);
+
+/// Cuts a rotated rectangle out of the original photo (tests replace it).
+final patchCutterProvider = Provider<PatchCutter>(
+  (ref) => UiPatchCutter(ref.watch(mediaLibraryProvider)).call,
+);
+
+final bodyMarkStoreProvider = Provider<BodyMarkStore>(
+  (ref) =>
+      BodyMarkStore(ref.watch(databaseProvider), ref.watch(fileStoreProvider)),
+);
+
+final markMatcherProvider = Provider<MarkMatcher>(
+  (ref) => MarkMatcher(
+    ref.watch(databaseProvider),
+    ref.watch(bodyMarkStoreProvider),
+    () => ref.read(mobileApiProvider),
+  ),
+);
+
+final exposedClustersProvider = Provider<ExposedClusters>(
+  (ref) => ExposedClusters(ref.watch(databaseProvider)),
+);
+
+final bodyCategoriesProvider = Provider<BodyCategories>(
+  (ref) => BodyCategories(
+    ref.watch(databaseProvider),
+    poses: ref.watch(poseIndexProvider),
+  ),
+);
+
+final garmentBackfillProvider = Provider<GarmentBackfill>((ref) {
+  return GarmentBackfill(
+    db: ref.watch(databaseProvider),
+    media: ref.watch(mediaLibraryProvider),
+    api: () => ref.read(mobileApiProvider),
+  );
+});
+
+final sensitiveBackfillProvider = Provider<SensitiveBackfill>((ref) {
+  return SensitiveBackfill(
+    db: ref.watch(databaseProvider),
+    media: ref.watch(mediaLibraryProvider),
+    api: () => ref.read(mobileApiProvider),
+  );
 });
 
 /// Live progress of the scan (idle until one starts).

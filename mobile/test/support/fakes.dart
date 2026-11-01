@@ -163,6 +163,70 @@ class FakeMobileApi implements MobileApi {
     String filename = 'photo.jpg',
   }) async => List.filled(targets.length, null);
 
+  final garmentCalls = <List<SensitiveBodyTargetDto>>[];
+  AnalyzeGarmentsResponse Function(int count)? garmentsHandler;
+
+  @override
+  Future<AnalyzeGarmentsResponse> analyzeGarments(
+    Uint8List jpegBytes,
+    List<SensitiveBodyTargetDto> bodies, {
+    String filename = 'photo.jpg',
+  }) async {
+    garmentCalls.add(bodies);
+    final handler = garmentsHandler;
+    if (handler != null) return handler(bodies.length);
+    return AnalyzeGarmentsResponse(
+      modelVersion: 1,
+      bodies: [for (final _ in bodies) const []],
+    );
+  }
+
+  final markCalls = <({Uint8List reference, List<Uint8List> candidates})>[];
+  AnalyzeMarksResponse Function(int count)? marksHandler;
+
+  @override
+  Future<AnalyzeMarksResponse> analyzeMarks(
+    Uint8List reference,
+    List<Uint8List> candidates,
+  ) async {
+    markCalls.add((reference: reference, candidates: candidates));
+    final handler = marksHandler;
+    if (handler != null) return handler(candidates.length);
+    return AnalyzeMarksResponse(
+      results: [
+        for (var i = 0; i < candidates.length; i++)
+          MarkMatchDto(
+            index: i,
+            inliers: 0,
+            matches: 0,
+            inlierRatio: 0,
+            mirrored: false,
+          ),
+      ],
+    );
+  }
+
+  final sensitiveCalls = <List<SensitiveBodyTargetDto>>[];
+  final sensitiveEmbeddingFlags = <bool>[];
+  ApiException? sensitiveError;
+  AnalyzeSensitiveResponse sensitiveResult = const AnalyzeSensitiveResponse(
+    modelVersion: 1,
+    regions: [],
+  );
+
+  @override
+  Future<AnalyzeSensitiveResponse> analyzeSensitive(
+    Uint8List jpegBytes,
+    List<SensitiveBodyTargetDto> bodies, {
+    String filename = 'photo.jpg',
+    bool embeddings = false,
+  }) async {
+    sensitiveCalls.add(bodies);
+    sensitiveEmbeddingFlags.add(embeddings);
+    if (sensitiveError != null) throw sensitiveError!;
+    return sensitiveResult;
+  }
+
   @override
   Future<GroupingPlanResponse> groupingPlan(GroupingPlanRequest request) async {
     groupingCalls.add(request);

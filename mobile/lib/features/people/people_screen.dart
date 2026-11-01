@@ -141,6 +141,13 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
           ),
           if (!characters)
             IconButton(
+              key: const Key('open-bodies'),
+              tooltip: l10n.bodiesTitle,
+              onPressed: () => context.push(Routes.bodies),
+              icon: const Icon(Icons.accessibility_new),
+            ),
+          if (!characters)
+            IconButton(
               key: const Key('open-characters'),
               tooltip: l10n.charactersTitle,
               onPressed: () => context.push(Routes.characters),

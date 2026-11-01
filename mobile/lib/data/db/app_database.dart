@@ -73,6 +73,15 @@ class LibraryStats {
     JobEvents,
     CharacterIdentities,
     CharacterSamples,
+    BodyClusters,
+    BodyMarks,
+    BodyPoseFeatures,
+    PoseCategories,
+    OutfitCategories,
+    BodyPoseMatches,
+    BodyOutfitMatches,
+    SensitiveRegions,
+    BodyGarmentTags,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -80,7 +89,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 15;
+  static const currentSchemaVersion = 16;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -247,6 +256,53 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'CREATE INDEX IF NOT EXISTS kind_overrides_asset ON kind_overrides (asset_id)',
         );
+      }
+      if (from < 16) {
+        // Purely additive: nullable / defaulted columns and new tables. No rescan, no data rewrite.
+        await addMissing(media, [
+          media.sensitiveOverride,
+          media.isSensitive,
+          media.sensitiveVersion,
+          media.bodyEmbeddingVersion,
+          media.garmentVersion,
+        ]);
+        await addMissing(bodies, [
+          bodies.chestEmbedding,
+          bodies.buttocksEmbedding,
+          bodies.chestClusterId,
+          bodies.buttocksClusterId,
+          bodies.morphology,
+        ]);
+        final tables = (await customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table'",
+        ).get()).map((r) => r.read<String>('name')).toSet();
+        // Parents first (clusters and categories before what points at them).
+        for (final table in <TableInfo<Table, dynamic>>[
+          bodyClusters,
+          bodyMarks,
+          bodyPoseFeatures,
+          poseCategories,
+          outfitCategories,
+          bodyPoseMatches,
+          bodyOutfitMatches,
+          sensitiveRegions,
+          bodyGarmentTags,
+        ]) {
+          if (!tables.contains(table.actualTableName)) {
+            await m.createTable(table);
+          }
+        }
+        for (final sql in const [
+          'CREATE INDEX IF NOT EXISTS body_clusters_person ON body_clusters (person_id)',
+          'CREATE INDEX IF NOT EXISTS body_marks_person ON body_marks (person_id)',
+          'CREATE INDEX IF NOT EXISTS body_pose_matches_cat ON body_pose_matches (category_id)',
+          'CREATE INDEX IF NOT EXISTS body_outfit_matches_cat ON body_outfit_matches (category_id)',
+          'CREATE INDEX IF NOT EXISTS sensitive_regions_media ON sensitive_regions (media_id)',
+          'CREATE INDEX IF NOT EXISTS sensitive_regions_body ON sensitive_regions (body_id)',
+          'CREATE INDEX IF NOT EXISTS body_garment_tags_tag ON body_garment_tags (tag)',
+        ]) {
+          await customStatement(sql);
+        }
       }
     },
     beforeOpen: (details) async {

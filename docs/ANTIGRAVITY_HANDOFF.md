@@ -1335,3 +1335,161 @@ faces near one shared direction, which is why different characters merged.
      - Updated Mermaid diagram: wired `P5 --> P8` and `P8 --> S3` (person attribution depends on both Phase 5 event linking and Phase 8 exposed body embeddings).
      - Updated recommended execution order: `S0 → S1 → S2 → Phase 5 → Phase 8 → S3 → S4 → Phase 6`.
 - **Verification**: Document syntax and cross-references verified clean; zero remaining contradictions across roadmap sections. No application source code modified, no phone or server state altered.
+
+## Roadmap implementation, night run — S0, S1, S2 (sensitive regions) — 2026-11-02
+
+Unattended implementation of `docs/body-pose-and-clothing-filters-roadmap.md` (revision 2: second review
+applied). **Rules kept all night:** the running mobile API server, its scan worker, Streamlit and every other python
+process were never stopped, restarted or killed; no test started a real server on 8443/8444/8445; the GPU was not used
+(CPU onnxruntime / CPU tests only); nothing was run on the phone; no commit or push; `mobile_workspace/`, `data/` and
+the firewall were not touched. Every Python module the server/worker imports was edited additively behind request
+flags and compiled (`py_compile -I`) plus the CPU suites rerun after each edit.
+
+**Worker-restart safety (why this is safe while the phone scans):** the running server (parent) keeps its old code in
+memory. A worker restart imports the NEW code, so the new child must talk to the OLD parent: `scan_worker.encode_result`
+only adds the `sensitive` key when regions were requested (an old parent never requests them), `AnalyzeOptions` /
+`FrameAnalysis` only gained defaulted fields, and the new model loads lazily on the first `return_sensitive` call. Responses
+without the new flags are unchanged (`test_mobile_sensitive.py` asserts it).
+
+### S0 — evaluation tooling (PC, read-only, CPU)
+- `the app/eval_sensitive.py <folders> --sample N` runs NudeNet 640m on a random sample and writes
+  `eval/sensitive_<time>/sheet.html` (points at the originals with file:// links and draws the boxes; no image is copied) +
+  `report.json`; `--score labels.json` computes per-label precision/recall and the smallest score with precision >= 0.95
+  into `eval/sensitive_thresholds.json`. **Pending the user's labels**: until then `sensitive_policy.dart` uses the
+  conservative starting threshold 0.60 for every label (`sensitiveThresholds` is empty on purpose).
+
+### S1 — PC detection (regions only)
+- New `the app/sensitive_detection.py`: NudeNet decode (letterbox exactly as NudeNet: pad bottom/right to a square,
+  RGB/255, 640), NMS, region -> body assignment (centre inside the body box; with visible torso keypoints the label must be
+  plausible on the shoulder->hip axis, so lying bodies work; close-ups: containment + largest overlap, tie -> tighter box).
+  Label names read from the installed model's metadata (18 classes); `SHORT_NAMES` maps the roadmap's short names.
+  `MODEL_VERSION = 1`. Faces are never returned.
+- `AnalyzeImageOptions.return_sensitive` -> `sensitive_regions` (pixel boxes, `body_index`); `POST /v1/analyze/sensitive`
+  (backfill: image + stored bodies); capability `engines.sensitive_detection`; 409 `model_missing` if the model is absent.
+  Contract, fixtures (`SensitiveRegion.chest`, `AnalyzeSensitiveResponse.two_regions`, `SensitiveBodyTarget.with_kpts`,
+  `AnalyzeImageOptions.sensitive`, Capabilities) regenerated; `validate_contract.py` passes incl. 4 new negatives.
+- Embeddings / morphology / marks (the Phase 8 bullet of roadmap 8.2) are NOT in S1.
+- Tests: `test_mobile_sensitive.py` 9/9 (real 640m on CPU runs; label order == model metadata; decode+NMS; assignment incl.
+  lying body; flag off == unchanged; backfill validation; worker IPC); `test_mobile_stateless.py` 5/5 (extended: regions
+  computed, nothing kept on the PC); `test_mobile_api_contract.py` 31/31; `test_analysis.py` 9/9; `test_grouping_core.py`
+  11/11; `test_mobile_scan_worker.py` OK.
+
+### S2 — phone: schema v16, storage, tagging
+- **Schema v16** (`tables.dart`, `app_database.dart`, regenerated `app_database.g.dart`): `media.sensitive_override /
+  is_sensitive / sensitive_version` (decision: the extra `sensitive_version` column, not in the roadmap, so a photo with no
+  regions is not re-queued forever); `bodies.chest_embedding / buttocks_embedding / chest_cluster_id / buttocks_cluster_id /
+  morphology`; tables `body_clusters` (person_id **set null**), `body_marks`, `body_pose_features` (+ `scale_source`),
+  `pose_categories` (+ `exemplar_scale_source`), `outfit_categories`, `body_pose_matches`, `body_outfit_matches`,
+  `sensitive_regions`. `reid_*` columns deliberately NOT added (deferred until Phase 0 shows OSNet adds to the outfit cue).
+  Migration is additive/idempotent; **no rescan queued**; `scanVersion` unchanged.
+- `domain/sensitive/sensitive_policy.dart` (pure; counting rule, threshold per label, override wins, confirmed/dismissed),
+  `data/repositories/sensitive_store.dart` (replace regions per photo/frame, user_state carried to the same label at IoU >= 0.5,
+  confirmed regions survive, `isSensitive` recompute, `recomputeAll`, `setOverride`, `setRegionState`),
+  `domain/sensitive/sensitive_backfill.dart` (+ provider; runs unawaited 10 s after a scan pass, only while no scan runs, not
+  paused, server ready; stops on `model_missing` / gpu_busy), `PhotoResultStore` stores regions in the same transaction with the
+  body id mapping, `ScanEngine` asks `return_sensitive` only when the server advertises it and the album is not illustrated.
+  Backup: `body_clusters` BEFORE `bodies`; `sensitive_regions`, `body_marks`, categories and matches after; pose features are a cache.
+- Tests: `test/domain/sensitive_test.dart` 9, `sensitive_backfill_test.dart` 6, `test/data/schema_v16_test.dart` 2,
+  `test/domain/backup_v16_test.dart` 2, `test/data/sensitive_dto_test.dart` 6 — all pass. `flutter analyze`: no issues.
+- Not built (by the doc: no UI): gallery chips, viewer locks. Filtering by `isSensitive` is a plain column query; a UI entry
+  point is not added yet. Video flagging (S4) and person attribution (S3) come with their phases below.
+- Known small race: a backup/restore pauses the scan engine, and the background backfill stops at the next photo; a photo
+  already in flight could still write a region row during a restore (it would fail on the FK and be skipped).
+
+## Roadmap implementation, night run — Phase 0 (body links), Phase 5, S3/S4, pose track 1-4 — 2026-11-02
+
+Same rules as the S0-S2 section above (server/phone untouched, CPU only, no commit). All Python edits additive and compiled.
+
+### Phase 0 (calibration tooling) and Phase 5 (event-context linking)
+- `person_linking.py`: `GroupingParams.event_auto/event_suggest/event_window_ms/event_skin_share` (balanced 0.90 / 0.82 / 6 h / 0.55, strict 0.92/0.85, loose 0.87/0.78 — STARTING values), `appearance_similarity_many` (vectorised, equal to the scalar one), `skin_dominated` (torso histogram mass in hue bins 0-1 x sat bins 0-1; replaces the roadmap's "NudeNet labels switch outfit matching off"), `bone_ratio_veto` (soft, off by default: needs keypoints in the grouping request and Phase 0's measured spread; NOT wired), `_EventTimeline` + the `event_outfit` rule in `link_faceless_bodies` (another photo, within the window, margin over the runner-up, rejections and "already in this frame" respected, two people in one uniform = suggest only; bodies without `taken_at` behave exactly as before).
+- `grouping_core.py`: `BodyInput.taken_at`; contract `GroupingBody.taken_at`, `BodyLink.method` += `event_outfit`; new fixtures `GroupingPlanRequest/Response.event_outfit` (existing fixtures byte-identical).
+- `the app/eval_body_links.py <backup folder|unencrypted .agbackup>`: pairs of identified bodies -> precision per threshold inside the 1/3/6/12/24 h windows (picks event_auto at precision >= 0.98 and event_suggest >= 0.85), LLR table, bone-ratio spread. **PENDING: needs a real library**: the PC `data/` has no bodies and the library lives encrypted on the phone, so no automatic calibration ran. Export a backup without a password, run it, then set the numbers in `GroupingParams` and regenerate fixtures.
+- Phone: `GroupingBody.takenAt`; `GroupingInputs.bodies` joins `media.taken_at` and also sends identified bodies of OTHER photos inside +-6 h of a faceless body with an outfit (binary search, so the request does not grow with the library); `event_outfit` is a derived link (cleared and re-derived by `PlanApplier` in round 2, never an anchor); Quick Review reason chip "Same outfit, same day" (`quickByEventOutfit`) and likelihood bands 0.90/0.85. One existing grouping test needed a media a month away (`takenAt`) because the default test media all share one time.
+- Tests: `test_event_linking.py` 12/12, `test_grouping_core.py` 11/11, `test_gallery.py` 33/33, contract 31/31; Flutter `event_linking_test.dart` 6, `grouping_test.dart` 23.
+
+### S3 / S4 (sensitive attribution and videos)
+- `SensitiveStore.mediaOfPerson(personId)` / `peopleOfMedia(mediaId)`: a counting region lies on a body of a person through the face, any link (auto, event, weak face) or by hand; dismissed / non-counting regions attribute nothing. Videos: `VideoScan.run(sensitiveScan:)` asks the sampled frames for regions (only when the server advertises the model, never for illustrated files); any frame with a counting region flags the clip. Server-side video jobs (`/v1/videos`) do not carry `return_sensitive`; videos scanned before the feature are not backfilled (the backfill is photos only).
+- Tests in `sensitive_test.dart` (13 in total).
+
+### Pose track
+- Phase 1 `mobile/lib/domain/pose/{pose_geometry,pose_rules,pose_descriptor,outfit_palette}.dart`: keypoints denormalised by width AND height; Tier-A rules (lying/standing/sitting, arms up/one arm/spread/hands on hips, frontal/profile/back) gated by extent and per-point visibility; orientation tags are not asked of a lying body (decision, roadmap silent); the lying "orientation guard" is OFF by default (`guardRotatedStanding`) and never uses `faces.roll`, as revised (the scan pipeline's EXIF handling has still to be checked: Phase 0); descriptor: hip-origin, `scale_source` torso/shoulder (shoulder only for frontal), 17-bit mask, mirror invariant, equal weights (the table stores no scores, so the "weighted by min score" of the doc is simplified), coverage reported, similarity `exp(-d^2/2 s^2)` s = 0.35 (STARTING). Coarse colours from the 80-float descriptor (hue families + white/grey/black).
+- `the app/pose_filters.py` + shared golden cases `mobile_api/contract/fixtures/pose/cases.json` (written by `test_pose_filters.py --write`): Python and Dart give identical tags, descriptors and pairwise similarities (`pose_cases_test.dart`). Tests: `test_pose_filters.py` 5/5, `pose_test.dart` 19, `pose_cases_test.dart` 15.
+- Phase 2 `pose_index.dart`: `body_pose_features` cache built in an isolate (batches), rebuilt when the version changes or the scan store rewrites a body's keypoints, tags as `,tag,`, tag counts, `bodiesWithTag`, ranked `findSimilar` (top 200, similarity x coverage) and `findSimilarToFeature`, colour chips. Rebuild runs after a scan pass (with the sensitive backfill) and when the Bodies screen opens. **Target "50k bodies < 1 s" is NOT measured** (no device, no 50k library). Tests `pose_index_test.dart` 8.
+- Phase 3 `body_categories.dart`: draft -> remove-before-save -> save (`auto` / `manual` exemplar / `rejected`), rescoring after scans that never re-adds a rejected body, exemplar copy survives the body, outfit categories (person-scoped, lower-only), delete/rename. Starting thresholds 0.80 (pose, coverage >= 0.7) / 0.90 (outfit). Tests `body_categories_test.dart` 8.
+- Phase 4 UI `features/bodies/bodies_screen.dart` (route `/bodies`, `?personId=`): tabs All / Poses / Outfits, Tier-A + colour chips, find similar, name a pose or outfit from an example with a preview where unticked bodies become rejected, saved groups (long-press removes a body, delete group); entries: People app bar and a person's page. 50 new ARB strings (`bodies*`, `poseTag*`, `outfitColor*`, `category*`). Tests `bodies_screen_test.dart` 5 (real isolates are awaited with `tester.runAsync`). **Not done:** the media-viewer actions of roadmap 6.3 (tap a body -> find similar / name it) and multi-person photo filters (section 4); they are reachable only through the Bodies screen's "open the photo".
+- **Pending user labels:** every Tier-A rule's precision (>= 0.85 or it moves to tier B), `s`, the category thresholds: `eval_pose_filters.py` (contact sheets) is NOT written yet; see the status list at the end of this section when updated.
+- Verified: `flutter analyze` no issues; full suite run at the end of each block (see the final status below).
+
+## Roadmap implementation, night run — Phase 8, Phase 6, Phase 7, final status — 2026-11-02
+
+Unattended run for `docs/body-pose-and-clothing-filters-roadmap.md` (revision 2). **The running mobile API server, its scan worker, Streamlit and every other process were never stopped or restarted; nothing was run on the phone or the GPU; nothing is committed.** The PC code changed on disk is picked up only when the user restarts the server (new endpoints, `return_sensitive` / `return_body_embeddings`); a scan-worker restart overnight imports the new code but stays compatible with the old parent (see the S0-S2 section). The phone needs a new APK for everything on the phone side.
+
+### Downloads / environment changes (authorised)
+- `the app/models/reid/dinov2_vits14.onnx` — DINOv2 ViT-S/14 (`facebook/dinov2-small`, 384-d pooled CLS), **88,428,344 bytes, SHA-256 `4795cbefac836171a5591adfe9343936e42ac48cf8480beb81be4b38b7e52c06`**, exported on the CPU with `export_dinov2.py` (venv_ai export, then `--verify` in `venv` with onnxruntime: max diff to torch < 1e-2, dynamic batch checked). Git-ignored like the other models.
+- **One package install**: `onnx` into `venv_ai` only (the torch exporter needs it). pip dry-run first: it would add `onnx 1.23.2`, `protobuf 7.36.2`, `ml_dtypes 0.6.0` and change no existing package. `venv` was not touched.
+
+### Phase 8 — exposed-region embeddings (PC + phone)
+- PC `body_embeddings.py`: DINOv2 patch embedder (letterbox 224, ImageNet norm), union-box patches (chest half: breast / belly exposed; lower half: buttocks / genitalia / anus exposed; regions under score 0.5 ignored), morphology: `scale_source` kpts|bbox (shoulder / hip width, else the body box), `breast_span_ratio`, `buttocks_span_ratio`, `areola_contrast` (Otsu), `skin_tone_lab` (YCrCb skin mask, median L*a*b*), `micro_marks` (difference-of-Gaussians dark spots on skin, areola / genital boxes excluded). `hip_waist_ratio` is NOT produced (it needs the RMBG silhouette). OSNet `reid_embedding` is NOT implemented (deferred, roadmap 7.3).
+- API: `AnalyzeImageOptions.return_body_embeddings` (implies the regions are computed; 409 `model_missing` without the model), per body `chest_embedding` / `buttocks_embedding` (base64 384 x f32) / `morphology` only when asked; capability `engines.body_embeddings`; contract schemas `PatchEmbedding`, `BodyMorphology`; fixtures `BodyMorphology.chest`, `AnalyzeImageOptions.body_embeddings`. Worker IPC key only when present. **Not built:** an old-photo backfill endpoint for embeddings (the S1 `/v1/analyze/sensitive` backfill returns regions only), so photos get embeddings when they are rescanned.
+- Phone: `DetectedBody.chestEmbedding / buttocksEmbedding / morphology`, scans ask `returnBodyEmbeddings` when the server advertises it (never for illustrated albums), stored in place with `COALESCE` (a later scan without the flag keeps them), `domain/pose/exposed_matching.dart`: `ExposedMatcher.findSimilar` (ranked cosine, the **always-on "similar photos" search**, an action on a body in the Bodies screen), DBSCAN, and `ExposedClusters` (persistent clusters, `assign` = one tap for bodies nobody has claimed and never against a rejection, `bridgeSuggestions` = other-cluster SUGGESTION only with >= 2 bridge photos). **Clusters and one-tap assignment stay OFF** (`settings.body_clusters_enabled`, default false): the Phase 8 gate cannot be evaluated without the user's library. `the app/eval_body_embeddings.py <library>` is that gate (same vs different person similarity, cross-event pairs days apart, DBSCAN pairwise precision per eps; ships only at >= 0.95). There is no UI for clusters yet.
+- Tests: `test_body_embeddings.py` 10/10 (real DINOv2 on the CPU), `exposed_matching_test.dart` 7, Bodies-screen search test.
+
+### Phase 6 — user-marked tattoos
+- PC `mark_matching.py` + `POST /v1/analyze/marks` (AKAZE + ratio test + RANSAC homography; each candidate also flipped; <= 64 candidates; nothing stored; no GPU): `test_mobile_marks.py` 6/6; contract `AnalyzeMarksResponse` + fixture.
+- Phone: `domain/marks/mark_geometry.dart` (segment anchors, the mark stored in the segment's local frame so it lands on another photo at any scale / rotation, the opposite segment, torso falls back to the shoulder span, evidence thresholds strong >= 25 inliers & ratio >= 0.5, weak >= 12 — a SUGGESTION only), `body_marks.dart` (`BodyMarkStore`: patch kept as `marks/<id>.jpg` in the private file store, so it travels in the backup automatically; `MarkMatcher.candidates/search` with an injected `PatchCutter`). `marks_test.dart` 9.
+- **Not built:** the marking UI in the media viewer and the real `PatchCutter` (crop of a rotated rectangle from the original photo); and the `LLR_mark` fusion (Phase 0 pending). The pieces are tested; nothing calls them from a screen yet.
+
+### Phase 7 — garment tags: deferred
+Optional in the roadmap, and "per-tag precision must be measured before any tag becomes a filter" needs the user's labels; WD14 is anime-trained. No code written.
+
+### Final verification (CPU, this run)
+- Python: `test_mobile_api_contract` 31/31, `test_mobile_stateless` 5/5, `test_analysis` 9/9, `test_grouping_core` 11/11, `test_mobile_sensitive` 9/9, `test_event_linking` 12/12, `test_pose_filters` 5/5, `test_body_embeddings` 10/10, `test_mobile_marks` 6/6, `test_gallery` 33/33, `test_mobile_video` / `test_mobile_studio` / `test_mobile_scan_worker` OK; `validate_contract.py` passes. No server was started by any test.
+- Flutter: `flutter analyze` no issues; full `flutter test` **738 passed, 1 failed** (the known `background_test` battery-notice timeout, failing before this work; the one extra failure of an intermediate run — a bare-string `PatchEmbedding` fixture the generic fixture test could not decode — was fixed by removing that fixture; `contract_fixtures_test` + `test/data` rerun green). Logs `mobile/build/roadmap-*.log`.
+
+### What the user has to do
+1. Restart the mobile API server when convenient (new endpoints / flags; the phone's installed build keeps working with or without it). Build and install a new APK for the phone side (schema v16 is additive, no rescan is queued).
+2. Labels (nothing was calibrated on real data): `eval_sensitive.py <photos> --sample 150` -> label sheet -> `--score` (sets the `isSensitive` thresholds, now the starting 0.60); export a backup WITHOUT a password, unzip it, then `eval_body_links.py` (event window / event_auto / event_suggest), `eval_pose_filters.py` (Tier-A precision, descriptor sigma) and `eval_body_embeddings.py` (whether clusters may be turned on).
+3. On the phone, test: the Bodies screen (People app bar button, or a person's page), chips, find similar pose, naming a pose / outfit, "find similar photos of this body area", Quick Review reason "Same outfit, same day", a rescan storing regions (`isSensitive` has no UI of its own, by the roadmap), and the v15 -> v16 upgrade on the real library (back it up first).
+
+### Deviations from the roadmap, all recorded above
+`media.sensitive_version` column added; `reid` columns not added; orientation tags not asked of lying bodies; pose descriptor uses equal weights (no scores stored); frontal "orientation guard" off by default; `bone_ratio_veto` implemented but not wired; backup placement of `body_clusters` before `bodies`; media-viewer actions of 6.3, multi-person filters of section 4, cluster UI, mark UI, embedding backfill and Phase 7 not built.
+
+## Roadmap implementation, follow-up — the five items that were "not built" — 2026-11-02
+
+Done in the order asked, same constraints as the night run: **the running mobile API server, its scan worker, Streamlit and the phone were never touched; nothing is committed; no new package or model was installed in this follow-up.** Several statements in the section above are now outdated: the media-viewer actions, the multi-person filters, the embedding backfill, the marking UI, the real patch cutter, the cluster UI and Phase 7 are no longer "not built" (details below). Everything on the PC side needs a server restart to be picked up (new endpoint `POST /v1/analyze/garments`, capability `garment_tags`); everything on the phone side needs a new APK.
+
+### 1. Media-viewer actions and multi-person photo filters
+- Photo viewer, tapping a body box opens a menu: **Find similar pose**, **Find similar colours**, **Name this pose**, **Name this outfit**, **Mark a tattoo** (keys `box-similar-pose`, `box-similar-colours`, `box-name-pose`, `box-name-outfit`, `box-mark-tattoo`; the sheet is `isScrollControlled`). The first two open the Bodies screen already ranked (`/bodies?similar=<id>` / `?colours=<id>`); naming reuses the Bodies-screen flow (preview, untick, save).
+- Multi-person Tier-A photo filters (roadmap section 4): `domain/pose/group_poses.dart` (`GroupPhotos`) tags a PHOTO (not videos) with `group` (3 or more bodies), `lineup` (side by side, shoulders level, not overlapping) and `all_facing` (every body has a face looking at the camera); the Bodies screen shows the chips with counts and lists those photos, one representative body per photo. Limits (roadmap 4.0): the scan keeps at most 40 faceless bodies per photo and drops faceless bodies wearing the same outfit as another in the photo, so a team in uniform is mostly missing; a rule that lacks data yields nothing rather than a wrong answer. **Precision not measured** (needs the user labels like every other rule).
+- Tests: `bodies_screen_test.dart` 10, `group_poses_test.dart` 6.
+
+### 2. Embeddings backfill for photos scanned before Phase 8
+- PC: `POST /v1/analyze/sensitive` takes an optional form field `embeddings=true` and then also returns `bodies[]` (chest / lower-body embedding + morphology per requested body, in order); 409 `model_missing` without the DINOv2 model. Contract + fixture `AnalyzeSensitiveResponse.with_embeddings`.
+- Phone: `domain/sensitive/embedding_backfill.dart` (modelled on the sensitive backfill: one photo, one transaction, only while no scan runs / not paused / server ready, skips photos with no usable body, marks `media.body_embedding_version`), runs at the end of every scan pass after the sensitive backfill, **on by default** (`settings.body_embeddings_backfill_enabled`, anything but 'false' = on; the embeddings are always stored, clusters stay off). Deviation: the `body_embedding_version` column is folded into the v16 migration (v16 was never released).
+- **Bug found and fixed on the way:** `AnalyzeSensitiveResponse.fromJson` ignored `bodies`, so the embeddings backfill would have stored nothing against a real server (the fakes returned DTOs directly). Now parsed and covered by a fixture test (`garment_backfill_test.dart`, last test).
+- Tests: `embedding_backfill_test.dart` 4, `test_body_embeddings.py` 11.
+
+### 3. Tattoo marking UI and the real patch cutter
+- `features/marks/mark_tattoo.dart` (draw a rectangle on a body in the photo viewer, choose the segment and an optional label), `domain/marks/patch_cutter.dart` (`UiPatchCutter`: crops the rotated rectangle from the ORIGINAL photo at the stored body pixels, upright, scaled to the decoded image, refuses tiny ones), `features/marks/person_marks_screen.dart` (route `/marks?personId=`, a person page button `person-marks`: list, delete, "search other photos", strong / possible matches with It is them / Not them). A match is only ever a suggestion. Strong and possible matches are also queued in Quick Review with the reason **Matching tattoo** (`tattoo` method; likelihood bands 0.90 / 0.75) and, like the other review methods, are replaced by every grouping run.
+- Deviation: patches are stored as `marks/<id>.png` (dart:ui has no JPEG encoder), small synchronous file IO in `BodyMarkStore`; thumbnails use `Image.memory`.
+- **Not done:** the `LLR_mark` fusion into the automatic grouping (Phase 0 pending). Tests: `marks_test.dart` 10, `marks_ui_test.dart` 4, `test_mobile_marks.py` 6.
+
+### 4. Cluster UI (still OFF by default)
+- `features/bodies/body_areas.dart`: **Areas** tab on the Bodies screen, visible only while `settings.body_clusters_enabled == true`; the Bodies menu (`bodies-menu`) has the switch **Group body areas (experimental)** (`clusters-toggle`): turning it on runs `ExposedClusters.rebuild` for the chest and lower-body halves, turning it off hides the tab and stops queueing suggestions (clusters are kept). Each group shows sample crops, the person it belongs to, and **Give this group to a person** (one tap, via the person picker, only bodies nobody has claimed, never against a rejection). Bridge photos (>= 2) only offer the OTHER group as a button; nothing is assigned by itself.
+- Quick Review: while on, bodies of a cluster that belongs to a person are queued as **Same body area as photos of this person** (`cluster` method, confidence 0.85, bands 0.90 / 0.80), refreshed by `rebuild` / `assign`; the review tables are replaced by each grouping run, so they come back at the next rebuild.
+- A cluster inherits the person most of its members already have when it is rebuilt. **The Phase 8 gate has not been run** (`eval_body_embeddings.py` needs the user labels); do not turn the switch on for the real library before pairwise precision >= 0.95. Tests: `exposed_matching_test.dart` 9, `body_areas_test.dart` 2 (the switch OFF hides the tab; ON builds the groups, assign, bridge button).
+
+### 5. Phase 7 garment tags — PC endpoint and backfill, **no tag is a filter**
+- PC `garment_tags.py`: vocabulary of 48 WD14 tags in 7 categories (upper, outerwear, lower, full_body, pattern, accessory, footwear; all present in `models/wd14_tagger_tags.csv`), body crop with 5 % margin (too small = no tags), probabilities >= 0.15, best 24, `GARMENT_VERSION = 1`. `POST /v1/analyze/garments` (bodies as in `/v1/analyze/sensitive`, keypoints ignored; 409 `model_missing`; nothing stored; capability `engines.garment_tags`; contract `AnalyzeGarmentsResponse` / `GarmentTag`, fixtures). Runs in the server process with the existing `WD14Tagger` (CPU/GPU via onnxruntime); not via the scan worker. `test_mobile_garments.py` 7/7 (a real CPU inference included).
+- Phone: table `body_garment_tags(body_id, tag, category, score)` (in the v16 migration, in the backup), `media.garment_version`, `domain/garments/garment_backfill.dart` (same pattern as the sensitive backfill, **OFF unless `settings.garment_tags_enabled == 'true'`**, so the PC does no unused tagging; there is no UI switch yet, set it through `GarmentBackfill.setEnabled`). `garmentTagsOf(db, bodyId)` reads the raw scores.
+- **Nothing reads the tags**: no chip, no search, no review reason. The roadmap requires per-tag precision measured on real photos first (WD14 is anime-trained); that needs the user labels. When labels exist: dump `body_garment_tags` for the labelled bodies, compute precision per tag at a threshold, and only then expose the tags that pass. Tests: `garment_backfill_test.dart` 6.
+
+### Verification (CPU, this follow-up)
+- `flutter analyze`: no issues. Full `flutter test`: **770 passed, 0 failed.** The known `background_test` battery-notice failure is fixed (cheap): the running scan card keeps a progress indicator animating, so the test now pumps a fixed duration instead of `pumpAndSettle`.
+- Python: `test_mobile_api_contract` 31/31, `test_mobile_stateless` 5/5, `test_analysis` 9/9, `test_grouping_core` 11/11, `test_mobile_sensitive` 9, `test_event_linking` 12/12, `test_pose_filters` 5/5, `test_body_embeddings` 11/11, `test_mobile_marks` 6/6, `test_mobile_garments` 7, `test_gallery` 33/33, video / studio / scan_worker / artifacts / connectivity OK; `make_fixtures.py` regenerated and `validate_contract.py` passes. No server was started by any test.
+- Also fixed: a duplicated `Routes.marks` GoRoute registration in `core/router.dart`.
+
+### What is left
+1. The user labels and the three calibrations (see "What the user has to do" above), including the Phase 8 gate before clusters are switched on, and Tier-A / group-pose precision.
+2. Garment tags: switch on `garment_tags_enabled` only if tags are wanted for labelling; no filter until measured.
+3. `LLR_mark` fusion; OSNet `reid_embedding`; `hip_waist_ratio`; the 50k-body pose-search timing on a device; all phone-side behaviour (never run on a device in this run).

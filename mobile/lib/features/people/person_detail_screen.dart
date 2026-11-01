@@ -134,6 +134,22 @@ class PersonDetailScreen extends ConsumerWidget {
                         context.push('${Routes.reface}?person=$personId'),
                     icon: const Icon(Icons.face_retouching_natural),
                   ),
+                if (p.kind == 'person')
+                  IconButton(
+                    key: const Key('person-marks'),
+                    tooltip: l10n.marksTitle,
+                    onPressed: () =>
+                        context.push('${Routes.marks}?personId=$personId'),
+                    icon: const Icon(Icons.draw_outlined),
+                  ),
+                if (p.kind == 'person')
+                  IconButton(
+                    key: const Key('person-bodies'),
+                    tooltip: l10n.bodiesTitle,
+                    onPressed: () =>
+                        context.push('${Routes.bodies}?personId=$personId'),
+                    icon: const Icon(Icons.accessibility_new),
+                  ),
                 PopupMenuButton<String>(
                   key: const Key('person-menu'),
                   onSelected: (v) {

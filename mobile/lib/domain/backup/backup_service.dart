@@ -42,11 +42,22 @@ const backupTables = [
   BackupTable('kind_overrides'),
   BackupTable('identity_sets'),
   BackupTable('identity_set_faces'),
+  // bodies.*_cluster_id points at body_clusters (which only needs persons): clusters first.
+  BackupTable('body_clusters'),
   BackupTable('bodies'),
   BackupTable('face_rejections'),
   BackupTable('body_rejections'),
   BackupTable('person_distinct'),
   BackupTable('media_detections'),
+  // Roadmap v16: everything that points at bodies / persons comes after them, matches after categories.
+  // body_pose_features is a cache and is rebuilt after a restore, so it is not listed.
+  BackupTable('sensitive_regions'),
+  BackupTable('body_garment_tags'),
+  BackupTable('body_marks'),
+  BackupTable('pose_categories'),
+  BackupTable('outfit_categories'),
+  BackupTable('body_pose_matches'),
+  BackupTable('body_outfit_matches'),
   BackupTable('review_matches'),
   BackupTable('review_groups'),
   BackupTable('review_duplicates'),

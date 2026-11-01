@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../features/analyze/analyze_screen.dart';
 import '../data/repositories/media_queries.dart';
 import '../features/backup/backup_screen.dart';
+import '../features/bodies/bodies_screen.dart';
+import '../features/marks/person_marks_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/insights/insights_screen.dart';
 import '../features/library/library_screen.dart';
@@ -35,6 +37,9 @@ abstract final class Routes {
   static const insights = '/insights';
   static const people = '/people';
   static const characters = '/characters';
+  static const marks = '/marks'; // ?personId= one person's tattoo marks
+  static const bodies =
+      '/bodies'; // pose / outfit browser, ?personId= scopes it
   static const library = '/library';
   static const studio = '/studio';
   static const jobs = '/jobs';
@@ -112,6 +117,25 @@ GoRouter createRouter({
       GoRoute(
         path: Routes.characters,
         builder: (context, state) => const PeopleScreen(kind: 'character'),
+      ),
+      GoRoute(
+        path: Routes.marks,
+        builder: (context, state) => PersonMarksScreen(
+          personId:
+              int.tryParse(state.uri.queryParameters['personId'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
+        path: Routes.bodies,
+        builder: (context, state) => BodiesScreen(
+          personId: int.tryParse(state.uri.queryParameters['personId'] ?? ''),
+          initialSimilar: int.tryParse(
+            state.uri.queryParameters['similar'] ?? '',
+          ),
+          initialSimilarColours: int.tryParse(
+            state.uri.queryParameters['colours'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: Routes.connection,

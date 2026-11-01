@@ -363,7 +363,13 @@ class _QuestionView extends ConsumerWidget {
       ),
       ReviewQuestionKind.outfit => (
         l.reviewMatchQuestion(personName(l, q.outfit!.person)),
-        '${q.outfit!.method == 'appearance' ? l.quickByClothes : l.quickByWeakFace} · $likelihood',
+        '${switch (q.outfit!.method) {
+          'appearance' => l.quickByClothes,
+          'event_outfit' => l.quickByEventOutfit,
+          'cluster' => l.quickByCluster,
+          'tattoo' => l.quickByTattoo,
+          _ => l.quickByWeakFace,
+        }} · $likelihood',
         q.outfit!.person,
       ),
       ReviewQuestionKind.duplicate => (l.quickSamePerson, likelihood, null),
