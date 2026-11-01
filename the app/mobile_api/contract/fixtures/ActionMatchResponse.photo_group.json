@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "method": "pose_geometry_temporal_v1",
+  "matches": [
+    {
+      "id": "reverse-order",
+      "score": 1
+    },
+    {
+      "id": "one-member",
+      "score": null
+    }
+  ]
+}

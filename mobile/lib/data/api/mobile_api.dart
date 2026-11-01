@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'package:dio/dio.dart';
 
 import 'api_exception.dart';
+import 'action_api.dart';
 import 'equipment_api.dart';
 import 'bulk_transfer.dart';
 import 'dtos/analyze.dart';
@@ -185,7 +186,8 @@ class HttpMobileApi
         VideoTransferProgressApi,
         StudioApi,
         ResourceApi,
-        EquipmentApi {
+        EquipmentApi,
+        ActionMatchApi {
   HttpMobileApi(
     this.session, {
     Dio? dio,
@@ -204,6 +206,56 @@ class HttpMobileApi
   final Dio _dio;
 
   void close() => _dio.close(force: false);
+
+  @override
+  Future<Map<String, double?>> compareActions({
+    required String kind,
+    required List<Map<String, dynamic>> query,
+    required List<({String id, List<Map<String, dynamic>> frames})> candidates,
+    bool allowMirror = false,
+  }) => _guard(() async {
+    if (candidates.isEmpty || candidates.length > 64) {
+      throw const FormatException('Choose1–64 action candidates.');
+    }
+    final response = _json(
+      await _dio.post(
+        '/v1/actions/match',
+        data: {
+          'kind': kind,
+          'query': query,
+          'allow_mirror': allowMirror,
+          'candidates': [
+            for (final c in candidates) {'id': c.id, 'frames': c.frames},
+          ],
+        },
+      ),
+    );
+    if (response['version'] != 1 ||
+        response['method'] != 'pose_geometry_temporal_v1' ||
+        response['matches'] is! List) {
+      throw const FormatException('Unknown action matcher response');
+    }
+    final expected = candidates.map((c) => c.id).toSet();
+    final result = <String, double?>{};
+    for (final raw in response['matches'] as List) {
+      if (raw is! Map ||
+          raw['id'] is! String ||
+          !expected.contains(raw['id']) ||
+          result.containsKey(raw['id'])) {
+        throw const FormatException('Action candidate IDs do not match');
+      }
+      final score = raw['score'];
+      if (score != null &&
+          (score is! num || !score.isFinite || score < 0 || score > 1)) {
+        throw const FormatException('Invalid action similarity');
+      }
+      result[raw['id'] as String] = (score as num?)?.toDouble();
+    }
+    if (result.length != expected.length) {
+      throw const FormatException('Missing action comparisons');
+    }
+    return result;
+  });
 
   @override
   Future<ResourceSnapshot> resources() => _guard(() async {
@@ -444,9 +496,10 @@ class HttpMobileApi
     if (files is! List || files.length != 1 || files.single is! Map) {
       throw const FormatException('Expected one Studio result');
     }
-    return StudioResultFile.fromJson(
-      Map<String, dynamic>.from(files.single as Map),
-    );
+    return StudioResultFile.fromJson({
+      ...Map<String, dynamic>.from(files.single as Map),
+      'meta': json['meta'] ?? const <String, dynamic>{},
+    });
   });
 
   @override

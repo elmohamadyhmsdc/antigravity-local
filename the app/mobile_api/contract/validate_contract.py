@@ -92,7 +92,7 @@ for needed in ("/v1/health", "/v1/capabilities", "/v1/pair/complete", "/v1/blobs
 
 # --------------------------------------------------------------------------- 2 + 3. fixtures
 
-EMBEDDING_KEYS = {"embedding", "proto", "weak_face_embedding", "target_embeddings"}
+EMBEDDING_KEYS = {"embedding", "proto", "weak_face_embedding", "target_embeddings", "anchor_embedding"}
 
 
 CCIP_BYTES = 768 * 4  # character faces: CCIP, announced by embedding_model_id
@@ -102,7 +102,8 @@ FACE_BYTES = 512 * 4
 def embeddings_in(node, key=None, size=FACE_BYTES):
     """Yield (base64 text, expected byte length) for every embedding in a document."""
     if isinstance(node, dict):
-        size = CCIP_BYTES if str(node.get("embedding_model_id", "")).startswith("ccip") else size
+        size = CCIP_BYTES if str(node.get("identity_model_id", node.get("embedding_model_id", node.get("model_id", "")))).startswith("ccip") else size
+        if node.get('strictness') == 'character': size = CCIP_BYTES
         for k, v in node.items():
             yield from embeddings_in(v, k, size)
     elif isinstance(node, list):
@@ -148,6 +149,17 @@ def must_fail(schema_name, fixture_variant, mutate, label):
     mutate(broken)
     check(len(errors_for(schema_name, broken)) > 0, f"rejects: {label}")
 
+
+must_fail('JobCreate','build_character_dataset',lambda d:d['params'].__setitem__('anchor_embedding',
+          json.loads((HERE/'fixtures/AnalyzeImageResponse.two_faces_one_body.json').read_text())['faces'][0]['embedding']),
+          'a human anchor in a character dataset')
+must_fail('GroupingPlanRequest','character_identity',lambda d:d['pending'][0].__setitem__('embedding',
+          json.loads((HERE/'fixtures/AnalyzeImageResponse.two_faces_one_body.json').read_text())['faces'][0]['embedding']),
+          'a human vector in character grouping')
+must_fail('JobCreate','reface_image_reference',lambda d:d['params'].pop('experimental_acknowledged'),
+          'reference replacement without explicit experimental acknowledgement')
+must_fail('JobCreate','reface_video_reference',lambda d:d['params']['target_identity'].__setitem__('model_id','buffalo_l@1'),
+          'cross-model target identity in a character video')
 
 must_fail("AnalyzeImageResponse", "two_faces_one_body", lambda d: d["faces"][0].pop("embedding"),
           "a face without an embedding")

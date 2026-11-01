@@ -1,0 +1,28 @@
+{
+  "client_job_id": "reference-photo-fixture",
+  "type": "reface_image_reference",
+  "inputs": {
+    "target": "1111111111111111111111111111111111111111111111111111111111111111",
+    "source_reference": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "params": {
+    "source_kind": "character",
+    "target_kind": "character",
+    "seed": 18472,
+    "steps": 20,
+    "target_regions": [
+      {
+        "frame": 0,
+        "boxes": [
+          {
+            "x": 0.65,
+            "y": 0.2,
+            "w": 0.2,
+            "h": 0.4
+          }
+        ]
+      }
+    ],
+    "experimental_acknowledged": true
+  }
+}

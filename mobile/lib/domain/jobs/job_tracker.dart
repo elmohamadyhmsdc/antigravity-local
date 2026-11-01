@@ -256,7 +256,7 @@ class JobTracker {
     final commitArtifacts = await ArtifactStore(
       repository.db,
       repository.files,
-    ).stage(job, relative);
+    ).stage(job, relative, metadata: manifest.metadata);
     _check(job.id);
     await repository.db.transaction(() async {
       await commitArtifacts();

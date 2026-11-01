@@ -1,0 +1,24 @@
+{
+  "cpu_fixture_detection": true,
+  "gpu_run": false,
+  "kind": "character",
+  "model_id": "ccip-caformer24@1",
+  "detected_count": 2,
+  "source_selection": "explicit left half",
+  "target_selection": "explicit right half",
+  "source_box": {
+    "x": 0.12819010416666668,
+    "y": 0.22958984375,
+    "w": 0.23164062500000004,
+    "h": 0.380859375
+  },
+  "target_box": {
+    "x": 0.6576822916666667,
+    "y": 0.226171875,
+    "w": 0.22578124999999996,
+    "h": 0.39179687499999993
+  },
+  "target_box_argument": "0.6576822917,0.226171875,0.22578125,0.391796875",
+  "source_reference": "D:\\AndroidScan\\gallary\\the app\\mobile_api\\contract\\test_assets\\backend-parity\\prepared-character\\source-reference.png",
+  "target": "D:\\AndroidScan\\gallary\\the app\\mobile_api\\contract\\test_assets\\backend-parity\\prepared-character\\target.png"
+}

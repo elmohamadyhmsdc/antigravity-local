@@ -36,7 +36,9 @@ Iterable<(String, int)> embeddingsIn(
   int dim = 512,
 ]) sync* {
   if (node is Map) {
-    final ccip = '${node['embedding_model_id'] ?? ''}'.startsWith('ccip');
+    final ccip = node['strictness'] == 'character' ||
+        '${node['identity_model_id'] ?? node['embedding_model_id'] ?? node['model_id'] ?? ''}'
+            .startsWith('ccip');
     for (final e in node.entries) {
       yield* embeddingsIn(e.value, e.key as String, ccip ? 768 : dim);
     }
@@ -45,7 +47,8 @@ Iterable<(String, int)> embeddingsIn(
       yield* embeddingsIn(v, key, dim);
     }
   } else if (node is String &&
-      (key == 'embedding' ||
+      (key == 'anchor_embedding' ||
+          key == 'embedding' ||
           key == 'target_embeddings' ||
           key == 'proto' ||
           key == 'weak_face_embedding' ||

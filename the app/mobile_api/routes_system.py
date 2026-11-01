@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from . import EMBEDDING_DIM, EMBEDDING_MODEL_ID
 from .errors import ApiError
 from .pairing import PairingError
+from .operation_support import operation_support
 
 _PAIR_STATUS = {"invalid": 401, "none": 401, "expired": 401, "locked": 429}
 
@@ -38,6 +39,7 @@ def build_system_router(ctx, require_device: Callable) -> APIRouter:
             "embedding_model": {"id": EMBEDDING_MODEL_ID, "dim": EMBEDDING_DIM},
             "gpu": snap["gpu"],
             "engines": snap["engines"],
+            "operations": operation_support(snap),
             "restorers": snap["restorers"],
             "reface_profiles": snap.get("reface_profiles", {}),
             "lora_base_checkpoints": snap["lora_base_checkpoints"],

@@ -1,6 +1,14 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Gallery AppBar Scan Icon & Activity Navigation Preservation — 2026-11-01
+
+- Replaced the generic notification/activity icon in `LibraryScreen`'s AppBar with a dedicated library analysis / scan icon (`Icons.document_scanner` / `Icons.document_scanner_outlined`).
+- When a scan is running, the icon switches to active/filled with a primary green highlight and badge indicator; clicking it navigates directly to `Routes.runningScan`. When idle, the outlined icon remains visible and clicking it also opens the scan status/scope/settings.
+- Preserved all existing features: Activity / pending jobs navigation was moved into the `gallery-more` overflow menu with its pending count badge (e.g. `Activity (2)`), so it remains 100% accessible directly from the Gallery AppBar.
+- Verified: `flutter test test/features/library_test.dart` (10 tests passed), `flutter analyze: No issues found (4.2s)`.
+
+
 ## Gallery-first mobile implementation, shared identities and dynamic actions — 2026-11-01
 
 - User explicitly approved implementing the full mobile redesign and an economical sub-session. Gallery / People / Discover / Studio are now the roots; Photos / Folders browse device MediaStore before pairing/analysis. Viewer swipe-up details, contextual source/target selection, person Media/Identity/Models, Discover and Running Scan/Activity are implemented. The 68 surfaces map to routes/sheets/shared components in docs/design/gallery-first/implementation-ui-status.md.

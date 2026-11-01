@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
+import 'package:antigravity_mobile/data/repositories/artifact_context.dart';
 import 'package:antigravity_mobile/studio_providers.dart';
 import 'package:antigravity_mobile/features/reface/reface_media.dart';
 import 'package:drift/drift.dart' show Value;
@@ -153,6 +155,14 @@ void main() {
               createdAt: 1,
             ),
           );
+      await env.db.putSetting(
+        '${artifactContextPrefix}x',
+        jsonEncode(
+          const ArtifactContext(
+            qualityWarnings: ['Identity likeness is unverified.'],
+          ).toJson(),
+        ),
+      );
       await env.pump(
         tester,
         extra: [initialLocationProvider.overrideWithValue('/results/x')],
@@ -168,6 +178,11 @@ void main() {
         }
       }
       expect(find.byKey(const Key('result-comparison')), findsOneWidget);
+      await revealForTap(
+        tester,
+        find.byKey(const Key('result-quality-warning')),
+      );
+      expect(find.text('Identity likeness is unverified.'), findsOneWidget);
       await revealForTap(tester, find.widgetWithText(FilterChip, 'Favourite'));
       await tester.tap(find.widgetWithText(FilterChip, 'Favourite'));
       await tester.pumpAndSettle();

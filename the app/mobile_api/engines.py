@@ -269,9 +269,19 @@ class CapabilityProbe:
     def engines(self) -> Dict:
         from equipment_detection import model_available as equipment_available
         from .model_readiness import restyle_missing_models
+        from .reference_reface import reference_reface_ready
+        from pathlib import Path as _Path
+        face_ready = all((_Path.home() / '.insightface' / 'models' / 'buffalo_l' / name).is_file()
+                         for name in ('det_10g.onnx', 'w600k_r50.onnx'))
+        character_ready = all(self._has('models', name) for name in ('anime_face_detect.onnx', 'ccip_character.onnx'))
         has_swapper = self._has("models", "inswapper_128.onnx")
         venv_ai = self._has("venv_ai", "Scripts", "python.exe")
         return {
+            "face_detection": face_ready,
+            "character_identity": character_ready and self._has('models', 'body', 'yolox_m_humanart.onnx'),
+            "dataset_person": face_ready and self._has('models', 'wd14_tagger_model.onnx') and self._has('models', 'gpen_bfr_512.onnx'),
+            "dataset_character": character_ready and self._has('models', 'body', 'yolox_m_humanart.onnx') and self._has('models', 'wd14_tagger_model.onnx'),
+            "reface_reference": reference_reface_ready(self.app_dir),
             "reface": has_swapper,
             "reface_v3": has_swapper and bool(self.restorers()),
             "reface_v2": has_swapper,

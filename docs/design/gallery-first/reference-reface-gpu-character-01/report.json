@@ -1,0 +1,195 @@
+{
+  "asset_files_present": true,
+  "inference_run": true,
+  "idle_check": {
+    "gpu_guard": "free",
+    "mobile_server_state": "failed",
+    "active_mobile_jobs": 0
+  },
+  "started": 1793562235.644126,
+  "source_kind": "character",
+  "target_kind": "character",
+  "production_module": "D:\\AndroidScan\\gallary\\the app\\mobile_api\\reference_reface.py",
+  "main_python": "D:\\AndroidScan\\gallary\\the app\\venv\\Scripts\\python.exe",
+  "generation_python": "D:\\AndroidScan\\gallary\\the app\\venv_ai\\Scripts\\python.exe",
+  "base": "D:\\AndroidScan\\gallary\\the app\\models\\undress\\Uminosachi--realisticVisionV51_v51VAE-inpainting",
+  "adapter": "D:\\AndroidScan\\gallary\\the app\\models\\undress\\h94--IP-Adapter",
+  "identity_fidelity": "requires visual review",
+  "temporal_quality": "requires visual review",
+  "target_candidates_in_photo": 2,
+  "target_model_id": "ccip-caformer24@1",
+  "generation_settings": {
+    "source_kind": "character",
+    "target_kind": "character",
+    "seed": 18472,
+    "steps": 20,
+    "strength": 0.75,
+    "reference_scale": 0.8
+  },
+  "image_meta": {
+    "edited_regions": 1,
+    "engine": "reference_guided",
+    "identity_fidelity": "unverified",
+    "temporal_quality": "unverified",
+    "preservation": "outside_face_mask_before_encoding",
+    "warnings": [
+      "Reference guidance may not reproduce exact identity."
+    ]
+  },
+  "image_seconds": 21.45436940000036,
+  "image_locality": {
+    "outside_max_error": 0,
+    "outside_exact": true,
+    "inside_mean_change": 45.15191025967877
+  },
+  "video_meta": {
+    "edited_frames": 3,
+    "unchanged_frames": 0,
+    "ambiguous_frames": 0,
+    "audio_preserved": false,
+    "frames_done": 3,
+    "fps": 5.0,
+    "engine": "reference_guided",
+    "identity_fidelity": "unverified",
+    "temporal_quality": "unverified",
+    "preservation": "outside_face_mask_before_encoding",
+    "warnings": [
+      "Reference guidance may not reproduce exact identity.",
+      "Video consistency has not been validated on the GPU."
+    ]
+  },
+  "video_seconds": 34.355911800001195,
+  "video_preencode_locality": [
+    {
+      "frame": 0,
+      "selection": "matched",
+      "boxes": [
+        {
+          "x": 0.6574869791666667,
+          "y": 0.2265625,
+          "w": 0.2259114583333334,
+          "h": 0.39091796874999996
+        }
+      ],
+      "outside_max_error": 0,
+      "outside_exact": true,
+      "inside_mean_change": 45.61589506736281
+    },
+    {
+      "frame": 1,
+      "selection": "matched",
+      "boxes": [
+        {
+          "x": 0.6587890625,
+          "y": 0.2267578125,
+          "w": 0.22532552083333335,
+          "h": 0.39101562500000003
+        }
+      ],
+      "outside_max_error": 0,
+      "outside_exact": true,
+      "inside_mean_change": 43.57158290836179
+    },
+    {
+      "frame": 2,
+      "selection": "matched",
+      "boxes": [
+        {
+          "x": 0.6598958333333333,
+          "y": 0.2267578125,
+          "w": 0.22558593749999992,
+          "h": 0.39003906250000003
+        }
+      ],
+      "outside_max_error": 0,
+      "outside_exact": true,
+      "inside_mean_change": 40.74042580456193
+    }
+  ],
+  "selection_matched_frames": 3,
+  "pixel_tests_passed": true,
+  "acceptance": "real inference completed; inspect identity and flicker before release",
+  "finished": 1793562293.872003,
+  "events": [
+    {
+      "progress": 0.95,
+      "message": "Rendering reference-guided face",
+      "details": {
+        "stage": "rendered",
+        "engine": "reference_guided"
+      }
+    },
+    {
+      "progress": 0.13333333333333333,
+      "message": "Locating selected identity",
+      "details": {
+        "stage": "locating",
+        "engine": "reference_guided",
+        "frame": 0
+      }
+    },
+    {
+      "progress": 0.21666666666666667,
+      "message": "Locating selected identity",
+      "details": {
+        "stage": "locating",
+        "engine": "reference_guided",
+        "frame": 1
+      }
+    },
+    {
+      "progress": 0.3,
+      "message": "Locating selected identity",
+      "details": {
+        "stage": "locating",
+        "engine": "reference_guided",
+        "frame": 2
+      }
+    },
+    {
+      "progress": 0.5133333333333333,
+      "message": "Rendering reference-guided face",
+      "details": {
+        "stage": "rendering",
+        "engine": "reference_guided",
+        "frame": 0,
+        "frames_done": 1
+      },
+      "last_frame": 0,
+      "frames_done": 1
+    },
+    {
+      "progress": 0.7266666666666667,
+      "message": "Rendering reference-guided face",
+      "details": {
+        "stage": "rendering",
+        "engine": "reference_guided",
+        "frame": 1,
+        "frames_done": 2
+      },
+      "last_frame": 1,
+      "frames_done": 2
+    },
+    {
+      "progress": 0.94,
+      "message": "Rendering reference-guided face",
+      "details": {
+        "stage": "rendering",
+        "engine": "reference_guided",
+        "frame": 2,
+        "frames_done": 3
+      },
+      "last_frame": 2,
+      "frames_done": 3
+    },
+    {
+      "progress": 0.95,
+      "message": "Rendering reference-guided face",
+      "details": {
+        "stage": "rendered",
+        "engine": "reference_guided"
+      }
+    }
+  ],
+  "video_encoding_note": "Exact locality is checked on PNG frames before H.264; codec recompression is expected."
+}

@@ -1,0 +1,69 @@
+{
+  "asset_files_present": true,
+  "inference_run": true,
+  "idle_check": {
+    "gpu_guard": "free",
+    "mobile_server_state": "failed",
+    "active_mobile_jobs": 0
+  },
+  "started": 1793562714.1559455,
+  "source_kind": "character",
+  "target_kind": "character",
+  "production_module": "D:\\AndroidScan\\gallary\\the app\\mobile_api\\reference_reface.py",
+  "main_python": "D:\\AndroidScan\\gallary\\the app\\venv\\Scripts\\python.exe",
+  "generation_python": "D:\\AndroidScan\\gallary\\the app\\venv_ai\\Scripts\\python.exe",
+  "base": "D:\\AndroidScan\\gallary\\the app\\models\\undress\\Uminosachi--realisticVisionV51_v51VAE-inpainting",
+  "adapter": "D:\\AndroidScan\\gallary\\the app\\models\\undress\\h94--IP-Adapter",
+  "identity_fidelity": "requires visual review",
+  "temporal_quality": "requires visual review",
+  "target_candidates_in_photo": 2,
+  "target_model_id": "ccip-caformer24@1",
+  "generation_settings": {
+    "source_kind": "character",
+    "target_kind": "character",
+    "seed": 18472,
+    "steps": 20,
+    "strength": 0.25,
+    "reference_scale": 0.8,
+    "initialization": "source_pixels"
+  },
+  "image_meta": {
+    "edited_regions": 1,
+    "engine": "reference_guided",
+    "identity_fidelity": "unverified",
+    "temporal_quality": "unverified",
+    "preservation": "outside_face_mask_before_encoding",
+    "initialization": "source_pixels",
+    "warnings": [
+      "Reference guidance may not reproduce exact identity."
+    ]
+  },
+  "image_seconds": 35.06162779999977,
+  "image_locality": {
+    "outside_max_error": 0,
+    "outside_exact": true,
+    "inside_mean_change": 40.014167607531775
+  },
+  "pixel_tests_passed": true,
+  "acceptance": "image inference completed; identity quality requires review",
+  "finished": 1793562751.3131177,
+  "events": [
+    {
+      "progress": 0.02,
+      "message": "Preparing source face",
+      "details": {
+        "stage": "preparing_source",
+        "engine": "reference_guided"
+      }
+    },
+    {
+      "progress": 0.95,
+      "message": "Rendering reference-guided face",
+      "details": {
+        "stage": "rendered",
+        "engine": "reference_guided"
+      }
+    }
+  ],
+  "video_encoding_note": "Exact locality is checked on PNG frames before H.264; codec recompression is expected."
+}

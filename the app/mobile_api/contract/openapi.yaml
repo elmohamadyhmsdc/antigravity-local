@@ -11,7 +11,7 @@ info:
     - Transport: HTTPS with a self-signed certificate that the phone pins by
       SHA-256 fingerprint (from the pairing QR). `Authorization: Bearer <token>`
       on everything except /v1/health and /v1/pair/complete.
-    - Embeddings are 512 x float32 little-endian, base64 (always 2732 chars).
+    - Human identity embeddings are512float32/base64; character CCIP identity embeddings are768float32/base64. They are never interchangeable.
     - Boxes are pixels of the *uploaded* image: {x, y, w, h}, top-left origin.
     - Errors: `{error: {code, message, retryable}}`. 503 `gpu_busy` carries
       `Retry-After`. 409 `missing_blobs` also carries `missing: [sha256...]`.
@@ -335,6 +335,24 @@ paths:
         '413': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
 
+  /v1/actions/match:
+    post:
+      summary: Stateless CPU ranking of sampled photo configurations or video pose sequences
+      description: Both identity kinds use the same geometry. Names, identities and confirmation stay on the phone. At most64 candidates and20 samples each;16MiB compressed/inflated body caps. Scores are not probabilities or semantic classifications.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ActionMatchRequest" }
+      responses:
+        "200":
+          description: One comparison per opaque candidate ID; null when not comparable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActionMatchResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+
   /v1/grouping/plan:
     post:
       summary: Pure function - decide how faces/bodies should be grouped
@@ -592,6 +610,29 @@ components:
         name: { type: string }
         api_version: { type: string }
 
+    OperationSupport:
+      type: object
+      required: [operation, kind, media_types, available, engine, identity_models, reason]
+      properties:
+        experimental: { type: boolean, default: false, description: Default-off execution path requiring explicit client/operator opt-in. }
+        operation: { type: string }
+        kind: { type: string, enum: [person, character] }
+        media_types:
+          type: array
+          items: { type: string, enum: [photo, video, dataset, model] }
+        available: { type: boolean }
+        engine: { type: string }
+        identity_models:
+          type: array
+          items: { type: string }
+        reason: { type: [string, "null"] }
+
+    CharacterEmbedding:
+      type: string
+      description: 768 finite unit float32 values, little-endian/base64, CCIP identity space.
+      minLength: 4096
+      maxLength: 4096
+
     Capabilities:
       type: object
       required: [api_version, server_id, name, embedding_model, gpu, engines, restorers, lora_base_checkpoints, limits, busy]
@@ -599,6 +640,10 @@ components:
         api_version: { type: string }
         server_id: { type: string }
         name: { type: string }
+        operations:
+          type: array
+          description: Model-aware installed execution paths. Omission means legacy/unknown; availability does not certify output quality.
+          items: { $ref: "#/components/schemas/OperationSupport" }
         embedding_model:
           type: object
           required: [id, dim]
@@ -1200,6 +1245,11 @@ components:
               - { type: "null" }
 
     # -------------------------------------------------------------- grouping
+    IdentityEmbedding:
+      oneOf:
+        - { $ref: "#/components/schemas/Embedding" }
+        - { $ref: "#/components/schemas/CharacterEmbedding" }
+
     GroupingModel:
       type: object
       description: |
@@ -1213,10 +1263,10 @@ components:
       required: [pid, proto, members, count]
       properties:
         pid: { type: integer }
-        proto: { $ref: "#/components/schemas/Embedding" }
+        proto: { $ref: "#/components/schemas/IdentityEmbedding" }
         members:
           type: array
-          items: { $ref: "#/components/schemas/Embedding" }
+          items: { $ref: "#/components/schemas/IdentityEmbedding" }
         count: { type: integer, minimum: 1 }
 
     GroupingFace:
@@ -1224,7 +1274,7 @@ components:
       required: [id, embedding, quality, frame_key, rejected_person_ids]
       properties:
         id: { type: integer }
-        embedding: { $ref: "#/components/schemas/Embedding" }
+        embedding: { $ref: "#/components/schemas/IdentityEmbedding" }
         quality: { type: number }
         frame_key:
           type: [string, "null"]
@@ -1253,7 +1303,7 @@ components:
             - { type: "null" }
         weak_face_embedding:
           oneOf:
-            - { $ref: "#/components/schemas/Embedding" }
+            - { $ref: "#/components/schemas/IdentityEmbedding" }
             - { type: "null" }
         rejected_person_ids:
           type: array
@@ -1296,6 +1346,27 @@ components:
           type: array
           items: { $ref: "#/components/schemas/GroupingBody" }
         max_suggestions_per_person: { type: integer, default: 60 }
+
+      allOf:
+        - if: { properties: { strictness: { const: character } } }
+          then:
+            properties:
+              models:
+                items:
+                  properties:
+                    proto: { $ref: "#/components/schemas/CharacterEmbedding" }
+                    members: { items: { $ref: "#/components/schemas/CharacterEmbedding" } }
+              pending: { items: { properties: { embedding: { $ref: "#/components/schemas/CharacterEmbedding" } } } }
+              bodies: { items: { properties: { weak_face_embedding: { oneOf: [ { $ref: "#/components/schemas/CharacterEmbedding" }, { type: "null" } ] } } } }
+          else:
+            properties:
+              models:
+                items:
+                  properties:
+                    proto: { $ref: "#/components/schemas/Embedding" }
+                    members: { items: { $ref: "#/components/schemas/Embedding" } }
+              pending: { items: { properties: { embedding: { $ref: "#/components/schemas/Embedding" } } } }
+              bodies: { items: { properties: { weak_face_embedding: { oneOf: [ { $ref: "#/components/schemas/Embedding" }, { type: "null" } ] } } } }
 
     FaceAssignment:
       type: object
@@ -1366,6 +1437,8 @@ components:
       enum:
         - reface_image
         - reface_video
+        - reface_image_reference
+        - reface_video_reference
         - reface_image_v3
         - reface_image_v2
         - reface_image_dfm
@@ -1390,6 +1463,118 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/Pose" }
             - { type: "null" }
+
+    NormalizedFaceRegion:
+      type: object
+      additionalProperties: false
+      required: [x, y, w, h]
+      properties:
+        x: { type: number, minimum: 0, maximum: 1 }
+        y: { type: number, minimum: 0, maximum: 1 }
+        w: { type: number, exclusiveMinimum: 0, maximum: 1 }
+        h: { type: number, exclusiveMinimum: 0, maximum: 1 }
+
+    ReferenceFrameRegions:
+      type: object
+      additionalProperties: false
+      required: [frame, boxes]
+      properties:
+        frame: { type: integer, minimum: 0 }
+        boxes:
+          type: array
+          maxItems: 8
+          items: { $ref: "#/components/schemas/NormalizedFaceRegion" }
+
+    TargetIdentity:
+      type: object
+      additionalProperties: false
+      required: [model_id, embedding]
+      properties:
+        model_id: { type: string, enum: [buffalo_l@1, ccip-caformer24@1] }
+        embedding:
+          oneOf:
+            - { $ref: "#/components/schemas/Embedding" }
+            - { $ref: "#/components/schemas/CharacterEmbedding" }
+      allOf:
+        - if: { properties: { model_id: { const: ccip-caformer24@1 } } }
+          then: { properties: { embedding: { $ref: "#/components/schemas/CharacterEmbedding" } } }
+          else: { properties: { embedding: { $ref: "#/components/schemas/Embedding" } } }
+
+    ReferenceRefaceParams:
+      type: object
+      additionalProperties: false
+      description: Reference-image face-region replacement, not an embedding-space conversion. Source pixels are explicit; video identity locates only the selected target. Diffusion identity/temporal quality require separate acceptance.
+      required: [source_kind, target_kind, experimental_acknowledged]
+      properties:
+        experimental_acknowledged: { type: boolean, const: true, description: Required explicit opt-in; current reference guidance failed identity-quality acceptance. }
+        initialization: { type: string, enum: [target, source_pixels], default: target, description: Experimental source-pixel initialization also failed acceptance; it is not a certified alternative. }
+
+        source_kind: { type: string, enum: [person, character] }
+        target_kind: { type: string, enum: [person, character] }
+        target_regions:
+          type: array
+          maxItems: 9000
+          items: { $ref: "#/components/schemas/ReferenceFrameRegions" }
+        target_identity: { $ref: "#/components/schemas/TargetIdentity" }
+        seed: { type: integer, minimum: 0, maximum: 4294967295, default: 0 }
+        steps: { type: integer, minimum: 5, maximum: 50, default: 20 }
+        strength: { type: number, minimum: 0.1, maximum: 1, default: 0.75 }
+        reference_scale: { type: number, minimum: 0, maximum: 1, default: 0.8 }
+        start_time: { type: number, minimum: 0, maximum: 86400, default: 0 }
+        end_time: { type: number, minimum: 0, maximum: 86400 }
+      allOf:
+        - if: { properties: { target_kind: { const: character } } }
+          then: { properties: { target_identity: { properties: { model_id: { const: ccip-caformer24@1 } } } } }
+          else: { properties: { target_identity: { properties: { model_id: { const: buffalo_l@1 } } } } }
+
+    ActionPoseMember:
+      type: object
+      required: [points, mask, scale]
+      properties:
+        points: { type: array, minItems: 34, maxItems: 34, items: { type: number, minimum: -100, maximum: 100 } }
+        mask: { type: integer, minimum: 0, maximum: 131071 }
+        scale: { type: string, enum: [torso, shoulder, group] }
+
+    ActionPoseFrame:
+      type: object
+      required: [time, members]
+      properties:
+        time: { type: integer, minimum: 0 }
+        members: { type: array, minItems: 1, maxItems: 6, items: { $ref: "#/components/schemas/ActionPoseMember" } }
+
+    ActionMatchRequest:
+      type: object
+      required: [kind, query, candidates]
+      properties:
+        kind: { type: string, enum: [photo, video] }
+        allow_mirror: { type: boolean, default: false }
+        query: { type: array, minItems: 1, maxItems: 20, items: { $ref: "#/components/schemas/ActionPoseFrame" } }
+        candidates:
+          type: array
+          minItems: 1
+          maxItems: 64
+          items:
+            type: object
+            required: [id, frames]
+            properties:
+              id: { type: string, minLength: 1, maxLength: 128 }
+              frames: { type: array, minItems: 1, maxItems: 20, items: { $ref: "#/components/schemas/ActionPoseFrame" } }
+
+    ActionMatchResponse:
+      type: object
+      required: [version, method, matches]
+      properties:
+        version: { type: integer, const: 1 }
+        method: { type: string, const: pose_geometry_temporal_v1 }
+        matches:
+          type: array
+          maxItems: 64
+          items:
+            type: object
+            required: [id, score]
+            properties:
+              id: { type: string }
+              score: { type: [number, "null"], minimum: 0, maximum: 1 }
 
     RefaceParams:
       type: object
@@ -1506,19 +1691,29 @@ components:
 
     BuildLoraDatasetParams:
       type: object
-      description: "Inputs: `images` blobs (photos or videos, up to 64). Result: dataset.zip containing one repeats_trigger person folder of images and captions. The anchor selects this person, including in group photos."
+      description: "Inputs: `images` blobs (photos or videos, up to 64). Result: dataset.zip containing one repeats_trigger person folder of images and captions. The model-aware anchor selects the chosen identity, including in group photos."
       required: [trigger_word, anchor_embedding]
       properties:
         trigger_word: { type: string }
-        anchor_embedding: { $ref: "#/components/schemas/Embedding" }
+        identity_model_id: { type: string, enum: [buffalo_l@1, ccip-caformer24@1], default: buffalo_l@1 }
+        anchor_embedding:
+          oneOf:
+            - { $ref: "#/components/schemas/Embedding" }
+            - { $ref: "#/components/schemas/CharacterEmbedding" }
         repeats: { type: integer, default: 20, minimum: 1, maximum: 100 }
         max_frames_per_video: { type: integer, default: 12, minimum: 1, maximum: 24 }
+
+      allOf:
+        - if: { properties: { identity_model_id: { const: ccip-caformer24@1 } }, required: [identity_model_id] }
+          then: { properties: { anchor_embedding: { $ref: "#/components/schemas/CharacterEmbedding" } } }
+          else: { properties: { anchor_embedding: { $ref: "#/components/schemas/Embedding" } } }
 
     TrainLoraParams:
       type: object
       description: "Inputs: `dataset` blob (dataset.zip). Result: lora.safetensors. Only image/caption zip entries are accepted; training state is generated inside this job's scratch directory. Pausing resumes from the newest complete epoch checkpoint. person_id is deliberately absent."
       required: [trigger_word, base_checkpoint]
       properties:
+        identity_model_id: { type: string, enum: [buffalo_l@1, ccip-caformer24@1], description: Explicit verified provenance; omitted for unknown legacy artifacts. }
         output_name: { type: string, pattern: "^[A-Za-z0-9_-]{1,64}$" }
         trigger_word: { type: string }
         base_checkpoint:
@@ -1536,6 +1731,7 @@ components:
       description: "Inputs: `lora` blob (.safetensors), optional `reference` blob."
       required: [trigger_word, num_images]
       properties:
+        identity_model_id: { type: string, enum: [buffalo_l@1, ccip-caformer24@1], description: Explicit verified provenance; omitted for unknown legacy artifacts. }
         base_checkpoint: { type: string }
         trigger_word: { type: string }
         prompt: { type: string }
@@ -1567,6 +1763,43 @@ components:
               - { $ref: "#/components/schemas/Sha256" }
               - { type: array, items: { $ref: "#/components/schemas/Sha256" } }
       allOf:
+        - if: { properties: { type: { enum: [reface_image_reference, reface_video_reference] } }, required: [type] }
+          then:
+            properties:
+              params: { $ref: "#/components/schemas/ReferenceRefaceParams" }
+              inputs:
+                type: object
+                additionalProperties: false
+                required: [target, source_reference]
+                properties:
+                  target: { $ref: "#/components/schemas/Sha256" }
+                  source_reference: { $ref: "#/components/schemas/Sha256" }
+        - if: { properties: { type: { const: reface_image_reference } }, required: [type] }
+          then:
+            properties:
+              params:
+                required: [target_regions]
+                not: { required: [target_identity] }
+                properties:
+                  start_time: { const: 0 }
+                  end_time: false
+                  target_regions:
+                    minItems: 1
+                    maxItems: 1
+                    items:
+                      properties:
+                        frame: { const: 0 }
+                        boxes: { minItems: 1 }
+        - if: { properties: { type: { const: reface_video_reference } }, required: [type] }
+          then:
+            properties:
+              params:
+                anyOf:
+                  - required: [target_identity]
+                  - required: [target_regions]
+                    properties:
+                      target_regions: { minItems: 1 }
+
         - if: { properties: { type: { enum: [reface_image, reface_video, reface_image_v3, reface_image_v2, reface_image_dfm, reface_video_v3, reface_video_v2, reface_video_dfm] } }, required: [type] }
           then:
             properties:

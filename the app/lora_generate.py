@@ -36,6 +36,11 @@ DEFAULT_NEGATIVE_PROMPT = (
     "doll, plastic, smooth skin, airbrushed, wax figure, CGI, 3d render, cartoon, anime, illustration, painting, "
     "deformed, bad anatomy, bad eyes, disfigured, blurry, oversaturated, harsh contrast, poreless, fake skin, over-smoothed"
 )
+CHARACTER_MODEL_ID = 'ccip-caformer24@1'
+CHARACTER_PROMPT_TEMPLATE = (
+    'illustrated portrait of {trigger}, fully clothed, neutral expression, soft lighting, detailed artwork'
+)
+CHARACTER_NEGATIVE_PROMPT = 'deformed, bad anatomy, bad eyes, disfigured, blurry, oversaturated, harsh contrast'
 DEFAULT_STEPS = 30
 DEFAULT_GUIDANCE = 4.5
 DEFAULT_LORA_SCALE = 0.75
@@ -50,6 +55,27 @@ PORTRAIT_ANGLES = [
     "side profile view from opposite angle, looking away",
     "close-up frontal portrait, detailed eye reflections and natural skin texture",
 ]
+
+CHARACTER_ANGLES = [
+    'front view portrait, looking forward, centered composition',
+    'three-quarter view turned to the left',
+    'three-quarter view turned to the right',
+    'side profile view',
+    'portrait with a slight head tilt',
+    'three-quarter portrait, subtle smile',
+    'side profile view from opposite angle',
+    'close-up frontal portrait, detailed eyes',
+]
+
+
+def generation_prompts(request):
+    """Use only explicit identity-model provenance; unknown keeps legacy defaults."""
+    character = request.get('identity_model_id') == CHARACTER_MODEL_ID
+    template = CHARACTER_PROMPT_TEMPLATE if character else DEFAULT_PROMPT_TEMPLATE
+    negative = CHARACTER_NEGATIVE_PROMPT if character else DEFAULT_NEGATIVE_PROMPT
+    return (request.get('prompt') if request.get('prompt') is not None else template.format(trigger=request['trigger_word']),
+            request.get('negative_prompt') if request.get('negative_prompt') is not None else negative,
+            CHARACTER_ANGLES if character else PORTRAIT_ANGLES)
 
 REFERENCE_COMPOSITION = "composition"
 REFERENCE_STYLE = "style"
@@ -148,8 +174,7 @@ def main():
     request = json.loads(sys.stdin.read())
 
     trigger_word = request["trigger_word"]
-    prompt = request.get("prompt") or DEFAULT_PROMPT_TEMPLATE.format(trigger=trigger_word)
-    negative_prompt = request.get("negative_prompt") or DEFAULT_NEGATIVE_PROMPT
+    prompt, negative_prompt, angles = generation_prompts(request)
     num_images = int(request.get("num_images", 1))
     steps = int(request.get("steps", DEFAULT_STEPS))
     seed = int(request.get("seed", -1))
@@ -235,7 +260,7 @@ def main():
 
         current_prompt = prompt
         if multi_angle:
-            angle_desc = PORTRAIT_ANGLES[index % len(PORTRAIT_ANGLES)]
+            angle_desc = angles[index % len(angles)]
             current_prompt = f"{prompt}, {angle_desc}"
 
         image = pipe(

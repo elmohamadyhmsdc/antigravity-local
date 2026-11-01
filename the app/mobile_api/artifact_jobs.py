@@ -18,9 +18,26 @@ import numpy as np
 
 from . import APP_DIR
 from .errors import ApiError, bad_request
-from .schemas import decode_embedding
+from .schemas import CHARACTER_FACE_MODEL_ID
+from . import EMBEDDING_MODEL_ID
 
 ARTIFACT_TYPES = {'undress_image', 'build_lora_dataset', 'train_lora', 'generate_lora_images'}
+
+
+def dataset_anchor(params):
+    """Decode the explicitly identified embedding space; legacy requests are ArcFace."""
+    model = params.get('identity_model_id', EMBEDDING_MODEL_ID)
+    if model not in (EMBEDDING_MODEL_ID, CHARACTER_FACE_MODEL_ID):
+        raise ValueError('Unsupported identity model.')
+    raw = base64.b64decode(params['anchor_embedding'], validate=True)
+    expected = 768 if model == CHARACTER_FACE_MODEL_ID else 512
+    if len(raw) != expected * 4:
+        raise ValueError('Wrong identity embedding size.')
+    anchor = np.frombuffer(raw, dtype='<f4').copy()
+    norm = float(np.linalg.norm(anchor))
+    if not np.isfinite(anchor).all() or not math.isfinite(norm) or norm < 1e-8:
+        raise ValueError('Invalid identity embedding.')
+    return model, anchor / norm
 
 
 def bounded(params, key, default, low, high, integer=False):
@@ -79,17 +96,15 @@ def validate_artifact(body, caps):
                 for v in box.values()) or box['w'] <= 0 or box['h'] <= 0):
             raise bad_request('The protected face box is invalid.')
     elif kind == 'build_lora_dataset':
-        allowed_params = {'trigger_word', 'repeats', 'anchor_embedding', 'max_frames_per_video'}
+        allowed_params = {'trigger_word', 'repeats', 'anchor_embedding', 'identity_model_id', 'max_frames_per_video'}
         bounded(params, 'repeats', 20, 1, 100, True)
         bounded(params, 'max_frames_per_video', 12, 1, 24, True)
         try:
-            anchor = decode_embedding(params['anchor_embedding'])
-            if not np.all(np.isfinite(anchor)) or np.linalg.norm(anchor) < 1e-8:
-                raise ValueError()
+            dataset_anchor(params)
         except (ValueError, TypeError, KeyError):
-            raise bad_request('A valid person identity anchor is required.')
+            raise bad_request('A valid identity anchor for the selected model is required.')
     elif kind == 'train_lora':
-        allowed_params = {'trigger_word','output_name','base_checkpoint','epochs','network_dim','network_alpha','learning_rate','batch_size','max_resolution'}
+        allowed_params = {'trigger_word','output_name','base_checkpoint','epochs','network_dim','network_alpha','learning_rate','batch_size','max_resolution','identity_model_id'}
         output_name=params.get('output_name','character')
         if not isinstance(output_name,str) or re.fullmatch(r'[A-Za-z0-9_-]{1,64}',output_name) is None:
             raise bad_request('Use a simple model output name.')
@@ -102,7 +117,7 @@ def validate_artifact(body, caps):
             raise bad_request('Choose 512 or 768 resolution.')
     else:
         allowed_params = {'trigger_word','base_checkpoint','prompt','negative_prompt','seed','steps','guidance_scale',
-                          'num_images','lora_scale','multi_angle','reference_mode','reference_strength','reference_scale'}
+                          'num_images','lora_scale','multi_angle','reference_mode','reference_strength','reference_scale','identity_model_id'}
         bounded(params, 'num_images', 4, 1, 16, True)
         bounded(params, 'lora_scale', .75, 0, 1.5)
         bounded(params, 'reference_strength', .6, .05, 1)
@@ -113,6 +128,8 @@ def validate_artifact(body, caps):
             raise bad_request('multi_angle must be true or false.')
     if set(params) - allowed_params:
         raise bad_request('An unsupported job option was supplied.')
+    if kind in ('train_lora','generate_lora_images') and 'identity_model_id' in params and params['identity_model_id'] not in (EMBEDDING_MODEL_ID, CHARACTER_FACE_MODEL_ID):
+        raise bad_request('Unsupported identity model.')
     if kind in ('train_lora','generate_lora_images') and params.get('base_checkpoint') not in caps['lora_base_checkpoints']:
         raise bad_request('Choose a base checkpoint reported by this PC.')
 
@@ -185,15 +202,22 @@ def run_artifact(job, directory, report, stopped, ctx):
         finally:
             client.close()
     if kind == 'build_lora_dataset':
-        from lora_dataset import detect_face_record_from_image, _write_dataset_records, WD14Tagger, sample_video_frames
+        from lora_dataset import detect_face_record_from_image, detect_character_record_from_image, _write_dataset_records, WD14Tagger, sample_video_frames
         from face_restore import FaceRestorer
-        anchor = decode_embedding(params['anchor_embedding'])
+        identity_model, anchor = dataset_anchor(params)
         records = []
         inputs = sorted(directory.glob('input.images.*'))
-        ctx.engines.load()
+        if identity_model == CHARACTER_FACE_MODEL_ID:
+            import analysis
+            ctx.engines.load(faces=False)
+            detector, embedder = analysis.get_anime_detector(), analysis.get_ccip_embedder()
+            if detector is None or embedder is None:
+                raise ValueError('The character face detector or CCIP identity model is unavailable.')
+        else:
+            ctx.engines.load()
         for index, source in enumerate(inputs):
             if stopped(): return None
-            report(index/max(len(inputs),1)*.4,'Finding the selected person')
+            report(index/max(len(inputs),1)*.4,'Finding the selected identity')
             image = cv2.imread(str(source))
             photo = directory/f'photo_{index}.jpg'
             if image is None:
@@ -206,20 +230,24 @@ def run_artifact(job, directory, report, stopped, ctx):
                 frames=[str(photo)]
             for frame in frames:
                 if stopped():return None
-                record = detect_face_record_from_image(frame,ctx.engines._face_app,anchor)
+                record = (detect_character_record_from_image(frame, detector, embedder, ctx.engines._body, anchor)
+                          if identity_model == CHARACTER_FACE_MODEL_ID else
+                          detect_face_record_from_image(frame,ctx.engines._face_app,anchor))
                 if record is not None: records.append(record)
         def crop_progress(fraction,message):
             if stopped(): raise InterruptedError()
             report(.4+.5*fraction,message)
         try:
             result = _write_dataset_records(records,params['trigger_word'],'mobile',directory/'dataset',
-                params.get('repeats',20),ctx.engines._face_app,FaceRestorer(model_name='gpen_bfr_512'),WD14Tagger(),crop_progress)
+                params.get('repeats',20),getattr(ctx.engines, '_face_app', None),
+                None if identity_model == CHARACTER_FACE_MODEL_ID else FaceRestorer(model_name='gpen_bfr_512'),
+                WD14Tagger(),crop_progress)
         except InterruptedError: return None
         if result['blocked']: raise ValueError(result['warning'])
         folder = Path(result['dataset_dir'])
         with zipfile.ZipFile(directory/'dataset.zip','w',compression=zipfile.ZIP_STORED) as bundle:
             for path in sorted(folder.iterdir()): bundle.write(path,f'{folder.name}/{path.name}')
-        return {'trigger_word':params['trigger_word'],'image_count':result['image_count']}
+        return {'trigger_word':params['trigger_word'],'image_count':result['image_count'], 'identity_model_id':identity_model}
     if kind == 'train_lora':
         from lora_trainer import build_training_args, latest_resume_state, update_training_state, VENV_LORA_PYTHON, SD_SCRIPTS_TRAIN_SCRIPT, SD_SCRIPTS_DIR
         extracted = directory/'training'
@@ -251,7 +279,7 @@ def run_artifact(job, directory, report, stopped, ctx):
         if stopped(): return None
         if code != 0: raise ValueError('Training failed; inspect the PC job log.')
         shutil.copyfile(run_dir/f'{output_name}.safetensors',directory/'lora.safetensors')
-        return {'trigger_word':params['trigger_word']}
+        return {'trigger_word':params['trigger_word'], **({'identity_model_id':params['identity_model_id']} if 'identity_model_id' in params else {})}
     from lora_generate import EVENT_PREFIX
     output = directory/'generated'
     output.mkdir(exist_ok=True)
@@ -278,7 +306,7 @@ def run_artifact(job, directory, report, stopped, ctx):
     if len(pictures) != params.get('num_images',4): raise ValueError('Some generated portraits are missing.')
     with zipfile.ZipFile(directory/'portraits.zip','w',compression=zipfile.ZIP_STORED) as bundle:
         for path in pictures: bundle.write(path,path.name)
-    return {'trigger_word':params['trigger_word'],'image_count':len(pictures)}
+    return {'trigger_word':params['trigger_word'],'image_count':len(pictures), **({'identity_model_id':params['identity_model_id']} if 'identity_model_id' in params else {})}
 
 
 def run_process(command,directory,stopped,on_line,stdin=None,cwd=APP_DIR):

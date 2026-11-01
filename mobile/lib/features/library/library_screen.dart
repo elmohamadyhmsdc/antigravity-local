@@ -159,7 +159,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    final activeScan = ref.watch(scanProgressProvider).value?.isActive ?? false;
+    final scanProgress = ref.watch(scanProgressProvider).value;
+    final isScanning = (scanProgress?.isActive ?? false) ||
+        (scanProgress?.phase != null && scanProgress!.phase != ScanPhase.idle);
+    final activeScan = isScanning;
     final pending = (ref.watch(jobsProvider).value ?? const [])
         .where(
           (job) => !const ['completed', 'failed', 'lost'].contains(job.status),
@@ -177,24 +180,42 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             onPressed: _openFilters,
           ),
           IconButton(
-            tooltip: 'Activity',
+            key: const Key('library-scan-button'),
+            tooltip: isScanning
+                ? 'Library analysis in progress'
+                : 'Scan library',
             icon: Badge(
-              isLabelVisible: pending > 0,
-              label: Text(pending > 99 ? '99+' : pending.toString()),
-              child: const Icon(Icons.pending_actions_outlined),
+              isLabelVisible: isScanning,
+              smallSize: 8,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              child: Icon(
+                isScanning
+                    ? Icons.document_scanner
+                    : Icons.document_scanner_outlined,
+                color: isScanning
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
             ),
-            onPressed: () => context.push(Routes.jobs),
+            onPressed: () => context.push(Routes.runningScan),
           ),
           PopupMenuButton<String>(
             key: const Key('gallery-more'),
             onSelected: (value) {
               if (value == 'scan') context.push(Routes.sources);
+              if (value == 'activity') context.push(Routes.jobs);
               if (value == 'settings') context.push(Routes.settings);
               if (value == 'connection') context.push(Routes.connection);
               if (value == 'home') context.push(Routes.home);
             },
             itemBuilder: (_) => [
               PopupMenuItem(value: 'scan', child: Text(l10n.scanLibrary)),
+              PopupMenuItem(
+                value: 'activity',
+                child: Text(
+                  pending > 0 ? 'Activity ($pending)' : 'Activity',
+                ),
+              ),
               const PopupMenuItem(
                 value: 'connection',
                 child: Text('Connection'),

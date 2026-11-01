@@ -668,6 +668,8 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   }
 
   void _showTools(BuildContext context, MediaRow media) {
+    final selected = (ref.read(detectionsProvider(media.id)).value ?? const <MediaDetection>[]).where((d) => d.id == _selectedDetectionId).firstOrNull;
+    final allowStudio = selected?.figure != 'character';
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -677,7 +679,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
+              if (allowStudio) ListTile(
                 leading: const Icon(Icons.motion_photos_on_outlined),
                 title: const Text('Name an action'),
                 onTap: () {
@@ -694,16 +696,16 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                 title: const Text('Reface'),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  context.push('${Routes.reface}?media=${media.id}');
+                  context.push('${Routes.reface}?media=${media.id}${selected == null ? '' : '&target=${selected.id}'}');
                 },
               ),
-              if (media.kind == 'photo') ...[
+              if (media.kind == 'photo' && allowStudio) ...[
                 ListTile(
                   leading: const Icon(Icons.checkroom_outlined),
                   title: const Text('Restyle'),
                   onTap: () {
                     Navigator.pop(sheetContext);
-                    context.push('${Routes.restyle}?media=${media.id}');
+                    context.push('${Routes.restyle}?media=${media.id}${selected == null ? '' : '&target=${selected.id}'}');
                   },
                 ),
                 ListTile(
@@ -865,7 +867,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                   ),
                   onTap: () => Navigator.pop(context, 'kind'),
                 ),
-                if (!d.isFace && d.figure == 'person') ...[
+                if (!d.isFace) ...[
                   ListTile(
                     key: const Key('box-name-group-pose'),
                     leading: const Icon(Icons.groups_outlined),
@@ -1058,10 +1060,10 @@ class _PersonContext extends ConsumerWidget {
         expandable: false,
       ),
       title: Text(personName(l, person)),
-      subtitle: const Text('Person tools and models'),
+      subtitle: Text(person.kind == 'person' ? 'Person tools and models' : 'Character tools'),
       children: [
-        if (models.isLoading) const LinearProgressIndicator(),
-        if (models.hasError)
+        if (person.kind == 'person' && models.isLoading) const LinearProgressIndicator(),
+        if (person.kind == 'person' && models.hasError)
           ListTile(
             title: const Text('Could not load models'),
             trailing: TextButton(
@@ -1070,7 +1072,7 @@ class _PersonContext extends ConsumerWidget {
             ),
           ),
         for (final model in models.value ?? const [])
-          if (model.personId == person.id)
+          if (person.kind == 'person' && model.personId == person.id)
             ListTile(
               leading: const Icon(Icons.model_training_outlined),
               title: Text(model.triggerWord),

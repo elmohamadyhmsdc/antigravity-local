@@ -22,6 +22,20 @@ class StudioRepository {
     return ArtifactContext.decode(row?.value);
   }
 
+  Future<String?> identityModelForDataset(String id) async {
+    final exists = await (db.select(
+      db.datasets,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    return exists == null ? null : (await contextFor(id))?.identityModelId;
+  }
+
+  Future<String?> identityModelForLora(String id) async {
+    final exists = await (db.select(
+      db.loras,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    return exists == null ? null : (await contextFor(id))?.identityModelId;
+  }
+
   Stream<ArtifactContext?> watchContext(String id) =>
       (db.select(db.settings)
             ..where((s) => s.key.equals('$artifactContextPrefix$id')))

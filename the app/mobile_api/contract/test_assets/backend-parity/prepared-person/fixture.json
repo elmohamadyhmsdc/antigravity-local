@@ -1,0 +1,24 @@
+{
+  "cpu_fixture_detection": true,
+  "gpu_run": false,
+  "kind": "person",
+  "model_id": "buffalo_l@1",
+  "detected_count": 2,
+  "source_selection": "explicit left half",
+  "target_selection": "explicit right half",
+  "source_box": {
+    "x": 0.14517044027646384,
+    "y": 0.199824720621109,
+    "w": 0.16111710667610168,
+    "h": 0.3361206352710724
+  },
+  "target_box": {
+    "x": 0.6854163805643717,
+    "y": 0.19961805641651154,
+    "w": 0.1593000888824463,
+    "h": 0.3321552276611328
+  },
+  "target_box_argument": "0.6854163806,0.1996180564,0.1593000889,0.3321552277",
+  "source_reference": "D:\\AndroidScan\\gallary\\the app\\mobile_api\\contract\\test_assets\\backend-parity\\prepared-person\\source-reference.png",
+  "target": "D:\\AndroidScan\\gallary\\the app\\mobile_api\\contract\\test_assets\\backend-parity\\prepared-person\\target.png"
+}

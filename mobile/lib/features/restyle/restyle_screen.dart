@@ -61,6 +61,9 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
             widget.targetMediaId!,
             targetDetectionId: widget.targetDetectionId,
           );
+      if (source.target?.figure == 'character') {
+        throw const FormatException('Restyle is available for people only.');
+      }
       if (source.isVideo) {
         throw const FormatException('Restyle requires a photo.');
       }

@@ -1,0 +1,11 @@
+{
+  "gpu_run": false,
+  "recognizer": "independent glintr100 ArcFace (CPU; not the generator/target identity model)",
+  "selected_target": "explicit right-face box",
+  "source_to_before": 0.49696534872055054,
+  "source_to_after": 0.322030633687973,
+  "after_to_before": 0.23785319924354553,
+  "improvement": -0.17493471503257751,
+  "output_face_detected": true,
+  "note": "Relative measurements only; no threshold was changed to pass; visual identity/artifact review is required."
+}

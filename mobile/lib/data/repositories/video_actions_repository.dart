@@ -11,6 +11,8 @@ import 'package:drift/drift.dart';
 import '../../domain/pose/action_matcher.dart';
 import '../../domain/pose/pose_geometry.dart';
 import '../db/app_database.dart';
+import '../api/action_api.dart';
+import '../api/api_exception.dart';
 import 'action_frames.dart';
 
 export '../../domain/pose/action_matcher.dart' show ActionPoseFrame;
@@ -174,7 +176,8 @@ class _Frame {
 }
 
 class VideoActionsRepository {
-  VideoActionsRepository(this.db);
+  VideoActionsRepository(this.db, {this.remoteMatcher});
+  final ActionMatchApi? Function()? remoteMatcher;
   final AppDatabase db;
   String _newId() =>
       '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
@@ -538,13 +541,35 @@ class VideoActionsRepository {
           .toList();
       if (examples.isEmpty) continue;
       final frames = await _frames(m);
-      final ranked = await _rankFramesIsolated(
-        frames,
-        examples,
-        m.kind,
-        minSimilarity,
-        allowMirror,
-      );
+      final remote = remoteMatcher?.call();
+      List<_Hit> ranked;
+      try {
+        ranked = remote == null
+            ? await _rankFramesIsolated(
+                frames,
+                examples,
+                m.kind,
+                minSimilarity,
+                allowMirror,
+              )
+            : await _rankFramesRemotely(
+                remote,
+                frames,
+                examples,
+                m.kind,
+                minSimilarity,
+                allowMirror,
+              );
+      } on ApiException catch (error) {
+        if (!error.isOffline) rethrow;
+        ranked = await _rankFramesIsolated(
+          frames,
+          examples,
+          m.kind,
+          minSimilarity,
+          allowMirror,
+        );
+      }
       for (final hit in ranked) {
         final first = frames[hit.start], last = frames[hit.end];
         if (examples.any(
@@ -651,6 +676,56 @@ double _overlap(int a, int b, int c, int d) =>
     math.max(0, math.min(b, d) - math.max(a, c)) /
     math.max(1, math.min(b - a, d - c));
 typedef _Hit = ({int start, int end, String exampleId, double score});
+typedef _Window = ({int start, int end, List<ActionPoseFrame> features});
+List<ActionPoseFrame> _boundedFrames(List<ActionPoseFrame> frames) =>
+    frames.length <= 20
+    ? frames
+    : [
+        for (var i = 0; i < 20; i++)
+          frames[(i * (frames.length - 1) / 19).round()],
+      ];
+Iterable<_Window> _windows(
+  List<_Frame> frames,
+  ActionExample example,
+  String kind,
+) sync* {
+  for (var start = 0; start < frames.length; start++) {
+    if (kind == 'photo') {
+      final f = frames[start].feature;
+      if (f != null) yield (start: start, end: start, features: [f]);
+      continue;
+    }
+    final duration = example.frames.last.timeMs - example.frames.first.timeMs;
+    final ends = <int>{};
+    for (final tempo in [.65, .85, 1.0, 1.3, 1.7]) {
+      final target = frames[start].time + duration * tempo;
+      var low = start + 2, high = frames.length - 1;
+      while (low < high) {
+        final mid = (low + high) ~/ 2;
+        if (frames[mid].time < target) {
+          low = mid + 1;
+        } else {
+          high = mid;
+        }
+      }
+      if (low < frames.length) ends.add(low);
+    }
+    for (final end in ends) {
+      final length = frames[end].time - frames[start].time;
+      if (length < duration * .6 || length > duration * 1.75) continue;
+      final window = frames.sublist(start, end + 1);
+      if (!_continuous(window) || window.any((f) => f.feature == null)) {
+        continue;
+      }
+      yield (
+        start: start,
+        end: end,
+        features: _boundedFrames([for (final f in window) f.feature!]),
+      );
+    }
+  }
+}
+
 List<_Hit> _rankFrames(
   List<_Frame> frames,
   List<ActionExample> examples,
@@ -660,54 +735,61 @@ List<_Hit> _rankFrames(
 ) {
   final hits = <_Hit>[];
   for (final e in examples) {
-    for (var start = 0; start < frames.length; start++) {
-      if (kind == 'photo') {
-        final f = frames[start].feature;
-        if (f == null) continue;
-        final score = compareActionSequences(e.frames, [
-          f,
-        ], allowMirror: mirror);
-        if (score != null && score >= threshold) {
-          hits.add((start: start, end: start, exampleId: e.id, score: score));
-        }
-        continue;
-      }
-      final duration = e.frames.last.timeMs - e.frames.first.timeMs;
-      // Five duration hypotheses bound work per start frame, even in dense scans.
-      final ends = <int>{};
-      for (final tempo in [.65, .85, 1.0, 1.3, 1.7]) {
-        final target = frames[start].time + duration * tempo;
-        var low = start + 2, high = frames.length - 1;
-        while (low < high) {
-          final mid = (low + high) ~/ 2;
-          if (frames[mid].time < target) {
-            low = mid + 1;
-          } else {
-            high = mid;
-          }
-        }
-        if (low < frames.length) ends.add(low);
-      }
-      for (final end in ends) {
-        final length = frames[end].time - frames[start].time;
-        if (length < duration * .6 || length > duration * 1.75) continue;
-        final window = frames.sublist(start, end + 1);
-        if (!_continuous(window)) continue;
-        final features = [
-          for (final f in window)
-            if (f.feature != null) f.feature!,
-        ];
-        if (features.length != window.length) continue;
-        final score = compareActionSequences(
-          e.frames,
-          features,
-          allowMirror: mirror,
-        );
-        if (score != null && score >= threshold) {
-          hits.add((start: start, end: end, exampleId: e.id, score: score));
-        }
+    for (final w in _windows(frames, e, kind)) {
+      final score = compareActionSequences(
+        e.frames,
+        w.features,
+        allowMirror: mirror,
+      );
+      if (score != null && score >= threshold) {
+        hits.add((start: w.start, end: w.end, exampleId: e.id, score: score));
       }
     }
+  }
+  return hits;
+}
+
+Future<List<_Hit>> _rankFramesRemotely(
+  ActionMatchApi api,
+  List<_Frame> frames,
+  List<ActionExample> examples,
+  String kind,
+  double threshold,
+  bool mirror,
+) async {
+  final hits = <_Hit>[];
+  for (final e in examples) {
+    final batch = <_Window>[];
+    Future<void> send() async {
+      if (batch.isEmpty) return;
+      final scores = await api.compareActions(
+        kind: kind,
+        query: [for (final f in _boundedFrames(e.frames)) f.toJson()],
+        allowMirror: mirror,
+        candidates: [
+          for (var i = 0; i < batch.length; i++)
+            (id: '$i', frames: [for (final f in batch[i].features) f.toJson()]),
+        ],
+      );
+      for (var i = 0; i < batch.length; i++) {
+        final score = scores['$i'];
+        if (score != null && score >= threshold) {
+          hits.add((
+            start: batch[i].start,
+            end: batch[i].end,
+            exampleId: e.id,
+            score: score,
+          ));
+        }
+      }
+      batch.clear();
+    }
+
+    for (final window in _windows(frames, e, kind)) {
+      batch.add(window);
+      if (batch.length == 64) await send();
+    }
+    await send();
   }
   return hits;
 }

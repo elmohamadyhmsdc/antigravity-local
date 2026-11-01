@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:antigravity_mobile/data/db/app_database.dart';
+import 'package:antigravity_mobile/data/api/action_api.dart';
+import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/repositories/action_frames.dart';
 import 'package:antigravity_mobile/data/repositories/app_settings.dart';
 import 'package:antigravity_mobile/data/repositories/video_actions_repository.dart';
@@ -47,6 +49,30 @@ Pose actor(double x, {double angle = 0}) {
 List<List<double>> points(Pose p) => [
   for (final k in p.points) [k.x / 500, k.y / 300, k.score],
 ];
+
+class _RemoteMatcher implements ActionMatchApi {
+  var calls = 0;
+  var offline = false;
+  @override
+  Future<Map<String, double?>> compareActions({
+    required String kind,
+    required List<Map<String, dynamic>> query,
+    required List<({String id, List<Map<String, dynamic>> frames})> candidates,
+    bool allowMirror = false,
+  }) async {
+    calls++;
+    if (offline) throw ApiException.network('fixture offline');
+    expect(candidates.length, lessThanOrEqualTo(64));
+    expect(query.length, lessThanOrEqualTo(20));
+    final q = [for (final f in query) ActionPoseFrame.fromJson(f)];
+    return {
+      for (final c in candidates)
+        c.id: compareActionSequences(q, [
+          for (final f in c.frames) ActionPoseFrame.fromJson(f),
+        ], allowMirror: allowMirror),
+    };
+  }
+}
 
 void main() {
   late AppDatabase db;
@@ -180,6 +206,28 @@ void main() {
       expect(matches.single.mediaId, source);
       await repo.reviewMatch(id, matches.single.id, accepted: true);
       expect((await repo.watchMatches(id).first).single.state, 'confirmed');
+    },
+  );
+
+  test(
+    'paired CPU matcher and offline fallback preserve the same action results',
+    () async {
+      final remote = _RemoteMatcher();
+      repo = VideoActionsRepository(db, remoteMatcher: () => remote);
+      final source = await photo('source');
+      final alike = await photo('candidate');
+      final id = await repo.saveAction('Greeting');
+      await repo.addPhotoExample(actionId: id, mediaId: source);
+      final online = await repo.search(id);
+      expect(online.single.mediaId, alike);
+      expect(remote.calls, greaterThan(0));
+      remote.offline = true;
+      final offline = await repo.search(id);
+      expect(offline.single.mediaId, alike);
+      expect(
+        offline.single.similarity,
+        closeTo(online.single.similarity, 1e-6),
+      );
     },
   );
 

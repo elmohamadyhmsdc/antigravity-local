@@ -9,6 +9,9 @@ class ArtifactContext {
     this.personId,
     this.targetPersonId,
     this.modelId,
+    this.identityModelId,
+    this.executionEngine,
+    this.qualityWarnings = const [],
     this.datasetId,
     this.referenceMediaId,
   });
@@ -19,6 +22,9 @@ class ArtifactContext {
   final int? personId;
   final int? targetPersonId;
   final String? modelId;
+  final String? identityModelId;
+  final String? executionEngine;
+  final List<String> qualityWarnings;
   final String? datasetId;
   final int? referenceMediaId;
 
@@ -29,6 +35,9 @@ class ArtifactContext {
     if (personId != null) 'personId': personId,
     if (targetPersonId != null) 'targetPersonId': targetPersonId,
     if (modelId != null) 'modelId': modelId,
+    if (identityModelId != null) 'identityModelId': identityModelId,
+    if (executionEngine != null) 'executionEngine': executionEngine,
+    if (qualityWarnings.isNotEmpty) 'qualityWarnings': qualityWarnings,
     if (datasetId != null) 'datasetId': datasetId,
     if (referenceMediaId != null) 'referenceMediaId': referenceMediaId,
   };
@@ -49,6 +58,11 @@ class ArtifactContext {
             ? json['targetPersonId'] as int
             : null,
         modelId: json['modelId'] is String ? json['modelId'] as String : null,
+        identityModelId: json['identityModelId'] is String
+            ? json['identityModelId'] as String
+            : null,
+        executionEngine: json['executionEngine'] is String ? json['executionEngine'] as String : null,
+        qualityWarnings: json['qualityWarnings'] is List ? [for(final v in json['qualityWarnings'])if(v is String)v] : const [],
         datasetId: json['datasetId'] is String
             ? json['datasetId'] as String
             : null,
@@ -68,6 +82,9 @@ class ArtifactContext {
     personId: personId == sourceId ? targetId : personId,
     targetPersonId: targetPersonId == sourceId ? targetId : targetPersonId,
     modelId: modelId,
+    identityModelId: identityModelId,
+    executionEngine: executionEngine,
+    qualityWarnings: qualityWarnings,
     datasetId: datasetId,
     referenceMediaId: referenceMediaId,
   );

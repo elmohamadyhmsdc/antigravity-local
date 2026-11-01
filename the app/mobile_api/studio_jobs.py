@@ -15,6 +15,7 @@ import numpy as np
 from .errors import ApiError, bad_request, not_found
 from .gpu_guard import Busy
 from .reface_runner import run_reface
+from .reference_reface import REFERENCE_TYPES, run_reference_reface, validate_reference_reface
 from .artifact_jobs import ARTIFACT_TYPES, run_artifact, validate_artifact
 from .schemas import decode_embedding
 from .video_jobs import stamp
@@ -22,9 +23,12 @@ from .video_jobs import stamp
 log = logging.getLogger("mobile_api")
 REFACE_TYPES = {f"reface_{kind}_{engine}" for kind in ("image", "video") for engine in ("v3", "v2", "dfm")}
 REFACE_TYPES.update(("reface_image", "reface_video"))
+REFACE_TYPES.update(REFERENCE_TYPES)
 
 
 def validate_reface(body, capabilities):
+    if body.get("type") in REFERENCE_TYPES:
+        return validate_reference_reface(body, capabilities)
     kind, params, inputs = body.get("type"), body.get("params"), body.get("inputs")
     if kind not in REFACE_TYPES or not isinstance(params, dict) or not isinstance(inputs, dict):
         raise bad_request("A supported Reface type, params and inputs are required.")
@@ -331,6 +335,8 @@ class StudioJobs:
             self.worker.join(timeout=5)
 
     def _run_engine(self, job, directory, report, stopped):
+        if job['type'] in REFERENCE_TYPES:
+            return run_reference_reface(job, directory, report, stopped)
         if job['type'] in ARTIFACT_TYPES:
             return run_artifact(job,directory,report,stopped,self.ctx)
         return run_reface(job,directory,report,stopped)

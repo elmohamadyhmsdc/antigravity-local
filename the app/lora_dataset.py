@@ -87,6 +87,24 @@ def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[F
     face-only crop (image_path) in that case, and whenever the source image
     is missing or unreadable.
     """
+    if face_record.get('identity_kind') == 'character':
+        image = cv2.imread(face_record.get('source_path', ''))
+        result = {"face_crop": None, "body_crop": None, "skipped_body": True, "restored": False}
+        if image is None:
+            return result
+        h, w = image.shape[:2]
+        def crop(box):
+            if box is None:
+                return None
+            x1, y1, x2, y2 = [int(v) for v in box]
+            x1, x2 = max(0, x1), min(w, x2)
+            y1, y2 = max(0, y1), min(h, y2)
+            return image[y1:y2, x1:x2].copy() if x2 > x1 and y2 > y1 else None
+        result['face_crop'] = crop(face_record.get('portrait_bbox'))
+        result['body_crop'] = crop(face_record.get('body_bbox'))
+        result['skipped_body'] = result['body_crop'] is None
+        return result
+
     if restorer is None:
         restorer = FaceRestorer(model_name="codeformer", weight=0.5)
 
@@ -397,6 +415,56 @@ def detect_face_record_from_image(image_path: str, face_app, anchor_embedding=No
         "quality_score": quality_score,
         "image_path": image_path,
     }
+
+
+def detect_character_record_from_image(image_path, detector, embedder, body_analyzer, anchor_embedding):
+    """Match CCIP against detected portraits, then crop only that figure's associated body."""
+    from character_embedder import asymmetric_ccip_crop
+    from person_linking import associate_faces_bodies, STRICTNESS
+
+    image = cv2.imread(str(image_path))
+    if image is None:
+        return None
+    anchor = np.asarray(anchor_embedding, dtype=np.float32)
+    if anchor.shape != (768,) or not np.isfinite(anchor).all() or np.linalg.norm(anchor) < 1e-8:
+        raise ValueError('A valid CCIP identity anchor is required.')
+    anchor = anchor / np.linalg.norm(anchor)
+    detected = detector.detect(image, score_thresh=0.55)
+    candidates = []
+    face_boxes = []
+    h, w = image.shape[:2]
+    for face in detected:
+        box = np.asarray(face['bbox'], dtype=np.float32)
+        if box.shape != (4,) or not np.isfinite(box).all() or box[2] <= box[0] or box[3] <= box[1]:
+            continue
+        face_index = len(face_boxes)
+        face_boxes.append(box)
+        portrait = asymmetric_ccip_crop(box, w, h)
+        x1, y1, x2, y2 = portrait
+        crop = image[y1:y2, x1:x2]
+        if min(crop.shape[:2], default=0) < 2:
+            continue
+        embedding = np.asarray(embedder.embed_crop(crop), dtype=np.float32)
+        if embedding.shape != (768,) or not np.isfinite(embedding).all():
+            continue
+        norm = float(np.linalg.norm(embedding))
+        if not np.isfinite(norm) or norm < 1e-8:
+            continue
+        candidates.append((float(np.dot(anchor, embedding / norm)), face_index, portrait, float(face['score'])))
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    policy = STRICTNESS['character']
+    if not candidates or candidates[0][0] < policy.match_auto:
+        return None
+    if len(candidates) > 1 and candidates[0][0] - candidates[1][0] < policy.match_margin:
+        return None
+    score, face_index, portrait, confidence = candidates[0]
+    bodies = body_analyzer.analyze(image) if body_analyzer is not None else []
+    pairs = associate_faces_bodies(face_boxes, bodies) if bodies else []
+    body_idx = next((bi for fi, bi, _ in pairs if fi == face_index), None)
+    return {'source_path': str(image_path), 'identity_kind': 'character',
+            'portrait_bbox': portrait,
+            'body_bbox': None if body_idx is None else np.asarray(bodies[body_idx].bbox).tolist(),
+            'quality_score': max(0.0, min(1.0, confidence)), 'identity_similarity': score}
 
 
 def build_dataset_from_uploads(image_paths, person_id: int, person_name: str, face_app,

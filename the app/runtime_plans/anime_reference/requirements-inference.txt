@@ -1,0 +1,15 @@
+# Isolated MimicBrush inference runtime. Based on official requirements, inference-only.
+# torch/torchvision installed separately from PyTorch cu118 wheel index.
+diffusers==0.23.0
+einops==0.3.0
+fvcore==0.1.5.post20221221
+huggingface_hub==0.20.1
+numpy==1.23.1
+omegaconf==2.1.1
+opencv-python-headless==4.7.0.72
+packaging==24.0
+Pillow==10.0.1
+safetensors==0.4.3
+setuptools==68.2.2
+transformers==4.25.1
+accelerate==0.25.0

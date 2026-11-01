@@ -1,0 +1,157 @@
+{
+  "date": "2026-11-01",
+  "decision": "quality_failed_do_not_claim_faithful_anime_reface_parity",
+  "cpu_regressions": {
+    "reference_tests": 24,
+    "existing_studio_tests": 13,
+    "existing_studio_sandbox": "Socketpair stall resolved by authorized outside-sandbox CPU test run"
+  },
+  "real_model_cpu_checks": {
+    "missing_configured_assets": [],
+    "person_detected_faces": 2,
+    "character_detected_faces": 2,
+    "person_video_matched_frames": 3,
+    "character_video_matched_frames": 3,
+    "provider": "CPUExecutionProvider"
+  },
+  "gpu_runs_serial": true,
+  "product_server_or_user_process_changes": false,
+  "packages_environments_cuda_changed": false,
+  "cases": [
+    {
+      "case": "person-01",
+      "directory": "D:/AndroidScan/gallary/docs/design/gallery-first/reference-reface-gpu-person-01",
+      "image_seconds": 66.16301829999975,
+      "video_seconds": 38.07554070000151,
+      "image_locality": {
+        "outside_max_error": 0,
+        "outside_exact": true,
+        "inside_mean_change": 17.621157369449254
+      },
+      "video_selection_matched_frames": 3,
+      "settings": {
+        "source_kind": "person",
+        "target_kind": "person",
+        "seed": 18472,
+        "steps": 20,
+        "strength": 0.75,
+        "reference_scale": 0.8
+      },
+      "identity_metrics": {
+        "gpu_run": false,
+        "recognizer": "independent glintr100 ArcFace (CPU; not the generator/target identity model)",
+        "selected_target": "explicit right-face box",
+        "source_to_before": 0.49696534872055054,
+        "source_to_after": 0.08312925696372986,
+        "after_to_before": 0.27851778268814087,
+        "improvement": -0.4138360917568207,
+        "output_face_detected": true,
+        "note": "Relative measurements only; no threshold was changed to pass; visual identity/artifact review is required."
+      },
+      "visual_quality": "failed",
+      "visual_findings": "Source identity not reproduced; mouth/jaw artifacts"
+    },
+    {
+      "case": "character-01",
+      "directory": "D:/AndroidScan/gallary/docs/design/gallery-first/reference-reface-gpu-character-01",
+      "image_seconds": 21.45436940000036,
+      "video_seconds": 34.355911800001195,
+      "image_locality": {
+        "outside_max_error": 0,
+        "outside_exact": true,
+        "inside_mean_change": 45.15191025967877
+      },
+      "video_selection_matched_frames": 3,
+      "settings": {
+        "source_kind": "character",
+        "target_kind": "character",
+        "seed": 18472,
+        "steps": 20,
+        "strength": 0.75,
+        "reference_scale": 0.8
+      },
+      "identity_metrics": {
+        "gpu_run": false,
+        "recognizer": "CCIP caformer24 (CPU; independent of IP-Adapter's CLIP conditioning)",
+        "selected_target": "explicit right-face box",
+        "source_to_before": 0.45489227771759033,
+        "source_to_after": 0.4594268500804901,
+        "after_to_before": 0.8285870552062988,
+        "improvement": 0.00453457236289978,
+        "output_face_detected": true,
+        "note": "Relative measurements only; no threshold was changed to pass; visual identity/artifact review is required."
+      },
+      "visual_quality": "failed",
+      "visual_findings": "Severely garbled anime face and eyes"
+    },
+    {
+      "case": "person-pixel-01",
+      "directory": "D:/AndroidScan/gallary/docs/design/gallery-first/reference-reface-gpu-person-pixel-01",
+      "image_seconds": 27.63383950000025,
+      "video_seconds": null,
+      "image_locality": {
+        "outside_max_error": 0,
+        "outside_exact": true,
+        "inside_mean_change": 32.54836881155548
+      },
+      "video_selection_matched_frames": null,
+      "settings": {
+        "source_kind": "person",
+        "target_kind": "person",
+        "seed": 18472,
+        "steps": 20,
+        "strength": 0.25,
+        "reference_scale": 0.8,
+        "initialization": "source_pixels"
+      },
+      "identity_metrics": {
+        "gpu_run": false,
+        "recognizer": "independent glintr100 ArcFace (CPU; not the generator/target identity model)",
+        "selected_target": "explicit right-face box",
+        "source_to_before": 0.49696534872055054,
+        "source_to_after": 0.322030633687973,
+        "after_to_before": 0.23785319924354553,
+        "improvement": -0.17493471503257751,
+        "output_face_detected": true,
+        "note": "Relative measurements only; no threshold was changed to pass; visual identity/artifact review is required."
+      },
+      "visual_quality": "failed",
+      "visual_findings": "Source features partly return; forehead curl/seam; identity score still worse than original target"
+    },
+    {
+      "case": "character-pixel-01",
+      "directory": "D:/AndroidScan/gallary/docs/design/gallery-first/reference-reface-gpu-character-pixel-01",
+      "image_seconds": 35.06162779999977,
+      "video_seconds": null,
+      "image_locality": {
+        "outside_max_error": 0,
+        "outside_exact": true,
+        "inside_mean_change": 40.014167607531775
+      },
+      "video_selection_matched_frames": null,
+      "settings": {
+        "source_kind": "character",
+        "target_kind": "character",
+        "seed": 18472,
+        "steps": 20,
+        "strength": 0.25,
+        "reference_scale": 0.8,
+        "initialization": "source_pixels"
+      },
+      "identity_metrics": {
+        "gpu_run": false,
+        "recognizer": "CCIP caformer24 (CPU; independent of IP-Adapter's CLIP conditioning)",
+        "selected_target": "explicit right-face box",
+        "source_to_before": 0.45489227771759033,
+        "source_to_after": 0.5559045672416687,
+        "after_to_before": 0.9325555562973022,
+        "improvement": 0.10101228952407837,
+        "output_face_detected": true,
+        "note": "Relative measurements only; no threshold was changed to pass; visual identity/artifact review is required."
+      },
+      "visual_quality": "failed",
+      "visual_findings": "Visible face seams and warped nose/forehead; retains target identity strongly"
+    }
+  ],
+  "next_gate": "A trained reference/identity preserving engine and approved isolated compatible runtime, followed by actual image/video identity and temporal acceptance. Do not alter existing environments to force an incompatible pipeline."
+}

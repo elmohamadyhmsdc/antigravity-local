@@ -1,0 +1,13 @@
+{
+  "server_id": "srv_44ff3804",
+  "server_name": "Test PC",
+  "devices": [
+    {
+      "id": "dev_4d9dbd6c",
+      "name": "Phone",
+      "token_hash": "7968781f09f47693256600d9c68080d4ae997862bc065efbbaae0b4523bc4ead",
+      "created_at": "2026-11-01T21:31:48",
+      "last_seen": null
+    }
+  ]
+}

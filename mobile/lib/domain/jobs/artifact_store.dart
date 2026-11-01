@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../../data/db/app_database.dart';
 import '../../data/files/file_store.dart';
+import '../../data/repositories/artifact_context.dart';
 
 /// Imports only verified archives into private paths. Rows are committed with the owning result.
 class ArtifactStore {
@@ -14,11 +15,47 @@ class ArtifactStore {
   final AppDatabase db;
   final FileStore files;
 
-  Future<Future<void> Function()> stage(JobRow job, String relative) async {
+  Future<Future<void> Function()> stage(
+    JobRow job,
+    String relative, {
+    Map<String, dynamic> metadata = const {},
+  }) async {
     final request = jsonDecode(job.requestJson) as Map<String, dynamic>;
     final params = request['params'] as Map<String, dynamic>;
+    final returnedModel = metadata['identity_model_id'];
+    final requestedModel = params['identity_model_id'];
+    if (returnedModel != null &&
+        (!const ['buffalo_l@1', 'ccip-caformer24@1'].contains(returnedModel) ||
+            (requestedModel != null && returnedModel != requestedModel))) {
+      throw const FormatException(
+        'Result identity model does not match the request.',
+      );
+    }
+    Future<void> commitContext({String? resultId}) async {
+      final key = '$artifactContextPrefix${job.id}';
+      final row = await (db.select(
+        db.settings,
+      )..where((s) => s.key.equals(key))).getSingleOrNull();
+      final existing = ArtifactContext.decode(row?.value);
+      final engine=metadata['engine'] is String?metadata['engine'] as String:null;
+      final warnings=metadata['warnings'] is List?[for(final w in metadata['warnings'])if(w is String)w].take(8).toList():<String>[];
+      if (existing == null && returnedModel == null && engine==null && warnings.isEmpty) return;
+      final json = {
+        ...?existing?.toJson(),
+
+      };
+      if(returnedModel!=null)json['identityModelId']=returnedModel;
+      if(engine!=null)json['executionEngine']=engine;
+      if(warnings.isNotEmpty)json['qualityWarnings']=warnings;
+      await db.putSetting(
+        '$artifactContextPrefix${resultId??job.id}',
+        jsonEncode(json),
+      );
+    }
+
     if (job.type == 'train_lora') {
       return () async {
+        await commitContext();
         await db
             .into(db.loras)
             .insertOnConflictUpdate(
@@ -36,7 +73,7 @@ class ArtifactStore {
       'build_lora_dataset',
       'generate_lora_images',
     ].contains(job.type)) {
-      return () async {};
+      return commitContext;
     }
     final stream = InputFileStream(files.resolve(relative).path);
     try {
@@ -91,6 +128,7 @@ class ArtifactStore {
         throw const FormatException('The result bundle contains no images.');
       }
       return () async {
+        await commitContext();
         if (job.type == 'build_lora_dataset') {
           await db
               .into(db.datasets)
@@ -120,6 +158,7 @@ class ArtifactStore {
         } else {
           for (var index = 0; index < items.length; index++) {
             final item = items[index];
+            await commitContext(resultId: '${job.id}-$index');
             await db
                 .into(db.results)
                 .insertOnConflictUpdate(

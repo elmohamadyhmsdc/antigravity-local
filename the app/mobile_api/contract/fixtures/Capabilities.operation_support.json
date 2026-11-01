@@ -1,0 +1,143 @@
+{
+  "api_version": "1.0.0",
+  "server_id": "srv_7f3a91c2",
+  "name": "RTX-PC",
+  "embedding_model": {
+    "id": "buffalo_l@1",
+    "dim": 512
+  },
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "vram_total_mb": 6144,
+    "vram_free_mb": 5320
+  },
+  "engines": {
+    "reface": true,
+    "reface_v3": true,
+    "reface_v2": true,
+    "dfm_models": [
+      "RTM_WF_224"
+    ],
+    "undress": true,
+    "lora_train": true,
+    "lora_generate": true,
+    "body_detection": true,
+    "character_detection": true,
+    "sensitive_detection": true,
+    "body_embeddings": true,
+    "garment_tags": true
+  },
+  "restorers": [
+    "codeformer"
+  ],
+  "reface_profiles": {
+    "fast": {
+      "restorer": "none",
+      "restore_size": 512,
+      "use_parser": false
+    },
+    "balanced": {
+      "restorer": "codeformer",
+      "restore_size": 512,
+      "use_parser": true
+    },
+    "detail": {
+      "restorer": "codeformer",
+      "restore_size": 512,
+      "use_parser": true
+    }
+  },
+  "lora_base_checkpoints": [
+    "sd15_realistic_base"
+  ],
+  "limits": {
+    "max_image_px": 4096,
+    "max_upload_mb": 2048,
+    "blob_cache_mb": 20480
+  },
+  "busy": null,
+  "operations": [
+    {
+      "operation": "dataset_build",
+      "kind": "person",
+      "media_types": [
+        "photo",
+        "video"
+      ],
+      "available": true,
+      "engine": "face_dataset",
+      "identity_models": [
+        "buffalo_l@1"
+      ],
+      "reason": null,
+      "experimental": false
+    },
+    {
+      "operation": "reface_reference",
+      "kind": "person",
+      "media_types": [
+        "photo",
+        "video"
+      ],
+      "available": true,
+      "engine": "reference_guided_diffusion",
+      "identity_models": [],
+      "reason": null,
+      "experimental": true
+    },
+    {
+      "operation": "action_match",
+      "kind": "person",
+      "media_types": [
+        "photo",
+        "video"
+      ],
+      "available": true,
+      "engine": "pose_geometry_temporal_v1",
+      "identity_models": [],
+      "reason": null,
+      "experimental": false
+    },
+    {
+      "operation": "dataset_build",
+      "kind": "character",
+      "media_types": [
+        "photo",
+        "video"
+      ],
+      "available": true,
+      "engine": "ccip_dataset",
+      "identity_models": [
+        "ccip-caformer24@1"
+      ],
+      "reason": null,
+      "experimental": false
+    },
+    {
+      "operation": "reface_reference",
+      "kind": "character",
+      "media_types": [
+        "photo",
+        "video"
+      ],
+      "available": true,
+      "engine": "reference_guided_diffusion",
+      "identity_models": [],
+      "reason": null,
+      "experimental": true
+    },
+    {
+      "operation": "action_match",
+      "kind": "character",
+      "media_types": [
+        "photo",
+        "video"
+      ],
+      "available": true,
+      "engine": "pose_geometry_temporal_v1",
+      "identity_models": [],
+      "reason": null,
+      "experimental": false
+    }
+  ]
+}

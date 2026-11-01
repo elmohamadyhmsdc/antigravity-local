@@ -24,6 +24,7 @@ from .errors import ApiError, code_for_status
 from .gpu_guard import GpuGuard
 from .pairing import PairingManager
 from .routes_analyze import build_analyze_router
+from .routes_actions import build_actions_router
 from .routes_blobs import build_blob_router
 from .routes_grouping import build_grouping_router
 from .routes_system import build_system_router
@@ -112,6 +113,7 @@ def create_app(ctx: ServerContext) -> FastAPI:
     app.include_router(build_blob_router(ctx, require_device))
     app.include_router(build_analyze_router(ctx, require_device))
     app.include_router(build_grouping_router(ctx, require_device))
+    app.include_router(build_actions_router(ctx, require_device))
     app.include_router(build_jobs_router(ctx, require_device))
 
     @app.exception_handler(ApiError)

@@ -6,6 +6,8 @@ import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/repositories/app_settings.dart';
 import 'package:antigravity_mobile/data/repositories/lora_repository.dart';
+import 'package:antigravity_mobile/data/repositories/studio_repository.dart';
+import 'package:antigravity_mobile/data/repositories/artifact_context.dart';
 import 'package:antigravity_mobile/domain/backup/backup_service.dart';
 import 'package:antigravity_mobile/domain/jobs/artifact_store.dart';
 import 'package:archive/archive_io.dart';
@@ -156,6 +158,89 @@ void main() {
         'skscharacter',
       );
       expect(await files.resolve('results/lora.safetensors').exists(), isTrue);
+    },
+  );
+
+  test(
+    'verified identity model persists on datasets/models and generated portraits',
+    () async {
+      final repository = StudioRepository(db, files);
+      final datasetJob = await job('build_lora_dataset');
+      final archive = await bundle({
+        '20_skscharacter/one.png': tinyPng,
+        '20_skscharacter/one.txt': utf8.encode('clothed fictional character'),
+      });
+      final commitDataset = await ArtifactStore(db, files).stage(
+        datasetJob,
+        archive,
+        metadata: {'identity_model_id': 'ccip-caformer24@1'},
+      );
+      await db.transaction(commitDataset);
+      expect(
+        await repository.identityModelForDataset(datasetJob.id),
+        'ccip-caformer24@1',
+      );
+      final modelJob = await job('train_lora');
+      await files.write('results/model.safetensors', tinyPng);
+      final commitModel = await ArtifactStore(db, files).stage(
+        modelJob,
+        'results/model.safetensors',
+        metadata: {'identity_model_id': 'ccip-caformer24@1'},
+      );
+      await db.transaction(commitModel);
+      expect(
+        await repository.identityModelForLora(modelJob.id),
+        'ccip-caformer24@1',
+      );
+      final generation = await job('generate_lora_images');
+      await db.putSetting(
+        '$artifactContextPrefix${generation.id}',
+        jsonEncode(
+          const ArtifactContext(
+            mediaId: 7,
+            modelId: 'trained-model',
+            identityModelId: 'ccip-caformer24@1',
+          ).toJson(),
+        ),
+      );
+      final portraits = await bundle({'portrait.png': tinyPng});
+      final commitPortrait = await ArtifactStore(db, files).stage(
+        generation,
+        portraits,
+        metadata: {'identity_model_id': 'ccip-caformer24@1'},
+      );
+      await db.transaction(commitPortrait);
+      final context = await repository.contextFor('${generation.id}-0');
+      expect(context?.mediaId, 7);
+      expect(context?.identityModelId, 'ccip-caformer24@1');
+      expect(
+        await repository.identityModelForDataset('unknown-legacy'),
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'identity metadata mismatch fails before any local artifact commit',
+    () async {
+      final request = await job('train_lora');
+      final changed = request.copyWith(
+        requestJson: jsonEncode({
+          'params': {
+            'trigger_word': 'example',
+            'identity_model_id': 'ccip-caformer24@1',
+          },
+        }),
+      );
+      await expectLater(
+        ArtifactStore(db, files).stage(
+          changed,
+          'unused',
+          metadata: {'identity_model_id': 'buffalo_l@1'},
+        ),
+        throwsFormatException,
+      );
+      expect(await db.select(db.loras).get(), isEmpty);
     },
   );
 

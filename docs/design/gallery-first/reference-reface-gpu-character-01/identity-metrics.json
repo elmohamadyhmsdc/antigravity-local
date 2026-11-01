@@ -1,0 +1,11 @@
+{
+  "gpu_run": false,
+  "recognizer": "CCIP caformer24 (CPU; independent of IP-Adapter's CLIP conditioning)",
+  "selected_target": "explicit right-face box",
+  "source_to_before": 0.45489227771759033,
+  "source_to_after": 0.4594268500804901,
+  "after_to_before": 0.8285870552062988,
+  "improvement": 0.00453457236289978,
+  "output_face_detected": true,
+  "note": "Relative measurements only; no threshold was changed to pass; visual identity/artifact review is required."
+}

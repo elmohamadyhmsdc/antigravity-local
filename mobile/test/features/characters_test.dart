@@ -42,7 +42,7 @@ void main() {
     expect(find.byKey(const Key('people-action-export')), findsOneWidget);
   }, session: testSession);
   appTest(
-    'character Reface entry explains an incompatible PC embedding model',
+    'character Reface entry requires a source face reference',
     (tester, env) async {
       final hero = await seedPerson(env.db, name: 'Hero');
       await (env.db.update(env.db.persons)..where((p) => p.id.equals(hero)))
@@ -64,13 +64,14 @@ void main() {
         ],
       );
       await pickRefaceTarget(tester);
+      await tester.ensureVisible(find.byKey(const Key('target-face-0')));
       await tester.tap(find.byKey(const Key('target-face-0')));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const Key('reface-next')));
       await tester.tap(find.byKey(const Key('reface-next')));
       await tester.pumpAndSettle();
       expect(find.text('Hero'), findsOneWidget);
-      expect(find.textContaining('different embedding model'), findsOneWidget);
+      expect(find.byKey(const Key('reference-source-face')), findsOneWidget);
     },
     session: testSession,
   );

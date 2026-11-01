@@ -1,3 +1,4 @@
+import 'data/api/action_api.dart';
 import 'dart:async';
 import 'dart:io' show Directory, File, Platform;
 import 'dart:ui';
@@ -148,7 +149,22 @@ final embeddingIndexProvider = Provider<EmbeddingIndex>((ref) {
 // ---- repositories ------------------------------------------------------------------------
 
 final videoActionsRepositoryProvider = Provider<VideoActionsRepository>(
-  (ref) => VideoActionsRepository(ref.watch(databaseProvider)),
+  (ref) => VideoActionsRepository(
+    ref.watch(databaseProvider),
+    remoteMatcher: () {
+      final status = ref.read(serverStatusProvider).value;
+      final caps = status is ServerReady
+          ? status.capabilities
+          : status is ServerBusy
+          ? status.capabilities
+          : null;
+      final api = ref.read(mobileApiProvider);
+      return caps?.supportsOperation('action_match', 'person') == true &&
+              api is ActionMatchApi
+          ? api as ActionMatchApi
+          : null;
+    },
+  ),
 );
 
 final libraryRepositoryProvider = Provider<LibraryRepository>(

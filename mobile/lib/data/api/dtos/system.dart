@@ -137,9 +137,47 @@ class BusyInfo {
   );
 }
 
+/// One installed execution path. Availability does not imply output-quality validation.
+class OperationSupport {
+  const OperationSupport({
+    required this.operation,
+    required this.kind,
+    required this.mediaTypes,
+    required this.available,
+    required this.engine,
+    required this.identityModels,
+    this.reason,
+    this.experimental = false,
+  });
+  final String operation, kind, engine;
+  final List<String> mediaTypes, identityModels;
+  final bool available;
+  final bool experimental;
+  final String? reason;
+  factory OperationSupport.fromJson(Map<String, dynamic> json) =>
+      OperationSupport(
+        operation: field<String>(json, 'operation', 'operation'),
+        kind: field<String>(json, 'kind', 'operation'),
+        mediaTypes: list(
+          json['media_types'],
+          'operation.media_types',
+        ).cast<String>(),
+        available: field<bool>(json, 'available', 'operation'),
+        engine: field<String>(json, 'engine', 'operation'),
+        identityModels: list(
+          json['identity_models'],
+          'operation.identity_models',
+        ).cast<String>(),
+        reason: json['reason'] as String?,
+    experimental: json['experimental'] as bool? ?? false,
+      );
+}
+
 class Capabilities {
   const Capabilities({
     this.refaceProfiles = const {},
+    this.operations = const [],
+    this.hasOperationSupport = false,
     required this.apiVersion,
     required this.serverId,
     required this.name,
@@ -152,6 +190,27 @@ class Capabilities {
     required this.limits,
     required this.busy,
   });
+
+  final List<OperationSupport> operations;
+  final bool hasOperationSupport;
+
+  bool supportsOperation(
+    String operation,
+    String kind, {
+    String? mediaType,
+    String? identityModelId,
+    bool allowExperimental = false,
+  }) => operations.any(
+    (entry) =>
+        entry.operation == operation &&
+        entry.kind == kind &&
+        entry.available &&
+        (allowExperimental || !entry.experimental) &&
+        (mediaType == null || entry.mediaTypes.contains(mediaType)) &&
+        (identityModelId == null ||
+            entry.identityModels.isEmpty ||
+            entry.identityModels.contains(identityModelId)),
+  );
 
   final Map<String, String> refaceProfiles;
   final String apiVersion;
@@ -171,6 +230,11 @@ class Capabilities {
   factory Capabilities.fromJson(Map<String, dynamic> json) {
     final model = map(json['embedding_model'], 'embedding_model');
     return Capabilities(
+      hasOperationSupport: json.containsKey('operations'),
+      operations: [
+        for (final item in list(json['operations'] ?? [], 'operations'))
+          OperationSupport.fromJson(map(item, 'operation')),
+      ],
       refaceProfiles: {
         for (final entry
             in (json['reface_profiles'] as Map<String, dynamic>? ?? {}).entries)

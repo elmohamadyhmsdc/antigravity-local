@@ -1,5 +1,7 @@
 import '../shared/image_preview.dart';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +11,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/router.dart';
 import '../../data/db/app_database.dart';
-import '../../data/repositories/lora_repository.dart';
 import '../../data/repositories/artifact_context.dart';
+import '../../data/api/dtos/embedding.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
@@ -40,6 +42,52 @@ final loraVideoPickerProvider = Provider<Future<File?> Function()>(
     return file == null ? null : File(file.path);
   },
 );
+
+/// Mean only vectors from one explicitly selected embedding space.
+String datasetIdentityAnchor(List<FaceRow> faces, String modelId) {
+  final dimension = switch (modelId) {
+    'buffalo_l@1' => embeddingDim,
+    characterEmbeddingModelId => characterEmbeddingDim,
+    _ => throw const FormatException(
+      'This identity model is not supported for datasets.',
+    ),
+  };
+  final selected = faces
+      .where((face) => face.modelId == modelId)
+      .take(40)
+      .toList();
+  if (selected.isEmpty) {
+    throw const FormatException(
+      'This identity has no compatible analyzed faces.',
+    );
+  }
+  final mean = Float32List(dimension);
+  for (final face in selected) {
+    final vector = vectorFromBlob(face.embedding);
+    if (vector.length != dimension ||
+        vector.any((v) => !v.isFinite) ||
+        !face.qualityScore.isFinite) {
+      throw const FormatException(
+        'A source face has an invalid identity embedding.',
+      );
+    }
+    for (var index = 0; index < dimension; index++) {
+      mean[index] += vector[index] * math.max(face.qualityScore, .001);
+    }
+  }
+  final norm = math.sqrt(
+    mean.fold<double>(0, (sum, value) => sum + value * value),
+  );
+  if (!norm.isFinite || norm < 1e-8) {
+    throw const FormatException(
+      'The source identity has no usable embeddings.',
+    );
+  }
+  for (var index = 0; index < dimension; index++) {
+    mean[index] /= norm;
+  }
+  return encodeVector(mean);
+}
 
 class LoraScreen extends ConsumerWidget {
   const LoraScreen({super.key});
@@ -398,8 +446,6 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
     });
     try {
       var total = 0;
-      await prepareBackgroundForWork(context, ref);
-      if (!mounted) return;
       for (final file in _photos) {
         final size = await file.length();
         if (size > caps.limits.maxUploadMb * 1024 * 1024) {
@@ -413,9 +459,33 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
       final faces = await ref
           .read(studioRepositoryProvider)
           .sourceFaces(_person!);
-      if (faces.any((face) => face.modelId != caps.embeddingModelId)) {
-        throw FormatException(l.selectIdentityRequired);
+      final db = ref.read(databaseProvider);
+      final person = await (db.select(
+        db.persons,
+      )..where((row) => row.id.equals(_person!))).getSingleOrNull();
+      if (person == null) {
+        throw const FormatException('The selected identity no longer exists.');
       }
+      final character = person.kind == 'character';
+      final identityModel = character
+          ? characterEmbeddingModelId
+          : 'buffalo_l@1';
+      if ((character || caps.hasOperationSupport) &&
+          !caps.supportsOperation(
+            'dataset_build',
+            person.kind,
+            identityModelId: identityModel,
+          )) {
+        throw FormatException(
+          character && !caps.hasOperationSupport
+              ? 'This PC does not report character dataset support. Update the PC server and reconnect.'
+              : 'This PC cannot build a dataset for the selected identity model.',
+        );
+      }
+      final anchor = datasetIdentityAnchor(faces, identityModel);
+      if (!mounted) return;
+      await prepareBackgroundForWork(context, ref);
+      if (!mounted) return;
       final id = await ref
           .read(studioRepositoryProvider)
           .enqueueInputs(
@@ -423,6 +493,7 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
             type: 'build_lora_dataset',
             context: ArtifactContext(
               personId: _person,
+              identityModelId: identityModel,
               mediaId: _contextPhoto != null && _photos.contains(_contextPhoto)
                   ? _contextMediaId
                   : null,
@@ -433,7 +504,8 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
             params: {
               'trigger_word': _trigger.text.trim(),
               'repeats': _repeats,
-              'anchor_embedding': LoraRepository.anchor(faces),
+              'anchor_embedding': anchor,
+              if (caps.hasOperationSupport) 'identity_model_id': identityModel,
             },
             inputs: {'images': _photos},
             personId: _person,
@@ -450,6 +522,7 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    ref.watch(serverStatusProvider);
     return Scaffold(
       appBar: AppBar(title: Text(l.loraDatasetBuild)),
       bottomNavigationBar: StickyActionBar(
@@ -826,6 +899,27 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
       }
       final dataset = await ref.read(loraRepositoryProvider).dataset(_dataset!);
       if (dataset == null) return;
+      final identityModel = await ref
+          .read(studioRepositoryProvider)
+          .identityModelForDataset(dataset.id);
+      if (identityModel != null &&
+          identityModel != 'buffalo_l@1' &&
+          identityModel != characterEmbeddingModelId) {
+        throw const FormatException(
+          'This dataset has an unsupported identity model.',
+        );
+      }
+      if (identityModel != null &&
+          caps.hasOperationSupport &&
+          !caps.supportsOperation(
+            'lora_train',
+            identityModel == characterEmbeddingModelId ? 'character' : 'person',
+            identityModelId: identityModel,
+          )) {
+        throw const FormatException(
+          'This PC cannot train a dataset with this identity model.',
+        );
+      }
       zip = await ref.read(loraRepositoryProvider).exportDataset(_dataset!);
       final id = await ref
           .read(studioRepositoryProvider)
@@ -835,6 +929,7 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
             context: ArtifactContext(
               personId: dataset.personId,
               datasetId: dataset.id,
+              identityModelId: identityModel,
             ),
             params: {
               'trigger_word': dataset.triggerWord,
@@ -846,6 +941,8 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
               'learning_rate': lr,
               'max_resolution': _resolution,
               'batch_size': 1,
+              if (identityModel != null && caps.hasOperationSupport)
+                'identity_model_id': identityModel,
             },
             inputs: {
               'dataset': [zip],
@@ -992,11 +1089,14 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
   String _referenceMode = 'composition';
   File? _reference;
   int? _referenceMediaId;
-  bool _busy = false, _initialized = false;
+  bool _busy = false, _initialized = false, _promptEdited = false;
+  bool _loadingModelPrompt = false;
+  bool _modelContextError = false;
   @override
   void initState() {
     super.initState();
     _model = widget.loraId;
+    _loadingModelPrompt = _model != null;
     if (widget.referenceMediaId != null) {
       Future<void>.microtask(_loadContextReference);
     }
@@ -1035,6 +1135,40 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
         context,
       ).loraDefaultPrompt('{trigger}');
       _initialized = true;
+      final selected = _model;
+      if (selected != null) {
+        Future<void>.microtask(() => _setDefaultPrompt(selected));
+      }
+    }
+  }
+
+  Future<void> _setDefaultPrompt(String modelId) async {
+    if (mounted) {
+      setState(() {
+        _loadingModelPrompt = true;
+        _modelContextError = false;
+      });
+    }
+    try {
+      final identity = await ref
+          .read(studioRepositoryProvider)
+          .identityModelForLora(modelId);
+      if (!mounted || _model != modelId) return;
+      if (!_promptEdited) {
+        _prompt.text = identity == characterEmbeddingModelId
+            ? 'Illustrated portrait of {trigger}, fully clothed, neutral expression, soft lighting'
+            : AppLocalizations.of(context).loraDefaultPrompt('{trigger}');
+      }
+      setState(() => _loadingModelPrompt = false);
+    } on Object {
+      if (mounted && _model == modelId) {
+        setState(() {
+          _loadingModelPrompt = false;
+          _modelContextError = true;
+          _error =
+              'Could not load the model context. Select the model again to retry.';
+        });
+      }
     }
   }
 
@@ -1072,6 +1206,33 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
     try {
       await prepareBackgroundForWork(context, ref);
       if (!mounted) return;
+      final identityModel = await ref
+          .read(studioRepositoryProvider)
+          .identityModelForLora(model.id);
+      if (identityModel != null &&
+          identityModel != 'buffalo_l@1' &&
+          identityModel != characterEmbeddingModelId) {
+        throw const FormatException(
+          'This model has an unsupported identity model.',
+        );
+      }
+      if (identityModel == characterEmbeddingModelId &&
+          !caps.hasOperationSupport) {
+        throw const FormatException(
+          'This PC does not report character generation support. Update the PC server and reconnect.',
+        );
+      }
+      if (identityModel != null &&
+          caps.hasOperationSupport &&
+          !caps.supportsOperation(
+            'lora_generate',
+            identityModel == characterEmbeddingModelId ? 'character' : 'person',
+            identityModelId: identityModel,
+          )) {
+        throw const FormatException(
+          'This PC cannot generate with this identity model.',
+        );
+      }
       final id = await ref
           .read(studioRepositoryProvider)
           .enqueueInputs(
@@ -1081,6 +1242,7 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
               personId: model.personId,
               modelId: model.id,
               referenceMediaId: _referenceMediaId,
+              identityModelId: identityModel,
             ),
             params: {
               'trigger_word': model.triggerWord,
@@ -1094,6 +1256,8 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
               'steps': 30,
               'reference_mode': _referenceMode,
               'multi_angle': true,
+              if (identityModel != null && caps.hasOperationSupport)
+                'identity_model_id': identityModel,
             },
             inputs: {
               'lora': [ref.read(fileStoreProvider).resolve(model.path)],
@@ -1143,6 +1307,8 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
                 key: const Key('generate-submit'),
                 onPressed:
                     _busy ||
+                        _loadingModelPrompt ||
+                        _modelContextError ||
                         selected == null ||
                         _base == null ||
                         caps?.engines.loraGenerate != true ||
@@ -1181,7 +1347,10 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
                 for (final m in models)
                   DropdownMenuItem(value: m.id, child: Text(m.triggerWord)),
               ],
-              onChanged: (v) => setState(() => _model = v),
+              onChanged: (v) {
+                setState(() => _model = v);
+                if (v != null) _setDefaultPrompt(v);
+              },
             ),
           if (bases.isEmpty)
             Text(l.loraNoBase)
@@ -1199,6 +1368,7 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
             ),
           TextField(
             controller: _prompt,
+            onChanged: (_) => _promptEdited = true,
             minLines: 3,
             maxLines: 6,
             maxLength: 4000,

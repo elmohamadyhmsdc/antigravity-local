@@ -253,14 +253,15 @@ def test_capabilities_match_the_contract_idle_and_busy():
         r = e.client.get("/v1/capabilities", headers=e.auth)
         check(r.status_code == 200, r.text)
         check_schema("Capabilities", r.json())
-        same_keys(r.json(), fixture("Capabilities.idle"))
+        same_keys({k:v for k,v in r.json().items() if k != "operations"}, fixture("Capabilities.idle"))
+        check(isinstance(r.json()["operations"], list) and r.json()["operations"], "model-aware execution matrix")
         check(r.json()["busy"] is None, "idle")
         check(r.json()["embedding_model"] == {"id": "buffalo_l@1", "dim": 512}, "embedding model")
 
         _start_job(e.ctx.workspace.jobs_dir, "train_lora", "abc12345")  # a mobile-queue job holds the GPU
         r = e.client.get("/v1/capabilities", headers=e.auth)
         check_schema("Capabilities", r.json(), "busy capabilities")
-        same_keys(r.json(), fixture("Capabilities.busy_with_dashboard_job"))
+        same_keys({k:v for k,v in r.json().items() if k != "operations"}, fixture("Capabilities.busy_with_dashboard_job"))
         check(r.json()["busy"] == {"job_id": "abc12345", "job_type": "train_lora", "source": "mobile"}, r.json()["busy"])
 
 

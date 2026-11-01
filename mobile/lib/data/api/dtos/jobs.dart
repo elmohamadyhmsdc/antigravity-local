@@ -181,7 +181,8 @@ class StudioResultFile {
     : name = field<String>(json, 'name'),
       size = integer(json, 'size'),
       sha256 = field<String>(json, 'sha256'),
-      mime = field<String>(json, 'mime') {
+      mime = field<String>(json, 'mime'),
+      metadata = Map<String, dynamic>.from(json['meta'] as Map? ?? const {}) {
     if (!const {
           'result.png': 'image/png',
           'result.mp4': 'video/mp4',
@@ -194,9 +195,15 @@ class StudioResultFile {
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(sha256)) {
       throw const FormatException('Invalid Studio result manifest');
     }
+    final model = metadata['identity_model_id'];
+    if (model != null &&
+        !const ['buffalo_l@1', 'ccip-caformer24@1'].contains(model)) {
+      throw const FormatException('Unknown result identity model');
+    }
   }
   final String name;
   final int size;
   final String sha256;
   final String mime;
+  final Map<String, dynamic> metadata;
 }

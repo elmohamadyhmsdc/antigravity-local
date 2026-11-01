@@ -464,6 +464,43 @@ def job_fixtures():
     })
 
 
+def operation_parity_fixtures():
+    """Typed extension fixtures; existing fixtures also remain legacy-client examples."""
+    import json
+    def saved(name):
+        return json.loads((OUT / (name + '.json')).read_text(encoding='utf-8'))
+    character = saved('AnalyzeImageResponse.character_face_body')['characters'][0]['face']['embedding']
+    dataset = saved('JobCreate.build_lora_dataset')
+    dataset['params'].update(identity_model_id='ccip-caformer24@1', anchor_embedding=character)
+    write('JobCreate.build_character_dataset', dataset)
+    for video in (False, True):
+        params = dict(source_kind='character',target_kind='character',seed=18472,steps=20,experimental_acknowledged=True)
+        if video: params.update(target_identity=dict(model_id='ccip-caformer24@1',embedding=character),start_time=0,end_time=.6)
+        else: params.update(target_regions=[dict(frame=0,boxes=[dict(x=.65,y=.2,w=.2,h=.4)])])
+        write('JobCreate.reface_video_reference' if video else 'JobCreate.reface_image_reference',dict(
+            client_job_id='reference-video-fixture' if video else 'reference-photo-fixture',
+            type='reface_video_reference' if video else 'reface_image_reference',
+            inputs=dict(target='1'*64,source_reference='2'*64),params=params))
+    write('GroupingPlanRequest.character_identity',dict(mode='apply',stages=['match','cluster'],strictness='character',
+      models=[],pending=[dict(id=501+i,embedding=character,quality=.9,frame_key=key,rejected_person_ids=[])
+      for i,key in enumerate(('photo-one','photo-two'))],distinct_pairs=[],bodies=[]))
+    member=dict(points=[(i/2%3)/2 if i%2==0 else i/2/17 for i in range(34)],mask=131071,scale='group')
+    second=dict(member,points=[v+3 if i%2==0 else v for i,v in enumerate(member['points'])])
+    write('ActionMatchRequest.photo_group',dict(kind='photo',query=[dict(time=0,members=[member,second])],allow_mirror=False,
+      candidates=[dict(id='reverse-order',frames=[dict(time=0,members=[second,member])]),
+                  dict(id='one-member',frames=[dict(time=0,members=[member])])]))
+    write('ActionMatchResponse.photo_group',dict(version=1,method='pose_geometry_temporal_v1',
+      matches=[dict(id='reverse-order',score=1),dict(id='one-member',score=None)]))
+    caps=saved('Capabilities.idle')
+    caps['operations']=[]
+    for kind,model in (('person','buffalo_l@1'),('character','ccip-caformer24@1')):
+        for op,engine,models in (('dataset_build','face_dataset' if kind=='person' else 'ccip_dataset',[model]),
+          ('reface_reference','reference_guided_diffusion',[]),('action_match','pose_geometry_temporal_v1',[])):
+            caps['operations'].append(dict(operation=op,kind=kind,media_types=['photo','video'],available=True,
+              engine=engine,identity_models=models,experimental=op=='reface_reference',reason=None))
+    write('Capabilities.operation_support',caps)
+
+
 if __name__ == "__main__":
     write("EquipmentResponse.racket", {"model_version": 1, "objects": [
         {"object_key": "racket:10:20:30:40", "label": "tennis racket", "body_index": 0,
@@ -472,4 +509,5 @@ if __name__ == "__main__":
     analyze_fixture()
     grouping_fixtures()
     job_fixtures()
+    operation_parity_fixtures()
     print("done ->", OUT)

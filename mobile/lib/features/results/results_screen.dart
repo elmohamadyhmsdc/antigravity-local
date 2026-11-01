@@ -446,6 +446,13 @@ class _ResultDetailScreenState extends ConsumerState<ResultDetailScreen> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (relation.qualityWarnings.isNotEmpty)
+                        ListTile(
+                          key: const Key('result-quality-warning'),
+                          leading: const Icon(Icons.warning_amber_rounded),
+                          title: const Text('Quality warning'),
+                          subtitle: Text(relation.qualityWarnings.join('\n')),
+                        ),
                       if (relation.mediaId != null)
                         ListTile(
                           leading: const Icon(Icons.photo_outlined),

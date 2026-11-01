@@ -95,7 +95,7 @@ class PersonDetailScreen extends ConsumerWidget {
           );
         }
         return DefaultTabController(
-          length: 3,
+          length: p.kind == 'character' ? 2 : 3,
           initialIndex: initialTab <= 1 ? 0 : 1,
           child: Scaffold(
             appBar: AppBar(
@@ -136,7 +136,7 @@ class PersonDetailScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                IconButton.filledTonal(
+                if (p.kind == 'person') IconButton.filledTonal(
                   key: const Key('person-use-studio'),
                   tooltip: l10n.useInStudio,
                   onPressed: () =>
@@ -150,11 +150,11 @@ class PersonDetailScreen extends ConsumerWidget {
                   icon: const Icon(Icons.more_horiz),
                 ),
               ],
-              bottom: const TabBar(
+              bottom: TabBar(
                 tabs: [
-                  Tab(key: Key('tab-photos'), text: 'Media'),
-                  Tab(text: 'Identity'),
-                  Tab(text: 'Models'),
+                  const Tab(key: Key('tab-photos'), text: 'Media'),
+                  const Tab(text: 'Identity'),
+                  if (p.kind == 'person') const Tab(text: 'Models'),
                 ],
               ),
             ),
@@ -221,14 +221,14 @@ class PersonDetailScreen extends ConsumerWidget {
                                   FaceGrid(personId: personId, kind: p.kind),
                                   _BodiesTab(personId: personId, kind: p.kind),
                                   _SuggestionsTab(person: p),
-                                  _SavedIdentities(personId: personId),
+                                  _SavedIdentities(personId: personId, allowStudio: p.kind == 'person'),
                                 ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                      _PersonModels(
+                      if (p.kind == 'person') _PersonModels(
                         personId: personId,
                         avatarPath: p.avatarCropPath,
                       ),
@@ -276,7 +276,7 @@ class PersonDetailScreen extends ConsumerWidget {
           Icons.accessibility_new,
           label: l.bodiesTitle,
         ),
-        PeopleMenuAction(
+        if (p.kind == 'person') PeopleMenuAction(
           'exportTraining',
           Icons.model_training,
           label: l.exportTrainingTitle,
@@ -896,8 +896,9 @@ class _PersonModels extends ConsumerWidget {
 }
 
 class _SavedIdentities extends ConsumerWidget {
-  const _SavedIdentities({required this.personId});
+  const _SavedIdentities({required this.personId, required this.allowStudio});
   final int personId;
+  final bool allowStudio;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sets = ref.watch(identitySetsProvider);
@@ -926,7 +927,7 @@ class _SavedIdentities extends ConsumerWidget {
                     ),
                   ),
                 ),
-                onTap: () => context.push(
+                onTap: !allowStudio ? null : () => context.push(
                   '${Routes.reface}?person=$personId&identity=${item.id}',
                 ),
               ),
