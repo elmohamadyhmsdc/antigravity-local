@@ -140,10 +140,12 @@ class ScanEngine {
   }
 
   /// After a restart: if a scan was running when the app died, carry on (without re-listing the albums).
+  /// Files an older app version scanned are redone too, once, without waiting for the next scan.
   Future<void> resumeIfInterrupted() async {
-    if (_active) return;
+    if (_active || _api() == null) return;
     final prefs = await _settings.load();
-    if (prefs.scanActive && _api() != null) {
+    final outdated = await _repo.requeueOutdated();
+    if (prefs.scanActive || outdated > 0) {
       await start(enumerate: false);
     }
   }

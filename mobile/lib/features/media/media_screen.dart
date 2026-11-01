@@ -18,6 +18,7 @@ import '../../library_providers.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../people/people_actions.dart' show moveToOtherKind;
+import '../scan/redetect_flow.dart';
 import '../scan/scan_progress_card.dart' show startScan;
 import '../shared/person_picker.dart';
 import 'video_media_view.dart';
@@ -231,6 +232,14 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                         : Icons.accessibility_outlined,
                   ),
                   onPressed: () => setState(() => _showBodies = !_showBodies),
+                ),
+              if (media.kind == 'photo')
+                IconButton(
+                  key: const Key('media-redetect'),
+                  tooltip: l10n.redetectTitle,
+                  icon: const Icon(Icons.center_focus_strong),
+                  onPressed: () =>
+                      redetectFlow(context, ref, mediaId: media.id),
                 ),
               IconButton(
                 key: const Key('media-kind'),

@@ -5,7 +5,9 @@ import '../media/media_library.dart';
 import 'kind_corrections.dart';
 
 /// Bump when what a scan extracts changes, so older results are redone.
-const scanVersion = 2;
+/// 3: characters get pose keypoints, body extent/outline and the people's face-body pairing;
+/// person/character corrections.
+const scanVersion = 3;
 
 /// How many photos are where in the scan queue. The queue is the `media` table itself:
 /// `scan_status` = pending (waiting) | scanning (a worker has it) | done | failed | skipped
@@ -202,13 +204,17 @@ class LibraryRepository {
           } else if (row.scanStatus == 'skipped' ||
               row.scanStatus == 'failed' ||
               (row.scanStatus == 'done' && row.scanVersion < scanVersion)) {
+            // An interrupted video resumes where it stopped; a finished one redone for a new
+            // version starts again (it would otherwise resume at its last frame and redo nothing).
+            final redo = row.scanStatus == 'done';
             await (_db.update(
               _db.media,
             )..where((m) => m.id.equals(row.id))).write(
-              const MediaCompanion(
-                scanStatus: Value('pending'),
-                scanAttempts: Value(0),
-                scanError: Value(null),
+              MediaCompanion(
+                scanStatus: const Value('pending'),
+                scanAttempts: const Value(0),
+                scanError: const Value(null),
+                lastScannedFrame: redo ? const Value(0) : const Value.absent(),
               ),
             );
             requeued++;
@@ -294,6 +300,16 @@ class LibraryRepository {
       ),
     );
   }
+
+  /// Files a scan finished with an older [scanVersion] go back to the queue, from their start.
+  Future<int> requeueOutdated() => _db.customUpdate(
+    '''UPDATE media SET scan_status = 'pending', scan_attempts = 0, scan_error = NULL,
+         last_scanned_frame = 0
+       WHERE scan_status = 'done' AND scan_version < ?''',
+    variables: [Variable.withInt(scanVersion)],
+    updates: {_db.media},
+    updateKind: UpdateKind.update,
+  );
 
   /// After the app was killed mid-photo: whatever was being scanned goes back to the queue.
   Future<int> resetScanning() =>

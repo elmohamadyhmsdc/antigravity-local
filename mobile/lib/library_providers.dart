@@ -29,6 +29,7 @@ import 'domain/backup/backup_service.dart';
 import 'domain/grouping/grouping_runner.dart';
 import 'domain/scan/drawn_face_sweep.dart';
 import 'domain/scan/outline_backfill.dart';
+import 'domain/scan/redetect.dart';
 import 'domain/scan/photo_result_store.dart';
 import 'domain/scan/video_compactor.dart';
 import 'domain/storage/storage_sweeper.dart';
@@ -280,6 +281,19 @@ final photoResultStoreProvider = Provider<PhotoResultStore>(
     db: ref.watch(databaseProvider),
     files: ref.watch(fileStoreProvider),
     index: ref.watch(embeddingIndexProvider),
+  ),
+);
+
+/// "Detect faces/bodies again" for one photo or every photo of a person.
+final redetectorProvider = Provider<Redetector>(
+  (ref) => Redetector(
+    db: ref.watch(databaseProvider),
+    files: ref.watch(fileStoreProvider),
+    index: ref.watch(embeddingIndexProvider),
+    store: ref.watch(photoResultStoreProvider),
+    media: ref.watch(mediaLibraryProvider),
+    settings: ref.watch(appSettingsProvider),
+    api: () => ref.read(mobileApiProvider),
   ),
 );
 

@@ -16,6 +16,7 @@ import '../../library_providers.dart';
 import '../shared/crop_image.dart';
 import '../shared/person_picker.dart';
 import '../shared/empty_state.dart';
+import '../scan/redetect_flow.dart';
 import '../scan/scan_progress_card.dart' show startScan;
 import 'action_face_picker.dart';
 import 'action_sheet.dart';
@@ -46,6 +47,7 @@ List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
       const PeopleMenuAction('split', Icons.call_split),
       const PeopleMenuAction('suggestions', Icons.fact_check_outlined),
       const PeopleMenuAction('distinct', Icons.people_outline),
+      const PeopleMenuAction('redetect', Icons.center_focus_strong),
     ],
     PeopleMenuAction(
       people.every((p) => p.groupingLocked) ? 'unlock' : 'lock',
@@ -299,6 +301,9 @@ Future<void> runPersonAction(
       case 'toCharacters':
       case 'toPeople':
         await moveToOtherKind(context, ref, fromKind: kind, people: people);
+        return;
+      case 'redetect':
+        await redetectFlow(context, ref, personId: p.id);
         return;
       case 'cover':
         final option = await showPeopleActionSheet(

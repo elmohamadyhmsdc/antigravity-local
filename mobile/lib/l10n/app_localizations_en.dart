@@ -163,6 +163,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'similarNote':
           'Similarity is a suggestion. Open an original or assign selected faces after checking them.',
       'emptyExport': 'No readable files were available to export.',
+      'redetect': 'Detect faces / bodies again…',
       'toCharacters': 'Move to Characters',
       'toPeople': 'Move to People',
       'kindMoveNote':
@@ -182,6 +183,44 @@ class AppLocalizationsEn extends AppLocalizations {
       zero: 'Nothing to scan again',
     );
     return 'Moved. $_temp0.';
+  }
+
+  @override
+  String get redetectTitle => 'Detect again';
+
+  @override
+  String get redetectNote =>
+      'Looks harder than the scan: full resolution and lower thresholds, so small or partly hidden faces and bodies are found. The old boxes are replaced; names and decisions stay with the new box at the same place.';
+
+  @override
+  String get redetectFaces => 'Faces';
+
+  @override
+  String get redetectBodies => 'Bodies';
+
+  @override
+  String get redetectBoth => 'Faces and bodies';
+
+  @override
+  String redetectProgress(int done, int total) {
+    return 'Detecting again… $done of $total photos';
+  }
+
+  @override
+  String redetectDone(int faces, int bodies) {
+    return 'Now $faces faces and $bodies bodies.';
+  }
+
+  @override
+  String redetectVideosSkipped(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count videos were skipped: only photos can be detected again for now.',
+      one: '1 video was skipped: only photos can be detected again for now.',
+    );
+    return '$_temp0';
   }
 
   @override

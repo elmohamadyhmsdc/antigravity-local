@@ -25,7 +25,12 @@ Iterable<List<int>> _chunks(Iterable<int> ids, [int size = 400]) sync* {
 String _marks(int n) => List.filled(n, '?').join(',');
 
 /// Same detection seen again: a face box may come back a little bigger or smaller.
-bool _sameBox(_Box a, _Box b, String part) {
+/// `part` is 'face' or 'body'.
+bool sameDetectionBox(
+  ({double x, double y, double w, double h}) a,
+  ({double x, double y, double w, double h}) b,
+  String part,
+) {
   if (iou(a, b) >= (part == 'face' ? .4 : .5)) return true;
   if (part != 'face') return false;
   final ix = math.max(0.0, math.min(a.x + a.w, b.x + b.w) - math.max(a.x, b.x));
@@ -128,7 +133,7 @@ class KindOverrideStore {
           w: d.read<double>('w'),
           h: d.read<double>('h'),
         );
-        if (!_sameBox(box, seen, o.part!)) continue;
+        if (!sameDetectionBox(box, seen, o.part!)) continue;
         final id = Variable.withInt(d.read<int>('ref_id'));
         final person = Variable.withInt(target.id);
         if (part == 'f') {
@@ -303,6 +308,17 @@ class KindCorrections {
     return (id: newId, files: files);
   }
 
+  /// Removes detections (rows, their boxes and crops) without remembering a deletion or
+  /// requeuing anything: for a re-detect that stores fresh ones right after.
+  Future<void> removeDetections({
+    Iterable<int> faceIds = const [],
+    Iterable<int> bodyIds = const [],
+  }) async {
+    final removed = _Removed();
+    await _db.transaction(() => _remove(faceIds, bodyIds, removed));
+    await removed.finish(_files, _index);
+  }
+
   // ---- inside a transaction ---------------------------------------------------------
 
   Future<Set<int>> _move(
@@ -383,7 +399,7 @@ class KindCorrections {
     )..where((o) => o.assetId.equals(asset) & o.part.equals(part))).get();
     for (final o in old) {
       final same =
-          _sameBox((x: o.x!, y: o.y!, w: o.w!, h: o.h!), box, part) &&
+          sameDetectionBox((x: o.x!, y: o.y!, w: o.w!, h: o.h!), box, part) &&
           (o.timestampMs == null) == (timestampMs == null) &&
           _nearInTime(o.timestampMs, timestampMs);
       if (same) {

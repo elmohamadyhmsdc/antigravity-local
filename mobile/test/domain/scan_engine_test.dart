@@ -17,7 +17,7 @@ import 'package:antigravity_mobile/domain/grouping/grouping_runner.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
 import 'package:antigravity_mobile/domain/scan/scan_engine.dart';
 import 'package:antigravity_mobile/domain/scan/scan_state.dart';
-import 'package:drift/drift.dart' show OrderingTerm, Value;
+import 'package:drift/drift.dart' show OrderingTerm, Value, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -444,6 +444,38 @@ void main() {
           (await rig.media()),
           isEmpty,
           reason: 'and it did not even list the albums',
+        );
+      },
+    );
+
+    test(
+      'files an older version scanned are redone at start, once, without re-listing',
+      () async {
+        await rig.choose();
+        rig.everyPhotoHasANewFace();
+        await rig.engine().start();
+        rig.api.analyzeCalls.clear();
+        await rig.db.customUpdate(
+          'UPDATE media SET scan_version = ?',
+          variables: [Variable.withInt(scanVersion - 1)],
+        );
+        rig.library.setAlbum('cam', syntheticAssets(6));
+
+        await rig.engine().resumeIfInterrupted();
+        expect(rig.api.analyzeCalls, hasLength(3));
+        final rows = await rig.media();
+        expect(rows, hasLength(3), reason: 'albums were not listed again');
+        expect(
+          rows.map((m) => (m.scanStatus, m.scanVersion)),
+          everyElement(('done', scanVersion)),
+        );
+
+        rig.api.analyzeCalls.clear();
+        await rig.engine().resumeIfInterrupted();
+        expect(
+          rig.api.analyzeCalls,
+          isEmpty,
+          reason: 'nothing is outdated now',
         );
       },
     );

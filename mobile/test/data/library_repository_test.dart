@@ -103,14 +103,21 @@ void main() {
             scanAttempts: Value(3),
           ),
         );
-        await (db.update(db.media)..where((m) => m.assetId.equals('skipped')))
-            .write(const MediaCompanion(scanStatus: Value('skipped')));
+        await (db.update(
+          db.media,
+        )..where((m) => m.assetId.equals('skipped'))).write(
+          const MediaCompanion(
+            scanStatus: Value('skipped'),
+            lastScannedFrame: Value(300),
+          ),
+        );
         await (db.update(
           db.media,
         )..where((m) => m.assetId.equals('old'))).write(
           const MediaCompanion(
             scanStatus: Value('done'),
             scanVersion: Value(scanVersion - 1),
+            lastScannedFrame: Value(900),
           ),
         );
         await (db.update(
@@ -135,6 +142,11 @@ void main() {
           ('pending', null, 0),
         );
         expect((await row('fresh')).scanStatus, 'done');
+        // A finished file redone for a new version starts from the beginning; an
+        // interrupted one resumes where it stopped.
+        final old = await row('old');
+        expect((old.scanStatus, old.lastScannedFrame), ('pending', 0));
+        expect((await row('skipped')).lastScannedFrame, 300);
       },
     );
 

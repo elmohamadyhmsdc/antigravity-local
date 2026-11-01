@@ -241,7 +241,7 @@ abstract class AppLocalizations {
   /// No description provided for @peopleAction.
   ///
   /// In en, this message translates to:
-  /// **'{action, select, selection {Select multiple} open {Open person} merge {Merge with…} rename {Rename} hide {Hide} show {Show again} pin {Pin to top} unpin {Unpin} favorite {Add to favorites} unfavorite {Remove from favorites} media {Photos and videos} add {Add faces…} split {Split into new person…} suggestions {Review match suggestions} distinct {Different from…} lock {Lock automatic matching} unlock {Unlock automatic matching} studio {Use in Studio} export {Export / share…} details {Details} cover {Change cover…} bestCover {Choose best cover automatically} chooseCover {Choose cover face…} deletePerson {Delete person grouping} original {Open original} assign {Assign / move to person…} create {Create new person…} reject {Not this person} remove {Remove from person…} someoneElse {This is someone else} notAFace {Not a face} moveTo {Move to…} unassign {Remove assignment} similar {Find similar faces} save {Save crop to gallery} deleteFace {Delete detection} ignore {Not a face / ignore detection} hidden {Hidden} all {All} favorites {Favorites} pinned {Pinned} invert {Invert selection} more {More actions} done {Done} undo {Undo} updated {Updated} noResults {No items in this view} exportCrops {Face crops and details} exportOriginals {Face crops and original media} lockedNote {Automatic matching cannot add faces or change derived body links for a locked person. Manual corrections remain available.} deletePersonNote {Remove these person groupings and return their faces to Unsorted. Original photos and videos are kept.} deleteFaceNote {Remove these detections and their private crops. Rescanning will not recreate them. Original photos and videos are kept.} mergeNote {All selected people will be merged into the chosen person. Review the resulting name and cover before confirming.} similarNote {Similarity is a suggestion. Open an original or assign selected faces after checking them.} emptyExport {No readable files were available to export.} toCharacters {Move to Characters} toPeople {Move to People} kindMoveNote {The PC measures them again with the other model, so their files are scanned again first. Names are kept; until the scan finishes they are not shown.} other {More actions}}'**
+  /// **'{action, select, selection {Select multiple} open {Open person} merge {Merge with…} rename {Rename} hide {Hide} show {Show again} pin {Pin to top} unpin {Unpin} favorite {Add to favorites} unfavorite {Remove from favorites} media {Photos and videos} add {Add faces…} split {Split into new person…} suggestions {Review match suggestions} distinct {Different from…} lock {Lock automatic matching} unlock {Unlock automatic matching} studio {Use in Studio} export {Export / share…} details {Details} cover {Change cover…} bestCover {Choose best cover automatically} chooseCover {Choose cover face…} deletePerson {Delete person grouping} original {Open original} assign {Assign / move to person…} create {Create new person…} reject {Not this person} remove {Remove from person…} someoneElse {This is someone else} notAFace {Not a face} moveTo {Move to…} unassign {Remove assignment} similar {Find similar faces} save {Save crop to gallery} deleteFace {Delete detection} ignore {Not a face / ignore detection} hidden {Hidden} all {All} favorites {Favorites} pinned {Pinned} invert {Invert selection} more {More actions} done {Done} undo {Undo} updated {Updated} noResults {No items in this view} exportCrops {Face crops and details} exportOriginals {Face crops and original media} lockedNote {Automatic matching cannot add faces or change derived body links for a locked person. Manual corrections remain available.} deletePersonNote {Remove these person groupings and return their faces to Unsorted. Original photos and videos are kept.} deleteFaceNote {Remove these detections and their private crops. Rescanning will not recreate them. Original photos and videos are kept.} mergeNote {All selected people will be merged into the chosen person. Review the resulting name and cover before confirming.} similarNote {Similarity is a suggestion. Open an original or assign selected faces after checking them.} emptyExport {No readable files were available to export.} redetect {Detect faces / bodies again…} toCharacters {Move to Characters} toPeople {Move to People} kindMoveNote {The PC measures them again with the other model, so their files are scanned again first. Names are kept; until the scan finishes they are not shown.} other {More actions}}'**
   String peopleAction(String action);
 
   /// No description provided for @kindMoved.
@@ -249,6 +249,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Moved. {count, plural, =0{Nothing to scan again} =1{1 file is scanned again} other{{count} files are scanned again}}.'**
   String kindMoved(int count);
+
+  /// No description provided for @redetectTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Detect again'**
+  String get redetectTitle;
+
+  /// No description provided for @redetectNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Looks harder than the scan: full resolution and lower thresholds, so small or partly hidden faces and bodies are found. The old boxes are replaced; names and decisions stay with the new box at the same place.'**
+  String get redetectNote;
+
+  /// No description provided for @redetectFaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Faces'**
+  String get redetectFaces;
+
+  /// No description provided for @redetectBodies.
+  ///
+  /// In en, this message translates to:
+  /// **'Bodies'**
+  String get redetectBodies;
+
+  /// No description provided for @redetectBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Faces and bodies'**
+  String get redetectBoth;
+
+  /// No description provided for @redetectProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Detecting again… {done} of {total} photos'**
+  String redetectProgress(int done, int total);
+
+  /// No description provided for @redetectDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Now {faces} faces and {bodies} bodies.'**
+  String redetectDone(int faces, int bodies);
+
+  /// No description provided for @redetectVideosSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 video was skipped: only photos can be detected again for now.} other{{count} videos were skipped: only photos can be detected again for now.}}'**
+  String redetectVideosSkipped(int count);
 
   /// No description provided for @boxIsCharacter.
   ///
