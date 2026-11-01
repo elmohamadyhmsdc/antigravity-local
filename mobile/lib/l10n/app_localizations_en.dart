@@ -3999,7 +3999,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String identityGroupMembers(int count) {
-    return '$count members';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count members',
+      one: '1 member',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -4051,7 +4057,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String organizeResult(int moved, int remaining) {
-    return '$moved files organized · $remaining files not moved';
+    String _temp0 = intl.Intl.pluralLogic(
+      moved,
+      locale: localeName,
+      other: '$moved files organized',
+      one: '1 file organized',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      remaining,
+      locale: localeName,
+      other: '$remaining files not moved',
+      one: '1 file not moved',
+    );
+    return '$_temp0 · $_temp1';
   }
 
   @override
@@ -4075,4 +4093,7 @@ class AppLocalizationsEn extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get organizeCancelPending => 'Cancel remaining queued moves';
 }

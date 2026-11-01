@@ -89,10 +89,11 @@ class PersonMediaOrganizer {
     final ownersByMedia = <int, Set<int>>{};
     for (final link in links) {
       final person = link.readNullable<int>('person_id');
-      if (person != null && peopleById.containsKey(person))
+      if (person != null && peopleById.containsKey(person)) {
         ownersByMedia
             .putIfAbsent(link.read<int>('media_id'), () => {})
             .add(person);
+      }
     }
     final media = <MediaRow>[];
     final ids = ownersByMedia.keys.toList();
@@ -171,27 +172,40 @@ class PersonMediaOrganizer {
           : 'ready';
       if (status == 'ready' &&
           m.modifiedAt > 0 &&
-          source!.modifiedAt != m.modifiedAt)
+          source!.modifiedAt != m.modifiedAt) {
         status = 'stale_scan';
+      }
       final prior = oldByMedia[m.id];
       if (prior?.state == 'pending') status = 'pending';
       var sequence = 0;
       OriginalMediaMove? request;
       if (selected != null && source?.available == true && status == 'ready') {
         final key = '${selected.id}:${m.kind}';
-        if (prior != null && prior.personId == selected.id)
+        if (prior != null && prior.personId == selected.id) {
           sequence = prior.sequence;
-        else {
+        } else {
           sequence = (next[key] ?? 0) + 1;
           next[key] = sequence;
         }
         final extension = source!.name.contains('.')
             ? source.name.split('.').last.toLowerCase()
-            : m.kind == 'video'
-            ? 'mp4'
-            : 'jpg';
-        if (!RegExp(r'^[a-z0-9]{1,12}$').hasMatch(extension))
+            : const {
+                    'image/jpeg': 'jpg',
+                    'image/png': 'png',
+                    'image/heic': 'heic',
+                    'image/heif': 'heif',
+                    'image/webp': 'webp',
+                    'image/avif': 'avif',
+                    'image/gif': 'gif',
+                    'video/mp4': 'mp4',
+                    'video/quicktime': 'mov',
+                    'video/x-matroska': 'mkv',
+                    'video/webm': 'webm',
+                  }[source.mimeType] ??
+                  '';
+        if (!RegExp(r'^[a-z0-9]{1,12}$').hasMatch(extension)) {
           status = 'unsupported';
+        }
         final folder = personFolder(selected);
         final category = selected.groupId == null
             ? ''
@@ -201,8 +215,16 @@ class PersonMediaOrganizer {
         final base = organizationSegment(
           identityName(selected),
         ).replaceAll(' ', '_');
-        final name =
+        var name =
             '${base}_${m.kind == 'video' ? 'video' : 'image'}_${sequence.toString().padLeft(4, '0')}.$extension';
+        if (prior != null &&
+            prior.targetPath == path &&
+            source.name == prior.targetName &&
+            prior.targetName.startsWith(
+              '${base}_${m.kind == 'video' ? 'video' : 'image'}_',
+            )) {
+          name = prior.targetName;
+        }
         request = OriginalMediaMove(
           asset: OrganizeAsset(m.assetId, m.kind),
           source: source,
@@ -226,8 +248,9 @@ class PersonMediaOrganizer {
   }
 
   Future<List<PersonOrganizeItem>> _preflight(
-    List<PersonOrganizeItem> items,
-  ) async {
+    List<PersonOrganizeItem> items, {
+    bool resolveCollisions = true,
+  }) async {
     final statuses = <String, String>{};
     final ready = items
         .where((i) => i.request != null && i.status == 'ready')
@@ -239,7 +262,7 @@ class PersonMediaOrganizer {
         statuses[result.assetId] = result.status;
       }
     }
-    return [
+    final checked = [
       for (final item in items)
         PersonOrganizeItem(
           media: item.media,
@@ -253,6 +276,33 @@ class PersonMediaOrganizer {
               : item.status,
         ),
     ];
+    if (!resolveCollisions || !checked.any((i) => i.status == 'conflict')) {
+      return checked;
+    }
+    // Resolve collisions BEFORE presenting the preview. Never replace a file or
+    // quietly choose another destination after the user approves the plan.
+    final revised = [
+      for (final item in checked)
+        if (item.status != 'conflict' || item.request == null)
+          item
+        else
+          PersonOrganizeItem(
+            media: item.media,
+            owners: item.owners,
+            source: item.source,
+            ownerId: item.ownerId,
+            sequence: item.sequence,
+            status: 'ready',
+            request: OriginalMediaMove(
+              asset: item.request!.asset,
+              source: item.request!.source,
+              targetPath: item.request!.targetPath,
+              targetName:
+                  '${item.request!.targetName.substring(0, item.request!.targetName.lastIndexOf('.'))}_m${item.media.id}.${item.request!.targetName.split('.').last}',
+            ),
+          ),
+    ];
+    return _preflight(revised, resolveCollisions: false);
   }
 
   Future<List<PersonOrganizeItem>> pending() async {
@@ -280,7 +330,7 @@ class PersonMediaOrganizer {
       items.add(
         PersonOrganizeItem(
           media: media,
-          owners: [if (owner != null) owner],
+          owners: [?owner],
           source: source,
           ownerId: j.personId,
           sequence: j.sequence,
@@ -294,7 +344,48 @@ class PersonMediaOrganizer {
         ),
       );
     }
-    return _preflight(items);
+    return _preflight(items, resolveCollisions: false);
+  }
+
+  /// Stop queued work only. Files already moved are reconciled, never moved back
+  /// or deleted; a fresh preview can then resolve stale/conflicting requests.
+  Future<void> cancelPending() async {
+    if (_busy) throw StateError('A media move is already running');
+    final records = await (db.select(
+      db.personMediaMoves,
+    )..where((j) => j.state.equals('pending'))).get();
+    final actual = <String, OriginalMediaInfo>{};
+    for (var i = 0; i < records.length; i += 1000) {
+      for (final info in await bridge.inspect([
+        for (final j in records.skip(i).take(1000))
+          OrganizeAsset(j.assetId, j.mediaKind),
+      ])) {
+        actual[info.assetId] = info;
+      }
+    }
+    await db.transaction(() async {
+      for (final j in records) {
+        final info = actual[j.assetId];
+        final moved =
+            info?.available == true &&
+            info!.name == j.targetName &&
+            info.path == j.targetPath;
+        if (moved) {
+          await (db.update(db.media)..where(
+                (m) => m.id.equals(j.mediaId) & m.assetId.equals(j.assetId),
+              ))
+              .write(MediaCompanion(modifiedAt: Value(info.modifiedAt)));
+        }
+        await (db.update(
+          db.personMediaMoves,
+        )..where((m) => m.mediaId.equals(j.mediaId))).write(
+          PersonMediaMovesCompanion(
+            state: Value(moved ? 'moved' : 'cancelled'),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+      }
+    });
   }
 
   /// Only explicit, previewed requests reach the bridge. Unknown outcomes stay
@@ -357,7 +448,10 @@ class PersonMediaOrganizer {
                   ))
                   .write(MediaCompanion(modifiedAt: Value(actual.modifiedAt)));
             }
-            final complete = result.moved && actual != null;
+            final complete =
+                result.moved &&
+                actual != null &&
+                actual.assetId == item.media.assetId;
             await (db.update(
               db.personMediaMoves,
             )..where((j) => j.mediaId.equals(item.media.id))).write(

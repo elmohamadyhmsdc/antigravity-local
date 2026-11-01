@@ -40,8 +40,9 @@ class IdentityGroupsRepository {
 
   String _name(String name) {
     final value = name.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (value.isEmpty || value.length > 80)
+    if (value.isEmpty || value.length > 80) {
       throw ArgumentError('Use a group name of 1–80 characters');
+    }
     return value;
   }
 

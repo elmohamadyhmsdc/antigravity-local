@@ -422,60 +422,65 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                               onChanged: (v) => setState(() => _query = v),
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: DropdownButtonFormField<int>(
-                                    key: ValueKey(
-                                      'people-group-filter-$groupId',
-                                    ),
-                                    initialValue: groupId ?? 0,
-                                    isExpanded: true,
-                                    decoration: InputDecoration(
-                                      labelText: l10n.identityGroupsTitle,
-                                    ),
-                                    items: [
-                                      DropdownMenuItem(
-                                        value: 0,
-                                        child: Text(l10n.identityGroupAll),
+                          if (groups.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField<int>(
+                                      key: ValueKey(
+                                        'people-group-filter-$groupId',
                                       ),
-                                      DropdownMenuItem(
-                                        value: -1,
-                                        child: Text(
-                                          l10n.identityGroupUngrouped,
-                                        ),
+                                      initialValue: groupId ?? 0,
+                                      isExpanded: true,
+                                      decoration: InputDecoration(
+                                        labelText: l10n.identityGroupsTitle,
                                       ),
-                                      for (final group in groups)
+                                      items: [
                                         DropdownMenuItem(
-                                          value: group.id,
-                                          child: Text(group.name),
+                                          value: 0,
+                                          child: Text(l10n.identityGroupAll),
                                         ),
-                                    ],
-                                    onChanged: (id) => setState(() {
-                                      _groupId = id == 0 ? null : id;
-                                      _selected.clear();
-                                    }),
-                                  ),
-                                ),
-                                IconButton(
-                                  key: const Key('people-manage-groups'),
-                                  tooltip: l10n.identityGroupsTitle,
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => IdentityGroupsScreen(
-                                        kind: widget.kind,
-                                      ),
+                                        DropdownMenuItem(
+                                          value: -1,
+                                          child: Text(
+                                            l10n.identityGroupUngrouped,
+                                          ),
+                                        ),
+                                        for (final group in groups)
+                                          DropdownMenuItem(
+                                            value: group.id,
+                                            child: Text(
+                                              group.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                      ],
+                                      onChanged: (id) => setState(() {
+                                        _groupId = id == 0 ? null : id;
+                                        _selected.clear();
+                                      }),
                                     ),
                                   ),
-                                  icon: const Icon(
-                                    Icons.create_new_folder_outlined,
+                                  IconButton(
+                                    key: const Key('people-manage-groups'),
+                                    tooltip: l10n.identityGroupsTitle,
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => IdentityGroupsScreen(
+                                          kind: widget.kind,
+                                        ),
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.create_new_folder_outlined,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Padding(

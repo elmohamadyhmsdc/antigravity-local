@@ -6469,7 +6469,7 @@ abstract class AppLocalizations {
   /// No description provided for @identityGroupMembers.
   ///
   /// In en, this message translates to:
-  /// **'{count} members'**
+  /// **'{count, plural, =1{1 member} other{{count} members}}'**
   String identityGroupMembers(int count);
 
   /// No description provided for @organizeTitle.
@@ -6553,7 +6553,7 @@ abstract class AppLocalizations {
   /// No description provided for @organizeResult.
   ///
   /// In en, this message translates to:
-  /// **'{moved} files organized · {remaining} files not moved'**
+  /// **'{moved, plural, =1{1 file organized} other{{moved} files organized}} · {remaining, plural, =1{1 file not moved} other{{remaining} files not moved}}'**
   String organizeResult(int moved, int remaining);
 
   /// No description provided for @organizeStatus.
@@ -6561,6 +6561,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{status, select, ready{Ready to move} already{Already organized} choose_owner{Choose one destination owner} missing{Original is unavailable} stale_scan{File changed since detection. Scan it again first.} stale{File changed after this preview. Refresh to review it.} conflict{A file with this name already exists. Nothing will be replaced.} pending{An earlier move needs review first.} moved{Moved} cancelled{Cancelled — original kept} denied{Android did not grant permission} uncertain{Check interrupted move to confirm the current location} unsupported{This file cannot be moved here} other{Could not move this file}}'**
   String organizeStatus(String status);
+
+  /// No description provided for @organizeCancelPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel remaining queued moves'**
+  String get organizeCancelPending;
 }
 
 class _AppLocalizationsDelegate

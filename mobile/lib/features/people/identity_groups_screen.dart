@@ -9,6 +9,7 @@ import '../../providers.dart';
 import '../library/media_grid.dart';
 import '../shared/empty_state.dart';
 import 'people_screen.dart';
+import 'organize_media_screen.dart';
 
 Future<String?> _askGroupName(BuildContext context, {String? initial}) =>
     showDialog<String>(
@@ -214,7 +215,7 @@ class IdentityGroupsScreen extends ConsumerWidget {
                                   try {
                                     await repository.rename(group.id, name);
                                   } catch (_) {
-                                    if (context.mounted)
+                                    if (context.mounted) {
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
@@ -224,6 +225,7 @@ class IdentityGroupsScreen extends ConsumerWidget {
                                           ),
                                         ),
                                       );
+                                    }
                                   }
                                 } else {
                                   await repository.delete(group.id);
@@ -280,6 +282,34 @@ class IdentityGroupsScreen extends ConsumerWidget {
                                   ),
                                   icon: const Icon(Icons.perm_media_outlined),
                                   label: Text(l.tabMedia),
+                                ),
+                                TextButton.icon(
+                                  key: Key(
+                                    'identity-group-organize-${group.id}',
+                                  ),
+                                  icon: const Icon(
+                                    Icons.drive_file_move_outlined,
+                                  ),
+                                  label: Text(l.organizeTitle),
+                                  onPressed: () async {
+                                    final db = ref.read(databaseProvider);
+                                    final members =
+                                        await (db.select(db.persons)..where(
+                                              (p) => p.groupId.equals(group.id),
+                                            ))
+                                            .get();
+                                    if (!context.mounted) return;
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            OrganizePersonMediaScreen(
+                                              personIds: members
+                                                  .map((p) => p.id)
+                                                  .toSet(),
+                                            ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ),

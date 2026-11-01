@@ -34,8 +34,10 @@ class _OrganizePersonMediaState
     load();
   }
 
-  Future<void> load({bool resume = false}) async {
+  Future<void> load({bool resume = false, int? changedMedia}) async {
     final version = ++generation;
+    final preserveSelection = items.isNotEmpty && !resume;
+    final previousSelection = {...selected};
     setState(() => loading = true);
     try {
       final service = ref.read(personMediaOrganizerProvider);
@@ -50,22 +52,25 @@ class _OrganizePersonMediaState
           ..clear()
           ..addAll(
             plan
-                .where((i) => i.canApply && i.status != 'already')
+                .where((i) => i.canApply && i.status != 'already' &&
+                    (!preserveSelection || previousSelection.contains(i.media.id) || i.media.id == changedMedia))
                 .map((i) => i.media.id),
           );
-        if (resume)
+        if (resume) {
           selected.addAll(plan.where((i) => i.canApply).map((i) => i.media.id));
+        }
         hasPending = pending.isNotEmpty;
         loading = false;
         error = null;
         results = [];
       });
     } catch (_) {
-      if (mounted && version == generation)
+      if (mounted && version == generation) {
         setState(() {
           loading = false;
           error = AppLocalizations.of(context).organizeLoadFailed;
         });
+      }
     }
   }
 
@@ -87,27 +92,35 @@ class _OrganizePersonMediaState
           .apply(
             picked,
             onProgress: (count, all) {
-              if (mounted)
+              if (mounted) {
                 setState(() {
                   done = count;
                   total = all;
                 });
+              }
             },
           );
-      if (mounted)
+      if (mounted) {
         setState(() {
           results = result;
           selected.clear();
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error = AppLocalizations.of(context).organizeInterrupted,
         );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
   }
+
+  OriginalMediaInfo? movedInfo(PersonOrganizeItem item) => results
+      .where((r) => r.assetId == item.media.assetId && r.moved)
+      .firstOrNull
+      ?.actual;
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +144,7 @@ class _OrganizePersonMediaState
             ),
           ],
         ),
-        bottomNavigationBar: loading
+        bottomNavigationBar: loading && items.isEmpty
             ? null
             : SafeArea(
                 child: Padding(
@@ -140,14 +153,14 @@ class _OrganizePersonMediaState
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (busy)
+                      if (busy || loading)
                         LinearProgressIndicator(
-                          value: total == 0 ? null : done / total,
+                          value: loading || done == 0 || total == 0 ? null : done / total,
                         ),
                       Text(l.organizeSelection(images, videos)),
                       FilledButton.icon(
                         key: const Key('organize-apply'),
-                        onPressed: busy || picked.isEmpty ? null : apply,
+                        onPressed: busy || loading || picked.isEmpty ? null : apply,
                         icon: const Icon(Icons.drive_file_move_outlined),
                         label: Text(busy ? l.organizeWorking : l.organizeApply),
                       ),
@@ -155,7 +168,7 @@ class _OrganizePersonMediaState
                   ),
                 ),
               ),
-        body: loading
+        body: loading && items.isEmpty
             ? const LoadingBox()
             : ListView(
                 padding: const EdgeInsets.all(16),
@@ -174,6 +187,19 @@ class _OrganizePersonMediaState
                       onPressed: busy ? null : () => load(resume: true),
                       icon: const Icon(Icons.history),
                       label: Text(l.organizeResume),
+                    ),
+                  if (hasPending)
+                    TextButton(
+                      key: const Key('organize-cancel-pending'),
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              await ref
+                                  .read(personMediaOrganizerProvider)
+                                  .cancelPending();
+                              await load();
+                            },
+                      child: Text(l.organizeCancelPending),
                     ),
                   if (error != null)
                     Padding(
@@ -250,13 +276,14 @@ class _OrganizePersonMediaState
                                 Checkbox(
                                   key: Key('organize-check-${item.media.id}'),
                                   value: selected.contains(item.media.id),
-                                  onChanged: busy || !item.canApply
+                                  onChanged: busy || loading || !item.canApply
                                       ? null
                                       : (on) => setState(() {
-                                          if (on == true)
+                                          if (on == true) {
                                             selected.add(item.media.id);
-                                          else
+                                          } else {
                                             selected.remove(item.media.id);
+                                          }
                                         }),
                                 ),
                                 SizedBox(
@@ -333,22 +360,24 @@ class _OrganizePersonMediaState
                                         ),
                                       ),
                                   ],
-                                  onChanged: busy
+                                  onChanged: busy || loading
                                       ? null
                                       : (id) {
                                           choices[item.media.id] = id;
-                                          load();
+                                          load(changedMedia: item.media.id);
                                         },
                                 ),
                               ),
                             if (item.request != null) ...[
                               const SizedBox(height: 8),
                               Text(
-                                item.request!.targetPath,
+                                movedInfo(item)?.path ??
+                                    item.request!.targetPath,
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                               Text(
-                                item.request!.targetName,
+                                movedInfo(item)?.name ??
+                                    item.request!.targetName,
                                 style: Theme.of(context).textTheme.titleSmall,
                               ),
                             ],

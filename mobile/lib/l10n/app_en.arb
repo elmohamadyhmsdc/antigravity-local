@@ -2198,7 +2198,7 @@
   "identityGroupDelete": "Delete group (keep members)",
   "identityGroupNameExists": "That group name is already used. Choose a different name.",
   "identityGroupNoMedia": "No photos or videos in this group yet.",
-  "identityGroupMembers": "{count} members",
+  "identityGroupMembers": "{count, plural, =1{1 member} other{{count} members}}",
   "@identityGroupMembers": {
     "placeholders": {
       "count": {
@@ -2229,7 +2229,7 @@
       }
     }
   },
-  "organizeResult": "{moved} files organized · {remaining} files not moved",
+  "organizeResult": "{moved, plural, =1{1 file organized} other{{moved} files organized}} · {remaining, plural, =1{1 file not moved} other{{remaining} files not moved}}",
   "@organizeResult": {
     "placeholders": {
       "moved": {
@@ -2247,5 +2247,6 @@
         "type": "String"
       }
     }
-  }
+  },
+  "organizeCancelPending": "Cancel remaining queued moves"
 }

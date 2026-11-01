@@ -130,7 +130,23 @@ class LibraryRepository {
         };
         final fresh = <MediaCompanion>[];
         final seen = <String>{};
-        for (final a in chunk) {
+        final organized = {
+          for (final move
+              in await (_db.select(_db.personMediaMoves)..where(
+                    (j) =>
+                        j.assetId.isIn(chunk.map((a) => a.id)) &
+                        j.state.isIn(['pending', 'moved']),
+                  ))
+                  .get())
+            move.assetId,
+        };
+        for (final incoming in chunk) {
+          final previous = known[incoming.id];
+          // Moving to a new Android album must not change a file's real/anime
+          // scan mode and discard its character identities on the next sync.
+          final a = previous != null && organized.contains(incoming.id)
+              ? incoming.withIllustrated(previous.illustrated)
+              : incoming;
           if (!seen.add(a.id)) continue; // the same photo twice in one page
           final row = known[a.id];
           if (row == null) {

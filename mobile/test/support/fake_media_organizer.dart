@@ -38,34 +38,38 @@ class FakeMediaOrganizer implements MediaOrganizerBridge {
   ];
   OriginalMoveResult check(OriginalMediaMove move) {
     final actual = originals[move.asset.assetId];
-    if (actual == null)
+    if (actual == null) {
       return OriginalMoveResult(assetId: move.asset.assetId, status: 'missing');
-    if (actual.name == move.targetName && actual.path == move.targetPath)
+    }
+    if (actual.name == move.targetName && actual.path == move.targetPath) {
       return OriginalMoveResult(
         assetId: actual.assetId,
         status: 'already',
         actual: actual,
       );
+    }
     if (actual.name != move.source.name ||
         actual.path != move.source.path ||
         actual.modifiedAt != move.source.modifiedAt ||
-        actual.size != move.source.size)
+        actual.size != move.source.size) {
       return OriginalMoveResult(
         assetId: actual.assetId,
         status: 'stale',
         actual: actual,
       );
+    }
     if (originals.values.any(
       (o) =>
           o.assetId != actual.assetId &&
           o.name == move.targetName &&
           o.path == move.targetPath,
-    ))
+    )) {
       return OriginalMoveResult(
         assetId: actual.assetId,
         status: 'conflict',
         actual: actual,
       );
+    }
     return OriginalMoveResult(
       assetId: actual.assetId,
       status: 'ready',
@@ -102,8 +106,9 @@ class FakeMediaOrganizer implements MediaOrganizerBridge {
         size: item.source.size,
       );
       originals[actual.assetId] = actual;
-      if (crashAfter != null && results.length + 1 >= crashAfter!)
+      if (crashAfter != null && results.length + 1 >= crashAfter!) {
         throw StateError('Simulated app termination after MediaStore update');
+      }
       results.add(
         OriginalMoveResult(
           assetId: actual.assetId,

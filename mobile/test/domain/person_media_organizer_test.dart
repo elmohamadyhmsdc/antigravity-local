@@ -1,7 +1,9 @@
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/repositories/identity_groups.dart';
-import 'package:antigravity_mobile/domain/organization/person_media_organizer.dart';
+import 'package:antigravity_mobile/data/repositories/library_repository.dart';
+import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:antigravity_mobile/domain/organization/person_media_organizer.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,6 +30,32 @@ void main() {
     bridge.seed(asset, name: kind == 'video' ? 'clip.mp4' : 'photo.HEIC');
     return id;
   }
+
+  test(
+    'moving an anime file to a new album retains its scan mode and identities',
+    () async {
+      final id = await media('1');
+      await (db.update(db.media)..where((m) => m.id.equals(id))).write(
+        const MediaCompanion(
+          illustrated: Value(true),
+          scanVersion: Value(scanVersion),
+        ),
+      );
+      await organizer.apply(await organizer.plan({luffy}));
+      final result = await LibraryRepository(db).syncAssets([
+        const AssetInfo(
+          id: '1',
+          width: 1200,
+          height: 800,
+          modifiedAt: 2000,
+          takenAt: 1000,
+        ),
+      ]);
+      expect(result.changed, 0);
+      expect((await db.select(db.media).get()).single.illustrated, isTrue);
+      expect(await db.select(db.faces).get(), hasLength(1));
+    },
+  );
 
   test(
     'preview uses nested groups, separate image/video numbers and never writes files',
@@ -124,6 +152,25 @@ void main() {
     },
   );
   test(
+    'cancelling queued work reconciles moved files and leaves untouched originals in place',
+    () async {
+      await media('1');
+      await media('2');
+      bridge.crashAfter = 1;
+      await expectLater(
+        organizer.apply(await organizer.plan({luffy})),
+        throwsStateError,
+      );
+      await organizer.cancelPending();
+      final rows = await db.select(db.personMediaMoves).get();
+      expect(rows.firstWhere((j) => j.assetId == '1').state, 'moved');
+      expect(rows.firstWhere((j) => j.assetId == '2').state, 'cancelled');
+      expect(bridge.originals['1']!.path, contains('One Piece/Luffy'));
+      expect(bridge.originals['2']!.path, 'DCIM/Camera/');
+      expect(await organizer.pending(), isEmpty);
+    },
+  );
+  test(
     'destination conflicts and edits after detection are excluded',
     () async {
       await media('1');
@@ -133,8 +180,9 @@ void main() {
         path: 'DCIM/Your Gallery/One Piece/Luffy/',
       );
       final conflict = await organizer.plan({luffy});
-      expect(conflict.single.status, 'conflict');
-      expect(await organizer.apply(conflict), isEmpty);
+      expect(conflict.single.status, 'ready');
+      expect(conflict.single.request!.targetName, contains('_m'));
+      expect(bridge.originals['existing']!.name, 'Luffy_image_0001.heic');
       bridge.originals.remove('existing');
       bridge.seed('1', modifiedAt: 3000);
       expect((await organizer.plan({luffy})).single.status, 'stale_scan');
