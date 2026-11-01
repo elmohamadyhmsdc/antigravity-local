@@ -48,6 +48,7 @@ class LibraryStats {
     Media,
     Faces,
     FaceSuppressions,
+    KindOverrides,
     Bodies,
     FaceRejections,
     BodyRejections,
@@ -79,7 +80,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 14;
+  static const currentSchemaVersion = 15;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -239,6 +240,12 @@ class AppDatabase extends _$AppDatabase {
         await customStatement('DELETE FROM character_identities');
         await customStatement(
           'CREATE INDEX IF NOT EXISTS faces_kind ON faces (kind)',
+        );
+      }
+      if (from < 15) {
+        await m.createTable(kindOverrides);
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS kind_overrides_asset ON kind_overrides (asset_id)',
         );
       }
     },

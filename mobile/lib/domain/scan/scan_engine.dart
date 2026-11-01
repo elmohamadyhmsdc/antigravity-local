@@ -508,6 +508,8 @@ class ScanEngine {
       return const _Failed();
     }
 
+    // Read before the next photo is prepared: nothing may wait between that and the upload.
+    final corrections = await _repo.kindCorrections(row.assetId);
     prepareNextPhoto();
     var busy = 0, offline = 0, serverErrors = 0;
     while (true) {
@@ -548,6 +550,9 @@ class ScanEngine {
             detectCharacters: isCharScan,
             minQuality: prefs.qualityGate,
             modelId: modelId,
+            facelessCharacters: row.illustrated,
+            forceKind: corrections.forceKind,
+            kindOverrides: corrections.dtos(),
           ),
         );
         // Illustrated files only carry face vectors when a real face was found.

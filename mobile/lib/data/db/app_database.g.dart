@@ -3255,6 +3255,640 @@ class FaceSuppressionsCompanion extends UpdateCompanion<FaceSuppressionRow> {
   }
 }
 
+class $KindOverridesTable extends KindOverrides
+    with TableInfo<$KindOverridesTable, KindOverrideRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $KindOverridesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _assetIdMeta = const VerificationMeta(
+    'assetId',
+  );
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+    'asset_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _partMeta = const VerificationMeta('part');
+  @override
+  late final GeneratedColumn<String> part = GeneratedColumn<String>(
+    'part',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _xMeta = const VerificationMeta('x');
+  @override
+  late final GeneratedColumn<double> x = GeneratedColumn<double>(
+    'x',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _yMeta = const VerificationMeta('y');
+  @override
+  late final GeneratedColumn<double> y = GeneratedColumn<double>(
+    'y',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _wMeta = const VerificationMeta('w');
+  @override
+  late final GeneratedColumn<double> w = GeneratedColumn<double>(
+    'w',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _hMeta = const VerificationMeta('h');
+  @override
+  late final GeneratedColumn<double> h = GeneratedColumn<double>(
+    'h',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _timestampMsMeta = const VerificationMeta(
+    'timestampMs',
+  );
+  @override
+  late final GeneratedColumn<int> timestampMs = GeneratedColumn<int>(
+    'timestamp_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetPersonIdMeta = const VerificationMeta(
+    'targetPersonId',
+  );
+  @override
+  late final GeneratedColumn<int> targetPersonId = GeneratedColumn<int>(
+    'target_person_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    assetId,
+    kind,
+    part,
+    x,
+    y,
+    w,
+    h,
+    timestampMs,
+    targetPersonId,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'kind_overrides';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<KindOverrideRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(
+        _assetIdMeta,
+        assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_assetIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('part')) {
+      context.handle(
+        _partMeta,
+        part.isAcceptableOrUnknown(data['part']!, _partMeta),
+      );
+    }
+    if (data.containsKey('x')) {
+      context.handle(_xMeta, x.isAcceptableOrUnknown(data['x']!, _xMeta));
+    }
+    if (data.containsKey('y')) {
+      context.handle(_yMeta, y.isAcceptableOrUnknown(data['y']!, _yMeta));
+    }
+    if (data.containsKey('w')) {
+      context.handle(_wMeta, w.isAcceptableOrUnknown(data['w']!, _wMeta));
+    }
+    if (data.containsKey('h')) {
+      context.handle(_hMeta, h.isAcceptableOrUnknown(data['h']!, _hMeta));
+    }
+    if (data.containsKey('timestamp_ms')) {
+      context.handle(
+        _timestampMsMeta,
+        timestampMs.isAcceptableOrUnknown(
+          data['timestamp_ms']!,
+          _timestampMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('target_person_id')) {
+      context.handle(
+        _targetPersonIdMeta,
+        targetPersonId.isAcceptableOrUnknown(
+          data['target_person_id']!,
+          _targetPersonIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  KindOverrideRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return KindOverrideRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      assetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}asset_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      part: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}part'],
+      ),
+      x: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}x'],
+      ),
+      y: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}y'],
+      ),
+      w: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}w'],
+      ),
+      h: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}h'],
+      ),
+      timestampMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}timestamp_ms'],
+      ),
+      targetPersonId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}target_person_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $KindOverridesTable createAlias(String alias) {
+    return $KindOverridesTable(attachedDatabase, alias);
+  }
+}
+
+class KindOverrideRow extends DataClass implements Insertable<KindOverrideRow> {
+  final int id;
+  final String assetId;
+  final String kind;
+  final String? part;
+  final double? x;
+  final double? y;
+  final double? w;
+  final double? h;
+  final int? timestampMs;
+  final int? targetPersonId;
+  final int createdAt;
+  const KindOverrideRow({
+    required this.id,
+    required this.assetId,
+    required this.kind,
+    this.part,
+    this.x,
+    this.y,
+    this.w,
+    this.h,
+    this.timestampMs,
+    this.targetPersonId,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['asset_id'] = Variable<String>(assetId);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || part != null) {
+      map['part'] = Variable<String>(part);
+    }
+    if (!nullToAbsent || x != null) {
+      map['x'] = Variable<double>(x);
+    }
+    if (!nullToAbsent || y != null) {
+      map['y'] = Variable<double>(y);
+    }
+    if (!nullToAbsent || w != null) {
+      map['w'] = Variable<double>(w);
+    }
+    if (!nullToAbsent || h != null) {
+      map['h'] = Variable<double>(h);
+    }
+    if (!nullToAbsent || timestampMs != null) {
+      map['timestamp_ms'] = Variable<int>(timestampMs);
+    }
+    if (!nullToAbsent || targetPersonId != null) {
+      map['target_person_id'] = Variable<int>(targetPersonId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  KindOverridesCompanion toCompanion(bool nullToAbsent) {
+    return KindOverridesCompanion(
+      id: Value(id),
+      assetId: Value(assetId),
+      kind: Value(kind),
+      part: part == null && nullToAbsent ? const Value.absent() : Value(part),
+      x: x == null && nullToAbsent ? const Value.absent() : Value(x),
+      y: y == null && nullToAbsent ? const Value.absent() : Value(y),
+      w: w == null && nullToAbsent ? const Value.absent() : Value(w),
+      h: h == null && nullToAbsent ? const Value.absent() : Value(h),
+      timestampMs: timestampMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timestampMs),
+      targetPersonId: targetPersonId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetPersonId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory KindOverrideRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return KindOverrideRow(
+      id: serializer.fromJson<int>(json['id']),
+      assetId: serializer.fromJson<String>(json['assetId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      part: serializer.fromJson<String?>(json['part']),
+      x: serializer.fromJson<double?>(json['x']),
+      y: serializer.fromJson<double?>(json['y']),
+      w: serializer.fromJson<double?>(json['w']),
+      h: serializer.fromJson<double?>(json['h']),
+      timestampMs: serializer.fromJson<int?>(json['timestampMs']),
+      targetPersonId: serializer.fromJson<int?>(json['targetPersonId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'assetId': serializer.toJson<String>(assetId),
+      'kind': serializer.toJson<String>(kind),
+      'part': serializer.toJson<String?>(part),
+      'x': serializer.toJson<double?>(x),
+      'y': serializer.toJson<double?>(y),
+      'w': serializer.toJson<double?>(w),
+      'h': serializer.toJson<double?>(h),
+      'timestampMs': serializer.toJson<int?>(timestampMs),
+      'targetPersonId': serializer.toJson<int?>(targetPersonId),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  KindOverrideRow copyWith({
+    int? id,
+    String? assetId,
+    String? kind,
+    Value<String?> part = const Value.absent(),
+    Value<double?> x = const Value.absent(),
+    Value<double?> y = const Value.absent(),
+    Value<double?> w = const Value.absent(),
+    Value<double?> h = const Value.absent(),
+    Value<int?> timestampMs = const Value.absent(),
+    Value<int?> targetPersonId = const Value.absent(),
+    int? createdAt,
+  }) => KindOverrideRow(
+    id: id ?? this.id,
+    assetId: assetId ?? this.assetId,
+    kind: kind ?? this.kind,
+    part: part.present ? part.value : this.part,
+    x: x.present ? x.value : this.x,
+    y: y.present ? y.value : this.y,
+    w: w.present ? w.value : this.w,
+    h: h.present ? h.value : this.h,
+    timestampMs: timestampMs.present ? timestampMs.value : this.timestampMs,
+    targetPersonId: targetPersonId.present
+        ? targetPersonId.value
+        : this.targetPersonId,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  KindOverrideRow copyWithCompanion(KindOverridesCompanion data) {
+    return KindOverrideRow(
+      id: data.id.present ? data.id.value : this.id,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      part: data.part.present ? data.part.value : this.part,
+      x: data.x.present ? data.x.value : this.x,
+      y: data.y.present ? data.y.value : this.y,
+      w: data.w.present ? data.w.value : this.w,
+      h: data.h.present ? data.h.value : this.h,
+      timestampMs: data.timestampMs.present
+          ? data.timestampMs.value
+          : this.timestampMs,
+      targetPersonId: data.targetPersonId.present
+          ? data.targetPersonId.value
+          : this.targetPersonId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KindOverrideRow(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('kind: $kind, ')
+          ..write('part: $part, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('targetPersonId: $targetPersonId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    assetId,
+    kind,
+    part,
+    x,
+    y,
+    w,
+    h,
+    timestampMs,
+    targetPersonId,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is KindOverrideRow &&
+          other.id == this.id &&
+          other.assetId == this.assetId &&
+          other.kind == this.kind &&
+          other.part == this.part &&
+          other.x == this.x &&
+          other.y == this.y &&
+          other.w == this.w &&
+          other.h == this.h &&
+          other.timestampMs == this.timestampMs &&
+          other.targetPersonId == this.targetPersonId &&
+          other.createdAt == this.createdAt);
+}
+
+class KindOverridesCompanion extends UpdateCompanion<KindOverrideRow> {
+  final Value<int> id;
+  final Value<String> assetId;
+  final Value<String> kind;
+  final Value<String?> part;
+  final Value<double?> x;
+  final Value<double?> y;
+  final Value<double?> w;
+  final Value<double?> h;
+  final Value<int?> timestampMs;
+  final Value<int?> targetPersonId;
+  final Value<int> createdAt;
+  const KindOverridesCompanion({
+    this.id = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.part = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.w = const Value.absent(),
+    this.h = const Value.absent(),
+    this.timestampMs = const Value.absent(),
+    this.targetPersonId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  KindOverridesCompanion.insert({
+    this.id = const Value.absent(),
+    required String assetId,
+    required String kind,
+    this.part = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.w = const Value.absent(),
+    this.h = const Value.absent(),
+    this.timestampMs = const Value.absent(),
+    this.targetPersonId = const Value.absent(),
+    required int createdAt,
+  }) : assetId = Value(assetId),
+       kind = Value(kind),
+       createdAt = Value(createdAt);
+  static Insertable<KindOverrideRow> custom({
+    Expression<int>? id,
+    Expression<String>? assetId,
+    Expression<String>? kind,
+    Expression<String>? part,
+    Expression<double>? x,
+    Expression<double>? y,
+    Expression<double>? w,
+    Expression<double>? h,
+    Expression<int>? timestampMs,
+    Expression<int>? targetPersonId,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (assetId != null) 'asset_id': assetId,
+      if (kind != null) 'kind': kind,
+      if (part != null) 'part': part,
+      if (x != null) 'x': x,
+      if (y != null) 'y': y,
+      if (w != null) 'w': w,
+      if (h != null) 'h': h,
+      if (timestampMs != null) 'timestamp_ms': timestampMs,
+      if (targetPersonId != null) 'target_person_id': targetPersonId,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  KindOverridesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? assetId,
+    Value<String>? kind,
+    Value<String?>? part,
+    Value<double?>? x,
+    Value<double?>? y,
+    Value<double?>? w,
+    Value<double?>? h,
+    Value<int?>? timestampMs,
+    Value<int?>? targetPersonId,
+    Value<int>? createdAt,
+  }) {
+    return KindOverridesCompanion(
+      id: id ?? this.id,
+      assetId: assetId ?? this.assetId,
+      kind: kind ?? this.kind,
+      part: part ?? this.part,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      w: w ?? this.w,
+      h: h ?? this.h,
+      timestampMs: timestampMs ?? this.timestampMs,
+      targetPersonId: targetPersonId ?? this.targetPersonId,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (part.present) {
+      map['part'] = Variable<String>(part.value);
+    }
+    if (x.present) {
+      map['x'] = Variable<double>(x.value);
+    }
+    if (y.present) {
+      map['y'] = Variable<double>(y.value);
+    }
+    if (w.present) {
+      map['w'] = Variable<double>(w.value);
+    }
+    if (h.present) {
+      map['h'] = Variable<double>(h.value);
+    }
+    if (timestampMs.present) {
+      map['timestamp_ms'] = Variable<int>(timestampMs.value);
+    }
+    if (targetPersonId.present) {
+      map['target_person_id'] = Variable<int>(targetPersonId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('KindOverridesCompanion(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('kind: $kind, ')
+          ..write('part: $part, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('targetPersonId: $targetPersonId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -13718,6 +14352,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FaceSuppressionsTable faceSuppressions = $FaceSuppressionsTable(
     this,
   );
+  late final $KindOverridesTable kindOverrides = $KindOverridesTable(this);
   late final $BodiesTable bodies = $BodiesTable(this);
   late final $FaceRejectionsTable faceRejections = $FaceRejectionsTable(this);
   late final $BodyRejectionsTable bodyRejections = $BodyRejectionsTable(this);
@@ -13773,6 +14408,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'face_suppressions_asset',
     'CREATE INDEX face_suppressions_asset ON face_suppressions (asset_id)',
   );
+  late final Index kindOverridesAsset = Index(
+    'kind_overrides_asset',
+    'CREATE INDEX kind_overrides_asset ON kind_overrides (asset_id)',
+  );
   late final Index bodiesMediaId = Index(
     'bodies_media_id',
     'CREATE INDEX bodies_media_id ON bodies (media_id)',
@@ -13826,6 +14465,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     media,
     faces,
     faceSuppressions,
+    kindOverrides,
     bodies,
     faceRejections,
     bodyRejections,
@@ -13855,6 +14495,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     facesMediaId,
     facesTrackId,
     faceSuppressionsAsset,
+    kindOverridesAsset,
     bodiesMediaId,
     bodiesPersonId,
     bodiesFaceId,
@@ -13882,6 +14523,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('faces', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('kind_overrides', kind: UpdateKind.update)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -14118,6 +14766,24 @@ final class $$PersonsTableReferences
     ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_facesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$KindOverridesTable, List<KindOverrideRow>>
+  _kindOverridesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.kindOverrides,
+    aliasName: 'persons__id__kind_overrides__target_person_id',
+  );
+
+  $$KindOverridesTableProcessedTableManager get kindOverridesRefs {
+    final manager = $$KindOverridesTableTableManager(
+      $_db,
+      $_db.kindOverrides,
+    ).filter((f) => f.targetPersonId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_kindOverridesRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -14452,6 +15118,31 @@ class $$PersonsTableFilterComposer
           }) => $$FacesTableFilterComposer(
             $db: $db,
             $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> kindOverridesRefs(
+    Expression<bool> Function($$KindOverridesTableFilterComposer f) f,
+  ) {
+    final $$KindOverridesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.kindOverrides,
+      getReferencedColumn: (t) => t.targetPersonId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$KindOverridesTableFilterComposer(
+            $db: $db,
+            $table: $db.kindOverrides,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -14932,6 +15623,31 @@ class $$PersonsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> kindOverridesRefs<T extends Object>(
+    Expression<T> Function($$KindOverridesTableAnnotationComposer a) f,
+  ) {
+    final $$KindOverridesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.kindOverrides,
+      getReferencedColumn: (t) => t.targetPersonId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$KindOverridesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.kindOverrides,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> bodiesRefs<T extends Object>(
     Expression<T> Function($$BodiesTableAnnotationComposer a) f,
   ) {
@@ -15298,6 +16014,7 @@ class $$PersonsTableTableManager
           PersonRow,
           PrefetchHooks Function({
             bool facesRefs,
+            bool kindOverridesRefs,
             bool bodiesRefs,
             bool faceRejectionsRefs,
             bool bodyRejectionsRefs,
@@ -15380,6 +16097,7 @@ class $$PersonsTableTableManager
           prefetchHooksCallback:
               ({
                 facesRefs = false,
+                kindOverridesRefs = false,
                 bodiesRefs = false,
                 faceRejectionsRefs = false,
                 bodyRejectionsRefs = false,
@@ -15399,6 +16117,7 @@ class $$PersonsTableTableManager
                   db: db,
                   explicitlyWatchedTables: [
                     if (facesRefs) db.faces,
+                    if (kindOverridesRefs) db.kindOverrides,
                     if (bodiesRefs) db.bodies,
                     if (faceRejectionsRefs) db.faceRejections,
                     if (bodyRejectionsRefs) db.bodyRejections,
@@ -15431,6 +16150,27 @@ class $$PersonsTableTableManager
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (kindOverridesRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          KindOverrideRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._kindOverridesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).kindOverridesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.targetPersonId == item.id,
                               ),
                           typedResults: items,
                         ),
@@ -15742,6 +16482,7 @@ typedef $$PersonsTableProcessedTableManager =
       PersonRow,
       PrefetchHooks Function({
         bool facesRefs,
+        bool kindOverridesRefs,
         bool bodiesRefs,
         bool faceRejectionsRefs,
         bool bodyRejectionsRefs,
@@ -17988,6 +18729,438 @@ typedef $$FaceSuppressionsTableProcessedTableManager =
       ),
       FaceSuppressionRow,
       PrefetchHooks Function()
+    >;
+typedef $$KindOverridesTableCreateCompanionBuilder =
+    KindOverridesCompanion Function({
+      Value<int> id,
+      required String assetId,
+      required String kind,
+      Value<String?> part,
+      Value<double?> x,
+      Value<double?> y,
+      Value<double?> w,
+      Value<double?> h,
+      Value<int?> timestampMs,
+      Value<int?> targetPersonId,
+      required int createdAt,
+    });
+typedef $$KindOverridesTableUpdateCompanionBuilder =
+    KindOverridesCompanion Function({
+      Value<int> id,
+      Value<String> assetId,
+      Value<String> kind,
+      Value<String?> part,
+      Value<double?> x,
+      Value<double?> y,
+      Value<double?> w,
+      Value<double?> h,
+      Value<int?> timestampMs,
+      Value<int?> targetPersonId,
+      Value<int> createdAt,
+    });
+
+final class $$KindOverridesTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $KindOverridesTable, KindOverrideRow> {
+  $$KindOverridesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PersonsTable _targetPersonIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('kind_overrides__target_person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager? get targetPersonId {
+    final $_column = $_itemColumn<int>('target_person_id');
+    if ($_column == null) return null;
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_targetPersonIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$KindOverridesTableFilterComposer
+    extends Composer<_$AppDatabase, $KindOverridesTable> {
+  $$KindOverridesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get part => $composableBuilder(
+    column: $table.part,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PersonsTableFilterComposer get targetPersonId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.targetPersonId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$KindOverridesTableOrderingComposer
+    extends Composer<_$AppDatabase, $KindOverridesTable> {
+  $$KindOverridesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get part => $composableBuilder(
+    column: $table.part,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PersonsTableOrderingComposer get targetPersonId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.targetPersonId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$KindOverridesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $KindOverridesTable> {
+  $$KindOverridesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get part =>
+      $composableBuilder(column: $table.part, builder: (column) => column);
+
+  GeneratedColumn<double> get x =>
+      $composableBuilder(column: $table.x, builder: (column) => column);
+
+  GeneratedColumn<double> get y =>
+      $composableBuilder(column: $table.y, builder: (column) => column);
+
+  GeneratedColumn<double> get w =>
+      $composableBuilder(column: $table.w, builder: (column) => column);
+
+  GeneratedColumn<double> get h =>
+      $composableBuilder(column: $table.h, builder: (column) => column);
+
+  GeneratedColumn<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PersonsTableAnnotationComposer get targetPersonId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.targetPersonId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$KindOverridesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $KindOverridesTable,
+          KindOverrideRow,
+          $$KindOverridesTableFilterComposer,
+          $$KindOverridesTableOrderingComposer,
+          $$KindOverridesTableAnnotationComposer,
+          $$KindOverridesTableCreateCompanionBuilder,
+          $$KindOverridesTableUpdateCompanionBuilder,
+          (KindOverrideRow, $$KindOverridesTableReferences),
+          KindOverrideRow,
+          PrefetchHooks Function({bool targetPersonId})
+        > {
+  $$KindOverridesTableTableManager(_$AppDatabase db, $KindOverridesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$KindOverridesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$KindOverridesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$KindOverridesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> assetId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String?> part = const Value.absent(),
+                Value<double?> x = const Value.absent(),
+                Value<double?> y = const Value.absent(),
+                Value<double?> w = const Value.absent(),
+                Value<double?> h = const Value.absent(),
+                Value<int?> timestampMs = const Value.absent(),
+                Value<int?> targetPersonId = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => KindOverridesCompanion(
+                id: id,
+                assetId: assetId,
+                kind: kind,
+                part: part,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                timestampMs: timestampMs,
+                targetPersonId: targetPersonId,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String assetId,
+                required String kind,
+                Value<String?> part = const Value.absent(),
+                Value<double?> x = const Value.absent(),
+                Value<double?> y = const Value.absent(),
+                Value<double?> w = const Value.absent(),
+                Value<double?> h = const Value.absent(),
+                Value<int?> timestampMs = const Value.absent(),
+                Value<int?> targetPersonId = const Value.absent(),
+                required int createdAt,
+              }) => KindOverridesCompanion.insert(
+                id: id,
+                assetId: assetId,
+                kind: kind,
+                part: part,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                timestampMs: timestampMs,
+                targetPersonId: targetPersonId,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$KindOverridesTable, KindOverrideRow>(table),
+                  $$KindOverridesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({targetPersonId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (targetPersonId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.targetPersonId,
+                                referencedTable: $$KindOverridesTableReferences
+                                    ._targetPersonIdTable(db),
+                                referencedColumn: $$KindOverridesTableReferences
+                                    ._targetPersonIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$KindOverridesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $KindOverridesTable,
+      KindOverrideRow,
+      $$KindOverridesTableFilterComposer,
+      $$KindOverridesTableOrderingComposer,
+      $$KindOverridesTableAnnotationComposer,
+      $$KindOverridesTableCreateCompanionBuilder,
+      $$KindOverridesTableUpdateCompanionBuilder,
+      (KindOverrideRow, $$KindOverridesTableReferences),
+      KindOverrideRow,
+      PrefetchHooks Function({bool targetPersonId})
     >;
 typedef $$BodiesTableCreateCompanionBuilder =
     BodiesCompanion Function({
@@ -27069,6 +28242,8 @@ class $AppDatabaseManager {
       $$FacesTableTableManager(_db, _db.faces);
   $$FaceSuppressionsTableTableManager get faceSuppressions =>
       $$FaceSuppressionsTableTableManager(_db, _db.faceSuppressions);
+  $$KindOverridesTableTableManager get kindOverrides =>
+      $$KindOverridesTableTableManager(_db, _db.kindOverrides);
   $$BodiesTableTableManager get bodies =>
       $$BodiesTableTableManager(_db, _db.bodies);
   $$FaceRejectionsTableTableManager get faceRejections =>

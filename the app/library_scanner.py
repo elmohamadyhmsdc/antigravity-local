@@ -163,7 +163,7 @@ class LibraryScanner:
     def body(self):
         if self._body is None and (self.options.detect_bodies or self.options.detect_characters):
             from body_detector import BodyAnalyzer
-            self._body = BodyAnalyzer(log=self.log, use_pose=not self.options.detect_characters,
+            self._body = BodyAnalyzer(log=self.log,
                                       allow_downloads=not self.options.detect_characters)
         return self._body
 

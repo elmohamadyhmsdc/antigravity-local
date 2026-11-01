@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../db/app_database.dart';
 import '../media/media_library.dart';
+import 'kind_corrections.dart';
 
 /// Bump when what a scan extracts changes, so older results are redone.
 const scanVersion = 2;
@@ -277,6 +278,10 @@ class LibraryRepository {
           scanError: Value(error),
         ),
       );
+
+  /// The user's person/character corrections for one file, sent with its scan.
+  Future<KindCorrectionSet> kindCorrections(String assetId) =>
+      KindOverrideStore(_db).forAsset(assetId);
 
   /// Gives a claimed photo back (the PC was busy / unreachable): it is not the photo's fault.
   Future<void> requeue(int mediaId) async {

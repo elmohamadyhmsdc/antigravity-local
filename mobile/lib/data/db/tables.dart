@@ -177,6 +177,32 @@ class FaceSuppressions extends Table {
   TextColumn get occurrences => text()();
 }
 
+/// v15: the user's "this is a person / a character" corrections, sent with every scan of
+/// the file so a rescan never undoes them. Keyed by asset (like suppressions) so they survive
+/// the media row being removed and imported again. `part` null = the whole file;
+/// 'face' | 'body' = one detection at the normalised box (and, in a video, time).
+/// `targetPersonId`: what the next scan finds there joins that person or character, once.
+@TableIndex(name: 'kind_overrides_asset', columns: {#assetId})
+@DataClassName('KindOverrideRow')
+class KindOverrides extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get assetId => text()();
+  TextColumn get kind => text()(); // 'person' | 'character'
+  TextColumn get part =>
+      text().nullable()(); // 'face' | 'body', null = whole file
+  RealColumn get x => real().nullable()();
+  RealColumn get y => real().nullable()();
+  RealColumn get w => real().nullable()();
+  RealColumn get h => real().nullable()();
+  IntColumn get timestampMs => integer().nullable()();
+  IntColumn get targetPersonId => integer().nullable().references(
+    Persons,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  IntColumn get createdAt => integer()();
+}
+
 @TableIndex(name: 'bodies_media_id', columns: {#mediaId})
 @TableIndex(name: 'bodies_person_id', columns: {#personId})
 @TableIndex(name: 'bodies_face_id', columns: {#faceId})

@@ -11,6 +11,7 @@ import '../../data/files/file_store.dart';
 import '../../data/index/embedding_index.dart';
 import '../../data/repositories/library_repository.dart';
 import '../../data/repositories/character_repository.dart';
+import '../../data/repositories/kind_corrections.dart';
 import '../../data/repositories/face_suppression_store.dart';
 import 'drawn_faces.dart';
 import 'scan_math.dart';
@@ -85,7 +86,9 @@ class PhotoResultStore {
     // servers still send them.
     final drawn = {
       for (var i = 0; i < analysis.faces.length; i++)
-        if (isDrawnFace(analysis.faces[i].embedding)) i,
+        if (!analysis.faces[i].forced &&
+            isDrawnFace(analysis.faces[i].embedding))
+          i,
     };
     final gated = [
       for (var i = 0; i < analysis.faces.length; i++)
@@ -524,6 +527,10 @@ class PhotoResultStore {
         frameNumber: frameNumber,
         timestampMs: timestampMs,
       );
+      // Detections the user moved to a person or character join it.
+      await KindOverrideStore(
+        _db,
+      ).applyTargets(media, frameNumber: frameNumber, timestampMs: timestampMs);
       await (_db.update(_db.media)..where((m) => m.id.equals(media.id))).write(
         MediaCompanion(
           scanStatus: Value(complete ? 'done' : 'scanning'),

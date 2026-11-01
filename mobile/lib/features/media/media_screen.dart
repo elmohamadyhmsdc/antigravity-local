@@ -17,6 +17,8 @@ import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
+import '../people/people_actions.dart' show moveToOtherKind;
+import '../scan/scan_progress_card.dart' show startScan;
 import '../shared/person_picker.dart';
 import 'video_media_view.dart';
 import '../../domain/geometry/outline.dart';
@@ -231,6 +233,12 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                   onPressed: () => setState(() => _showBodies = !_showBodies),
                 ),
               IconButton(
+                key: const Key('media-kind'),
+                tooltip: l10n.mediaKindTitle,
+                icon: const Icon(Icons.swap_horiz),
+                onPressed: () => _fileKindMenu(context, media),
+              ),
+              IconButton(
                 key: const Key('google-lens'),
                 tooltip: l10n.searchGoogleLens,
                 icon: const Icon(Icons.camera_alt_outlined),
@@ -359,6 +367,14 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                 title: Text(l10n.notPerson(personName(l10n, person))),
                 onTap: () => Navigator.pop(context, 'reject'),
               ),
+            ListTile(
+              key: const Key('box-kind'),
+              leading: const Icon(Icons.swap_horiz),
+              title: Text(
+                d.figure == 'person' ? l10n.boxIsCharacter : l10n.boxIsPerson,
+              ),
+              onTap: () => Navigator.pop(context, 'kind'),
+            ),
             if (d.isFace)
               ListTile(
                 key: const Key('box-delete'),
@@ -392,7 +408,63 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
           destructive: true,
         );
         if (ok) await repo.deleteFaces([d.refId]);
+      case 'kind':
+        await moveToOtherKind(
+          context,
+          ref,
+          fromKind: d.figure,
+          faceIds: d.isFace ? [d.refId] : const [],
+          bodyIds: d.isFace ? const [] : [d.refId],
+        );
     }
+  }
+
+  /// The whole file is people, characters, or decided per detection; it is scanned again.
+  Future<void> _fileKindMenu(BuildContext context, MediaRow media) async {
+    final l10n = AppLocalizations.of(context);
+    final corrections = ref.read(kindCorrectionsProvider);
+    final current = await corrections.mediaKind(media.id);
+    if (!context.mounted) return;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                l10n.mediaKindTitle,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              subtitle: Text(l10n.mediaKindNote),
+            ),
+            const Divider(height: 1),
+            for (final (value, label, icon) in [
+              ('auto', l10n.mediaKindAuto, Icons.auto_awesome),
+              ('person', l10n.mediaKindPeople, Icons.person_outline),
+              ('character', l10n.mediaKindCharacters, Icons.draw_outlined),
+            ])
+              ListTile(
+                key: Key('media-kind-$value'),
+                leading: Icon(icon),
+                title: Text(label),
+                trailing: (current ?? 'auto') == value
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () => Navigator.pop(context, value),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || choice == (current ?? 'auto')) return;
+    await corrections.setMediaKind(media.id, choice == 'auto' ? null : choice);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.kindMoved(1))));
+    await startScan(ref, enumerate: false);
   }
 }
 

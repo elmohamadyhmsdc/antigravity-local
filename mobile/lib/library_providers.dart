@@ -22,6 +22,7 @@ import 'data/repositories/library_repository.dart';
 import 'data/repositories/media_queries.dart';
 import 'data/repositories/people_repository.dart';
 import 'data/repositories/character_repository.dart';
+import 'data/repositories/kind_corrections.dart';
 import 'data/repositories/review_questions.dart';
 import 'data/repositories/review_repository.dart';
 import 'domain/backup/backup_service.dart';
@@ -125,6 +126,15 @@ final libraryRepositoryProvider = Provider<LibraryRepository>(
 
 final mediaQueriesProvider = Provider<MediaQueries>(
   (ref) => MediaQueries(ref.watch(databaseProvider)),
+);
+
+/// "This is a person / a character" corrections (files, faces, bodies, whole people).
+final kindCorrectionsProvider = Provider<KindCorrections>(
+  (ref) => KindCorrections(
+    ref.watch(databaseProvider),
+    ref.watch(fileStoreProvider),
+    index: ref.watch(embeddingIndexProvider),
+  ),
 );
 
 final peopleRepositoryProvider = Provider<PeopleRepository>(

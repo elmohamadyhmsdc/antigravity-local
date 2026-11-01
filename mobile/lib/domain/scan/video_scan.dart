@@ -225,6 +225,9 @@ class VideoScan {
     String? warning;
     var workerRetries = 0;
     final isCharScan = media.illustrated || characterScan;
+    final corrections = await LibraryRepository(
+      db,
+    ).kindCorrections(media.assetId);
     var nextFrame =
         (await LibraryRepository(db).mediaById(media.id))?.lastScannedFrame ??
         0;
@@ -422,6 +425,9 @@ class VideoScan {
                 detectCharacters: isCharScan,
                 minQuality: prefs.qualityGate,
                 modelId: prefs.modelId,
+                facelessCharacters: media.illustrated,
+                forceKind: corrections.forceKind,
+                kindOverrides: corrections.dtos(timestampMs: timeOf(frame)),
               ),
             );
             status(timeOf(frame));
@@ -528,6 +534,13 @@ class VideoScan {
               'model_id': prefs.modelId,
               'start_frame': current.lastScannedFrame,
               'return_outlines': true,
+              if (!media.illustrated) 'faceless_characters': false,
+              if (corrections.forceKind != null)
+                'force_kind': corrections.forceKind,
+              if (corrections.overrides.isNotEmpty)
+                'kind_overrides': [
+                  for (final o in corrections.dtos()) o.toJson(),
+                ],
             },
           },
         };

@@ -1,0 +1,32 @@
+{
+  "detect_bodies": true,
+  "detect_characters": true,
+  "min_quality": 0.4,
+  "return_crops": true,
+  "body_score": 0.5,
+  "faceless_characters": false,
+  "force_kind": "person",
+  "kind_overrides": [
+    {
+      "kind": "character",
+      "part": "face",
+      "box": [
+        0.25,
+        0.1,
+        0.2,
+        0.15
+      ]
+    },
+    {
+      "kind": "person",
+      "part": "body",
+      "box": [
+        0.0,
+        0.0,
+        0.5,
+        1.0
+      ],
+      "timestamp_ms": 2000
+    }
+  ]
+}

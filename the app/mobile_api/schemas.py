@@ -15,7 +15,7 @@ import numpy as np
 
 import face_quality
 import person_linking as pl
-from analysis import FrameAnalysis, body_crop, face_crop
+from analysis import AnalyzeOptions, FrameAnalysis, body_crop, face_crop
 from outlines import encode_outline
 
 from . import EMBEDDING_DIM, EMBEDDING_MODEL_ID
@@ -85,6 +85,47 @@ class AnalyzeRequestOptions:
     model_id: Optional[str] = None
     detect_characters: bool = False
     return_outlines: bool = False
+    faceless_characters: bool = True
+    force_kind: Optional[str] = None
+    # (kind, part, (x1, y1, x2, y2) normalised, timestamp_ms or None)
+    kind_overrides: tuple = ()
+
+    def engine_options(self, timestamp_ms: Optional[int] = None, tolerance_ms: int = 0) -> AnalyzeOptions:
+        """What analysis.analyze_frame needs. In a video only the corrections made near
+        this frame's time apply; a correction without a time applies to every frame."""
+        overrides = tuple((kind, part, box) for kind, part, box, ts in self.kind_overrides
+                          if ts is None or timestamp_ms is None or abs(ts - timestamp_ms) <= tolerance_ms)
+        return AnalyzeOptions(min_face_quality=self.min_face_quality, detect_characters=self.detect_characters,
+                              detect_bodies=self.detect_bodies, body_score=self.body_score,
+                              outlines=self.return_outlines, faceless_characters=self.faceless_characters,
+                              force_kind=self.force_kind, kind_overrides=overrides)
+
+
+MAX_KIND_OVERRIDES = 4096
+KINDS = ("person", "character")
+
+
+def _kind_overrides(opts: dict) -> tuple:
+    raw = opts.get("kind_overrides", [])
+    if not isinstance(raw, list) or len(raw) > MAX_KIND_OVERRIDES:
+        raise bad_request(f"options.kind_overrides must be a list of at most {MAX_KIND_OVERRIDES} corrections")
+    out = []
+    for i, item in enumerate(raw):
+        where = f"options.kind_overrides[{i}]"
+        if not isinstance(item, dict) or item.get("kind") not in KINDS or item.get("part") not in ("face", "body"):
+            raise bad_request(f"{where} needs kind 'person' | 'character' and part 'face' | 'body'")
+        box = item.get("box")
+        if (not isinstance(box, list) or len(box) != 4
+                or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in box)):
+            raise bad_request(f"{where}.box must be [x, y, w, h] in 0..1")
+        x, y, w, h = (float(v) for v in box)
+        if not (0 <= x <= 1 and 0 <= y <= 1 and 0 < w <= 1 and 0 < h <= 1):
+            raise bad_request(f"{where}.box must be [x, y, w, h] in 0..1")
+        ts = item.get("timestamp_ms")
+        if ts is not None and (isinstance(ts, bool) or not isinstance(ts, int) or ts < 0):
+            raise bad_request(f"{where}.timestamp_ms must be a non-negative integer")
+        out.append((item["kind"], item["part"], (x, y, min(1.0, x + w), min(1.0, y + h)), ts))
+    return tuple(out)
 
 
 def _number(opts: dict, key: str, default: float, lo: float, hi: float) -> float:
@@ -121,13 +162,23 @@ def parse_analyze_options(raw: Optional[str]) -> AnalyzeRequestOptions:
         return_crops=_flag(opts, "return_crops", True),
         model_id=model_id,
         return_outlines=_flag(opts, "return_outlines", False),
+        faceless_characters=_flag(opts, "faceless_characters", True),
+        force_kind=_force_kind(opts),
+        kind_overrides=_kind_overrides(opts),
     )
+
+
+def _force_kind(opts: dict) -> Optional[str]:
+    value = opts.get("force_kind")
+    if value is not None and value not in KINDS:
+        raise bad_request("options.force_kind must be 'person', 'character' or null")
+    return value
 
 
 # --- analyze response -----------------------------------------------------------
 
 def face_json(face, q: Dict, passes: bool, img: np.ndarray, with_crop: bool,
-              outline: Optional[Any] = None, return_outlines: bool = False) -> Dict:
+              outline: Optional[Any] = None, return_outlines: bool = False, forced: bool = False) -> Dict:
     emb = face.normed_embedding
     d = {
         "bbox": bbox_xywh(face.bbox),
@@ -141,6 +192,8 @@ def face_json(face, q: Dict, passes: bool, img: np.ndarray, with_crop: bool,
     }
     if return_outlines:
         d["outline"] = encode_outline(outline) if outline is not None else None
+    if forced:
+        d["forced"] = True  # the user said this is a person: not a drawing, whatever it looks like
     return d
 
 
@@ -163,7 +216,7 @@ def body_json(body, appearance, img: np.ndarray, with_crop: bool,
     return d
 
 
-def character_json(c, img: np.ndarray, with_crop: bool) -> Dict:
+def character_json(c, img: np.ndarray, with_crop: bool, return_outlines: bool = False) -> Dict:
     """A drawn figure shaped like a person: the whole figure plus an optional `face`
     (anime face box, CCIP embedding, crop) and an optional `body` (box, keypoints,
     outfit descriptor, crop). `descriptor` stays for phones that only know the figure."""
@@ -184,8 +237,12 @@ def character_json(c, img: np.ndarray, with_crop: bool) -> Dict:
         body = {"bbox": bbox_xywh(c.body_bbox), "score": round(float(c.body_score), 4), "kpts": kpts,
                 "appearance": None if c.body_appearance is None
                 else [round(float(v), 4) for v in c.body_appearance],
+                "extent": None if c.body_kpt_scores is None else pl.body_extent(c.body_kpt_scores),
                 "crop_jpeg": jpeg_b64(body_crop(img, c.body_bbox, BODY_CROP_MAX_HEIGHT),
                                       10 ** 6) if with_crop else None}
+        if return_outlines:
+            shape = getattr(c, "body_outline", None)
+            body["outline"] = encode_outline(shape) if shape is not None else None
     return {"bbox": bbox_xywh(c.bbox), "score": round(float(c.score), 4), "model_id": c.model_id,
             "descriptor": [round(float(v), 6) for v in c.descriptor],
             "crop_jpeg": jpeg_b64(body_crop(img, c.bbox, BODY_CROP_MAX_HEIGHT), 10 ** 6) if with_crop else None,
@@ -200,11 +257,13 @@ def analysis_to_response(result: FrameAnalysis, img: np.ndarray, options: Analyz
     f_outs = getattr(result, "face_outlines", [])
     b_outs = getattr(result, "body_outlines", [])
 
+    forced = getattr(result, "forced", None) or []
     faces = [
         face_json(
             f, q, p, img, options.return_crops,
             outline=f_outs[i] if i < len(f_outs) else None,
             return_outlines=ret_out,
+            forced=bool(forced[i]) if i < len(forced) else False,
         )
         for i, (f, q, p) in enumerate(zip(result.faces, result.quality, result.passes_gate))
     ]
@@ -220,7 +279,7 @@ def analysis_to_response(result: FrameAnalysis, img: np.ndarray, options: Analyz
              for fi, bi, s in result.pairs]
     out = {"model_id": model_id, "image_w": int(result.image_w), "image_h": int(result.image_h),
            "faces": faces, "bodies": bodies, "pairs": pairs}
-    out["characters"] = [character_json(c, img, options.return_crops) for c in result.characters]
+    out["characters"] = [character_json(c, img, options.return_crops, ret_out) for c in result.characters]
     if result.timings_ms:
         out["timings_ms"] = py(result.timings_ms)
     return out

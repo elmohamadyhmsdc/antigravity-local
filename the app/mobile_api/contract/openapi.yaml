@@ -623,6 +623,39 @@ components:
           type: boolean
           default: false
           description: "ask for face/body polygons; costs one parser pass per stored face and one RMBG pass per body"
+        faceless_characters:
+          type: boolean
+          default: true
+          description: "With detect_characters: a body without a face, in a frame without real faces, is a character. False (a photo the user did not mark illustrated): only next to drawn faces."
+        force_kind:
+          type: [string, "null"]
+          enum: [person, character, null]
+          description: "The user's correction for the whole file: every detection is a person (drawn-face filter off) or a character."
+        kind_overrides:
+          type: array
+          maxItems: 4096
+          description: "The user's corrections of single detections; they win over force_kind."
+          items: { $ref: "#/components/schemas/KindOverride" }
+
+    KindOverride:
+      type: object
+      required: [kind, part, box]
+      properties:
+        kind: { type: string, enum: [person, character] }
+        part:
+          type: string
+          enum: [face, body]
+          description: "face: matches a human or anime face box (IoU or containment); body: a body box at IoU >= 0.5"
+        box:
+          type: array
+          description: "[x, y, w, h] normalised to 0..1 of the image"
+          minItems: 4
+          maxItems: 4
+          items: { type: number, minimum: 0, maximum: 1 }
+        timestamp_ms:
+          type: [integer, "null"]
+          minimum: 0
+          description: "Videos: the correction applies to samples within half a sampling step (at least 250 ms) of this time"
 
     FaceQuality:
       type: object
@@ -665,6 +698,9 @@ components:
         passes_gate:
           type: boolean
           description: Meets det_score, size and min_quality; the phone stores only these as gallery faces
+        forced:
+          type: boolean
+          description: "Present (true) when the user said this face is a person: never treat it as a drawing"
         crop_jpeg:
           oneOf:
             - { $ref: "#/components/schemas/Base64Jpeg" }
@@ -769,6 +805,15 @@ components:
           description: Outfit descriptor, the same one people bodies carry
           type: [array, "null"]
           items: { type: number }
+        extent:
+          type: [string, "null"]
+          enum: [full, knee, upper, head, null]
+          description: How much of the figure is visible, from its keypoints (as for people)
+        outline:
+          description: Silhouette in image pixels, as for people (only with return_outlines)
+          oneOf:
+            - { type: array, minItems: 3, maxItems: 64, items: { type: array, minItems: 2, maxItems: 2, items: { type: number } } }
+            - { type: "null" }
         crop_jpeg:
           oneOf:
             - { $ref: "#/components/schemas/Base64Jpeg" }
@@ -1091,6 +1136,20 @@ components:
           type: boolean
           default: false
           description: "ask for face/body polygons; costs one parser pass per stored face and one RMBG pass per body"
+        detect_characters: { type: boolean, default: false }
+        faceless_characters:
+          type: boolean
+          default: true
+          description: "With detect_characters: a body without a face, in a frame without real faces, is a character. False (a photo the user did not mark illustrated): only next to drawn faces."
+        force_kind:
+          type: [string, "null"]
+          enum: [person, character, null]
+          description: "The user's correction for the whole file: every detection is a person (drawn-face filter off) or a character."
+        kind_overrides:
+          type: array
+          maxItems: 4096
+          description: "The user's corrections of single detections; they win over force_kind."
+          items: { $ref: "#/components/schemas/KindOverride" }
 
     UndressParams:
       type: object

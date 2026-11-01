@@ -418,6 +418,15 @@ class OutlineEngine:
         bodies = getattr(result, "bodies", [])
         body_outlines = self.body_outlines(img, bodies)
 
+        # A character's body gets the same silhouette as a person's (set on the character).
+        drawn = [c for c in getattr(result, "characters", []) if getattr(c, "body_bbox", None) is not None]
+        if drawn:
+            from types import SimpleNamespace
+            shapes = self.body_outlines(img, [SimpleNamespace(bbox=c.body_bbox, kpts=c.body_kpts,
+                                                              kpt_scores=c.body_kpt_scores) for c in drawn])
+            for c, shape in zip(drawn, shapes):
+                c.body_outline = shape
+
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         if hasattr(result, "timings_ms") and isinstance(result.timings_ms, dict):
             result.timings_ms["outline"] = round(elapsed_ms, 1)

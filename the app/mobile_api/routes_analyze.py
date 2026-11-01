@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from analysis import AnalyzeOptions
 
 from .errors import ApiError, bad_request
 from .schemas import analysis_to_response, parse_analyze_options
@@ -35,10 +34,7 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
             await image.close()  # remove any multipart spool before GPU work starts
         if len(data) > ctx.max_image_upload_bytes:
             raise ApiError(413, "too_large", "The image is larger than the server accepts.")
-        engine_options = AnalyzeOptions(min_face_quality=opts.min_face_quality,
-                                        detect_characters=opts.detect_characters,
-                                        detect_bodies=opts.detect_bodies, body_score=opts.body_score,
-                                        outlines=opts.return_outlines)
+        engine_options = opts.engine_options()
         try:
             def compute():
                 with ctx.compute_lock:

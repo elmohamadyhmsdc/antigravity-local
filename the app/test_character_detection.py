@@ -265,5 +265,202 @@ class CharacterTests(unittest.TestCase):
             self.assertNotIn(d, loaded.character_samples)
 
 
+class KindCorrectionTests(unittest.TestCase):
+    """The user's "this is a person / a character" corrections (force_kind, kind_overrides)."""
+
+    def setUp(self):
+        import analysis
+        self.analysis = analysis
+        self.saved = analysis._anime_detector, analysis._ccip_embedder
+        anime = self.anime = []
+
+        class Anime:
+            def detect(self, img, score_thresh):
+                return list(anime)
+
+        class Embedder:
+            def embed_crop(self, crop):
+                v = np.zeros(768, np.float32)
+                v[1] = 1.0
+                return v
+        analysis._anime_detector, analysis._ccip_embedder = Anime(), Embedder()
+
+    def tearDown(self):
+        self.analysis._anime_detector, self.analysis._ccip_embedder = self.saved
+
+    @staticmethod
+    def bodies(*boxes):
+        class Bodies:
+            available = True
+            def analyze(self, img, score_thr):
+                return [body(b) for b in boxes]
+        return Bodies()
+
+    @staticmethod
+    def face(box=(40, 10, 88, 72), score=.9):
+        return SimpleNamespace(bbox=np.array(box, np.float32), det_score=score, kps=None,
+                               embedding=np.ones(512, np.float32))
+
+    def run_frame(self, faces, bodies, quality=.7, **opts):
+        options = AnalyzeOptions(detect_bodies=True, detect_characters=True, **opts)
+        return analyze_frame(None, bodies, drawing(), options, detect=lambda _: list(faces),
+                             assess=lambda img, f: {"quality_score": quality})
+
+    def test_a_real_face_called_a_character_becomes_the_characters_face(self):
+        box = (40 / 128, 10 / 256, 88 / 128, 72 / 256)
+        res = self.run_frame([self.face()], self.bodies((0, 0, 128, 256)),
+                             kind_overrides=(("character", "face", box),))
+        self.assertEqual(res.faces, [])
+        self.assertEqual(res.bodies, [])
+        self.assertEqual(len(res.characters), 1)
+        c = res.characters[0]
+        self.assertEqual(list(c.face_bbox), [40, 10, 88, 72])
+        self.assertEqual(list(c.body_bbox), [0, 0, 128, 256])
+        self.assertEqual(c.face_embedding.shape, (768,))
+
+    def test_an_anime_face_called_a_person_is_kept_as_a_forced_person(self):
+        self.anime.append({"bbox": np.array([40, 10, 88, 72], np.float32), "score": .9})
+        box = (40 / 128, 10 / 256, 88 / 128, 72 / 256)
+        # Low quality and below the gate: still a person, because the user said so.
+        res = self.run_frame([self.face(score=.9)], self.bodies((0, 0, 128, 256)), quality=.2,
+                             min_face_quality=.4, kind_overrides=(("person", "face", box),))
+        self.assertEqual(len(res.faces), 1)
+        self.assertEqual(res.forced, [True])
+        self.assertEqual(res.passes_gate, [True])
+        self.assertEqual(res.characters, [])
+        self.assertEqual(len(res.bodies), 1)
+        self.assertEqual(len(res.pairs), 1)
+
+    def test_a_person_face_missed_by_the_full_frame_pass_is_searched_around_its_box(self):
+        calls = []
+
+        def detect(img):
+            calls.append(img.shape)
+            if len(calls) == 1:
+                return []  # the whole frame: nothing
+            return [self.face((20, 20, 40, 44))]  # the crop: a face, in crop coordinates
+        options = AnalyzeOptions(detect_bodies=False, detect_characters=True,
+                                 kind_overrides=(("person", "face", (40 / 128, 30 / 256, 60 / 128, 54 / 256)),))
+        res = analyze_frame(None, self.bodies(), drawing(), options, detect=detect,
+                            assess=lambda img, f: {"quality_score": .7})
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(res.faces), 1)
+        self.assertEqual([float(v) for v in res.faces[0].bbox], [40.0, 26.0, 60.0, 50.0])  # crop starts at (20, 6)
+
+    def test_force_person_keeps_drawn_faces_and_makes_no_characters(self):
+        import drawn_faces
+        self.anime.append({"bbox": np.array([40, 10, 88, 72], np.float32), "score": .9})
+        saved = drawn_faces.is_drawn
+        drawn_faces.is_drawn = lambda e: True
+        try:
+            res = self.run_frame([self.face()], self.bodies((0, 0, 128, 256)), force_kind="person")
+        finally:
+            drawn_faces.is_drawn = saved
+        self.assertEqual(len(res.faces), 1)
+        self.assertEqual(res.forced, [True])
+        self.assertEqual(res.characters, [])
+        self.assertEqual(len(res.bodies), 1)
+
+    def test_force_character_turns_a_real_face_and_its_body_into_a_character(self):
+        res = self.run_frame([self.face()], self.bodies((0, 0, 128, 256)), force_kind="character")
+        self.assertEqual((res.faces, res.bodies), ([], []))
+        self.assertEqual(len(res.characters), 1)
+        self.assertIsNotNone(res.characters[0].face_bbox)
+
+    def test_a_single_correction_wins_over_the_whole_frame(self):
+        box = (40 / 128, 10 / 256, 88 / 128, 72 / 256)
+        res = self.run_frame([self.face()], self.bodies((0, 0, 128, 256)), force_kind="character",
+                             kind_overrides=(("person", "face", box), ("person", "body", (0, 0, 1, 1))))
+        self.assertEqual(len(res.faces), 1)
+        self.assertEqual(len(res.bodies), 1)
+        self.assertEqual(res.characters, [])
+
+    def test_bodies_called_people_or_characters_follow_the_user(self):
+        to_person = self.run_frame([], self.bodies((0, 0, 128, 256)),
+                                   kind_overrides=(("person", "body", (0, 0, 1, 1)),))
+        self.assertEqual((len(to_person.bodies), to_person.characters), (1, []))
+        # A real face elsewhere would normally make this faceless body a person.
+        to_char = self.run_frame([self.face((100, 200, 124, 228))], self.bodies((0, 0, 90, 190)),
+                                 kind_overrides=(("character", "body", (0, 0, 90 / 128, 190 / 256)),))
+        self.assertEqual(len(to_char.characters), 1)
+        self.assertEqual(to_char.bodies, [])
+
+    def test_a_faceless_body_in_an_ordinary_photo_stays_a_person(self):
+        photo = self.run_frame([], self.bodies((0, 0, 128, 256)), faceless_characters=False)
+        self.assertEqual((len(photo.bodies), photo.characters), (1, []))
+        illustrated = self.run_frame([], self.bodies((0, 0, 128, 256)))
+        self.assertEqual((illustrated.bodies, len(illustrated.characters)), ([], 1))
+        # Next to a drawn face, a faceless figure is a character even in an ordinary photo.
+        self.anime.append({"bbox": np.array([2, 2, 20, 20], np.float32), "score": .9})
+        drawn = self.run_frame([], self.bodies((40, 60, 128, 256)), faceless_characters=False)
+        self.assertEqual(len(drawn.characters), 2)
+
+    def test_wire_options_corrections_and_forced_faces(self):
+        from analysis import FrameAnalysis
+        from mobile_api.schemas import analysis_to_response, parse_analyze_options
+        opts = parse_analyze_options(json.dumps({
+            "detect_characters": True, "faceless_characters": False, "force_kind": "character",
+            "kind_overrides": [{"kind": "person", "part": "face", "box": [.25, .5, .5, .25]},
+                               {"kind": "character", "part": "body", "box": [0, 0, 1, 1], "timestamp_ms": 2000}]}))
+        self.assertFalse(opts.faceless_characters)
+        self.assertEqual(opts.force_kind, "character")
+        self.assertEqual(opts.kind_overrides[0], ("person", "face", (.25, .5, .75, .75), None))
+        engine = opts.engine_options(timestamp_ms=5000, tolerance_ms=500)
+        self.assertEqual(engine.kind_overrides, (("person", "face", (.25, .5, .75, .75)),))
+        self.assertEqual(len(opts.engine_options(timestamp_ms=2400, tolerance_ms=500).kind_overrides), 2)
+        self.assertEqual(len(opts.engine_options().kind_overrides), 2)
+        for bad in ({"force_kind": "robot"},
+                    {"kind_overrides": [{"kind": "person", "part": "hand", "box": [0, 0, 1, 1]}]},
+                    {"kind_overrides": [{"kind": "person", "part": "face", "box": [0, 0, 0, 1]}]},
+                    {"kind_overrides": [{"kind": "person", "part": "face", "box": [0, 0, 1, 1], "timestamp_ms": -1}]},
+                    {"kind_overrides": "all"}):
+            with self.assertRaises(Exception):
+                parse_analyze_options(json.dumps(bad))
+        q = {"quality_score": .7, "quality_version": 2, "quality_parts": {}, "det_score": .9, "face_px": 48,
+             "sharpness": 1.0, "embedding_norm": 20.0, "pose": None}
+        face = SimpleNamespace(bbox=np.array([40, 10, 88, 72], np.float32), det_score=.9,
+                               kps=np.zeros((5, 2), np.float32),
+                               normed_embedding=np.ones(512, np.float32) / 512 ** .5)
+        result = FrameAnalysis([face, face], [q, q], [True, True], [], [], [], image_w=128, image_h=256,
+                               forced=[True, False])
+        wire = analysis_to_response(result, drawing(), opts)
+        self.assertIs(wire["faces"][0]["forced"], True)
+        self.assertNotIn("forced", wire["faces"][1])
+
+    def test_character_body_gets_extent_and_outline_through_worker_and_wire(self):
+        from analysis import FrameAnalysis
+        from mobile_api.scan_worker import decode_result, encode_result
+        from mobile_api.schemas import AnalyzeRequestOptions, analysis_to_response
+        kb = SimpleNamespace(bbox=np.array([0, 0, 128, 256], np.float32), score=.95,
+                             kpts=np.full((17, 2), 64, np.float32), kpt_scores=np.full(17, .9, np.float32))
+        c = detect_characters(drawing(), [kb])[0]
+        c.body_outline = np.array([[0, 0], [100, 0], [100, 200]], np.float32)
+        result = FrameAnalysis([], [], [], [], [], [], image_w=128, image_h=256, characters=[c])
+        decoded = decode_result(json.loads(json.dumps(encode_result(result))))
+        self.assertEqual(decoded.characters[0].body_outline.shape, (3, 2))
+        wire = analysis_to_response(decoded, drawing(), AnalyzeRequestOptions(detect_characters=True,
+                                                                                return_outlines=True))
+        self.assertEqual(wire["characters"][0]["body"]["extent"], "full")
+        self.assertIsNotNone(wire["characters"][0]["body"]["outline"])
+        plain = analysis_to_response(decoded, drawing(), AnalyzeRequestOptions(detect_characters=True))
+        self.assertNotIn("outline", plain["characters"][0]["body"])
+
+    def test_outline_engine_draws_character_bodies(self):
+        from outlines import OutlineEngine
+        engine = OutlineEngine.__new__(OutlineEngine)
+        seen = []
+        engine.face_outline = lambda img, face: None
+
+        def shapes(img, bodies):
+            seen.append(len(bodies))
+            return [np.zeros((3, 2))] * len(bodies)
+        engine.body_outlines = shapes
+        c = detect_characters(drawing(), [body()])[0]
+        result = SimpleNamespace(faces=[], passes_gate=[], bodies=[], characters=[c], timings_ms={})
+        engine.compute(drawing(), result)
+        self.assertEqual(seen, [0, 1])
+        self.assertEqual(c.body_outline.shape, (3, 2))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

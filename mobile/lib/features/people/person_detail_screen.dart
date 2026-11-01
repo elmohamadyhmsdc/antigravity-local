@@ -227,7 +227,7 @@ class PersonDetailScreen extends ConsumerWidget {
                           title: l10n.noPhotosOfPerson,
                         ),
                       ),
-                      _BodiesTab(personId: personId),
+                      _BodiesTab(personId: personId, kind: p.kind),
                       _SuggestionsTab(person: p),
                     ],
                   ),
@@ -318,9 +318,10 @@ class PersonDetailScreen extends ConsumerWidget {
 }
 
 class _BodiesTab extends ConsumerWidget {
-  const _BodiesTab({required this.personId});
+  const _BodiesTab({required this.personId, required this.kind});
 
   final int personId;
+  final String kind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -413,21 +414,37 @@ class _BodiesTab extends ConsumerWidget {
     BodyItem b,
   ) async {
     final l10n = AppLocalizations.of(context);
-    final ok = await showModalBottomSheet<bool>(
+    final action = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
-        child: ListTile(
-          key: const Key('body-not-this-person'),
-          leading: const Icon(Icons.person_off_outlined),
-          title: Text(l10n.notThisPerson),
-          onTap: () => Navigator.pop(context, true),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              key: const Key('body-not-this-person'),
+              leading: const Icon(Icons.person_off_outlined),
+              title: Text(l10n.notThisPerson),
+              onTap: () => Navigator.pop(context, 'reject'),
+            ),
+            ListTile(
+              key: const Key('body-kind'),
+              leading: const Icon(Icons.swap_horiz),
+              title: Text(
+                kind == 'person' ? l10n.boxIsCharacter : l10n.boxIsPerson,
+              ),
+              onTap: () => Navigator.pop(context, 'kind'),
+            ),
+          ],
         ),
       ),
     );
-    if (ok == true) {
+    if (!context.mounted) return;
+    if (action == 'reject') {
       await ref
           .read(peopleRepositoryProvider)
           .rejectBody(b.id, personId: personId);
+    } else if (action == 'kind') {
+      await moveToOtherKind(context, ref, fromKind: kind, bodyIds: [b.id]);
     }
   }
 }

@@ -128,13 +128,21 @@ class CharacterRepository {
       }
       if (same != null) {
         usedBodies.add(same.id);
-        if (faceId != null) {
-          await db.customUpdate(
-            'UPDATE bodies SET face_id = COALESCE(face_id, ?) WHERE id = ?',
-            variables: [Variable.withInt(faceId), Variable.withInt(same.id)],
-            updates: {db.bodies},
-          );
-        }
+        await db.customUpdate(
+          'UPDATE bodies SET face_id = COALESCE(face_id, ?), kpts = ?, extent = ?, appearance = COALESCE(?, appearance) WHERE id = ?',
+          variables: [
+            Variable<int>(faceId),
+            Variable<String>(_kpts(body, w, h)),
+            Variable<String>(body.extent),
+            Variable<Uint8List>(
+              body.appearance == null
+                  ? null
+                  : appearanceToBlob(body.appearance!),
+            ),
+            Variable.withInt(same.id),
+          ],
+          updates: {db.bodies},
+        );
         await _putDetection(
           media.id,
           'b',
@@ -142,6 +150,7 @@ class CharacterRepository {
           box,
           frameNumber,
           timestampMs,
+          encodeOutline(body.outline, body.bbox),
         );
         continue;
       }
@@ -159,6 +168,7 @@ class CharacterRepository {
               bboxH: box.h,
               score: body.score,
               kpts: Value(_kpts(body, w, h)),
+              extent: Value(body.extent),
               appearance: Value(
                 body.appearance == null
                     ? null

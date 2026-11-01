@@ -9,12 +9,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/router.dart';
+import '../../data/repositories/kind_corrections.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../shared/crop_image.dart';
 import '../shared/person_picker.dart';
 import '../shared/empty_state.dart';
+import '../scan/scan_progress_card.dart' show startScan;
 import 'action_face_picker.dart';
 import 'action_sheet.dart';
 
@@ -51,6 +53,10 @@ List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
     ),
     if (single && people.first.kind == 'person')
       const PeopleMenuAction('studio', Icons.face_retouching_natural),
+    PeopleMenuAction(
+      people.first.kind == 'person' ? 'toCharacters' : 'toPeople',
+      Icons.swap_horiz,
+    ),
     const PeopleMenuAction('export', Icons.ios_share),
     if (single) const PeopleMenuAction('details', Icons.info_outline),
     const PeopleMenuAction(
@@ -90,6 +96,10 @@ List<PeopleMenuAction> faceMenuActions(List<FaceItem> faces) {
       const PeopleMenuAction('save', Icons.save_alt),
       const PeopleMenuAction('details', Icons.info_outline),
     ],
+    PeopleMenuAction(
+      faces.first.kind == 'person' ? 'toCharacters' : 'toPeople',
+      Icons.swap_horiz,
+    ),
     const PeopleMenuAction('export', Icons.ios_share),
     const PeopleMenuAction(
       'ignore',
@@ -285,6 +295,10 @@ Future<void> runPersonAction(
         return;
       case 'merge':
         await _merge(context, ref, people);
+        return;
+      case 'toCharacters':
+      case 'toPeople':
+        await moveToOtherKind(context, ref, fromKind: kind, people: people);
         return;
       case 'cover':
         final option = await showPeopleActionSheet(
@@ -579,6 +593,10 @@ Future<void> runFaceAction(
       case 'export':
         await exportPeopleFaces(context, ref, faces);
         return;
+      case 'toCharacters':
+      case 'toPeople':
+        await moveToOtherKind(context, ref, fromKind: kind, faceIds: ids);
+        return;
       case 'similar':
         await Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => SimilarFacesScreen(face: f)),
@@ -606,6 +624,52 @@ Future<void> runFaceAction(
         return;
     }
     if (context.mounted) peopleUpdated(context);
+  } catch (e) {
+    if (context.mounted) peopleError(context, e);
+  }
+}
+
+/// People/characters, faces or bodies go to the other kind. The files are scanned again, because
+/// a person is measured with ArcFace and a character with CCIP; the corrections are remembered.
+Future<void> moveToOtherKind(
+  BuildContext context,
+  WidgetRef ref, {
+  required String fromKind,
+  List<PersonSummary> people = const [],
+  List<int> faceIds = const [],
+  List<int> bodyIds = const [],
+}) async {
+  final l = AppLocalizations.of(context);
+  final label = l.peopleAction(
+    fromKind == 'person' ? 'toCharacters' : 'toPeople',
+  );
+  final yes = await confirm(
+    context,
+    title: label,
+    body: l.peopleAction('kindMoveNote'),
+    confirmLabel: label,
+    cancelLabel: l.cancel,
+  );
+  if (!yes || !context.mounted) return;
+  final corrections = ref.read(kindCorrectionsProvider);
+  try {
+    var files = 0;
+    if (people.isNotEmpty) {
+      for (final p in people) {
+        files += (await corrections.movePerson(p.id)).files;
+      }
+    } else {
+      files = await corrections.moveDetections(
+        faceIds: faceIds,
+        bodyIds: bodyIds,
+        toKind: otherKind(fromKind),
+      );
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l.kindMoved(files))));
+    await startScan(ref, enumerate: false);
   } catch (e) {
     if (context.mounted) peopleError(context, e);
   }

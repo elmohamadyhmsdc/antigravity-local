@@ -41,8 +41,8 @@ class InsightEngines:
         from cuda_dll_dirs import add_nvidia_dll_dirs
         add_nvidia_dll_dirs()
         from body_detector import BodyAnalyzer
-        if self._body is None or (faces and not self._body.use_pose):
-            self._body = BodyAnalyzer(log=self._log, allow_downloads=False, use_pose=faces)
+        if self._body is None:  # characters get keypoints like people
+            self._body = BodyAnalyzer(log=self._log, allow_downloads=False)
         if not faces or self._face_app is not None:
             return
         from insightface.app import FaceAnalysis

@@ -152,6 +152,11 @@ def system_fixtures():
     write("PairRequest.ok", {"code": "K7QM-3XRD", "device_name": "Pixel 8"})
     write("AnalyzeImageOptions.default", {"detect_bodies": True, "detect_characters": False, "min_quality": 0.4, "return_crops": True,
                                           "body_score": 0.5, "model_id": "buffalo_l@1"})
+    write("AnalyzeImageOptions.kind_corrections", {
+        "detect_bodies": True, "detect_characters": True, "min_quality": 0.4, "return_crops": True,
+        "body_score": 0.5, "faceless_characters": False, "force_kind": "person",
+        "kind_overrides": [{"kind": "character", "part": "face", "box": [0.25, 0.1, 0.2, 0.15]},
+                           {"kind": "person", "part": "body", "box": [0.0, 0.0, 0.5, 1.0], "timestamp_ms": 2000}]})
     write("MissingBlobsError.reface", {
         "error": {"code": "missing_blobs", "message": "1 input blob is not cached on the server.", "retryable": True},
         "missing": [sha("target-photo")],
@@ -237,7 +242,7 @@ def analyze_fixture():
                                  "embedding_model_id": "ccip-caformer24@1",
                                  "embedding": base64.b64encode(ccip.tobytes()).decode("ascii"), "crop_jpeg": None},
                         "body": {"bbox": {"x": 0, "y": 0, "w": 128, "h": 256}, "score": .88, "kpts": None,
-                                 "appearance": [0.0] * 80, "crop_jpeg": None}}],
+                                 "appearance": [0.0] * 80, "extent": "upper", "crop_jpeg": None}}],
     })
     write("AnalyzeOutlinesResponse.two_targets", {
         "outlines": [face_a["outline"], body["outline"]],

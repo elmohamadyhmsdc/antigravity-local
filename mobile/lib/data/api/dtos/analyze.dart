@@ -135,6 +135,7 @@ class DetectedFace {
     required this.passesGate,
     this.cropJpeg,
     this.outline,
+    this.forced = false,
   });
 
   final BBox bbox;
@@ -145,6 +146,9 @@ class DetectedFace {
   final bool passesGate; // the phone stores only faces that pass
   final Uint8List? cropJpeg;
   final List<Offset>? outline;
+
+  /// The user said this is a person: never dropped as a drawing.
+  final bool forced;
 
   factory DetectedFace.fromJson(
     Map<String, dynamic> json, [
@@ -167,6 +171,7 @@ class DetectedFace {
       passesGate: field<bool>(json, 'passes_gate', path),
       cropJpeg: crop is String ? base64Decode(crop) : null,
       outline: _parseOutline(json['outline']),
+      forced: json['forced'] == true,
     );
   }
 }
@@ -393,6 +398,9 @@ class AnalyzeOptions {
     this.modelId,
     this.detectCharacters = false,
     this.returnOutlines = true,
+    this.facelessCharacters = true,
+    this.forceKind,
+    this.kindOverrides = const [],
   });
 
   final bool detectBodies;
@@ -403,6 +411,14 @@ class AnalyzeOptions {
   final bool detectCharacters;
   final bool returnOutlines;
 
+  /// A faceless body in a frame without real faces is a character. False for files the user
+  /// did not mark illustrated: then only next to drawn faces.
+  final bool facelessCharacters;
+
+  /// The user's corrections: the whole file ('person' | 'character'), and single detections.
+  final String? forceKind;
+  final List<KindOverrideDto> kindOverrides;
+
   Map<String, dynamic> toJson() => {
     'detect_bodies': detectBodies,
     'detect_characters': detectCharacters,
@@ -411,6 +427,32 @@ class AnalyzeOptions {
     'body_score': bodyScore,
     if (modelId != null) 'model_id': modelId,
     if (returnOutlines) 'return_outlines': true,
+    if (!facelessCharacters) 'faceless_characters': false,
+    if (forceKind != null) 'force_kind': forceKind,
+    if (kindOverrides.isNotEmpty)
+      'kind_overrides': [for (final o in kindOverrides) o.toJson()],
+  };
+}
+
+/// openapi.yaml `KindOverride`: "this face / body is a person (or a character)".
+class KindOverrideDto {
+  const KindOverrideDto({
+    required this.kind,
+    required this.part,
+    required this.box,
+    this.timestampMs,
+  });
+
+  final String kind; // 'person' | 'character'
+  final String part; // 'face' | 'body'
+  final ({double x, double y, double w, double h}) box; // normalised
+  final int? timestampMs;
+
+  Map<String, dynamic> toJson() => {
+    'kind': kind,
+    'part': part,
+    'box': [box.x, box.y, box.w, box.h],
+    if (timestampMs != null) 'timestamp_ms': timestampMs,
   };
 }
 

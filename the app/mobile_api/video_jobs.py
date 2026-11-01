@@ -18,7 +18,6 @@ from datetime import datetime, timezone
 
 import cv2
 
-from analysis import AnalyzeOptions
 from .errors import ApiError, bad_request, not_found
 from .gpu_guard import Busy
 from .schemas import analysis_to_response, parse_analyze_options
@@ -179,10 +178,8 @@ class VideoJobs:
             frame_no = origin + ((lower_bound - origin + step - 1) // step) * step
             first_sample = origin + ((max(params.get('start_frame', 0), origin) - origin + step - 1) // step) * step
             opts = parse_analyze_options(json.dumps(params))
-            engine_opts = AnalyzeOptions(min_face_quality=opts.min_face_quality,
-                                         detect_characters=opts.detect_characters,
-                                         detect_bodies=opts.detect_bodies, body_score=opts.body_score,
-                                         outlines=opts.return_outlines)
+            # A correction made on one frame applies to the samples within half a step of it.
+            tolerance_ms = max(250, round(step * 500 / fps))
             with self.lock:
                 job.update(status="running", started_at=job["started_at"] or stamp(),
                            error=None, details={**job['details'], "fps": fps, "total_frames": total,
@@ -252,6 +249,7 @@ class VideoJobs:
                                    preview_timestamp_ms=round(frame_no * 1000 / fps))
                         job['details']['stage'] = 'inference'
                         job['message'] = 'Detecting faces and people in the current sample'
+                    engine_opts = opts.engine_options(round(frame_no * 1000 / fps), tolerance_ms)
                     with self.ctx.compute_lock:
                         result = self.ctx.engines.analyze(img, engine_opts)
                     line = analysis_to_response(result, img, opts, self.ctx.engines.model_id)

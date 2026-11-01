@@ -70,6 +70,14 @@ class AnalyzeOptions:
     body_score: float = 0.5
     detect_characters: bool = False
     outlines: bool = False
+    # In character mode, a body with no face in a frame without real faces is a character.
+    # False (photos the user did not mark illustrated): only when the frame shows drawn faces.
+    faceless_characters: bool = True
+    # The user's corrections. force_kind 'person' | 'character' is the whole frame;
+    # kind_overrides are (kind, 'face' | 'body', (x1, y1, x2, y2) normalised) for single
+    # detections and win over force_kind.
+    force_kind: Optional[str] = None
+    kind_overrides: tuple = ()
 
 
 @dataclass
@@ -86,6 +94,7 @@ class FrameAnalysis:
     characters: list = field(default_factory=list)
     face_outlines: list = field(default_factory=list)
     body_outlines: list = field(default_factory=list)
+    forced: List[bool] = field(default_factory=list)  # per face: the user said this is a person
 
     @property
     def body_of_face(self) -> Dict[int, int]:
@@ -170,19 +179,49 @@ def analyze_frame(face_app, body, img, options,
     detect = detect or (lambda im: detect_faces(face_app, im))
     assess = assess or assess_face
     timings: Dict[str, float] = {}
-    want_characters = getattr(options, "detect_characters", False)
+    h, w = img.shape[:2]
+    from face_routing import box_iou, overlaps_real_face
+    force = getattr(options, "force_kind", None)
+    overrides = [(kind, part, np.array([b[0] * w, b[1] * h, b[2] * w, b[3] * h], np.float32))
+                 for kind, part, b in (getattr(options, "kind_overrides", None) or ())]
+
+    def kind_of(box, part):
+        """The user's kind for this detection: its own correction, else the frame's, else None."""
+        for kind, p, obox in reversed(overrides):
+            if p == part and (overlaps_real_face(box, obox) if part == "face" else box_iou(box, obox) >= 0.5):
+                return kind
+        return force
+
+    want_characters = any(k == "character" for k, _, _ in overrides) or (
+        force != "person" and (getattr(options, "detect_characters", False) or force == "character"))
 
     t = time.perf_counter()
     # Character mode still looks for faces: a clear real face is a person, not a drawing.
     faces = detect(img) if can_detect or not want_characters else []
+    if can_detect:
+        # A face the user called a person where the full-frame pass found none: look closer.
+        for _, part, obox in overrides:
+            if part == "face" and kind_of(obox, "face") == "person" \
+                    and not any(overlaps_real_face(f.bbox, obox) for f in faces):
+                found = _face_in_region(detect, img, obox)
+                if found is not None:
+                    faces.append(found)
     timings["detect"] = (time.perf_counter() - t) * 1000.0
     t = time.perf_counter()
     quality = [assess(img, f) for f in faces]
     timings["quality"] = (time.perf_counter() - t) * 1000.0
     passes = [face_quality.passes_gate(f, options.min_face_quality, q["quality_score"])
               for f, q in zip(faces, quality)]
+    face_kinds = [kind_of(f.bbox, "face") for f in faces]
     # Drawn faces get good quality scores too; the embedding tells them apart.
-    drawn = [drawn_faces.is_drawn(getattr(f, "embedding", None)) for f in faces]
+    drawn = [k != "person" and drawn_faces.is_drawn(getattr(f, "embedding", None))
+             for f, k in zip(faces, face_kinds)]
+    for i, f in enumerate(faces):
+        # A single face the user called a person is stored even below the gate.
+        if face_kinds[i] == "person" and any(p == "face" and overlaps_real_face(f.bbox, b)
+                                             for _, p, b in overrides):
+            passes[i] = True
+    forced = [k == "person" for k in face_kinds]
 
     # Detect anime faces if characters are requested
     anime_faces = []
@@ -191,14 +230,21 @@ def analyze_frame(face_app, body, img, options,
         if ad is not None:
             try:
                 raw_anime = ad.detect(img, score_thresh=0.55)
-                from face_routing import overlaps_real_face
                 # Real face veto at 0.40 quality/det threshold
                 veto_boxes = [f.bbox for i, f in enumerate(faces)
-                              if passes[i] and not drawn[i] and quality[i]["quality_score"] >= 0.40]
+                              if face_kinds[i] == "person" or (face_kinds[i] is None and passes[i]
+                                                                and not drawn[i]
+                                                                and quality[i]["quality_score"] >= 0.40)]
                 anime_faces = [a for a in raw_anime
-                               if not any(overlaps_real_face(rbox, a["bbox"]) for rbox in veto_boxes)]
+                               if not any(overlaps_real_face(rbox, a["bbox"]) for rbox in veto_boxes)
+                               and kind_of(a["bbox"], "face") != "person"]
             except Exception:
                 anime_faces = []
+        # A human face the user called a character is that character's face.
+        for i, f in enumerate(faces):
+            if face_kinds[i] == "character":
+                anime_faces = [a for a in anime_faces if not overlaps_real_face(f.bbox, a["bbox"])]
+                anime_faces.append({"bbox": np.asarray(f.bbox, np.float32), "score": float(f.det_score)})
 
     bodies: list = []
     if want_characters and (body is None or not getattr(body, "available", False)):
@@ -207,65 +253,90 @@ def analyze_frame(face_app, body, img, options,
         t = time.perf_counter()
         bodies = body.analyze(img, score_thr=options.body_score)
         timings["body"] = (time.perf_counter() - t) * 1000.0
+    body_kinds = [kind_of(b.bbox, "body") for b in bodies]
     characters = []
     if want_characters:
         from character_detection import attach_identity, detect_characters
         t = time.perf_counter()
-        characters = detect_characters(img, bodies, anime_faces=anime_faces)
-        # A body around a clear real face is a real person: keep the face (it goes to
-        # People) and drop that "character".
-        faces_orig = list(faces)
+        candidates = [i for i, k in enumerate(body_kinds) if k != "person"]
+        characters = detect_characters(img, [bodies[i] for i in candidates], anime_faces=anime_faces,
+                                       keep=lambda b: kind_of(b.bbox, "body") == "character")
         real = [i for i, f in enumerate(faces)
-                if passes[i] and not drawn[i] and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY]
-        if real:
-            # In photos with real human people, characters must have an anime face.
-            # Faceless bodies in a photo with real people are human bodies, never cartoons.
-            characters = [c for c in characters
-                          if getattr(c, "face_bbox", None) is not None
-                          and not any(_centre_inside(faces[i].bbox, c.bbox) for i in real)]
-        else:
-            characters = [c for c in characters
-                          if not any(_centre_inside(faces[i].bbox, c.bbox) for i in real)]
+                if face_kinds[i] == "person" or (face_kinds[i] is None and passes[i] and not drawn[i]
+                                                 and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY)]
+        # Without real faces, a faceless figure is a character only in a drawn source or
+        # next to drawn faces; a person seen from behind in a photo stays a person.
+        drawn_here = bool(anime_faces) or any(d and k is None for d, k in zip(drawn, face_kinds))
+        faceless_ok = not real and (getattr(options, "faceless_characters", True) or drawn_here)
+
+        def keep(c):
+            if c.body_bbox is not None and kind_of(c.body_bbox, "body") == "character":
+                return True
+            # A body around a clear real face is a real person: keep the face (it goes to
+            # People) and drop that "character".
+            if any(_centre_inside(faces[i].bbox, c.bbox) for i in real):
+                return False
+            return c.face_bbox is not None or faceless_ok
+
+        characters = [c for c in characters if keep(c)]
         attach_identity(img, characters, get_ccip_embedder())
         timings["characters"] = (time.perf_counter() - t) * 1000.0
+        drawn_face_boxes = [f.bbox for i, f in enumerate(faces) if drawn[i] and face_kinds[i] is None]
         faces = [faces[i] for i in real]
         quality = [quality[i] for i in real]
-        passes = [True] * len(real)
+        passes = [passes[i] for i in real]
+        forced = [forced[i] for i in real]
         # Illustrated characters never become human body identities,
         # but real human bodies must be preserved when detect_bodies is requested.
-        if options.detect_bodies:
-            char_body_boxes = [
-                c.body_bbox if getattr(c, "body_bbox", None) is not None else c.bbox
-                for c in characters
-            ]
-            drawn_face_boxes = [f.bbox for i, f in enumerate(faces_orig) if drawn[i]]
-            def _is_char_body(b):
-                if any(np.allclose(b.bbox, cbox, atol=1.0) for cbox in char_body_boxes):
-                    return True
-                if any(_centre_inside(dbox, b.bbox) for dbox in drawn_face_boxes):
-                    return True
-                return False
-            bodies = [b for b in bodies if not _is_char_body(b)]
-        else:
-            bodies = []
+        char_body_boxes = [c.body_bbox if getattr(c, "body_bbox", None) is not None else c.bbox
+                           for c in characters]
+
+        def is_char_body(b):
+            if any(np.allclose(b.bbox, cbox, atol=1.0) for cbox in char_body_boxes):
+                return True
+            return any(_centre_inside(dbox, b.bbox) for dbox in drawn_face_boxes)
+
+        bodies = [b for b, k in zip(bodies, body_kinds)
+                  if k == "person" or (options.detect_bodies and not is_char_body(b))]
     pairs = pl.associate_faces_bodies([f.bbox for f in faces], bodies,
                                       face_kps=[f.kps for f in faces]) if bodies else []
     if any(drawn) and not want_characters:
         # A drawn face is no person, and the body around it is a drawn figure.
-        drawn_bodies = {bi for fi, bi, _ in pairs if drawn[fi]}
+        drawn_bodies = {bi for fi, bi, _ in pairs if drawn[fi] and kind_of(bodies[bi].bbox, "body") != "person"}
         face_at = {old: new for new, old in enumerate(i for i in range(len(faces)) if not drawn[i])}
         body_at = {old: new for new, old in enumerate(i for i in range(len(bodies)) if i not in drawn_bodies)}
         pairs = [(face_at[fi], body_at[bi], s) for fi, bi, s in pairs if fi in face_at and bi in body_at]
         faces = [f for i, f in enumerate(faces) if i in face_at]
         quality = [q for i, q in enumerate(quality) if i in face_at]
         passes = [g for i, g in enumerate(passes) if i in face_at]
+        forced = [g for i, g in enumerate(forced) if i in face_at]
         bodies = [b for i, b in enumerate(bodies) if i in body_at]
     appearances = [pl.appearance_descriptor(img, b.bbox, b.kpts, b.kpt_scores) for b in bodies]
 
-    h, w = img.shape[:2]
     return FrameAnalysis(faces=faces, quality=quality, passes_gate=passes, bodies=bodies,
                          appearances=appearances, pairs=list(pairs), image_w=w, image_h=h, characters=characters,
-                         timings_ms={k: round(v, 1) for k, v in timings.items()})
+                         timings_ms={k: round(v, 1) for k, v in timings.items()}, forced=forced)
+
+
+def _face_in_region(detect, img, box):
+    """The best face found around `box` (twice its size each way), in frame coordinates."""
+    h, w = img.shape[:2]
+    x1, y1, x2, y2 = [float(v) for v in box]
+    bw, bh = max(x2 - x1, 1.0), max(y2 - y1, 1.0)
+    left, top = int(max(0.0, x1 - bw)), int(max(0.0, y1 - bh))
+    right, bottom = int(min(float(w), x2 + bw)), int(min(float(h), y2 + bh))
+    if min(right - left, bottom - top) < 16:
+        return None
+    from face_routing import overlaps_real_face
+    offset = np.array([left, top], np.float32)
+    best = None
+    for f in detect(np.ascontiguousarray(img[top:bottom, left:right])):
+        f.bbox = np.asarray(f.bbox, np.float32) + np.tile(offset, 2)
+        if getattr(f, "kps", None) is not None:
+            f.kps = np.asarray(f.kps, np.float32) + offset
+        if overlaps_real_face(f.bbox, box) and (best is None or f.det_score > best.det_score):
+            best = f
+    return best
 
 
 # --- crops -------------------------------------------------------------------

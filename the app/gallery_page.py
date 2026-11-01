@@ -62,7 +62,7 @@ def _scanner_models(detect_bodies: bool, detect_characters: bool = False):
     if detect_bodies or detect_characters:
         from body_detector import BodyAnalyzer
         body = BodyAnalyzer(log=lambda m: st.session_state.setdefault("gal_model_log", []).append(m),
-                            allow_downloads=False, use_pose=not detect_characters)
+                            allow_downloads=False)
     return app, body
 
 

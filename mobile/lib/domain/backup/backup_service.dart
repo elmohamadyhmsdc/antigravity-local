@@ -39,6 +39,7 @@ const backupTables = [
   BackupTable('character_samples'),
   BackupTable('faces'),
   BackupTable('face_suppressions'),
+  BackupTable('kind_overrides'),
   BackupTable('identity_sets'),
   BackupTable('identity_set_faces'),
   BackupTable('bodies'),

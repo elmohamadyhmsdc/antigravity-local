@@ -163,10 +163,48 @@ class AppLocalizationsEn extends AppLocalizations {
       'similarNote':
           'Similarity is a suggestion. Open an original or assign selected faces after checking them.',
       'emptyExport': 'No readable files were available to export.',
+      'toCharacters': 'Move to Characters',
+      'toPeople': 'Move to People',
+      'kindMoveNote':
+          'The PC measures them again with the other model, so their files are scanned again first. Names are kept; until the scan finishes they are not shown.',
       'other': 'More actions',
     });
     return '$_temp0';
   }
+
+  @override
+  String kindMoved(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count files are scanned again',
+      one: '1 file is scanned again',
+      zero: 'Nothing to scan again',
+    );
+    return 'Moved. $_temp0.';
+  }
+
+  @override
+  String get boxIsCharacter => 'This is a character (drawn)';
+
+  @override
+  String get boxIsPerson => 'This is a real person';
+
+  @override
+  String get mediaKindTitle => 'Who is in this file?';
+
+  @override
+  String get mediaKindAuto => 'Decide automatically';
+
+  @override
+  String get mediaKindPeople => 'Real people only';
+
+  @override
+  String get mediaKindCharacters => 'Characters only (anime / cartoon)';
+
+  @override
+  String get mediaKindNote =>
+      'Everything in the file is scanned again as you choose.';
 
   @override
   String peopleActionError(String reason) {

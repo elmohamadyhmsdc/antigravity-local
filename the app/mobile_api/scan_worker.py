@@ -34,8 +34,10 @@ def encode_result(result):
         characters=[dict(bbox=c.bbox, score=c.score, descriptor=c.descriptor, model_id=c.model_id,
                          face_bbox=c.face_bbox, face_score=c.face_score, face_embedding=c.face_embedding,
                          body_bbox=c.body_bbox, body_score=c.body_score, body_kpts=c.body_kpts,
-                         body_kpt_scores=c.body_kpt_scores, body_appearance=c.body_appearance)
+                         body_kpt_scores=c.body_kpt_scores, body_appearance=c.body_appearance,
+                         body_outline=getattr(c, 'body_outline', None))
                     for c in result.characters],
+        forced=list(getattr(result, 'forced', [])),
         face_outlines=[f.tolist() if isinstance(f, np.ndarray) else f for f in getattr(result, 'face_outlines', [])],
         body_outlines=[b.tolist() if isinstance(b, np.ndarray) else b for b in getattr(result, 'body_outlines', [])]))
 
@@ -59,7 +61,8 @@ def decode_result(value):
                                      body_bbox=optional(c, 'body_bbox'), body_score=c.get('body_score') or 0.0,
                                      body_kpts=optional(c, 'body_kpts'),
                                      body_kpt_scores=optional(c, 'body_kpt_scores'),
-                                     body_appearance=optional(c, 'body_appearance'))
+                                     body_appearance=optional(c, 'body_appearance'),
+                                     body_outline=optional(c, 'body_outline'))
                            for c in value.get('characters', [])]
     if 'face_outlines' in value:
         value['face_outlines'] = [
