@@ -9,7 +9,7 @@
 ### A) هياكل الشاشات (Scaffolds)
 | Component | الاستخدام | ملاحظات |
 |---|---|---|
-| `TabRootScaffold` | T1 | يفرض قاعدة الـ AppBar (≤ 1 إجراء + ⚙)، يحتوي `ActivityPill` slot |
+| `TabRootScaffold` | T1 | يفرض قاعدة الـ AppBar (≤ 1 إجراء + ⚙). `ActivityPill` مش جواه: بيتعرض من `AppShell` في الجذور ومن `ActivityPillHost` في باقي الشاشات (08 P3) |
 | `DetailScaffold` | T2/T3 | AppBar بـ ≤ 2 إجراء + ⋮، يدعم `TabBar` |
 | `FlowScaffold` | T4 | `Stepper` + `StickyActionBar`، حماية الخروج |
 | `ViewerScaffold` | T5 | immersive، Chrome toggle بنقرة |
@@ -44,7 +44,7 @@ EntityCard(
 ### D) القوائم والشبكات
 | Component | وصف |
 |---|---|
-| `CollectionView<T>` | الحاوية الوحيدة للقوائم: `SearchField` + `SortMenu` + `FilterBar` + `ViewMode(grid/list)` + الحالات الأربع + التحديد. يأخذ `CollectionController<T>` |
+| `CollectionView<T>` | الحاوية الوحيدة للقوائم: `SearchField` + `SortMenu` + `FilterBar` + `ViewMode(grid/list)` + الحالات الأربع + التحديد. يأخذ `CollectionController<T>` فوق `CollectionSource<T>` بيدعم التحميل بالصفحات |
 | `MediaGrid` | شبكة وسائط: تجميع بالتاريخ أو مسطّحة، كثافة 3/4/5 بالقرص، `Thumb`، تحديد، فتح الـ Viewer بسياق |
 | `CropGrid` | نفس `MediaGrid` لكن لـ `Crop`s (وجوه/أجسام)، يدعم فرز الجودة |
 | `EntityGrid` / `EntityList` | `CollectionView` فوق `EntityCard` |
@@ -63,7 +63,8 @@ EntityCard(
 |---|---|
 | `ActionRegistry` | جدول واحد لكل الإجراءات (القسم 2) |
 | `EntityActionSheet(entity)` | الـ Sheet الوحيدة لقائمة إجراءات أي كيان. مجموعات ثابتة الترتيب: **عرض → تعريف → بحث → إنشاء → إدارة → خطر** |
-| `QuickActions(entity)` | أول 3–4 إجراءات ذات الأولوية للكيان كأزرار ظاهرة (في `DetailHeader` أو أسفل الـ Viewer) |
+| `QuickActions(entity)` | أول 3–5 إجراءات ذات الأولوية للكيان كأزرار ظاهرة (في `DetailHeader` أو أسفل الـ Viewer) |
+| `ActionDispatcher` | handler واحد لكل `ActionId`. الـ Registry بيوصف الإجراء، والـ Dispatcher بينفذه، والشاشة ما تكتبش `switch` (08 P1) |
 | `MediaInspector` | **لوحة الأدوات الكاملة لأي صورة/فيديو** (Peek/Half/Full): اللي في الوسيط، الروابط، الأنشطة، إنشاء، معلومات. هي المكان الوحيد لتصحيح الربط من داخل وسيط (02 §L3a) |
 | `DetectionRow` | صف عنصر مكتشف: `Crop` + عنوان + مصدر الربط + زر "صحّح" + ⋮ |
 | `LinkRow` | صف رابط بين عنصرين (جسم ← شخص، جسم ≈ جسم، منطقة ← شخص، أداة ← مالك) + "تأكيد" + "صحّح" |
@@ -278,10 +279,9 @@ EntityCard(
 
 | نوع الرابط | reassign | notThisPerson | belongsToNoOne | notARealThing | notSamePerson | unlink | confirm |
 |---|---|---|---|---|---|---|---|
-| **وجه ← شخص** | ● `assignFaces` | ● `rejectFaces` (جدول `face_rejections`) | ● ≈ `dismissFaces` (`review_dismissed`) — يتسمى "ملوش صاحب" ويظهر في طابور المستبعد | ● حذف/إخفاء الوجه | — | ● `clearAssignments` | ● |
+| **وجه ← شخص** | ● `assignFaces` | ● `rejectFaces` (جدول `face_rejections`) | 🆕 `clearAssignments` + `dismissFaces` + `faces.ownership` — `review_dismissed` لوحده مش كفاية لأن `deletePerson` وتجاهل المراجعة بيكتبوه كمان | ● حذف/إخفاء الوجه | — | ● `clearAssignments` | ● |
 | **جسم ← شخص** (وجه/ملابس/وجه ضعيف/يدوي) | ● `linkBody` | ● `rejectBody` (جدول `body_rejections`) | 🆕 | 🆕 | — | 🆕 (الموجود `rejectBody` بيفك + بيسجل رفض) | ● `acceptBodyLink` |
 | **جسم ≈ جسم** (نفس الظهور/الطقم/الـ track) | — | — | 🆕 للاتنين مع بعض | — | 🆕 | 🆕 | ◐ |
-| **منطقة/cluster ← شخص** | ◐ (تغيير الشخص + اقتراحات الربط) | 🆕 (cluster × شخص) | 🆕 | — | 🆕 (cluster × cluster) | ◐ | ◐ |
 | **أداة ← مالك** | ● (المالك `bodyId` اختياري) | — | ● (مالك فاضي) | ● حالة `rejected` | — | ● | ● حالة `manual` |
 | **منطقة حساسة** | — | — | — | ● `userState = dismissed` | — | — | ● `confirmed` / `sensitiveOverride` |
 | **عضوية cluster وضعية/طقم** | ◐ | — | — | ● حالة `rejected` (لا تُضاف تاني) | — | ● | ● `manual` |
@@ -289,6 +289,8 @@ EntityCard(
 | **وجه: شخص ↔ شخصية** | ● `kind_corrections` | — | — | — | — | — | — |
 | **اقتراح نشاط** | — | — | — | ● رفض | — | — | ● قبول |
 
+> ربط clusters المناطق المكشوفة بالأشخاص خارج نطاق v2 (08 §1)، فمالوش صف هنا، وعمود Area في المصفوفة التكميلية (§3) ينطبق منه `setSensitivity` بس لحد ما P0 يصحح المصفوفة.
+>
 > أي ◐ يتأكد منه في الكود قبل التنفيذ. أي 🆕 معناه: **تغيير في قاعدة بيانات الهاتف** (جدول أو عمود + migration + إدراجه في `.agbackup` + اختبارات). ملخصها في `07_migration_map.md` §6.
 
 ### 5.3 شكل `CorrectionSheet`
@@ -314,6 +316,6 @@ EntityCard(
 ### 5.4 قواعد ثابتة
 1. **قرار المستخدم أقوى من أي تجميع تلقائي.** إعادة الفحص، رفع `scanVersion`، إعادة الاكتشاف، الـ backfill، وإعادة التجميع **لا تمسح ولا تتخطى** أي تصحيح؛ لما يرجع اكتشاف نفس المربع تتربط به التصحيحات عبر `sameDetectionBox`.
 2. **كل ما استبعدته يفضل ظاهر وقابل للتراجع:** طابور `excluded` في P4 (03) + قسم "ملوش صاحب" في `MediaInspector`.
-3. **التصحيح ينتشر للتوابع:** تصحيح جسم بيصحح الجسم في كل إطارات نفس الظهور (`expandTracks` موجود)، وتصحيح cluster بيصحح أعضاءه بعد معاينة الأثر.
+3. **التصحيح ينتشر للتوابع:** تصحيح جسم أو وجه بيصححه في كل إطارات نفس الظهور (🆕 نطاق `track` في 08 P2؛ `expandTracks` الموجود للوجوه غير المعيّنة بس)، وتصحيح cluster بيصحح أعضاءه بعد معاينة الأثر.
 4. **النسخ الاحتياطي:** كل جداول التصحيح تدخل في `.agbackup` وتستعاد.
 5. **نفس السلوك من أي مدخل:** `CorrectionSheet` بتفتح من `MediaInspector` أو من Person ▸ الوجوه أو من Explore أو من P4 — والنتيجة واحدة.

@@ -55,7 +55,7 @@
 **القالب:** T5 Viewer · **الغرض:** عرض صورة/فيديو وكل ما نعرفه عنها.
 
 ### السياق
-`MediaCollectionContext { source, filter, index }` — `source ∈ library | album | person | cluster | result | search`. السحب الأفقي يتنقل داخل نفس المجموعة.
+`MediaCollectionContext { ids, loadMore, source }` — `source ∈ library | album | person | cluster | result | search`. السحب الأفقي يتنقل داخل نفس المجموعة. بيتمرر عبر `state.extra`، والفتح من deep link بيستخدم باراميترات `/media/:id` (`personId`, `scan`, `hasFaces`, `kind`, `at`).
 
 ### Chrome (يظهر/يختفي بنقرة واحدة)
 **الشريط العلوي:** ← · التاريخ والوقت · **طبقات (Layers)** (زر واحد يفتح popover باختيار متعدد: وجوه · أجسام · هيكل عظمي · مناطق · أدوات — الافتراضي: وجوه + أجسام) · ⋮

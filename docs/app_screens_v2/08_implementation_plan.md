@@ -60,7 +60,7 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 2. **حزم:** لا إضافة أو ترقية في `pubspec.yaml` بدون موافقة صريحة. لا تغيير في Android native (`mobile/android/`) إلا لو المرحلة بتقول.
 3. **الـ contract مع الـ PC:** `the app/mobile_api/contract/` لا يتغير في أي مرحلة. كل بيانات المستخدم على الهاتف.
 4. **بيانات المستخدم الحقيقية:** الاختبارات على قاعدة in-memory (`test/support/harness.dart` → `appTest`/`TestEnv`) فقط. لا لمس لأي مكتبة/وسائط حقيقية.
-5. **Git:** قبل P0 لازم commit للـ spec (`docs/app_screens_v2/` والـ handoff) بموافقة المستخدم، لأنه غير متتبَّع وأي worktree جديد مش هيشوفه. فرع لكل مرحلة `v2/pN-<name>` يبدأ من commit المرحلة اللي بتعتمد عليها، وcommit واحد آخر المرحلة على فرعها (افتراض #8). لا push ولا merge على `main` إلا بطلب المستخدم. شجرة العمل فيها تغييرات مش تبعك (`graphify-out/`) — لا تلمسها.
+5. **Git:** الـ spec اتعمله commit في `f9f79b8`. أي تعديل لاحق عليه أو على الـ handoff لازم يتعمله commit بموافقة المستخدم قبل P0، وإلا أي worktree جديد مش هيشوفه. فرع لكل مرحلة `v2/pN-<name>` يبدأ من commit المرحلة اللي بتعتمد عليها، وcommit واحد آخر المرحلة على فرعها (افتراض #8). لا push ولا merge على `main` إلا بطلب المستخدم. لو لقيت في شجرة العمل تغييرات مش تبعك، لا تلمسها.
 
 ### جودة
 6. **بعد كل مرحلة:** `dart format lib test && dart fix --apply` ثم `flutter analyze` = **صفر** (حتى الـ infos) ثم `flutter test` كله أخضر ما عدا الموروث المسجّل في `_baseline.md` (P0). أي اختبار أحمر موروث يتسجل في التقرير ولا يتخفى، وأي أحمر جديد يوقف المرحلة. (28 ملف غير منسّق حالياً، فـ P0 ينسّقهم في commit منفصل عشان ما يدخلوش في diff مرحلة تانية.)
@@ -72,15 +72,15 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 
 ### معمارية (ثابتة في كل المراحل)
 12. **مواقع الكود الجديد:** `lib/ui/` (مكونات عرض مشتركة) · `lib/domain/actions/` (Registry) · `lib/domain/corrections/` (التصحيحات) · `lib/features/<screen>/` (الشاشات). `features/shared/*` الحالية تفضل شغالة (تُغلَّف أو تُعاد تصديرها) لحد P9.
-13. **Strangler:** الشاشات القديمة تفضل موجودة ومربوطة لحد ما مرحلتها تبدّلها؛ الحذف النهائي في **P9** فقط (إلا لو المرحلة تنصّ).
+13. **Strangler:** الشاشات القديمة تفضل موجودة ومربوطة لحد ما مرحلتها تبدّلها؛ الحذف النهائي في **P9** فقط (إلا لو المرحلة تنصّ). **كل مرحلة تفعّل redirects صفوفها في 07 §3 (عمود "يتفعّل في") مع نفس التغيير اللي بيبدّل الشاشة، مش قبله،** وتضيف حالاتها في `router_test`.
 14. **التنقل:** صفر `Navigator.push` في أي كود جديد أو معدّل؛ الـ Sheets بـ `showModalBottomSheet` فقط؛ لا `AlertDialog`/`SimpleDialog` للتسمية أو التأكيد (استخدم `NameSheet`/`ConfirmSheet`). الاستثناءات المسموحة بس: حوارات التقدم وتأكيد الـ pairing/بصمة الشهادة، وأي تأكيد أمني يتنقل لـ Sheet لازم يفضل الإغلاق بالسحب أو بالضغط برّه معناه رفض.
 15. **الإجراءات:** أي قائمة/Sheet/شريط تحديد تُبنى من `ActionRegistry`. ممنوع قائمة مكتوبة يدوياً.
 16. **ملفات جديدة صغيرة:** لا ملف شاشة فوق ~600 سطر؛ فكّك بالاستخراج.
 
 ### خارج نطاق v2 (قرار 2026-11-02) — أقوى من باقي الـ spec لو اختلفوا
-1. **ربط مناطق الجسم المكشوفة بالأشخاص:** لا جداول `cluster_rejections`/`cluster_distinct`، ولا `body_clusters.ownership`، ولا `kind=areas` في Explore، ولا طبقة "مناطق" في الـ Viewer، ولا صف "منطقة/cluster ← شخص" في `CorrectionSheet`، ولا `assignPerson`/`rename` على منطقة. `body_areas.dart` و`exposed_matching.dart` ما يتطوروش (مستقبل التبويب القديم: افتراض #7).
+1. **ربط مناطق الجسم المكشوفة بالأشخاص:** لا جداول `cluster_rejections`/`cluster_distinct`، ولا `body_clusters.ownership` — **انتبه:** ده غير `bodies.ownership` بتاع P2 (الأخير **داخل النطاق**: مصدر حقيقة لـ"ملوش صاحب" على مستوى الجسم؛ أما `body_clusters.ownership` فهو ملكية الـ cluster المكشوف وده الخارج النطاق، لأن `body_clusters.personId` أصلاً cache مشتق من روابط الأجسام) — ولا `kind=areas` في Explore، ولا طبقة "مناطق" في الـ Viewer، ولا صف "منطقة/cluster ← شخص" في `CorrectionSheet`، ولا `assignPerson`/`rename` على منطقة. `body_areas.dart` و`exposed_matching.dart` ما يتطوروش (مستقبل التبويب القديم: افتراض #7).
 2. **Restyle:** لا إعادة بناء ولا تحسين. `RestyleScreen` و`/restyle` ومدخله الحالي في Studio يفضلوا زي ما هم، وST3 والـ route `/studio/restyle` مش جزء من الخطة.
-3. **الحارس الوحيد المسموح في الكود ده:** أي مسار بيكتب `bodies.person_id` أو `review_body_links` (ومنها `exposed_matching`) لازم يتخطى الأجسام `ownership='none'`/`hidden`، عشان تصحيح المستخدم ما يترجعش.
+3. **الحارس الوحيد المسموح في الكود ده:** أي مسار بيكتب `bodies.person_id` أو `review_body_links` (ومنها `exposed_matching`) لازم يتخطى الأجسام `ownership='none'`/`hidden`، عشان تصحيح المستخدم ما يترجعش. **ويدخل في ده اشتقاق مالك الـ cluster المكشوف:** "ملوش صاحب" في P2 بيسيب `bodies.person_id` زي ما هو ويعتمد على إن القراءات تتخطى `none`/`hidden`، لكن استعلام المالك في `exposed_matching.recomputeOwner` (الـ `COALESCE(f.person_id, b.person_id)` اللي بيكتب `body_clusters.personId`) مش كتابة مباشرة في `bodies.person_id`/`review_body_links`، فمش مغطّى بنص الحارس حرفياً — وبعدين `publishSuggestions` يزرع `review_body_links` من الـ cache البايت. فلو تبويب Areas فضل (افتراض #7)، لازم اشتقاق `body_clusters.personId` يتخطى `none`/`hidden` كمان. (الخطورة منخفضة دلوقتي لأن المسار كله ورا `body_clusters_enabled` وهو OFF افتراضياً؛ لو #7 حُسم بحذف التبويب في P9 النقطة دي بتلغى.)
 4. **يفضل في النطاق:** علامة "حساس" لإخفاء الوسائط وقفلها، وتصحيحها (`userState`, `sensitiveOverride`).
 
 ### نقاط تحقق الهاتف (يعملها المستخدم على APK بيطلبه)
@@ -100,11 +100,12 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 | 1 | ✅ **محسوم (2026-11-02): الواجهة إنجليزي فقط** (`app_en.arb`)؛ التسميات العربية في الـ spec وصف لا غير. 01 §2 عربي بس، فـ P0 يضيف عمود تسمية إنجليزية بإعادة استخدام مفاتيح ARB الموجودة (مثلاً "No owner"، "Not this person") | لو اتغير لاحقاً: مرحلة P10 منفصلة (ARB عربي + RTL + مراجعة كل الـ Layouts) |
 | 2 | الوشوم في Explore تطلب شخص أولاً | تعديل صغير في P7 |
 | 3 | مفيش بحث عام | — |
-| 4 | "مكتبتي" (نتائج/موديلات/Datasets) داخل تبويب Studio | لو تبويب خامس: تعديل في P3/P8 |
+| 4 | "مكتبتي" (نتائج/موديلات/Datasets) داخل تبويب Studio | لو تبويب خامس: تعديل في P3/P8a/P8b |
 | 5 | رسم **منطقة يدوية** في الـ Viewer ميزة جديدة؛ تتأجل لآخر P5c ويمكن إسقاطها | — |
 | 6 | الـ Reface يحافظ على الخيارات الحالية (ملف جودة Fast/Balanced/More detail، الاستعادة، كل الوجوه، تعزيز الهوية)؛ الـ spec بيغيّر التنظيم مش الخيارات | — |
 | 7 | تبويب Areas القديم (وراء `body_clusters_enabled`، مقفول افتراضياً) **ما يتنقلش**. لازم قرار قبل P7: يتشال نهائياً (توصية الريفيو) ولا يفضل في `bodies_screen.dart` القديم | لو فضل: `bodies_screen.dart` و`body_areas.dart` ما يتحذفوش في P9 |
-| 8 | مسموح commit واحد آخر كل مرحلة على فرعها، وcommit للـ spec قبل P0 | لو لأ: التنفيذ تسلسلي في شجرة عمل واحدة، من غير توازي ولا فروع |
+| 8 | مسموح commit واحد آخر كل مرحلة على فرعها | لو لأ: التنفيذ تسلسلي في شجرة عمل واحدة، من غير توازي ولا فروع |
+| 9 | S4 بينقل قفل التطبيق الحالي بس. مهلة القفل وPIN مش موجودين، وحماية لقطات الشاشة اتشالت بطلب المستخدم (الـ handoff) | لو عايزهم: مهام جديدة في P4 بطلب صريح |
 
 ---
 
@@ -118,6 +119,8 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 | 4 تبويبات | اختبار الـ Shell | 4 وجهات |
 | AppBar جذور التبويبات | اختبار widget لكل T1 | ≤ 1 إجراء + ⚙، بدون ⋮ |
 | Registry = المصفوفة | اختبار `action_registry_matrix_test` | يطابق 01 §3 بعد تصحيحها في P0 |
+| كل إجراء له تنفيذ | اختبار `action_dispatcher_test` | مفيش `ActionId` متاح في الـ Registry من غير handler |
+| كتابة روابط الأجسام | اختبار `body_writers_guard_test` | كل مسار كتابة بيعدّي على `BodyLinkGuard` أو مستثنى بسبب مكتوب |
 | كل فعل تصحيح | `correction_service_test` | يطابق 01 §5.2 |
 | الصحة العامة | `flutter analyze` / `flutter test` | صفر issues / أخضر |
 
@@ -137,7 +140,7 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 **للقراءة:** `CLAUDE.md`، الـ handoff، `07_migration_map.md`، `01_shared_components.md` §5.2.
 
 **المهام**
-1. أنشئ الفرع `v2/p0-baseline` (بعد commit الـ spec، قاعدة 5). نسّق الـ 28 ملف في commit منفصل من غير أي تغيير تاني.
+1. أنشئ الفرع `v2/p0-baseline` (بعد ما تتأكد إن الـ spec كله متعمله commit، قاعدة 5). نسّق الـ 28 ملف في commit منفصل من غير أي تغيير تاني.
 2. شغّل `flutter analyze` و`flutter test` وسجّل: عدد الاختبارات، زمن التشغيل، وكل اختبار أحمر. المتوقع 12 فاشل (أول الملف؛ إخفاقات Restyle في الـ handoff تخص `the app/test_undress.py` مش Flutter).
 3. **الـ 12 فاشل:** حدد لكل واحد السبب (كود اتكسر ولا اختبار قديم بعد redesign سابق) من غير ما تصلحه، وارجع للمستخدم بالقرار: يتصلح في P0 ولا يتسجل موروث. دي شبكة الأمان بتاعة P6a/P6b/P8a، فالتصليح هو الأفضل قبلها.
 4. أنشئ `docs/app_screens_v2/_baseline.md` فيه: (أ) النتيجة فوق، (ب) جدول **اختبار ← الشاشة اللي بيغطيها ← المرحلة اللي هتنقله** (§4 نقطة بداية)، (ج) قائمة الـ Keys لكل ملف شاشة، (د) استثناءات فحوص §2.
@@ -146,10 +149,11 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
    - الوشوم/العلامات: `BodyMarks.personId` مطلوب وCascade (`domain/marks/body_marks.dart`, `mark_tattoo.dart`). هل ينفع تتنقل بين أشخاص، والـ `anchor` يفضل صالح؟
    - **"جسم ≈ جسم":** مش رابط متخزّن؛ مشتق من `trackId` و`linkMethod = event_outfit`. عرّف بالظبط: `notSamePerson` على جسمين في نفس الـ track يعمل إيه، وازاي `expandTracks` ما يرجعش ينشر التصحيح عليهم؟
    - الأدوات: `equipment_objects` فيها x,y,w,h ✔ مؤكد بالقراءة.
+   - **نطاق "هذه اللقطة" بعد الـ compaction:** في الفيديو الصف الواحد بيمثل كذا إطار (الباقي صفوف في `media_detections`)، فتغيير `person_id` على الصف بيأثر على كل إطاراته مش ±500ms بس. حدد إزاي اللقطة تتفصل (مثلاً صف جديد للإطارات دي) ولا النطاق ده يتشال من `ScopePicker`، وحدّث 01 و07 §7 حسب الجواب.
 6. **صحّح 01 §2–§3 قبل ما تتحول لاختبار خلية بخلية** (وإلا الاختبار هيفرض فقد ميزات). قارن بالواجهة الفعلية (`_boxMenu`، قائمة AppBar وشيت التفاصيل في `media_screen.dart`، القوائم في `people_actions.dart`) وسجّل كل فرق:
    - امسح تكرار `notThisPerson`.
    - أضف `ActionId` لـ: `redetect`، تغيير نوع الملف كله (`_fileKindMenu`، النهارده "—" في عمود Photo)، المشغل الخارجي، `box-equipment`، إجراءات الألبوم (تضمين/استبعاد من الفحص، مراجعة، تحليل).
-   - أضف أعمدة Album وGroup وAction، وطابق QuickActions الشخص بين P6a والمصفوفة.
+   - أضف أعمدة Album وGroup وAction، وطابق QuickActions الشخص بين P6a والمصفوفة، وQuickActions الجسم بين 04 (`BodyInspectSheet`) والمصفوفة.
    - أضف عمود تسمية إنجليزية (افتراض #1).
 7. أنشئ الهيكل الفاضي: `lib/ui/`, `lib/domain/actions/`, `lib/domain/corrections/` (ملف `.gitkeep` أو README صغير).
 
@@ -169,62 +173,72 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
    - `action_id.dart`: enum بكل صفوف 01 §2 (بما فيها `confirmLink, unlink, notThisPerson, belongsToNoOne, notARealThing, notSamePerson, changeKind, setSensitivity, addEquipment`).
    - `action_registry.dart`: `ActionSpec{id, group, icon, labelKey, isAvailable(ActionContext)}`، المجموعات بالترتيب: **عرض → تعريف → بحث → إنشاء → إدارة → خطر**، و`quickActionsFor(entity)` (QA) و`sheetFor(entity)`.
    - `ActionContext`: نوع الكيان، النوع (person/character)، media كيف (video؟)، حالة الربط (له شخص؟ ملوش صاحب؟)، توفر الـ PC، التحديد المتعدد.
+   - **التنفيذ:** الـ Registry بيوصف الإجراء بس. `lib/ui/actions/action_dispatcher.dart` فيه handler واحد لكل `ActionId` (`(BuildContext, WidgetRef, EntityRef, ActionContext) → Future<void>`)، وكل مرحلة بتسجّل handlers شاشاتها. `EntityActionSheet` و`QuickActions` و`BulkActionBar` بيستدعوه، وممنوع `switch` على `ActionId` جوه شاشة. الإجراء اللي لسه مالوش handler ما يظهرش.
 2. **`lib/ui/` — scaffolds:** `tab_root_scaffold.dart` (يفرض: عنوان + ≤ 1 إجراء + ⚙، ولا ⋮ — يرمي assert في debug لو اتخالف)، `detail_scaffold.dart`، `flow_scaffold.dart` (يلف `GuidedWorkflow` الحالي + حماية الخروج)، `sheet_scaffold.dart`، `settings_scaffold.dart` + `setting_group.dart` + `setting_tile.dart` (nav/switch/value/action/danger).
 3. **ذرّات:** `thumb.dart`، `crop.dart` (يلف `CropImage` + `ImageExpand` الموجود، باسم `ExpandButton` في الـ spec، في ركن ثابت)، `avatar.dart` (يلف `PersonAvatar`)، `info_chip.dart`، `progress_bar.dart`.
 4. **`entity_card.dart`:** صيغ `grid/row/hero`، حالات `normal/selected/disabled/busy`، `visual` ∈ Thumb|Crop|Avatar|CropStack(3)|Icon.
-5. **القوائم:** `collection_controller.dart` (بحث، ترتيب، فلاتر، وضع عرض، حالة، تحديد)، `collection_view.dart`، `filter_bar.dart` + `filter_sheet.dart` + `FilterSpec`، `segmented_bar.dart`، `media_grid.dart`/`crop_grid.dart` (واجهة فقط + تنفيذ على قوائم عامة؛ ربط البيانات الحقيقية في P5a/P6/P7).
+5. **القوائم:** `collection_controller.dart` (بحث، ترتيب، فلاتر، وضع عرض، حالة، تحديد؛ بياناته من `CollectionSource<T>` بيدعم التحميل بالصفحات، لأن المعرض بيقرا 120 عنصر في الصفحة)، `collection_view.dart`، `filter_bar.dart` + `filter_sheet.dart` + `FilterSpec`، `segmented_bar.dart`، `media_grid.dart`/`crop_grid.dart` (واجهة فقط + تنفيذ على قوائم عامة؛ ربط البيانات الحقيقية في P5a/P6a/P7).
 6. **التحديد:** `selection_controller.dart`، `selection_top_bar.dart`، `bulk_action_bar.dart` (≤ 4 ظاهرة + "المزيد"، مبنية من الـ Registry على **تقاطع** الأنواع المحددة).
 7. **الإجراءات:** `entity_action_sheet.dart` (من الـ Registry)، `quick_actions.dart`.
 8. **Sheets:** `name_sheet.dart`، `confirm_sheet.dart` (عادي + خطر مع قائمة التبعات)، `undo_snackbar.dart`، `searchable_list_sheet.dart`، pickers: `person_picker.dart` (يلف الموجود في `features/shared/person_picker.dart` ويحافظ على نفس الـ API)، `face_picker.dart`، `group_picker.dart`.
 9. **الحالات:** `empty_state.dart` بـ `kind` (first-run/no-results/no-permission/no-pc)، `error_state.dart`، `readiness_banner.dart` (من `serverStatusProvider`)، `progress_card.dart` (`ProgressCardData` موحدة: scan | job — بيانات فقط، الربط الفعلي في P3/P4).
 10. **عارضات:** `compare_slider.dart` (صور) — الباقي (`DetectionOverlay`, `VideoPlayer`) يتحرك في P5b.
-11. **تجربة على شاشة حقيقية (Pilot):** حوّل `features/storage/storage_screen.dart` (391 سطر، S5) لـ `SettingsScaffold` + `ConfirmSheet` بنفس السلوك واختباراته خضراء، عشان API الأساس يتجرب على استخدام فعلي. `CollectionView`/`EntityCard` أول مستخدم ليهم P5a، وتعديل الـ API وقتها مسموح.
+11. **تجربة على شاشة حقيقية (Pilot):** حوّل `features/storage/storage_screen.dart` (391 سطر، S5) لـ `SettingsScaffold` + `ConfirmSheet` بنفس السلوك واختباراته خضراء، عشان API الأساس يتجرب على استخدام فعلي. **وPilot تاني للقوائم:** شبكة `ResultsScreen` (في `results_screen.dart`) تتحول لـ `CollectionView` + `EntityCard(result)` بنفس السلوك وبنفس الـ Key `result-{id}`، مع كتابة اختبار characterization ليها الأول لأن مفيش اختبار بيشير لها بالاسم. أول استخدام كامل بالتحديد في P5a، وتعديل الـ API وقتها مسموح.
 
 **الاختبارات (`test/ui/`, `test/domain/actions/`)**
 - `action_registry_matrix_test.dart`: مصفوفة 01 §3 + التكميلية كبيانات في الاختبار، تقارنها بالـ Registry خلية خلية.
-- `tab_root_scaffold_test.dart` (assert لو أكتر من إجراء أو ⋮)، `collection_view_test.dart` (الحالات الخمس)، `bulk_action_bar_test.dart` (≤ 4 + المزيد، تقاطع الأنواع)، `entity_card_test.dart`، `name_sheet_test.dart`، `confirm_sheet_test.dart`، `selection_controller_test.dart`، text-scale 2.0 على كل مكون.
+- `tab_root_scaffold_test.dart` (assert لو أكتر من إجراء أو ⋮)، `collection_view_test.dart` (الحالات الخمس)، `bulk_action_bar_test.dart` (≤ 4 + المزيد، تقاطع الأنواع)، `entity_card_test.dart`، `name_sheet_test.dart`، `confirm_sheet_test.dart`، `selection_controller_test.dart`، `action_dispatcher_test.dart`، `collection_source_test.dart` (تحميل صفحات)، text-scale 2.0 على كل مكون.
 
-**معايير الإنجاز:** كل ما فوق موجود ومختبر؛ **لا ملف في `features/` اتغير** غير شاشة الـ Pilot (وimports لو لزم)؛ `flutter analyze` صفر؛ عدد الاختبارات الكلي ≥ خط الأساس + الجديد.
+**معايير الإنجاز:** كل ما فوق موجود ومختبر؛ **لا ملف في `features/` اتغير** غير شاشتي الـ Pilot (وimports لو لزم)؛ `flutter analyze` صفر؛ عدد الاختبارات الكلي ≥ خط الأساس + الجديد.
 
 ---
 
 ### P2 — طبقة التصحيحات (schema v19) · (L) · بالتوازي مع P1
 **الهدف:** كل أفعال التصحيح (01 §5) تشتغل على مستوى البيانات والمنطق، مع ضمان إن التجميع/إعادة الفحص ما يلغيهاش. **بدون UI.**
-**للقراءة:** `01_shared_components.md` §5، `07_migration_map.md` §6، `lib/data/db/{tables,app_database}.dart`، `lib/data/repositories/{people_repository,review_repository,kind_corrections,face_suppression_store,sensitive_store}.dart`، `lib/domain/grouping/*`، `lib/domain/scan/{photo_result_store,redetect,video_compactor,video_tracks}.dart`، `lib/domain/pose/exposed_matching.dart` (للحارس بس)، `lib/domain/backup/backup_service.dart`، `test/data/schema_v16_test.dart`، `test/domain/{backup_v16_test,face_corrections_test}.dart`، `test/data/kind_corrections_test.dart`.
+**للقراءة:** `01_shared_components.md` §5، `07_migration_map.md` §6، `lib/data/db/{tables,app_database}.dart`، `lib/data/repositories/{people_repository,review_repository,kind_corrections,face_suppression_store,sensitive_store}.dart`، `lib/domain/grouping/*`، `lib/domain/scan/{photo_result_store,redetect,video_compactor,video_tracks}.dart`، `lib/domain/pose/exposed_matching.dart` (للحارس بس)، `lib/domain/marks/body_marks.dart`، `lib/domain/backup/backup_service.dart`، `test/data/schema_v16_test.dart`، `test/domain/{backup_v16_test,face_corrections_test}.dart`، `test/data/kind_corrections_test.dart`.
 **قرار محسوم:** "ملوش صاحب" = العنصر **يفضل ظاهر** بشارة "بدون مالك"، ويُستبعد من الربط التلقائي والاقتراحات والتدريب فقط. "مش حقيقي" هو الوحيد اللي يتخفى.
 
 **المهام**
 1. **Schema v19** (`currentSchemaVersion = 19`، migration من 18 بدون فقد بيانات):
-   - `body_overrides(id, asset_id, x, y, w, h, timestamp_ms, ownership, hidden)`: **مصدر الحقيقة** لـ"ملوش صاحب" و"مش جسم أصلاً"، بنفس مفتاح `kind_overrides` (asset + box + وقت)، عشان يعيش بعد مسح صف الجسم أو إعادة استيراد الوسيط. مطابقة الصندوق بـ `sameDetectionBox`.
+   - `body_overrides(id, asset_id, x, y, w, h, timestamp_ms, ownership, hidden, scope)`: **مصدر الحقيقة** لـ"ملوش صاحب" و"مش جسم أصلاً"، بنفس مفتاح `kind_overrides` (asset + box + وقت)، عشان يعيش بعد مسح صف الجسم أو إعادة استيراد الوسيط. مطابقة الصندوق بـ `sameDetectionBox`. `scope` ∈ `single | track`. في الفيديو يتكتب سطر لكل ظهور في `media_detections` مش للصف بس (زي `FaceSuppressionStore.remember`).
    - `bodies`: `ownership TEXT NULL` (`'none'` أو NULL) + `hidden BOOL DEFAULT false`: **cache للاستعلام فقط**، يتعاد تطبيقه من `body_overrides` بعد أي كتابة أجسام.
    - `body_distinct(body_a, body_b)` PK على الزوج المرتب (FK cascade). الـ cascade بيمسحه مع الصف، فـ redetect وcompactor لازم ينقلوه للصف الجديد قبل المسح.
+   - `faces`: `ownership TEXT NULL` (`'none'` أو NULL). **`review_dismissed` مش معناه "ملوش صاحب"**: `deletePerson` وتجاهل المراجعة بيكتبوه كمان. الـ migration يسيب `ownership` فاضي لكل الصفوف القديمة، فمفيش وجه قديم ياخد الشارة لوحده.
+   - `face_overrides(id, asset_id, x, y, w, h, timestamp_ms, ownership, scope)`: نفس دور `body_overrides` لـ"ملوش صاحب" على الوجوه. (`face_suppressions` بيغطي قرارات الحذف بس.)
    - (أي تعديل تاني يظهر من نتيجة P0 §5 يتسجّل هنا قبل التنفيذ).
 2. `dart run build_runner build` + تحديث `app_database.g.dart`.
 3. **`lib/domain/corrections/`:**
    - `correction_target.dart`: sealed — `FaceLink, BodyLink, BodyPair, EquipmentOwner, SensitiveRegion, PoseMembership, PersonPair, ActionSuggestion`.
    - `correction_verb.dart`: `reassign, notThisPerson, belongsToNoOne, notARealThing, notSamePerson, unlink, confirm`.
-   - `correction_scope.dart`: `single | track | cluster | wholeVideo` (+ تسامح `videoCorrectionToleranceMs` للقطة).
+   - `correction_scope.dart`: `single | track | cluster | wholeVideo` (+ تسامح `videoCorrectionToleranceMs` للقطة، حسب جواب P0). **`track` تنفيذ جديد للوجوه والأجسام:** `expandTracks` الحالي للوجوه بس وبيرجّع `person_id IS NULL` بس، فمينفعش لتصحيح ربط غلط. النطاق = صفوف نفس `track_id` في نفس الوسيط اللي رابطها الحالي هو نفس الرابط اللي بيتصحح (نفس `person_id`).
    - `correction_service.dart`: `allowedVerbs(target)` (يطابق جدول 01 §5.2 بالظبط)، `preview(correction) → CorrectionPreview{items, mediaCount}`، `apply(correction) → CorrectionResult{undoToken}`، `undo(token)`.
    - لكل خلية ● في الجدول: **استدعاء الدالة الموجودة** (لا إعادة كتابة): `assignFaces`, `rejectFaces`, `dismissFaces`, `clearAssignments`, `linkBody`, `rejectBody`, `acceptBodyLink`/`rejectBodyLink`, `markDistinct`, `kind_corrections`, حالات equipment/pose-membership/sensitive.
-   - **"ملوش صاحب" لوجه:** `dismissFaces` لوحدها مش بتفك `person_id`، فالفعل = `clearAssignments` + `dismissFaces` في transaction واحدة.
+   - **"ملوش صاحب" لوجه:** `dismissFaces` لوحدها مش بتفك `person_id`، فالفعل = `clearAssignments` + `dismissFaces` + `ownership='none'` + سطر `face_overrides` في transaction واحدة (بالترتيب ده، لأن `clearAssignments` بيصفّر `review_dismissed`). `reassign` يشيل `ownership` وسطر الـ override.
    - لكل 🆕: تنفيذ جديد فوق الجداول، ومنها `unlinkBody` بدون كتابة في `body_rejections`.
    - **Undo:** الدوال الموجودة بترجّع `Future<void>` (و`dismissFaces` بتمسح `review_matches`)، فالـ service ياخد snapshot للصفوف المتأثرة قبل التطبيق في نفس الـ transaction، و`undo` يرجّعها. الـ token في الذاكرة بس. لو صف اتغير بعد التطبيق (مثلاً `GroupingRunner` اشتغل)، `undo` يقول إنه تعذر بدل ما يكتب فوق التغيير.
 4. **احترام التصحيحات في كل المنطق التلقائي** (هنا أخطر جزء):
    - **التجميع:** `person_linking` كود Python على الـ PC والـ contract مجمّد (قاعدة 3)، فكل الفرض على الهاتف: `grouping_inputs.bodies()` ما يبعتش أجسام `ownership='none'`/`hidden`، و`plan_applier.applyBodyPlan` يتحقق منهم في الـ SQL، ويرفض أي ربط يخلي جسمين من `body_distinct` عند نفس الشخص.
    - **كل مسار يكتب `bodies.person_id` أو `review_body_links`:** يتخطى `none`/`hidden` (ومنها `exposed_matching`، حارس بس). أي اقتراح قائم للجسم في `review_body_links` يتمسح وقت التصحيح.
-   - **`redetect.dart`:** بيرجّع للأجسام `person_id` بس. أضف استرجاع `body_rejections` (ثغرة موجودة النهارده، موجودة للوجوه بس) و`body_distinct`، وأعد تطبيق `body_overrides`.
-   - **`video_compactor.dart`:** بينقل `body_rejections` للصف الباقي. أضف `body_distinct`، وعرّف الدمج لما الصفوف تختلف في `ownership`/`hidden`.
-   - **`photo_result_store.dart`:** إعادة الفحص بتطابق بـ IoU وبتعمل insert لو ملقتش. الصف الجديد يتطبق عليه `body_overrides` في نفس الـ transaction.
+   - **`BodyLinkGuard` واحد في `lib/domain/corrections/`** بيحكم `none`/`hidden` و`body_distinct`:
+     - **التلقائي** (`plan_applier`، `video_compactor`، `body_marks.publishSuggestions`، `kind_corrections` وهو بينفّذ `targetPersonId`، وأي مسار تاني): ما يكتبش لو فيه تعارض.
+     - **اليدوي** (`linkBody`، `reassign`): قرار المستخدم أقوى، فالـ Sheet تنبّه، والتطبيق يمسح زوج `body_distinct` المتعارض.
+     - **الدمج** (`people_repository.dart:639` بينقل كل أجسام الشخص): الجسم المتعارض من الشخص المدموج يفضل بدون شخص، والعدد يظهر في معاينة P5 من `distinctConflicts(a, b)`.
+   - **`redetect.dart`:** بيرجّع للأجسام `person_id` بس. أضف استرجاع `body_rejections` (ثغرة موجودة النهارده، موجودة للوجوه بس) و`body_distinct`، وأعد تطبيق `body_overrides`. وللوجوه: انقل `ownership` مع `hidden`/`review_dismissed`.
+   - **`video_compactor.dart`:** بينقل `body_rejections` للصف الباقي. أضف `body_distinct`، والصفوف اللي تختلف في `ownership`/`hidden` ما تتدمجش (ضيفهم في مقارنة الدمج زي `flags` بتاع الوجوه، و`ownership` في `flags` الوجوه نفسها).
+   - **`photo_result_store.dart`:** إعادة الفحص بتطابق بـ IoU وبتعمل insert لو ملقتش. الصف الجديد يتطبق عليه `body_overrides` (وللوجوه `face_overrides`) في نفس الـ transaction. **في الفيديو:** لو صف في الـ track طابق override نطاقه `track`، باقي صفوف الـ track تورثه، حتى لو إعادة الفحص جابت إطارات برّه ±500ms من الأصل.
    - **backfills** (`embedding/sensitive/garment/outline`): ما تمسحش التصحيحات، وما تشتغلش على `hidden`.
    - **`hidden` في كل قراءة:** 39 ملف بيقرأ `bodies` (منهم 10 في `features/`). راجعهم كلهم بقائمة في التقرير، واستخدم مساعد استعلام مركزي للأجسام الظاهرة. "ملوش صاحب" يفضل ظاهر، و`hidden` بس هو اللي يتخفى، والاستثناء الوحيد طابور `excluded`.
    - **`domain/export` + بناء الـ datasets:** استبعاد "ملوش صاحب"/"hidden" من التدريب.
-5. **استعلامات للـ UI** (`corrections_queries.dart`): `excluded()` (وجوه dismissed، أجسام none/hidden، رفض مع اسم الشخص، أدوات rejected…) مع عدّاد؛ `noOwner(kind)` (للفلتر في Explore)؛ `linksForMedia(mediaId)` (يبني `LinkRow`s: جسم←شخص + المصدر `linkMethod`، جسم≈جسم بنفس الـ track/الطقم، أداة←مالك).
+5. **استعلامات للـ UI** (`corrections_queries.dart`): `excluded()` (وجوه `ownership='none'`، وجوه متجاهَلة: `review_dismissed` من غير `ownership`، أجسام none/hidden، رفض مع اسم الشخص، أدوات rejected…) مع عدّاد؛ `noOwner(kind)` (للفلتر في Explore)؛ `linksForMedia(mediaId)` (يبني `LinkRow`s: جسم←شخص + المصدر `linkMethod`، جسم≈جسم بنفس الـ track/الطقم، أداة←مالك).
 6. **النسخ الاحتياطي:** الجداول الجديدة في `backupTables` (قائمة صريحة، والترتيب مهم للـ FK: بعد `bodies`)، والاستعادة، ورفض نسخة بـ schema أعلى كما هو الحال. نسخة v18 لازم تترجع على v19 (الأعمدة الناقصة تاخد default).
 
 **الاختبارات**
 - `test/data/schema_v19_test.dart`: migration 18→19 يحفظ كل البيانات (استخدم fixture قاعدة v18 زي `schema_v16_test`).
 - `test/domain/correction_service_test.dart`: لكل (نوع رابط × فعل) من 01 §5.2: مسموح/ممنوع صح + الأثر على الـ DB + `preview` يعد صح + `undo` يرجّع الحالة بالكامل + نطاقات الفيديو (track / ±500ms).
-- **اختبارات "ما يرجعش":** بعد `belongsToNoOne`/`notThisPerson`/`notSamePerson`/`notARealThing` → شغّل `GroupingRunner` + إعادة اكتشاف + إعادة فحص + compactor + backfill ← الربط **ما يرجعش** والتصحيح يفضل على الصف الجديد. ومنهم اختبار لـ `rejectBody` بعد redetect (بيفشل النهارده).
+- **اختبارات "ما يرجعش":** بعد `belongsToNoOne`/`notThisPerson`/`notSamePerson`/`notARealThing` → شغّل `GroupingRunner` + إعادة اكتشاف + إعادة فحص + compactor + backfill ← الربط **ما يرجعش** والتصحيح يفضل على الصف الجديد. ومنهم اختبار لـ `rejectBody` بعد redetect (بيفشل النهارده)، واختبار فيديو: تصحيح بنطاق `track` يفضل بعد إعادة فحص بإطارات في توقيتات مختلفة.
+- `test/domain/body_writers_guard_test.dart`: يدوّر في `lib/` على كتابات `bodies.person_id` و`review_body_links`، ويفشل لو ظهر مسار جديد مش معدّي على `BodyLinkGuard` ومش في قائمة استثناء بسبب مكتوب.
+- **`body_distinct`:** الدمج بيسيب الجسم المتعارض بدون شخص، و`distinctConflicts` بيعدّ صح، و`linkBody` اليدوي بيمسح الزوج، والمسارات التلقائية ما بتكتبش.
+- **`faces.ownership`:** `deletePerson` وتجاهل المراجعة ما بيدّوش شارة "بدون مالك"، وmigration 18→19 ما بيحوّلش `review_dismissed` القديم.
 - **Undo:** يرجّع الحالة بالكامل، بما فيها `review_matches`، ويرفض لو الصف اتغير بعد التطبيق.
 - `test/domain/backup_v19_test.dart`: ذهاب وإياب كامل + استعادة نسخة v18.
 - `hidden`: جسم مخفي ما يظهرش في العدادات والشبكات والمطابقة والتدريب، و"ملوش صاحب" يظهر.
@@ -239,18 +253,23 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 **للقراءة:** `README.md` §3–6، `core/router.dart`، `app.dart`، `features/shell/app_shell.dart`، `lib/library_providers.dart` (`scanProgressProvider`)، `lib/studio_providers.dart` (`jobsProvider`, `jobTrackerProvider`)، `features/scan/scan_progress_card.dart`، `features/jobs/jobs_screen.dart`.
 
 **المهام**
-1. **`core/router.dart`:** عرّف الـ routes النهائية (README §4) كلها. لكل route جديد `builder` يشير مؤقتاً إلى **الشاشة القديمة المقابلة** (جدول 07 §1) أو `PlaceholderScreen`، بحيث المراحل بعدها تبدّل الـ builder فقط. الـ routes القديمة تتحول لـ `redirect` للجديدة (جدول 07 §3، **بترجمة الباراميترات**). الحفاظ على: روابط `agmobile://`، `leave()`، وتنقل ما بعد الـ pairing.
+1. **`core/router.dart`:** عرّف الـ routes النهائية (README §4) كلها. لكل route جديد `builder` يشير مؤقتاً إلى **الشاشة القديمة المقابلة** (جدول 07 §1) أو `PlaceholderScreen`، بحيث المراحل بعدها تبدّل الـ builder فقط. **في P3 تتفعّل بس الـ redirects اللي عمودها في 07 §3 هو P3**: مسار قديم واحد ← مسار جديد واحد بيعرض نفس الشاشة القديمة، **بترجمة الباراميترات**. أي redirect بيجمع كذا شاشة في مسار واحد أو محتاج سلوك مش موجود في الشاشة القديمة (زي `/sources` و`/analyze` و`/insights`، أو `/results` ← `/studio?tab=`، أو `/people/unsorted`) يفضل مساره القديم شغال لحد المرحلة اللي بتبني بديله.
+   - **المسارات اللي هتدخل الـ shell:** مواضع `context.push` القديمة عليها تتحول `go`/`goBranch` في المرحلة اللي بتفعّل الـ redirect، وشاشة الجذر لازم تقرا الـ query كل مرة تدخلها، مش في أول build بس، لأن الـ branch محفوظ في `IndexedStack`. الحفاظ على: روابط `agmobile://`، `leave()`، وتنقل ما بعد الـ pairing.
    - **`/pair`:** الـ redirect الحالي بيفحص `location.startsWith('/pair/')`، وده مش هيطابق `/pair` الجديد، فالمستخدم مش هيروح permissions بعد الربط. عدّل الشرط وغطّيه باختبار. (`Routes.isOnboarding` مش مستخدم في الـ redirect أصلاً؛ حدّثه أو احذفه.)
    - **ترتيب الـ routes الثابتة قبل المتغيرة:** `/people/unsorted` قبل `/people/:id` (بيعمل `int.parse`)، `/explore/actions/:id` قبل `/explore/:kind/:id`، `/studio/datasets/new` قبل `/studio/datasets/:id`.
    - **`/restyle`** يفضل زي ما هو (خارج النطاق).
 2. **`domain/targets/target_ref.dart`:** `TargetRef` (media + detection اختياري) مع parse/serialize لـ `target=media:ID[,det:ID]` + `person` + `identity` + دعم الباراميترات القديمة (`media`, `target`, `face`, `person`, `identity`) كقراءة فقط. بتُستخدم في P5/P8.
 3. **`features/shell/app_shell.dart`:** 4 وجهات (Library, People, **Explore**, Studio).
 4. **`ui/activity_pill.dart` + `activity_state_provider`:** يدمج `scanProgressProvider` + `jobsProvider` (+ فشل لم يُشاهد) في حالة واحدة: `idle | scanning(n/m) | job(type,%) | multiple(+k) | failed`. الضغط → `/activity`. يظهر بس لما فيه نشاط.
-   - **مكانه:** الـ shell بيحتوي 4 جذور بس، و`/people/:id` و`/media/:id` وباقي الشاشات براه. عشان الـ Pill يبقى عالمي: **Host واحد فوق الـ Navigator** في `MaterialApp.router(builder:)`، والـ routes التفصيلية تفضل top-level من غير نقلها لـ branches. مخفي في onboarding والـ Viewer والـ Flows و`/activity`، وفوق الـ NavigationBar في الجذور.
+   - **مكانه:** الـ shell بيحتوي 4 جذور بس، و`/people/:id` و`/media/:id` وباقي الشاشات براه، والـ routes التفصيلية تفضل top-level من غير نقلها لـ branches. نفس الـ widget بيتعرض في مكانين، ومفيش `Stack` فوق الـ Navigator، لأنه كان هيغطي الـ modal sheets والـ Snackbar و`StickyActionBar`:
+     - **الجذور:** جوه `AppShell` فوق الـ `NavigationBar` مباشرة.
+     - **باقي الشاشات:** `ActivityPillHost` جوه `AppLockGate` في `MaterialApp.router(builder:)` (`AppLockGate(child: ActivityPillHost(child: child))`، عشان ما يظهرش على شاشة القفل)، بيعمل `Column[Expanded(child), Pill]` فيحجز مساحته، ويشيل الـ padding السفلي من الـ child ويحطه تحت الـ Pill.
+     - **الـ Host فوق الـ Router:** مفيش `GoRouter.of(context)` هناك، فبياخد الـ `GoRouter` كـ parameter وبيسمع `routerDelegate` عشان يعرف المسار وينقل لـ `/activity`.
+     - **مخفي في:** onboarding والـ Viewer والـ Flows و`/activity`، ولما الكيبورد مفتوح. والضغط يتقفل طول ما فيه `PopupRoute` مفتوح (`NavigatorObserver`).
 5. فرض قاعدة "⚙ في كل جذر تبويب": `TabRootScaffold` يتطبق في P4–P8 على كل جذر؛ هنا بس نوصّل الـ gear route.
 
-**الاختبارات:** `test/core/router_test.dart` (كل route قديم → redirect صح مع الباراميترات؛ بعد الربط من `/pair` يروح permissions؛ رابط `agmobile://`)، `test/features/shell_test.dart` (4 وجهات؛ الـ Pill في كل حالاته، ظاهر في شاشة تفصيلية ومخفي في الـ Viewer؛ الضغط يروح `/activity`)، `target_ref_test.dart`، تحديث `widget_test.dart` وأي اختبار بيستخدم `Routes.home/jobs/results/lora/...`.
-**معايير الإنجاز:** التطبيق يفتح على 4 تبويبات؛ كل deep link قديم شغّال؛ ولا شاشة اتغيرت.
+**الاختبارات:** `test/core/router_test.dart` (كل redirect مفعّل في P3 صح مع الباراميترات؛ كل مسار قديم لسه ما اتفعّلش بيفتح شاشته القديمة؛ بعد الربط من `/pair` يروح permissions؛ رابط `agmobile://`)، `test/features/shell_test.dart` (4 وجهات؛ الـ Pill في كل حالاته، ظاهر في شاشة تفصيلية ومخفي في الـ Viewer وعلى شاشة القفل؛ ما بيغطيش modal sheet أو Snackbar أو `StickyActionBar`؛ الضغط يروح `/activity`)، `target_ref_test.dart`، تحديث `widget_test.dart` وأي اختبار بيستخدم `Routes.home/jobs/results/lora/...`.
+**معايير الإنجاز:** التطبيق يفتح على 4 تبويبات؛ كل deep link قديم بيوصل لنفس الشاشة القديمة بنفس البيانات؛ ولا شاشة اتغيرت ولا بقت غير متاحة.
 
 ---
 
@@ -260,12 +279,12 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 **خارج النطاق:** حذف الشاشات القديمة (P9).
 
 **المهام**
-1. **A1** `features/activity/activity_screen.dart` (الآن ‖ السجل): `ProgressCard(scan)` (المراحل الأربع، إيقاف/استئناف، "الملفات اللي تعذر فحصها" → `FailedItemsSheet`) + قائمة `ProgressCard(job)` بإجراءات من الـ Registry (`cancel/retry/open`). استخرج منطق `ScanProgressCard`/`RunningScanScreen` إلى مصدر بيانات `ProgressCardData` — **نفس المكون** يظهر في الـ Pill-expand وA1.
+1. **A1** `features/activity/activity_screen.dart` (الآن ‖ السجل): `ProgressCard(scan)` (المراحل الأربع، إيقاف/استئناف، "الملفات اللي تعذر فحصها" → `FailedItemsSheet`) + قائمة `ProgressCard(job)` بإجراءات من الـ Registry (`cancel/retry/open`). استخرج منطق `ScanProgressCard`/`RunningScanScreen` إلى مصدر بيانات `ProgressCardData`. A1 هو مكان عرض البطاقة الوحيد؛ الـ Pill شريط بس، وضغطه يروح `/activity`.
 2. **A2** تفاصيل المهمة (نقل `JobDetailScreen`): بيانات، سجل SSE، مخرجات، `retry/cancel/runAgain`.
-3. **S1** `settings_screen.dart` → `SettingsScaffold` بالمجموعات في 06. **S2** (من `connection_screen.dart` + `resource_panel.dart`). **S3** (دمج `sources_screen` + `analyze_screen/controller` + `insights_screen` + إحصائيات Home: نظرة عامة، المصادر، أفعال الفحص، "حلّل ملف..."). **S4** (قفل التطبيق: مفتاح، مهلة، FLAG_SECURE، وإعداد PIN/بصمة؛ `AppLockGate` يفضل غلاف). **S5** storage. **S6** backup (+ تذكير آخر نسخة > 14 يوم بدل بانر Home). **S7** background.
+3. **S1** `settings_screen.dart` → `SettingsScaffold` بالمجموعات في 06. **S2** (من `connection_screen.dart` + `resource_panel.dart`). **S3** (دمج `sources_screen` + `analyze_screen/controller` + `insights_screen` + إحصائيات Home: نظرة عامة، المصادر، أفعال الفحص، "حلّل ملف..."). **S4** (نفس السلوك الحالي: مفتاح قفل التطبيق بمصادقة النظام؛ `AppLockGate` يفضل غلاف. المهلة وPIN وحماية لقطات الشاشة مش موجودين النهارده، فمش جزء من P4: افتراض #9). **S5** storage. **S6** backup (+ تذكير آخر نسخة > 14 يوم بدل بانر Home). **S7** background.
 4. **O1/O2/O3:** Welcome، `/pair` واحدة بـ `SegmentedBar` (QR ‖ يدوي) بنفس `PairingController`، Permissions. روابط `agmobile://pair` تروح O2 بالبيانات مملوءة.
 5. استبدال `Navigator.push` اللي في الملفات دي بـ routes/Sheets. تطبيق `NameSheet/ConfirmSheet` مكان الـ dialogs (`password_dialog` يتحول لـ `PasswordSheet`).
-6. تحويل `builder`s الجديدة في `router.dart` للشاشات الجديدة.
+6. تحويل `builder`s الجديدة في `router.dart` للشاشات الجديدة، وتفعيل redirects صفوف P4 في 07 §3 (ومنها `/sources` و`/analyze` و`/insights` و`/running-scan` و`/pair/*`).
 
 **الاختبارات (انقل/حدّث):** `scan_and_settings_test`, `running_scan_test`, `resources_test`, `connection_screen_test`, `background_test`, `backup_password_test`, `onboarding_test`, `analyze_test`, `video_scan_details_test`, `home_test` (يتحول لاختبار ما بقاش في Home وإن محتواه اتوزع)، + جديد: `activity_screen_test` (إيقاف/استئناف/إعادة/إلغاء، تصفية السجل)، `settings_hub_test`.
 **معايير الإنجاز:** الفحص يُتحكم فيه من `/activity` فقط؛ لا أيقونة Activity في أي AppBar جديد؛ كل S* شغّال بـ SettingsScaffold. (بدء الفحص من `ScanInviteStrip` معيار P5a، ولحد وقتها المدخل القديم يفضل شغال.)
@@ -279,8 +298,8 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 1. `library_screen.dart` → `TabRootScaffold` (عنوان، فلتر، ⚙) + `SegmentedBar` (الصور ‖ الألبومات) + `FilterBar`/`FilterSheet` (نوع، حالة فحص، تاريخ، شخص) + `ScanInviteStrip`.
 2. حافظ حرفياً على: **0ms reload** (cache Riverpod)، تجميع بالتاريخ، **كثافة 3/4/5 بالقرص**، الاختيار المتعدد.
 3. Albums: `EntityGrid` من `EntityCard(album)`؛ L2 (من `FolderScreen`) مع ⋮ (تضمين/استبعاد من الفحص، مراجعة الألبوم → `/review?queue=suggestions&album=`، تحليل الألبوم).
-4. `BulkActionBar`: مشاركة · تحليل الآن · إضافة لمجموعة تدريب (تظهر فقط لو الدالة موجودة؛ وإلا تتأجل لـ P8) · المزيد.
-5. `ui/pickers/media_picker.dart` (single/multi، صور ‖ ألبومات) — يُستخدم في P8.
+4. `BulkActionBar`: مشاركة · تحليل الآن · إضافة لمجموعة تدريب (تظهر فقط لو الدالة موجودة؛ وإلا تتأجل لـ P8b) · المزيد.
+5. `ui/pickers/media_picker.dart` (single/multi، صور ‖ ألبومات) — يُستخدم في P8a وP8b.
 6. حالات: no-permission / limited / first-run.
 **الاختبارات:** المذكورة فوق منقولة + `media_picker_test`، `scan_invite_strip_test`.
 **الإنجاز:** نفس سلوك المعرض الحالي من منظور المستخدم + الشكل الجديد؛ الفحص يُبدأ من `ScanInviteStrip` ومدخل الفحص القديم في الـ AppBar اتشال.
@@ -292,7 +311,7 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 **للقراءة:** `02_library_and_viewer.md` (L3, L4)، `features/media/{media_screen,video_media_view}.dart`، `features/shared/{image_preview,media_target}.dart`، `features/bodies/body_inspection_sheet.dart`، `data/platform/native_video_player.dart` (لا يتغير)، اختبارات: `viewer_gestures_test, media_screen_native_player_test, video_media_view_test, media_target_test, image_preview_test, outline_overlay_test, body_overlay_painter_test, review_viewer_test`.
 **المهام**
 1. فكّ `media_screen.dart` (1614 سطر) إلى: `media_viewer_screen.dart`، `media_chrome.dart`، `layers_popover.dart`، `detection_overlay.dart` (استخراج الرسّامات الحالية)، `media_page_item.dart`. `video_media_view.dart` يفضل.
-2. **حافظ على:** تشغيل zero-copy بـ `contentUri`، التشغيل التلقائي عند الوصول، الصامت افتراضياً، التمرير الأفقي، الإيماءات (نقرة/نقرتين/سحب)، `MediaCollectionContext`، فتح المشغل الخارجي.
+2. **حافظ على:** تشغيل zero-copy بـ `contentUri`، التشغيل التلقائي عند الوصول، الصامت افتراضياً، التمرير الأفقي، الإيماءات (نقرة/نقرتين/سحب)، `MediaCollectionContext`، فتح المشغل الخارجي. (`MediaCollectionContext` يفضل `{ids, loadMore}` عبر `state.extra` ويتضاف له `source` بس؛ الفتح من deep link يفضل بباراميترات `/media/:id` الحالية.)
 3. زر **طبقات** (وجوه · أجسام · هيكل · أدوات؛ الافتراضي وجوه + أجسام). الطبقة غير المتاحة تظهر معطّلة بسبب.
 4. الشريط السفلي: **مشاركة · استوديو · (تكبير/Lens أو مشغل خارجي)** + **مكان محجوز** لشريط الـ Peek (يتركب في P5c). زر "تفاصيل" يتشال بعد P5c؛ مؤقتاً يفتح الشيت الحالي.
 5. استبدال `_boxMenu` بـ `EntityActionSheet` من الـ Registry (وجه/جسم) — **كل الإجراءات الحالية موجودة** (assign, reject, kind, group-pose, equipment, similar-pose/colours, name-pose/outfit, mark-tattoo, delete, reface/restyle-target مع قيد إطار الفيديو؛ `restyle-target` بنفس باراميترات `/restyle` الحالية). وكمان قائمة الـ AppBar وشيت التفاصيل: `redetect`، نوع الملف كله (`_fileKindMenu`).
@@ -342,7 +361,7 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 **للقراءة:** `03_people_and_review.md` (P4–P6 والوشوم)، `features/review/*`، `features/people/{unsorted_screen,people_actions,organize_media_screen}.dart`، `features/merge/merge_screen.dart`، `features/marks/*`، `data/repositories/review_repository.dart`، اختبارات: `review_test, quick_review_test, review_viewer_test, marks_ui_test`.
 **المهام**
 1. **P4 مركز المراجعة** `features/review_hub/` يدمج `review_screen`, `quick_review_screen`, `album_review_screen`, `unsorted_screen`, `SimilarFacesScreen` (في `people_actions.dart`), `review_media_viewer`: الطوابير `unsorted · suggestions · duplicates · bodyLinks · similar · excluded`. `suggestions` = `SwipeDeck` (يمين/يسار/أعلى **+ أزرار ظاهرة** للإتاحة) + درج "قارن". `excluded` من `corrections_queries.excluded()` مع التراجع.
-2. **P5** Merge (T4)، **P6** Organize Files (`/people/:id/files` و`/groups/:id/files`) بنفس الـ Journal الحالي.
+2. **P5** Merge (T4، ومعاينته تعرض عدد `distinctConflicts`)، **P6** Organize Files (`/people/:id/files` و`/groups/:id/files`) بنفس الـ Journal الحالي.
 3. `person_marks_screen` → تبويب وشوم/استكشاف + `MarkEditor` الجاهز من P5c. `TrainingExportDialog` يتحول لإجراء `exportDataset` (يتوصل في P8b) — مؤقتاً يفضل شغّال.
 4. إزالة كل `Navigator.push` وكل dialogs التسمية/التأكيد في الملفات دي.
 **الاختبارات:** المذكورة منقولة + `review_hub_test` (كل طابور + Undo + سحب وأزرار).
@@ -435,10 +454,11 @@ P0 ─┬─► P1 ─► P3 ─┬─► P4
 | الخطر | التخفيف |
 |---|---|
 | تفكيك ملفات ضخمة يكسر سلوك دقيق (إيماءات، فيديو، Reface) | Characterization tests أولاً (قاعدة 7)، تفكيك بالاستخراج بدون تغيير منطق، مرحلة لكل شاشة كبيرة |
-| تصحيح المستخدم يضيع مع إعادة الفحص/التجميع | `body_overrides` بمفتاح asset + box، P2 بند 4، اختبارات "ما يرجعش" |
+| تصحيح المستخدم يضيع مع إعادة الفحص/التجميع | `body_overrides` و`face_overrides` بمفتاح asset + box ونطاق `track` للفيديو، `BodyLinkGuard`، P2 بند 4، اختبارات "ما يرجعش" |
+| شاشات قديمة تبقى غير متاحة بين المراحل | كل redirect يتفعّل مع مرحلة شاشته (07 §3)، و`router_test` بيغطي المسارات اللي لسه ما اتفعّلتش |
 | migration v19 على المكتبة الحقيقية اتجاه واحد | `.agbackup` قبل التثبيت + نقطة تحقق الهاتف بعد P2 + اختبار migration واستعادة v18 |
 | حذف الكود القديم قبل ما يتأكد الجديد على الهاتف | قائمة التحقق قبل حذف P9، مش بعده |
-| مكونات P1 تتبني على تخمين من غير مستخدم حقيقي | Pilot على S5 في P1، وتعديل الـ API مسموح عند أول استخدام |
+| مكونات P1 تتبني على تخمين من غير مستخدم حقيقي | Pilot على S5 وشبكة النتائج في P1، وتعديل الـ API مسموح عند أول استخدام |
 | تعارض دمج على `router.dart` / `app_en.arb` | P3 يسجل كل الـ routes من الأول؛ كل مرحلة تلتزم بمنطقة مفاتيح ARB خاصة بيها (prefix) |
 | فقد ميزة موجودة أثناء الدمج | جدول 07 §1 + اختبار "كل الإجراءات القديمة ظاهرة" في P5b + قائمة تحقق الهاتف |
 | الواجهة إنجليزي بينما الـ spec عربي | محسوم: الواجهة إنجليزي. الـ spec العربي وصف؛ التسميات الإنجليزية في عمود جديد في 01 §2 (P0) |
