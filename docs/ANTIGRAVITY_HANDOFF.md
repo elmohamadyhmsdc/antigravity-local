@@ -1,6 +1,35 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Screens redesign spec v2 (docs only, no code changed) — 2026-11-02
+
+- New spec in `docs/app_screens_v2/` (start at its `README.md`): the phone app's screens rewritten from scratch with the same features. 37 screens, 4 tabs (Library, People, Explore, Studio), global `ActivityPill` → `/activity`, Settings behind a gear. Supersedes `docs/app_screens/`, which describes the current (duplicated) structure.
+- `01_shared_components.md` is the core: shared component catalogue (`EntityCard`, `CollectionView`, `NameSheet`, `ConfirmSheet`, pickers, `ProgressCard`...), an `ActionRegistry` and an entity × action matrix. Every screen spec in 02–06 is built only from those.
+- `07_migration_map.md`: old screen → new screen table, route renames, deletions (Home, per-AppBar Activity/Results icons, 27 `Navigator.push` sites), implementation order and acceptance checks.
+- Audit evidence (from `studio_screen.dart`, `home_screen.dart`, `discover_screen.dart`, `router.dart`): Studio "LoRA/Models/Datasets" rows all open `/lora`; Activity and Results each appear twice there; `Routes.jobs` is referenced from 10 files.
+- **Implementation plan: `docs/app_screens_v2/08_implementation_plan.md`** — phases P0–P9 meant to run as separate Antigravity sessions (P1 ∥ P2, then P3, then P4/P5a–c/P6/P7/P8, then P9 cleanup). Each phase lists files to read, tasks, tests and done criteria; global rules in its §1 (no phone, no new packages, analyze=0, strangler migration, `lib/ui` + `lib/domain/actions` + `lib/domain/corrections`). P2 is schema v19 (current is 18).
+- Spec fix: Reface in the spec now follows the unified pipeline (quality profile Fast/Balanced/More detail, restoration, all-faces, identity boost), not V3/V2/DFM engine versions — the screen reorganises, the options stay as in `reface_options.dart`.
+- Decision (2026-11-02): the app UI stays **English only** (`app_en.arb`); the Arabic in `app_screens_v2` is design description, not UI copy.
+- Open decisions are listed at the end of `07_migration_map.md` (§8) and in the plan's "افتراضات مفتوحة". Nothing has been implemented yet.
+- Viewer workbench (follow-up): `02_library_and_viewer.md` §L3a defines `MediaInspector`, an always-present draggable panel on every photo/video with everything detected (faces, bodies, areas, equipment), the inferred links, activities and Studio actions; video adds a track timeline and a correction scope (this frame / this appearance / whole video).
+- Decision (2026-11-02): "belongs to no one" keeps the item visible in Gallery/Explore marked "no owner"; it is only excluded from auto-linking, suggestions and training, and the user can assign an owner later (Explore has a "no owner" filter). Only "not a real thing" hides an item.
+- Unified corrections: `01_shared_components.md` §5 defines `CorrectionSheet` and one verb set (reassign, not-this-person, belongs-to-no-one, not-a-real-thing, not-same-person, unlink, confirm) across all link types. Verified in code: faces (`face_rejections`, `review_dismissed`, `clearAssignments`), body→person (`body_rejections`, `linkBody`), equipment/pose-tag states, sensitive-region `userState`/override, `person_distinct`. **New schema needed** (not built): body "belongs to no one"/"not a real body"/unlink-without-reject, body-pair distinct, cluster×person rejection/ownership none, cluster-pair distinct — see `07_migration_map.md` §6.
+
+
+## Comprehensive Application Screens & Actions Documentation — 2026-11-02
+
+- Created exhaustive, meticulous documentation directory `docs/app_screens/` covering all 68+ surfaces and screens of the application in thorough Arabic and technical detail:
+  - `docs/app_screens/README.md`: Navigation architecture, bottom navigation shell, global patterns and directory index.
+  - `docs/app_screens/01_gallery_and_media.md`: Onboarding/permissions, LibraryScreen (Photos/Folders), Folder media, MediaScreen (photo/video), zero-copy contentUri playback, swipe autoplay, native player intent bridge ("Open with player"), details sheet, tools sheet, and detection boxes menu (`_boxMenu`).
+  - `docs/app_screens/02_people_and_identities.md`: People & Characters collection, PersonDetailScreen (Media, Identity, Models, Actions tabs), UnsortedScreen, MergeScreen, IdentityGroupsScreen, OrganizeMediaScreen (MediaStore moves), Review screens, and PersonMarksScreen.
+  - `docs/app_screens/03_discovery_bodies_actions.md`: DiscoverScreen, BodiesScreen (6 tabs: All, Poses, Outfits, Group Poses, Equipment, Areas), high-precision matching engine, BodyInspectionSheet (interactive skeleton & area highlight toggles), and Actions catalog.
+  - `docs/app_screens/04_studio_and_ai.md`: StudioScreen, 3-step Reface wizard, Restyle garment replacement, LoRA training pipeline (datasets, build, train, generate), and Results gallery with interactive before/after split slider.
+  - `docs/app_screens/05_activity_and_scans.md`: Jobs/Activity center, RunningScanScreen (hashing, face, pose, embedding stages), SourcesScreen, AnalyzeScreen, and InsightsScreen.
+  - `docs/app_screens/06_settings_and_system.md`: SettingsScreen, ConnectionScreen (server & GPU model readiness), QR and manual pairing, BackgroundScreen, StorageScreen, encrypted backup/restore, and AppLockGate biometric lock.
+- Verification: All 7 files generated, formatted, cross-referenced, and verified on disk.
+- Terminal policy preserved; no unauthorized deployment or modifications to running services.
+
+
 ## Bodies Screen Redesign, High-Precision Pose Matching, Universal Naming & Interactive Overlays — 2026-11-02
 
 - Implemented comprehensive redesign and feature expansion for `BodiesScreen` across all 6 tabs (`All`, `Poses`, `Outfits`, `Group poses`, `Equipment`, `Areas`):
