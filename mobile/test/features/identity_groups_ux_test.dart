@@ -21,6 +21,68 @@ Future<int> _character(AppDatabase db, String name) async {
 }
 
 void main() {
+  appTest('choosing a shared-file owner preserves excluded files', (
+    tester,
+    env,
+  ) async {
+    final a = await seedPerson(env.db, name: 'Luffy'),
+        b = await seedPerson(env.db, name: 'Zoro');
+    final shared = await seedMedia(env.db, asset: '42'),
+        excluded = await seedMedia(env.db, asset: '43');
+    await seedFace(env.db, mediaId: shared, personId: a);
+    await seedFace(env.db, mediaId: shared, personId: b);
+    await seedFace(env.db, mediaId: excluded, personId: a);
+    final bridge = FakeMediaOrganizer()
+      ..seed('42')
+      ..seed('43');
+    await env.pump(
+      tester,
+      extra: [
+        mediaOrganizerBridgeProvider.overrideWithValue(bridge),
+        initialLocationProvider.overrideWithValue('/people'),
+      ],
+    );
+    Navigator.of(tester.element(find.byKey(Key('person-$a')))).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OrganizePersonMediaScreen(personIds: {a, b}),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final check = find.byKey(Key('organize-check-$excluded'));
+    await tester.scrollUntilVisible(
+      check,
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(check);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, 600));
+    await tester.pumpAndSettle();
+    final owner = find.byKey(ValueKey('organize-owner-$shared-null'));
+    await tester.scrollUntilVisible(
+      owner,
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(owner);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Luffy').last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      check,
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<Checkbox>(check).value, isFalse);
+    await tester.tap(find.byKey(const Key('organize-apply')));
+    await tester.pumpAndSettle();
+    expect(bridge.moves.single.map((m) => m.asset.assetId), ['42']);
+    expect(bridge.originals['43']!.path, 'DCIM/Camera/');
+  }, session: testSession);
+
   appTest(
     'anime identities can be filtered by series and assigned to a new group',
     (tester, env) async {
@@ -99,7 +161,11 @@ void main() {
         isNull,
       );
       final owner = find.byKey(ValueKey('organize-owner-$media-null'));
-      await tester.scrollUntilVisible(owner, 180, scrollable: find.byType(Scrollable).last);
+      await tester.scrollUntilVisible(
+        owner,
+        180,
+        scrollable: find.byType(Scrollable).last,
+      );
       await tester.pumpAndSettle();
       await tester.tap(owner);
       await tester.pumpAndSettle();

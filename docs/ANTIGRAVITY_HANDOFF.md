@@ -5,6 +5,24 @@ including uncommitted changes. Older plans/reports describe earlier states.
 The user's latest instructions take precedence. Check relevant source before
 changing behaviour and update this handoff after material changes.
 
+## Mobile identity groups and original moves — 2026-11-01
+
+- Mobile-only Groups organize both people and anime Characters (one group per
+  identity), with list/media filters, bulk assignment and group management.
+- Added previewed movement/renaming of ORIGINAL photos and videos through Android
+  MediaStore into DCIM/Your Gallery/<group>/<identity>/. Shared files require one
+  destination owner; collisions use previewed suffixes. Schema v18 persists groups
+  and an interrupted-move journal, both covered by backup/restore.
+- Scan starts are blocked during moves; scans settle first. MediaStore IDs and
+  detection references are retained. Organized anime files keep their scan mode
+  when their Android album changes. No PC/server/inference changes are needed.
+- Verified: 168 focused Flutter tests passed; focused analyzer clean. A native
+  development build passed before the user requested no new version. Do not
+  build or deliver another APK unless the user asks; no phone installation or
+  physical original-file move was performed.
+- Detailed behavior and actual validation: docs/mobile-identity-groups-and-original-moves-2026-11-01.md.
+
+
 ## Visual pose browsing, group actions and equipment — 2026-11-01
 
 - Added illustrated pose choices and reference crops, explicit Chest / Lower-body

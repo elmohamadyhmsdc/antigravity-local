@@ -10,7 +10,6 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fixtures.dart';
-import '../support/fixtures.dart';
 import '../support/seed.dart';
 
 const hour = 3600 * 1000;

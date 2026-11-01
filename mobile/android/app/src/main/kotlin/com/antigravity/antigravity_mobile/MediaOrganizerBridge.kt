@@ -188,6 +188,7 @@ class MediaOrganizerBridge(private val activity: Activity) {
     private fun finish(request: Pending) {
         main.post {
             if (pending !== request) return@post
+            awaitingPermission = false
             pending = null
             moving.set(false)
             request.result.success(request.results)
