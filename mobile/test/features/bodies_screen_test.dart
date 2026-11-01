@@ -252,6 +252,8 @@ void main() {
         tester,
         extra: [initialLocationProvider.overrideWithValue('/people')],
       );
+      await tester.tap(find.byKey(const Key('people-tools')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('open-bodies')));
       await tester.pumpAndSettle();
       expect(find.byKey(Key('body-$mine')), findsOneWidget);

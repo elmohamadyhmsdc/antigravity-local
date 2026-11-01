@@ -6,11 +6,30 @@ paired with, and still pins the certificate it saved at pairing time. Manual IP 
 phone always works (some routers block multicast / isolate clients).
 """
 
+import logging
 import re
 import socket
+import threading
 from typing import Callable, List, Optional
 
 SERVICE_TYPE = "_antigravity._tcp.local."
+
+
+class _SocketFailureHandler(logging.Handler):
+    """Zeroconf reports async UDP errors through logging, not start()."""
+
+    def __init__(self, addresses, failed):
+        super().__init__(level=logging.WARNING)
+        self.addresses = tuple(addresses)
+        self.failed = failed
+
+    def emit(self, record):
+        error = record.exc_info[1] if record.exc_info else None
+        if (isinstance(error, OSError) and str(record.msg).startswith('Error with socket ')
+                and any(f"('{address}', 5353)" in str(record.msg) for address in self.addresses)):
+            # This runs on Zeroconf's event loop. Closing it here would deadlock;
+            # the network monitor owns restarts. Keep the original warning visible.
+            self.failed.set()
 
 
 def lan_addresses() -> List[str]:
@@ -70,6 +89,12 @@ class Discovery:
         self._log = log
         self._zc = None
         self._info = None
+        self._socket_failed = threading.Event()
+        self._error_handler = None
+
+    @property
+    def restart_requested(self) -> bool:
+        return self._socket_failed.is_set()
 
     def start(self, *, name: str, server_id: str, api_version: str, port: int,
               addresses: Optional[List[str]] = None) -> bool:
@@ -78,18 +103,21 @@ class Discovery:
         except ImportError:
             self._log("[mdns] zeroconf is not installed - phones must connect by IP address")
             return False
-        addresses = addresses or lan_addresses()
+        addresses = lan_addresses() if addresses is None else addresses
         if not addresses:
             self._log("[mdns] no LAN address found - discovery disabled")
             return False
         try:
+            self._socket_failed.clear()
+            self._error_handler = _SocketFailureHandler(addresses, self._socket_failed)
+            logging.getLogger('zeroconf').addHandler(self._error_handler)
             instance = _instance_name(name)
             self._info = ServiceInfo(
                 SERVICE_TYPE, f"{instance}.{SERVICE_TYPE}",
                 addresses=[socket.inet_aton(a) for a in addresses], port=port,
                 properties={"server_id": server_id, "api": api_version, "name": name[:60]},
                 server=f"{_instance_name(socket.gethostname()).replace(' ', '-')}.local.")
-            self._zc = Zeroconf()
+            self._zc = Zeroconf(interfaces=addresses)
             self._zc.register_service(self._info)
             self._log(f"[mdns] advertising {instance} on {', '.join(addresses)}:{port}")
             return True
@@ -99,12 +127,23 @@ class Discovery:
             return False
 
     def stop(self) -> None:
+        # Unregistering sends goodbye packets, which can also fail on a lost
+        # adapter. Those shutdown errors must not request another restart.
+        if self._error_handler is not None:
+            logging.getLogger('zeroconf').removeHandler(self._error_handler)
+            self._error_handler.close()
+            self._error_handler = None
         try:
             if self._zc is not None:
                 if self._info is not None:
-                    self._zc.unregister_service(self._info)
-                self._zc.close()
+                    try:
+                        self._zc.unregister_service(self._info)
+                    finally:
+                        self._zc.close()
+                else:
+                    self._zc.close()
         except Exception:  # noqa: BLE001
             pass
         self._zc = None
         self._info = None
+        self._socket_failed.clear()

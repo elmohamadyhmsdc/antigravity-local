@@ -23,6 +23,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   double? _gateDraft; // while the slider is dragged
+  bool _retryingOutlines = false;
+  bool _stopOutlineRetry = false;
 
   @override
   Widget build(BuildContext context) {
@@ -188,6 +190,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: Text(l10n.sortNowHint),
             onTap: () => sortNow(context, ref),
           ),
+          ListTile(
+            key: const Key('settings-retry-outlines'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.polyline_outlined),
+            title: Text(l10n.outlineRetryTitle),
+            subtitle: Text(
+              l10n.outlineRetryPending(
+                ref.watch(pendingOutlinesProvider).value ?? 0,
+              ),
+            ),
+            trailing: TextButton(
+              onPressed: _retryingOutlines
+                  ? () => setState(() => _stopOutlineRetry = true)
+                  : (ref.watch(pendingOutlinesProvider).value ?? 0) == 0 ||
+                        ref.watch(serverStatusProvider).value is! ServerReady ||
+                        ref.watch(scanProgressProvider).value?.isActive == true
+                  ? null
+                  : _retryOutlines,
+              child: Text(_retryingOutlines ? l10n.pause : l10n.retry),
+            ),
+          ),
           SwitchListTile(
             key: const Key('settings-review-advanced'),
             contentPadding: EdgeInsets.zero,
@@ -231,5 +254,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _retryOutlines() async {
+    setState(() {
+      _retryingOutlines = true;
+      _stopOutlineRetry = false;
+    });
+    final backfill = ref.read(outlineBackfillProvider);
+    try {
+      await backfill.retryPending(
+        shouldContinue: () =>
+            mounted &&
+            !_stopOutlineRetry &&
+            !ref.read(scanEngineProvider).isRunning &&
+            ref.read(serverStatusProvider).value is ServerReady,
+      );
+    } finally {
+      if (mounted) setState(() => _retryingOutlines = false);
+    }
   }
 }

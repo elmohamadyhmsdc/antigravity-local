@@ -9,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
 import '../shared/crop_image.dart';
+import '../shared/image_preview.dart';
 import 'review_media_viewer.dart';
 
 /// Where a face or body was found (its first occurrence).
@@ -98,59 +99,70 @@ class HighlightedPhoto extends ConsumerWidget {
           error: (_, _) => crop(v.cropPath),
           data: (image) {
             if (image == null) return crop(v.cropPath);
-            return Center(
-              child: AspectRatio(
-                aspectRatio: image.$2 / image.$3,
-                child: Semantics(
-                  label: kind == 'f'
-                      ? l.reviewFaceHighlighted
-                      : l.reviewBodyHighlighted,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.memory(
-                        image.$1,
-                        fit: BoxFit.fill,
-                        gaplessPlayback: true,
-                      ),
-                      IgnorePointer(
-                        child: CustomPaint(
-                          key: Key('highlight-$kind-$id'),
-                          painter: ReviewHighlightPainter(
-                            Rect.fromLTWH(v.x, v.y, v.w, v.h),
-                            label: label
-                                ? (kind == 'f' ? l.reviewFace : l.reviewBody)
-                                : '',
-                            isFace: kind == 'f',
-                            outline: v.outline,
+            return ImageExpand(
+              source: ImagePreviewSource.asset(v.assetId!),
+              onExpand: () =>
+                  openReviewMedia(context, [ReviewTarget(kind, id)]),
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: image.$2 / image.$3,
+                  child: Semantics(
+                    label: kind == 'f'
+                        ? l.reviewFaceHighlighted
+                        : l.reviewBodyHighlighted,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.memory(
+                          image.$1,
+                          fit: BoxFit.fill,
+                          gaplessPlayback: true,
+                        ),
+                        IgnorePointer(
+                          child: CustomPaint(
+                            key: Key('highlight-$kind-$id'),
+                            painter: ReviewHighlightPainter(
+                              Rect.fromLTWH(v.x, v.y, v.w, v.h),
+                              label: label
+                                  ? (kind == 'f' ? l.reviewFace : l.reviewBody)
+                                  : '',
+                              isFace: kind == 'f',
+                              outline: v.outline,
+                            ),
                           ),
                         ),
-                      ),
-                      if (inset && v.cropPath != null)
-                        Positioned(
-                          right: 8,
-                          bottom: 8,
-                          width: 76,
-                          height: kind == 'f' ? 76 : 104,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.white, width: 2),
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: const [
-                                BoxShadow(blurRadius: 6, color: Colors.black45),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: CropImage(
-                                path: v.cropPath,
-                                cacheWidth: 240,
-                                placeholderIcon: placeholder,
+                        if (inset && v.cropPath != null)
+                          Positioned(
+                            right: 8,
+                            bottom: 8,
+                            width: 76,
+                            height: kind == 'f' ? 76 : 104,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    blurRadius: 6,
+                                    color: Colors.black45,
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: CropImage(
+                                  path: v.cropPath,
+                                  cacheWidth: 240,
+                                  placeholderIcon: placeholder,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

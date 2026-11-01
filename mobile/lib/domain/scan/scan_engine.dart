@@ -115,6 +115,8 @@ class ScanEngine {
   ScanProgress get progress => _progress;
   Stream<ScanProgress> get stream => _controller.stream;
   bool get isRunning => _active;
+  /// Original-file organization holds this while MediaStore paths are changing.
+  bool mediaOrganizationActive = false;
 
   void _emit(ScanProgress next) {
     _progress = next;
@@ -169,7 +171,7 @@ class ScanEngine {
   /// Runs until the queue is empty or the scan is paused. `enumerate` = list the chosen albums first
   /// (a new scan); false = just work through what is already queued (resume).
   Future<void> start({bool enumerate = true}) async {
-    if (_active) return;
+    if (_active || mediaOrganizationActive) return;
     _allowReconnectResume = true;
     _active = true;
     final settled = _settled = Completer<void>();

@@ -1,3 +1,4 @@
+import '../shared/image_preview.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
@@ -51,7 +52,7 @@ class RefaceFaceChoices extends StatelessWidget {
                     height: 80,
                     child: groups[i].representative.cropJpeg == null
                         ? const Icon(Icons.face_outlined, size: 48)
-                        : Image.memory(
+                        : PreviewImage.memory(
                             groups[i].representative.cropJpeg!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) =>

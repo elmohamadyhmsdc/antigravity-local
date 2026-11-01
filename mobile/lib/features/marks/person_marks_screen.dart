@@ -1,3 +1,4 @@
+import '../shared/image_preview.dart';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Variable;
@@ -163,7 +164,7 @@ class _PersonMarksScreenState extends ConsumerState<PersonMarksScreen> {
                   width: 72,
                   height: 72,
                   child: patch != null && patch.existsSync()
-                      ? Image.memory(
+                      ? PreviewImage.memory(
                           patch.readAsBytesSync(),
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) =>

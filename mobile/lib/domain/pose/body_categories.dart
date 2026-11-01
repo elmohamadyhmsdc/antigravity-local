@@ -173,7 +173,7 @@ class BodyCategories {
     final c = await (_db.select(
       _db.poseCategories,
     )..where((x) => x.id.equals(categoryId))).getSingleOrNull();
-    if (c == null) return 0;
+    if (c == null || c.kind == 'group_pose') return 0;
     final exemplar = PoseFeature.fromBlob(
       c.exemplarFeature,
       c.exemplarMask,

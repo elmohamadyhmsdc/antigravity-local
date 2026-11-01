@@ -1,3 +1,4 @@
+import '../shared/image_preview.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
@@ -814,99 +815,111 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                         onChanged: _busy ? null : _setReplaceAllFaces,
                       ),
                       if (_photo != null && _analysis == null)
-                        Image.memory(_photo!, height: 220, fit: BoxFit.contain),
+                        PreviewImage.memory(
+                          _photo!,
+                          height: 220,
+                          fit: BoxFit.contain,
+                        ),
                       if (_photo != null && _analysis != null) ...[
                         const SizedBox(height: 12),
-                        AspectRatio(
-                          aspectRatio: _analysis!.imageW / _analysis!.imageH,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) => Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Image.memory(_photo!, fit: BoxFit.fill),
-                                if (!_replaceAllFaces)
-                                  for (
-                                    var i = 0;
-                                    i < _analysis!.faces.length;
-                                    i++
-                                  )
-                                    Positioned(
-                                      left:
-                                          _analysis!.faces[i].bbox.x /
-                                          _analysis!.imageW *
-                                          constraints.maxWidth,
-                                      top:
-                                          _analysis!.faces[i].bbox.y /
-                                          _analysis!.imageH *
-                                          constraints.maxHeight,
-                                      width:
-                                          _analysis!.faces[i].bbox.w /
-                                          _analysis!.imageW *
-                                          constraints.maxWidth,
-                                      height:
-                                          _analysis!.faces[i].bbox.h /
-                                          _analysis!.imageH *
-                                          constraints.maxHeight,
-                                      child: Semantics(
-                                        label: l10n.analyzeFaceTitle(i + 1),
-                                        selected: _targets.contains(i),
-                                        button: true,
-                                        child: GestureDetector(
-                                          key: Key('target-face-$i'),
-                                          onTap: () => setState(() {
-                                            if (!_targets.remove(i)) {
-                                              _targets.add(i);
-                                            }
-                                          }),
-                                          child: CustomPaint(
-                                            painter: DetectionBoxPainter(
-                                              isFace: true,
-                                              outline:
-                                                  _analysis!.faces[i].outline ==
-                                                      null
-                                                  ? null
-                                                  : [
-                                                      for (final p
-                                                          in _analysis!
-                                                              .faces[i]
-                                                              .outline!)
-                                                        Offset(
-                                                          (p.dx -
-                                                                  _analysis!
-                                                                      .faces[i]
-                                                                      .bbox
-                                                                      .x) /
-                                                              _analysis!
-                                                                  .faces[i]
-                                                                  .bbox
-                                                                  .w,
-                                                          (p.dy -
-                                                                  _analysis!
-                                                                      .faces[i]
-                                                                      .bbox
-                                                                      .y) /
-                                                              _analysis!
-                                                                  .faces[i]
-                                                                  .bbox
-                                                                  .h,
-                                                        ),
-                                                    ],
-                                              fillColor: _targets.contains(i)
-                                                  ? Colors.greenAccent
-                                                        .withValues(alpha: 0.20)
-                                                  : Colors.black.withValues(
-                                                      alpha: 0.10,
-                                                    ),
-                                              borderColor: _targets.contains(i)
-                                                  ? Colors.greenAccent
-                                                  : Colors.white,
-                                              borderWidth: 3,
+                        ImageExpand(
+                          source: ImagePreviewSource.bytes(_photo!),
+                          child: AspectRatio(
+                            aspectRatio: _analysis!.imageW / _analysis!.imageH,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) => Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Image.memory(_photo!, fit: BoxFit.fill),
+                                  if (!_replaceAllFaces)
+                                    for (
+                                      var i = 0;
+                                      i < _analysis!.faces.length;
+                                      i++
+                                    )
+                                      Positioned(
+                                        left:
+                                            _analysis!.faces[i].bbox.x /
+                                            _analysis!.imageW *
+                                            constraints.maxWidth,
+                                        top:
+                                            _analysis!.faces[i].bbox.y /
+                                            _analysis!.imageH *
+                                            constraints.maxHeight,
+                                        width:
+                                            _analysis!.faces[i].bbox.w /
+                                            _analysis!.imageW *
+                                            constraints.maxWidth,
+                                        height:
+                                            _analysis!.faces[i].bbox.h /
+                                            _analysis!.imageH *
+                                            constraints.maxHeight,
+                                        child: Semantics(
+                                          label: l10n.analyzeFaceTitle(i + 1),
+                                          selected: _targets.contains(i),
+                                          button: true,
+                                          child: GestureDetector(
+                                            key: Key('target-face-$i'),
+                                            onTap: () => setState(() {
+                                              if (!_targets.remove(i)) {
+                                                _targets.add(i);
+                                              }
+                                            }),
+                                            child: CustomPaint(
+                                              painter: DetectionBoxPainter(
+                                                isFace: true,
+                                                outline:
+                                                    _analysis!
+                                                            .faces[i]
+                                                            .outline ==
+                                                        null
+                                                    ? null
+                                                    : [
+                                                        for (final p
+                                                            in _analysis!
+                                                                .faces[i]
+                                                                .outline!)
+                                                          Offset(
+                                                            (p.dx -
+                                                                    _analysis!
+                                                                        .faces[i]
+                                                                        .bbox
+                                                                        .x) /
+                                                                _analysis!
+                                                                    .faces[i]
+                                                                    .bbox
+                                                                    .w,
+                                                            (p.dy -
+                                                                    _analysis!
+                                                                        .faces[i]
+                                                                        .bbox
+                                                                        .y) /
+                                                                _analysis!
+                                                                    .faces[i]
+                                                                    .bbox
+                                                                    .h,
+                                                          ),
+                                                      ],
+                                                fillColor: _targets.contains(i)
+                                                    ? Colors.greenAccent
+                                                          .withValues(
+                                                            alpha: 0.20,
+                                                          )
+                                                    : Colors.black.withValues(
+                                                        alpha: 0.10,
+                                                      ),
+                                                borderColor:
+                                                    _targets.contains(i)
+                                                    ? Colors.greenAccent
+                                                    : Colors.white,
+                                                borderWidth: 3,
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),

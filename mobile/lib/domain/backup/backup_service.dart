@@ -33,8 +33,10 @@ class BackupTable {
 
 /// Insertion order = foreign-key order (parents first). Deleting goes the other way round.
 const backupTables = [
+  BackupTable('identity_groups'),
   BackupTable('persons'),
   BackupTable('media'),
+  BackupTable('person_media_moves'),
   BackupTable('character_identities'),
   BackupTable('character_samples'),
   BackupTable('faces'),
@@ -53,6 +55,8 @@ const backupTables = [
   // body_pose_features is a cache and is rebuilt after a restore, so it is not listed.
   BackupTable('sensitive_regions'),
   BackupTable('body_garment_tags'),
+  BackupTable('equipment_objects'),
+  BackupTable('equipment_photos'),
   BackupTable('body_marks'),
   BackupTable('pose_categories'),
   BackupTable('outfit_categories'),

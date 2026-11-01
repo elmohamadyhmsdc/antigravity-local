@@ -20,6 +20,8 @@ import '../scan/redetect_flow.dart';
 import '../scan/scan_progress_card.dart' show startScan;
 import 'action_face_picker.dart';
 import 'action_sheet.dart';
+import 'identity_groups_screen.dart';
+import 'organize_media_screen.dart';
 
 List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
   final single = people.length == 1;
@@ -28,6 +30,8 @@ List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
     if (single) const PeopleMenuAction('open', Icons.person_outline),
     const PeopleMenuAction('merge', Icons.merge),
     if (single) const PeopleMenuAction('rename', Icons.edit_outlined),
+    const PeopleMenuAction('setGroup', Icons.folder_outlined),
+    const PeopleMenuAction('organizeMedia', Icons.drive_file_move_outlined),
     PeopleMenuAction(
       people.every((p) => p.hidden) ? 'show' : 'hide',
       Icons.visibility_outlined,
@@ -233,6 +237,16 @@ Future<void> runPersonAction(
   final p = people.first;
   try {
     switch (action) {
+      case 'setGroup':
+        await assignIdentityGroup(context, ref, ids);
+        return;
+      case 'organizeMedia':
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => OrganizePersonMediaScreen(personIds: ids.toSet()),
+          ),
+        );
+        return;
       case 'open':
       case 'media':
       case 'suggestions':

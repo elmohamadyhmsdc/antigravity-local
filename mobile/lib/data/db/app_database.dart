@@ -44,6 +44,7 @@ class LibraryStats {
 
 @DriftDatabase(
   tables: [
+    IdentityGroups,
     Persons,
     Media,
     Faces,
@@ -82,6 +83,9 @@ class LibraryStats {
     BodyOutfitMatches,
     SensitiveRegions,
     BodyGarmentTags,
+    EquipmentObjects,
+    EquipmentPhotos,
+    PersonMediaMoves,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -89,7 +93,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 16;
+  static const currentSchemaVersion = 18;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -302,6 +306,32 @@ class AppDatabase extends _$AppDatabase {
           'CREATE INDEX IF NOT EXISTS body_garment_tags_tag ON body_garment_tags (tag)',
         ]) {
           await customStatement(sql);
+        }
+      }
+      if (from < 17) {
+        final existing = (await customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table'",
+        ).get()).map((r) => r.read<String>('name')).toSet();
+        if (!existing.contains('equipment_objects')) {
+          await m.createTable(equipmentObjects);
+        }
+        if (!existing.contains('equipment_photos')) {
+          await m.createTable(equipmentPhotos);
+        }
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS equipment_objects_media ON equipment_objects (media_id)',
+        );
+      }
+      if (from < 18) {
+        final existing = (await customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table'",
+        ).get()).map((r) => r.read<String>('name')).toSet();
+        if (!existing.contains('identity_groups')) {
+          await m.createTable(identityGroups);
+        }
+        await addMissing(persons, [persons.groupId]);
+        if (!existing.contains('person_media_moves')) {
+          await m.createTable(personMediaMoves);
         }
       }
     },

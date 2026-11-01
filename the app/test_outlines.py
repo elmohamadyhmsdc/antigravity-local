@@ -7,6 +7,8 @@ import math
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -256,6 +258,107 @@ def test_engine_with_fake_sessions():
     print("PASS: test_engine_with_fake_sessions")
 
 
+class RecordingRmbg:
+    def __init__(self, provider="CPUExecutionProvider", error=None):
+        self.provider, self.error = provider, error
+        self.calls = []
+
+    def get_providers(self):
+        return [self.provider]
+
+    def get_inputs(self):
+        return [SimpleNamespace(name="input")]
+
+    def run(self, _, feeds):
+        inp = feeds["input"]
+        self.calls.append(inp.copy())
+        if self.error:
+            raise RuntimeError(self.error)
+        out = np.zeros((len(inp), 1, 32, 32), np.float32)
+        out[:, :, 5:27, 5:27] = 1
+        return [out]
+
+
+def test_body_outlines_bound_memory_and_preserve_target_order():
+    session = RecordingRmbg()
+    engine = OutlineEngine(rmbg_session=session)
+    img = np.full((200, 300, 3), 255, np.uint8)
+    bodies = [FakeBody([10, 10, 70, 150]), FakeBody([0, 0, 0, 0]),
+              FakeBody([180, 10, 260, 170])] * 5
+    result = engine.body_outlines(img, bodies)
+    assert len(session.calls) == 10
+    assert all(inp.shape == (1, 3, 1024, 1024) for inp in session.calls)
+    assert all(inp.dtype == np.float32 and np.all(inp == 0.5) for inp in session.calls)
+    for i in range(0, len(bodies), 3):
+        assert result[i] is not None and result[i][:, 0].max() < 80
+        assert result[i + 1] is None
+        assert result[i + 2] is not None and result[i + 2][:, 0].min() > 170
+
+
+def test_gpu_oom_retries_same_crop_and_stays_on_cpu():
+    gpu = RecordingRmbg("CUDAExecutionProvider", "Failed to allocate memory for requested buffer")
+    cpu = RecordingRmbg()
+    engine = OutlineEngine(rmbg_session=gpu)
+    img = np.zeros((200, 200, 3), np.uint8)
+    def create(providers):
+        assert engine.rmbg_session is None, "Release CUDA session before constructing CPU session"
+        assert providers == ["CPUExecutionProvider"]
+        return cpu
+    with patch.object(engine, "_create_rmbg_session", side_effect=create) as factory:
+        result = engine.body_outlines(img, [FakeBody([10, 10, 150, 190])] * 3)
+        assert all(poly is not None for poly in result)
+        assert len(gpu.calls) == 1 and len(cpu.calls) == 3
+        np.testing.assert_array_equal(gpu.calls[0], cpu.calls[0])
+        assert engine.body_outlines(img, [FakeBody([10, 10, 150, 190])])[0] is not None
+        assert factory.call_count == 1 and len(gpu.calls) == 1
+
+
+def test_rmbg_errors_do_not_loop_or_switch_cpu_for_unrelated_errors():
+    img = np.zeros((100, 100, 3), np.uint8)
+    bodies = [FakeBody([10, 10, 90, 90])]
+    for provider, error in [("CPUExecutionProvider", "out of memory"),
+                            ("CUDAExecutionProvider", "Invalid input shape")]:
+        session = RecordingRmbg(provider, error)
+        engine = OutlineEngine(rmbg_session=session)
+        with patch.object(engine, "_create_rmbg_session") as factory:
+            assert engine.body_outlines(img, bodies) == [None]
+            factory.assert_not_called()
+        assert len(session.calls) == 1
+    engine = OutlineEngine(rmbg_session=RecordingRmbg("CUDAExecutionProvider", "out of memory"))
+    cpu = RecordingRmbg(error="out of memory")
+    with patch.object(engine, "_create_rmbg_session", return_value=cpu) as factory:
+        assert engine.body_outlines(img, bodies) == [None]
+        assert factory.call_count == 1 and len(cpu.calls) == 1
+
+
+def test_rmbg_session_uses_conservative_memory_options():
+    engine = OutlineEngine()
+    with patch("outlines.ort.InferenceSession") as factory:
+        engine._create_rmbg_session(["CUDAExecutionProvider", "CPUExecutionProvider"])
+        options = factory.call_args.kwargs
+        assert options["sess_options"].enable_cpu_mem_arena is False
+        assert options["sess_options"].enable_mem_pattern is False
+        cuda = options["providers"][0]
+        assert cuda[0] == "CUDAExecutionProvider"
+        assert cuda[1]["cudnn_conv_use_max_workspace"] == "0"
+        assert cuda[1]["arena_extend_strategy"] == "kSameAsRequested"
+
+
+def test_failed_session_creation_can_recover_on_a_later_request():
+    img = np.zeros((100, 100, 3), np.uint8)
+    bodies = [FakeBody([10, 10, 90, 90])]
+    for initial in (None, RecordingRmbg("CUDAExecutionProvider", "out of memory")):
+        engine = OutlineEngine(rmbg_session=initial)
+        recovered = RecordingRmbg()
+        with patch.object(Path, "exists", return_value=True), patch.object(
+            engine, "_create_rmbg_session", side_effect=[MemoryError("host memory"), recovered]
+        ) as factory:
+            assert engine.body_outlines(img, bodies) == [None]
+            assert not engine._rmbg_loaded
+            assert engine.body_outlines(img, bodies)[0] is not None
+            assert factory.call_count == 2
+
+
 if __name__ == "__main__":
     try:
         test_filled_circle()
@@ -267,6 +370,11 @@ if __name__ == "__main__":
         test_skeleton_and_encoding()
         test_engine_missing_models()
         test_engine_with_fake_sessions()
+        test_body_outlines_bound_memory_and_preserve_target_order()
+        test_gpu_oom_retries_same_crop_and_stays_on_cpu()
+        test_rmbg_errors_do_not_loop_or_switch_cpu_for_unrelated_errors()
+        test_rmbg_session_uses_conservative_memory_options()
+        test_failed_session_creation_can_recover_on_a_later_request()
         print("\nALL OUTLINES TESTS PASSED!")
     except Exception as e:
         import traceback

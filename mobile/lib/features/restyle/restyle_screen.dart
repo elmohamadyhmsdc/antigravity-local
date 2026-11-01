@@ -1,3 +1,4 @@
+import '../shared/image_preview.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -201,45 +202,48 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
             child: Text(l.chooseTargetPhoto),
           ),
           if (_photo != null && _analysis != null)
-            AspectRatio(
-              aspectRatio: _analysis!.imageW / _analysis!.imageH,
-              child: LayoutBuilder(
-                builder: (context, c) => Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.memory(_photo!, fit: BoxFit.fill),
-                    if (box != null)
-                      Positioned(
-                        left: box.x / _analysis!.imageW * c.maxWidth,
-                        top: box.y / _analysis!.imageH * c.maxHeight,
-                        width: box.w / _analysis!.imageW * c.maxWidth,
-                        height: box.h / _analysis!.imageH * c.maxHeight,
-                        child: CustomPaint(
-                          painter: DetectionBoxPainter(
-                            isFace: true,
-                            outline:
-                                _analysis != null &&
-                                    _analysis!.faces.isNotEmpty &&
-                                    _face < _analysis!.faces.length &&
-                                    _analysis!.faces[_face].outline != null
-                                ? [
-                                    for (final p
-                                        in _analysis!.faces[_face].outline!)
-                                      Offset(
-                                        (p.dx - box.x) / box.w,
-                                        (p.dy - box.y) / box.h,
-                                      ),
-                                  ]
-                                : null,
-                            fillColor: Colors.greenAccent.withValues(
-                              alpha: 0.15,
+            ImageExpand(
+              source: ImagePreviewSource.bytes(_photo!),
+              child: AspectRatio(
+                aspectRatio: _analysis!.imageW / _analysis!.imageH,
+                child: LayoutBuilder(
+                  builder: (context, c) => Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.memory(_photo!, fit: BoxFit.fill),
+                      if (box != null)
+                        Positioned(
+                          left: box.x / _analysis!.imageW * c.maxWidth,
+                          top: box.y / _analysis!.imageH * c.maxHeight,
+                          width: box.w / _analysis!.imageW * c.maxWidth,
+                          height: box.h / _analysis!.imageH * c.maxHeight,
+                          child: CustomPaint(
+                            painter: DetectionBoxPainter(
+                              isFace: true,
+                              outline:
+                                  _analysis != null &&
+                                      _analysis!.faces.isNotEmpty &&
+                                      _face < _analysis!.faces.length &&
+                                      _analysis!.faces[_face].outline != null
+                                  ? [
+                                      for (final p
+                                          in _analysis!.faces[_face].outline!)
+                                        Offset(
+                                          (p.dx - box.x) / box.w,
+                                          (p.dy - box.y) / box.h,
+                                        ),
+                                    ]
+                                  : null,
+                              fillColor: Colors.greenAccent.withValues(
+                                alpha: 0.15,
+                              ),
+                              borderColor: Colors.greenAccent,
+                              borderWidth: 3,
                             ),
-                            borderColor: Colors.greenAccent,
-                            borderWidth: 3,
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -323,7 +327,7 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
             children: [
               for (var i = 0; i < _references.length; i++)
                 InputChip(
-                  avatar: Image.memory(_references[i]),
+                  avatar: PreviewImage.memory(_references[i]),
                   label: Text('${i + 1}'),
                   onDeleted: () => setState(() => _references.removeAt(i)),
                 ),

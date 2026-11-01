@@ -1,3 +1,4 @@
+import '../shared/image_preview.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -186,8 +187,13 @@ class MediaTile extends ConsumerWidget {
                   ),
                 );
               }
-              return Image.memory(
+              return PreviewImage.memory(
                 bytes,
+                fullSource: ImagePreviewSource.asset(
+                  item.assetId,
+                  video: item.kind == 'video',
+                  fallbackBytes: bytes,
+                ),
                 fit: BoxFit.cover,
                 gaplessPlayback: true,
               );

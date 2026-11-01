@@ -94,6 +94,60 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[Locale('en')];
 
+  /// No description provided for @imageExpand.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand image'**
+  String get imageExpand;
+
+  /// No description provided for @imagePreviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Image preview'**
+  String get imagePreviewTitle;
+
+  /// No description provided for @imageResetZoom.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit image to screen'**
+  String get imageResetZoom;
+
+  /// No description provided for @imageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This image is unavailable.'**
+  String get imageUnavailable;
+
+  /// No description provided for @peopleCharacters.
+  ///
+  /// In en, this message translates to:
+  /// **'Characters'**
+  String get peopleCharacters;
+
+  /// No description provided for @peopleSearchCharacters.
+  ///
+  /// In en, this message translates to:
+  /// **'Search characters'**
+  String get peopleSearchCharacters;
+
+  /// No description provided for @peopleOrganize.
+  ///
+  /// In en, this message translates to:
+  /// **'Organize'**
+  String get peopleOrganize;
+
+  /// No description provided for @peopleMatching.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching & corrections'**
+  String get peopleMatching;
+
+  /// No description provided for @peopleTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos, export & tools'**
+  String get peopleTools;
+
   /// No description provided for @reviewPhotos.
   ///
   /// In en, this message translates to:
@@ -6081,6 +6135,432 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Same body area as photos of this person'**
   String get quickByCluster;
+
+  /// No description provided for @outlineRetryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry missing outlines'**
+  String get outlineRetryTitle;
+
+  /// No description provided for @outlineRetryPending.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No photos waiting.} =1{1 photo waiting.} other{{count} photos waiting.}} Retry when PC memory is available; completed outlines are kept.'**
+  String outlineRetryPending(int count);
+
+  /// No description provided for @groupPoseTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Group poses'**
+  String get groupPoseTab;
+
+  /// No description provided for @groupPoseIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare two to six people as one pose, including their positions and distance from each other. Name an action from a photo to find similar examples.'**
+  String get groupPoseIntro;
+
+  /// No description provided for @groupPoseName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name group pose / action'**
+  String get groupPoseName;
+
+  /// No description provided for @groupPoseNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Partner stretch'**
+  String get groupPoseNameHint;
+
+  /// No description provided for @groupPoseNamingNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your name describes the action. Matching compares visible poses and spacing; it does not infer what people are doing.'**
+  String get groupPoseNamingNote;
+
+  /// No description provided for @groupPosePeople.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} people'**
+  String groupPosePeople(int count);
+
+  /// No description provided for @groupPoseCannotMeasure.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a photo with two to six detected people whose shoulders, hips and enough joints are visible. Overlapping or hidden bodies may need a clearer example.'**
+  String get groupPoseCannotMeasure;
+
+  /// No description provided for @groupPoseEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No photos with two to six detected people yet. Scan photos with people together first.'**
+  String get groupPoseEmpty;
+
+  /// No description provided for @groupPoseSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved group poses / actions'**
+  String get groupPoseSaved;
+
+  /// No description provided for @groupPoseChooseExample.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a photo with people together'**
+  String get groupPoseChooseExample;
+
+  /// No description provided for @groupPoseSimilar.
+  ///
+  /// In en, this message translates to:
+  /// **'Find similar group pose'**
+  String get groupPoseSimilar;
+
+  /// No description provided for @groupPoseReference.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference example'**
+  String get groupPoseReference;
+
+  /// No description provided for @groupPoseResultsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Ranked by the whole group’s pose and arrangement. Open photos to check the matches. Equipment filters include editable detection suggestions.'**
+  String get groupPoseResultsNote;
+
+  /// No description provided for @bodiesTabEquipment.
+  ///
+  /// In en, this message translates to:
+  /// **'Equipment'**
+  String get bodiesTabEquipment;
+
+  /// No description provided for @bodiesSelectedExample.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this body as the example'**
+  String get bodiesSelectedExample;
+
+  /// No description provided for @bodiesLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load these photos.'**
+  String get bodiesLoadFailed;
+
+  /// No description provided for @bodiesRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get bodiesRetry;
+
+  /// No description provided for @poseBrowseHint.
+  ///
+  /// In en, this message translates to:
+  /// **'See each pose before choosing it. Select a pose to view matching bodies.'**
+  String get poseBrowseHint;
+
+  /// No description provided for @posePostureTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Posture'**
+  String get posePostureTitle;
+
+  /// No description provided for @poseArmsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Arms'**
+  String get poseArmsTitle;
+
+  /// No description provided for @poseDirectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera direction'**
+  String get poseDirectionTitle;
+
+  /// No description provided for @poseSavedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your named poses'**
+  String get poseSavedTitle;
+
+  /// No description provided for @equipmentAreaChest.
+  ///
+  /// In en, this message translates to:
+  /// **'Chest area'**
+  String get equipmentAreaChest;
+
+  /// No description provided for @equipmentAreaLower.
+  ///
+  /// In en, this message translates to:
+  /// **'Lower-body area'**
+  String get equipmentAreaLower;
+
+  /// No description provided for @equipmentAreaChestSimilar.
+  ///
+  /// In en, this message translates to:
+  /// **'Find similar chest areas'**
+  String get equipmentAreaChestSimilar;
+
+  /// No description provided for @equipmentAreaLowerSimilar.
+  ///
+  /// In en, this message translates to:
+  /// **'Find similar lower-body areas'**
+  String get equipmentAreaLowerSimilar;
+
+  /// No description provided for @equipmentIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Equipment detected near people is a suggestion. Check the label and who it belongs to; nearby objects may not actually be in use.'**
+  String get equipmentIntro;
+
+  /// No description provided for @equipmentDetectPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyze pending photos'**
+  String get equipmentDetectPending;
+
+  /// No description provided for @equipmentConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to a PC with equipment recognition available. Detection waits while a scan is running.'**
+  String get equipmentConnect;
+
+  /// No description provided for @equipmentEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No equipment to show yet. Analyze photos, or open a body and choose Equipment.'**
+  String get equipmentEmpty;
+
+  /// No description provided for @equipmentReviewHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Review equipment and the associated people'**
+  String get equipmentReviewHint;
+
+  /// No description provided for @equipmentDetectPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Detect equipment in this photo'**
+  String get equipmentDetectPhoto;
+
+  /// No description provided for @equipmentDetecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Recognizing equipment. The first photo may take a few minutes…'**
+  String get equipmentDetecting;
+
+  /// No description provided for @equipmentFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Equipment recognition failed. Check the PC connection and try again.'**
+  String get equipmentFailed;
+
+  /// No description provided for @equipmentEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Correct equipment'**
+  String get equipmentEdit;
+
+  /// No description provided for @equipmentReject.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this detection'**
+  String get equipmentReject;
+
+  /// No description provided for @equipmentOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Associated person'**
+  String get equipmentOwner;
+
+  /// No description provided for @equipmentShared.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared / not assigned'**
+  String get equipmentShared;
+
+  /// No description provided for @equipmentPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Person {number}'**
+  String equipmentPerson(int number);
+
+  /// No description provided for @equipmentSuggested.
+  ///
+  /// In en, this message translates to:
+  /// **'Suggested'**
+  String get equipmentSuggested;
+
+  /// No description provided for @equipmentConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmed'**
+  String get equipmentConfirmed;
+
+  /// No description provided for @equipmentAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add missed equipment'**
+  String get equipmentAdd;
+
+  /// No description provided for @identityGroupsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Groups'**
+  String get identityGroupsTitle;
+
+  /// No description provided for @identityGroupsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep people and characters in named groups, such as Family or One Piece. Groups organize your library without merging identities.'**
+  String get identityGroupsIntro;
+
+  /// No description provided for @identityGroupsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No groups yet'**
+  String get identityGroupsEmpty;
+
+  /// No description provided for @identityGroupCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create group'**
+  String get identityGroupCreate;
+
+  /// No description provided for @identityGroupNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. One Piece'**
+  String get identityGroupNameHint;
+
+  /// No description provided for @identityGroupAssign.
+  ///
+  /// In en, this message translates to:
+  /// **'Set group'**
+  String get identityGroupAssign;
+
+  /// No description provided for @identityGroupUngrouped.
+  ///
+  /// In en, this message translates to:
+  /// **'No group'**
+  String get identityGroupUngrouped;
+
+  /// No description provided for @identityGroupAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All groups'**
+  String get identityGroupAll;
+
+  /// No description provided for @identityGroupDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete group (keep members)'**
+  String get identityGroupDelete;
+
+  /// No description provided for @identityGroupNameExists.
+  ///
+  /// In en, this message translates to:
+  /// **'That group name is already used. Choose a different name.'**
+  String get identityGroupNameExists;
+
+  /// No description provided for @identityGroupNoMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'No photos or videos in this group yet.'**
+  String get identityGroupNoMedia;
+
+  /// No description provided for @identityGroupMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} members'**
+  String identityGroupMembers(int count);
+
+  /// No description provided for @organizeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move and rename originals'**
+  String get organizeTitle;
+
+  /// No description provided for @organizeIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Review the original photos and videos before moving them on this phone. Android will ask for permission. A running scan pauses during the move. Existing destination files are kept.'**
+  String get organizeIntro;
+
+  /// No description provided for @organizeNaming.
+  ///
+  /// In en, this message translates to:
+  /// **'Files use the person or character name, with separate image and video numbers. File types are preserved. Renaming helps organization; visual detection still uses the image or video.'**
+  String get organizeNaming;
+
+  /// No description provided for @organizeApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Move selected originals'**
+  String get organizeApply;
+
+  /// No description provided for @organizeWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Moving originals…'**
+  String get organizeWorking;
+
+  /// No description provided for @organizeResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Review interrupted move'**
+  String get organizeResume;
+
+  /// No description provided for @organizeLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not prepare the move. Allow gallery access and use Android 10 or newer, then try again.'**
+  String get organizeLoadFailed;
+
+  /// No description provided for @organizeInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'The move was interrupted. Refresh, then review the interrupted move to check which files still need moving.'**
+  String get organizeInterrupted;
+
+  /// No description provided for @organizeNoFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'No original photos or videos are linked to the selected identities.'**
+  String get organizeNoFiles;
+
+  /// No description provided for @organizeSharedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Some files show several selected identities. Choose one destination owner for each shared file.'**
+  String get organizeSharedHint;
+
+  /// No description provided for @organizeChooseOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Whose folder should contain this file?'**
+  String get organizeChooseOwner;
+
+  /// No description provided for @organizeSelectNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Select none'**
+  String get organizeSelectNone;
+
+  /// No description provided for @organizeSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'{images} photos · {videos} videos selected'**
+  String organizeSelection(int images, int videos);
+
+  /// No description provided for @organizeResult.
+  ///
+  /// In en, this message translates to:
+  /// **'{moved} files organized · {remaining} files not moved'**
+  String organizeResult(int moved, int remaining);
+
+  /// No description provided for @organizeStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'{status, select, ready{Ready to move} already{Already organized} choose_owner{Choose one destination owner} missing{Original is unavailable} stale_scan{File changed since detection. Scan it again first.} stale{File changed after this preview. Refresh to review it.} conflict{A file with this name already exists. Nothing will be replaced.} pending{An earlier move needs review first.} moved{Moved} cancelled{Cancelled — original kept} denied{Android did not grant permission} uncertain{Check interrupted move to confirm the current location} unsupported{This file cannot be moved here} other{Could not move this file}}'**
+  String organizeStatus(String status);
 }
 
 class _AppLocalizationsDelegate

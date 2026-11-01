@@ -18,6 +18,8 @@ class MainActivity : FlutterActivity() {
     companion object { private const val ENGINE_ID = "antigravity_work_engine" }
     private val security by lazy { SecurityBridge(this) }
     private var securityChannel: MethodChannel? = null
+    private val mediaOrganizer by lazy { MediaOrganizerBridge(this) }
+    private var mediaOrganizerChannel: MethodChannel? = null
     private val mediaPicker by lazy { MediaPickerBridge(this) }
     private var mediaPickerChannel: MethodChannel? = null
     private val wakeLockBridge by lazy { WakeLockBridge(applicationContext) }
@@ -33,6 +35,9 @@ class MainActivity : FlutterActivity() {
         security.allowScreenCapture()
         securityChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/security").also {
             it.setMethodCallHandler(security::handle)
+        }
+        mediaOrganizerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/media_organizer").also {
+            it.setMethodCallHandler(mediaOrganizer::handle)
         }
         val appContext = applicationContext
         mediaPickerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/media_picker").also {
@@ -148,6 +153,9 @@ class MainActivity : FlutterActivity() {
         security.cancelPending()
         securityChannel?.setMethodCallHandler(null)
         securityChannel = null
+        mediaOrganizer.close()
+        mediaOrganizerChannel?.setMethodCallHandler(null)
+        mediaOrganizerChannel = null
         mediaPicker.close()
         mediaPickerChannel?.setMethodCallHandler(null)
         mediaPickerChannel = null
@@ -157,7 +165,8 @@ class MainActivity : FlutterActivity() {
 
     @Deprecated("Android credential confirmation result")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (!mediaPicker.onActivityResult(requestCode, resultCode, data) &&
+        if (!mediaOrganizer.onActivityResult(requestCode, resultCode) &&
+            !mediaPicker.onActivityResult(requestCode, resultCode, data) &&
             !security.onActivityResult(requestCode, resultCode)) super.onActivityResult(requestCode, resultCode, data)
     }
 }

@@ -9,12 +9,15 @@ import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../shared/person_picker.dart';
 import 'body_naming.dart';
+import 'pose_visuals.dart';
+import '../../domain/pose/exposed_matching.dart';
 
 /// Roadmap 7.5 / Phase 8, behind `body_clusters_enabled` (OFF until the user switches it on): groups of
 /// photos showing the same body area, given to a person with one tap, and bridge photos offered as a
 /// suggestion for the OTHER group (never applied by themselves).
 class BodyAreasTab extends ConsumerStatefulWidget {
-  const BodyAreasTab({super.key});
+  const BodyAreasTab({super.key, this.onSimilar});
+  final void Function(int bodyId, ExposedKind kind)? onSimilar;
 
   @override
   ConsumerState<BodyAreasTab> createState() => _BodyAreasTabState();
@@ -109,6 +112,15 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  SizedBox(
+                    height: 96,
+                    width: 72,
+                    child: PoseDiagram(
+                      area: entry.cluster.clusterType == 'buttocks'
+                          ? 'lower'
+                          : 'chest',
+                    ),
+                  ),
                   Text(
                     entry.cluster.clusterType == 'buttocks'
                         ? l.clusterTitleButtocks(entry.cluster.id)
@@ -140,6 +152,22 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  if (entry.bodyIds.isNotEmpty)
+                    TextButton.icon(
+                      key: Key('cluster-similar-${entry.cluster.id}'),
+                      onPressed: () => widget.onSimilar?.call(
+                        entry.bodyIds.first,
+                        entry.cluster.clusterType == 'buttocks'
+                            ? ExposedKind.buttocks
+                            : ExposedKind.chest,
+                      ),
+                      icon: const Icon(Icons.image_search_outlined),
+                      label: Text(
+                        entry.cluster.clusterType == 'buttocks'
+                            ? l.equipmentAreaLowerSimilar
+                            : l.equipmentAreaChestSimilar,
+                      ),
+                    ),
                   if (entry.cluster.personId != null)
                     Text(
                       l.clusterBelongsTo(

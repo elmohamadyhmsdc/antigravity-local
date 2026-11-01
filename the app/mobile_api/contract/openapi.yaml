@@ -304,6 +304,37 @@ paths:
         "413": { $ref: "#/components/responses/Error" }
         "503": { $ref: "#/components/responses/Error" }
 
+  /v1/analyze/equipment:
+    post:
+      summary: Detect equipment near people and suggest an associated person
+      description: |
+        Local Florence object detection; nothing is stored on the PC. Association by
+        proximity is an editable suggestion, not proof that a person uses an object.
+        bodies is a JSON-encoded list of pixel boxes and optional keypoints.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary }
+                bodies:
+                  type: array
+                  maxItems: 64
+                  items: { $ref: '#/components/schemas/SensitiveBodyTarget' }
+      responses:
+        '200':
+          description: Equipment suggestions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EquipmentResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
   /v1/grouping/plan:
     post:
       summary: Pure function - decide how faces/bodies should be grouped
@@ -609,6 +640,10 @@ components:
               type: boolean
               default: false
               description: The DINOv2 model is installed next to the NudeNet one, so `return_body_embeddings` works. Older servers omit this field.
+            equipment:
+              type: boolean
+              default: false
+              description: A local Florence worker and model are installed for equipment recognition.
             garment_tags:
               type: boolean
               default: false
@@ -849,6 +884,31 @@ components:
                 type: array
                 maxItems: 24
                 items: { $ref: "#/components/schemas/GarmentTag" }
+
+    EquipmentResponse:
+      type: object
+      required: [model_version, objects]
+      properties:
+        model_version: { type: integer, minimum: 1 }
+        objects:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [object_key, label, body_index, bbox]
+            properties:
+              object_key: { type: string }
+              label: { type: string, minLength: 1, maxLength: 80 }
+              body_index: { type: [integer, 'null'], minimum: 0, maximum: 63 }
+              bbox:
+                type: object
+                description: Normalized coordinates in the uploaded image
+                required: [x, y, w, h]
+                properties:
+                  x: { type: number, minimum: 0, maximum: 1 }
+                  y: { type: number, minimum: 0, maximum: 1 }
+                  w: { type: number, exclusiveMinimum: 0, maximum: 1 }
+                  h: { type: number, exclusiveMinimum: 0, maximum: 1 }
 
     KindOverride:
       type: object

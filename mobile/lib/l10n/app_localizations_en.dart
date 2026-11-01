@@ -9,6 +9,33 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get imageExpand => 'Expand image';
+
+  @override
+  String get imagePreviewTitle => 'Image preview';
+
+  @override
+  String get imageResetZoom => 'Fit image to screen';
+
+  @override
+  String get imageUnavailable => 'This image is unavailable.';
+
+  @override
+  String get peopleCharacters => 'Characters';
+
+  @override
+  String get peopleSearchCharacters => 'Search characters';
+
+  @override
+  String get peopleOrganize => 'Organize';
+
+  @override
+  String get peopleMatching => 'Matching & corrections';
+
+  @override
+  String get peopleTools => 'Photos, export & tools';
+
+  @override
   String get reviewPhotos => 'Review photos';
 
   @override
@@ -3777,4 +3804,275 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get quickByCluster => 'Same body area as photos of this person';
+
+  @override
+  String get outlineRetryTitle => 'Retry missing outlines';
+
+  @override
+  String outlineRetryPending(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count photos waiting.',
+      one: '1 photo waiting.',
+      zero: 'No photos waiting.',
+    );
+    return '$_temp0 Retry when PC memory is available; completed outlines are kept.';
+  }
+
+  @override
+  String get groupPoseTab => 'Group poses';
+
+  @override
+  String get groupPoseIntro =>
+      'Compare two to six people as one pose, including their positions and distance from each other. Name an action from a photo to find similar examples.';
+
+  @override
+  String get groupPoseName => 'Name group pose / action';
+
+  @override
+  String get groupPoseNameHint => 'e.g. Partner stretch';
+
+  @override
+  String get groupPoseNamingNote =>
+      'Your name describes the action. Matching compares visible poses and spacing; it does not infer what people are doing.';
+
+  @override
+  String groupPosePeople(int count) {
+    return '$count people';
+  }
+
+  @override
+  String get groupPoseCannotMeasure =>
+      'Use a photo with two to six detected people whose shoulders, hips and enough joints are visible. Overlapping or hidden bodies may need a clearer example.';
+
+  @override
+  String get groupPoseEmpty =>
+      'No photos with two to six detected people yet. Scan photos with people together first.';
+
+  @override
+  String get groupPoseSaved => 'Saved group poses / actions';
+
+  @override
+  String get groupPoseChooseExample => 'Choose a photo with people together';
+
+  @override
+  String get groupPoseSimilar => 'Find similar group pose';
+
+  @override
+  String get groupPoseReference => 'Reference example';
+
+  @override
+  String get groupPoseResultsNote =>
+      'Ranked by the whole group’s pose and arrangement. Open photos to check the matches. Equipment filters include editable detection suggestions.';
+
+  @override
+  String get bodiesTabEquipment => 'Equipment';
+
+  @override
+  String get bodiesSelectedExample => 'Use this body as the example';
+
+  @override
+  String get bodiesLoadFailed => 'Could not load these photos.';
+
+  @override
+  String get bodiesRetry => 'Try again';
+
+  @override
+  String get poseBrowseHint =>
+      'See each pose before choosing it. Select a pose to view matching bodies.';
+
+  @override
+  String get posePostureTitle => 'Posture';
+
+  @override
+  String get poseArmsTitle => 'Arms';
+
+  @override
+  String get poseDirectionTitle => 'Camera direction';
+
+  @override
+  String get poseSavedTitle => 'Your named poses';
+
+  @override
+  String get equipmentAreaChest => 'Chest area';
+
+  @override
+  String get equipmentAreaLower => 'Lower-body area';
+
+  @override
+  String get equipmentAreaChestSimilar => 'Find similar chest areas';
+
+  @override
+  String get equipmentAreaLowerSimilar => 'Find similar lower-body areas';
+
+  @override
+  String get equipmentIntro =>
+      'Equipment detected near people is a suggestion. Check the label and who it belongs to; nearby objects may not actually be in use.';
+
+  @override
+  String get equipmentDetectPending => 'Analyze pending photos';
+
+  @override
+  String get equipmentConnect =>
+      'Connect to a PC with equipment recognition available. Detection waits while a scan is running.';
+
+  @override
+  String get equipmentEmpty =>
+      'No equipment to show yet. Analyze photos, or open a body and choose Equipment.';
+
+  @override
+  String get equipmentReviewHint =>
+      'Review equipment and the associated people';
+
+  @override
+  String get equipmentDetectPhoto => 'Detect equipment in this photo';
+
+  @override
+  String get equipmentDetecting =>
+      'Recognizing equipment. The first photo may take a few minutes…';
+
+  @override
+  String get equipmentFailed =>
+      'Equipment recognition failed. Check the PC connection and try again.';
+
+  @override
+  String get equipmentEdit => 'Correct equipment';
+
+  @override
+  String get equipmentReject => 'Remove this detection';
+
+  @override
+  String get equipmentOwner => 'Associated person';
+
+  @override
+  String get equipmentShared => 'Shared / not assigned';
+
+  @override
+  String equipmentPerson(int number) {
+    return 'Person $number';
+  }
+
+  @override
+  String get equipmentSuggested => 'Suggested';
+
+  @override
+  String get equipmentConfirmed => 'Confirmed';
+
+  @override
+  String get equipmentAdd => 'Add missed equipment';
+
+  @override
+  String get identityGroupsTitle => 'Groups';
+
+  @override
+  String get identityGroupsIntro =>
+      'Keep people and characters in named groups, such as Family or One Piece. Groups organize your library without merging identities.';
+
+  @override
+  String get identityGroupsEmpty => 'No groups yet';
+
+  @override
+  String get identityGroupCreate => 'Create group';
+
+  @override
+  String get identityGroupNameHint => 'e.g. One Piece';
+
+  @override
+  String get identityGroupAssign => 'Set group';
+
+  @override
+  String get identityGroupUngrouped => 'No group';
+
+  @override
+  String get identityGroupAll => 'All groups';
+
+  @override
+  String get identityGroupDelete => 'Delete group (keep members)';
+
+  @override
+  String get identityGroupNameExists =>
+      'That group name is already used. Choose a different name.';
+
+  @override
+  String get identityGroupNoMedia => 'No photos or videos in this group yet.';
+
+  @override
+  String identityGroupMembers(int count) {
+    return '$count members';
+  }
+
+  @override
+  String get organizeTitle => 'Move and rename originals';
+
+  @override
+  String get organizeIntro =>
+      'Review the original photos and videos before moving them on this phone. Android will ask for permission. A running scan pauses during the move. Existing destination files are kept.';
+
+  @override
+  String get organizeNaming =>
+      'Files use the person or character name, with separate image and video numbers. File types are preserved. Renaming helps organization; visual detection still uses the image or video.';
+
+  @override
+  String get organizeApply => 'Move selected originals';
+
+  @override
+  String get organizeWorking => 'Moving originals…';
+
+  @override
+  String get organizeResume => 'Review interrupted move';
+
+  @override
+  String get organizeLoadFailed =>
+      'Could not prepare the move. Allow gallery access and use Android 10 or newer, then try again.';
+
+  @override
+  String get organizeInterrupted =>
+      'The move was interrupted. Refresh, then review the interrupted move to check which files still need moving.';
+
+  @override
+  String get organizeNoFiles =>
+      'No original photos or videos are linked to the selected identities.';
+
+  @override
+  String get organizeSharedHint =>
+      'Some files show several selected identities. Choose one destination owner for each shared file.';
+
+  @override
+  String get organizeChooseOwner => 'Whose folder should contain this file?';
+
+  @override
+  String get organizeSelectNone => 'Select none';
+
+  @override
+  String organizeSelection(int images, int videos) {
+    return '$images photos · $videos videos selected';
+  }
+
+  @override
+  String organizeResult(int moved, int remaining) {
+    return '$moved files organized · $remaining files not moved';
+  }
+
+  @override
+  String organizeStatus(String status) {
+    String _temp0 = intl.Intl.selectLogic(status, {
+      'ready': 'Ready to move',
+      'already': 'Already organized',
+      'choose_owner': 'Choose one destination owner',
+      'missing': 'Original is unavailable',
+      'stale_scan': 'File changed since detection. Scan it again first.',
+      'stale': 'File changed after this preview. Refresh to review it.',
+      'conflict':
+          'A file with this name already exists. Nothing will be replaced.',
+      'pending': 'An earlier move needs review first.',
+      'moved': 'Moved',
+      'cancelled': 'Cancelled — original kept',
+      'denied': 'Android did not grant permission',
+      'uncertain': 'Check interrupted move to confirm the current location',
+      'unsupported': 'This file cannot be moved here',
+      'other': 'Could not move this file',
+    });
+    return '$_temp0';
+  }
 }

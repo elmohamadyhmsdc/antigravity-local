@@ -21,6 +21,9 @@ import 'data/repositories/app_settings.dart';
 import 'data/repositories/library_repository.dart';
 import 'data/repositories/media_queries.dart';
 import 'data/repositories/people_repository.dart';
+import 'data/repositories/identity_groups.dart';
+import 'data/platform/media_organizer.dart';
+import 'domain/organization/person_media_organizer.dart';
 import 'data/repositories/character_repository.dart';
 import 'data/repositories/kind_corrections.dart';
 import 'data/repositories/review_questions.dart';
@@ -35,6 +38,8 @@ import 'domain/scan/video_compactor.dart';
 import 'domain/marks/body_marks.dart';
 import 'domain/marks/patch_cutter.dart';
 import 'domain/pose/body_categories.dart';
+import 'domain/pose/group_pose_matcher.dart';
+import 'domain/pose/equipment_library.dart';
 import 'domain/pose/exposed_matching.dart';
 import 'domain/pose/pose_index.dart';
 import 'domain/garments/garment_backfill.dart';
@@ -380,6 +385,10 @@ final Provider<ScanEngine> scanEngineProvider = Provider<ScanEngine>((ref) {
         await ref.read(embeddingBackfillProvider).run(shouldContinue: idle);
         // garment tags (Phase 7) only while the user switched them on; evidence, never a filter
         await ref.read(garmentBackfillProvider).run(shouldContinue: idle);
+        final status = ref.read(serverStatusProvider).value;
+        if (status is ServerReady && status.capabilities.engines.equipment) {
+          await ref.read(equipmentLibraryProvider).run(shouldContinue: idle);
+        }
       });
     },
   );
@@ -469,10 +478,55 @@ final outlineBackfillProvider = Provider<OutlineBackfill>((ref) {
   );
 });
 
+final pendingOutlinesProvider = StreamProvider.autoDispose<int>(
+  (ref) => ref.watch(outlineBackfillProvider).watchPending(),
+);
+
 final backupServiceProvider = Provider<BackupService>(
   (ref) => BackupService(
     db: ref.watch(databaseProvider),
     files: ref.watch(fileStoreProvider),
     settings: ref.watch(appSettingsProvider),
+  ),
+);
+
+final groupPoseMatcherProvider = Provider<GroupPoseMatcher>(
+  (ref) => GroupPoseMatcher(ref.watch(databaseProvider)),
+);
+final equipmentLibraryProvider = Provider<EquipmentLibrary>(
+  (ref) => EquipmentLibrary(
+    db: ref.watch(databaseProvider),
+    media: ref.watch(mediaLibraryProvider),
+    api: () => ref.read(mobileApiProvider),
+  ),
+);
+
+final identityGroupsRepositoryProvider = Provider<IdentityGroupsRepository>(
+  (ref) => IdentityGroupsRepository(ref.watch(databaseProvider)),
+);
+final identityGroupsProvider =
+    StreamProvider.autoDispose<List<IdentityGroupSummary>>(
+      (ref) => ref.watch(identityGroupsRepositoryProvider).watch(),
+    );
+
+final mediaOrganizerBridgeProvider = Provider<MediaOrganizerBridge>(
+  (ref) => const AndroidMediaOrganizer(),
+);
+final personMediaOrganizerProvider = Provider<PersonMediaOrganizer>(
+  (ref) => PersonMediaOrganizer(
+    db: ref.watch(databaseProvider),
+    bridge: ref.watch(mediaOrganizerBridgeProvider),
+    beforeMove: () async {
+      final engine = ref.read(scanEngineProvider);
+      engine.mediaOrganizationActive = true;
+      await engine.pauseAndWait();
+    },
+    afterMove: () {
+      ref.read(scanEngineProvider).mediaOrganizationActive = false;
+      ref.read(thumbnailServiceProvider).clear();
+      unawaited(
+        ref.read(mediaLibraryProvider).clearCache().catchError((Object _) {}),
+      );
+    },
   ),
 );

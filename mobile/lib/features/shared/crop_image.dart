@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
+import 'image_preview.dart';
 
 /// A face or body crop from the phone's private crop store (relative path as kept in the database).
 /// Thumbnails are a cache: one that was evicted is cut again from the original photo or video.
@@ -17,12 +18,14 @@ class CropImage extends ConsumerWidget {
     this.fit = BoxFit.cover,
     this.cacheWidth = 240,
     this.placeholderIcon = Icons.face_outlined,
+    this.expandable = true,
   });
 
   final String? path;
   final BoxFit fit;
   final int cacheWidth;
   final IconData placeholderIcon;
+  final bool expandable;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,10 +49,13 @@ class CropImage extends ConsumerWidget {
       gaplessPlayback: true,
       errorBuilder: (_, _, _) => placeholder,
     );
+    Widget preview(Widget image) => expandable
+        ? ImageExpand(source: ImagePreviewSource.crop(relative), child: image)
+        : image;
     final cache = ref.watch(cropCacheProvider);
     if (file.existsSync()) {
       unawaited(cache.ensure(relative)); // marks it recently shown
-      return image;
+      return preview(image);
     }
     return FutureBuilder<File?>(
       key: ValueKey(relative),
@@ -57,13 +63,15 @@ class CropImage extends ConsumerWidget {
       builder: (context, snapshot) {
         if (snapshot.data == null) return placeholder;
         // a new crop at the same path must not show a stale decoded image
-        return Image.file(
-          snapshot.data!,
-          key: ValueKey('$relative:regenerated'),
-          fit: fit,
-          cacheWidth: cacheWidth,
-          gaplessPlayback: true,
-          errorBuilder: (_, _, _) => placeholder,
+        return preview(
+          Image.file(
+            snapshot.data!,
+            key: ValueKey('$relative:regenerated'),
+            fit: fit,
+            cacheWidth: cacheWidth,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => placeholder,
+          ),
         );
       },
     );

@@ -1,13 +1,10 @@
-import 'dart:io';
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:photo_manager/photo_manager.dart';
 
 import '../../core/router.dart';
 import '../../data/db/app_database.dart';
@@ -16,6 +13,8 @@ import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../bodies/body_naming.dart';
+import '../bodies/group_pose_screens.dart';
+import '../bodies/equipment_screens.dart';
 import '../marks/mark_tattoo.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
@@ -23,6 +22,7 @@ import '../people/people_actions.dart' show moveToOtherKind;
 import '../scan/redetect_flow.dart';
 import '../scan/scan_progress_card.dart' show startScan;
 import '../shared/person_picker.dart';
+import '../shared/image_preview.dart';
 import 'video_media_view.dart';
 import '../../domain/geometry/outline.dart';
 
@@ -99,40 +99,11 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   }
 
   Future<void> _searchGoogleLens(BuildContext context, MediaRow media) async {
-    final l10n = AppLocalizations.of(context);
-    try {
-      final lib = ref.read(mediaLibraryProvider);
-      final entity = await AssetEntity.fromId(media.assetId);
-      File? file = await entity?.originFile;
-      file ??= await entity?.file;
-      if (file == null) {
-        final bytes = await lib.viewerImage(media.assetId);
-        if (bytes != null) {
-          final tempDir = await getTemporaryDirectory();
-          final tempFile = File(
-            '${tempDir.path}/lens_${media.id}_${media.assetId.replaceAll(RegExp(r'[^\w\.-]'), '_')}.jpg',
-          );
-          await tempFile.writeAsBytes(bytes);
-          file = tempFile;
-        }
-      }
-      if (file == null || !file.existsSync()) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(l10n.googleLensError)));
-        }
-        return;
-      }
-      const channel = MethodChannel('antigravity/lens');
-      await channel.invokeMethod('searchImage', {'path': file.path});
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.googleLensError)));
-      }
-    }
+    await searchPreviewImage(
+      context,
+      ref,
+      ImagePreviewSource.asset(media.assetId, video: media.kind == 'video'),
+    );
   }
 
   @override
@@ -335,98 +306,121 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: SizedBox(
-                width: 44,
-                height: 44,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CropImage(
-                    path: d.cropPath,
-                    placeholderIcon: d.isFace
-                        ? Icons.face_outlined
-                        : Icons.accessibility_new,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .85,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CropImage(
+                        path: d.cropPath,
+                        placeholderIcon: d.isFace
+                            ? Icons.face_outlined
+                            : Icons.accessibility_new,
+                      ),
+                    ),
                   ),
+                  title: Text(
+                    person == null
+                        ? l10n.unsortedFace
+                        : personName(l10n, person),
+                  ),
+                  subtitle: Text(d.isFace ? l10n.faceBox : l10n.bodyBox),
                 ),
-              ),
-              title: Text(
-                person == null ? l10n.unsortedFace : personName(l10n, person),
-              ),
-              subtitle: Text(d.isFace ? l10n.faceBox : l10n.bodyBox),
+                const Divider(height: 1),
+                if (person != null)
+                  ListTile(
+                    key: const Key('box-open-person'),
+                    leading: const Icon(Icons.person_outline),
+                    title: Text(l10n.openPerson(personName(l10n, person))),
+                    onTap: () => Navigator.pop(context, 'open'),
+                  ),
+                if (d.isFace || person == null)
+                  ListTile(
+                    key: const Key('box-assign'),
+                    leading: const Icon(Icons.drive_file_move_outline),
+                    title: Text(d.isFace ? l10n.assignTo : l10n.thisIsPerson),
+                    onTap: () => Navigator.pop(context, 'assign'),
+                  ),
+                if (person != null)
+                  ListTile(
+                    key: const Key('box-reject'),
+                    leading: const Icon(Icons.person_off_outlined),
+                    title: Text(l10n.notPerson(personName(l10n, person))),
+                    onTap: () => Navigator.pop(context, 'reject'),
+                  ),
+                ListTile(
+                  key: const Key('box-kind'),
+                  leading: const Icon(Icons.swap_horiz),
+                  title: Text(
+                    d.figure == 'person'
+                        ? l10n.boxIsCharacter
+                        : l10n.boxIsPerson,
+                  ),
+                  onTap: () => Navigator.pop(context, 'kind'),
+                ),
+                if (!d.isFace && d.figure == 'person') ...[
+                  ListTile(
+                    key: const Key('box-name-group-pose'),
+                    leading: const Icon(Icons.groups_outlined),
+                    title: Text(l10n.groupPoseName),
+                    onTap: () => Navigator.pop(context, 'group-pose'),
+                  ),
+                  ListTile(
+                    key: const Key('box-equipment'),
+                    leading: const Icon(Icons.sports_tennis_outlined),
+                    title: Text(l10n.bodiesTabEquipment),
+                    onTap: () => Navigator.pop(context, 'equipment'),
+                  ),
+                  ListTile(
+                    key: const Key('box-similar-pose'),
+                    leading: const Icon(Icons.compare_outlined),
+                    title: Text(l10n.bodyActionSimilarPose),
+                    onTap: () => Navigator.pop(context, 'similar-pose'),
+                  ),
+                  ListTile(
+                    key: const Key('box-similar-colours'),
+                    leading: const Icon(Icons.palette_outlined),
+                    title: Text(l10n.bodyActionSimilarColours),
+                    onTap: () => Navigator.pop(context, 'similar-colours'),
+                  ),
+                  ListTile(
+                    key: const Key('box-name-pose'),
+                    leading: const Icon(Icons.accessibility_new),
+                    title: Text(l10n.bodyActionNamePose),
+                    onTap: () => Navigator.pop(context, 'name-pose'),
+                  ),
+                  ListTile(
+                    key: const Key('box-mark-tattoo'),
+                    leading: const Icon(Icons.draw_outlined),
+                    title: Text(l10n.bodyActionMarkTattoo),
+                    onTap: () => Navigator.pop(context, 'mark-tattoo'),
+                  ),
+                  ListTile(
+                    key: const Key('box-name-outfit'),
+                    leading: const Icon(Icons.checkroom_outlined),
+                    title: Text(l10n.bodyActionNameOutfit),
+                    onTap: () => Navigator.pop(context, 'name-outfit'),
+                  ),
+                ],
+                if (d.isFace)
+                  ListTile(
+                    key: const Key('box-delete'),
+                    leading: const Icon(Icons.delete_outline),
+                    title: Text(l10n.deleteFace),
+                    onTap: () => Navigator.pop(context, 'delete'),
+                  ),
+              ],
             ),
-            const Divider(height: 1),
-            if (person != null)
-              ListTile(
-                key: const Key('box-open-person'),
-                leading: const Icon(Icons.person_outline),
-                title: Text(l10n.openPerson(personName(l10n, person))),
-                onTap: () => Navigator.pop(context, 'open'),
-              ),
-            if (d.isFace || person == null)
-              ListTile(
-                key: const Key('box-assign'),
-                leading: const Icon(Icons.drive_file_move_outline),
-                title: Text(d.isFace ? l10n.assignTo : l10n.thisIsPerson),
-                onTap: () => Navigator.pop(context, 'assign'),
-              ),
-            if (person != null)
-              ListTile(
-                key: const Key('box-reject'),
-                leading: const Icon(Icons.person_off_outlined),
-                title: Text(l10n.notPerson(personName(l10n, person))),
-                onTap: () => Navigator.pop(context, 'reject'),
-              ),
-            ListTile(
-              key: const Key('box-kind'),
-              leading: const Icon(Icons.swap_horiz),
-              title: Text(
-                d.figure == 'person' ? l10n.boxIsCharacter : l10n.boxIsPerson,
-              ),
-              onTap: () => Navigator.pop(context, 'kind'),
-            ),
-            if (!d.isFace && d.figure == 'person') ...[
-              ListTile(
-                key: const Key('box-similar-pose'),
-                leading: const Icon(Icons.compare_outlined),
-                title: Text(l10n.bodyActionSimilarPose),
-                onTap: () => Navigator.pop(context, 'similar-pose'),
-              ),
-              ListTile(
-                key: const Key('box-similar-colours'),
-                leading: const Icon(Icons.palette_outlined),
-                title: Text(l10n.bodyActionSimilarColours),
-                onTap: () => Navigator.pop(context, 'similar-colours'),
-              ),
-              ListTile(
-                key: const Key('box-name-pose'),
-                leading: const Icon(Icons.accessibility_new),
-                title: Text(l10n.bodyActionNamePose),
-                onTap: () => Navigator.pop(context, 'name-pose'),
-              ),
-              ListTile(
-                key: const Key('box-mark-tattoo'),
-                leading: const Icon(Icons.draw_outlined),
-                title: Text(l10n.bodyActionMarkTattoo),
-                onTap: () => Navigator.pop(context, 'mark-tattoo'),
-              ),
-              ListTile(
-                key: const Key('box-name-outfit'),
-                leading: const Icon(Icons.checkroom_outlined),
-                title: Text(l10n.bodyActionNameOutfit),
-                onTap: () => Navigator.pop(context, 'name-outfit'),
-              ),
-            ],
-            if (d.isFace)
-              ListTile(
-                key: const Key('box-delete'),
-                leading: const Icon(Icons.delete_outline),
-                title: Text(l10n.deleteFace),
-                onTap: () => Navigator.pop(context, 'delete'),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -438,6 +432,15 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         context.push('${Routes.bodies}?similar=${d.refId}');
       case 'similar-colours':
         context.push('${Routes.bodies}?colours=${d.refId}');
+      case 'group-pose':
+        await nameGroupPose(context, ref, _mediaIds[_currentIndex]);
+      case 'equipment':
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                EquipmentPhotoScreen(mediaId: _mediaIds[_currentIndex]),
+          ),
+        );
       case 'name-pose':
         await nameBodyPose(context, ref, d.refId);
       case 'mark-tattoo':

@@ -351,6 +351,44 @@ void main() {
   });
 
   group('S24 Settings', () {
+    for (final scanning in [false, true]) {
+      appTest(
+        'missing outlines are counted and retry respects an active scan ($scanning)',
+        (tester, env) async {
+          final mediaId = await seedMedia(env.db);
+          await env.db
+              .into(env.db.mediaDetections)
+              .insert(
+                MediaDetectionsCompanion.insert(
+                  mediaId: mediaId,
+                  kind: 'b',
+                  refId: 99,
+                  x: 0.1,
+                  y: 0.1,
+                  w: 0.2,
+                  h: 0.2,
+                ),
+              );
+          await _open(
+            tester,
+            env,
+            '/settings',
+            progress: ScanProgress(
+              phase: scanning ? ScanPhase.running : ScanPhase.idle,
+            ),
+          );
+          final tile = find.byKey(const Key('settings-retry-outlines'));
+          await revealForTap(tester, tile);
+          expect(find.textContaining('1 photo waiting'), findsOneWidget);
+          final button = tester.widget<TextButton>(
+            find.descendant(of: tile, matching: find.byType(TextButton)),
+          );
+          expect(button.onPressed, scanning ? isNull : isNotNull);
+        },
+        session: testSession,
+      );
+    }
+
     appTest('grouping strictness and the quality gate are saved', (
       tester,
       env,

@@ -112,6 +112,11 @@ class InsightEngines:
                 return regions
             return {"regions": regions, "bodies": self._embed_dicts(img, bodies, regions)}
 
+    def compute_equipment(self, img, bodies: list) -> list:
+        with self._lock:
+            from equipment_detection import detect_equipment
+            return detect_equipment(img, bodies)
+
     def compute_garments(self, img, bodies: list) -> list:
         """Roadmap Phase 7: WD14 garment scores per body (list of tag lists, in order). Raw evidence only."""
         with self._lock:
@@ -262,6 +267,7 @@ class CapabilityProbe:
         return [p.stem for p in sorted((self.app_dir / "models").glob("sd15*.safetensors"))]
 
     def engines(self) -> Dict:
+        from equipment_detection import model_available as equipment_available
         from .model_readiness import restyle_missing_models
         has_swapper = self._has("models", "inswapper_128.onnx")
         venv_ai = self._has("venv_ai", "Scripts", "python.exe")
@@ -280,6 +286,7 @@ class CapabilityProbe:
             "sensitive_detection": self._has("models", "sensitive", "640m.onnx"),
             "body_embeddings": self._has("models", "sensitive", "640m.onnx")
                                and self._has("models", "reid", "dinov2_vits14.onnx"),
+            "equipment": equipment_available(),
             "garment_tags": self._has("models", "wd14_tagger_model.onnx") and self._has("models", "wd14_tagger_tags.csv"),
         }
 

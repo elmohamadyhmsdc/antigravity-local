@@ -189,6 +189,26 @@ void main() {
             ),
           );
 
+      await db
+          .into(db.equipmentObjects)
+          .insert(
+            EquipmentObjectsCompanion.insert(
+              mediaId: media,
+              bodyId: Value(body),
+              objectKey: 'test-racket',
+              label: 'tennis racket',
+              x: .1,
+              y: .1,
+              w: .2,
+              h: .2,
+              state: const Value('confirmed'),
+            ),
+          );
+      await db
+          .into(db.equipmentPhotos)
+          .insert(
+            EquipmentPhotosCompanion.insert(mediaId: Value(media), version: 1),
+          );
       final file = await a.backup.export(Directory('${a.dir.path}/out'));
       await b.backup.restore(file);
 
@@ -198,6 +218,8 @@ void main() {
         'body_clusters',
         'bodies',
         'sensitive_regions',
+        'equipment_objects',
+        'equipment_photos',
         'pose_categories',
         'outfit_categories',
         'body_pose_matches',

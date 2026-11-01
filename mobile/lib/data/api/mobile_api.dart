@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'package:dio/dio.dart';
 
 import 'api_exception.dart';
+import 'equipment_api.dart';
 import 'bulk_transfer.dart';
 import 'dtos/analyze.dart';
 import 'dtos/grouping.dart';
@@ -183,7 +184,8 @@ class HttpMobileApi
         VideoFrameApi,
         VideoTransferProgressApi,
         StudioApi,
-        ResourceApi {
+        ResourceApi,
+        EquipmentApi {
   HttpMobileApi(
     this.session, {
     Dio? dio,
@@ -569,6 +571,27 @@ class HttpMobileApi
       return AnalyzeGarmentsResponse.fromJson(_json(response));
     });
   }
+
+  @override
+  Future<EquipmentResponse> analyzeEquipment(
+    Uint8List image,
+    List<SensitiveBodyTargetDto> bodies,
+  ) => _guard(() async {
+    final form = FormData.fromMap({
+      'image': MultipartFile.fromBytes(
+        image,
+        filename: 'photo.jpg',
+        contentType: DioMediaType('image', 'jpeg'),
+      ),
+      'bodies': jsonEncode([for (final b in bodies) b.toJson()]),
+    });
+    final response = await _dio.post(
+      '/v1/analyze/equipment',
+      data: form,
+      options: Options(receiveTimeout: const Duration(minutes: 5)),
+    );
+    return EquipmentResponse.fromJson(_json(response));
+  });
 
   @override
   Future<AnalyzeMarksResponse> analyzeMarks(

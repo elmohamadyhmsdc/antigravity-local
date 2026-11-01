@@ -1,3 +1,4 @@
+import '../shared/image_preview.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -313,7 +314,7 @@ class _ScanMediaPreview extends ConsumerWidget {
         ? Center(
             child: Icon(video ? Icons.movie_outlined : Icons.photo_outlined),
           )
-        : Image.memory(
+        : PreviewImage.memory(
             // Both the phone JPEG and the server frame stay in memory only.
             bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
             fit: BoxFit.contain,

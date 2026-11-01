@@ -1,3 +1,4 @@
+import '../shared/image_preview.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -129,7 +130,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                                             size: 48,
                                           ),
                                         )
-                                      : Image.file(
+                                      : PreviewImage.file(
                                           ref
                                               .read(fileStoreProvider)
                                               .resolve(r.path),
@@ -302,7 +303,7 @@ class _ResultDetailScreenState extends ConsumerState<ResultDetailScreen> {
                     child: Text(l10n.openLora),
                   ),
               ] else if (result.path == result.originalPath) ...[
-                Image.file(
+                PreviewImage.file(
                   files.resolve(result.path),
                   height: 400,
                   fit: BoxFit.contain,
@@ -345,6 +346,31 @@ class _ResultDetailScreenState extends ConsumerState<ResultDetailScreen> {
                   label: l10n.resultCompare,
                   value: _comparison,
                   onChanged: (v) => setState(() => _comparison = v),
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      key: const Key('result-expand-before'),
+                      onPressed: () => openImagePreview(
+                        context,
+                        ImagePreviewSource.file(
+                          files.resolve(result.originalPath),
+                        ),
+                      ),
+                      icon: const Icon(Icons.open_in_full),
+                      label: Text(l10n.resultBefore),
+                    ),
+                    TextButton.icon(
+                      key: const Key('result-expand-after'),
+                      onPressed: () => openImagePreview(
+                        context,
+                        ImagePreviewSource.file(files.resolve(result.path)),
+                      ),
+                      icon: const Icon(Icons.open_in_full),
+                      label: Text(l10n.resultAfter),
+                    ),
+                  ],
                 ),
               ],
               const SizedBox(height: 16),

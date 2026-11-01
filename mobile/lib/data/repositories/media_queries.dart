@@ -13,15 +13,18 @@ class MediaFilter {
     this.scan = ScanFilter.all,
     this.hasFaces,
     this.kind,
+    this.groupId,
   });
 
   final int? personId;
   final ScanFilter scan;
   final bool? hasFaces;
   final String? kind;
+  final int? groupId;
 
   bool get isDefault =>
       personId == null &&
+      groupId == null &&
       scan == ScanFilter.all &&
       hasFaces == null &&
       kind == null;
@@ -34,23 +37,27 @@ class MediaFilter {
     bool clearHasFaces = false,
     String? kind,
     bool clearKind = false,
+    int? groupId,
+    bool clearGroup = false,
   }) => MediaFilter(
     personId: clearPerson ? null : (personId ?? this.personId),
     scan: scan ?? this.scan,
     hasFaces: clearHasFaces ? null : (hasFaces ?? this.hasFaces),
     kind: clearKind ? null : (kind ?? this.kind),
+    groupId: clearGroup ? null : (groupId ?? this.groupId),
   );
 
   @override
   bool operator ==(Object other) =>
       other is MediaFilter &&
       other.personId == personId &&
+      other.groupId == groupId &&
       other.scan == scan &&
       other.hasFaces == hasFaces &&
       other.kind == kind;
 
   @override
-  int get hashCode => Object.hash(personId, scan, hasFaces, kind);
+  int get hashCode => Object.hash(personId, groupId, scan, hasFaces, kind);
 }
 
 class MediaListItem {
@@ -151,6 +158,15 @@ class MediaQueries {
       );
       vars.add(Variable.withInt(f.personId!));
     }
+    if (f.groupId != null) {
+      clauses.add(
+        "EXISTS (SELECT 1 FROM media_detections d LEFT JOIN faces fa ON d.kind = 'f' AND fa.id = d.ref_id "
+        "LEFT JOIN bodies b ON d.kind = 'b' AND b.id = d.ref_id LEFT JOIN faces bf ON bf.id = b.face_id "
+        'JOIN persons p ON p.id = COALESCE(fa.person_id, bf.person_id, b.person_id) '
+        'WHERE d.media_id = m.id AND p.group_id = ?)',
+      );
+      vars.add(Variable.withInt(f.groupId!));
+    }
     return (clauses.join(' AND '), vars);
   }
 
@@ -162,6 +178,7 @@ class MediaQueries {
           _db.faces,
           _db.bodies,
           _db.mediaDetections,
+          _db.persons,
         ]),
       )
       .map((_) {});
@@ -172,7 +189,13 @@ class MediaQueries {
         .customSelect(
           'SELECT COUNT(*) AS n FROM media m WHERE $where',
           variables: vars,
-          readsFrom: {_db.media, _db.faces, _db.bodies, _db.mediaDetections},
+          readsFrom: {
+            _db.media,
+            _db.faces,
+            _db.bodies,
+            _db.mediaDetections,
+            _db.persons,
+          },
         )
         .getSingle();
     return row.read<int>('n');
@@ -198,7 +221,13 @@ class MediaQueries {
             Variable.withInt(limit),
             Variable.withInt(offset),
           ],
-          readsFrom: {_db.media, _db.faces, _db.bodies, _db.mediaDetections},
+          readsFrom: {
+            _db.media,
+            _db.faces,
+            _db.bodies,
+            _db.mediaDetections,
+            _db.persons,
+          },
         )
         .get();
     return [
@@ -230,7 +259,13 @@ class MediaQueries {
           ORDER BY COALESCE(m.taken_at, m.modified_at) DESC, m.id DESC
           ''',
           variables: vars,
-          readsFrom: {_db.media, _db.faces, _db.bodies, _db.mediaDetections},
+          readsFrom: {
+            _db.media,
+            _db.faces,
+            _db.bodies,
+            _db.mediaDetections,
+            _db.persons,
+          },
         )
         .get();
     return [for (final r in rows) r.read<int>('id')];

@@ -10,6 +10,7 @@ import '../../library_providers.dart';
 import '../../providers.dart';
 import '../media/video_media_view.dart';
 import '../shared/crop_image.dart';
+import '../shared/image_preview.dart';
 
 Future<void> openReviewMedia(
   BuildContext context,
@@ -76,6 +77,7 @@ class _ReviewMediaViewerState extends ConsumerState<ReviewMediaViewer> {
   int page = 0;
   bool showCrop = false;
   bool deciding = false;
+  bool searching = false;
   late final selected = {...?widget.selectedFaceIds};
   @override
   void initState() {
@@ -106,6 +108,38 @@ class _ReviewMediaViewerState extends ConsumerState<ReviewMediaViewer> {
     super.dispose();
   }
 
+  Future<void> _searchLens() async {
+    final index = page;
+    final cropOnly = showCrop;
+    setState(() => searching = true);
+    try {
+      final items = await future;
+      if (!mounted || items.isEmpty) return;
+      final v = items[index.clamp(0, items.length - 1)];
+      final crop = ImagePreviewSource.crop(v.cropPath);
+      await searchPreviewImage(
+        context,
+        ref,
+        cropOnly || v.assetId == null
+            ? crop
+            : ImagePreviewSource.asset(
+                v.assetId!,
+                video: v.mediaKind == 'video',
+                timestampMs: v.timestampMs ?? 0,
+              ),
+        fallback: crop,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).googleLensError)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => searching = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -117,6 +151,12 @@ class _ReviewMediaViewerState extends ConsumerState<ReviewMediaViewer> {
           style: Theme.of(context).textTheme.titleMedium,
         ),
         actions: [
+          IconButton(
+            key: const Key('google-lens'),
+            tooltip: l.searchGoogleLens,
+            icon: const Icon(Icons.image_search),
+            onPressed: searching ? null : _searchLens,
+          ),
           IconButton(
             key: const Key('review-toggle-crop'),
             tooltip: showCrop ? l.reviewFullPhoto : l.reviewCrop,
@@ -421,7 +461,7 @@ class _ReviewSourceState extends ConsumerState<_ReviewSource> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.memory(image.$1, fit: BoxFit.fill),
+                    PreviewImage.memory(image.$1, fit: BoxFit.fill),
                     IgnorePointer(
                       child: CustomPaint(
                         key: const Key('review-target-highlight'),

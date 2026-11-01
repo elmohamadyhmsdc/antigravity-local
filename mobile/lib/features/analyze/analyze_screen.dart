@@ -1,3 +1,4 @@
+import '../shared/image_preview.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -46,7 +47,7 @@ class AnalyzeScreen extends ConsumerWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.memory(photo, fit: BoxFit.contain),
+              child: PreviewImage.memory(photo, fit: BoxFit.contain),
             ),
             const SizedBox(height: 24),
             const Center(child: CircularProgressIndicator()),
@@ -142,20 +143,23 @@ class _Result extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: AspectRatio(
             aspectRatio: result.imageW / result.imageH,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.memory(photo, fit: BoxFit.fill),
-                CustomPaint(
-                  key: const Key('detections-overlay'),
-                  painter: DetectionsPainter(
-                    result: result,
-                    faceColor: Colors.greenAccent,
-                    skippedColor: Colors.amber,
-                    bodyColor: Colors.lightBlueAccent,
+            child: ImageExpand(
+              source: ImagePreviewSource.bytes(photo),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.memory(photo, fit: BoxFit.fill),
+                  CustomPaint(
+                    key: const Key('detections-overlay'),
+                    painter: DetectionsPainter(
+                      result: result,
+                      faceColor: Colors.greenAccent,
+                      skippedColor: Colors.amber,
+                      bodyColor: Colors.lightBlueAccent,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -186,7 +190,7 @@ class _Result extends StatelessWidget {
             title: Text(l10n.characterFallback(i + 1)),
             leading: result.characters[i].cropJpeg == null
                 ? const Icon(Icons.auto_awesome_outlined)
-                : Image.memory(
+                : PreviewImage.memory(
                     result.characters[i].cropJpeg!,
                     width: 56,
                     fit: BoxFit.contain,
@@ -237,7 +241,7 @@ class _FaceTile extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: face.cropJpeg != null
-                        ? Image.memory(face.cropJpeg!, fit: BoxFit.cover)
+                        ? PreviewImage.memory(face.cropJpeg!, fit: BoxFit.cover)
                         : ColoredBox(
                             color: scheme.surfaceContainerHighest,
                             child: const Icon(Icons.face_outlined),

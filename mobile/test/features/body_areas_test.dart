@@ -129,6 +129,8 @@ void main() {
         reason: 'one chest group and one lower-body group',
       );
 
+      await tester.ensureVisible(find.byKey(const Key('bodies-tab-areas')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('bodies-tab-areas')));
       await _settleReal(tester);
       final chest = await (env.db.select(
@@ -140,6 +142,7 @@ void main() {
       expect(find.byKey(Key('cluster-${chest.id}')), findsOneWidget);
       expect(find.text('Chest area · group ${chest.id}'), findsOneWidget);
 
+      await tester.ensureVisible(find.byKey(Key('cluster-assign-${chest.id}')));
       await tester.tap(find.byKey(Key('cluster-assign-${chest.id}')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key('person-picker-$lina')));
@@ -166,6 +169,7 @@ void main() {
         isNull,
       );
       await tester.ensureVisible(bridge);
+      await tester.pumpAndSettle();
       await tester.tap(bridge);
       await _settleReal(tester);
       rows = {

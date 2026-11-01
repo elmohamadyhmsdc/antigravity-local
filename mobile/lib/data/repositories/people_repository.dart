@@ -21,6 +21,8 @@ class PersonSummary {
     this.pinned = false,
     this.groupingLocked = false,
     this.kind = 'person',
+    this.groupId,
+    this.groupName,
   });
 
   final int id;
@@ -32,6 +34,8 @@ class PersonSummary {
 
   /// 'person' or 'character' (a drawn figure).
   final String kind;
+  final int? groupId;
+  final String? groupName;
 
   bool get isNamed => (name ?? '').trim().isNotEmpty;
 }
@@ -119,7 +123,8 @@ class PeopleRepository {
   // ---- reading --------------------------------------------------------------------
 
   static const _personSql = '''
-    SELECT p.id, p.name, p.created_at, p.hidden, p.favorite, p.pinned, p.grouping_locked, p.kind,
+    SELECT p.id, p.name, p.created_at, p.hidden, p.favorite, p.pinned, p.grouping_locked, p.kind, p.group_id,
+      (SELECT name FROM identity_groups g WHERE g.id = p.group_id) AS group_name,
       (SELECT COUNT(*) FROM faces f WHERE f.person_id = p.id) AS face_count,
       COALESCE(
         (SELECT crop_path FROM faces WHERE id = p.avatar_face_id AND person_id = p.id AND hidden = 0),
@@ -140,13 +145,15 @@ class PeopleRepository {
     pinned: r.read<bool>('pinned'),
     groupingLocked: r.read<bool>('grouping_locked'),
     kind: r.read<String>('kind'),
+    groupId: r.readNullable<int>('group_id'),
+    groupName: r.readNullable<String>('group_name'),
   );
 
   Stream<List<PersonSummary>> watchPeople() => _db
       .customSelect(
         '$_personSql WHERE p.kind = ? ORDER BY face_count DESC, p.id',
         variables: [Variable.withString(kind)],
-        readsFrom: {_db.persons, _db.faces},
+        readsFrom: {_db.persons, _db.faces, _db.identityGroups},
       )
       .watch()
       .map((rows) => rows.map(_person).toList());
@@ -156,7 +163,7 @@ class PeopleRepository {
               .customSelect(
                 '$_personSql WHERE p.kind = ? ORDER BY face_count DESC, p.id',
                 variables: [Variable.withString(kind)],
-                readsFrom: {_db.persons, _db.faces},
+                readsFrom: {_db.persons, _db.faces, _db.identityGroups},
               )
               .get())
           .map(_person)
@@ -166,7 +173,7 @@ class PeopleRepository {
       .customSelect(
         '$_personSql WHERE p.id = ?',
         variables: [Variable.withInt(id)],
-        readsFrom: {_db.persons, _db.faces},
+        readsFrom: {_db.persons, _db.faces, _db.identityGroups},
       )
       .watch()
       .map((rows) => rows.isEmpty ? null : _person(rows.first));
@@ -176,7 +183,7 @@ class PeopleRepository {
         .customSelect(
           '$_personSql WHERE p.id = ?',
           variables: [Variable.withInt(id)],
-          readsFrom: {_db.persons, _db.faces},
+          readsFrom: {_db.persons, _db.faces, _db.identityGroups},
         )
         .get();
     return rows.isEmpty ? null : _person(rows.first);
@@ -592,6 +599,7 @@ class PeopleRepository {
       );
 
       final updates = PersonsCompanion(
+        groupId: Value(target.groupId ?? source.groupId),
         favorite: Value(target.favorite || source.favorite),
         pinned: Value(target.pinned || source.pinned),
         groupingLocked: Value(target.groupingLocked || source.groupingLocked),

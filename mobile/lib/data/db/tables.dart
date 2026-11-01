@@ -50,6 +50,11 @@ class CharacterSamples extends Table {
 @DataClassName('PersonRow')
 class Persons extends Table {
   IntColumn get id => integer().autoIncrement()();
+  IntColumn get groupId => integer().nullable().references(
+    IdentityGroups,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
   TextColumn get name => text().nullable()();
   IntColumn get avatarFaceId => integer().nullable()();
   IntColumn get createdAt => integer()(); // epoch ms
@@ -763,4 +768,74 @@ class BodyGarmentTags extends Table {
 
   @override
   Set<Column> get primaryKey => {bodyId, tag};
+}
+
+/// Objects near a person are editable suggestions. Manual/rejected records are
+/// retained when detection is run again, and included in the library backup.
+@TableIndex(name: 'equipment_objects_media', columns: {#mediaId})
+@DataClassName('EquipmentObjectRow')
+class EquipmentObjects extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get mediaId =>
+      integer().references(Media, #id, onDelete: KeyAction.cascade)();
+  IntColumn get bodyId => integer().nullable().references(
+    Bodies,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get objectKey => text()();
+  TextColumn get label => text().withLength(min: 1, max: 80)();
+  RealColumn get x => real()();
+  RealColumn get y => real()();
+  RealColumn get w => real()();
+  RealColumn get h => real()();
+  TextColumn get state => text().withDefault(const Constant('suggested'))();
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {mediaId, objectKey},
+  ];
+}
+
+@DataClassName('EquipmentPhotoRow')
+class EquipmentPhotos extends Table {
+  IntColumn get mediaId =>
+      integer().references(Media, #id, onDelete: KeyAction.cascade)();
+  IntColumn get version => integer()();
+  @override
+  Set<Column> get primaryKey => {mediaId};
+}
+
+/// User-created collections such as One Piece, Family or Work, shared by both kinds.
+@DataClassName('IdentityGroupRow')
+class IdentityGroups extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 80)();
+  TextColumn get nameKey => text().unique()();
+  IntColumn get createdAt => integer()();
+}
+
+/// Persisted before touching MediaStore so an interrupted move can be reconciled.
+@DataClassName('PersonMediaMoveRow')
+class PersonMediaMoves extends Table {
+  IntColumn get mediaId =>
+      integer().references(Media, #id, onDelete: KeyAction.cascade)();
+  IntColumn get personId => integer().nullable().references(
+    Persons,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  TextColumn get assetId => text()();
+  TextColumn get mediaKind => text()();
+  TextColumn get sourceName => text()();
+  TextColumn get sourcePath => text()();
+  TextColumn get targetName => text()();
+  TextColumn get targetPath => text()();
+  IntColumn get sourceModifiedAt => integer()();
+  IntColumn get sourceSize => integer()();
+  TextColumn get state => text()();
+  TextColumn get detail => text().nullable()();
+  IntColumn get sequence => integer()();
+  IntColumn get updatedAt => integer()();
+  @override
+  Set<Column> get primaryKey => {mediaId};
 }

@@ -10,6 +10,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fixtures.dart';
+import '../support/fixtures.dart';
 import '../support/seed.dart';
 
 const hour = 3600 * 1000;
@@ -177,6 +178,19 @@ void main() {
       expect(rows[handMade]!.linkMethod, 'manual');
     },
   );
+
+  test('the event_outfit golden fixtures round-trip and carry the link', () {
+    final request = fixture('GroupingPlanRequest.event_outfit');
+    final parsed = GroupingPlanRequest.fromJson(request);
+    expect(parsed.bodies.map((b) => b.takenAt), everyElement(isNotNull));
+    expect(parsed.toJson()['bodies'], request['bodies']);
+    final response = GroupingPlanResponse.fromJson(
+      fixture('GroupingPlanResponse.event_outfit'),
+    );
+    expect(response.bodyLinks.single.method, 'event_outfit');
+    expect(response.bodyLinks.single.isAuto, isTrue);
+    expect(response.bodyLinks.single.bodyId, 12);
+  });
 
   test('the event_outfit golden fixtures round-trip and carry the link', () {
     final request = fixture('GroupingPlanRequest.event_outfit');

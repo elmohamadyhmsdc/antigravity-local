@@ -47,9 +47,14 @@ Future<bool> nameBodyPose(
     ).showSnackBar(SnackBar(content: Text(l.categoryNoPose)));
     return false;
   }
+  final example = (await fetchBodyTiles(ref, [bodyId]))[bodyId];
+  if (!context.mounted) return false;
   final name = await showDialog<String>(
     context: context,
-    builder: (_) => _NameDialog(title: l.categoryNamePoseTitle),
+    builder: (_) => _NameDialog(
+      title: l.categoryNamePoseTitle,
+      cropPath: example?.cropPath,
+    ),
   );
   if (!context.mounted || name == null) return false;
   final ids = [for (final m in draft.matches) m.bodyId];
@@ -112,11 +117,13 @@ Future<bool> nameBodyOutfit(
 class _NameDialog extends StatefulWidget {
   const _NameDialog({
     required this.title,
+    this.cropPath,
     this.withLowerOnly = false,
     this.returnBoth = false,
   });
 
   final String title;
+  final String? cropPath;
   final bool withLowerOnly;
   final bool returnBoth;
 
@@ -139,26 +146,38 @@ class _NameDialogState extends State<_NameDialog> {
     final l = AppLocalizations.of(context);
     return AlertDialog(
       title: Text(widget.title),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            key: const Key('category-name'),
-            controller: _name,
-            autofocus: true,
-            maxLength: 80,
-            decoration: InputDecoration(labelText: l.categoryNameHint),
-            onChanged: (_) => setState(() {}),
-          ),
-          if (widget.withLowerOnly)
-            CheckboxListTile(
-              key: const Key('category-lower-only'),
-              value: _lowerOnly,
-              onChanged: (v) => setState(() => _lowerOnly = v ?? false),
-              title: Text(l.categoryLowerOnly),
-              contentPadding: EdgeInsets.zero,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.cropPath != null)
+              SizedBox(
+                height: 140,
+                width: 200,
+                child: CropImage(
+                  path: widget.cropPath,
+                  fit: BoxFit.contain,
+                  placeholderIcon: Icons.accessibility_new,
+                ),
+              ),
+            TextField(
+              key: const Key('category-name'),
+              controller: _name,
+              autofocus: true,
+              maxLength: 80,
+              decoration: InputDecoration(labelText: l.categoryNameHint),
+              onChanged: (_) => setState(() {}),
             ),
-        ],
+            if (widget.withLowerOnly)
+              CheckboxListTile(
+                key: const Key('category-lower-only'),
+                value: _lowerOnly,
+                onChanged: (v) => setState(() => _lowerOnly = v ?? false),
+                title: Text(l.categoryLowerOnly),
+                contentPadding: EdgeInsets.zero,
+              ),
+          ],
+        ),
       ),
       actions: [
         TextButton(

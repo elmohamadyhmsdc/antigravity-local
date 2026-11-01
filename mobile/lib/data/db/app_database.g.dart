@@ -3,6 +3,310 @@
 part of 'app_database.dart';
 
 // ignore_for_file: type=lint
+class $IdentityGroupsTable extends IdentityGroups
+    with TableInfo<$IdentityGroupsTable, IdentityGroupRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $IdentityGroupsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 1,
+      maxTextLength: 80,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameKeyMeta = const VerificationMeta(
+    'nameKey',
+  );
+  @override
+  late final GeneratedColumn<String> nameKey = GeneratedColumn<String>(
+    'name_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, nameKey, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'identity_groups';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<IdentityGroupRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('name_key')) {
+      context.handle(
+        _nameKeyMeta,
+        nameKey.isAcceptableOrUnknown(data['name_key']!, _nameKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameKeyMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  IdentityGroupRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return IdentityGroupRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      nameKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name_key'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $IdentityGroupsTable createAlias(String alias) {
+    return $IdentityGroupsTable(attachedDatabase, alias);
+  }
+}
+
+class IdentityGroupRow extends DataClass
+    implements Insertable<IdentityGroupRow> {
+  final int id;
+  final String name;
+  final String nameKey;
+  final int createdAt;
+  const IdentityGroupRow({
+    required this.id,
+    required this.name,
+    required this.nameKey,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['name_key'] = Variable<String>(nameKey);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  IdentityGroupsCompanion toCompanion(bool nullToAbsent) {
+    return IdentityGroupsCompanion(
+      id: Value(id),
+      name: Value(name),
+      nameKey: Value(nameKey),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory IdentityGroupRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return IdentityGroupRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      nameKey: serializer.fromJson<String>(json['nameKey']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'nameKey': serializer.toJson<String>(nameKey),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  IdentityGroupRow copyWith({
+    int? id,
+    String? name,
+    String? nameKey,
+    int? createdAt,
+  }) => IdentityGroupRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    nameKey: nameKey ?? this.nameKey,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  IdentityGroupRow copyWithCompanion(IdentityGroupsCompanion data) {
+    return IdentityGroupRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      nameKey: data.nameKey.present ? data.nameKey.value : this.nameKey,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IdentityGroupRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('nameKey: $nameKey, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, nameKey, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is IdentityGroupRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.nameKey == this.nameKey &&
+          other.createdAt == this.createdAt);
+}
+
+class IdentityGroupsCompanion extends UpdateCompanion<IdentityGroupRow> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> nameKey;
+  final Value<int> createdAt;
+  const IdentityGroupsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.nameKey = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  IdentityGroupsCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    required String nameKey,
+    required int createdAt,
+  }) : name = Value(name),
+       nameKey = Value(nameKey),
+       createdAt = Value(createdAt);
+  static Insertable<IdentityGroupRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? nameKey,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (nameKey != null) 'name_key': nameKey,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  IdentityGroupsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String>? nameKey,
+    Value<int>? createdAt,
+  }) {
+    return IdentityGroupsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      nameKey: nameKey ?? this.nameKey,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (nameKey.present) {
+      map['name_key'] = Variable<String>(nameKey.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IdentityGroupsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('nameKey: $nameKey, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -19,6 +323,20 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
       'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
+  @override
+  late final GeneratedColumn<int> groupId = GeneratedColumn<int>(
+    'group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES identity_groups (id) ON DELETE SET NULL',
     ),
   );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
@@ -121,6 +439,7 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    groupId,
     name,
     avatarFaceId,
     createdAt,
@@ -144,6 +463,12 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('group_id')) {
+      context.handle(
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
+      );
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -214,6 +539,10 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
+      groupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}group_id'],
+      ),
       name: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}name'],
@@ -257,6 +586,7 @@ class $PersonsTable extends Persons with TableInfo<$PersonsTable, PersonRow> {
 
 class PersonRow extends DataClass implements Insertable<PersonRow> {
   final int id;
+  final int? groupId;
   final String? name;
   final int? avatarFaceId;
   final int createdAt;
@@ -267,6 +597,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
   final String kind;
   const PersonRow({
     required this.id,
+    this.groupId,
     this.name,
     this.avatarFaceId,
     required this.createdAt,
@@ -280,6 +611,9 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<int>(groupId);
+    }
     if (!nullToAbsent || name != null) {
       map['name'] = Variable<String>(name);
     }
@@ -298,6 +632,9 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
   PersonsCompanion toCompanion(bool nullToAbsent) {
     return PersonsCompanion(
       id: Value(id),
+      groupId: groupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupId),
       name: name == null && nullToAbsent ? const Value.absent() : Value(name),
       avatarFaceId: avatarFaceId == null && nullToAbsent
           ? const Value.absent()
@@ -318,6 +655,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return PersonRow(
       id: serializer.fromJson<int>(json['id']),
+      groupId: serializer.fromJson<int?>(json['groupId']),
       name: serializer.fromJson<String?>(json['name']),
       avatarFaceId: serializer.fromJson<int?>(json['avatarFaceId']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
@@ -333,6 +671,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'groupId': serializer.toJson<int?>(groupId),
       'name': serializer.toJson<String?>(name),
       'avatarFaceId': serializer.toJson<int?>(avatarFaceId),
       'createdAt': serializer.toJson<int>(createdAt),
@@ -346,6 +685,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
 
   PersonRow copyWith({
     int? id,
+    Value<int?> groupId = const Value.absent(),
     Value<String?> name = const Value.absent(),
     Value<int?> avatarFaceId = const Value.absent(),
     int? createdAt,
@@ -356,6 +696,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
     String? kind,
   }) => PersonRow(
     id: id ?? this.id,
+    groupId: groupId.present ? groupId.value : this.groupId,
     name: name.present ? name.value : this.name,
     avatarFaceId: avatarFaceId.present ? avatarFaceId.value : this.avatarFaceId,
     createdAt: createdAt ?? this.createdAt,
@@ -368,6 +709,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
   PersonRow copyWithCompanion(PersonsCompanion data) {
     return PersonRow(
       id: data.id.present ? data.id.value : this.id,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
       name: data.name.present ? data.name.value : this.name,
       avatarFaceId: data.avatarFaceId.present
           ? data.avatarFaceId.value
@@ -387,6 +729,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
   String toString() {
     return (StringBuffer('PersonRow(')
           ..write('id: $id, ')
+          ..write('groupId: $groupId, ')
           ..write('name: $name, ')
           ..write('avatarFaceId: $avatarFaceId, ')
           ..write('createdAt: $createdAt, ')
@@ -402,6 +745,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
   @override
   int get hashCode => Object.hash(
     id,
+    groupId,
     name,
     avatarFaceId,
     createdAt,
@@ -416,6 +760,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
       identical(this, other) ||
       (other is PersonRow &&
           other.id == this.id &&
+          other.groupId == this.groupId &&
           other.name == this.name &&
           other.avatarFaceId == this.avatarFaceId &&
           other.createdAt == this.createdAt &&
@@ -428,6 +773,7 @@ class PersonRow extends DataClass implements Insertable<PersonRow> {
 
 class PersonsCompanion extends UpdateCompanion<PersonRow> {
   final Value<int> id;
+  final Value<int?> groupId;
   final Value<String?> name;
   final Value<int?> avatarFaceId;
   final Value<int> createdAt;
@@ -438,6 +784,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
   final Value<String> kind;
   const PersonsCompanion({
     this.id = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.name = const Value.absent(),
     this.avatarFaceId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -449,6 +796,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
   });
   PersonsCompanion.insert({
     this.id = const Value.absent(),
+    this.groupId = const Value.absent(),
     this.name = const Value.absent(),
     this.avatarFaceId = const Value.absent(),
     required int createdAt,
@@ -460,6 +808,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
   }) : createdAt = Value(createdAt);
   static Insertable<PersonRow> custom({
     Expression<int>? id,
+    Expression<int>? groupId,
     Expression<String>? name,
     Expression<int>? avatarFaceId,
     Expression<int>? createdAt,
@@ -471,6 +820,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (groupId != null) 'group_id': groupId,
       if (name != null) 'name': name,
       if (avatarFaceId != null) 'avatar_face_id': avatarFaceId,
       if (createdAt != null) 'created_at': createdAt,
@@ -484,6 +834,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
 
   PersonsCompanion copyWith({
     Value<int>? id,
+    Value<int?>? groupId,
     Value<String?>? name,
     Value<int?>? avatarFaceId,
     Value<int>? createdAt,
@@ -495,6 +846,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
   }) {
     return PersonsCompanion(
       id: id ?? this.id,
+      groupId: groupId ?? this.groupId,
       name: name ?? this.name,
       avatarFaceId: avatarFaceId ?? this.avatarFaceId,
       createdAt: createdAt ?? this.createdAt,
@@ -511,6 +863,9 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (groupId.present) {
+      map['group_id'] = Variable<int>(groupId.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -543,6 +898,7 @@ class PersonsCompanion extends UpdateCompanion<PersonRow> {
   String toString() {
     return (StringBuffer('PersonsCompanion(')
           ..write('id: $id, ')
+          ..write('groupId: $groupId, ')
           ..write('name: $name, ')
           ..write('avatarFaceId: $avatarFaceId, ')
           ..write('createdAt: $createdAt, ')
@@ -19254,9 +19610,1604 @@ class BodyGarmentTagsCompanion extends UpdateCompanion<BodyGarmentTagRow> {
   }
 }
 
+class $EquipmentObjectsTable extends EquipmentObjects
+    with TableInfo<$EquipmentObjectsTable, EquipmentObjectRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EquipmentObjectsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
+    'mediaId',
+  );
+  @override
+  late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
+    'media_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES media (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _bodyIdMeta = const VerificationMeta('bodyId');
+  @override
+  late final GeneratedColumn<int> bodyId = GeneratedColumn<int>(
+    'body_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _objectKeyMeta = const VerificationMeta(
+    'objectKey',
+  );
+  @override
+  late final GeneratedColumn<String> objectKey = GeneratedColumn<String>(
+    'object_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 1,
+      maxTextLength: 80,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _xMeta = const VerificationMeta('x');
+  @override
+  late final GeneratedColumn<double> x = GeneratedColumn<double>(
+    'x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _yMeta = const VerificationMeta('y');
+  @override
+  late final GeneratedColumn<double> y = GeneratedColumn<double>(
+    'y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _wMeta = const VerificationMeta('w');
+  @override
+  late final GeneratedColumn<double> w = GeneratedColumn<double>(
+    'w',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hMeta = const VerificationMeta('h');
+  @override
+  late final GeneratedColumn<double> h = GeneratedColumn<double>(
+    'h',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('suggested'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    mediaId,
+    bodyId,
+    objectKey,
+    label,
+    x,
+    y,
+    w,
+    h,
+    state,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'equipment_objects';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EquipmentObjectRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('media_id')) {
+      context.handle(
+        _mediaIdMeta,
+        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_mediaIdMeta);
+    }
+    if (data.containsKey('body_id')) {
+      context.handle(
+        _bodyIdMeta,
+        bodyId.isAcceptableOrUnknown(data['body_id']!, _bodyIdMeta),
+      );
+    }
+    if (data.containsKey('object_key')) {
+      context.handle(
+        _objectKeyMeta,
+        objectKey.isAcceptableOrUnknown(data['object_key']!, _objectKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_objectKeyMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_labelMeta);
+    }
+    if (data.containsKey('x')) {
+      context.handle(_xMeta, x.isAcceptableOrUnknown(data['x']!, _xMeta));
+    } else if (isInserting) {
+      context.missing(_xMeta);
+    }
+    if (data.containsKey('y')) {
+      context.handle(_yMeta, y.isAcceptableOrUnknown(data['y']!, _yMeta));
+    } else if (isInserting) {
+      context.missing(_yMeta);
+    }
+    if (data.containsKey('w')) {
+      context.handle(_wMeta, w.isAcceptableOrUnknown(data['w']!, _wMeta));
+    } else if (isInserting) {
+      context.missing(_wMeta);
+    }
+    if (data.containsKey('h')) {
+      context.handle(_hMeta, h.isAcceptableOrUnknown(data['h']!, _hMeta));
+    } else if (isInserting) {
+      context.missing(_hMeta);
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {mediaId, objectKey},
+  ];
+  @override
+  EquipmentObjectRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EquipmentObjectRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      mediaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}media_id'],
+      )!,
+      bodyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_id'],
+      ),
+      objectKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}object_key'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      )!,
+      x: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}x'],
+      )!,
+      y: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}y'],
+      )!,
+      w: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}w'],
+      )!,
+      h: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}h'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+    );
+  }
+
+  @override
+  $EquipmentObjectsTable createAlias(String alias) {
+    return $EquipmentObjectsTable(attachedDatabase, alias);
+  }
+}
+
+class EquipmentObjectRow extends DataClass
+    implements Insertable<EquipmentObjectRow> {
+  final int id;
+  final int mediaId;
+  final int? bodyId;
+  final String objectKey;
+  final String label;
+  final double x;
+  final double y;
+  final double w;
+  final double h;
+  final String state;
+  const EquipmentObjectRow({
+    required this.id,
+    required this.mediaId,
+    this.bodyId,
+    required this.objectKey,
+    required this.label,
+    required this.x,
+    required this.y,
+    required this.w,
+    required this.h,
+    required this.state,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['media_id'] = Variable<int>(mediaId);
+    if (!nullToAbsent || bodyId != null) {
+      map['body_id'] = Variable<int>(bodyId);
+    }
+    map['object_key'] = Variable<String>(objectKey);
+    map['label'] = Variable<String>(label);
+    map['x'] = Variable<double>(x);
+    map['y'] = Variable<double>(y);
+    map['w'] = Variable<double>(w);
+    map['h'] = Variable<double>(h);
+    map['state'] = Variable<String>(state);
+    return map;
+  }
+
+  EquipmentObjectsCompanion toCompanion(bool nullToAbsent) {
+    return EquipmentObjectsCompanion(
+      id: Value(id),
+      mediaId: Value(mediaId),
+      bodyId: bodyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bodyId),
+      objectKey: Value(objectKey),
+      label: Value(label),
+      x: Value(x),
+      y: Value(y),
+      w: Value(w),
+      h: Value(h),
+      state: Value(state),
+    );
+  }
+
+  factory EquipmentObjectRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EquipmentObjectRow(
+      id: serializer.fromJson<int>(json['id']),
+      mediaId: serializer.fromJson<int>(json['mediaId']),
+      bodyId: serializer.fromJson<int?>(json['bodyId']),
+      objectKey: serializer.fromJson<String>(json['objectKey']),
+      label: serializer.fromJson<String>(json['label']),
+      x: serializer.fromJson<double>(json['x']),
+      y: serializer.fromJson<double>(json['y']),
+      w: serializer.fromJson<double>(json['w']),
+      h: serializer.fromJson<double>(json['h']),
+      state: serializer.fromJson<String>(json['state']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'mediaId': serializer.toJson<int>(mediaId),
+      'bodyId': serializer.toJson<int?>(bodyId),
+      'objectKey': serializer.toJson<String>(objectKey),
+      'label': serializer.toJson<String>(label),
+      'x': serializer.toJson<double>(x),
+      'y': serializer.toJson<double>(y),
+      'w': serializer.toJson<double>(w),
+      'h': serializer.toJson<double>(h),
+      'state': serializer.toJson<String>(state),
+    };
+  }
+
+  EquipmentObjectRow copyWith({
+    int? id,
+    int? mediaId,
+    Value<int?> bodyId = const Value.absent(),
+    String? objectKey,
+    String? label,
+    double? x,
+    double? y,
+    double? w,
+    double? h,
+    String? state,
+  }) => EquipmentObjectRow(
+    id: id ?? this.id,
+    mediaId: mediaId ?? this.mediaId,
+    bodyId: bodyId.present ? bodyId.value : this.bodyId,
+    objectKey: objectKey ?? this.objectKey,
+    label: label ?? this.label,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    w: w ?? this.w,
+    h: h ?? this.h,
+    state: state ?? this.state,
+  );
+  EquipmentObjectRow copyWithCompanion(EquipmentObjectsCompanion data) {
+    return EquipmentObjectRow(
+      id: data.id.present ? data.id.value : this.id,
+      mediaId: data.mediaId.present ? data.mediaId.value : this.mediaId,
+      bodyId: data.bodyId.present ? data.bodyId.value : this.bodyId,
+      objectKey: data.objectKey.present ? data.objectKey.value : this.objectKey,
+      label: data.label.present ? data.label.value : this.label,
+      x: data.x.present ? data.x.value : this.x,
+      y: data.y.present ? data.y.value : this.y,
+      w: data.w.present ? data.w.value : this.w,
+      h: data.h.present ? data.h.value : this.h,
+      state: data.state.present ? data.state.value : this.state,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EquipmentObjectRow(')
+          ..write('id: $id, ')
+          ..write('mediaId: $mediaId, ')
+          ..write('bodyId: $bodyId, ')
+          ..write('objectKey: $objectKey, ')
+          ..write('label: $label, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('state: $state')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, mediaId, bodyId, objectKey, label, x, y, w, h, state);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EquipmentObjectRow &&
+          other.id == this.id &&
+          other.mediaId == this.mediaId &&
+          other.bodyId == this.bodyId &&
+          other.objectKey == this.objectKey &&
+          other.label == this.label &&
+          other.x == this.x &&
+          other.y == this.y &&
+          other.w == this.w &&
+          other.h == this.h &&
+          other.state == this.state);
+}
+
+class EquipmentObjectsCompanion extends UpdateCompanion<EquipmentObjectRow> {
+  final Value<int> id;
+  final Value<int> mediaId;
+  final Value<int?> bodyId;
+  final Value<String> objectKey;
+  final Value<String> label;
+  final Value<double> x;
+  final Value<double> y;
+  final Value<double> w;
+  final Value<double> h;
+  final Value<String> state;
+  const EquipmentObjectsCompanion({
+    this.id = const Value.absent(),
+    this.mediaId = const Value.absent(),
+    this.bodyId = const Value.absent(),
+    this.objectKey = const Value.absent(),
+    this.label = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.w = const Value.absent(),
+    this.h = const Value.absent(),
+    this.state = const Value.absent(),
+  });
+  EquipmentObjectsCompanion.insert({
+    this.id = const Value.absent(),
+    required int mediaId,
+    this.bodyId = const Value.absent(),
+    required String objectKey,
+    required String label,
+    required double x,
+    required double y,
+    required double w,
+    required double h,
+    this.state = const Value.absent(),
+  }) : mediaId = Value(mediaId),
+       objectKey = Value(objectKey),
+       label = Value(label),
+       x = Value(x),
+       y = Value(y),
+       w = Value(w),
+       h = Value(h);
+  static Insertable<EquipmentObjectRow> custom({
+    Expression<int>? id,
+    Expression<int>? mediaId,
+    Expression<int>? bodyId,
+    Expression<String>? objectKey,
+    Expression<String>? label,
+    Expression<double>? x,
+    Expression<double>? y,
+    Expression<double>? w,
+    Expression<double>? h,
+    Expression<String>? state,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (mediaId != null) 'media_id': mediaId,
+      if (bodyId != null) 'body_id': bodyId,
+      if (objectKey != null) 'object_key': objectKey,
+      if (label != null) 'label': label,
+      if (x != null) 'x': x,
+      if (y != null) 'y': y,
+      if (w != null) 'w': w,
+      if (h != null) 'h': h,
+      if (state != null) 'state': state,
+    });
+  }
+
+  EquipmentObjectsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? mediaId,
+    Value<int?>? bodyId,
+    Value<String>? objectKey,
+    Value<String>? label,
+    Value<double>? x,
+    Value<double>? y,
+    Value<double>? w,
+    Value<double>? h,
+    Value<String>? state,
+  }) {
+    return EquipmentObjectsCompanion(
+      id: id ?? this.id,
+      mediaId: mediaId ?? this.mediaId,
+      bodyId: bodyId ?? this.bodyId,
+      objectKey: objectKey ?? this.objectKey,
+      label: label ?? this.label,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      w: w ?? this.w,
+      h: h ?? this.h,
+      state: state ?? this.state,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (mediaId.present) {
+      map['media_id'] = Variable<int>(mediaId.value);
+    }
+    if (bodyId.present) {
+      map['body_id'] = Variable<int>(bodyId.value);
+    }
+    if (objectKey.present) {
+      map['object_key'] = Variable<String>(objectKey.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (x.present) {
+      map['x'] = Variable<double>(x.value);
+    }
+    if (y.present) {
+      map['y'] = Variable<double>(y.value);
+    }
+    if (w.present) {
+      map['w'] = Variable<double>(w.value);
+    }
+    if (h.present) {
+      map['h'] = Variable<double>(h.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EquipmentObjectsCompanion(')
+          ..write('id: $id, ')
+          ..write('mediaId: $mediaId, ')
+          ..write('bodyId: $bodyId, ')
+          ..write('objectKey: $objectKey, ')
+          ..write('label: $label, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('state: $state')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $EquipmentPhotosTable extends EquipmentPhotos
+    with TableInfo<$EquipmentPhotosTable, EquipmentPhotoRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EquipmentPhotosTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
+    'mediaId',
+  );
+  @override
+  late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
+    'media_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES media (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [mediaId, version];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'equipment_photos';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EquipmentPhotoRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('media_id')) {
+      context.handle(
+        _mediaIdMeta,
+        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_versionMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {mediaId};
+  @override
+  EquipmentPhotoRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EquipmentPhotoRow(
+      mediaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}media_id'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+    );
+  }
+
+  @override
+  $EquipmentPhotosTable createAlias(String alias) {
+    return $EquipmentPhotosTable(attachedDatabase, alias);
+  }
+}
+
+class EquipmentPhotoRow extends DataClass
+    implements Insertable<EquipmentPhotoRow> {
+  final int mediaId;
+  final int version;
+  const EquipmentPhotoRow({required this.mediaId, required this.version});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['media_id'] = Variable<int>(mediaId);
+    map['version'] = Variable<int>(version);
+    return map;
+  }
+
+  EquipmentPhotosCompanion toCompanion(bool nullToAbsent) {
+    return EquipmentPhotosCompanion(
+      mediaId: Value(mediaId),
+      version: Value(version),
+    );
+  }
+
+  factory EquipmentPhotoRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EquipmentPhotoRow(
+      mediaId: serializer.fromJson<int>(json['mediaId']),
+      version: serializer.fromJson<int>(json['version']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'mediaId': serializer.toJson<int>(mediaId),
+      'version': serializer.toJson<int>(version),
+    };
+  }
+
+  EquipmentPhotoRow copyWith({int? mediaId, int? version}) => EquipmentPhotoRow(
+    mediaId: mediaId ?? this.mediaId,
+    version: version ?? this.version,
+  );
+  EquipmentPhotoRow copyWithCompanion(EquipmentPhotosCompanion data) {
+    return EquipmentPhotoRow(
+      mediaId: data.mediaId.present ? data.mediaId.value : this.mediaId,
+      version: data.version.present ? data.version.value : this.version,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EquipmentPhotoRow(')
+          ..write('mediaId: $mediaId, ')
+          ..write('version: $version')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(mediaId, version);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EquipmentPhotoRow &&
+          other.mediaId == this.mediaId &&
+          other.version == this.version);
+}
+
+class EquipmentPhotosCompanion extends UpdateCompanion<EquipmentPhotoRow> {
+  final Value<int> mediaId;
+  final Value<int> version;
+  const EquipmentPhotosCompanion({
+    this.mediaId = const Value.absent(),
+    this.version = const Value.absent(),
+  });
+  EquipmentPhotosCompanion.insert({
+    this.mediaId = const Value.absent(),
+    required int version,
+  }) : version = Value(version);
+  static Insertable<EquipmentPhotoRow> custom({
+    Expression<int>? mediaId,
+    Expression<int>? version,
+  }) {
+    return RawValuesInsertable({
+      if (mediaId != null) 'media_id': mediaId,
+      if (version != null) 'version': version,
+    });
+  }
+
+  EquipmentPhotosCompanion copyWith({
+    Value<int>? mediaId,
+    Value<int>? version,
+  }) {
+    return EquipmentPhotosCompanion(
+      mediaId: mediaId ?? this.mediaId,
+      version: version ?? this.version,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (mediaId.present) {
+      map['media_id'] = Variable<int>(mediaId.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EquipmentPhotosCompanion(')
+          ..write('mediaId: $mediaId, ')
+          ..write('version: $version')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PersonMediaMovesTable extends PersonMediaMoves
+    with TableInfo<$PersonMediaMovesTable, PersonMediaMoveRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PersonMediaMovesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
+    'mediaId',
+  );
+  @override
+  late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
+    'media_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES media (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _assetIdMeta = const VerificationMeta(
+    'assetId',
+  );
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+    'asset_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _mediaKindMeta = const VerificationMeta(
+    'mediaKind',
+  );
+  @override
+  late final GeneratedColumn<String> mediaKind = GeneratedColumn<String>(
+    'media_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceNameMeta = const VerificationMeta(
+    'sourceName',
+  );
+  @override
+  late final GeneratedColumn<String> sourceName = GeneratedColumn<String>(
+    'source_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourcePathMeta = const VerificationMeta(
+    'sourcePath',
+  );
+  @override
+  late final GeneratedColumn<String> sourcePath = GeneratedColumn<String>(
+    'source_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetNameMeta = const VerificationMeta(
+    'targetName',
+  );
+  @override
+  late final GeneratedColumn<String> targetName = GeneratedColumn<String>(
+    'target_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetPathMeta = const VerificationMeta(
+    'targetPath',
+  );
+  @override
+  late final GeneratedColumn<String> targetPath = GeneratedColumn<String>(
+    'target_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceModifiedAtMeta = const VerificationMeta(
+    'sourceModifiedAt',
+  );
+  @override
+  late final GeneratedColumn<int> sourceModifiedAt = GeneratedColumn<int>(
+    'source_modified_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceSizeMeta = const VerificationMeta(
+    'sourceSize',
+  );
+  @override
+  late final GeneratedColumn<int> sourceSize = GeneratedColumn<int>(
+    'source_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _detailMeta = const VerificationMeta('detail');
+  @override
+  late final GeneratedColumn<String> detail = GeneratedColumn<String>(
+    'detail',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sequenceMeta = const VerificationMeta(
+    'sequence',
+  );
+  @override
+  late final GeneratedColumn<int> sequence = GeneratedColumn<int>(
+    'sequence',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    mediaId,
+    personId,
+    assetId,
+    mediaKind,
+    sourceName,
+    sourcePath,
+    targetName,
+    targetPath,
+    sourceModifiedAt,
+    sourceSize,
+    state,
+    detail,
+    sequence,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'person_media_moves';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PersonMediaMoveRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('media_id')) {
+      context.handle(
+        _mediaIdMeta,
+        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
+      );
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(
+        _assetIdMeta,
+        assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_assetIdMeta);
+    }
+    if (data.containsKey('media_kind')) {
+      context.handle(
+        _mediaKindMeta,
+        mediaKind.isAcceptableOrUnknown(data['media_kind']!, _mediaKindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_mediaKindMeta);
+    }
+    if (data.containsKey('source_name')) {
+      context.handle(
+        _sourceNameMeta,
+        sourceName.isAcceptableOrUnknown(data['source_name']!, _sourceNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceNameMeta);
+    }
+    if (data.containsKey('source_path')) {
+      context.handle(
+        _sourcePathMeta,
+        sourcePath.isAcceptableOrUnknown(data['source_path']!, _sourcePathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourcePathMeta);
+    }
+    if (data.containsKey('target_name')) {
+      context.handle(
+        _targetNameMeta,
+        targetName.isAcceptableOrUnknown(data['target_name']!, _targetNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetNameMeta);
+    }
+    if (data.containsKey('target_path')) {
+      context.handle(
+        _targetPathMeta,
+        targetPath.isAcceptableOrUnknown(data['target_path']!, _targetPathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetPathMeta);
+    }
+    if (data.containsKey('source_modified_at')) {
+      context.handle(
+        _sourceModifiedAtMeta,
+        sourceModifiedAt.isAcceptableOrUnknown(
+          data['source_modified_at']!,
+          _sourceModifiedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceModifiedAtMeta);
+    }
+    if (data.containsKey('source_size')) {
+      context.handle(
+        _sourceSizeMeta,
+        sourceSize.isAcceptableOrUnknown(data['source_size']!, _sourceSizeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceSizeMeta);
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stateMeta);
+    }
+    if (data.containsKey('detail')) {
+      context.handle(
+        _detailMeta,
+        detail.isAcceptableOrUnknown(data['detail']!, _detailMeta),
+      );
+    }
+    if (data.containsKey('sequence')) {
+      context.handle(
+        _sequenceMeta,
+        sequence.isAcceptableOrUnknown(data['sequence']!, _sequenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sequenceMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {mediaId};
+  @override
+  PersonMediaMoveRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PersonMediaMoveRow(
+      mediaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}media_id'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      ),
+      assetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}asset_id'],
+      )!,
+      mediaKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}media_kind'],
+      )!,
+      sourceName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_name'],
+      )!,
+      sourcePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_path'],
+      )!,
+      targetName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_name'],
+      )!,
+      targetPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_path'],
+      )!,
+      sourceModifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}source_modified_at'],
+      )!,
+      sourceSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}source_size'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+      detail: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}detail'],
+      ),
+      sequence: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sequence'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PersonMediaMovesTable createAlias(String alias) {
+    return $PersonMediaMovesTable(attachedDatabase, alias);
+  }
+}
+
+class PersonMediaMoveRow extends DataClass
+    implements Insertable<PersonMediaMoveRow> {
+  final int mediaId;
+  final int? personId;
+  final String assetId;
+  final String mediaKind;
+  final String sourceName;
+  final String sourcePath;
+  final String targetName;
+  final String targetPath;
+  final int sourceModifiedAt;
+  final int sourceSize;
+  final String state;
+  final String? detail;
+  final int sequence;
+  final int updatedAt;
+  const PersonMediaMoveRow({
+    required this.mediaId,
+    this.personId,
+    required this.assetId,
+    required this.mediaKind,
+    required this.sourceName,
+    required this.sourcePath,
+    required this.targetName,
+    required this.targetPath,
+    required this.sourceModifiedAt,
+    required this.sourceSize,
+    required this.state,
+    this.detail,
+    required this.sequence,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['media_id'] = Variable<int>(mediaId);
+    if (!nullToAbsent || personId != null) {
+      map['person_id'] = Variable<int>(personId);
+    }
+    map['asset_id'] = Variable<String>(assetId);
+    map['media_kind'] = Variable<String>(mediaKind);
+    map['source_name'] = Variable<String>(sourceName);
+    map['source_path'] = Variable<String>(sourcePath);
+    map['target_name'] = Variable<String>(targetName);
+    map['target_path'] = Variable<String>(targetPath);
+    map['source_modified_at'] = Variable<int>(sourceModifiedAt);
+    map['source_size'] = Variable<int>(sourceSize);
+    map['state'] = Variable<String>(state);
+    if (!nullToAbsent || detail != null) {
+      map['detail'] = Variable<String>(detail);
+    }
+    map['sequence'] = Variable<int>(sequence);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  PersonMediaMovesCompanion toCompanion(bool nullToAbsent) {
+    return PersonMediaMovesCompanion(
+      mediaId: Value(mediaId),
+      personId: personId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(personId),
+      assetId: Value(assetId),
+      mediaKind: Value(mediaKind),
+      sourceName: Value(sourceName),
+      sourcePath: Value(sourcePath),
+      targetName: Value(targetName),
+      targetPath: Value(targetPath),
+      sourceModifiedAt: Value(sourceModifiedAt),
+      sourceSize: Value(sourceSize),
+      state: Value(state),
+      detail: detail == null && nullToAbsent
+          ? const Value.absent()
+          : Value(detail),
+      sequence: Value(sequence),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory PersonMediaMoveRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PersonMediaMoveRow(
+      mediaId: serializer.fromJson<int>(json['mediaId']),
+      personId: serializer.fromJson<int?>(json['personId']),
+      assetId: serializer.fromJson<String>(json['assetId']),
+      mediaKind: serializer.fromJson<String>(json['mediaKind']),
+      sourceName: serializer.fromJson<String>(json['sourceName']),
+      sourcePath: serializer.fromJson<String>(json['sourcePath']),
+      targetName: serializer.fromJson<String>(json['targetName']),
+      targetPath: serializer.fromJson<String>(json['targetPath']),
+      sourceModifiedAt: serializer.fromJson<int>(json['sourceModifiedAt']),
+      sourceSize: serializer.fromJson<int>(json['sourceSize']),
+      state: serializer.fromJson<String>(json['state']),
+      detail: serializer.fromJson<String?>(json['detail']),
+      sequence: serializer.fromJson<int>(json['sequence']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'mediaId': serializer.toJson<int>(mediaId),
+      'personId': serializer.toJson<int?>(personId),
+      'assetId': serializer.toJson<String>(assetId),
+      'mediaKind': serializer.toJson<String>(mediaKind),
+      'sourceName': serializer.toJson<String>(sourceName),
+      'sourcePath': serializer.toJson<String>(sourcePath),
+      'targetName': serializer.toJson<String>(targetName),
+      'targetPath': serializer.toJson<String>(targetPath),
+      'sourceModifiedAt': serializer.toJson<int>(sourceModifiedAt),
+      'sourceSize': serializer.toJson<int>(sourceSize),
+      'state': serializer.toJson<String>(state),
+      'detail': serializer.toJson<String?>(detail),
+      'sequence': serializer.toJson<int>(sequence),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  PersonMediaMoveRow copyWith({
+    int? mediaId,
+    Value<int?> personId = const Value.absent(),
+    String? assetId,
+    String? mediaKind,
+    String? sourceName,
+    String? sourcePath,
+    String? targetName,
+    String? targetPath,
+    int? sourceModifiedAt,
+    int? sourceSize,
+    String? state,
+    Value<String?> detail = const Value.absent(),
+    int? sequence,
+    int? updatedAt,
+  }) => PersonMediaMoveRow(
+    mediaId: mediaId ?? this.mediaId,
+    personId: personId.present ? personId.value : this.personId,
+    assetId: assetId ?? this.assetId,
+    mediaKind: mediaKind ?? this.mediaKind,
+    sourceName: sourceName ?? this.sourceName,
+    sourcePath: sourcePath ?? this.sourcePath,
+    targetName: targetName ?? this.targetName,
+    targetPath: targetPath ?? this.targetPath,
+    sourceModifiedAt: sourceModifiedAt ?? this.sourceModifiedAt,
+    sourceSize: sourceSize ?? this.sourceSize,
+    state: state ?? this.state,
+    detail: detail.present ? detail.value : this.detail,
+    sequence: sequence ?? this.sequence,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  PersonMediaMoveRow copyWithCompanion(PersonMediaMovesCompanion data) {
+    return PersonMediaMoveRow(
+      mediaId: data.mediaId.present ? data.mediaId.value : this.mediaId,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      mediaKind: data.mediaKind.present ? data.mediaKind.value : this.mediaKind,
+      sourceName: data.sourceName.present
+          ? data.sourceName.value
+          : this.sourceName,
+      sourcePath: data.sourcePath.present
+          ? data.sourcePath.value
+          : this.sourcePath,
+      targetName: data.targetName.present
+          ? data.targetName.value
+          : this.targetName,
+      targetPath: data.targetPath.present
+          ? data.targetPath.value
+          : this.targetPath,
+      sourceModifiedAt: data.sourceModifiedAt.present
+          ? data.sourceModifiedAt.value
+          : this.sourceModifiedAt,
+      sourceSize: data.sourceSize.present
+          ? data.sourceSize.value
+          : this.sourceSize,
+      state: data.state.present ? data.state.value : this.state,
+      detail: data.detail.present ? data.detail.value : this.detail,
+      sequence: data.sequence.present ? data.sequence.value : this.sequence,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PersonMediaMoveRow(')
+          ..write('mediaId: $mediaId, ')
+          ..write('personId: $personId, ')
+          ..write('assetId: $assetId, ')
+          ..write('mediaKind: $mediaKind, ')
+          ..write('sourceName: $sourceName, ')
+          ..write('sourcePath: $sourcePath, ')
+          ..write('targetName: $targetName, ')
+          ..write('targetPath: $targetPath, ')
+          ..write('sourceModifiedAt: $sourceModifiedAt, ')
+          ..write('sourceSize: $sourceSize, ')
+          ..write('state: $state, ')
+          ..write('detail: $detail, ')
+          ..write('sequence: $sequence, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    mediaId,
+    personId,
+    assetId,
+    mediaKind,
+    sourceName,
+    sourcePath,
+    targetName,
+    targetPath,
+    sourceModifiedAt,
+    sourceSize,
+    state,
+    detail,
+    sequence,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PersonMediaMoveRow &&
+          other.mediaId == this.mediaId &&
+          other.personId == this.personId &&
+          other.assetId == this.assetId &&
+          other.mediaKind == this.mediaKind &&
+          other.sourceName == this.sourceName &&
+          other.sourcePath == this.sourcePath &&
+          other.targetName == this.targetName &&
+          other.targetPath == this.targetPath &&
+          other.sourceModifiedAt == this.sourceModifiedAt &&
+          other.sourceSize == this.sourceSize &&
+          other.state == this.state &&
+          other.detail == this.detail &&
+          other.sequence == this.sequence &&
+          other.updatedAt == this.updatedAt);
+}
+
+class PersonMediaMovesCompanion extends UpdateCompanion<PersonMediaMoveRow> {
+  final Value<int> mediaId;
+  final Value<int?> personId;
+  final Value<String> assetId;
+  final Value<String> mediaKind;
+  final Value<String> sourceName;
+  final Value<String> sourcePath;
+  final Value<String> targetName;
+  final Value<String> targetPath;
+  final Value<int> sourceModifiedAt;
+  final Value<int> sourceSize;
+  final Value<String> state;
+  final Value<String?> detail;
+  final Value<int> sequence;
+  final Value<int> updatedAt;
+  const PersonMediaMovesCompanion({
+    this.mediaId = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.mediaKind = const Value.absent(),
+    this.sourceName = const Value.absent(),
+    this.sourcePath = const Value.absent(),
+    this.targetName = const Value.absent(),
+    this.targetPath = const Value.absent(),
+    this.sourceModifiedAt = const Value.absent(),
+    this.sourceSize = const Value.absent(),
+    this.state = const Value.absent(),
+    this.detail = const Value.absent(),
+    this.sequence = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  PersonMediaMovesCompanion.insert({
+    this.mediaId = const Value.absent(),
+    this.personId = const Value.absent(),
+    required String assetId,
+    required String mediaKind,
+    required String sourceName,
+    required String sourcePath,
+    required String targetName,
+    required String targetPath,
+    required int sourceModifiedAt,
+    required int sourceSize,
+    required String state,
+    this.detail = const Value.absent(),
+    required int sequence,
+    required int updatedAt,
+  }) : assetId = Value(assetId),
+       mediaKind = Value(mediaKind),
+       sourceName = Value(sourceName),
+       sourcePath = Value(sourcePath),
+       targetName = Value(targetName),
+       targetPath = Value(targetPath),
+       sourceModifiedAt = Value(sourceModifiedAt),
+       sourceSize = Value(sourceSize),
+       state = Value(state),
+       sequence = Value(sequence),
+       updatedAt = Value(updatedAt);
+  static Insertable<PersonMediaMoveRow> custom({
+    Expression<int>? mediaId,
+    Expression<int>? personId,
+    Expression<String>? assetId,
+    Expression<String>? mediaKind,
+    Expression<String>? sourceName,
+    Expression<String>? sourcePath,
+    Expression<String>? targetName,
+    Expression<String>? targetPath,
+    Expression<int>? sourceModifiedAt,
+    Expression<int>? sourceSize,
+    Expression<String>? state,
+    Expression<String>? detail,
+    Expression<int>? sequence,
+    Expression<int>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (mediaId != null) 'media_id': mediaId,
+      if (personId != null) 'person_id': personId,
+      if (assetId != null) 'asset_id': assetId,
+      if (mediaKind != null) 'media_kind': mediaKind,
+      if (sourceName != null) 'source_name': sourceName,
+      if (sourcePath != null) 'source_path': sourcePath,
+      if (targetName != null) 'target_name': targetName,
+      if (targetPath != null) 'target_path': targetPath,
+      if (sourceModifiedAt != null) 'source_modified_at': sourceModifiedAt,
+      if (sourceSize != null) 'source_size': sourceSize,
+      if (state != null) 'state': state,
+      if (detail != null) 'detail': detail,
+      if (sequence != null) 'sequence': sequence,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  PersonMediaMovesCompanion copyWith({
+    Value<int>? mediaId,
+    Value<int?>? personId,
+    Value<String>? assetId,
+    Value<String>? mediaKind,
+    Value<String>? sourceName,
+    Value<String>? sourcePath,
+    Value<String>? targetName,
+    Value<String>? targetPath,
+    Value<int>? sourceModifiedAt,
+    Value<int>? sourceSize,
+    Value<String>? state,
+    Value<String?>? detail,
+    Value<int>? sequence,
+    Value<int>? updatedAt,
+  }) {
+    return PersonMediaMovesCompanion(
+      mediaId: mediaId ?? this.mediaId,
+      personId: personId ?? this.personId,
+      assetId: assetId ?? this.assetId,
+      mediaKind: mediaKind ?? this.mediaKind,
+      sourceName: sourceName ?? this.sourceName,
+      sourcePath: sourcePath ?? this.sourcePath,
+      targetName: targetName ?? this.targetName,
+      targetPath: targetPath ?? this.targetPath,
+      sourceModifiedAt: sourceModifiedAt ?? this.sourceModifiedAt,
+      sourceSize: sourceSize ?? this.sourceSize,
+      state: state ?? this.state,
+      detail: detail ?? this.detail,
+      sequence: sequence ?? this.sequence,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (mediaId.present) {
+      map['media_id'] = Variable<int>(mediaId.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (mediaKind.present) {
+      map['media_kind'] = Variable<String>(mediaKind.value);
+    }
+    if (sourceName.present) {
+      map['source_name'] = Variable<String>(sourceName.value);
+    }
+    if (sourcePath.present) {
+      map['source_path'] = Variable<String>(sourcePath.value);
+    }
+    if (targetName.present) {
+      map['target_name'] = Variable<String>(targetName.value);
+    }
+    if (targetPath.present) {
+      map['target_path'] = Variable<String>(targetPath.value);
+    }
+    if (sourceModifiedAt.present) {
+      map['source_modified_at'] = Variable<int>(sourceModifiedAt.value);
+    }
+    if (sourceSize.present) {
+      map['source_size'] = Variable<int>(sourceSize.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (detail.present) {
+      map['detail'] = Variable<String>(detail.value);
+    }
+    if (sequence.present) {
+      map['sequence'] = Variable<int>(sequence.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PersonMediaMovesCompanion(')
+          ..write('mediaId: $mediaId, ')
+          ..write('personId: $personId, ')
+          ..write('assetId: $assetId, ')
+          ..write('mediaKind: $mediaKind, ')
+          ..write('sourceName: $sourceName, ')
+          ..write('sourcePath: $sourcePath, ')
+          ..write('targetName: $targetName, ')
+          ..write('targetPath: $targetPath, ')
+          ..write('sourceModifiedAt: $sourceModifiedAt, ')
+          ..write('sourceSize: $sourceSize, ')
+          ..write('state: $state, ')
+          ..write('detail: $detail, ')
+          ..write('sequence: $sequence, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
+  late final $IdentityGroupsTable identityGroups = $IdentityGroupsTable(this);
   late final $PersonsTable persons = $PersonsTable(this);
   late final $MediaTable media = $MediaTable(this);
   late final $FacesTable faces = $FacesTable(this);
@@ -19317,6 +21268,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $BodyGarmentTagsTable bodyGarmentTags = $BodyGarmentTagsTable(
+    this,
+  );
+  late final $EquipmentObjectsTable equipmentObjects = $EquipmentObjectsTable(
+    this,
+  );
+  late final $EquipmentPhotosTable equipmentPhotos = $EquipmentPhotosTable(
+    this,
+  );
+  late final $PersonMediaMovesTable personMediaMoves = $PersonMediaMovesTable(
     this,
   );
   late final Index mediaScanStatus = Index(
@@ -19415,11 +21375,16 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'body_garment_tags_tag',
     'CREATE INDEX body_garment_tags_tag ON body_garment_tags (tag)',
   );
+  late final Index equipmentObjectsMedia = Index(
+    'equipment_objects_media',
+    'CREATE INDEX equipment_objects_media ON equipment_objects (media_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
+    identityGroups,
     persons,
     media,
     faces,
@@ -19458,6 +21423,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     bodyOutfitMatches,
     sensitiveRegions,
     bodyGarmentTags,
+    equipmentObjects,
+    equipmentPhotos,
+    personMediaMoves,
     mediaScanStatus,
     facesPersonId,
     facesMediaId,
@@ -19482,9 +21450,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     sensitiveRegionsMedia,
     sensitiveRegionsBody,
     bodyGarmentTagsTag,
+    equipmentObjectsMedia,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'identity_groups',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('persons', kind: UpdateKind.update)],
+    ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
         'media',
@@ -19807,12 +21783,332 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       ),
       result: [TableUpdate('body_garment_tags', kind: UpdateKind.delete)],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'media',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('equipment_objects', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('equipment_objects', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'media',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('equipment_photos', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'media',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('person_media_moves', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('person_media_moves', kind: UpdateKind.update)],
+    ),
   ]);
 }
 
+typedef $$IdentityGroupsTableCreateCompanionBuilder =
+    IdentityGroupsCompanion Function({
+      Value<int> id,
+      required String name,
+      required String nameKey,
+      required int createdAt,
+    });
+typedef $$IdentityGroupsTableUpdateCompanionBuilder =
+    IdentityGroupsCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String> nameKey,
+      Value<int> createdAt,
+    });
+
+final class $$IdentityGroupsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $IdentityGroupsTable, IdentityGroupRow> {
+  $$IdentityGroupsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<$PersonsTable, List<PersonRow>> _personsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.persons,
+    aliasName: 'identity_groups__id__persons__group_id',
+  );
+
+  $$PersonsTableProcessedTableManager get personsRefs {
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_personsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$IdentityGroupsTableFilterComposer
+    extends Composer<_$AppDatabase, $IdentityGroupsTable> {
+  $$IdentityGroupsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nameKey => $composableBuilder(
+    column: $table.nameKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> personsRefs(
+    Expression<bool> Function($$PersonsTableFilterComposer f) f,
+  ) {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.groupId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$IdentityGroupsTableOrderingComposer
+    extends Composer<_$AppDatabase, $IdentityGroupsTable> {
+  $$IdentityGroupsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nameKey => $composableBuilder(
+    column: $table.nameKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$IdentityGroupsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $IdentityGroupsTable> {
+  $$IdentityGroupsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get nameKey =>
+      $composableBuilder(column: $table.nameKey, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  Expression<T> personsRefs<T extends Object>(
+    Expression<T> Function($$PersonsTableAnnotationComposer a) f,
+  ) {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.groupId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$IdentityGroupsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $IdentityGroupsTable,
+          IdentityGroupRow,
+          $$IdentityGroupsTableFilterComposer,
+          $$IdentityGroupsTableOrderingComposer,
+          $$IdentityGroupsTableAnnotationComposer,
+          $$IdentityGroupsTableCreateCompanionBuilder,
+          $$IdentityGroupsTableUpdateCompanionBuilder,
+          (IdentityGroupRow, $$IdentityGroupsTableReferences),
+          IdentityGroupRow,
+          PrefetchHooks Function({bool personsRefs})
+        > {
+  $$IdentityGroupsTableTableManager(
+    _$AppDatabase db,
+    $IdentityGroupsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$IdentityGroupsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$IdentityGroupsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$IdentityGroupsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> nameKey = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => IdentityGroupsCompanion(
+                id: id,
+                name: name,
+                nameKey: nameKey,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                required String nameKey,
+                required int createdAt,
+              }) => IdentityGroupsCompanion.insert(
+                id: id,
+                name: name,
+                nameKey: nameKey,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$IdentityGroupsTable, IdentityGroupRow>(table),
+                  $$IdentityGroupsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({personsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (personsRefs) db.persons],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (personsRefs)
+                    await $_getPrefetchedData<
+                      IdentityGroupRow,
+                      $IdentityGroupsTable,
+                      PersonRow
+                    >(
+                      currentTable: table,
+                      referencedTable: $$IdentityGroupsTableReferences
+                          ._personsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$IdentityGroupsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).personsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.groupId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$IdentityGroupsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $IdentityGroupsTable,
+      IdentityGroupRow,
+      $$IdentityGroupsTableFilterComposer,
+      $$IdentityGroupsTableOrderingComposer,
+      $$IdentityGroupsTableAnnotationComposer,
+      $$IdentityGroupsTableCreateCompanionBuilder,
+      $$IdentityGroupsTableUpdateCompanionBuilder,
+      (IdentityGroupRow, $$IdentityGroupsTableReferences),
+      IdentityGroupRow,
+      PrefetchHooks Function({bool personsRefs})
+    >;
 typedef $$PersonsTableCreateCompanionBuilder =
     PersonsCompanion Function({
       Value<int> id,
+      Value<int?> groupId,
       Value<String?> name,
       Value<int?> avatarFaceId,
       required int createdAt,
@@ -19825,6 +22121,7 @@ typedef $$PersonsTableCreateCompanionBuilder =
 typedef $$PersonsTableUpdateCompanionBuilder =
     PersonsCompanion Function({
       Value<int> id,
+      Value<int?> groupId,
       Value<String?> name,
       Value<int?> avatarFaceId,
       Value<int> createdAt,
@@ -19838,6 +22135,23 @@ typedef $$PersonsTableUpdateCompanionBuilder =
 final class $$PersonsTableReferences
     extends BaseReferences<_$AppDatabase, $PersonsTable, PersonRow> {
   $$PersonsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $IdentityGroupsTable _groupIdTable(_$AppDatabase db) =>
+      db.identityGroups.createAlias('persons__group_id__identity_groups__id');
+
+  $$IdentityGroupsTableProcessedTableManager? get groupId {
+    final $_column = $_itemColumn<int>('group_id');
+    if ($_column == null) return null;
+    final manager = $$IdentityGroupsTableTableManager(
+      $_db,
+      $_db.identityGroups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
 
   static MultiTypedResultKey<$FacesTable, List<FaceRow>> _facesRefsTable(
     _$AppDatabase db,
@@ -20189,6 +22503,26 @@ final class $$PersonsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$PersonMediaMovesTable, List<PersonMediaMoveRow>>
+  _personMediaMovesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.personMediaMoves,
+    aliasName: 'persons__id__person_media_moves__person_id',
+  );
+
+  $$PersonMediaMovesTableProcessedTableManager get personMediaMovesRefs {
+    final manager = $$PersonMediaMovesTableTableManager(
+      $_db,
+      $_db.personMediaMoves,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _personMediaMovesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$PersonsTableFilterComposer
@@ -20244,6 +22578,29 @@ class $$PersonsTableFilterComposer
     column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
+
+  $$IdentityGroupsTableFilterComposer get groupId {
+    final $$IdentityGroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.identityGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentityGroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.identityGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   Expression<bool> facesRefs(
     Expression<bool> Function($$FacesTableFilterComposer f) f,
@@ -20719,6 +23076,31 @@ class $$PersonsTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> personMediaMovesRefs(
+    Expression<bool> Function($$PersonMediaMovesTableFilterComposer f) f,
+  ) {
+    final $$PersonMediaMovesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.personMediaMoves,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonMediaMovesTableFilterComposer(
+            $db: $db,
+            $table: $db.personMediaMoves,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PersonsTableOrderingComposer
@@ -20774,6 +23156,29 @@ class $$PersonsTableOrderingComposer
     column: $table.kind,
     builder: (column) => ColumnOrderings(column),
   );
+
+  $$IdentityGroupsTableOrderingComposer get groupId {
+    final $$IdentityGroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.identityGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentityGroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.identityGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$PersonsTableAnnotationComposer
@@ -20815,6 +23220,29 @@ class $$PersonsTableAnnotationComposer
 
   GeneratedColumn<String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  $$IdentityGroupsTableAnnotationComposer get groupId {
+    final $$IdentityGroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.identityGroups,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IdentityGroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.identityGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   Expression<T> facesRefs<T extends Object>(
     Expression<T> Function($$FacesTableAnnotationComposer a) f,
@@ -21290,6 +23718,31 @@ class $$PersonsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> personMediaMovesRefs<T extends Object>(
+    Expression<T> Function($$PersonMediaMovesTableAnnotationComposer a) f,
+  ) {
+    final $$PersonMediaMovesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.personMediaMoves,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonMediaMovesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.personMediaMoves,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PersonsTableTableManager
@@ -21306,6 +23759,7 @@ class $$PersonsTableTableManager
           (PersonRow, $$PersonsTableReferences),
           PersonRow,
           PrefetchHooks Function({
+            bool groupId,
             bool facesRefs,
             bool kindOverridesRefs,
             bool bodyClustersRefs,
@@ -21325,6 +23779,7 @@ class $$PersonsTableTableManager
             bool identitySetsRefs,
             bool bodyMarksRefs,
             bool outfitCategoriesRefs,
+            bool personMediaMovesRefs,
           })
         > {
   $$PersonsTableTableManager(_$AppDatabase db, $PersonsTable table)
@@ -21341,6 +23796,7 @@ class $$PersonsTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<int?> groupId = const Value.absent(),
                 Value<String?> name = const Value.absent(),
                 Value<int?> avatarFaceId = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
@@ -21351,6 +23807,7 @@ class $$PersonsTableTableManager
                 Value<String> kind = const Value.absent(),
               }) => PersonsCompanion(
                 id: id,
+                groupId: groupId,
                 name: name,
                 avatarFaceId: avatarFaceId,
                 createdAt: createdAt,
@@ -21363,6 +23820,7 @@ class $$PersonsTableTableManager
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<int?> groupId = const Value.absent(),
                 Value<String?> name = const Value.absent(),
                 Value<int?> avatarFaceId = const Value.absent(),
                 required int createdAt,
@@ -21373,6 +23831,7 @@ class $$PersonsTableTableManager
                 Value<String> kind = const Value.absent(),
               }) => PersonsCompanion.insert(
                 id: id,
+                groupId: groupId,
                 name: name,
                 avatarFaceId: avatarFaceId,
                 createdAt: createdAt,
@@ -21392,6 +23851,7 @@ class $$PersonsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                groupId = false,
                 facesRefs = false,
                 kindOverridesRefs = false,
                 bodyClustersRefs = false,
@@ -21411,6 +23871,7 @@ class $$PersonsTableTableManager
                 identitySetsRefs = false,
                 bodyMarksRefs = false,
                 outfitCategoriesRefs = false,
+                personMediaMovesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -21434,8 +23895,40 @@ class $$PersonsTableTableManager
                     if (identitySetsRefs) db.identitySets,
                     if (bodyMarksRefs) db.bodyMarks,
                     if (outfitCategoriesRefs) db.outfitCategories,
+                    if (personMediaMovesRefs) db.personMediaMoves,
                   ],
-                  addJoins: null,
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (groupId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.groupId,
+                                    referencedTable: $$PersonsTableReferences
+                                        ._groupIdTable(db),
+                                    referencedColumn: $$PersonsTableReferences
+                                        ._groupIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (facesRefs)
@@ -21825,6 +24318,27 @@ class $$PersonsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (personMediaMovesRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          PersonMediaMoveRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._personMediaMovesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).personMediaMovesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -21846,6 +24360,7 @@ typedef $$PersonsTableProcessedTableManager =
       (PersonRow, $$PersonsTableReferences),
       PersonRow,
       PrefetchHooks Function({
+        bool groupId,
         bool facesRefs,
         bool kindOverridesRefs,
         bool bodyClustersRefs,
@@ -21865,6 +24380,7 @@ typedef $$PersonsTableProcessedTableManager =
         bool identitySetsRefs,
         bool bodyMarksRefs,
         bool outfitCategoriesRefs,
+        bool personMediaMovesRefs,
       })
     >;
 typedef $$MediaTableCreateCompanionBuilder =
@@ -22012,6 +24528,66 @@ final class $$MediaTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _sensitiveRegionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$EquipmentObjectsTable, List<EquipmentObjectRow>>
+  _equipmentObjectsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.equipmentObjects,
+    aliasName: 'media__id__equipment_objects__media_id',
+  );
+
+  $$EquipmentObjectsTableProcessedTableManager get equipmentObjectsRefs {
+    final manager = $$EquipmentObjectsTableTableManager(
+      $_db,
+      $_db.equipmentObjects,
+    ).filter((f) => f.mediaId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _equipmentObjectsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$EquipmentPhotosTable, List<EquipmentPhotoRow>>
+  _equipmentPhotosRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.equipmentPhotos,
+    aliasName: 'media__id__equipment_photos__media_id',
+  );
+
+  $$EquipmentPhotosTableProcessedTableManager get equipmentPhotosRefs {
+    final manager = $$EquipmentPhotosTableTableManager(
+      $_db,
+      $_db.equipmentPhotos,
+    ).filter((f) => f.mediaId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _equipmentPhotosRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PersonMediaMovesTable, List<PersonMediaMoveRow>>
+  _personMediaMovesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.personMediaMoves,
+    aliasName: 'media__id__person_media_moves__media_id',
+  );
+
+  $$PersonMediaMovesTableProcessedTableManager get personMediaMovesRefs {
+    final manager = $$PersonMediaMovesTableTableManager(
+      $_db,
+      $_db.personMediaMoves,
+    ).filter((f) => f.mediaId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _personMediaMovesRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -22248,6 +24824,81 @@ class $$MediaTableFilterComposer extends Composer<_$AppDatabase, $MediaTable> {
           }) => $$SensitiveRegionsTableFilterComposer(
             $db: $db,
             $table: $db.sensitiveRegions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> equipmentObjectsRefs(
+    Expression<bool> Function($$EquipmentObjectsTableFilterComposer f) f,
+  ) {
+    final $$EquipmentObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.equipmentObjects,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EquipmentObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.equipmentObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> equipmentPhotosRefs(
+    Expression<bool> Function($$EquipmentPhotosTableFilterComposer f) f,
+  ) {
+    final $$EquipmentPhotosTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.equipmentPhotos,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EquipmentPhotosTableFilterComposer(
+            $db: $db,
+            $table: $db.equipmentPhotos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> personMediaMovesRefs(
+    Expression<bool> Function($$PersonMediaMovesTableFilterComposer f) f,
+  ) {
+    final $$PersonMediaMovesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.personMediaMoves,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonMediaMovesTableFilterComposer(
+            $db: $db,
+            $table: $db.personMediaMoves,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -22593,6 +25244,81 @@ class $$MediaTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> equipmentObjectsRefs<T extends Object>(
+    Expression<T> Function($$EquipmentObjectsTableAnnotationComposer a) f,
+  ) {
+    final $$EquipmentObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.equipmentObjects,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EquipmentObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.equipmentObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> equipmentPhotosRefs<T extends Object>(
+    Expression<T> Function($$EquipmentPhotosTableAnnotationComposer a) f,
+  ) {
+    final $$EquipmentPhotosTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.equipmentPhotos,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EquipmentPhotosTableAnnotationComposer(
+            $db: $db,
+            $table: $db.equipmentPhotos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> personMediaMovesRefs<T extends Object>(
+    Expression<T> Function($$PersonMediaMovesTableAnnotationComposer a) f,
+  ) {
+    final $$PersonMediaMovesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.personMediaMoves,
+      getReferencedColumn: (t) => t.mediaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonMediaMovesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.personMediaMoves,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MediaTableTableManager
@@ -22614,6 +25340,9 @@ class $$MediaTableTableManager
             bool mediaDetectionsRefs,
             bool characterSamplesRefs,
             bool sensitiveRegionsRefs,
+            bool equipmentObjectsRefs,
+            bool equipmentPhotosRefs,
+            bool personMediaMovesRefs,
           })
         > {
   $$MediaTableTableManager(_$AppDatabase db, $MediaTable table)
@@ -22734,6 +25463,9 @@ class $$MediaTableTableManager
                 mediaDetectionsRefs = false,
                 characterSamplesRefs = false,
                 sensitiveRegionsRefs = false,
+                equipmentObjectsRefs = false,
+                equipmentPhotosRefs = false,
+                personMediaMovesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -22743,6 +25475,9 @@ class $$MediaTableTableManager
                     if (mediaDetectionsRefs) db.mediaDetections,
                     if (characterSamplesRefs) db.characterSamples,
                     if (sensitiveRegionsRefs) db.sensitiveRegions,
+                    if (equipmentObjectsRefs) db.equipmentObjects,
+                    if (equipmentPhotosRefs) db.equipmentPhotos,
+                    if (personMediaMovesRefs) db.personMediaMoves,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -22844,6 +25579,69 @@ class $$MediaTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (equipmentObjectsRefs)
+                        await $_getPrefetchedData<
+                          MediaRow,
+                          $MediaTable,
+                          EquipmentObjectRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MediaTableReferences
+                              ._equipmentObjectsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MediaTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).equipmentObjectsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.mediaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (equipmentPhotosRefs)
+                        await $_getPrefetchedData<
+                          MediaRow,
+                          $MediaTable,
+                          EquipmentPhotoRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MediaTableReferences
+                              ._equipmentPhotosRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MediaTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).equipmentPhotosRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.mediaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (personMediaMovesRefs)
+                        await $_getPrefetchedData<
+                          MediaRow,
+                          $MediaTable,
+                          PersonMediaMoveRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MediaTableReferences
+                              ._personMediaMovesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MediaTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).personMediaMovesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.mediaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -22870,6 +25668,9 @@ typedef $$MediaTableProcessedTableManager =
         bool mediaDetectionsRefs,
         bool characterSamplesRefs,
         bool sensitiveRegionsRefs,
+        bool equipmentObjectsRefs,
+        bool equipmentPhotosRefs,
+        bool personMediaMovesRefs,
       })
     >;
 typedef $$FacesTableCreateCompanionBuilder =
@@ -25629,6 +28430,26 @@ final class $$BodiesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$EquipmentObjectsTable, List<EquipmentObjectRow>>
+  _equipmentObjectsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.equipmentObjects,
+    aliasName: 'bodies__id__equipment_objects__body_id',
+  );
+
+  $$EquipmentObjectsTableProcessedTableManager get equipmentObjectsRefs {
+    final manager = $$EquipmentObjectsTableTableManager(
+      $_db,
+      $_db.equipmentObjects,
+    ).filter((f) => f.bodyId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _equipmentObjectsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$BodiesTableFilterComposer
@@ -26106,6 +28927,31 @@ class $$BodiesTableFilterComposer
           }) => $$BodyGarmentTagsTableFilterComposer(
             $db: $db,
             $table: $db.bodyGarmentTags,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> equipmentObjectsRefs(
+    Expression<bool> Function($$EquipmentObjectsTableFilterComposer f) f,
+  ) {
+    final $$EquipmentObjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.equipmentObjects,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EquipmentObjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.equipmentObjects,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -26811,6 +29657,31 @@ class $$BodiesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> equipmentObjectsRefs<T extends Object>(
+    Expression<T> Function($$EquipmentObjectsTableAnnotationComposer a) f,
+  ) {
+    final $$EquipmentObjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.equipmentObjects,
+      getReferencedColumn: (t) => t.bodyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EquipmentObjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.equipmentObjects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$BodiesTableTableManager
@@ -26842,6 +29713,7 @@ class $$BodiesTableTableManager
             bool bodyOutfitMatchesRefs,
             bool sensitiveRegionsRefs,
             bool bodyGarmentTagsRefs,
+            bool equipmentObjectsRefs,
           })
         > {
   $$BodiesTableTableManager(_$AppDatabase db, $BodiesTable table)
@@ -26996,6 +29868,7 @@ class $$BodiesTableTableManager
                 bodyOutfitMatchesRefs = false,
                 sensitiveRegionsRefs = false,
                 bodyGarmentTagsRefs = false,
+                equipmentObjectsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -27010,6 +29883,7 @@ class $$BodiesTableTableManager
                     if (bodyOutfitMatchesRefs) db.bodyOutfitMatches,
                     if (sensitiveRegionsRefs) db.sensitiveRegions,
                     if (bodyGarmentTagsRefs) db.bodyGarmentTags,
+                    if (equipmentObjectsRefs) db.equipmentObjects,
                   ],
                   addJoins:
                       <
@@ -27307,6 +30181,27 @@ class $$BodiesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (equipmentObjectsRefs)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          EquipmentObjectRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._equipmentObjectsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).equipmentObjectsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.bodyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -27343,6 +30238,7 @@ typedef $$BodiesTableProcessedTableManager =
         bool bodyOutfitMatchesRefs,
         bool sensitiveRegionsRefs,
         bool bodyGarmentTagsRefs,
+        bool equipmentObjectsRefs,
       })
     >;
 typedef $$FaceRejectionsTableCreateCompanionBuilder =
@@ -39018,10 +41914,1380 @@ typedef $$BodyGarmentTagsTableProcessedTableManager =
       BodyGarmentTagRow,
       PrefetchHooks Function({bool bodyId})
     >;
+typedef $$EquipmentObjectsTableCreateCompanionBuilder =
+    EquipmentObjectsCompanion Function({
+      Value<int> id,
+      required int mediaId,
+      Value<int?> bodyId,
+      required String objectKey,
+      required String label,
+      required double x,
+      required double y,
+      required double w,
+      required double h,
+      Value<String> state,
+    });
+typedef $$EquipmentObjectsTableUpdateCompanionBuilder =
+    EquipmentObjectsCompanion Function({
+      Value<int> id,
+      Value<int> mediaId,
+      Value<int?> bodyId,
+      Value<String> objectKey,
+      Value<String> label,
+      Value<double> x,
+      Value<double> y,
+      Value<double> w,
+      Value<double> h,
+      Value<String> state,
+    });
+
+final class $$EquipmentObjectsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $EquipmentObjectsTable,
+          EquipmentObjectRow
+        > {
+  $$EquipmentObjectsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $MediaTable _mediaIdTable(_$AppDatabase db) =>
+      db.media.createAlias('equipment_objects__media_id__media__id');
+
+  $$MediaTableProcessedTableManager get mediaId {
+    final $_column = $_itemColumn<int>('media_id')!;
+
+    final manager = $$MediaTableTableManager(
+      $_db,
+      $_db.media,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_mediaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $BodiesTable _bodyIdTable(_$AppDatabase db) =>
+      db.bodies.createAlias('equipment_objects__body_id__bodies__id');
+
+  $$BodiesTableProcessedTableManager? get bodyId {
+    final $_column = $_itemColumn<int>('body_id');
+    if ($_column == null) return null;
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bodyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EquipmentObjectsTableFilterComposer
+    extends Composer<_$AppDatabase, $EquipmentObjectsTable> {
+  $$EquipmentObjectsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get objectKey => $composableBuilder(
+    column: $table.objectKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$MediaTableFilterComposer get mediaId {
+    final $$MediaTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableFilterComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableFilterComposer get bodyId {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EquipmentObjectsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EquipmentObjectsTable> {
+  $$EquipmentObjectsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get objectKey => $composableBuilder(
+    column: $table.objectKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$MediaTableOrderingComposer get mediaId {
+    final $$MediaTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableOrderingComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableOrderingComposer get bodyId {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EquipmentObjectsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EquipmentObjectsTable> {
+  $$EquipmentObjectsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get objectKey =>
+      $composableBuilder(column: $table.objectKey, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<double> get x =>
+      $composableBuilder(column: $table.x, builder: (column) => column);
+
+  GeneratedColumn<double> get y =>
+      $composableBuilder(column: $table.y, builder: (column) => column);
+
+  GeneratedColumn<double> get w =>
+      $composableBuilder(column: $table.w, builder: (column) => column);
+
+  GeneratedColumn<double> get h =>
+      $composableBuilder(column: $table.h, builder: (column) => column);
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  $$MediaTableAnnotationComposer get mediaId {
+    final $$MediaTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableAnnotationComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableAnnotationComposer get bodyId {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyId,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EquipmentObjectsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EquipmentObjectsTable,
+          EquipmentObjectRow,
+          $$EquipmentObjectsTableFilterComposer,
+          $$EquipmentObjectsTableOrderingComposer,
+          $$EquipmentObjectsTableAnnotationComposer,
+          $$EquipmentObjectsTableCreateCompanionBuilder,
+          $$EquipmentObjectsTableUpdateCompanionBuilder,
+          (EquipmentObjectRow, $$EquipmentObjectsTableReferences),
+          EquipmentObjectRow,
+          PrefetchHooks Function({bool mediaId, bool bodyId})
+        > {
+  $$EquipmentObjectsTableTableManager(
+    _$AppDatabase db,
+    $EquipmentObjectsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EquipmentObjectsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EquipmentObjectsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EquipmentObjectsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> mediaId = const Value.absent(),
+                Value<int?> bodyId = const Value.absent(),
+                Value<String> objectKey = const Value.absent(),
+                Value<String> label = const Value.absent(),
+                Value<double> x = const Value.absent(),
+                Value<double> y = const Value.absent(),
+                Value<double> w = const Value.absent(),
+                Value<double> h = const Value.absent(),
+                Value<String> state = const Value.absent(),
+              }) => EquipmentObjectsCompanion(
+                id: id,
+                mediaId: mediaId,
+                bodyId: bodyId,
+                objectKey: objectKey,
+                label: label,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                state: state,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int mediaId,
+                Value<int?> bodyId = const Value.absent(),
+                required String objectKey,
+                required String label,
+                required double x,
+                required double y,
+                required double w,
+                required double h,
+                Value<String> state = const Value.absent(),
+              }) => EquipmentObjectsCompanion.insert(
+                id: id,
+                mediaId: mediaId,
+                bodyId: bodyId,
+                objectKey: objectKey,
+                label: label,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                state: state,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$EquipmentObjectsTable, EquipmentObjectRow>(
+                    table,
+                  ),
+                  $$EquipmentObjectsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({mediaId = false, bodyId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (mediaId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.mediaId,
+                                referencedTable:
+                                    $$EquipmentObjectsTableReferences
+                                        ._mediaIdTable(db),
+                                referencedColumn:
+                                    $$EquipmentObjectsTableReferences
+                                        ._mediaIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (bodyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.bodyId,
+                                referencedTable:
+                                    $$EquipmentObjectsTableReferences
+                                        ._bodyIdTable(db),
+                                referencedColumn:
+                                    $$EquipmentObjectsTableReferences
+                                        ._bodyIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EquipmentObjectsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EquipmentObjectsTable,
+      EquipmentObjectRow,
+      $$EquipmentObjectsTableFilterComposer,
+      $$EquipmentObjectsTableOrderingComposer,
+      $$EquipmentObjectsTableAnnotationComposer,
+      $$EquipmentObjectsTableCreateCompanionBuilder,
+      $$EquipmentObjectsTableUpdateCompanionBuilder,
+      (EquipmentObjectRow, $$EquipmentObjectsTableReferences),
+      EquipmentObjectRow,
+      PrefetchHooks Function({bool mediaId, bool bodyId})
+    >;
+typedef $$EquipmentPhotosTableCreateCompanionBuilder =
+    EquipmentPhotosCompanion Function({
+      Value<int> mediaId,
+      required int version,
+    });
+typedef $$EquipmentPhotosTableUpdateCompanionBuilder =
+    EquipmentPhotosCompanion Function({Value<int> mediaId, Value<int> version});
+
+final class $$EquipmentPhotosTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $EquipmentPhotosTable,
+          EquipmentPhotoRow
+        > {
+  $$EquipmentPhotosTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $MediaTable _mediaIdTable(_$AppDatabase db) =>
+      db.media.createAlias('equipment_photos__media_id__media__id');
+
+  $$MediaTableProcessedTableManager get mediaId {
+    final $_column = $_itemColumn<int>('media_id')!;
+
+    final manager = $$MediaTableTableManager(
+      $_db,
+      $_db.media,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_mediaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EquipmentPhotosTableFilterComposer
+    extends Composer<_$AppDatabase, $EquipmentPhotosTable> {
+  $$EquipmentPhotosTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$MediaTableFilterComposer get mediaId {
+    final $$MediaTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableFilterComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EquipmentPhotosTableOrderingComposer
+    extends Composer<_$AppDatabase, $EquipmentPhotosTable> {
+  $$EquipmentPhotosTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$MediaTableOrderingComposer get mediaId {
+    final $$MediaTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableOrderingComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EquipmentPhotosTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EquipmentPhotosTable> {
+  $$EquipmentPhotosTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  $$MediaTableAnnotationComposer get mediaId {
+    final $$MediaTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableAnnotationComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EquipmentPhotosTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EquipmentPhotosTable,
+          EquipmentPhotoRow,
+          $$EquipmentPhotosTableFilterComposer,
+          $$EquipmentPhotosTableOrderingComposer,
+          $$EquipmentPhotosTableAnnotationComposer,
+          $$EquipmentPhotosTableCreateCompanionBuilder,
+          $$EquipmentPhotosTableUpdateCompanionBuilder,
+          (EquipmentPhotoRow, $$EquipmentPhotosTableReferences),
+          EquipmentPhotoRow,
+          PrefetchHooks Function({bool mediaId})
+        > {
+  $$EquipmentPhotosTableTableManager(
+    _$AppDatabase db,
+    $EquipmentPhotosTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EquipmentPhotosTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EquipmentPhotosTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EquipmentPhotosTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> mediaId = const Value.absent(),
+                Value<int> version = const Value.absent(),
+              }) =>
+                  EquipmentPhotosCompanion(mediaId: mediaId, version: version),
+          createCompanionCallback:
+              ({
+                Value<int> mediaId = const Value.absent(),
+                required int version,
+              }) => EquipmentPhotosCompanion.insert(
+                mediaId: mediaId,
+                version: version,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$EquipmentPhotosTable, EquipmentPhotoRow>(table),
+                  $$EquipmentPhotosTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({mediaId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (mediaId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.mediaId,
+                                referencedTable:
+                                    $$EquipmentPhotosTableReferences
+                                        ._mediaIdTable(db),
+                                referencedColumn:
+                                    $$EquipmentPhotosTableReferences
+                                        ._mediaIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EquipmentPhotosTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EquipmentPhotosTable,
+      EquipmentPhotoRow,
+      $$EquipmentPhotosTableFilterComposer,
+      $$EquipmentPhotosTableOrderingComposer,
+      $$EquipmentPhotosTableAnnotationComposer,
+      $$EquipmentPhotosTableCreateCompanionBuilder,
+      $$EquipmentPhotosTableUpdateCompanionBuilder,
+      (EquipmentPhotoRow, $$EquipmentPhotosTableReferences),
+      EquipmentPhotoRow,
+      PrefetchHooks Function({bool mediaId})
+    >;
+typedef $$PersonMediaMovesTableCreateCompanionBuilder =
+    PersonMediaMovesCompanion Function({
+      Value<int> mediaId,
+      Value<int?> personId,
+      required String assetId,
+      required String mediaKind,
+      required String sourceName,
+      required String sourcePath,
+      required String targetName,
+      required String targetPath,
+      required int sourceModifiedAt,
+      required int sourceSize,
+      required String state,
+      Value<String?> detail,
+      required int sequence,
+      required int updatedAt,
+    });
+typedef $$PersonMediaMovesTableUpdateCompanionBuilder =
+    PersonMediaMovesCompanion Function({
+      Value<int> mediaId,
+      Value<int?> personId,
+      Value<String> assetId,
+      Value<String> mediaKind,
+      Value<String> sourceName,
+      Value<String> sourcePath,
+      Value<String> targetName,
+      Value<String> targetPath,
+      Value<int> sourceModifiedAt,
+      Value<int> sourceSize,
+      Value<String> state,
+      Value<String?> detail,
+      Value<int> sequence,
+      Value<int> updatedAt,
+    });
+
+final class $$PersonMediaMovesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $PersonMediaMovesTable,
+          PersonMediaMoveRow
+        > {
+  $$PersonMediaMovesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $MediaTable _mediaIdTable(_$AppDatabase db) =>
+      db.media.createAlias('person_media_moves__media_id__media__id');
+
+  $$MediaTableProcessedTableManager get mediaId {
+    final $_column = $_itemColumn<int>('media_id')!;
+
+    final manager = $$MediaTableTableManager(
+      $_db,
+      $_db.media,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_mediaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('person_media_moves__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager? get personId {
+    final $_column = $_itemColumn<int>('person_id');
+    if ($_column == null) return null;
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PersonMediaMovesTableFilterComposer
+    extends Composer<_$AppDatabase, $PersonMediaMovesTable> {
+  $$PersonMediaMovesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mediaKind => $composableBuilder(
+    column: $table.mediaKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceName => $composableBuilder(
+    column: $table.sourceName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourcePath => $composableBuilder(
+    column: $table.sourcePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetPath => $composableBuilder(
+    column: $table.targetPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sourceModifiedAt => $composableBuilder(
+    column: $table.sourceModifiedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sourceSize => $composableBuilder(
+    column: $table.sourceSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get detail => $composableBuilder(
+    column: $table.detail,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$MediaTableFilterComposer get mediaId {
+    final $$MediaTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableFilterComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PersonMediaMovesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PersonMediaMovesTable> {
+  $$PersonMediaMovesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mediaKind => $composableBuilder(
+    column: $table.mediaKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceName => $composableBuilder(
+    column: $table.sourceName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourcePath => $composableBuilder(
+    column: $table.sourcePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetPath => $composableBuilder(
+    column: $table.targetPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sourceModifiedAt => $composableBuilder(
+    column: $table.sourceModifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sourceSize => $composableBuilder(
+    column: $table.sourceSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get detail => $composableBuilder(
+    column: $table.detail,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$MediaTableOrderingComposer get mediaId {
+    final $$MediaTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableOrderingComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PersonMediaMovesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PersonMediaMovesTable> {
+  $$PersonMediaMovesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<String> get mediaKind =>
+      $composableBuilder(column: $table.mediaKind, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceName => $composableBuilder(
+    column: $table.sourceName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourcePath => $composableBuilder(
+    column: $table.sourcePath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetPath => $composableBuilder(
+    column: $table.targetPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sourceModifiedAt => $composableBuilder(
+    column: $table.sourceModifiedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sourceSize => $composableBuilder(
+    column: $table.sourceSize,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<String> get detail =>
+      $composableBuilder(column: $table.detail, builder: (column) => column);
+
+  GeneratedColumn<int> get sequence =>
+      $composableBuilder(column: $table.sequence, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$MediaTableAnnotationComposer get mediaId {
+    final $$MediaTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.mediaId,
+      referencedTable: $db.media,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaTableAnnotationComposer(
+            $db: $db,
+            $table: $db.media,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PersonMediaMovesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PersonMediaMovesTable,
+          PersonMediaMoveRow,
+          $$PersonMediaMovesTableFilterComposer,
+          $$PersonMediaMovesTableOrderingComposer,
+          $$PersonMediaMovesTableAnnotationComposer,
+          $$PersonMediaMovesTableCreateCompanionBuilder,
+          $$PersonMediaMovesTableUpdateCompanionBuilder,
+          (PersonMediaMoveRow, $$PersonMediaMovesTableReferences),
+          PersonMediaMoveRow,
+          PrefetchHooks Function({bool mediaId, bool personId})
+        > {
+  $$PersonMediaMovesTableTableManager(
+    _$AppDatabase db,
+    $PersonMediaMovesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PersonMediaMovesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PersonMediaMovesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PersonMediaMovesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> mediaId = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                Value<String> assetId = const Value.absent(),
+                Value<String> mediaKind = const Value.absent(),
+                Value<String> sourceName = const Value.absent(),
+                Value<String> sourcePath = const Value.absent(),
+                Value<String> targetName = const Value.absent(),
+                Value<String> targetPath = const Value.absent(),
+                Value<int> sourceModifiedAt = const Value.absent(),
+                Value<int> sourceSize = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<String?> detail = const Value.absent(),
+                Value<int> sequence = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+              }) => PersonMediaMovesCompanion(
+                mediaId: mediaId,
+                personId: personId,
+                assetId: assetId,
+                mediaKind: mediaKind,
+                sourceName: sourceName,
+                sourcePath: sourcePath,
+                targetName: targetName,
+                targetPath: targetPath,
+                sourceModifiedAt: sourceModifiedAt,
+                sourceSize: sourceSize,
+                state: state,
+                detail: detail,
+                sequence: sequence,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> mediaId = const Value.absent(),
+                Value<int?> personId = const Value.absent(),
+                required String assetId,
+                required String mediaKind,
+                required String sourceName,
+                required String sourcePath,
+                required String targetName,
+                required String targetPath,
+                required int sourceModifiedAt,
+                required int sourceSize,
+                required String state,
+                Value<String?> detail = const Value.absent(),
+                required int sequence,
+                required int updatedAt,
+              }) => PersonMediaMovesCompanion.insert(
+                mediaId: mediaId,
+                personId: personId,
+                assetId: assetId,
+                mediaKind: mediaKind,
+                sourceName: sourceName,
+                sourcePath: sourcePath,
+                targetName: targetName,
+                targetPath: targetPath,
+                sourceModifiedAt: sourceModifiedAt,
+                sourceSize: sourceSize,
+                state: state,
+                detail: detail,
+                sequence: sequence,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PersonMediaMovesTable, PersonMediaMoveRow>(
+                    table,
+                  ),
+                  $$PersonMediaMovesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({mediaId = false, personId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (mediaId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.mediaId,
+                                referencedTable:
+                                    $$PersonMediaMovesTableReferences
+                                        ._mediaIdTable(db),
+                                referencedColumn:
+                                    $$PersonMediaMovesTableReferences
+                                        ._mediaIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (personId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.personId,
+                                referencedTable:
+                                    $$PersonMediaMovesTableReferences
+                                        ._personIdTable(db),
+                                referencedColumn:
+                                    $$PersonMediaMovesTableReferences
+                                        ._personIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PersonMediaMovesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PersonMediaMovesTable,
+      PersonMediaMoveRow,
+      $$PersonMediaMovesTableFilterComposer,
+      $$PersonMediaMovesTableOrderingComposer,
+      $$PersonMediaMovesTableAnnotationComposer,
+      $$PersonMediaMovesTableCreateCompanionBuilder,
+      $$PersonMediaMovesTableUpdateCompanionBuilder,
+      (PersonMediaMoveRow, $$PersonMediaMovesTableReferences),
+      PersonMediaMoveRow,
+      PrefetchHooks Function({bool mediaId, bool personId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
+  $$IdentityGroupsTableTableManager get identityGroups =>
+      $$IdentityGroupsTableTableManager(_db, _db.identityGroups);
   $$PersonsTableTableManager get persons =>
       $$PersonsTableTableManager(_db, _db.persons);
   $$MediaTableTableManager get media =>
@@ -39097,4 +43363,10 @@ class $AppDatabaseManager {
       $$SensitiveRegionsTableTableManager(_db, _db.sensitiveRegions);
   $$BodyGarmentTagsTableTableManager get bodyGarmentTags =>
       $$BodyGarmentTagsTableTableManager(_db, _db.bodyGarmentTags);
+  $$EquipmentObjectsTableTableManager get equipmentObjects =>
+      $$EquipmentObjectsTableTableManager(_db, _db.equipmentObjects);
+  $$EquipmentPhotosTableTableManager get equipmentPhotos =>
+      $$EquipmentPhotosTableTableManager(_db, _db.equipmentPhotos);
+  $$PersonMediaMovesTableTableManager get personMediaMoves =>
+      $$PersonMediaMovesTableTableManager(_db, _db.personMediaMoves);
 }

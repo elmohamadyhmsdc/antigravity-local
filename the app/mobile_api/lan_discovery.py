@@ -73,16 +73,29 @@ class NetworkMonitor:
         self.stopped = threading.Event()
         self.thread = None
         self.previous = None
+        self._mdns_failed = False
+        self._next_mdns_retry = 0
 
     def refresh(self):
         current = list(dict.fromkeys(([self.fixed_host] if self.fixed_host else []) + self.addresses()))
         self.ctx.host_addresses = current
-        if current != self.previous:
+        # A route-priority change updates the QR's preferred address, but does
+        # not require tearing down multicast sockets for the same interfaces.
+        changed = self.previous is None or set(current) != set(self.previous)
+        retry = (self._mdns_failed or getattr(self.discovery, 'restart_requested', False))
+        if changed or (retry and time.monotonic() >= self._next_mdns_retry):
             self.previous = current
             if self.mdns:
+                # A disconnected Windows adapter can keep its IP while its UDP
+                # transport fails. Rebuild even when the address set is unchanged,
+                # but limit retries when multicast remains unavailable.
+                self._next_mdns_retry = time.monotonic() + 30
                 self.discovery.stop()
-                if current: self.discovery.start(name=self.ctx.auth.server_name,server_id=self.ctx.auth.server_id,
-                    api_version=self.ctx.api_version,port=self.ctx.api_port,addresses=current)
+                self._mdns_failed = False
+                if current:
+                    self._mdns_failed = self.discovery.start(
+                        name=self.ctx.auth.server_name,server_id=self.ctx.auth.server_id,
+                        api_version=self.ctx.api_version,port=self.ctx.api_port,addresses=current) is False
 
     def start(self):
         self.refresh()

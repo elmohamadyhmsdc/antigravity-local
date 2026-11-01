@@ -465,6 +465,9 @@ def job_fixtures():
 
 
 if __name__ == "__main__":
+    write("EquipmentResponse.racket", {"model_version": 1, "objects": [
+        {"object_key": "racket:10:20:30:40", "label": "tennis racket", "body_index": 0,
+         "bbox": {"x": 0.1, "y": 0.2, "w": 0.2, "h": 0.2}}]})
     system_fixtures()
     analyze_fixture()
     grouping_fixtures()

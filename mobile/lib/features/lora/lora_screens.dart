@@ -1,3 +1,4 @@
+import '../shared/image_preview.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -364,7 +365,7 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
                             ).colorScheme.surfaceContainer,
                             child: const Icon(Icons.play_circle_outline),
                           )
-                        : Image.file(
+                        : PreviewImage.file(
                             file,
                             fit: BoxFit.cover,
                             cacheWidth: 144,
@@ -475,7 +476,7 @@ class DatasetScreen extends ConsumerWidget {
                       children: [
                         Row(
                           children: [
-                            Image.file(
+                            PreviewImage.file(
                               ref.read(fileStoreProvider).resolve(item.path),
                               width: 112,
                               height: 112,
@@ -946,7 +947,7 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
             child: Text(l.addReference),
           ),
           if (_reference != null) ...[
-            Image.file(_reference!, height: 160, cacheWidth: 320),
+            PreviewImage.file(_reference!, height: 160, cacheWidth: 320),
             DropdownButtonFormField<String>(
               isExpanded: true,
               initialValue: _referenceMode,

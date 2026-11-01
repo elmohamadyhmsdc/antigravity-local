@@ -56,6 +56,7 @@ class Engines {
     this.sensitiveDetection = false,
     this.bodyEmbeddings = false,
     this.garmentTags = false,
+    this.equipment = false,
   });
 
   final bool reface;
@@ -74,6 +75,7 @@ class Engines {
 
   /// Roadmap Phase 7: the WD14 tagger is installed, so garment tags can be asked for.
   final bool garmentTags;
+  final bool equipment;
 
   /// Roadmap 7.5: the DINOv2 model is installed, so exposed-region embeddings can be asked for.
   final bool bodyEmbeddings;
@@ -93,6 +95,7 @@ class Engines {
     characterDetection: json['character_detection'] as bool? ?? false,
     sensitiveDetection: json['sensitive_detection'] as bool? ?? false,
     garmentTags: json['garment_tags'] as bool? ?? false,
+    equipment: json['equipment'] as bool? ?? false,
     bodyEmbeddings: json['body_embeddings'] as bool? ?? false,
   );
 }

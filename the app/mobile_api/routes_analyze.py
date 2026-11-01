@@ -242,6 +242,45 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
         return JSONResponse({"model_version": garment_tags.GARMENT_VERSION,
                              "bodies": [{"tags": t} for t in tags]})
 
+    @router.post("/v1/analyze/equipment")
+    async def analyze_equipment(image: UploadFile = File(...), bodies: str = Form(default="[]"),
+                                _: dict = Depends(require_device)):
+        try:
+            body_dicts = parse_sensitive_bodies(bodies)
+            import math
+            for body in body_dicts:
+                if (not all(math.isfinite(v) for v in body['bbox']) or
+                        body['bbox'][2] <= body['bbox'][0] or body['bbox'][3] <= body['bbox'][1] or
+                        (body['kpts'] is not None and not all(math.isfinite(v) for point in body['kpts'] for v in point)) or
+                        (body['kpt_scores'] is not None and not all(math.isfinite(v) for v in body['kpt_scores']))):
+                    raise bad_request("Body coordinates must be finite with positive size", code="bad_request")
+            data = await image.read(ctx.max_image_upload_bytes + 1)
+        finally:
+            await image.close()
+        import equipment_detection
+        ready = getattr(ctx.engines, "equipment_ready", None)
+        if not (equipment_detection.model_available() if ready is None else ready):
+            raise ApiError(409, "model_missing", "The equipment recognition model is not installed on this PC.")
+        if len(data) > ctx.max_image_upload_bytes:
+            raise ApiError(413, "too_large", "The image is larger than the server accepts.")
+        try:
+            def compute():
+                with ctx.compute_lock:
+                    ctx.gpu.require_free()
+                    img = ctx.image_decoder.image(data, ctx.max_image_px)
+                    return ctx.engines.compute_equipment(img, body_dicts)
+            objects = await run_in_threadpool(compute)
+        except ImageTooLarge as error:
+            raise ApiError(413, "too_large", str(error)) from error
+        except MediaDecodeError as error:
+            raise bad_request(str(error), code="bad_image") from error
+        except ApiError:
+            raise
+        except Exception:
+            log.exception("equipment recognition failed")
+            raise ApiError(500, "internal", "Equipment recognition failed. Try again.", retryable=True)
+        return JSONResponse({"model_version": equipment_detection.VERSION, "objects": objects})
+
     return router
 
 

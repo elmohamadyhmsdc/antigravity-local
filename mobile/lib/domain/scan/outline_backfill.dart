@@ -18,7 +18,7 @@ import '../geometry/outline.dart';
 /// Features:
 /// - Skips videos and busy servers.
 /// - Compresses photo identically to the scan path (<= 2560 px).
-/// - Debounces per session (one request per photo).
+/// - Debounces viewer requests per session; explicit retries bypass that debounce.
 /// - Fails silently to ensure UI never blocks or errors (falls back to geometric shapes).
 class OutlineBackfill {
   OutlineBackfill({
@@ -38,6 +38,55 @@ class OutlineBackfill {
   final Future<(int, int)?> Function(Uint8List) _decodeDimensions;
 
   final Set<int> _debouncedMediaIds = <int>{};
+  final Set<int> _inFlight = <int>{};
+  bool _retrying = false;
+
+  bool get isRetrying => _retrying;
+
+  // NULL outlines are the durable queue. The original and detection boxes stay
+  // on the phone, so restarting either app cannot lose unfinished work.
+  static const _pendingPhotos = '''
+    FROM media m WHERE m.kind = 'photo' AND m.scan_status = 'done'
+      AND EXISTS (SELECT 1 FROM media_detections d WHERE d.media_id = m.id
+        AND d.frame_number IS NULL AND d.kind IN ('f', 'b') AND d.outline IS NULL)
+  ''';
+
+  Stream<int> watchPending() => db
+      .customSelect(
+        'SELECT COUNT(*) AS n $_pendingPhotos',
+        readsFrom: {db.media, db.mediaDetections},
+      )
+      .watchSingle()
+      .map((row) => row.read<int>('n'));
+
+  /// Explicit later retry, one photo at a time. Each photo is visited once per
+  /// pass; failed targets remain NULL and successful targets are never resent.
+  /// Stop after a photo makes no progress to avoid repeatedly hitting a full PC.
+  Future<int> retryPending({bool Function()? shouldContinue}) async {
+    if (_retrying) return 0;
+    _retrying = true;
+    var done = 0;
+    var afterId = 0;
+    try {
+      while (shouldContinue?.call() ?? true) {
+        if (api() == null || !(isServerReady?.call() ?? true)) break;
+        final row = await db
+            .customSelect(
+              'SELECT m.id $_pendingPhotos AND m.id > ? ORDER BY m.id LIMIT 1',
+              variables: [Variable.withInt(afterId)],
+              readsFrom: {db.media, db.mediaDetections},
+            )
+            .getSingleOrNull();
+        if (row == null) break;
+        afterId = row.read<int>('id');
+        if (!await backfillPhoto(afterId, retry: true)) break;
+        done++;
+      }
+    } finally {
+      _retrying = false;
+    }
+    return done;
+  }
 
   static Future<(int, int)?> _defaultDecodeDimensions(Uint8List bytes) async {
     try {
@@ -60,9 +109,13 @@ class OutlineBackfill {
     String? assetId,
     int? width,
     int? height,
+    bool retry = false,
   }) async {
-    if (_debouncedMediaIds.contains(mediaId)) return false;
-    _debouncedMediaIds.add(mediaId);
+    if (_inFlight.contains(mediaId) ||
+        (!retry && _debouncedMediaIds.contains(mediaId))) {
+      return false;
+    }
+    _inFlight.add(mediaId);
 
     try {
       final client = api();
@@ -87,7 +140,14 @@ class OutlineBackfill {
       // 2. Fetch detections for this photo where outline IS NULL
       final detections =
           await (db.select(db.mediaDetections)
-                ..where((t) => t.mediaId.equals(mediaId) & t.outline.isNull())
+                ..where(
+                  (t) =>
+                      t.mediaId.equals(mediaId) &
+                      t.outline.isNull() &
+                      t.frameNumber.isNull() &
+                      t.kind.isIn(['f', 'b']),
+                )
+                ..orderBy([(t) => OrderingTerm.asc(t.id)])
                 ..limit(32))
               .get();
 
@@ -141,10 +201,12 @@ class OutlineBackfill {
       }
 
       // 6. Call API
+      _debouncedMediaIds.add(mediaId);
       final outlines = await client.analyzeOutlines(bytes, targets);
       if (outlines.length != detections.length) return false;
 
       // 7. Update media_detections in a single database transaction
+      var stored = false;
       await db.transaction(() async {
         for (var i = 0; i < detections.length; i++) {
           final outline = outlines[i];
@@ -154,15 +216,18 @@ class OutlineBackfill {
             final encoded = encodeOutline(outline, box);
             if (encoded != null) {
               await (db.update(db.mediaDetections)
-                    ..where((t) => t.id.equals(d.id)))
+                    ..where((t) => t.id.equals(d.id) & t.outline.isNull()))
                   .write(MediaDetectionsCompanion(outline: Value(encoded)));
+              stored = true;
             }
           }
         }
       });
-      return true;
+      return stored;
     } catch (_) {
       return false;
+    } finally {
+      _inFlight.remove(mediaId);
     }
   }
 }

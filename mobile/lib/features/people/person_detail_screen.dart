@@ -20,6 +20,7 @@ import 'face_grid.dart';
 import 'action_sheet.dart';
 import 'people_actions.dart';
 import 'training_export_dialog.dart';
+import 'identity_groups_screen.dart';
 
 final personProvider = StreamProvider.autoDispose.family<PersonSummary?, int>(
   (ref, id) => ref.watch(peopleRepositoryProvider).watchPerson(id),
@@ -97,19 +98,7 @@ class PersonDetailScreen extends ConsumerWidget {
               title: InkWell(
                 key: const Key('person-title'),
                 onTap: () => _rename(context, ref, p),
-                onLongPress: () async {
-                  final action = await showPeopleActionSheet(
-                    context,
-                    title: personName(l10n, p),
-                    cropPath: p.avatarCropPath,
-                    actions: personMenuActions(
-                      [p],
-                    ).where((a) => a.id != 'select' && a.id != 'open').toList(),
-                  );
-                  if (action != null && context.mounted) {
-                    await runPersonAction(context, ref, [p], action);
-                  }
-                },
+                onLongPress: () => _menu(context, ref, p),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -134,75 +123,11 @@ class PersonDetailScreen extends ConsumerWidget {
                         context.push('${Routes.reface}?person=$personId'),
                     icon: const Icon(Icons.face_retouching_natural),
                   ),
-                if (p.kind == 'person')
-                  IconButton(
-                    key: const Key('person-marks'),
-                    tooltip: l10n.marksTitle,
-                    onPressed: () =>
-                        context.push('${Routes.marks}?personId=$personId'),
-                    icon: const Icon(Icons.draw_outlined),
-                  ),
-                if (p.kind == 'person')
-                  IconButton(
-                    key: const Key('person-bodies'),
-                    tooltip: l10n.bodiesTitle,
-                    onPressed: () =>
-                        context.push('${Routes.bodies}?personId=$personId'),
-                    icon: const Icon(Icons.accessibility_new),
-                  ),
-                PopupMenuButton<String>(
+                IconButton(
                   key: const Key('person-menu'),
-                  onSelected: (v) {
-                    switch (v) {
-                      case 'studio':
-                        context.push('${Routes.reface}?person=$personId');
-                      case 'rename':
-                        _rename(context, ref, p);
-                      case 'exportTraining':
-                        showTrainingExportDialog(
-                          context,
-                          person: p,
-                          personName: personName(l10n, p),
-                        );
-                      case 'merge':
-                        _merge(context, ref, p);
-                      case 'delete':
-                        _delete(context, ref, p);
-                      default:
-                        runPersonAction(context, ref, [p], v);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'studio',
-                      child: Text(l10n.useInStudio),
-                    ),
-                    PopupMenuItem(value: 'rename', child: Text(l10n.rename)),
-                    PopupMenuItem(
-                      key: const Key('person-export-training'),
-                      value: 'exportTraining',
-                      child: Text(l10n.exportTrainingTitle),
-                    ),
-                    PopupMenuItem(value: 'merge', child: Text(l10n.mergeWith)),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(l10n.deletePerson),
-                    ),
-                    for (final a in personMenuActions([p]).where(
-                      (a) => !{
-                        'select',
-                        'open',
-                        'studio',
-                        'rename',
-                        'merge',
-                        'deletePerson',
-                      }.contains(a.id),
-                    ))
-                      PopupMenuItem(
-                        value: a.id,
-                        child: Text(l10n.peopleAction(a.id)),
-                      ),
-                  ],
+                  tooltip: l10n.peopleAction('more'),
+                  onPressed: () => _menu(context, ref, p),
+                  icon: const Icon(Icons.more_horiz),
                 ),
               ],
               bottom: TabBar(
@@ -224,6 +149,15 @@ class PersonDetailScreen extends ConsumerWidget {
             ),
             body: Column(
               children: [
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    key: const Key('person-identity-group'),
+                    icon: const Icon(Icons.folder_outlined),
+                    label: Text(p.groupName ?? l10n.identityGroupAssign),
+                    onPressed: () => assignIdentityGroup(context, ref, [p.id]),
+                  ),
+                ),
                 if (pending > 0)
                   ReviewBanner(
                     key: const Key('album-review-banner'),
@@ -254,6 +188,77 @@ class PersonDetailScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _menu(
+    BuildContext context,
+    WidgetRef ref,
+    PersonSummary p,
+  ) async {
+    final l = AppLocalizations.of(context);
+    final actions = personMenuActions([p]);
+    final action = await showPeopleActionSheet(
+      context,
+      title: personName(l, p),
+      cropPath: p.avatarCropPath,
+      subtitle: l.facesCount(p.faceCount),
+      actions: [
+        for (final id in ['rename', 'add', 'cover', 'merge', 'suggestions'])
+          actions.firstWhere((a) => a.id == id),
+        for (final a in actions)
+          if (!{
+            'select',
+            'open',
+            'rename',
+            'add',
+            'cover',
+            'merge',
+            'suggestions',
+            'deletePerson',
+          }.contains(a.id))
+            a,
+        if (p.kind == 'person') ...[
+          PeopleMenuAction('marks', Icons.draw_outlined, label: l.marksTitle),
+          PeopleMenuAction(
+            'bodies',
+            Icons.accessibility_new,
+            label: l.bodiesTitle,
+          ),
+        ],
+        PeopleMenuAction(
+          'exportTraining',
+          Icons.model_training,
+          label: l.exportTrainingTitle,
+        ),
+        PeopleMenuAction(
+          'delete',
+          Icons.delete_outline,
+          label: l.deletePerson,
+          destructive: true,
+        ),
+      ],
+    );
+    if (action == null || !context.mounted) return;
+    switch (action) {
+      case 'rename':
+        await _rename(context, ref, p);
+      case 'merge':
+        await _merge(context, ref, p);
+      case 'delete':
+        await _delete(context, ref, p);
+      case 'marks':
+        context.push('${Routes.marks}?personId=$personId');
+      case 'bodies':
+        context.push('${Routes.bodies}?personId=$personId');
+      case 'exportTraining':
+        await showTrainingExportDialog(
+          context,
+          person: p,
+          personName: personName(l, p),
+        );
+      default:
+        await runPersonAction(context, ref, [p], action);
+    }
   }
 
   Future<void> _rename(

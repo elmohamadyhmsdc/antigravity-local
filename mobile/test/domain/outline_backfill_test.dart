@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
@@ -74,6 +75,189 @@ void main() {
       decodeDimensions: (_) async => (1000, 1000),
     );
   }
+
+  Future<int> missingDetection(int mediaId, {int refId = 99}) => db
+      .into(db.mediaDetections)
+      .insert(
+        MediaDetectionsCompanion.insert(
+          mediaId: mediaId,
+          kind: 'b',
+          refId: refId,
+          x: 0.1,
+          y: 0.1,
+          w: 0.2,
+          h: 0.2,
+        ),
+      );
+
+  const triangle = [Offset(100, 100), Offset(300, 100), Offset(200, 300)];
+
+  test(
+    'failed work survives closing and reopening the database on disk',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('outline_queue_');
+      try {
+        await db.close();
+        final file = File('${directory.path}/library.sqlite');
+        db = AppDatabase(NativeDatabase(file));
+        final mediaId = await seedMedia(db);
+        await missingDetection(mediaId);
+        api.shouldThrow = true;
+        expect(await createBackfill().backfillPhoto(mediaId), isFalse);
+        await db.close();
+        db = AppDatabase(NativeDatabase(file));
+        final restored = createBackfill();
+        expect(await restored.watchPending().first, 1);
+        api.shouldThrow = false;
+        api.returnOutlines = [triangle];
+        expect(await restored.retryPending(), 1);
+        expect(await restored.watchPending().first, 0);
+      } finally {
+        await db.close();
+        db = AppDatabase(NativeDatabase.memory());
+        await directory.delete(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'partial failure stays queued across backfill instances; retry sends only missing targets',
+    () async {
+      final mediaId = await seedMedia(db);
+      final first = await missingDetection(mediaId, refId: 1);
+      final second = await missingDetection(mediaId, refId: 2);
+      api.returnOutlines = [triangle, null];
+      final original = createBackfill();
+      expect(await original.backfillPhoto(mediaId), isTrue);
+      expect(await original.watchPending().first, 1);
+      final saved = await (db.select(
+        db.mediaDetections,
+      )..where((d) => d.id.equals(first))).getSingle();
+      expect(saved.outline, isNotNull);
+
+      // No in-memory list is needed to reconstruct the queue after app restart.
+      final restored = createBackfill();
+      expect(await restored.watchPending().first, 1);
+      api.returnOutlines = [triangle];
+      expect(await restored.retryPending(), 1);
+      expect(api.lastTargets, hasLength(1));
+      expect(await restored.watchPending().first, 0);
+      expect(
+        (await (db.select(
+          db.mediaDetections,
+        )..where((d) => d.id.equals(second))).getSingle()).outline,
+        isNotNull,
+      );
+      expect(
+        (await (db.select(
+          db.mediaDetections,
+        )..where((d) => d.id.equals(first))).getSingle()).outline,
+        saved.outline,
+      );
+      expect(await restored.retryPending(), 0);
+      expect(api.calls, 2);
+    },
+  );
+
+  test(
+    'explicit retry can recover a failure in the same app session',
+    () async {
+      final mediaId = await seedMedia(db);
+      await missingDetection(mediaId);
+      final backfill = createBackfill();
+      api.shouldThrow = true;
+      expect(await backfill.backfillPhoto(mediaId), isFalse);
+      expect(await backfill.watchPending().first, 1);
+      expect(await backfill.backfillPhoto(mediaId), isFalse);
+      expect(
+        api.calls,
+        1,
+        reason: 'A rebuilding viewer must not hammer the full PC',
+      );
+      api.shouldThrow = false;
+      api.returnOutlines = [triangle];
+      expect(await backfill.retryPending(), 1);
+      expect(api.calls, 2);
+      expect(await backfill.watchPending().first, 0);
+    },
+  );
+
+  test(
+    'a memory failure stops the retry pass without losing any pending photos',
+    () async {
+      final first = await seedMedia(db, asset: 'first');
+      final second = await seedMedia(db, asset: 'second');
+      await missingDetection(first);
+      await missingDetection(second);
+      api.returnOutlines = [null];
+      final backfill = createBackfill();
+      expect(await backfill.retryPending(), 0);
+      expect(api.calls, 1);
+      expect(await backfill.watchPending().first, 2);
+      api.returnOutlines = [triangle];
+      expect(await backfill.retryPending(), 2);
+      expect(await backfill.watchPending().first, 0);
+    },
+  );
+
+  test(
+    'retry stops between photos when paused and resumes the remaining queue',
+    () async {
+      final first = await seedMedia(db, asset: 'first');
+      final second = await seedMedia(db, asset: 'second');
+      await missingDetection(first);
+      await missingDetection(second);
+      api.returnOutlines = [triangle];
+      final backfill = createBackfill();
+      expect(
+        await backfill.retryPending(shouldContinue: () => api.calls == 0),
+        1,
+      );
+      expect(await backfill.watchPending().first, 1);
+      expect(await backfill.retryPending(), 1);
+      expect(await backfill.watchPending().first, 0);
+    },
+  );
+
+  test(
+    'a busy server can be retried after becoming ready without recreating the service',
+    () async {
+      final mediaId = await seedMedia(db);
+      await missingDetection(mediaId);
+      var ready = false;
+      final backfill = OutlineBackfill(
+        db: db,
+        media: media,
+        api: () => api,
+        isServerReady: () => ready,
+        decodeDimensions: (_) async => (1000, 1000),
+      );
+      expect(await backfill.backfillPhoto(mediaId), isFalse);
+      expect(await backfill.retryPending(), 0);
+      expect(api.calls, 0);
+      ready = true;
+      api.returnOutlines = [triangle];
+      expect(await backfill.backfillPhoto(mediaId), isTrue);
+      expect(api.calls, 1);
+    },
+  );
+
+  test(
+    'pending queue excludes videos, active scans and finished outlines',
+    () async {
+      final video = await seedMedia(db, asset: 'video', kind: 'video');
+      final active = await seedMedia(db, asset: 'active', status: 'scanning');
+      final photo = await seedMedia(db, asset: 'photo');
+      await missingDetection(video);
+      await missingDetection(active);
+      await missingDetection(photo);
+      final backfill = createBackfill();
+      expect(await backfill.watchPending().first, 1);
+      api.returnOutlines = [triangle];
+      expect(await backfill.retryPending(), 1);
+      expect(await backfill.watchPending().first, 0);
+    },
+  );
 
   test(
     'opening a photo with NULL outlines triggers one call and stores results',

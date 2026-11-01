@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show Variable;
+import 'package:drift/drift.dart' show Variable, BooleanExpressionOperators;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +15,10 @@ import '../../domain/pose/group_poses.dart';
 import '../marks/mark_tattoo.dart';
 import '../shared/crop_image.dart';
 import 'body_areas.dart';
+import 'pose_visuals.dart';
+import 'group_pose_screens.dart';
+import 'equipment_screens.dart';
+import '../../domain/pose/group_pose_matcher.dart';
 import 'body_naming.dart';
 import '../shared/empty_state.dart';
 
@@ -55,6 +59,7 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
   bool _preparing = true;
   bool _clustersOn = false;
   int _areasVersion = 0;
+  int _categoryVersion = 0;
   bool _loading = true;
   int _generation =
       0; // a slower, older reload must never overwrite a newer one
@@ -127,7 +132,9 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
     } else {
       ids = await _allBodies();
     }
-    final rows = await _fetch(ids.take(400).toList());
+    final rows = await _fetch(
+      {...ids.take(400), ?_similarTo, ?_colourTwinOf}.toList(),
+    );
     if (!mounted || generation != _generation) return;
     setState(() {
       _counts = counts;
@@ -232,7 +239,7 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
     // the Areas tab exists only while the (experimental) grouping switch is on
     final areas = _clustersOn && widget.personId == null;
     return DefaultTabController(
-      length: areas ? 4 : 3,
+      length: areas ? 6 : 5,
       child: Scaffold(
         appBar: AppBar(
           title: Text(l.bodiesTitle),
@@ -253,6 +260,8 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
               ),
           ],
           bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(key: const Key('bodies-tab-all'), text: l.bodiesTabAll),
               Tab(key: const Key('bodies-tab-poses'), text: l.bodiesTabPoses),
@@ -260,18 +269,47 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
                 key: const Key('bodies-tab-outfits'),
                 text: l.bodiesTabOutfits,
               ),
+              Tab(key: const Key('bodies-tab-groups'), text: l.groupPoseTab),
+              Tab(
+                key: const Key('bodies-tab-equipment'),
+                text: l.bodiesTabEquipment,
+              ),
               if (areas)
                 Tab(key: const Key('bodies-tab-areas'), text: l.bodiesTabAreas),
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            _allTab(l),
-            _CategoryList(pose: true, personId: widget.personId),
-            _CategoryList(pose: false, personId: widget.personId),
-            if (areas) BodyAreasTab(key: ValueKey('areas-$_areasVersion')),
-          ],
+        body: Builder(
+          builder: (tabContext) => TabBarView(
+            children: [
+              _allTab(l),
+              _CategoryList(
+                key: ValueKey('poses-$_categoryVersion'),
+                pose: true,
+                personId: widget.personId,
+                counts: _counts,
+                onTag: (tag) {
+                  _filter(tag: tag);
+                  DefaultTabController.of(tabContext).animateTo(0);
+                },
+              ),
+              _CategoryList(
+                key: ValueKey('outfits-$_categoryVersion'),
+                pose: false,
+                personId: widget.personId,
+              ),
+              GroupPosesTab(personId: widget.personId),
+              EquipmentTab(personId: widget.personId),
+              if (areas)
+                BodyAreasTab(
+                  key: ValueKey('areas-$_areasVersion'),
+                  onSimilar: (id, kind) {
+                    _filter(similar: id, exposed: kind);
+                    DefaultTabController.of(tabContext).animateTo(0);
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -301,7 +339,6 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
       children: [
         if (_preparing || _loading) const LinearProgressIndicator(),
         SizedBox(
-          height: 52,
           // not a lazy ListView: the chip count is small and every chip must exist (and be testable)
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -320,7 +357,11 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
                             ? _groupLabel(l, _groupTag!)
                             : _colourTwinOf != null
                             ? l.bodiesSimilarColoursTitle
-                            : l.bodiesSimilarTitle,
+                            : _exposedKind == null
+                            ? l.bodiesSimilarTitle
+                            : _exposedKind == ExposedKind.chest
+                            ? l.equipmentAreaChestSimilar
+                            : l.equipmentAreaLowerSimilar,
                       ),
                       onDeleted: () => _filter(),
                       deleteButtonTooltipMessage: l.bodiesClearFilter,
@@ -365,6 +406,57 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
             ),
           ),
         ),
+        if (_similarTo != null || _colourTwinOf != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 60,
+                  height: 84,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CropImage(
+                      path: _rows[_similarTo ?? _colourTwinOf]?.cropPath,
+                      fit: BoxFit.contain,
+                      placeholderIcon: Icons.accessibility_new,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l.groupPoseReference,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      Text(
+                        _colourTwinOf != null
+                            ? l.bodyActionSimilarColours
+                            : _exposedKind == null
+                            ? l.bodyActionSimilarPose
+                            : _exposedKind == ExposedKind.chest
+                            ? l.equipmentAreaChest
+                            : l.equipmentAreaLower,
+                      ),
+                    ],
+                  ),
+                ),
+                if (_exposedKind != null)
+                  SizedBox(
+                    width: 48,
+                    height: 72,
+                    child: PoseDiagram(
+                      area: _exposedKind == ExposedKind.chest
+                          ? 'chest'
+                          : 'lower',
+                    ),
+                  ),
+              ],
+            ),
+          ),
         Expanded(
           child: _ids.isEmpty && !_loading && !_preparing
               ? EmptyState(
@@ -422,54 +514,114 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              key: const Key('action-similar'),
-              leading: const Icon(Icons.compare_outlined),
-              title: Text(l.bodyActionSimilarPose),
-              onTap: () => Navigator.pop(context, 'similar'),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .85,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 64,
+                        height: 88,
+                        child: CropImage(
+                          path: _rows[bodyId]?.cropPath,
+                          fit: BoxFit.contain,
+                          placeholderIcon: Icons.accessibility_new,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          l.bodiesSelectedExample,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (mediaId != null) ...[
+                  ListTile(
+                    key: const Key('action-group-pose'),
+                    leading: const Icon(Icons.groups_outlined),
+                    title: Text(l.groupPoseName),
+                    onTap: () => Navigator.pop(context, 'group-pose'),
+                  ),
+                  ListTile(
+                    key: const Key('action-equipment'),
+                    leading: const Icon(Icons.sports_tennis_outlined),
+                    title: Text(l.bodiesTabEquipment),
+                    onTap: () => Navigator.pop(context, 'equipment'),
+                  ),
+                ],
+                ListTile(
+                  key: const Key('action-similar'),
+                  leading: const Icon(Icons.compare_outlined),
+                  title: Text(l.bodyActionSimilarPose),
+                  onTap: () => Navigator.pop(context, 'similar'),
+                ),
+                for (final kind in exposedKinds)
+                  ListTile(
+                    key: Key('action-similar-${kind.name}'),
+                    leading: const Icon(Icons.image_search_outlined),
+                    title: Text(
+                      kind == ExposedKind.chest
+                          ? l.equipmentAreaChestSimilar
+                          : l.equipmentAreaLowerSimilar,
+                    ),
+                    subtitle: Text(
+                      kind == ExposedKind.chest
+                          ? l.equipmentAreaChest
+                          : l.equipmentAreaLower,
+                    ),
+                    trailing: SizedBox(
+                      width: 44,
+                      height: 56,
+                      child: PoseDiagram(
+                        area: kind == ExposedKind.chest ? 'chest' : 'lower',
+                      ),
+                    ),
+                    onTap: () => Navigator.pop(context, 'exposed-${kind.name}'),
+                  ),
+                ListTile(
+                  key: const Key('action-similar-colours'),
+                  leading: const Icon(Icons.palette_outlined),
+                  title: Text(l.bodyActionSimilarColours),
+                  onTap: () => Navigator.pop(context, 'colours'),
+                ),
+                ListTile(
+                  key: const Key('action-name-pose'),
+                  leading: const Icon(Icons.accessibility_new),
+                  title: Text(l.bodyActionNamePose),
+                  onTap: () => Navigator.pop(context, 'pose'),
+                ),
+                ListTile(
+                  key: const Key('action-mark-tattoo'),
+                  leading: const Icon(Icons.draw_outlined),
+                  title: Text(l.bodyActionMarkTattoo),
+                  onTap: () => Navigator.pop(context, 'mark'),
+                ),
+                ListTile(
+                  key: const Key('action-name-outfit'),
+                  leading: const Icon(Icons.checkroom_outlined),
+                  title: Text(l.bodyActionNameOutfit),
+                  onTap: () => Navigator.pop(context, 'outfit'),
+                ),
+                if (mediaId != null)
+                  ListTile(
+                    key: const Key('action-open-photo'),
+                    leading: const Icon(Icons.photo_outlined),
+                    title: Text(l.bodyActionOpenPhoto),
+                    onTap: () => Navigator.pop(context, 'photo'),
+                  ),
+              ],
             ),
-            for (final kind in exposedKinds)
-              ListTile(
-                key: Key('action-similar-${kind.name}'),
-                leading: const Icon(Icons.image_search_outlined),
-                title: Text(l.bodyActionSimilarExposed),
-                onTap: () => Navigator.pop(context, 'exposed-${kind.name}'),
-              ),
-            ListTile(
-              key: const Key('action-similar-colours'),
-              leading: const Icon(Icons.palette_outlined),
-              title: Text(l.bodyActionSimilarColours),
-              onTap: () => Navigator.pop(context, 'colours'),
-            ),
-            ListTile(
-              key: const Key('action-name-pose'),
-              leading: const Icon(Icons.accessibility_new),
-              title: Text(l.bodyActionNamePose),
-              onTap: () => Navigator.pop(context, 'pose'),
-            ),
-            ListTile(
-              key: const Key('action-mark-tattoo'),
-              leading: const Icon(Icons.draw_outlined),
-              title: Text(l.bodyActionMarkTattoo),
-              onTap: () => Navigator.pop(context, 'mark'),
-            ),
-            ListTile(
-              key: const Key('action-name-outfit'),
-              leading: const Icon(Icons.checkroom_outlined),
-              title: Text(l.bodyActionNameOutfit),
-              onTap: () => Navigator.pop(context, 'outfit'),
-            ),
-            if (mediaId != null)
-              ListTile(
-                key: const Key('action-open-photo'),
-                leading: const Icon(Icons.photo_outlined),
-                title: Text(l.bodyActionOpenPhoto),
-                onTap: () => Navigator.pop(context, 'photo'),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -482,6 +634,16 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
       return;
     }
     switch (choice) {
+      case 'group-pose':
+        if (mediaId != null) await nameGroupPose(context, ref, mediaId);
+      case 'equipment':
+        if (mediaId != null) {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => EquipmentPhotoScreen(mediaId: mediaId),
+            ),
+          );
+        }
       case 'similar':
         _filter(similar: bodyId);
       case 'mark':
@@ -489,7 +651,9 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
       case 'colours':
         _filter(colours: bodyId);
       case 'pose':
-        if (await nameBodyPose(context, ref, bodyId)) setState(() {});
+        if (await nameBodyPose(context, ref, bodyId)) {
+          setState(() => _categoryVersion++);
+        }
       case 'outfit':
         if (await nameBodyOutfit(
           context,
@@ -497,7 +661,7 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
           bodyId,
           personId: widget.personId,
         )) {
-          setState(() {});
+          setState(() => _categoryVersion++);
         }
       case 'photo':
         context.push('${Routes.media}/$mediaId');
@@ -507,7 +671,15 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
 
 /// The saved pose or outfit groups; tap one to see its bodies, long-press a body to take it out.
 class _CategoryList extends ConsumerStatefulWidget {
-  const _CategoryList({required this.pose, this.personId});
+  const _CategoryList({
+    super.key,
+    required this.pose,
+    this.personId,
+    this.counts = const {},
+    this.onTag,
+  });
+  final Map<String, int> counts;
+  final void Function(String)? onTag;
 
   final bool pose;
   final int? personId;
@@ -517,7 +689,7 @@ class _CategoryList extends ConsumerStatefulWidget {
 }
 
 class _CategoryListState extends ConsumerState<_CategoryList> {
-  List<({int id, String name, int count})> _items = const [];
+  List<({int id, String name, int count, String? cropPath})> _items = const [];
   bool _loaded = false;
 
   @override
@@ -529,13 +701,20 @@ class _CategoryListState extends ConsumerState<_CategoryList> {
   Future<void> _load() async {
     final db = ref.read(databaseProvider);
     final categories = ref.read(bodyCategoriesProvider);
-    final items = <({int id, String name, int count})>[];
+    final items = <({int id, String name, int count, String? cropPath})>[];
     if (widget.pose) {
-      for (final c in await db.select(db.poseCategories).get()) {
+      for (final c in await (db.select(
+        db.poseCategories,
+      )..where((c) => c.kind.equals(groupPoseKind).not())).get()) {
         items.add((
           id: c.id,
           name: c.name,
           count: (await categories.bodiesInPose(c.id)).length,
+          cropPath: c.exemplarBodyId == null
+              ? null
+              : (await fetchBodyTiles(ref, [
+                  c.exemplarBodyId!,
+                ]))[c.exemplarBodyId]?.cropPath,
         ));
       }
     } else {
@@ -549,6 +728,11 @@ class _CategoryListState extends ConsumerState<_CategoryList> {
           id: c.id,
           name: c.name,
           count: (await categories.bodiesInOutfit(c.id)).length,
+          cropPath: c.exemplarBodyId == null
+              ? null
+              : (await fetchBodyTiles(ref, [
+                  c.exemplarBodyId!,
+                ]))[c.exemplarBodyId]?.cropPath,
         ));
       }
     }
@@ -564,19 +748,33 @@ class _CategoryListState extends ConsumerState<_CategoryList> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     if (!_loaded) return const Center(child: CircularProgressIndicator());
-    if (_items.isEmpty) {
-      return EmptyState(
-        icon: Icons.folder_open_outlined,
-        title: l.categoryNone,
-      );
-    }
     return ListView(
+      padding: const EdgeInsets.all(16),
       children: [
+        if (_items.isNotEmpty && widget.pose)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              l.poseSavedTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
         for (final item in _items)
           ListTile(
             key: Key('category-${widget.pose ? 'pose' : 'outfit'}-${item.id}'),
-            leading: Icon(
-              widget.pose ? Icons.accessibility_new : Icons.checkroom_outlined,
+            leading: SizedBox(
+              width: 56,
+              height: 72,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CropImage(
+                  path: item.cropPath,
+                  fit: BoxFit.contain,
+                  placeholderIcon: widget.pose
+                      ? Icons.accessibility_new
+                      : Icons.checkroom_outlined,
+                ),
+              ),
             ),
             title: Text(item.name),
             subtitle: Text(l.categoryBodyCount(item.count)),
@@ -592,6 +790,69 @@ class _CategoryListState extends ConsumerState<_CategoryList> {
               );
               if (mounted) _load();
             },
+          ),
+
+        if (widget.pose) ...[
+          Text(l.poseBrowseHint),
+          for (final section in [
+            (l.posePostureTitle, PoseTag.posture),
+            (l.poseArmsTitle, PoseTag.arms),
+            (l.poseDirectionTitle, PoseTag.orientation),
+          ]) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                section.$1,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in section.$2)
+                  SizedBox(
+                    width: 140,
+                    child: Material(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        key: Key('pose-visual-$tag'),
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: (widget.counts[tag] ?? 0) == 0
+                            ? null
+                            : () => widget.onTag?.call(tag),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            children: [
+                              SizedBox(
+                                height: 72,
+                                width: 104,
+                                child: PoseDiagram(tag: tag),
+                              ),
+                              Text(
+                                poseLabel(l, tag),
+                                textAlign: TextAlign.center,
+                              ),
+                              Text(
+                                l.categoryBodyCount(widget.counts[tag] ?? 0),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+        if (_items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(l.categoryNone),
           ),
       ],
     );

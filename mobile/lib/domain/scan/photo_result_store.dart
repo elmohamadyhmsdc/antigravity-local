@@ -580,6 +580,17 @@ class PhotoResultStore {
       await KindOverrideStore(
         _db,
       ).applyTargets(media, frameNumber: frameNumber, timestampMs: timestampMs);
+      if (frameNumber == null) {
+        // A new pose/body pass invalidates automatic equipment associations.
+        // User corrections and removals survive the next recognition pass.
+        await (_db.delete(
+          _db.equipmentPhotos,
+        )..where((e) => e.mediaId.equals(media.id))).go();
+        await (_db.delete(_db.equipmentObjects)..where(
+              (e) => e.mediaId.equals(media.id) & e.state.equals('suggested'),
+            ))
+            .go();
+      }
       await (_db.update(_db.media)..where((m) => m.id.equals(media.id))).write(
         MediaCompanion(
           scanStatus: Value(complete ? 'done' : 'scanning'),

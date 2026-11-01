@@ -5,6 +5,80 @@ including uncommitted changes. Older plans/reports describe earlier states.
 The user's latest instructions take precedence. Check relevant source before
 changing behaviour and update this handoff after material changes.
 
+## Visual pose browsing, group actions and equipment — 2026-11-01
+
+- Added illustrated pose choices and reference crops, explicit Chest / Lower-body
+  search labels, a Group poses tab (two to six people per photo, named actions,
+  whole-group geometry and equipment filters), and an Equipment tab with automatic
+  recognition plus label/owner correction, rejection and manual additions.
+- Local Florence <OD> runs in an isolated venv_ai worker via the authenticated
+  /v1/analyze/equipment endpoint. No model/package/CUDA changes. Association is a
+  suggestion; unclear owners remain shared. Schema v17 adds two equipment tables
+  and backup support; rescans invalidate automatic results but keep corrections.
+- Verified: 124 focused Flutter tests + 17 photo-store tests passed; focused
+  analyzer clean. Python equipment 4, API contract 31, stateless 5 passed; shared
+  contract validation passed. UI previews inspected. Real CPU model loading/OD
+  completed on a repository fixture (zero equipment), not an accuracy evaluation.
+- Debug APK build succeeded (51.8s), output mobile/build/app/outputs/flutter-apk/app-debug.apk; not installed on a device.
+- Photo-only group/equipment matching; all detected members are compared (no
+  subset selection from a crowd). No physical-device acceptance or live server
+  restart. Details and remaining calibration: docs/mobile-pose-actions-equipment-2026-11-01.md.
+
+
+## Universal image expansion / Google Lens — 2026-11-01
+
+- Added shared `ImageExpand`, `PreviewImage` and `ImagePreviewScreen` components.
+  File/memory images and private face/body crops expose a separate expand control,
+  preserving their containing tile's original selection/navigation behavior. The
+  viewer fits the entire image, supports pinch/pan, double-tap zoom and reset, and
+  offers Google Lens. Private crops resolve their source photo/frame where possible
+  and allow switching between original and crop; a missing original retains the crop.
+- Applied this to review/identity naming, People/Characters crops and avatars,
+  library thumbnails, detection previews, scan previews, marks, Reface, Restyle,
+  LoRA references/datasets and results. Detection overlays remain interactive;
+  before/after results have separate expansion buttons. Library expansion loads
+  the original rather than only enlarging the thumbnail, with a thumbnail fallback.
+- The existing review viewer now offers Lens for the current page and crop/full
+  choice. The quick-review expansion preserves the highlighted target and draft
+  name. Expansion/Lens do not accept, reject, assign or name anything automatically.
+- Centralized visual search in `data/platform/visual_search.dart`, reusing the
+  existing Android `antigravity/lens` bridge. Only an explicit Lens tap writes the
+  chosen encoded image to private temporary cache and hands it to the receiving
+  app. The existing native Lens → Google app → chooser fallback is unchanged.
+  See [Android image sharing](https://developer.android.com/training/sharing/send).
+- Verified: **224 Flutter screen tests passed** (`test/features`), including seven
+  new image/Lens tests covering crop/original selection, thumbnail fallback,
+  draft-name preservation, zoom, small-screen layout, failures and exact bytes
+  handed to the native bridge. Focused Dart analysis and diff checks are clean.
+  Tests with actual crop files allow the real IO/codec loop to finish before cleanup.
+- No APK build or physical Android/Google Lens launch was performed. Native app
+  availability and handoff still need physical-device acceptance. No GPU/server
+  configuration or dependencies were changed.
+
+## People / Characters UI update — 2026-11-01
+
+- People and Characters now have labeled collection switches. Search retains its
+  state when returning from Characters; sorting lives next to search, and the
+  remaining collection tools are in the labeled overflow menu. Empty filters can
+  be cleared in place. Search, review prompts and filters scroll with the grid,
+  including with the keyboard open on a narrow phone.
+- Person detail uses the same action sheet for overflow and title long-press.
+  Frequent actions appear first; additional tools are grouped into organization,
+  matching/corrections and photos/export/tools. Tattoos, body browsing and training
+  export remain available. Studio remains specific to real people. Existing face,
+  media, body and suggestion tabs and all data operations are preserved.
+- Verified: **55 focused Flutter widget tests passed** across People, actions,
+  Characters, bodies, quick review, marks and redesign UX. This includes six new
+  navigation/feature-retention/layout tests, 320dp width with 180% text, and an open
+  keyboard with pending review. Focused Dart analysis reports no issues.
+- Local UI previews were rendered with cached Roboto/Material fonts. Optional
+  preview output in `people_simplified_ux_test.dart` uses `PEOPLE_PREVIEW_DIR` and
+  `PEOPLE_PREVIEW_FONT_DIR` compile-time defines. No APK build or physical-device
+  acceptance was performed for this UI change; no server/GPU processes were changed.
+- Flutter commands used the cached Dart executable and Flutter tool snapshot;
+  SDK-cache access required sandbox escalation. One stalled preview capture was
+  corrected and its orphaned tester stopped before the successful runs.
+
 ## 1. Start every task here
 
 1. Identify whether the change concerns Flutter, the mobile API, the desktop

@@ -706,6 +706,9 @@ def test_mdns_advertises_the_service_without_a_fingerprint():
             calls["info"] = dict(type_=type_, name=name, addresses=addresses, port=port, properties=properties, server=server)
 
     class Zc:
+        def __init__(self, *, interfaces):
+            calls["interfaces"] = interfaces
+
         def register_service(self, info):
             calls["registered"] = info
 
@@ -724,6 +727,7 @@ def test_mdns_advertises_the_service_without_a_fingerprint():
         ok = d.start(name="Studio PC!", server_id="srv_12345678", api_version="1.0.0", port=8443,
                      addresses=["192.168.1.20"])
         check(ok and calls["info"]["type_"] == "_antigravity._tcp.local." == SERVICE_TYPE, calls)
+        check(calls["interfaces"] == ["192.168.1.20"], "Bind multicast only to advertised interfaces")
         check(calls["info"]["name"] == "Studio PC._antigravity._tcp.local.", calls["info"]["name"])
         props = calls["info"]["properties"]
         check(props["server_id"] == "srv_12345678" and "fp" not in props and not any("fingerprint" in k for k in props),

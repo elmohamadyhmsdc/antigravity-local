@@ -47,6 +47,18 @@ void main() {
           .read<int>('n');
 
   group('one photo', () {
+    test('rescanning refreshes equipment suggestions and keeps user corrections', () async {
+      final media = await photo('equipment-rescan');
+      for (final state in ['suggested', 'confirmed', 'rejected']) {
+        await db.into(db.equipmentObjects).insert(EquipmentObjectsCompanion.insert(
+          mediaId: media.id, objectKey: state, label: 'racket', x: .1, y: .1, w: .2, h: .2, state: Value(state)));
+      }
+      await db.into(db.equipmentPhotos).insert(EquipmentPhotosCompanion.insert(mediaId: Value(media.id), version: 1));
+      await store.store(media, analysis());
+      expect(await db.select(db.equipmentPhotos).get(), isEmpty);
+      expect((await db.select(db.equipmentObjects).get()).map((o) => o.state).toSet(), {'confirmed', 'rejected'});
+    });
+
     test(
       'a face, its body, the crops and the detections are stored together',
       () async {

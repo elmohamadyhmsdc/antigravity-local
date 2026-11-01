@@ -254,18 +254,71 @@ class OutlineEngine:
         rmbg_path = self.models_dir / RMBG_FILE
         if rmbg_path.exists():
             try:
-                so = ort.SessionOptions()
-                so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-                self.rmbg_session = ort.InferenceSession(
-                    str(rmbg_path), sess_options=so, providers=self.providers
-                )
+                self.rmbg_session = self._create_rmbg_session(self.providers)
                 print(f"[OUTLINE] RMBG session loaded on {self.rmbg_session.get_providers()}")
             except Exception as e:
                 print(f"[OUTLINE] RMBG load failed: {e}")
                 self.rmbg_session = None
+                self._rmbg_loaded = False  # a later request may have more memory
         else:
             print(f"[OUTLINE] RMBG model not found: {rmbg_path}")
             self.rmbg_session = None
+
+    def _create_rmbg_session(self, providers):
+        so = ort.SessionOptions()
+        so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        # Outlines share a worker with several other models. Avoid retaining a
+        # large host arena, or reserving oversized CUDA convolution workspaces.
+        so.enable_cpu_mem_arena = False
+        so.enable_mem_pattern = False
+        providers = [
+            (provider, {"arena_extend_strategy": "kSameAsRequested",
+                        "cudnn_conv_algo_search": "HEURISTIC",
+                        "cudnn_conv_use_max_workspace": "0"})
+            if provider == "CUDAExecutionProvider" else provider
+            for provider in providers
+        ]
+        return ort.InferenceSession(
+            str(self.models_dir / RMBG_FILE), sess_options=so, providers=providers
+        )
+
+    def _rmbg_inference(self, inp):
+        if hasattr(self.rmbg_session, "run"):
+            in_name = self.rmbg_session.get_inputs()[0].name
+            return self.rmbg_session.run(None, {in_name: inp})[0]
+        if callable(self.rmbg_session):
+            return self.rmbg_session(inp)
+        return None
+
+    def _run_rmbg(self, inp):
+        try:
+            return self._rmbg_inference(inp)
+        except Exception as error:
+            message = str(error).lower()
+            memory_failure = isinstance(error, MemoryError) or any(
+                marker in message for marker in (
+                    "failed to allocate memory", "out of memory", "cuda_error_out_of_memory",
+                    "cudaerrormemoryallocation", "cudnn_status_alloc_failed",
+                )
+            )
+            providers = (self.rmbg_session.get_providers()
+                         if hasattr(self.rmbg_session, "get_providers") else [])
+            if not memory_failure or "CUDAExecutionProvider" not in providers:
+                print(f"[OUTLINE] RMBG inference failed: {error}")
+                return None
+            print("[OUTLINE] RMBG GPU memory exhausted; releasing its session and retrying on CPU")
+
+        # Leave the exception handler first so its traceback no longer holds the
+        # failed CUDA session. Keep using CPU for later crops in this worker.
+        self.rmbg_session = None
+        try:
+            self.rmbg_session = self._create_rmbg_session(["CPUExecutionProvider"])
+            return self._rmbg_inference(inp)
+        except Exception as error:
+            print(f"[OUTLINE] RMBG CPU retry failed: {error}")
+            if self.rmbg_session is None:
+                self._rmbg_loaded = False
+            return None
 
     def face_outline(self, img: np.ndarray, face: Any) -> Optional[np.ndarray]:
         """Compute exact face outline polygon in image coordinates."""
@@ -350,32 +403,26 @@ class OutlineEngine:
         if not valid_indices:
             return outlines
 
-        BATCH_SIZE = 8
+        # RMBG's 1024px activations are large; eight crops can exhaust a 6GB
+        # GPU and leave its arena at that high-water mark for the entire scan.
+        BATCH_SIZE = 1
         for chunk_start in range(0, len(valid_indices), BATCH_SIZE):
+            if self.rmbg_session is None:
+                break
             chunk_indices = valid_indices[chunk_start : chunk_start + BATCH_SIZE]
             chunk_crops = crops_bgr[chunk_start : chunk_start + BATCH_SIZE]
             chunk_boxes = crop_boxes[chunk_start : chunk_start + BATCH_SIZE]
 
-            batch_tensors = []
-            for crop in chunk_crops:
+            inp = np.empty((len(chunk_crops), 3, 1024, 1024), dtype=np.float32)
+            for i, crop in enumerate(chunk_crops):
                 rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
                 resized = cv2.resize(rgb, (1024, 1024), interpolation=cv2.INTER_LINEAR).astype(np.float32) / 255.0
-                norm = resized - 0.5
-                nchw = norm.transpose(2, 0, 1)
-                batch_tensors.append(nchw)
+                resized -= 0.5
+                inp[i] = resized.transpose(2, 0, 1)
+            del rgb, resized
 
-            inp = np.stack(batch_tensors, axis=0).astype(np.float32)
-            try:
-                if hasattr(self.rmbg_session, "run"):
-                    in_name = self.rmbg_session.get_inputs()[0].name
-                    out = self.rmbg_session.run(None, {in_name: inp})[0]
-                elif callable(self.rmbg_session):
-                    out = self.rmbg_session(inp)
-                else:
-                    out = None
-            except Exception as e:
-                print(f"[OUTLINE] RMBG batch inference failed: {e}")
-                continue
+            out = self._run_rmbg(inp)
+            del inp
 
             if out is None:
                 continue

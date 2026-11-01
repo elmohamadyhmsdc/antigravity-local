@@ -1,4 +1,13 @@
 {
+  "imageExpand": "Expand image",
+  "imagePreviewTitle": "Image preview",
+  "imageResetZoom": "Fit image to screen",
+  "imageUnavailable": "This image is unavailable.",
+  "peopleCharacters": "Characters",
+  "peopleSearchCharacters": "Search characters",
+  "peopleOrganize": "Organize",
+  "peopleMatching": "Matching & corrections",
+  "peopleTools": "Photos, export & tools",
   "reviewPhotos": "Review photos",
   "reviewFullPhoto": "Show full photo",
   "reviewCrop": "Show close-up",
@@ -13,35 +22,95 @@
   "reviewFace": "This face",
   "reviewBody": "This body",
   "reviewViewAll": "{count, plural, =1 {View photo} other {View all {count} photos}}",
-  "@reviewViewAll": {"placeholders": {"count": {"type": "int"}}},
+  "@reviewViewAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reviewMatchQuestion": "Is this {name}?",
-  "@reviewMatchQuestion": {"placeholders": {"name": {"type": "String"}}},
+  "@reviewMatchQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "reviewGroupQuestion": "Are these the same person?",
   "reviewMatchHelp": "Open a photo to inspect it. Use the checkboxes to choose which faces to add or reject.",
   "reviewGroupHelp": "Review every photo and uncheck any face that does not belong. Then create a person or add the selected faces to someone you know.",
   "reviewOutfitQuestion": "Does this body belong to {name}?",
-  "@reviewOutfitQuestion": {"placeholders": {"name": {"type": "String"}}},
+  "@reviewOutfitQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "reviewOutfitHelp": "This is a suggestion based on clothing or a weak face match. Check the highlighted body in the original before deciding.",
   "reviewYesPerson": "Yes, {name}",
-  "@reviewYesPerson": {"placeholders": {"name": {"type": "String"}}},
+  "@reviewYesPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "reviewNotPerson": "No, someone else",
   "reviewIncludeFace": "Include this face",
   "reviewReferencePhotos": "Known photos",
   "peopleAction": "{action, select, selection {Select multiple} open {Open person} merge {Merge with…} rename {Rename} hide {Hide} show {Show again} pin {Pin to top} unpin {Unpin} favorite {Add to favorites} unfavorite {Remove from favorites} media {Photos and videos} add {Add faces…} split {Split into new person…} suggestions {Review match suggestions} distinct {Different from…} lock {Lock automatic matching} unlock {Unlock automatic matching} studio {Use in Studio} export {Export / share…} details {Details} cover {Change cover…} bestCover {Choose best cover automatically} chooseCover {Choose cover face…} deletePerson {Delete person grouping} original {Open original} assign {Assign / move to person…} create {Create new person…} reject {Not this person} remove {Remove from person…} someoneElse {This is someone else} notAFace {Not a face} moveTo {Move to…} unassign {Remove assignment} similar {Find similar faces} save {Save crop to gallery} deleteFace {Delete detection} ignore {Not a face / ignore detection} hidden {Hidden} all {All} favorites {Favorites} pinned {Pinned} invert {Invert selection} more {More actions} done {Done} undo {Undo} updated {Updated} noResults {No items in this view} exportCrops {Face crops and details} exportOriginals {Face crops and original media} lockedNote {Automatic matching cannot add faces or change derived body links for a locked person. Manual corrections remain available.} deletePersonNote {Remove these person groupings and return their faces to Unsorted. Original photos and videos are kept.} deleteFaceNote {Remove these detections and their private crops. Rescanning will not recreate them. Original photos and videos are kept.} mergeNote {All selected people will be merged into the chosen person. Review the resulting name and cover before confirming.} similarNote {Similarity is a suggestion. Open an original or assign selected faces after checking them.} emptyExport {No readable files were available to export.} redetect {Detect faces / bodies again…} toCharacters {Move to Characters} toPeople {Move to People} kindMoveNote {The PC measures them again with the other model, so their files are scanned again first. Names are kept; until the scan finishes they are not shown.} other {More actions}}",
-  "@peopleAction": {"placeholders": {"action": {"type": "String"}}},
+  "@peopleAction": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      }
+    }
+  },
   "kindMoved": "Moved. {count, plural, =0{Nothing to scan again} =1{1 file is scanned again} other{{count} files are scanned again}}.",
-  "@kindMoved": {"placeholders": {"count": {"type": "int"}}},
+  "@kindMoved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "redetectTitle": "Detect again",
   "redetectNote": "Looks harder than the scan: full resolution and lower thresholds, so small or partly hidden faces and bodies are found. The old boxes are replaced; names and decisions stay with the new box at the same place.",
   "redetectFaces": "Faces",
   "redetectBodies": "Bodies",
   "redetectBoth": "Faces and bodies",
   "redetectProgress": "Detecting again… {done} of {total} photos",
-  "@redetectProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "@redetectProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "redetectDone": "Now {faces} faces and {bodies} bodies.",
-  "@redetectDone": {"placeholders": {"faces": {"type": "int"}, "bodies": {"type": "int"}}},
+  "@redetectDone": {
+    "placeholders": {
+      "faces": {
+        "type": "int"
+      },
+      "bodies": {
+        "type": "int"
+      }
+    }
+  },
   "redetectVideosSkipped": "{count, plural, =1{1 video was skipped: only photos can be detected again for now.} other{{count} videos were skipped: only photos can be detected again for now.}}",
-  "@redetectVideosSkipped": {"placeholders": {"count": {"type": "int"}}},
+  "@redetectVideosSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "boxIsCharacter": "This is a character (drawn)",
   "boxIsPerson": "This is a real person",
   "mediaKindTitle": "Who is in this file?",
@@ -50,7 +119,13 @@
   "mediaKindCharacters": "Characters only (anime / cartoon)",
   "mediaKindNote": "Everything in the file is scanned again as you choose.",
   "peopleActionError": "Could not complete the action: {reason}",
-  "@peopleActionError": {"placeholders": {"reason": {"type": "String"}}},
+  "@peopleActionError": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "videoOpening": "Opening video…",
   "videoLastRecorded": "Last recorded progress · scan is not currently advancing",
   "videoWaiting": "Waiting for PC analysis…",
@@ -72,7 +147,13 @@
   "videoImportDetail": "Saving verified detections and crops into this phone’s library.",
   "videoFinishDetail": "Finishing the result file and confirming the saved video. This can take a moment for large videos.",
   "videoStagePercent": "{percent}% of this stage",
-  "@videoStagePercent": {"placeholders": {"percent": {"type": "int"}}},
+  "@videoStagePercent": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "videoElapsed": "Time on this video",
   "videoFile": "Video file",
   "videoSource": "Original video",
@@ -84,26 +165,71 @@
   "videoStageRemaining": "Estimated time left in this stage",
   "videoMeasuring": "Measuring…",
   "videoApproximate": "About {time}",
-  "@videoApproximate": {"placeholders": {"time": {"type": "String"}}},
+  "@videoApproximate": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "videoPosition": "Analyzed video position",
   "videoSamplesAnalyzed": "Samples processed (including skipped)",
   "videoSampling": "Sampling interval",
   "videoSamplingSeconds": "One frame every {seconds} s",
-  "@videoSamplingSeconds": {"placeholders": {"seconds": {"type": "String"}}},
+  "@videoSamplingSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
   "videoLiveSaving": "Available results are saved as the PC works. Counts below are for this video session.",
   "videoSavedSamples": "Samples saved on this phone",
   "videoLiveDetections": "New detections saved",
   "videoDetectionCounts": "{faces} faces · {bodies} bodies · {characters} characters",
-  "@videoDetectionCounts": {"placeholders": {"faces": {"type": "int"}, "bodies": {"type": "int"}, "characters": {"type": "int"}}},
+  "@videoDetectionCounts": {
+    "placeholders": {
+      "faces": {
+        "type": "int"
+      },
+      "bodies": {
+        "type": "int"
+      },
+      "characters": {
+        "type": "int"
+      }
+    }
+  },
   "videoSkippedSamples": "Unreadable samples skipped",
   "videoPcUpdate": "Last PC response",
   "videoSecondsAgo": "{seconds} s ago",
-  "@videoSecondsAgo": {"placeholders": {"seconds": {"type": "int"}}},
+  "@videoSecondsAgo": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "videoAwaitingUpdate": "No new progress for {seconds} s. Waiting for the current operation to respond; you can pause the scan.",
-  "@videoAwaitingUpdate": {"placeholders": {"seconds": {"type": "int"}}},
+  "@videoAwaitingUpdate": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "videoLibraryProgress": "Overall library progress",
   "scanItemsOf": "{done} of {total} items complete",
-  "@scanItemsOf": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "@scanItemsOf": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "videoAdaptiveSampling": "Automatic video sampling",
   "videoAdaptiveSamplingHint": "Short clips use closer samples; longer videos use wider intervals. About 0.5 s for a short clip and 5 s for a 40-minute video.",
   "scanCurrentPhoto": "Current photo",
@@ -1633,14 +1759,41 @@
   "charactersTestPhoto": "Test a character photo",
   "charactersTestHint": "Test one illustration on the PC without saving it to your library. Bodies, hair, clothing and visual details are analysed; no human face is needed.",
   "characterFallback": "Character {id}",
-  "@characterFallback": { "placeholders": { "id": { "type": "int" } } },
+  "@characterFallback": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
   "characterSamples": "{count} appearances",
-  "@characterSamples": { "placeholders": { "count": { "type": "int" } } },
+  "@characterSamples": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "charactersFound": "{count} character appearances found",
-  "@charactersFound": { "placeholders": { "count": { "type": "int" } } },
+  "@charactersFound": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "quickReviewTitle": "Quick review",
   "quickReviewProgress": "{current} of {total}",
-  "@quickReviewProgress": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
+  "@quickReviewProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "quickSeeAll": "See all",
   "quickYes": "Yes",
   "quickNo": "No",
@@ -1651,9 +1804,21 @@
   "quickWhoHint": "Type a new name or pick someone",
   "quickNewPersonHelper": "Saves a new person",
   "quickAddToHelper": "Adds these faces to {name}",
-  "@quickAddToHelper": {"placeholders": {"name": {"type": "String"}}},
+  "@quickAddToHelper": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "quickGroupFaces": "{count, plural, =1{1 photo of this face} other{{count} photos of this face}}",
-  "@quickGroupFaces": {"placeholders": {"count": {"type": "int"}}},
+  "@quickGroupFaces": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "quickByClothes": "Recognised by clothes",
   "quickByWeakFace": "Recognised by a small or blurry face",
   "quickByEventOutfit": "Same outfit, same day",
@@ -1661,33 +1826,93 @@
   "quickAllDone": "All caught up",
   "quickAllDoneBody": "New questions appear after the next scan or Sort now.",
   "quickAllDoneSnoozed": "{count, plural, =1{1 answer you weren't sure about is waiting until there is more evidence. See all to decide now.} other{{count} answers you weren't sure about are waiting until there is more evidence. See all to decide now.}}",
-  "@quickAllDoneSnoozed": {"placeholders": {"count": {"type": "int"}}},
+  "@quickAllDoneSnoozed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "likelihoodVeryLikely": "Very likely",
   "likelihoodLikely": "Likely",
   "likelihoodMaybe": "Maybe",
   "reviewAdvancedTitle": "Advanced review details",
   "reviewAdvancedBody": "Show percentages and how bodies were linked, and open Review on all four lists instead of one question at a time",
   "peopleReviewBanner": "{count, plural, =1{Help improve your groups · 1 question} other{Help improve your groups · {count} questions}}",
-  "@peopleReviewBanner": {"placeholders": {"count": {"type": "int"}}},
+  "@peopleReviewBanner": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "peopleReviewBannerBody": "Quick yes / no answers, one photo at a time",
   "albumReviewBanner": "{count, plural, =1{Review 1 photo} other{Review {count} photos}}",
-  "@albumReviewBanner": {"placeholders": {"count": {"type": "int"}}},
+  "@albumReviewBanner": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "albumReviewBannerBody": "Photos that may also be {name}",
-  "@albumReviewBannerBody": {"placeholders": {"name": {"type": "String"}}},
+  "@albumReviewBannerBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "albumReviewTitle": "Is this {name}?",
-  "@albumReviewTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@albumReviewTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "albumReviewHelp": "Every photo starts ticked. Untick the ones that aren't {name}, then tap Done. Long-press a photo to see it full size.",
-  "@albumReviewHelp": {"placeholders": {"name": {"type": "String"}}},
+  "@albumReviewHelp": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "albumReviewNone": "Untick all",
   "albumReviewSummary": "{add} to add · {remove} someone else",
-  "@albumReviewSummary": {"placeholders": {"add": {"type": "int"}, "remove": {"type": "int"}}},
+  "@albumReviewSummary": {
+    "placeholders": {
+      "add": {
+        "type": "int"
+      },
+      "remove": {
+        "type": "int"
+      }
+    }
+  },
   "albumReviewSaved": "{add} added · {remove} marked as someone else",
-  "@albumReviewSaved": {"placeholders": {"add": {"type": "int"}, "remove": {"type": "int"}}},
+  "@albumReviewSaved": {
+    "placeholders": {
+      "add": {
+        "type": "int"
+      },
+      "remove": {
+        "type": "int"
+      }
+    }
+  },
   "viewerUnknownPerson": "Unknown",
   "viewerReassign": "Change who this is",
   "exportTrainingTitle": "Export for training",
   "exportTrainingHelp": "Cuts full-resolution pictures of {name} from your original photos and videos (not the small previews) and zips them with a list of where each came from. Nothing is uploaded.",
-  "@exportTrainingHelp": {"placeholders": {"name": {"type": "String"}}},
+  "@exportTrainingHelp": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "exportTrainingFaces": "Faces (square)",
   "exportTrainingBodies": "Bodies",
   "exportTrainingFaceSize": "Face size",
@@ -1697,17 +1922,50 @@
   "exportTrainingNeedKind": "Choose faces, bodies or both.",
   "exportTrainingPlanning": "Choosing the pictures…",
   "exportTrainingRunning": "Cutting {done} of {total}",
-  "@exportTrainingRunning": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "@exportTrainingRunning": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "exportTrainingPacking": "Building the zip…",
   "exportTrainingStop": "Stop",
   "exportTrainingStopped": "Stopped. Finished pictures are kept; start again to continue.",
   "exportTrainingDone": "{count, plural, =1{1 picture exported} other{{count} pictures exported}}",
-  "@exportTrainingDone": {"placeholders": {"count": {"type": "int"}}},
+  "@exportTrainingDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "exportTrainingSkipped": "{small} too small · {missing} originals unavailable · {failed} failed",
-  "@exportTrainingSkipped": {"placeholders": {"small": {"type": "int"}, "missing": {"type": "int"}, "failed": {"type": "int"}}},
+  "@exportTrainingSkipped": {
+    "placeholders": {
+      "small": {
+        "type": "int"
+      },
+      "missing": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
   "exportTrainingNothing": "No picture could be exported.",
   "exportTrainingFailed": "Export failed: {error}",
-  "@exportTrainingFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@exportTrainingFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "exportTrainingShare": "Share zip",
   "exportTrainingNotification": "Exporting training pictures",
   "bodiesTitle": "Bodies",
@@ -1752,14 +2010,26 @@
   "categoryNoPose": "This pose cannot be measured: the hips or shoulders are not visible.",
   "categoryNoOutfit": "This body has no outfit colours to compare.",
   "categoryPreviewTitle": "{count, plural, =1{1 match} other{{count} matches}}",
-  "@categoryPreviewTitle": {"placeholders": {"count": {"type": "int"}}},
+  "@categoryPreviewTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "categoryPreviewHint": "Untick the ones that do not belong. They are never added again.",
   "categorySave": "Save",
   "categoryNone": "Nothing saved yet. Open a body and name its pose or outfit.",
   "categoryDelete": "Delete this group",
   "categoryRemoveBody": "Remove from this group",
   "categoryBodyCount": "{count, plural, =1{1 body} other{{count} bodies}}",
-  "@categoryBodyCount": {"placeholders": {"count": {"type": "int"}}},
+  "@categoryBodyCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bodyActionSimilarExposed": "Find similar photos of this body area",
   "bodiesSimilarColoursTitle": "Similar colours",
   "bodyActionSimilarColours": "Find similar colours",
@@ -1807,16 +2077,175 @@
   "clustersToggleNote": "Groups photos that show the same body area, so a whole group can be given to a person with one tap. Turn it on only after checking the groups are right.",
   "clustersEmpty": "No groups yet. They appear once photos with exposed body areas have been scanned.",
   "clusterTitleChest": "Chest area · group {id}",
-  "@clusterTitleChest": {"placeholders": {"id": {"type": "int"}}},
+  "@clusterTitleChest": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
   "clusterTitleButtocks": "Lower-body area · group {id}",
-  "@clusterTitleButtocks": {"placeholders": {"id": {"type": "int"}}},
+  "@clusterTitleButtocks": {
+    "placeholders": {
+      "id": {
+        "type": "int"
+      }
+    }
+  },
   "clusterAssign": "Give this group to a person",
   "clusterBelongsTo": "Belongs to {name}",
-  "@clusterBelongsTo": {"placeholders": {"name": {"type": "String"}}},
+  "@clusterBelongsTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "clusterLinked": "{count, plural, =1{1 photo linked} other{{count} photos linked}}",
-  "@clusterLinked": {"placeholders": {"count": {"type": "int"}}},
+  "@clusterLinked": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "clusterBridgeTitle": "Photos show both groups",
   "clusterBridgeAction": "Also give group {to} to the same person ({bridges} photos show both)",
-  "@clusterBridgeAction": {"placeholders": {"to": {"type": "int"}, "bridges": {"type": "int"}}},
-  "quickByCluster": "Same body area as photos of this person"
+  "@clusterBridgeAction": {
+    "placeholders": {
+      "to": {
+        "type": "int"
+      },
+      "bridges": {
+        "type": "int"
+      }
+    }
+  },
+  "quickByCluster": "Same body area as photos of this person",
+  "outlineRetryTitle": "Retry missing outlines",
+  "outlineRetryPending": "{count, plural, =0{No photos waiting.} =1{1 photo waiting.} other{{count} photos waiting.}} Retry when PC memory is available; completed outlines are kept.",
+  "@outlineRetryPending": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupPoseTab": "Group poses",
+  "groupPoseIntro": "Compare two to six people as one pose, including their positions and distance from each other. Name an action from a photo to find similar examples.",
+  "groupPoseName": "Name group pose / action",
+  "groupPoseNameHint": "e.g. Partner stretch",
+  "groupPoseNamingNote": "Your name describes the action. Matching compares visible poses and spacing; it does not infer what people are doing.",
+  "groupPosePeople": "{count} people",
+  "@groupPosePeople": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupPoseCannotMeasure": "Use a photo with two to six detected people whose shoulders, hips and enough joints are visible. Overlapping or hidden bodies may need a clearer example.",
+  "groupPoseEmpty": "No photos with two to six detected people yet. Scan photos with people together first.",
+  "groupPoseSaved": "Saved group poses / actions",
+  "groupPoseChooseExample": "Choose a photo with people together",
+  "groupPoseSimilar": "Find similar group pose",
+  "groupPoseReference": "Reference example",
+  "groupPoseResultsNote": "Ranked by the whole group’s pose and arrangement. Open photos to check the matches. Equipment filters include editable detection suggestions.",
+  "bodiesTabEquipment": "Equipment",
+  "bodiesSelectedExample": "Use this body as the example",
+  "bodiesLoadFailed": "Could not load these photos.",
+  "bodiesRetry": "Try again",
+  "poseBrowseHint": "See each pose before choosing it. Select a pose to view matching bodies.",
+  "posePostureTitle": "Posture",
+  "poseArmsTitle": "Arms",
+  "poseDirectionTitle": "Camera direction",
+  "poseSavedTitle": "Your named poses",
+  "equipmentAreaChest": "Chest area",
+  "equipmentAreaLower": "Lower-body area",
+  "equipmentAreaChestSimilar": "Find similar chest areas",
+  "equipmentAreaLowerSimilar": "Find similar lower-body areas",
+  "equipmentIntro": "Equipment detected near people is a suggestion. Check the label and who it belongs to; nearby objects may not actually be in use.",
+  "equipmentDetectPending": "Analyze pending photos",
+  "equipmentConnect": "Connect to a PC with equipment recognition available. Detection waits while a scan is running.",
+  "equipmentEmpty": "No equipment to show yet. Analyze photos, or open a body and choose Equipment.",
+  "equipmentReviewHint": "Review equipment and the associated people",
+  "equipmentDetectPhoto": "Detect equipment in this photo",
+  "equipmentDetecting": "Recognizing equipment. The first photo may take a few minutes…",
+  "equipmentFailed": "Equipment recognition failed. Check the PC connection and try again.",
+  "equipmentEdit": "Correct equipment",
+  "equipmentReject": "Remove this detection",
+  "equipmentOwner": "Associated person",
+  "equipmentShared": "Shared / not assigned",
+  "equipmentPerson": "Person {number}",
+  "@equipmentPerson": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "equipmentSuggested": "Suggested",
+  "equipmentConfirmed": "Confirmed",
+  "equipmentAdd": "Add missed equipment",
+  "identityGroupsTitle": "Groups",
+  "identityGroupsIntro": "Keep people and characters in named groups, such as Family or One Piece. Groups organize your library without merging identities.",
+  "identityGroupsEmpty": "No groups yet",
+  "identityGroupCreate": "Create group",
+  "identityGroupNameHint": "e.g. One Piece",
+  "identityGroupAssign": "Set group",
+  "identityGroupUngrouped": "No group",
+  "identityGroupAll": "All groups",
+  "identityGroupDelete": "Delete group (keep members)",
+  "identityGroupNameExists": "That group name is already used. Choose a different name.",
+  "identityGroupNoMedia": "No photos or videos in this group yet.",
+  "identityGroupMembers": "{count} members",
+  "@identityGroupMembers": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "organizeTitle": "Move and rename originals",
+  "organizeIntro": "Review the original photos and videos before moving them on this phone. Android will ask for permission. A running scan pauses during the move. Existing destination files are kept.",
+  "organizeNaming": "Files use the person or character name, with separate image and video numbers. File types are preserved. Renaming helps organization; visual detection still uses the image or video.",
+  "organizeApply": "Move selected originals",
+  "organizeWorking": "Moving originals…",
+  "organizeResume": "Review interrupted move",
+  "organizeLoadFailed": "Could not prepare the move. Allow gallery access and use Android 10 or newer, then try again.",
+  "organizeInterrupted": "The move was interrupted. Refresh, then review the interrupted move to check which files still need moving.",
+  "organizeNoFiles": "No original photos or videos are linked to the selected identities.",
+  "organizeSharedHint": "Some files show several selected identities. Choose one destination owner for each shared file.",
+  "organizeChooseOwner": "Whose folder should contain this file?",
+  "organizeSelectNone": "Select none",
+  "organizeSelection": "{images} photos · {videos} videos selected",
+  "@organizeSelection": {
+    "placeholders": {
+      "images": {
+        "type": "int"
+      },
+      "videos": {
+        "type": "int"
+      }
+    }
+  },
+  "organizeResult": "{moved} files organized · {remaining} files not moved",
+  "@organizeResult": {
+    "placeholders": {
+      "moved": {
+        "type": "int"
+      },
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
+  "organizeStatus": "{status, select, ready{Ready to move} already{Already organized} choose_owner{Choose one destination owner} missing{Original is unavailable} stale_scan{File changed since detection. Scan it again first.} stale{File changed after this preview. Refresh to review it.} conflict{A file with this name already exists. Nothing will be replaced.} pending{An earlier move needs review first.} moved{Moved} cancelled{Cancelled — original kept} denied{Android did not grant permission} uncertain{Check interrupted move to confirm the current location} unsupported{This file cannot be moved here} other{Could not move this file}}",
+  "@organizeStatus": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  }
 }
