@@ -57,8 +57,7 @@ List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
       people.every((p) => p.groupingLocked) ? 'unlock' : 'lock',
       Icons.lock_outline,
     ),
-    if (single && people.first.kind == 'person')
-      const PeopleMenuAction('studio', Icons.face_retouching_natural),
+    if (single) const PeopleMenuAction('studio', Icons.face_retouching_natural),
     PeopleMenuAction(
       people.first.kind == 'person' ? 'toCharacters' : 'toPeople',
       Icons.swap_horiz,
@@ -97,8 +96,7 @@ List<PeopleMenuAction> faceMenuActions(List<FaceItem> faces) {
         const PeopleMenuAction('cover', Icons.account_circle_outlined),
       ],
       const PeopleMenuAction('similar', Icons.person_search_outlined),
-      if (faces.single.kind == 'person')
-        const PeopleMenuAction('studio', Icons.face_retouching_natural),
+      const PeopleMenuAction('studio', Icons.face_retouching_natural),
       const PeopleMenuAction('save', Icons.save_alt),
       const PeopleMenuAction('details', Icons.info_outline),
     ],
@@ -376,8 +374,10 @@ Future<void> runPersonAction(
         return;
       case 'export':
         final faces = <FaceItem>[];
-        for (final id in ids) {
-          faces.addAll(await repo.personFaces(id));
+        for (final person in people) {
+          faces.addAll(
+            await peopleRepositoryFor(ref, person.kind).personFaces(person.id),
+          );
         }
         if (!context.mounted) return;
         final selected = await pickActionFaces(
@@ -443,6 +443,10 @@ Future<void> _merge(
   for (final p in members) {
     allFaces.addAll(await repo.personFaces(p.id));
   }
+  final impacts = <int, Map<String, int>>{};
+  for (final member in members) {
+    impacts[member.id] = await repo.impactOf(member.id);
+  }
   if (!context.mounted) return;
   var name = target.name ?? '';
   int? cover;
@@ -456,6 +460,18 @@ Future<void> _merge(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(l.peopleAction('mergeNote')),
+              const Text(
+                'Original files stay in place. Linked items are kept with the surviving identity.',
+              ),
+              for (final member in members)
+                ListTile(
+                  title: Text(personName(l, member)),
+                  subtitle: Text(
+                    (impacts[member.id] ?? const {}).entries
+                        .map((entry) => '${entry.key}: ${entry.value}')
+                        .join(', '),
+                  ),
+                ),
               ListTile(
                 leading: PersonAvatar(
                   cropPath: target.avatarCropPath,

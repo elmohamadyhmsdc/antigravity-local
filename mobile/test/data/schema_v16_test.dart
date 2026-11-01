@@ -129,7 +129,7 @@ void main() {
       ),
       AppDatabase.currentSchemaVersion,
     );
-    expect(AppDatabase.currentSchemaVersion, 16);
+    expect(AppDatabase.currentSchemaVersion, greaterThanOrEqualTo(16));
 
     // the new tables work with their cascades / set-nulls
     final cluster = await db

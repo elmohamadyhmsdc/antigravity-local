@@ -1,0 +1,821 @@
+{
+  "version": 1,
+  "date": "2026-11-01",
+  "logicalSize": {
+    "width": 390,
+    "height": 844
+  },
+  "baseSurfaceCount": 68,
+  "stateVariantCount": 2,
+  "screens": [
+    {
+      "id": "welcome-gallery",
+      "title": "Your Gallery",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/welcome-gallery.svg",
+      "png": "screens/welcome-gallery.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "media-permission",
+      "title": "Photo access",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/media-permission.svg",
+      "png": "screens/media-permission.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "gallery-photos",
+      "title": "Gallery",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/gallery-photos.svg",
+      "png": "screens/gallery-photos.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "gallery-folders",
+      "title": "Folders",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/gallery-folders.svg",
+      "png": "screens/gallery-folders.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "folder-media",
+      "title": "Folder",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/folder-media.svg",
+      "png": "screens/folder-media.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "gallery-filters",
+      "title": "Filter media",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/gallery-filters.svg",
+      "png": "screens/gallery-filters.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "photo-viewer",
+      "title": "Photo",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/photo-viewer.svg",
+      "png": "screens/photo-viewer.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "video-viewer",
+      "title": "Video",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/video-viewer.svg",
+      "png": "screens/video-viewer.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "media-details",
+      "title": "Photo details",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/media-details.svg",
+      "png": "screens/media-details.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "target-picker",
+      "title": "Choose target",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/target-picker.svg",
+      "png": "screens/target-picker.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "detection-actions",
+      "title": "Detection actions",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/detection-actions.svg",
+      "png": "screens/detection-actions.png",
+      "continuedInAtlas": [
+        "Identity correction",
+        "Body tools"
+      ]
+    },
+    {
+      "id": "image-preview",
+      "title": "Image preview",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/image-preview.svg",
+      "png": "screens/image-preview.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "discover-home",
+      "title": "Discover",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/discover-home.svg",
+      "png": "screens/discover-home.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "discover-bodies",
+      "title": "Bodies",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/discover-bodies.svg",
+      "png": "screens/discover-bodies.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "discover-categories",
+      "title": "Poses and outfits",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/discover-categories.svg",
+      "png": "screens/discover-categories.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "category-editor",
+      "title": "Edit category",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/category-editor.svg",
+      "png": "screens/category-editor.png",
+      "continuedInAtlas": [
+        "Included examples"
+      ]
+    },
+    {
+      "id": "similarity-results",
+      "title": "Similar results",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/similarity-results.svg",
+      "png": "screens/similarity-results.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "group-poses",
+      "title": "Group poses",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/group-poses.svg",
+      "png": "screens/group-poses.png",
+      "continuedInAtlas": [
+        "Comparison scope"
+      ]
+    },
+    {
+      "id": "equipment-browser",
+      "title": "Equipment",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/equipment-browser.svg",
+      "png": "screens/equipment-browser.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "equipment-editor",
+      "title": "Edit equipment",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/equipment-editor.svg",
+      "png": "screens/equipment-editor.png",
+      "continuedInAtlas": [
+        "Manual addition"
+      ]
+    },
+    {
+      "id": "body-areas",
+      "title": "Body area similarity",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/body-areas.svg",
+      "png": "screens/body-areas.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "people-collection",
+      "title": "People",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/people-collection.svg",
+      "png": "screens/people-collection.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "unassigned-faces",
+      "title": "Unassigned faces",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/unassigned-faces.svg",
+      "png": "screens/unassigned-faces.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "person-media",
+      "title": "Person",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/person-media.svg",
+      "png": "screens/person-media.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "person-identity",
+      "title": "Identity",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/person-identity.svg",
+      "png": "screens/person-identity.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "person-models",
+      "title": "Models",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/person-models.svg",
+      "png": "screens/person-models.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "person-actions",
+      "title": "Person actions",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/person-actions.svg",
+      "png": "screens/person-actions.png",
+      "continuedInAtlas": [
+        "Organize",
+        "Correct and export"
+      ]
+    },
+    {
+      "id": "face-selection",
+      "title": "Choose faces",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/face-selection.svg",
+      "png": "screens/face-selection.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "person-assignment",
+      "title": "Who is this?",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/person-assignment.svg",
+      "png": "screens/person-assignment.png",
+      "continuedInAtlas": [
+        "Choose identity"
+      ]
+    },
+    {
+      "id": "identity-merge",
+      "title": "Merge people",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/identity-merge.svg",
+      "png": "screens/identity-merge.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "identity-groups",
+      "title": "Identity groups",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/identity-groups.svg",
+      "png": "screens/identity-groups.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "organize-media",
+      "title": "Organize original files",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/organize-media.svg",
+      "png": "screens/organize-media.png",
+      "continuedInAtlas": [
+        "Operation result"
+      ]
+    },
+    {
+      "id": "training-export",
+      "title": "Export training images",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/training-export.svg",
+      "png": "screens/training-export.png",
+      "continuedInAtlas": [
+        "Export options"
+      ]
+    },
+    {
+      "id": "person-marks",
+      "title": "Marks and tattoos",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/person-marks.svg",
+      "png": "screens/person-marks.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "mark-editor",
+      "title": "Mark a tattoo",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/mark-editor.svg",
+      "png": "screens/mark-editor.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "quick-review",
+      "title": "Quick review",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/quick-review.svg",
+      "png": "screens/quick-review.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "review-hub",
+      "title": "Review",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/review-hub.svg",
+      "png": "screens/review-hub.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "album-review",
+      "title": "Review person photos",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/album-review.svg",
+      "png": "screens/album-review.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "review-comparison",
+      "title": "Compare references",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/review-comparison.svg",
+      "png": "screens/review-comparison.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "studio-home",
+      "title": "Studio",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/studio-home.svg",
+      "png": "screens/studio-home.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "reface-target",
+      "title": "Reface · Target",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/reface-target.svg",
+      "png": "screens/reface-target.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "reface-source",
+      "title": "Reface · Source identity",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/reface-source.svg",
+      "png": "screens/reface-source.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "reface-options",
+      "title": "Reface · Review and run",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/reface-options.svg",
+      "png": "screens/reface-options.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "identity-set-editor",
+      "title": "Saved identity set",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/identity-set-editor.svg",
+      "png": "screens/identity-set-editor.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "restyle",
+      "title": "Restyle",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/restyle.svg",
+      "png": "screens/restyle.png",
+      "continuedInAtlas": [
+        "References",
+        "Advanced"
+      ]
+    },
+    {
+      "id": "training-library",
+      "title": "Datasets and models",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/training-library.svg",
+      "png": "screens/training-library.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "dataset-build",
+      "title": "Build dataset",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/dataset-build.svg",
+      "png": "screens/dataset-build.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "dataset-editor",
+      "title": "Dataset editor",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/dataset-editor.svg",
+      "png": "screens/dataset-editor.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "lora-training",
+      "title": "Train LoRA",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/lora-training.svg",
+      "png": "screens/lora-training.png",
+      "continuedInAtlas": [
+        "Advanced"
+      ]
+    },
+    {
+      "id": "model-details",
+      "title": "LoRA model",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/model-details.svg",
+      "png": "screens/model-details.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "lora-generate",
+      "title": "Generate with LoRA",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/lora-generate.svg",
+      "png": "screens/lora-generate.png",
+      "continuedInAtlas": [
+        "Optional reference"
+      ]
+    },
+    {
+      "id": "activity-center",
+      "title": "Activity",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/activity-center.svg",
+      "png": "screens/activity-center.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "scan-details",
+      "title": "Analysis progress",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/scan-details.svg",
+      "png": "screens/scan-details.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "job-details",
+      "title": "Job details",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/job-details.svg",
+      "png": "screens/job-details.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "results-gallery",
+      "title": "Private results",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/results-gallery.svg",
+      "png": "screens/results-gallery.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "result-viewer",
+      "title": "Result",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/result-viewer.svg",
+      "png": "screens/result-viewer.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "analysis-sources",
+      "title": "Analysis sources",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/analysis-sources.svg",
+      "png": "screens/analysis-sources.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "analysis-settings",
+      "title": "Analysis settings",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/analysis-settings.svg",
+      "png": "screens/analysis-settings.png",
+      "continuedInAtlas": [
+        "Identity grouping",
+        "Maintenance"
+      ]
+    },
+    {
+      "id": "analyze-single",
+      "title": "Analyze a photo",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/analyze-single.svg",
+      "png": "screens/analyze-single.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "library-insights",
+      "title": "Library insights",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/library-insights.svg",
+      "png": "screens/library-insights.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "settings-home",
+      "title": "Settings",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/settings-home.svg",
+      "png": "screens/settings-home.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "pc-connection",
+      "title": "PC connection",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/pc-connection.svg",
+      "png": "screens/pc-connection.png",
+      "continuedInAtlas": [
+        "Resource readiness",
+        "Network help"
+      ]
+    },
+    {
+      "id": "pair-qr",
+      "title": "Scan pairing code",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/pair-qr.svg",
+      "png": "screens/pair-qr.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "pair-manual",
+      "title": "Pair manually",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/pair-manual.svg",
+      "png": "screens/pair-manual.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "background-settings",
+      "title": "Background activity",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/background-settings.svg",
+      "png": "screens/background-settings.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "storage-settings",
+      "title": "Storage",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/storage-settings.svg",
+      "png": "screens/storage-settings.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "backup-restore",
+      "title": "Backup and restore",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/backup-restore.svg",
+      "png": "screens/backup-restore.png",
+      "continuedInAtlas": []
+    },
+    {
+      "id": "app-lock",
+      "title": "App lock",
+      "width": 390,
+      "height": 844,
+      "svg": "screens/app-lock.svg",
+      "png": "screens/app-lock.png",
+      "continuedInAtlas": []
+    }
+  ],
+  "variants": [
+    {
+      "id": "result-source-comparison",
+      "parentId": "result-viewer",
+      "purpose": "Before/After appears only for an edit with a source"
+    },
+    {
+      "id": "result-delete-confirmation",
+      "parentId": "result-viewer",
+      "purpose": "Artifact-aware deletion preview"
+    }
+  ],
+  "boards": [
+    {
+      "name": "atlas-01",
+      "screenIds": [
+        "welcome-gallery",
+        "media-permission",
+        "gallery-photos",
+        "gallery-folders",
+        "folder-media",
+        "gallery-filters"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-02",
+      "screenIds": [
+        "photo-viewer",
+        "video-viewer",
+        "media-details",
+        "target-picker",
+        "detection-actions",
+        "image-preview"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-03",
+      "screenIds": [
+        "discover-home",
+        "discover-bodies",
+        "discover-categories",
+        "category-editor",
+        "similarity-results",
+        "group-poses"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-04",
+      "screenIds": [
+        "equipment-browser",
+        "equipment-editor",
+        "body-areas",
+        "people-collection",
+        "unassigned-faces",
+        "person-media"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-05",
+      "screenIds": [
+        "person-identity",
+        "person-models",
+        "person-actions",
+        "face-selection",
+        "person-assignment",
+        "identity-merge"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-06",
+      "screenIds": [
+        "identity-groups",
+        "organize-media",
+        "training-export",
+        "person-marks",
+        "mark-editor",
+        "quick-review"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-07",
+      "screenIds": [
+        "review-hub",
+        "album-review",
+        "review-comparison",
+        "studio-home",
+        "reface-target",
+        "reface-source"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-08",
+      "screenIds": [
+        "reface-options",
+        "identity-set-editor",
+        "restyle",
+        "training-library",
+        "dataset-build",
+        "dataset-editor"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-09",
+      "screenIds": [
+        "lora-training",
+        "model-details",
+        "lora-generate",
+        "activity-center",
+        "scan-details",
+        "job-details"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-10",
+      "screenIds": [
+        "results-gallery",
+        "result-viewer",
+        "analysis-sources",
+        "analysis-settings",
+        "analyze-single",
+        "library-insights"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-11",
+      "screenIds": [
+        "settings-home",
+        "pc-connection",
+        "pair-qr",
+        "pair-manual",
+        "background-settings",
+        "storage-settings"
+      ],
+      "width": 856,
+      "height": 2816
+    },
+    {
+      "name": "atlas-12",
+      "screenIds": [
+        "backup-restore",
+        "app-lock"
+      ],
+      "width": 856,
+      "height": 952
+    }
+  ]
+}

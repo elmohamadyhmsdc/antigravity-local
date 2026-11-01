@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import '../db/app_database.dart';
+import 'artifact_context.dart';
+import 'action_frames.dart';
 
 abstract final class SettingKeys {
   static const strictness = 'grouping.strictness';
@@ -15,6 +17,7 @@ abstract final class SettingKeys {
   static const adaptiveVideoSampling = 'scan.adaptive_video_sampling';
   static const maxSide = 'scan.max_side';
   static const scanActive = 'scan.active';
+  static const scanScopeAlbumIds = 'scan.scope_albums';
   static const modelId = 'library.model_id';
   static const lastBackupAt = 'backup.last_at';
 
@@ -35,6 +38,12 @@ abstract final class SettingKeys {
     maxSide,
     modelId,
   ];
+
+  static bool isBackedUp(String key) =>
+      backedUp.contains(key) ||
+      key.startsWith(artifactContextPrefix) ||
+      key.startsWith(actionCatalogPrefix) ||
+      key.startsWith(actionFramePrefix);
 }
 
 const strictnessChoices = ['strict', 'balanced', 'loose'];
@@ -58,6 +67,7 @@ class SettingsSnapshot {
     this.adaptiveVideoSampling = true,
     this.maxSide = defaultMaxSide,
     this.scanActive = false,
+    this.scanScopeAlbumIds = const [],
     this.modelId,
     this.lastBackupAt,
     this.reviewAdvanced = false,
@@ -97,6 +107,7 @@ class SettingsSnapshot {
           ),
       maxSide: side == null ? defaultMaxSide : side.clamp(800, 4096),
       scanActive: m[SettingKeys.scanActive] == '1',
+      scanScopeAlbumIds: ids(SettingKeys.scanScopeAlbumIds),
       modelId: m[SettingKeys.modelId],
       lastBackupAt: backup == null
           ? null
@@ -119,6 +130,7 @@ class SettingsSnapshot {
   final int maxSide; // long side of the picture sent to the PC
   final bool
   scanActive; // a scan was started and not finished/paused: resume it after a restart
+  final List<String> scanScopeAlbumIds;
   final String? modelId; // embedding model of this library (never mix models)
   final DateTime? lastBackupAt;
 
@@ -133,20 +145,39 @@ class AppSettings {
   final AppDatabase _db;
 
   Future<Map<String, String>> _all() async {
-    final rows = await _db.select(_db.settings).get();
+    final rows =
+        await (_db.select(_db.settings)..where(
+              (s) => s.key.isIn([
+                ...SettingKeys.backedUp,
+                SettingKeys.scanActive,
+                SettingKeys.scanScopeAlbumIds,
+                SettingKeys.lastBackupAt,
+                SettingKeys.reviewAdvanced,
+              ]),
+            ))
+            .get();
     return {for (final r in rows) r.key: r.value};
   }
 
   Future<SettingsSnapshot> load() async =>
       SettingsSnapshot.fromMap(await _all());
 
-  Stream<SettingsSnapshot> watch() => _db
-      .select(_db.settings)
-      .watch()
-      .map(
-        (rows) =>
-            SettingsSnapshot.fromMap({for (final r in rows) r.key: r.value}),
-      );
+  Stream<SettingsSnapshot> watch() =>
+      (_db.select(_db.settings)..where(
+            (s) => s.key.isIn([
+              ...SettingKeys.backedUp,
+              SettingKeys.scanActive,
+              SettingKeys.scanScopeAlbumIds,
+              SettingKeys.lastBackupAt,
+              SettingKeys.reviewAdvanced,
+            ]),
+          ))
+          .watch()
+          .map(
+            (rows) => SettingsSnapshot.fromMap({
+              for (final r in rows) r.key: r.value,
+            }),
+          );
 
   Future<void> _put(String key, String value) => _db.putSetting(key, value);
 
@@ -187,6 +218,11 @@ class AppSettings {
   Future<void> setScanActive(bool value) =>
       _put(SettingKeys.scanActive, value ? '1' : '0');
 
+  Future<void> setScanScopeAlbumIds(Iterable<String> ids) => _put(
+    SettingKeys.scanScopeAlbumIds,
+    jsonEncode(ids.toSet().toList()..sort()),
+  );
+
   Future<void> setModelId(String value) => _put(SettingKeys.modelId, value);
 
   Future<void> setReviewAdvanced(bool value) =>
@@ -206,10 +242,11 @@ class AppSettings {
   }
 
   Future<Map<String, String>> rawBackedUp() async {
-    final all = await _all();
+    final rows = await _db.select(_db.settings).get();
+    final all = {for (final row in rows) row.key: row.value};
     return {
-      for (final k in SettingKeys.backedUp)
-        if (all.containsKey(k)) k: all[k]!,
+      for (final entry in all.entries)
+        if (SettingKeys.isBackedUp(entry.key)) entry.key: entry.value,
     };
   }
 }

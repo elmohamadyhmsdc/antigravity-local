@@ -33,20 +33,14 @@ QrScannerBuilder _fakeScanner(List<String> codes) =>
 
 void main() {
   group('S01 Welcome', () {
-    appTest(
-      'a fresh install starts on the Welcome screen with both ways to pair',
-      (tester, env) async {
-        await env.pump(tester);
-        expect(find.text('Connect to your PC'), findsOneWidget);
-        expect(find.text('Scan QR code'), findsOneWidget);
-        expect(find.text('Enter address manually'), findsOneWidget);
-        expect(
-          find.byType(NavigationBar),
-          findsNothing,
-          reason: 'no tabs before a PC is paired',
-        );
-      },
-    );
+    appTest('a fresh install starts in Gallery before pairing', (
+      tester,
+      env,
+    ) async {
+      await env.pump(tester);
+      expect(find.text('Gallery'), findsWidgets);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
 
     appTest('a paired phone starts on Home', (tester, env) async {
       await env.pump(tester);
@@ -60,7 +54,10 @@ void main() {
       tester,
       env,
     ) async {
-      await env.pump(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/welcome')],
+      );
       await tester.tap(find.text('Enter address manually'));
       await tester.pumpAndSettle();
 
@@ -93,7 +90,10 @@ void main() {
     appTest(
       'shows the certificate fingerprint, pairs only after the user confirms, then asks for permissions',
       (tester, env) async {
-        await env.pump(tester);
+        await env.pump(
+          tester,
+          extra: [initialLocationProvider.overrideWithValue('/welcome')],
+        );
         await tester.tap(find.text('Enter address manually'));
         await tester.pumpAndSettle();
         await tester.enterText(find.byKey(const Key('host')), '192.168.1.20');
@@ -154,7 +154,10 @@ void main() {
       tester,
       env,
     ) async {
-      await env.pump(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/welcome')],
+      );
       await tester.tap(find.text('Enter address manually'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('host')), '192.168.1.20');
@@ -177,7 +180,10 @@ void main() {
       env.pairing.probeError = ApiException.network(
         'Could not reach 192.168.1.20:8443. Is the PC server running?',
       );
-      await env.pump(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/welcome')],
+      );
       await tester.tap(find.text('Enter address manually'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('host')), '192.168.1.20');
@@ -200,7 +206,10 @@ void main() {
         message: 'Wrong pairing code (4 attempts left).',
         statusCode: 401,
       );
-      await env.pump(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/welcome')],
+      );
       await tester.tap(find.text('Enter address manually'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('host')), '10.0.2.2');
@@ -225,6 +234,7 @@ void main() {
         await env.pump(
           tester,
           extra: [
+            initialLocationProvider.overrideWithValue('/welcome'),
             qrScannerBuilderProvider.overrideWithValue(_fakeScanner([_link()])),
           ],
         );
@@ -252,6 +262,7 @@ void main() {
       await env.pump(
         tester,
         extra: [
+          initialLocationProvider.overrideWithValue('/welcome'),
           qrScannerBuilderProvider.overrideWithValue(_fakeScanner(codes)),
         ],
       );
@@ -274,7 +285,10 @@ void main() {
     ) async {
       await env.pump(
         tester,
-        extra: [qrScannerBuilderProvider.overrideWithValue(_fakeScanner([]))],
+        extra: [
+          initialLocationProvider.overrideWithValue('/welcome'),
+          qrScannerBuilderProvider.overrideWithValue(_fakeScanner([])),
+        ],
       );
       await tester.tap(find.text('Scan QR code'));
       await tester.pumpAndSettle();
@@ -338,6 +352,7 @@ void main() {
       await env.pump(
         tester,
         extra: [
+          initialLocationProvider.overrideWithValue('/welcome'),
           qrScannerBuilderProvider.overrideWithValue(_fakeScanner([_link()])),
         ],
       );
@@ -374,6 +389,7 @@ void main() {
         await env.pump(
           tester,
           extra: [
+            initialLocationProvider.overrideWithValue('/welcome'),
             qrScannerBuilderProvider.overrideWithValue(_fakeScanner([_link()])),
           ],
         );
@@ -394,7 +410,7 @@ void main() {
           findsOneWidget,
           reason: 'Home with the tab bar',
         );
-        expect(find.byKey(const Key('status-chip')), findsOneWidget);
+        expect(find.text('Gallery'), findsWidgets);
       },
     );
   });

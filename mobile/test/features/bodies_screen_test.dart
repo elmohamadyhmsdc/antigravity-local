@@ -365,6 +365,8 @@ void main() {
         () => Future<void>.delayed(const Duration(seconds: 2)),
       );
       await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('toggle-bodies')));
 
       await tester.pump(const Duration(milliseconds: 400));

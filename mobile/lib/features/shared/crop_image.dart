@@ -80,10 +80,16 @@ class CropImage extends ConsumerWidget {
 
 /// Round cover of a person.
 class PersonAvatar extends StatelessWidget {
-  const PersonAvatar({super.key, required this.cropPath, this.radius = 28});
+  const PersonAvatar({
+    super.key,
+    required this.cropPath,
+    this.radius = 28,
+    this.expandable = true,
+  });
 
   final String? cropPath;
   final double radius;
+  final bool expandable;
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +97,11 @@ class PersonAvatar extends StatelessWidget {
       width: radius * 2,
       height: radius * 2,
       child: ClipOval(
-        child: CropImage(path: cropPath, cacheWidth: (radius * 6).round()),
+        child: CropImage(
+          path: cropPath,
+          cacheWidth: (radius * 6).round(),
+          expandable: expandable,
+        ),
       ),
     );
   }

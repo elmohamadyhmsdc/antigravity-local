@@ -16,13 +16,17 @@ import 'identity_groups_screen.dart';
 
 enum PeopleSort { mostFaces, name, newest }
 
+final _allIdentitiesProvider = StreamProvider.autoDispose<List<PersonSummary>>(
+  (ref) => ref.watch(peopleRepositoryProvider).watchIdentities(),
+);
+
 /// S07 - everyone found in the library: a grid of cover + name + face count, an "Unsorted" card for
 /// faces that belong to nobody yet, search and sort.
 ///
 /// The same screen lists drawn characters (`kind: 'character'`): they are grouped, reviewed,
 /// merged and split exactly like people, in their own list.
 class PeopleScreen extends ConsumerStatefulWidget {
-  const PeopleScreen({super.key, this.kind = 'person', this.initialGroupId});
+  const PeopleScreen({super.key, this.kind = 'all', this.initialGroupId});
   final int? initialGroupId;
 
   final String kind;
@@ -36,6 +40,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
   var _query = '';
   var _sort = PeopleSort.mostFaces;
   var _filter = 'all';
+  late String _kind = widget.kind;
   late int? _groupId = widget.initialGroupId;
   bool _selecting = false;
   final _selected = <int>{};
@@ -45,6 +50,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
   });
 
   Future<void> _menu(List<PersonSummary> people) async {
+    final mixed = people.map((p) => p.kind).toSet().length > 1;
     final l = AppLocalizations.of(context);
     final action = await showPeopleActionSheet(
       context,
@@ -52,7 +58,12 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
           ? personName(l, people.single)
           : l.selectedCount(people.length),
       cropPath: people.length == 1 ? people.single.avatarCropPath : null,
-      actions: personMenuActions(people),
+      actions: [
+        for (final action in personMenuActions(people))
+          if (!mixed ||
+              !{'merge', 'toCharacters', 'toPeople'}.contains(action.id))
+            action,
+      ],
     );
     if (action == null || !mounted) return;
     if (action == 'select') {
@@ -82,12 +93,56 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
     setState(() => _query = '');
   }
 
+  Future<void> _openReview({bool quick = false}) async {
+    var kind = _kind;
+    if (kind == 'all') {
+      final selected = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(title: Text('Choose type to review')),
+              ListTile(
+                title: const Text('People'),
+                onTap: () => Navigator.pop(context, 'person'),
+              ),
+              ListTile(
+                title: const Text('Anime characters'),
+                onTap: () => Navigator.pop(context, 'character'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (selected == null || !mounted) return;
+      kind = selected;
+    }
+    final uri = Uri(
+      path: Routes.review,
+      queryParameters: {
+        if (kind == 'character') 'kind': 'character',
+        if (quick) 'view': 'quick',
+      },
+    );
+    context.push(uri.toString());
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final characters = widget.kind == 'character';
-    final listProvider = characters ? charactersProvider : peopleProvider;
+    final characters = _kind == 'character';
+    final allKinds = _kind == 'all';
+    final listProvider = allKinds
+        ? _allIdentitiesProvider
+        : characters
+        ? charactersProvider
+        : peopleProvider;
     final people = ref.watch(listProvider);
+    final humanUnsorted = ref.watch(unsortedCountProvider).value ?? 0;
+    final characterUnsorted =
+        ref.watch(characterUnsortedCountProvider).value ?? 0;
     final unsorted =
         ref
             .watch(
@@ -97,15 +152,26 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
             )
             .value ??
         0;
+    final scopedKind = characters ? 'character' : 'person';
     final review =
-        ref.watch(reviewCountsByKindProvider(widget.kind)).value?.total ?? 0;
+        (ref.watch(reviewCountsByKindProvider(scopedKind)).value?.total ?? 0) +
+        (allKinds
+            ? (ref
+                      .watch(reviewCountsByKindProvider('character'))
+                      .value
+                      ?.total ??
+                  0)
+            : 0);
     final questions =
-        ref.watch(reviewQuestionsByKindProvider(widget.kind)).value?.length ??
-        0;
-    final charactersCount = ref.watch(charactersProvider).value?.length ?? 0;
-    final reviewRoute = characters
-        ? '${Routes.review}?kind=character'
-        : Routes.review;
+        (ref.watch(reviewQuestionsByKindProvider(scopedKind)).value?.length ??
+            0) +
+        (allKinds
+            ? (ref
+                      .watch(reviewQuestionsByKindProvider('character'))
+                      .value
+                      ?.length ??
+                  0)
+            : 0);
     final groupsState = ref.watch(identityGroupsProvider);
     final groups = groupsState.value ?? const [];
     final groupId =
@@ -134,7 +200,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(characters ? l10n.peopleCharacters : l10n.navPeople),
+        title: Text(l10n.navPeople),
         actions: [
           IconButton(
             key: const Key('people-select'),
@@ -156,15 +222,15 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
               if (value == 'groups') {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => IdentityGroupsScreen(kind: widget.kind),
+                    builder: (_) => IdentityGroupsScreen(kind: scopedKind),
                   ),
                 );
+              } else if (value == 'review') {
+                _openReview();
               } else {
                 context.push(
-                  value == 'review'
-                      ? reviewRoute
-                      : value == 'test'
-                      ? '${Routes.analyze}?characters=true'
+                  value == 'test'
+                      ? '${Routes.analyze}?characters=$characters'
                       : Routes.bodies,
                 );
               }
@@ -189,26 +255,24 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   trailing: review > 0 ? Text('$review') : null,
                 ),
               ),
-              if (characters)
-                PopupMenuItem(
-                  key: const Key('test-character-photo'),
-                  value: 'test',
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.add_photo_alternate_outlined),
-                    title: Text(l10n.charactersTestPhoto),
-                  ),
+              PopupMenuItem(
+                key: const Key('test-character-photo'),
+                value: 'test',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.add_photo_alternate_outlined),
+                  title: const Text('Analyze photo'),
                 ),
-              if (!characters)
-                PopupMenuItem(
-                  key: const Key('open-bodies'),
-                  value: 'bodies',
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.accessibility_new),
-                    title: Text(l10n.bodiesTitle),
-                  ),
+              ),
+              PopupMenuItem(
+                key: const Key('open-bodies'),
+                value: 'bodies',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.accessibility_new),
+                  title: Text(l10n.bodiesTitle),
                 ),
+              ),
             ],
           ),
         ],
@@ -270,29 +334,42 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                 child: Row(
                   children: [
                     ChoiceChip(
-                      key: const Key('open-people'),
-                      label: Text(l10n.navPeople),
-                      avatar: const Icon(Icons.people_outline, size: 18),
-                      selected: !characters,
+                      key: const Key('open-all-types'),
+                      visualDensity: VisualDensity.compact,
+                      labelPadding: EdgeInsets.zero,
+                      label: const Text('All types'),
+                      selected: allKinds,
                       showCheckmark: false,
-                      onSelected: (_) {
-                        if (characters) leave(context, Routes.people);
-                      },
+                      onSelected: (_) => setState(() {
+                        _kind = 'all';
+                        _selected.clear();
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      key: const Key('open-people'),
+                      visualDensity: VisualDensity.compact,
+                      labelPadding: EdgeInsets.zero,
+                      label: Text(l10n.navPeople),
+                      selected: _kind == 'person',
+                      showCheckmark: false,
+                      onSelected: (_) => setState(() {
+                        _kind = 'person';
+                        _selected.clear();
+                      }),
                     ),
                     const SizedBox(width: 8),
                     ChoiceChip(
                       key: const Key('open-characters'),
-                      label: Text(
-                        charactersCount > 0
-                            ? '${l10n.peopleCharacters} · $charactersCount'
-                            : l10n.peopleCharacters,
-                      ),
-                      avatar: const Icon(Icons.auto_awesome_outlined, size: 18),
+                      visualDensity: VisualDensity.compact,
+                      labelPadding: EdgeInsets.zero,
+                      label: Text(l10n.peopleCharacters),
                       selected: characters,
                       showCheckmark: false,
-                      onSelected: (_) {
-                        if (!characters) context.push(Routes.characters);
-                      },
+                      onSelected: (_) => setState(() {
+                        _kind = 'character';
+                        _selected.clear();
+                      }),
                     ),
                   ],
                 ),
@@ -361,9 +438,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                               icon: Icons.swipe_outlined,
                               title: l10n.peopleReviewBanner(questions),
                               body: l10n.peopleReviewBannerBody,
-                              onTap: () => context.push(
-                                '$reviewRoute${characters ? '&' : '?'}view=quick',
-                              ),
+                              onTap: () => _openReview(quick: true),
                             ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
@@ -470,7 +545,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                                     onPressed: () => Navigator.of(context).push(
                                       MaterialPageRoute<void>(
                                         builder: (_) => IdentityGroupsScreen(
-                                          kind: widget.kind,
+                                          kind: scopedKind,
                                         ),
                                       ),
                                     ),
@@ -611,15 +686,26 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                                     mainAxisExtent: mainAxisExtent,
                                   ),
                               delegate: SliverChildListDelegate([
-                                if (unsorted > 0 &&
+                                if ((allKinds ? humanUnsorted : unsorted) > 0 &&
                                     q.isEmpty &&
                                     _filter == 'all' &&
                                     groupId == null &&
                                     !_selecting)
                                   _UnsortedCard(
-                                    count: unsorted,
+                                    count: allKinds ? humanUnsorted : unsorted,
                                     avatarRadius: avatarRadius,
-                                    kind: widget.kind,
+                                    kind: scopedKind,
+                                  ),
+                                if (allKinds &&
+                                    characterUnsorted > 0 &&
+                                    q.isEmpty &&
+                                    _filter == 'all' &&
+                                    groupId == null &&
+                                    !_selecting)
+                                  _UnsortedCard(
+                                    count: characterUnsorted,
+                                    avatarRadius: avatarRadius,
+                                    kind: 'character',
                                   ),
                                 for (final p in shown)
                                   _PersonCard(
@@ -900,7 +986,9 @@ class _UnsortedCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        key: const Key('unsorted-card'),
+        key: Key(
+          kind == 'character' ? 'unsorted-character-card' : 'unsorted-card',
+        ),
         borderRadius: BorderRadius.circular(16),
         onTap: () => context.push(
           kind == 'character'
@@ -951,7 +1039,9 @@ class _UnsortedCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: Text(
-                  l10n.unsortedCardTitle,
+                  kind == 'character'
+                      ? '${l10n.unsortedCardTitle} · Characters'
+                      : l10n.unsortedCardTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,

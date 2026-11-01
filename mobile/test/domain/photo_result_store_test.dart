@@ -2,6 +2,7 @@
 // transaction, the duplicate rule, and re-scanning without duplicating anything.
 
 import 'dart:io';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:antigravity_mobile/data/api/dtos/embedding.dart';
@@ -9,6 +10,7 @@ import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/index/embedding_index.dart';
 import 'package:antigravity_mobile/data/repositories/library_repository.dart';
+import 'package:antigravity_mobile/data/repositories/action_frames.dart';
 import 'package:antigravity_mobile/domain/scan/drawn_faces.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
 import 'package:antigravity_mobile/domain/geometry/outline.dart';
@@ -46,18 +48,87 @@ void main() {
       (await db.customSelect('SELECT COUNT(*) AS n FROM $table').getSingle())
           .read<int>('n');
 
-  group('one photo', () {
-    test('rescanning refreshes equipment suggestions and keeps user corrections', () async {
-      final media = await photo('equipment-rescan');
-      for (final state in ['suggested', 'confirmed', 'rejected']) {
-        await db.into(db.equipmentObjects).insert(EquipmentObjectsCompanion.insert(
-          mediaId: media.id, objectKey: state, label: 'racket', x: .1, y: .1, w: .2, h: .2, state: Value(state)));
+  test(
+    'video keeps actual frame poses when identity views are compacted',
+    () async {
+      final id = await seedMedia(db, asset: 'motion', kind: 'video');
+      final media = await (db.select(
+        db.media,
+      )..where((m) => m.id.equals(id))).getSingle();
+      for (var i = 0; i < 3; i++) {
+        final body = bodyJson(crop: false);
+        final kpts = (body['kpts'] as List)
+            .map((k) => List<double>.from(k))
+            .toList();
+        kpts[9][1] += i * 40;
+        body['kpts'] = kpts;
+        await store.store(
+          media,
+          analysis(bodies: [body]),
+          frameNumber: i,
+          timestampMs: i * 1000,
+          complete: false,
+        );
       }
-      await db.into(db.equipmentPhotos).insert(EquipmentPhotosCompanion.insert(mediaId: Value(media.id), version: 1));
-      await store.store(media, analysis());
-      expect(await db.select(db.equipmentPhotos).get(), isEmpty);
-      expect((await db.select(db.equipmentObjects).get()).map((o) => o.state).toSet(), {'confirmed', 'rejected'});
-    });
+      final frames = await ActionFrameStore(db).load(media);
+      expect(frames.map((f) => f['time']), [0, 1000, 2000]);
+      final first = frames.first['bodies'][0]['kpts'][9][1] as double;
+      final last = frames.last['bodies'][0]['kpts'][9][1] as double;
+      expect(last - first, closeTo(80 / 800, 1e-6));
+      expect(
+        await count('bodies'),
+        lessThan(3),
+        reason: 'per-frame evidence survives crop/view reuse',
+      );
+      final keys = await db.select(db.settings).get();
+      expect(
+        jsonDecode(
+          keys.firstWhere((r) => r.key.startsWith(actionFramePrefix)).value,
+        )['width'],
+        1000,
+      );
+    },
+  );
+
+  group('one photo', () {
+    test(
+      'rescanning refreshes equipment suggestions and keeps user corrections',
+      () async {
+        final media = await photo('equipment-rescan');
+        for (final state in ['suggested', 'confirmed', 'rejected']) {
+          await db
+              .into(db.equipmentObjects)
+              .insert(
+                EquipmentObjectsCompanion.insert(
+                  mediaId: media.id,
+                  objectKey: state,
+                  label: 'racket',
+                  x: .1,
+                  y: .1,
+                  w: .2,
+                  h: .2,
+                  state: Value(state),
+                ),
+              );
+        }
+        await db
+            .into(db.equipmentPhotos)
+            .insert(
+              EquipmentPhotosCompanion.insert(
+                mediaId: Value(media.id),
+                version: 1,
+              ),
+            );
+        await store.store(media, analysis());
+        expect(await db.select(db.equipmentPhotos).get(), isEmpty);
+        expect(
+          (await db.select(db.equipmentObjects).get())
+              .map((o) => o.state)
+              .toSet(),
+          {'confirmed', 'rejected'},
+        );
+      },
+    );
 
     test(
       'a face, its body, the crops and the detections are stored together',
@@ -391,7 +462,7 @@ void main() {
 
   group('faceless bodies', () {
     test(
-      'a body that looks like one already kept in the photo adds nothing',
+      'distinct adjacent bodies wearing the same outfit survive rescanning',
       () async {
         final media = await photo('a1');
         final same = outfit(3);
@@ -407,9 +478,21 @@ void main() {
         );
         expect(
           await count('bodies'),
-          2,
-          reason: 'the duplicate outfit is dropped, the different one is kept',
+          3,
+          reason: 'outfits cannot distinguish two separate people',
         );
+        await store.store(
+          media,
+          analysis(
+            bodies: [
+              bodyJson(box: [10, 10, 200, 600], appearance: same),
+              bodyJson(box: [300, 10, 200, 600], appearance: same),
+              bodyJson(box: [600, 10, 200, 600], appearance: outfit(77)),
+            ],
+          ),
+        );
+        expect(await count('bodies'), 3);
+        expect(await count('media_detections'), 3);
       },
     );
 

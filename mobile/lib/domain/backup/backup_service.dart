@@ -397,7 +397,7 @@ class BackupService {
         if (settings is Map<String, dynamic>) {
           await _settings.putRaw({
             for (final e in settings.entries)
-              if (SettingKeys.backedUp.contains(e.key)) e.key: '${e.value}',
+              if (SettingKeys.isBackedUp(e.key)) e.key: '${e.value}',
           });
         }
         // A restored backup may have an earlier video checkpoint than the current

@@ -15,11 +15,11 @@ import 'features/privacy/app_lock.dart';
 import 'data/api/mobile_api.dart';
 import 'data/platform/background_execution.dart';
 
-/// Where the app opens (null = Home when paired, Welcome otherwise). Tests start on a link.
+/// Where the app opens (null = Gallery, including before pairing). Tests can open a link.
 final initialLocationProvider = Provider<String?>((ref) => null);
 
 /// The router follows the session: pairing moves on to the permissions screen, forgetting the
-/// PC (or a revoked pairing) returns to Welcome.
+/// PC leaves local Gallery and saved library content available.
 final routerProvider = Provider<GoRouter>((ref) {
   final paired = ValueNotifier<bool>(ref.read(sessionProvider) != null);
   ref.listen(sessionProvider, (_, next) => paired.value = next != null);
@@ -115,6 +115,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       }
     });
     return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
       builder: (context, child) =>
           AppLockGate(child: child ?? const SizedBox.shrink()),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
@@ -143,6 +144,7 @@ class StartupErrorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
       localizationsDelegates: const [

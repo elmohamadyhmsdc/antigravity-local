@@ -104,7 +104,35 @@ abstract interface class VideoMediaLibrary {
   Future<File?> videoFile(String assetId);
 }
 
-class PhotoManagerLibrary implements MediaLibrary, VideoMediaLibrary {
+/// Optional access to the actual original. Browsing and previews never require it.
+abstract interface class OriginalMediaLibrary {
+  Future<File?> originalFile(String assetId);
+}
+
+class MediaLocation {
+  const MediaLocation({this.fileName, this.relativePath});
+  final String? fileName;
+  final String? relativePath;
+
+  String? get folderName {
+    final parts = relativePath
+        ?.split(RegExp(r'[/\\]'))
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+    return parts == null || parts.isEmpty ? null : parts.last;
+  }
+}
+
+abstract interface class MediaLocationLibrary {
+  Future<MediaLocation?> location(String assetId);
+}
+
+class PhotoManagerLibrary
+    implements
+        MediaLibrary,
+        VideoMediaLibrary,
+        OriginalMediaLibrary,
+        MediaLocationLibrary {
   @override
   Future<bool> requestAccess() async {
     final state = await PhotoManager.requestPermissionExtend();
@@ -174,8 +202,21 @@ class PhotoManagerLibrary implements MediaLibrary, VideoMediaLibrary {
   }
 
   @override
-  Future<File?> videoFile(String assetId) async =>
+  Future<File?> videoFile(String assetId) => originalFile(assetId);
+
+  @override
+  Future<File?> originalFile(String assetId) async =>
       (await AssetEntity.fromId(assetId))?.originFile;
+
+  @override
+  Future<MediaLocation?> location(String assetId) async {
+    final entity = await AssetEntity.fromId(assetId);
+    if (entity == null) return null;
+    return MediaLocation(
+      fileName: entity.title ?? await entity.titleAsync,
+      relativePath: entity.relativePath,
+    );
+  }
 
   @override
   Future<Uint8List?> downscaledJpeg(

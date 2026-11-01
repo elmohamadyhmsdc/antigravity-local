@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../library/native_gallery.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -103,6 +104,16 @@ class SourcesScreen extends ConsumerWidget {
                           on == true ? next.add(a.id) : next.remove(a.id);
                           settingsStore.setAlbumIds(next);
                         },
+                      ),
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.folder_open_outlined),
+                        title: const Text('Open folder'),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => FolderScreen(album: a),
+                          ),
+                        ),
                       ),
                       // "All media" holds real photos too, so it cannot be marked.
                       if (chosen.contains(a.id) && !a.isAll)

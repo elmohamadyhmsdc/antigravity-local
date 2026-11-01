@@ -197,7 +197,7 @@ void main() {
         findsOneWidget,
       );
       for (final id in ['studio', 'marks', 'bodies']) {
-        expect(find.byKey(Key('people-action-$id')), findsNothing);
+        expect(find.byKey(Key('people-action-$id')), findsOneWidget);
       }
       await tester.tap(find.byKey(const Key('people-actions-close')));
       await tester.pumpAndSettle();

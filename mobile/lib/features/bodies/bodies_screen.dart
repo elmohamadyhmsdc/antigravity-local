@@ -21,6 +21,7 @@ import 'equipment_screens.dart';
 import '../../domain/pose/group_pose_matcher.dart';
 import 'body_naming.dart';
 import '../shared/empty_state.dart';
+import '../shared/person_picker.dart';
 
 /// Roadmap Phase 4 / section 6.1: the library's bodies, filtered by Tier-A pose chips and outfit colours,
 /// with "find similar pose" and "name this pose / outfit" from an example. [personId] scopes everything
@@ -31,8 +32,12 @@ class BodiesScreen extends ConsumerStatefulWidget {
     this.personId,
     this.initialSimilar,
     this.initialSimilarColours,
+    this.isRoot = false,
+    this.initialTab = 0,
   });
 
+  final bool isRoot;
+  final int initialTab;
   final int? personId;
 
   /// Deep links from the photo viewer: start on "similar pose" / "similar colours" of this body.
@@ -240,16 +245,36 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
     final areas = _clustersOn && widget.personId == null;
     return DefaultTabController(
       length: areas ? 6 : 5,
+      initialIndex: widget.initialTab.clamp(0, areas ? 5 : 4),
       child: Scaffold(
         appBar: AppBar(
-          title: Text(l.bodiesTitle),
-          leading: BackButton(onPressed: () => leave(context, Routes.home)),
+          title: Text(widget.isRoot ? 'Discover' : l.bodiesTitle),
+          automaticallyImplyLeading: !widget.isRoot,
+          leading: widget.isRoot
+              ? null
+              : BackButton(onPressed: () => leave(context, Routes.library)),
           actions: [
             if (widget.personId == null)
               PopupMenuButton<String>(
                 key: const Key('bodies-menu'),
-                onSelected: (_) => _toggleClusters(),
+                onSelected: (value) async {
+                  if (value == 'clusters') {
+                    await _toggleClusters();
+                  } else if (value == 'marks') {
+                    final person = await pickPerson(context, allowNew: false);
+                    if (person?.personId != null && context.mounted) {
+                      context.push(
+                        '${Routes.marks}?personId=${person!.personId}',
+                      );
+                    }
+                  }
+                },
                 itemBuilder: (_) => [
+                  if (widget.isRoot)
+                    const PopupMenuItem<String>(
+                      value: 'marks',
+                      child: Text('Marks'),
+                    ),
                   CheckedPopupMenuItem<String>(
                     key: const Key('clusters-toggle'),
                     value: 'clusters',

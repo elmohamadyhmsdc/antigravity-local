@@ -4,12 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/router.dart';
 import '../../data/repositories/media_queries.dart';
+import '../../data/db/app_database.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../data/repositories/review_questions.dart';
 import '../../data/repositories/review_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
+import '../../studio_providers.dart';
 import '../library/media_grid.dart';
+import '../jobs/jobs_screen.dart' show jobStatusLabel, jobTypeLabel;
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../review/album_review_screen.dart';
@@ -21,6 +24,7 @@ import 'action_sheet.dart';
 import 'people_actions.dart';
 import 'training_export_dialog.dart';
 import 'identity_groups_screen.dart';
+import '../video_actions/video_actions_screen.dart';
 
 final personProvider = StreamProvider.autoDispose.family<PersonSummary?, int>(
   (ref, id) => ref.watch(peopleRepositoryProvider).watchPerson(id),
@@ -91,10 +95,19 @@ class PersonDetailScreen extends ConsumerWidget {
           );
         }
         return DefaultTabController(
-          length: 4,
-          initialIndex: initialTab.clamp(0, 3),
+          length: 3,
+          initialIndex: initialTab <= 1 ? 0 : 1,
           child: Scaffold(
             appBar: AppBar(
+              leading: BackButton(
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go(Routes.people);
+                  }
+                },
+              ),
               title: InkWell(
                 key: const Key('person-title'),
                 onTap: () => _rename(context, ref, p),
@@ -114,15 +127,22 @@ class PersonDetailScreen extends ConsumerWidget {
                 ),
               ),
               actions: [
-                // A drawn character cannot be a face-swap source (ArcFace only).
-                if (p.kind == 'person')
-                  IconButton.filledTonal(
-                    key: const Key('person-use-studio'),
-                    tooltip: l10n.useInStudio,
-                    onPressed: () =>
-                        context.push('${Routes.reface}?person=$personId'),
-                    icon: const Icon(Icons.face_retouching_natural),
+                IconButton(
+                  tooltip: 'Actions in media',
+                  icon: const Icon(Icons.motion_photos_on_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => VideoActionsScreen(personId: personId),
+                    ),
                   ),
+                ),
+                IconButton.filledTonal(
+                  key: const Key('person-use-studio'),
+                  tooltip: l10n.useInStudio,
+                  onPressed: () =>
+                      context.push('${Routes.reface}?person=$personId'),
+                  icon: const Icon(Icons.face_retouching_natural),
+                ),
                 IconButton(
                   key: const Key('person-menu'),
                   tooltip: l10n.peopleAction('more'),
@@ -130,20 +150,11 @@ class PersonDetailScreen extends ConsumerWidget {
                   icon: const Icon(Icons.more_horiz),
                 ),
               ],
-              bottom: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
+              bottom: const TabBar(
                 tabs: [
-                  Tab(
-                    key: const Key('tab-faces'),
-                    text: l10n.tabFaces(p.faceCount),
-                  ),
-                  Tab(key: const Key('tab-photos'), text: l10n.tabMedia),
-                  Tab(key: const Key('tab-bodies'), text: l10n.tabBodies),
-                  Tab(
-                    key: const Key('tab-suggestions'),
-                    text: l10n.tabSuggestions,
-                  ),
+                  Tab(key: Key('tab-photos'), text: 'Media'),
+                  Tab(text: 'Identity'),
+                  Tab(text: 'Models'),
                 ],
               ),
             ),
@@ -169,16 +180,58 @@ class PersonDetailScreen extends ConsumerWidget {
                 Expanded(
                   child: TabBarView(
                     children: [
-                      FaceGrid(personId: personId, kind: p.kind),
-                      MediaGrid(
-                        filter: MediaFilter(personId: personId),
-                        empty: EmptyState(
-                          icon: Icons.photo_outlined,
-                          title: l10n.noPhotosOfPerson,
+                      _PersonMedia(personId: personId),
+                      DefaultTabController(
+                        length: 4,
+                        initialIndex: initialTab == 2
+                            ? 1
+                            : (initialTab == 3 ? 2 : 0),
+                        child: Column(
+                          children: [
+                            TabBar(
+                              isScrollable: true,
+                              tabAlignment: TabAlignment.start,
+                              tabs: [
+                                Tab(
+                                  key: const Key('tab-faces'),
+                                  text: l10n.tabFaces(p.faceCount),
+                                ),
+                                Tab(
+                                  key: const Key('tab-bodies'),
+                                  text: l10n.tabBodies,
+                                ),
+                                Tab(
+                                  key: const Key('tab-suggestions'),
+                                  text: l10n.tabSuggestions,
+                                ),
+                                const Tab(text: 'Saved identities'),
+                              ],
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.draw_outlined),
+                              title: Text(l10n.marksTitle),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => context.push(
+                                '${Routes.marks}?personId=$personId',
+                              ),
+                            ),
+                            Expanded(
+                              child: TabBarView(
+                                children: [
+                                  FaceGrid(personId: personId, kind: p.kind),
+                                  _BodiesTab(personId: personId, kind: p.kind),
+                                  _SuggestionsTab(person: p),
+                                  _SavedIdentities(personId: personId),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      _BodiesTab(personId: personId, kind: p.kind),
-                      _SuggestionsTab(person: p),
+                      _PersonModels(
+                        personId: personId,
+                        avatarPath: p.avatarCropPath,
+                      ),
                     ],
                   ),
                 ),
@@ -217,14 +270,12 @@ class PersonDetailScreen extends ConsumerWidget {
             'deletePerson',
           }.contains(a.id))
             a,
-        if (p.kind == 'person') ...[
-          PeopleMenuAction('marks', Icons.draw_outlined, label: l.marksTitle),
-          PeopleMenuAction(
-            'bodies',
-            Icons.accessibility_new,
-            label: l.bodiesTitle,
-          ),
-        ],
+        PeopleMenuAction('marks', Icons.draw_outlined, label: l.marksTitle),
+        PeopleMenuAction(
+          'bodies',
+          Icons.accessibility_new,
+          label: l.bodiesTitle,
+        ),
         PeopleMenuAction(
           'exportTraining',
           Icons.model_training,
@@ -680,4 +731,358 @@ class _BodyLinkTile extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _PersonMedia extends StatefulWidget {
+  const _PersonMedia({required this.personId});
+  final int personId;
+  @override
+  State<_PersonMedia> createState() => _PersonMediaState();
+}
+
+class _PersonMediaState extends State<_PersonMedia> {
+  String? _kind;
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: DropdownButton<String>(
+            value: _kind ?? 'all',
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('All media')),
+              DropdownMenuItem(value: 'photo', child: Text('Photos')),
+              DropdownMenuItem(value: 'video', child: Text('Videos')),
+            ],
+            onChanged: (value) =>
+                setState(() => _kind = value == 'all' ? null : value),
+          ),
+        ),
+      ),
+      Expanded(
+        child: MediaGrid(
+          columns: 4,
+          filter: MediaFilter(personId: widget.personId, kind: _kind),
+          empty: EmptyState(
+            icon: Icons.photo_outlined,
+            title: AppLocalizations.of(context).noPhotosOfPerson,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _PersonModels extends ConsumerWidget {
+  const _PersonModels({required this.personId, required this.avatarPath});
+  final int personId;
+  final String? avatarPath;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final models = ref.watch(lorasProvider);
+    final datasets = ref.watch(datasetsProvider);
+    final jobs = ref.watch(jobsProvider);
+    final ownedModels = (models.value ?? const [])
+        .where((m) => m.personId == personId)
+        .toList();
+    final ownedJobs = (jobs.value ?? const [])
+        .where(
+          (j) =>
+              j.personId == personId &&
+              j.type == 'train_lora' &&
+              j.status != 'completed',
+        )
+        .toList();
+    final ownedDatasets = (datasets.value ?? const [])
+        .where((d) => d.personId == personId)
+        .toList();
+    final ownedResults = (ref.watch(resultsProvider).value ?? const [])
+        .where((r) => r.personId == personId)
+        .toList();
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text('Trained models', style: Theme.of(context).textTheme.titleMedium),
+        if (models.isLoading) const LoadingBox(),
+        if (models.hasError)
+          RetryState(onRetry: () => ref.invalidate(lorasProvider)),
+        if (models.hasValue && ownedModels.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'No trained models yet. Prepare training to create one.',
+            ),
+          ),
+        for (final model in ownedModels)
+          FutureBuilder<bool>(
+            future: ref.read(fileStoreProvider).resolve(model.path).exists(),
+            builder: (context, snapshot) {
+              final ready = snapshot.data == true;
+              return ListTile(
+                leading: PersonAvatar(
+                  cropPath: avatarPath,
+                  radius: 20,
+                  expandable: false,
+                ),
+                title: Text(model.triggerWord),
+                subtitle: Text(
+                  snapshot.connectionState == ConnectionState.done
+                      ? (ready ? 'Ready on this phone' : 'File unavailable')
+                      : 'Checking file',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('${Routes.lora}/model/${model.id}'),
+              );
+            },
+          ),
+        if (jobs.isLoading || jobs.hasError || ownedJobs.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text(
+            'Training tasks',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          if (jobs.isLoading) const LoadingBox(),
+          if (jobs.hasError)
+            RetryState(onRetry: () => ref.invalidate(jobsProvider)),
+          for (final job in ownedJobs)
+            ListTile(
+              title: Text(
+                jobStatusLabel(AppLocalizations.of(context), job.status),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('${Routes.jobs}/${job.id}'),
+            ),
+        ],
+        if (datasets.isLoading ||
+            datasets.hasError ||
+            ownedDatasets.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text('Datasets', style: Theme.of(context).textTheme.titleMedium),
+          if (datasets.isLoading) const LoadingBox(),
+          if (datasets.hasError)
+            RetryState(onRetry: () => ref.invalidate(datasetsProvider)),
+          for (final dataset in ownedDatasets)
+            ListTile(
+              title: Text(dataset.triggerWord),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('${Routes.datasets}/${dataset.id}'),
+            ),
+        ],
+        if (ownedResults.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text(
+            'Related results',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          for (final result in ownedResults)
+            ListTile(
+              leading: const Icon(Icons.photo_outlined),
+              title: Text(
+                jobTypeLabel(AppLocalizations.of(context), result.type),
+              ),
+              onTap: () => context.push('${Routes.results}/${result.id}'),
+            ),
+        ],
+        FilledButton.tonalIcon(
+          onPressed: () => context.push('${Routes.loraBuild}?person=$personId'),
+          icon: const Icon(Icons.add),
+          label: const Text('Prepare training'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SavedIdentities extends ConsumerWidget {
+  const _SavedIdentities({required this.personId});
+  final int personId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sets = ref.watch(identitySetsProvider);
+    return sets.when(
+      loading: () => const LoadingBox(),
+      error: (_, _) =>
+          RetryState(onRetry: () => ref.invalidate(identitySetsProvider)),
+      data: (items) {
+        final owned = items.where((item) => item.personId == personId).toList();
+        if (owned.isEmpty) {
+          return const Center(child: Text('No saved identities'));
+        }
+        return ListView(
+          children: [
+            for (final item in owned)
+              ListTile(
+                leading: const Icon(Icons.bookmark_outline),
+                title: Text(item.name),
+                subtitle: const Text('Saved source identity'),
+                trailing: IconButton(
+                  tooltip: 'Edit identity',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _IdentitySetEditor(item: item),
+                    ),
+                  ),
+                ),
+                onTap: () => context.push(
+                  '${Routes.reface}?person=$personId&identity=${item.id}',
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _IdentitySetEditor extends ConsumerStatefulWidget {
+  const _IdentitySetEditor({required this.item});
+  final IdentitySetRow item;
+  @override
+  ConsumerState<_IdentitySetEditor> createState() => _IdentitySetEditorState();
+}
+
+class _IdentitySetEditorState extends ConsumerState<_IdentitySetEditor> {
+  late final TextEditingController _name;
+  final _selected = <int>{};
+  List<FaceRow> _faces = const [];
+  bool _loading = true, _busy = false;
+  String? _error;
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.item.name);
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final current = await ref
+          .read(identityRepositoryProvider)
+          .faces(widget.item.id);
+      final candidates = await ref
+          .read(studioRepositoryProvider)
+          .sourceFaces(widget.item.personId);
+      if (!mounted) return;
+      setState(() {
+        _selected.addAll(current.map((f) => f.id));
+        _faces = {
+          for (final f in [...candidates, ...current])
+            if (f.modelId == widget.item.modelId) f.id: f,
+        }.values.toList();
+        _loading = false;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = error.toString();
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(identityRepositoryProvider)
+          .update(setId: widget.item.id, name: _name.text, faceIds: _selected);
+      if (mounted) Navigator.pop(context);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Saved identity'),
+      actions: [
+        IconButton(
+          tooltip: 'Delete identity',
+          onPressed: _busy
+              ? null
+              : () async {
+                  final yes = await confirm(
+                    context,
+                    title: 'Delete saved identity?',
+                    body: 'The selected faces remain in the person.',
+                    confirmLabel: 'Delete',
+                    cancelLabel: 'Cancel',
+                    destructive: true,
+                  );
+                  if (!yes || !context.mounted) return;
+                  await ref
+                      .read(identityRepositoryProvider)
+                      .delete(widget.item.id);
+                  if (context.mounted) Navigator.pop(context);
+                },
+          icon: const Icon(Icons.delete_outline),
+        ),
+      ],
+    ),
+    bottomNavigationBar: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: FilledButton(
+          onPressed: _busy || _loading ? null : _save,
+          child: const Text('Save identity'),
+        ),
+      ),
+    ),
+    body: _loading
+        ? const LoadingBox()
+        : ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              TextField(
+                controller: _name,
+                maxLength: 80,
+                decoration: const InputDecoration(labelText: 'Identity name'),
+              ),
+              if (_error != null)
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              Text('Selected faces: ${_selected.length}'),
+              for (final face in _faces)
+                CheckboxListTile(
+                  value: _selected.contains(face.id),
+                  onChanged: _busy
+                      ? null
+                      : (on) => setState(() {
+                          if (on == true) {
+                            _selected.add(face.id);
+                          } else {
+                            _selected.remove(face.id);
+                          }
+                        }),
+                  secondary: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: CropImage(path: face.cropPath),
+                  ),
+                  title: Text('Face ${face.id}'),
+                  subtitle: Text(
+                    'Quality ${(face.qualityScore * 100).round()}%',
+                  ),
+                ),
+            ],
+          ),
+  );
 }

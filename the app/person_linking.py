@@ -455,9 +455,16 @@ def face_body_score(face_box, body_box, face_kps=None, body_kpts=None, body_kpt_
     if not vis:
         return 0.6 * geo  # head keypoints not visible: weaker evidence
     pad_x, pad_y = 0.25 * fw, 0.25 * fh
-    inside = np.mean([(fx1 - pad_x) <= k[i][0] <= (fx2 + pad_x) and (fy1 - pad_y) <= k[i][1] <= (fy2 + pad_y)
-                      for i in vis])
-    kp = float(inside)
+    inside = {i: (fx1 - pad_x) <= k[i][0] <= (fx2 + pad_x)
+                 and (fy1 - pad_y) <= k[i][1] <= (fy2 + pad_y) for i in vis}
+    # Overlapping body boxes may contain a neighbour's face. Geometry alone
+    # contributes 0.4, above the association threshold (0.35), even when the
+    # body's detected head is elsewhere. Treat several confident contradictory
+    # head points as negative evidence; sparse/uncertain pose keeps its fallback.
+    reliable_head = [i for i in vis if ks[i] >= 0.5]
+    if len(reliable_head) >= 3 and not any(inside[i] for i in reliable_head):
+        return 0.0
+    kp = float(np.mean(list(inside.values())))
     if face_kps is not None and ks[0] >= KPT_VISIBLE:
         nose_d = float(np.linalg.norm(np.asarray(face_kps, dtype=np.float32)[2] - k[0])) / fw
         kp = 0.5 * kp + 0.5 * max(0.0, 1.0 - nose_d / 0.5)

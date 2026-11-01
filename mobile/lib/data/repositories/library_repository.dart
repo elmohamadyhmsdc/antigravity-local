@@ -1,3 +1,4 @@
+import 'action_frames.dart';
 import 'package:drift/drift.dart';
 
 import '../db/app_database.dart';
@@ -78,9 +79,83 @@ class LibraryRepository {
 
   final AppDatabase _db;
 
+  /// Finds any analysis already associated with a device original.
+  Future<MediaRow?> mediaByAssetId(String assetId) => (_db.select(
+    _db.media,
+  )..where((m) => m.assetId.equals(assetId))).getSingleOrNull();
+
+  /// Registers visible originals for the viewer without enrolling them in a scan.
+  /// Existing analysis, corrections, checkpoints and queue states stay untouched.
+  /// Explicit source enumeration later promotes skipped records through syncAssets.
+  Future<List<MediaRow>> ensureBrowsableAssets(List<AssetInfo> assets) async {
+    if (assets.isEmpty) return const [];
+    return _db.transaction(() async {
+      final rows = <String, MediaRow>{};
+      for (var offset = 0; offset < assets.length; offset += 400) {
+        final end = offset + 400 < assets.length ? offset + 400 : assets.length;
+        final chunk = assets.sublist(offset, end);
+        final ids = chunk.map((asset) => asset.id).toSet();
+        final known = await (_db.select(
+          _db.media,
+        )..where((m) => m.assetId.isIn(ids))).get();
+        rows.addEntries(known.map((row) => MapEntry(row.assetId, row)));
+        final added = <String>{};
+        final fresh = <MediaCompanion>[
+          for (final asset in chunk)
+            if (!rows.containsKey(asset.id) && added.add(asset.id))
+              MediaCompanion.insert(
+                assetId: asset.id,
+                kind: asset.kind,
+                durationMs: Value(asset.durationMs),
+                modifiedAt: Value(asset.modifiedAt),
+                width: Value(asset.width),
+                height: Value(asset.height),
+                takenAt: Value(asset.takenAt),
+                illustrated: Value(asset.illustrated),
+                scanStatus: const Value('skipped'),
+              ),
+        ];
+        if (fresh.isNotEmpty) {
+          await _db.batch((batch) {
+            batch.insertAll(_db.media, fresh, mode: InsertMode.insertOrIgnore);
+          });
+          final saved = await (_db.select(
+            _db.media,
+          )..where((m) => m.assetId.isIn(ids))).get();
+          rows.addEntries(saved.map((row) => MapEntry(row.assetId, row)));
+        }
+      }
+      return [for (final asset in assets) rows[asset.id]!];
+    });
+  }
+
   Future<void> skipPending() =>
       (_db.update(_db.media)..where((m) => m.scanStatus.equals('pending')))
           .write(const MediaCompanion(scanStatus: Value('skipped')));
+
+  Stream<List<MediaRow>> watchFailedMedia({int limit = 200}) =>
+      (_db.select(_db.media)
+            ..where((row) => row.scanStatus.equals('failed'))
+            ..orderBy([(row) => OrderingTerm.desc(row.id)])
+            ..limit(limit))
+          .watch();
+
+  /// Retry only changes the persisted queue. It never overrides a user's pause,
+  /// changes sources or discards an interrupted video's saved frame checkpoint.
+  Future<int> requeueFailed({Iterable<int>? mediaIds}) {
+    final ids = mediaIds?.toSet();
+    if (ids != null && ids.isEmpty) return Future.value(0);
+    final update = _db.update(_db.media)
+      ..where((row) => row.scanStatus.equals('failed'));
+    if (ids != null) update.where((row) => row.id.isIn(ids));
+    return update.write(
+      const MediaCompanion(
+        scanStatus: Value('pending'),
+        scanAttempts: Value(0),
+        scanError: Value(null),
+      ),
+    );
+  }
 
   /// Diffs MediaStore against what is known: new files are queued, edited files are queued again,
   /// unchanged scanned files are left alone. Idempotent - running it twice queues nothing new.
@@ -200,6 +275,9 @@ class LibraryRepository {
                 height: row.height ?? 0,
               );
           if (!same) {
+            await (_db.delete(
+              _db.settings,
+            )..where((s) => s.key.like('$actionFramePrefix${row.id}.%'))).go();
             await (_db.update(
               _db.media,
             )..where((m) => m.id.equals(row.id))).write(
@@ -402,6 +480,17 @@ class LibraryRepository {
           .read<int>('n');
 
   /// Deletes media rows (and, through the foreign keys, their faces and detections).
-  Future<void> deleteMedia(Iterable<int> ids) =>
-      (_db.delete(_db.media)..where((m) => m.id.isIn(ids.toList()))).go();
+  Future<void> deleteMedia(Iterable<int> ids) => _db.transaction(() async {
+    final list = ids.toSet().toList();
+    for (final id in list) {
+      await (_db.delete(
+        _db.settings,
+      )..where((s) => s.key.like('$actionFramePrefix$id.%'))).go();
+    }
+    for (var start = 0; start < list.length; start += 400) {
+      await (_db.delete(
+        _db.media,
+      )..where((m) => m.id.isIn(list.skip(start).take(400)))).go();
+    }
+  });
 }

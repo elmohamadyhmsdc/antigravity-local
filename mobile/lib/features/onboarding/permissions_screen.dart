@@ -120,7 +120,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen>
                 width: double.infinity,
                 child: FilledButton(
                   key: const Key('permissions-continue'),
-                  onPressed: () => context.go(Routes.home),
+                  onPressed: () => context.go(Routes.library),
                   child: Text(l10n.permContinue),
                 ),
               ),

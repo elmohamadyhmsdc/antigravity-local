@@ -16,7 +16,8 @@ const sameFileCosine = 0.92;
 /// Boxes overlapping this much (IoU) are the same detection when a file is scanned again.
 const sameBoxIou = 0.5;
 
-/// A faceless body whose outfit is this similar to one already kept in the file adds nothing.
+/// Outfit evidence for video track association, subject to one-to-one assignment.
+/// Never use clothing similarity alone to discard distinct people in a photo.
 const sameOutfitSimilarity = 0.9;
 
 /// At most this many faceless bodies are kept per file (`max_bodies_per_media`).

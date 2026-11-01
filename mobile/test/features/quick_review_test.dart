@@ -449,6 +449,8 @@ void main() {
         final face = await seedFace(env.db, personId: sara, seed: 1);
         await seedFace(env.db, personId: sara, seed: 2);
         await _open(tester, env, '/people/$sara');
+        await tester.tap(find.text('Identity'));
+        await _settle(tester);
         await tester.tap(find.byKey(Key('face-menu-$face')));
         await _settle(tester);
         await tester.tap(find.byKey(const Key('people-action-remove')));
@@ -474,6 +476,8 @@ void main() {
       final face = await seedFace(env.db, personId: sara, seed: 1);
       await seedFace(env.db, personId: sara, seed: 2);
       await _open(tester, env, '/people/$sara');
+      await tester.tap(find.text('Identity'));
+      await _settle(tester);
       await tester.tap(find.byKey(Key('face-menu-$face')));
       await _settle(tester);
       await tester.tap(find.byKey(const Key('people-action-remove')));
@@ -505,6 +509,8 @@ void main() {
           x: 0.5,
         );
         await _open(tester, env, '/media/$photo');
+        await tester.tap(find.text('Details'));
+        await _settle(tester);
         expect(find.byKey(Key('who-edit-$face')), findsOneWidget);
         expect(find.byKey(Key('who-edit-$stranger')), findsOneWidget);
         expect(find.text('Unknown'), findsOneWidget);

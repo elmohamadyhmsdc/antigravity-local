@@ -3,6 +3,7 @@
 
 import 'dart:typed_data';
 
+import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/api/dtos/system.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
@@ -43,7 +44,10 @@ Future<void> _addFace(TestEnv env, {int? personId, int? mediaId}) => env.db
 void main() {
   group('status chip', () {
     appTest('connected: shows the PC name, no banner', (tester, env) async {
-      await env.pump(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/home')],
+      );
       expect(_chip('RTX-PC'), findsOneWidget);
       expect(find.byKey(const Key('status-banner')), findsNothing);
     }, session: testSession);
@@ -52,7 +56,10 @@ void main() {
       env.api.capabilities_ = Capabilities.fromJson(
         fixture('Capabilities.busy_with_dashboard_job'),
       );
-      await env.pump(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/home')],
+      );
       expect(_chip('RTX-PC - busy'), findsOneWidget);
       expect(textContaining('busy with a reface_video_v3 job'), findsOneWidget);
     }, session: testSession);
@@ -62,7 +69,10 @@ void main() {
       env,
     ) async {
       env.api.capabilitiesError = ApiException.network('refused');
-      await env.pump(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/home')],
+      );
       expect(_chip('PC offline'), findsOneWidget);
       expect(textContaining('Cannot reach your PC'), findsOneWidget);
 
@@ -81,11 +91,14 @@ void main() {
           message: 'Missing or invalid device token.',
           statusCode: 401,
         );
-        await env.pump(tester);
+        await env.pump(
+          tester,
+          extra: [initialLocationProvider.overrideWithValue('/home')],
+        );
         expect(_chip('Pairing revoked'), findsOneWidget);
         await tester.tap(find.text('Pair again'));
         await tester.pumpAndSettle();
-        expect(find.text('Connect to your PC'), findsOneWidget);
+        expect(find.text('Connection help'), findsWidgets);
       },
       session: testSession,
     );
@@ -95,7 +108,10 @@ void main() {
     appTest(
       'an empty library shows zeros and the empty-state card',
       (tester, env) async {
-        await env.pump(tester);
+        await env.pump(
+          tester,
+          extra: [initialLocationProvider.overrideWithValue('/home')],
+        );
         for (final label in ['People', 'Faces', 'Photos', 'Videos']) {
           expect(
             tester.widget<Text>(find.byKey(Key('stat-$label'))).data,
@@ -111,7 +127,10 @@ void main() {
     );
 
     appTest('counts follow what is stored, live', (tester, env) async {
-      await env.pump(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/home')],
+      );
       // Written from the test's own zone (not tester.runAsync): the stream queries behind the
       // tiles share the database lock, which only advances inside this zone.
       final photo = await env.db
@@ -149,7 +168,10 @@ void main() {
       (tester, env) async {
         await env.secrets.write('token.srv_7f3a91c2', 'agm_x');
         await env.db.putSetting('strictness', 'balanced');
-        await env.pump(tester);
+        await env.pump(
+          tester,
+          extra: [initialLocationProvider.overrideWithValue('/home')],
+        );
 
         await tester.tap(find.byKey(const Key('home-menu')));
         await tester.pumpAndSettle();
@@ -172,7 +194,7 @@ void main() {
         await tester.tap(find.text('Forget'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Connect to your PC'), findsOneWidget);
+        expect(find.text('Gallery'), findsWidgets);
         expect(
           env.secrets.values.containsKey('token.srv_7f3a91c2'),
           isFalse,
@@ -192,7 +214,10 @@ void main() {
     tester,
     env,
   ) async {
-    await env.pump(tester);
+    await env.pump(
+      tester,
+      extra: [initialLocationProvider.overrideWithValue('/home')],
+    );
     await revealForTap(
       tester,
       find.byKey(const Key('try-detection')),

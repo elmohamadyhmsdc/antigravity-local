@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:antigravity_mobile/app.dart';
+import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:antigravity_mobile/features/reface/reface_media.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,7 +23,7 @@ void main() {
         extra: [initialLocationProvider.overrideWithValue('/reface')],
       );
 
-      expect(find.text('Step 1 of 4'), findsOneWidget);
+      expect(find.text('Step 1 of 3'), findsOneWidget);
       expect(
         find.byKey(const Key('reface-next')).hitTestable(),
         findsOneWidget,
@@ -45,9 +46,10 @@ void main() {
       extra: [initialLocationProvider.overrideWithValue('/reface')],
     );
     await pickRefaceTarget(tester);
+    await tester.tap(find.byKey(const Key('target-face-0')));
     await tester.tap(find.byKey(const Key('reface-next')));
     await tester.pumpAndSettle();
-    expect(find.text('Step 2 of 4'), findsOneWidget);
+    expect(find.text('Step 2 of 3'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'Back'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('target-face-0')), findsOneWidget);
@@ -59,12 +61,27 @@ void main() {
     'an unmatched library filter can be reset without leaving',
     (tester, env) async {
       final media = await seedMedia(env.db, asset: 'redesign-photo');
+      env.library.addAlbum(
+        const AlbumInfo(id: 'all', name: 'All', count: 1, isAll: true),
+        const [
+          AssetInfo(
+            id: 'redesign-photo',
+            width: 10,
+            height: 10,
+            modifiedAt: 1,
+            takenAt: 1,
+          ),
+        ],
+      );
       await env.pump(
         tester,
         extra: [initialLocationProvider.overrideWithValue('/library')],
       );
+      await tester.tap(find.byKey(const Key('library-filters-toggle')));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const Key('filter-failed')));
       await tester.tap(find.byKey(const Key('filter-failed')));
+      await tester.tap(find.text('Show media'));
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
       expect(find.byKey(Key('media-$media')), findsNothing);
@@ -72,7 +89,10 @@ void main() {
       await tester.tap(find.byKey(const Key('library-clear-filters')));
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
-      expect(find.byKey(Key('media-$media')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('asset-redesign-photo')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('library-clear-filters')), findsNothing);
     },
     session: testSession,

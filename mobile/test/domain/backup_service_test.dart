@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/repositories/app_settings.dart';
+import 'package:antigravity_mobile/data/repositories/artifact_context.dart';
 import 'package:antigravity_mobile/domain/backup/backup_service.dart';
 import 'package:archive/archive.dart';
 import 'package:drift/drift.dart' show Value;
@@ -295,6 +296,35 @@ void main() {
     await a.dispose();
     await b.dispose();
   });
+
+  test(
+    'artifact lineage survives restore but a runtime scan scope does not',
+    () async {
+      final person = await seedPerson(a.db, name: 'Omar');
+      final media = await seedMedia(a.db, asset: 'photo-original');
+      final context = ArtifactContext(
+        mediaId: media,
+        assetId: 'photo-original',
+        personId: person,
+        modelId: 'model-1',
+        datasetId: 'dataset-1',
+      );
+      await a.settings.putRaw({
+        '${artifactContextPrefix}result-1': jsonEncode(context.toJson()),
+      });
+      await a.settings.setScanScopeAlbumIds(['temporary-folder']);
+      final backup = await a.backup.export(Directory('${a.dir.path}/context'));
+      await b.backup.restore(backup);
+      final restored = await b.settings.rawBackedUp();
+      expect(
+        ArtifactContext.decode(
+          restored['${artifactContextPrefix}result-1'],
+        )!.toJson(),
+        context.toJson(),
+      );
+      expect((await b.settings.load()).scanScopeAlbumIds, isEmpty);
+    },
+  );
 
   test(
     'export -> restore on another phone gives back every row and every crop byte',

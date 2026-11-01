@@ -10,6 +10,7 @@ import '../../data/db/app_database.dart';
 import '../../data/files/file_store.dart';
 import '../../data/index/embedding_index.dart';
 import '../../data/repositories/library_repository.dart';
+import '../../data/repositories/action_frames.dart';
 import '../../data/repositories/character_repository.dart';
 import '../../data/repositories/kind_corrections.dart';
 import '../../data/repositories/face_suppression_store.dart';
@@ -333,10 +334,6 @@ class PhotoResultStore {
       };
       final existingBodies = await _bodiesOfMedia(media.id, frameNumber);
       final usedBodies = <int>{};
-      final keptOutfits = <List<double>>[
-        for (final b in existingBodies)
-          if (b.faceId == null && b.appearance != null) b.appearance!,
-      ];
       var keptFaceless = existingBodies.where((b) => b.faceId == null).length;
       final bodyTracks = video
           ? await _bodyTracks(media.id, frameNumber, timestampMs)
@@ -460,16 +457,8 @@ class PhotoResultStore {
             continue;
           }
         } else if (faceId == null) {
-          // faceless bodies: only keep ones that look different from what this photo already has
+          // Clothing is shared evidence, never a duplicate-person test.
           if (keptFaceless >= maxFacelessBodiesPerMedia) continue;
-          if (body.appearance != null &&
-              keptOutfits.any(
-                (k) =>
-                    appearanceSimilarity(body.appearance, k) >=
-                    sameOutfitSimilarity,
-              )) {
-            continue;
-          }
         }
 
         Float32List? weak;
@@ -540,7 +529,6 @@ class PhotoResultStore {
         newBodies++;
         if (faceId == null) {
           keptFaceless++;
-          if (body.appearance != null) keptOutfits.add(body.appearance!);
         }
       }
 
@@ -570,12 +558,34 @@ class PhotoResultStore {
         );
       }
 
+      final actionBodies = {
+        for (final e in bodyDbIds.entries) e.value: analysis.bodies[e.key],
+      };
       newCharacters = await CharacterRepository(_db, _files).store(
         media,
         analysis,
         frameNumber: frameNumber,
         timestampMs: timestampMs,
+        bodyEvidence: actionBodies,
       );
+      if (video && timestampMs != null) {
+        await ActionFrameStore(_db).put(
+          media,
+          frameNumber: frameNumber,
+          timeMs: timestampMs,
+          width: w,
+          height: h,
+          bodies: [
+            for (final entry in actionBodies.entries)
+              {
+                'body': entry.key,
+                'kpts': jsonDecode(_kpts(entry.value, w, h)),
+                'extent': entry.value.extent,
+              },
+          ],
+        );
+      }
+
       // Detections the user moved to a person or character join it.
       await KindOverrideStore(
         _db,

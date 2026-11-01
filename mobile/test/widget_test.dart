@@ -5,17 +5,17 @@ import 'support/fakes.dart';
 import 'support/harness.dart';
 
 void main() {
-  appTest('shell shows the five tabs and switches between them', (
+  appTest('shell shows the four tabs and switches between them', (
     tester,
     env,
   ) async {
     await env.pump(tester);
 
-    // Home is the landing tab; every destination is in the bottom bar.
-    for (final label in ['Home', 'People', 'Library', 'Studio', 'Jobs']) {
+    // Gallery is the landing tab; four destinations remain available.
+    for (final label in ['Gallery', 'People', 'Discover', 'Studio']) {
       expect(find.widgetWithText(NavigationDestination, label), findsOneWidget);
     }
-    expect(find.text('Your Gallery'), findsWidgets);
+    expect(find.text('Gallery'), findsWidgets);
 
     await tester.tap(find.widgetWithText(NavigationDestination, 'People'));
     await tester.pumpAndSettle();
@@ -25,17 +25,17 @@ void main() {
       reason: 'the real People screen, empty',
     );
 
-    await tester.tap(find.widgetWithText(NavigationDestination, 'Jobs'));
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Discover'));
     await tester.pumpAndSettle();
-    expect(find.text('No Studio jobs yet'), findsOneWidget);
+    expect(find.text('Poses'), findsOneWidget);
   }, session: testSession);
 
-  appTest('before pairing there are no tabs - only the Welcome screen', (
+  appTest('before pairing Gallery and navigation remain available', (
     tester,
     env,
   ) async {
     await env.pump(tester);
-    expect(find.byType(NavigationBar), findsNothing);
-    expect(find.text('Connect to your PC'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.text('Gallery'), findsWidgets);
   });
 }

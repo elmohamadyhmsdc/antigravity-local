@@ -9,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../onboarding/pairing_controller.dart';
 import '../shared/screen_layout.dart';
+import 'resource_panel.dart';
 
 class ConnectionScreen extends ConsumerStatefulWidget {
   const ConnectionScreen({super.key});
@@ -150,6 +151,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen>
         padding: const EdgeInsets.all(24),
         children: [
           ScreenIntro(title: l.connectionHeadline, body: l.connectionIntro),
+          const ResourcePanel(),
           if (saved != null)
             Text(
               '${saved.name} · ${saved.host}:${saved.port}',
@@ -192,6 +194,12 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen>
               subtitle: Text(endpoint.label),
               trailing: const Icon(Icons.chevron_right),
               onTap: _busy ? null : () => _run(() => _connect(endpoint)),
+            ),
+          if (saved == null)
+            OutlinedButton.icon(
+              onPressed: () => context.push(Routes.scan),
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Scan pairing QR code'),
             ),
           SectionHeading(title: l.manualConnect),
           TextField(

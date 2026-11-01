@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
 import 'package:antigravity_mobile/data/api/dtos/embedding.dart';
@@ -9,6 +10,8 @@ import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/index/embedding_index.dart';
 import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:antigravity_mobile/data/repositories/app_settings.dart';
+import 'package:antigravity_mobile/data/repositories/action_frames.dart';
+import 'package:antigravity_mobile/data/repositories/video_actions_repository.dart';
 import 'package:antigravity_mobile/data/repositories/library_repository.dart';
 import 'package:antigravity_mobile/data/repositories/people_repository.dart';
 import 'package:antigravity_mobile/domain/backup/backup_service.dart';
@@ -78,6 +81,94 @@ void main() {
         .insert(MediaCompanion.insert(assetId: asset, kind: 'photo'));
     return (db.select(db.media)..where((m) => m.id.equals(id))).getSingle();
   }
+
+  test(
+    'character videos share stable body tracks and real action frame evidence',
+    () async {
+      final id = await db
+          .into(db.media)
+          .insert(MediaCompanion.insert(assetId: 'anime-video', kind: 'video'));
+      final m = await (db.select(
+        db.media,
+      )..where((m) => m.id.equals(id))).getSingle();
+      for (var i = 0; i < 3; i++) {
+        final json = fixtureNamed('character_face_body');
+        final body =
+            ((json['characters'] as List).single as Map)['body'] as Map;
+        body['appearance'] = List.filled(80, 1 / math.sqrt(40));
+        body['kpts'] = [
+          for (var k = 0; k < 17; k++)
+            [100.0 + k * 3, 50.0 + k * 5 + (k == 9 ? i * 20 : 0), .9],
+        ];
+        await store.store(
+          m,
+          AnalyzeImageResponse.fromJson(json),
+          frameNumber: i,
+          timestampMs: i * 1000,
+          complete: i == 2,
+        );
+      }
+      final bodies = await (db.select(
+        db.bodies,
+      )..where((b) => b.mediaId.equals(id))).get();
+      expect(bodies, hasLength(1));
+      expect(bodies.single.kind, 'character');
+      expect(bodies.single.trackId, bodies.single.id);
+      final frames = await ActionFrameStore(db).load(m);
+      expect(frames.map((f) => f['time']), [0, 1000, 2000]);
+      expect(
+        frames.every(
+          (f) => (f['bodies'] as List).single['body'] == bodies.single.id,
+        ),
+        isTrue,
+      );
+      expect(
+        frames.first['bodies'][0]['kpts'][9][1],
+        isNot(frames.last['bodies'][0]['kpts'][9][1]),
+      );
+      final actions = VideoActionsRepository(db);
+      final action = await actions.saveAction('Wave');
+      await actions.addExample(
+        actionId: action,
+        mediaId: id,
+        startMs: 0,
+        endMs: 2000,
+      );
+      expect((await actions.action(action))!.examples.single.frameCount, 3);
+      final face = (await db.select(db.faces).get()).single;
+      final characters = PeopleRepository(db, files, kind: 'character');
+      final identity = await characters.createPerson(
+        name: 'Hero',
+        faceIds: [face.id],
+      );
+      final person = await db
+          .into(db.persons)
+          .insert(
+            PersonsCompanion.insert(createdAt: 1, name: const Value('Alex')),
+          );
+      expect((await characters.identities()).map((p) => p.id).toSet(), {
+        identity,
+        person,
+      });
+      expect((await actions.participants(id, 0, 2000)).single.id, identity);
+    },
+  );
+
+  test('explicit rescan upgrades older character body rows to the shared track', () async {
+    final id=await db.into(db.media).insert(MediaCompanion.insert(assetId:'old-anime',kind:'video'));
+    final m=await (db.select(db.media)..where((m)=>m.id.equals(id))).getSingle();
+    for(var i=0;i<3;i++) {
+      await store.store(m,faceAndBody(),frameNumber:i,timestampMs:i*1000);
+      await (db.update(db.bodies)..where((b)=>b.mediaId.equals(id))).write(const BodiesCompanion(trackId:Value(null)));
+    }
+    expect(await (db.select(db.bodies)..where((b)=>b.mediaId.equals(id))).get(),hasLength(3));
+    for(var i=0;i<3;i++) {
+      await store.store(m,faceAndBody(),frameNumber:i,timestampMs:i*1000);
+    }
+    final bodies=await (db.select(db.bodies)..where((b)=>b.mediaId.equals(id))).get();
+    expect(bodies.map((b)=>b.trackId).toSet(),{bodies.first.id});
+    expect(await ActionFrameStore(db).load(m),hasLength(3));
+  });
 
   test(
     'Python character fixture decodes without a face and scores identically',

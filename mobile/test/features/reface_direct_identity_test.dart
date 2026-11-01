@@ -369,7 +369,6 @@ void main() {
       );
       await tapVisible(tester, const Key('imported-source-face-0'));
       await next(tester);
-      await next(tester);
       await tester.ensureVisible(find.byKey(const Key('reface-next')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('reface-next')));

@@ -1,5 +1,31 @@
 # Antigravity handoff — 2026-10-19
 
+## Gallery-first mobile redesign: approved concept and design review — 2026-11-01
+
+- User requested a complete mobile navigation/screen redesign while preserving
+  every current feature, with the gallery as the entry point. They selected
+  **Gallery / People / Discover / Studio**, with **Photos / Folders inside Gallery**,
+  confirmed mobile-first scope, and approved continuing from concept into drawing.
+- Start design work at `docs/design/gallery-first/README.md`; original concept is
+  `docs/gallery-first-mobile-concept-2026-11-01.md`. The review package contains
+  68 defined design surfaces, editable SVG/raster wireframes, 16 selected visual
+  screen concepts, a component/interaction system, flows/states, and a feature
+  coverage review. These are proposed interfaces, not implemented app behavior.
+- Key decisions: local gallery browsing before pairing/analysis; photo swipe-up
+  details for people and their models; person opens original media; distinguish
+  source identity vs target face in Reface, trained LoRA vs saved identity sets,
+  and shared engine readiness. New model/source provenance and folder browsing
+  require deliberate implementation work. Do not infer existing support from a
+  drawing or invent old-result links during migration.
+- Important existing-code risks recorded in the design docs: person merges do not
+  currently preserve every LoRA/dataset/job/result relationship and may delete
+  marks; result removal can remove a related model/dataset artifact. Resolve those
+  contracts before implementing the proposed UI; do not silently change data.
+- Design-only work: no Flutter/backend/schema changes, app build/test run, server
+  restart, GPU/device action, package install, or deployment. Source/UI capability
+  audit, design asset inspection, and document/reference validation are separate
+  from application acceptance. All generated photos/names/counts are synthetic.
+
 Read before continuing work. This is the current handoff for the local checkout,
 including uncommitted changes. Older plans/reports describe earlier states.
 The user's latest instructions take precedence. Check relevant source before

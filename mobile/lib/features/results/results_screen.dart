@@ -9,6 +9,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/router.dart';
 import '../../data/db/app_database.dart';
+import '../../data/repositories/artifact_context.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../studio_providers.dart';
@@ -190,21 +191,16 @@ class _ResultDetailScreenState extends ConsumerState<ResultDetailScreen> {
                 final saved = await ref
                     .read(privacyServiceProvider)
                     .exportMedia(files.resolve(result.path), result.mime);
-                if (!saved) {
-                  await SharePlus.instance.share(
-                    ShareParams(
-                      files: [
-                        XFile(
-                          files.resolve(result.path).path,
-                          mimeType: result.mime,
-                        ),
-                      ],
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        saved
+                            ? l10n.savedToGallery
+                            : 'Could not save to gallery',
+                      ),
                     ),
                   );
-                } else if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(l10n.savedToGallery)));
                 }
               } catch (e) {
                 if (context.mounted) {
@@ -272,21 +268,54 @@ class _ResultDetailScreenState extends ConsumerState<ResultDetailScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              ScreenIntro(title: jobTypeLabel(l10n, result.type)),
+              Text(
+                jobTypeLabel(l10n, result.type),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
               if (result.mime == 'video/mp4') ...[
-                SegmentedButton<bool>(
-                  segments: [
-                    ButtonSegment(value: true, label: Text(l10n.resultBefore)),
-                    ButtonSegment(value: false, label: Text(l10n.resultAfter)),
-                  ],
-                  selected: {_before},
-                  onSelectionChanged: (v) => setState(() => _before = v.single),
-                ),
-                PrivateVideo(
-                  key: ValueKey(_before ? result.originalPath : result.path),
-                  file: files.resolve(
-                    _before ? result.originalPath : result.path,
-                  ),
+                FutureBuilder<bool>(
+                  future: files.resolve(result.originalPath).exists(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const LoadingBox();
+                    final available =
+                        snapshot.data == true &&
+                        result.originalPath != result.path;
+                    return Column(
+                      children: [
+                        if (available)
+                          SegmentedButton<bool>(
+                            segments: [
+                              ButtonSegment(
+                                value: true,
+                                label: Text(l10n.resultBefore),
+                              ),
+                              ButtonSegment(
+                                value: false,
+                                label: Text(l10n.resultAfter),
+                              ),
+                            ],
+                            selected: {_before},
+                            onSelectionChanged: (v) =>
+                                setState(() => _before = v.single),
+                          )
+                        else if (result.originalPath != result.path)
+                          const Text('Saved source copy unavailable'),
+                        PrivateVideo(
+                          key: ValueKey(
+                            available && _before
+                                ? result.originalPath
+                                : result.path,
+                          ),
+                          file: files.resolve(
+                            available && _before
+                                ? result.originalPath
+                                : result.path,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ] else if (!result.mime.startsWith('image/')) ...[
                 const Icon(Icons.inventory_2_outlined, size: 64),
@@ -299,7 +328,8 @@ class _ResultDetailScreenState extends ConsumerState<ResultDetailScreen> {
                   ),
                 if (result.type == 'train_lora')
                   FilledButton(
-                    onPressed: () => context.push(Routes.lora),
+                    onPressed: () =>
+                        context.push('${Routes.lora}/model/${result.id}'),
                     child: Text(l10n.openLora),
                   ),
               ] else if (result.path == result.originalPath) ...[
@@ -309,70 +339,165 @@ class _ResultDetailScreenState extends ConsumerState<ResultDetailScreen> {
                   fit: BoxFit.contain,
                 ),
               ] else ...[
-                SizedBox(
-                  height: 400,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.file(
-                        files.resolve(result.path),
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) =>
-                            const Icon(Icons.broken_image_outlined),
-                      ),
-                      ClipRect(
-                        clipper: _ComparisonClip(_comparison),
-                        child: Image.file(
-                          files.resolve(result.originalPath),
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                FutureBuilder<bool>(
+                  future: files.resolve(result.originalPath).exists(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const LoadingBox();
+                    if (snapshot.data != true) {
+                      return Column(
+                        children: [
+                          PreviewImage.file(
+                            files.resolve(result.path),
+                            height: 400,
+                            fit: BoxFit.contain,
+                          ),
+                          const Text('Saved source copy unavailable'),
+                        ],
+                      );
+                    }
+                    return Column(
+                      children: [
+                        SizedBox(
+                          height: 400,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.file(
+                                files.resolve(result.path),
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) =>
+                                    const Icon(Icons.broken_image_outlined),
+                              ),
+                              ClipRect(
+                                clipper: _ComparisonClip(_comparison),
+                                child: Image.file(
+                                  files.resolve(result.originalPath),
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, _, _) =>
+                                      const SizedBox.shrink(),
+                                ),
+                              ),
+                              Align(
+                                alignment: Alignment.topLeft,
+                                child: Chip(label: Text(l10n.resultBefore)),
+                              ),
+                              Align(
+                                alignment: Alignment.topRight,
+                                child: Chip(label: Text(l10n.resultAfter)),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Align(
-                        alignment: Alignment.topLeft,
-                        child: Chip(label: Text(l10n.resultBefore)),
-                      ),
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: Chip(label: Text(l10n.resultAfter)),
-                      ),
-                    ],
-                  ),
-                ),
-                Slider(
-                  key: const Key('result-comparison'),
-                  semanticFormatterCallback: (value) =>
-                      '${(value * 100).round()}%',
-                  label: l10n.resultCompare,
-                  value: _comparison,
-                  onChanged: (v) => setState(() => _comparison = v),
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    TextButton.icon(
-                      key: const Key('result-expand-before'),
-                      onPressed: () => openImagePreview(
-                        context,
-                        ImagePreviewSource.file(
-                          files.resolve(result.originalPath),
+                        Slider(
+                          key: const Key('result-comparison'),
+                          semanticFormatterCallback: (value) =>
+                              '${(value * 100).round()}%',
+                          label: l10n.resultCompare,
+                          value: _comparison,
+                          onChanged: (v) => setState(() => _comparison = v),
                         ),
-                      ),
-                      icon: const Icon(Icons.open_in_full),
-                      label: Text(l10n.resultBefore),
-                    ),
-                    TextButton.icon(
-                      key: const Key('result-expand-after'),
-                      onPressed: () => openImagePreview(
-                        context,
-                        ImagePreviewSource.file(files.resolve(result.path)),
-                      ),
-                      icon: const Icon(Icons.open_in_full),
-                      label: Text(l10n.resultAfter),
-                    ),
-                  ],
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            TextButton.icon(
+                              key: const Key('result-expand-before'),
+                              onPressed: () => openImagePreview(
+                                context,
+                                ImagePreviewSource.file(
+                                  files.resolve(result.originalPath),
+                                ),
+                              ),
+                              icon: const Icon(Icons.open_in_full),
+                              label: Text(l10n.resultBefore),
+                            ),
+                            TextButton.icon(
+                              key: const Key('result-expand-after'),
+                              onPressed: () => openImagePreview(
+                                context,
+                                ImagePreviewSource.file(
+                                  files.resolve(result.path),
+                                ),
+                              ),
+                              icon: const Icon(Icons.open_in_full),
+                              label: Text(l10n.resultAfter),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
+              if ((ref.watch(jobsProvider).value ?? const []).any(
+                (job) => job.id == result.id,
+              ))
+                ListTile(
+                  leading: const Icon(Icons.pending_actions_outlined),
+                  title: const Text('Related job'),
+                  onTap: () => context.push('${Routes.jobs}/${result.id}'),
+                ),
+              StreamBuilder<ArtifactContext?>(
+                stream: ref
+                    .read(studioRepositoryProvider)
+                    .watchContext(result.id),
+                builder: (context, snapshot) {
+                  final relation = snapshot.data;
+                  if (relation == null) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (relation.mediaId != null)
+                        ListTile(
+                          leading: const Icon(Icons.photo_outlined),
+                          title: const Text('Source media'),
+                          onTap: () => context.push(
+                            '${Routes.media}/${relation.mediaId}',
+                          ),
+                        ),
+                      if (relation.referenceMediaId != null)
+                        ListTile(
+                          leading: const Icon(Icons.image_outlined),
+                          title: const Text('Reference photo'),
+                          onTap: () => context.push(
+                            '${Routes.media}/${relation.referenceMediaId}',
+                          ),
+                        ),
+                      if (relation.personId != null)
+                        ListTile(
+                          leading: const Icon(Icons.person_outline),
+                          title: const Text('Source identity'),
+                          onTap: () => context.push(
+                            '${Routes.people}/${relation.personId}',
+                          ),
+                        ),
+                      if (relation.targetPersonId != null)
+                        ListTile(
+                          leading: const Icon(Icons.person_pin_outlined),
+                          title: const Text('Target person'),
+                          onTap: () => context.push(
+                            '${Routes.people}/${relation.targetPersonId}',
+                          ),
+                        ),
+                      if (relation.modelId != null)
+                        ListTile(
+                          leading: const Icon(Icons.model_training_outlined),
+                          title: const Text('Model'),
+                          onTap: () => context.push(
+                            '${Routes.lora}/model/${relation.modelId}',
+                          ),
+                        ),
+                      if (relation.datasetId != null)
+                        ListTile(
+                          leading: const Icon(Icons.folder_outlined),
+                          title: const Text('Dataset'),
+                          onTap: () => context.push(
+                            '${Routes.datasets}/${relation.datasetId}',
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
               const SizedBox(height: 16),
               Text(l10n.privateResultsHint),
               const SizedBox(height: 16),
@@ -388,10 +513,15 @@ class _ResultDetailScreenState extends ConsumerState<ResultDetailScreen> {
                   ),
                   TextButton.icon(
                     onPressed: () async {
+                      final items = await ref
+                          .read(studioRepositoryProvider)
+                          .deletionItems(result);
+                      if (!context.mounted) return;
                       if (!await confirm(
                         context,
                         title: l10n.resultDelete,
-                        body: l10n.resultDeleteBody,
+                        body:
+                            '${l10n.resultDeleteBody}\n\n${items.map((item) => '• $item').join('\n')}',
                         confirmLabel: l10n.resultDelete,
                         cancelLabel: l10n.cancel,
                         destructive: true,

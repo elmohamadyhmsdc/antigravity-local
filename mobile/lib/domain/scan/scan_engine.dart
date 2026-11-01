@@ -115,6 +115,7 @@ class ScanEngine {
   ScanProgress get progress => _progress;
   Stream<ScanProgress> get stream => _controller.stream;
   bool get isRunning => _active;
+
   /// Original-file organization holds this while MediaStore paths are changing.
   bool mediaOrganizationActive = false;
 
@@ -170,14 +171,14 @@ class ScanEngine {
 
   /// Runs until the queue is empty or the scan is paused. `enumerate` = list the chosen albums first
   /// (a new scan); false = just work through what is already queued (resume).
-  Future<void> start({bool enumerate = true}) async {
+  Future<void> start({bool enumerate = true, Set<String>? albumIds}) async {
     if (_active || mediaOrganizationActive) return;
     _allowReconnectResume = true;
     _active = true;
     final settled = _settled = Completer<void>();
     _pauseRequested = false;
     try {
-      await _run(enumerate);
+      await _run(enumerate, albumIds: albumIds);
     } catch (e) {
       await _pause(PauseReason.error, '$e');
     } finally {
@@ -210,20 +211,22 @@ class ScanEngine {
     );
   }
 
-  Future<void> _run(bool enumerate) async {
+  Future<void> _run(bool enumerate, {Set<String>? albumIds}) async {
     final api = _api();
     if (api == null) {
       await _pause(PauseReason.notPaired);
       return;
     }
     final prefs = await _settings.load();
+    final selectedAlbums = albumIds ?? prefs.albumIds.toSet();
+    if (enumerate) await _settings.setScanScopeAlbumIds(selectedAlbums);
     _emit(const ScanProgress(phase: ScanPhase.preparing));
     final caps = await api.capabilities();
     _canDetectCharacters = caps.engines.characterDetection;
     _canDetectSensitive = caps.engines.sensitiveDetection;
     _canEmbedBodies = caps.engines.bodyEmbeddings;
     final characterAlbums = prefs.characterAlbumIds.toSet().intersection(
-      prefs.albumIds.toSet(),
+      selectedAlbums,
     );
     if (characterAlbums.isNotEmpty && !_canDetectCharacters) {
       await _pause(
@@ -240,7 +243,7 @@ class ScanEngine {
     await _keepAlive.start(title: _title, text: _describe(_progress));
     _keepAliveOn = true;
     if (enumerate) {
-      if (prefs.albumIds.isEmpty) {
+      if (selectedAlbums.isEmpty) {
         await _pause(PauseReason.noAlbums);
         return;
       }
@@ -255,7 +258,7 @@ class ScanEngine {
         }
       }
       var found = const SyncResult();
-      await for (final page in _media.photos(prefs.albumIds.toSet())) {
+      await for (final page in _media.photos(selectedAlbums)) {
         found += await _repo.syncAssets([
           for (final asset in page)
             if (asset.kind != 'video' || prefs.scanVideos)

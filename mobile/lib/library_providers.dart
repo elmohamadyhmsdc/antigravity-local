@@ -20,6 +20,8 @@ import 'data/platform/video_frames.dart';
 import 'data/repositories/app_settings.dart';
 import 'data/repositories/library_repository.dart';
 import 'data/repositories/media_queries.dart';
+import 'data/repositories/media_action_source.dart';
+import 'data/repositories/video_actions_repository.dart';
 import 'data/repositories/people_repository.dart';
 import 'data/repositories/identity_groups.dart';
 import 'data/platform/media_organizer.dart';
@@ -108,6 +110,17 @@ final mediaLibraryProvider = Provider<MediaLibrary>(
   (ref) => PhotoManagerLibrary(),
 );
 
+final mediaLocationProvider = FutureProvider.autoDispose
+    .family<MediaLocation?, String>((ref, assetId) async {
+      final library = ref.watch(mediaLibraryProvider);
+      if (library is! MediaLocationLibrary) return null;
+      try {
+        return await (library as MediaLocationLibrary).location(assetId);
+      } on Object {
+        return null; // The viewer remains usable after access was revoked.
+      }
+    });
+
 final thumbnailServiceProvider = Provider<ThumbnailService>(
   (ref) => ThumbnailService(ref.watch(mediaLibraryProvider)),
 );
@@ -134,12 +147,24 @@ final embeddingIndexProvider = Provider<EmbeddingIndex>((ref) {
 
 // ---- repositories ------------------------------------------------------------------------
 
+final videoActionsRepositoryProvider = Provider<VideoActionsRepository>(
+  (ref) => VideoActionsRepository(ref.watch(databaseProvider)),
+);
+
 final libraryRepositoryProvider = Provider<LibraryRepository>(
   (ref) => LibraryRepository(ref.watch(databaseProvider)),
 );
 
 final mediaQueriesProvider = Provider<MediaQueries>(
   (ref) => MediaQueries(ref.watch(databaseProvider)),
+);
+
+final mediaActionSourceProvider = Provider<MediaActionSource>(
+  (ref) => MediaActionSource(
+    repository: ref.watch(libraryRepositoryProvider),
+    queries: ref.watch(mediaQueriesProvider),
+    library: ref.watch(mediaLibraryProvider),
+  ),
 );
 
 /// "This is a person / a character" corrections (files, faces, bodies, whole people).

@@ -147,6 +147,8 @@ void main() {
         tester,
         extra: [initialLocationProvider.overrideWithValue('/people/$person')],
       );
+      await tester.tap(find.text('Identity'));
+      await tester.pumpAndSettle();
       await tester.longPress(find.byKey(Key('face-$id')));
       await tester.pumpAndSettle();
       await action(tester, 'hide');

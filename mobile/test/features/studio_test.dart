@@ -70,9 +70,6 @@ void main() {
     await pickRefaceTarget(tester);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('target-face-0')), findsOneWidget);
-    for (final i in [0, 1]) {
-      await tester.tap(find.byKey(Key('target-face-$i')));
-    }
     await next(tester);
     expect(find.text('Select at least one target face.'), findsOneWidget);
     expect(await env.db.select(env.db.jobs).get(), isEmpty);
@@ -86,11 +83,15 @@ void main() {
       env.picker.photo = tinyPng;
       await open(tester, env, '/reface?person=$person');
       await pickRefaceTarget(tester);
+      await tester.tap(find.byKey(const Key('target-face-0')));
       await tester.pumpAndSettle();
       await next(tester);
       expect(find.text('Sara'), findsOneWidget);
       expect(find.byType(Checkbox), findsWidgets);
       await next(tester);
+      await tester.ensureVisible(find.text('Advanced options'));
+      await tester.tap(find.text('Advanced options'));
+      await tester.pumpAndSettle();
       expect(find.text('Face restoration'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
@@ -152,7 +153,20 @@ void main() {
               createdAt: 1,
             ),
           );
-      await open(tester, env, '/results/x');
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/results/x')],
+        settle: false,
+      );
+      for (var i = 0; i < 20; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        if (find.byKey(const Key('result-comparison')).evaluate().isNotEmpty) {
+          break;
+        }
+      }
       expect(find.byKey(const Key('result-comparison')), findsOneWidget);
       await revealForTap(tester, find.widgetWithText(FilterChip, 'Favourite'));
       await tester.tap(find.widgetWithText(FilterChip, 'Favourite'));
@@ -173,12 +187,16 @@ void main() {
       env.picker.photo = tinyPng;
       await open(tester, env, '/reface?person=$person');
       await pickRefaceTarget(tester);
+      await tester.tap(find.byKey(const Key('target-face-0')));
       await tester.pumpAndSettle();
       await next(tester);
       await next(tester);
       expect(find.text('V2'), findsNothing);
       expect(find.text('V3 · HD'), findsNothing);
       expect(find.text('Engine'), findsNothing);
+      await tester.ensureVisible(find.text('Advanced options'));
+      await tester.tap(find.text('Advanced options'));
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('reface-identity-boost')), findsOneWidget);
       final profile = find.byKey(const Key('reface-quality-profile'));
       await tester.ensureVisible(profile);
@@ -253,8 +271,8 @@ void main() {
     env.picker.photo = tinyPng;
     await open(tester, env, '/reface?person=$person');
     await pickRefaceTarget(tester);
+    await tester.tap(find.byKey(const Key('target-face-0')));
     await tester.pumpAndSettle();
-    await next(tester);
     await next(tester);
     await next(tester);
     expect(find.byKey(const Key('reface-preview')), findsOneWidget);

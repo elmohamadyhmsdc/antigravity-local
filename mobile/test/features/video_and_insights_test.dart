@@ -1,5 +1,6 @@
 import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/api_exception.dart';
+import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -33,16 +34,40 @@ void main() {
     (tester, env) async {
       final photo = await seedMedia(env.db, asset: 'photo');
       final video = await seedMedia(env.db, asset: 'video', kind: 'video');
+      env.library.addAlbum(
+        const AlbumInfo(id: 'all', name: 'All', count: 2, isAll: true),
+        const [
+          AssetInfo(
+            id: 'photo',
+            width: 10,
+            height: 10,
+            modifiedAt: 1,
+            takenAt: 1,
+          ),
+          AssetInfo(
+            id: 'video',
+            width: 10,
+            height: 10,
+            modifiedAt: 1,
+            takenAt: 1,
+            kind: 'video',
+            durationMs: 2000,
+          ),
+        ],
+      );
       await env.pump(
         tester,
         extra: [initialLocationProvider.overrideWithValue('/library')],
       );
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
-      expect(find.byKey(Key('media-$photo')), findsOneWidget);
-      expect(find.byKey(Key('media-$video')), findsOneWidget);
+      expect(find.byKey(const ValueKey('asset-photo')), findsOneWidget);
+      expect(find.byKey(const ValueKey('asset-video')), findsOneWidget);
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      await tester.tap(find.byKey(const Key('library-filters-toggle')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Videos'));
+      await tester.tap(find.text('Show media'));
       await tester.pumpAndSettle();
       expect(find.byKey(Key('media-$photo')), findsNothing);
       expect(find.byKey(Key('media-$video')), findsOneWidget);

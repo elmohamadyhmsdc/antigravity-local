@@ -5,6 +5,7 @@ import '../features/analyze/analyze_screen.dart';
 import '../data/repositories/media_queries.dart';
 import '../features/backup/backup_screen.dart';
 import '../features/bodies/bodies_screen.dart';
+import '../features/bodies/discover_screen.dart';
 import '../features/marks/person_marks_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/insights/insights_screen.dart';
@@ -20,6 +21,7 @@ import '../features/onboarding/qr_scan_screen.dart';
 import '../features/onboarding/welcome_screen.dart';
 import '../features/review/quick_review_screen.dart';
 import '../features/scan/sources_screen.dart';
+import '../features/scan/scan_progress_card.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/background_screen.dart';
 import '../features/settings/connection_screen.dart';
@@ -38,6 +40,7 @@ abstract final class Routes {
   static const people = '/people';
   static const characters = '/characters';
   static const marks = '/marks'; // ?personId= one person's tattoo marks
+  static const discover = '/discover';
   static const bodies =
       '/bodies'; // pose / outfit browser, ?personId= scopes it
   static const library = '/library';
@@ -60,6 +63,7 @@ abstract final class Routes {
   static const unsorted = '/people/unsorted';
   static const review = '/review'; // S10
   static const merge = '/merge'; // S11, /merge/:a/:b
+  static const runningScan = '/running-scan';
   static const sources = '/sources'; // S05
   static const backup = '/backup'; // S26
   static const welcome = '/welcome'; // S01
@@ -95,14 +99,12 @@ GoRouter createRouter({
   String? initialLocation,
 }) {
   return GoRouter(
-    initialLocation:
-        initialLocation ?? (isPaired() ? Routes.home : Routes.welcome),
+    initialLocation: initialLocation ?? Routes.library,
     refreshListenable: refresh,
     redirect: (context, state) {
       if (state.uri.scheme == 'agmobile') return welcomeForLink(state.uri);
       final location = state.uri.path;
       final paired = isPaired();
-      if (!paired && !Routes.isOnboarding(location)) return Routes.welcome;
       // Just paired (or a stale back-stack entry): leave the pairing screens, S02 shows the permissions.
       if (paired &&
           (location == Routes.welcome || location.startsWith('/pair/'))) {
@@ -135,6 +137,7 @@ GoRouter createRouter({
           initialSimilarColours: int.tryParse(
             state.uri.queryParameters['colours'] ?? '',
           ),
+          initialTab: int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0,
         ),
       ),
       GoRoute(
@@ -151,15 +154,28 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.restyle,
-        builder: (context, state) => const RestyleScreen(),
+        builder: (context, state) => RestyleScreen(
+          targetMediaId: int.tryParse(state.uri.queryParameters['media'] ?? ''),
+          targetDetectionId: int.tryParse(
+            state.uri.queryParameters['target'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: Routes.lora,
         builder: (context, state) => const LoraScreen(),
       ),
       GoRoute(
+        path: '${Routes.lora}/model/:id',
+        builder: (context, state) =>
+            ModelDetailScreen(id: state.pathParameters['id']!),
+      ),
+      GoRoute(
         path: Routes.loraBuild,
-        builder: (context, state) => const DatasetBuildScreen(),
+        builder: (context, state) => DatasetBuildScreen(
+          personId: int.tryParse(state.uri.queryParameters['person'] ?? ''),
+          mediaId: int.tryParse(state.uri.queryParameters['media'] ?? ''),
+        ),
       ),
       GoRoute(
         path: Routes.loraTrain,
@@ -168,8 +184,12 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.loraGenerate,
-        builder: (context, state) =>
-            LoraGenerateScreen(loraId: state.uri.queryParameters['id']),
+        builder: (context, state) => LoraGenerateScreen(
+          loraId: state.uri.queryParameters['id'],
+          referenceMediaId: int.tryParse(
+            state.uri.queryParameters['media'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: '${Routes.datasets}/:id',
@@ -181,6 +201,13 @@ GoRouter createRouter({
         builder: (context, state) => RefaceScreen(
           personId: int.tryParse(state.uri.queryParameters['person'] ?? ''),
           faceId: int.tryParse(state.uri.queryParameters['face'] ?? ''),
+          identitySetId: int.tryParse(
+            state.uri.queryParameters['identity'] ?? '',
+          ),
+          targetMediaId: int.tryParse(state.uri.queryParameters['media'] ?? ''),
+          targetDetectionId: int.tryParse(
+            state.uri.queryParameters['target'] ?? '',
+          ),
         ),
       ),
       GoRoute(
@@ -277,6 +304,9 @@ GoRouter createRouter({
               state.uri.queryParameters['at'] ?? '',
             ),
             filter: filter,
+            collection: state.extra is MediaCollectionContext
+                ? state.extra as MediaCollectionContext
+                : null,
           );
         },
       ),
@@ -297,6 +327,10 @@ GoRouter createRouter({
         ),
       ),
       GoRoute(
+        path: Routes.runningScan,
+        builder: (context, state) => const RunningScanScreen(),
+      ),
+      GoRoute(
         path: Routes.sources,
         builder: (context, state) => const SourcesScreen(),
       ),
@@ -304,14 +338,22 @@ GoRouter createRouter({
         path: Routes.backup,
         builder: (context, state) => const BackupScreen(),
       ),
+      GoRoute(
+        path: Routes.home,
+        builder: (context, state) => const HomeScreen(),
+      ),
+      GoRoute(
+        path: Routes.jobs,
+        builder: (context, state) => const JobsScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(navigationShell: shell),
         branches: [
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: Routes.home,
-                builder: (context, state) => const HomeScreen(),
+                path: Routes.library,
+                builder: (context, state) => const LibraryScreen(),
               ),
             ],
           ),
@@ -326,8 +368,8 @@ GoRouter createRouter({
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: Routes.library,
-                builder: (context, state) => const LibraryScreen(),
+                path: Routes.discover,
+                builder: (context, state) => const DiscoverScreen(),
               ),
             ],
           ),
@@ -336,14 +378,6 @@ GoRouter createRouter({
               GoRoute(
                 path: Routes.studio,
                 builder: (context, state) => const StudioScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: Routes.jobs,
-                builder: (context, state) => const JobsScreen(),
               ),
             ],
           ),

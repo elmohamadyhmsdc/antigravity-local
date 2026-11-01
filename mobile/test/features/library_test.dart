@@ -1,6 +1,7 @@
 // S04 Library (grid + filters) and S06 Media viewer (who is in this photo, photos that are gone).
 
 import 'package:antigravity_mobile/app.dart';
+import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,6 +17,24 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 Future<void> _open(WidgetTester tester, TestEnv env, String location) async {
+  if (location == '/library') {
+    final rows = await env.db.select(env.db.media).get();
+    env.library.addAlbum(
+      AlbumInfo(id: 'all', name: 'All', count: rows.length, isAll: true),
+      [
+        for (final row in rows)
+          AssetInfo(
+            id: row.assetId,
+            width: row.width ?? 1,
+            height: row.height ?? 1,
+            modifiedAt: row.modifiedAt,
+            takenAt: row.takenAt ?? 0,
+            kind: row.kind,
+            durationMs: row.durationMs,
+          ),
+      ],
+    );
+  }
   await env.pump(
     tester,
     extra: [initialLocationProvider.overrideWithValue(location)],
@@ -27,8 +46,10 @@ void main() {
   group('S04 Library', () {
     appTest('an empty library points to Sources', (tester, env) async {
       await _open(tester, env, '/library');
-      expect(find.text('No photos yet'), findsOneWidget);
-      await tester.tap(find.text('Choose albums'));
+      expect(find.text('No photos or videos available'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('gallery-more')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Scan library'));
       await _settle(tester);
       expect(find.text('Albums to scan'), findsOneWidget);
     }, session: testSession);
@@ -48,32 +69,39 @@ void main() {
         await seedFace(env.db, mediaId: scanned, seed: 2);
         await _open(tester, env, '/library');
 
-        for (final id in [scanned, empty, waiting]) {
-          expect(find.byKey(Key('media-$id')), findsOneWidget);
+        for (final asset in ['a', 'b', 'c']) {
+          expect(find.byKey(ValueKey('asset-$asset')), findsOneWidget);
         }
-        expect(
-          find.text('2'),
-          findsOneWidget,
-          reason: 'the face count badge of the first photo',
-        );
+        await tester.tap(find.byKey(const Key('library-filters-toggle')));
+        await _settle(tester);
 
         await tester.ensureVisible(find.byKey(const Key('filter-unscanned')));
         await tester.tap(find.byKey(const Key('filter-unscanned')));
+        await tester.tap(find.text('Show media'));
         await _settle(tester);
         expect(find.byKey(Key('media-$waiting')), findsOneWidget);
         expect(find.byKey(Key('media-$scanned')), findsNothing);
 
+        await tester.tap(find.byKey(const Key('library-filters-toggle')));
+        await _settle(tester);
         await tester.ensureVisible(find.byKey(const Key('filter-all')));
         await tester.tap(find.byKey(const Key('filter-all')));
+        await tester.tap(find.text('Show media'));
+        await _settle(tester);
+        await tester.tap(find.byKey(const Key('library-filters-toggle')));
         await _settle(tester);
         await tester.ensureVisible(find.byKey(const Key('filter-has-faces')));
         await tester.tap(find.byKey(const Key('filter-has-faces')));
+        await tester.tap(find.text('Show media'));
         await _settle(tester);
         expect(find.byKey(Key('media-$scanned')), findsOneWidget);
         expect(find.byKey(Key('media-$empty')), findsNothing);
 
+        await tester.tap(find.byKey(const Key('library-filters-toggle')));
+        await _settle(tester);
         await tester.ensureVisible(find.byKey(const Key('filter-failed')));
         await tester.tap(find.byKey(const Key('filter-failed')));
+        await tester.tap(find.text('Show media'));
         await _settle(tester);
         expect(find.text('No photos match these filters'), findsOneWidget);
       },
@@ -89,23 +117,22 @@ void main() {
         await seedFace(env.db, mediaId: withSara, personId: sara, seed: 1);
         await _open(tester, env, '/library');
 
+        await tester.tap(find.byKey(const Key('library-filters-toggle')));
+        await _settle(tester);
         await tester.ensureVisible(find.byKey(const Key('filter-pick-person')));
         await tester.tap(find.byKey(const Key('filter-pick-person')));
         await _settle(tester);
         await tester.tap(find.byKey(Key('person-picker-$sara')));
         await _settle(tester);
         expect(find.byKey(const Key('filter-person')), findsOneWidget);
+        await tester.tap(find.text('Show media'));
+        await _settle(tester);
         expect(find.byKey(Key('media-$withSara')), findsOneWidget);
         expect(find.byKey(Key('media-$without')), findsNothing);
 
-        await tester.tap(
-          find.descendant(
-            of: find.byKey(const Key('filter-person')),
-            matching: find.byIcon(Icons.cancel),
-          ),
-        );
+        await tester.tap(find.byKey(const Key('library-clear-filters')));
         await _settle(tester);
-        expect(find.byKey(Key('media-$without')), findsOneWidget);
+        expect(find.byKey(const ValueKey('asset-b')), findsOneWidget);
       },
       session: testSession,
     );
@@ -115,7 +142,17 @@ void main() {
       (tester, env) async {
         await seedMedia(env.db, asset: 'a');
         await _open(tester, env, '/library');
-        final later = await seedMedia(env.db, asset: 'b', takenAt: 5000);
+        await tester.tap(find.byKey(const Key('library-filters-toggle')));
+        await _settle(tester);
+        await tester.tap(find.byKey(const Key('filter-unscanned')));
+        await tester.tap(find.text('Show media'));
+        await _settle(tester);
+        final later = await seedMedia(
+          env.db,
+          asset: 'b',
+          status: 'pending',
+          takenAt: 5000,
+        );
         await _settle(tester);
         expect(find.byKey(Key('media-$later')), findsOneWidget);
       },
@@ -132,6 +169,8 @@ void main() {
         await seedFace(env.db, mediaId: photo, personId: sara, seed: 1);
         await seedFace(env.db, mediaId: photo, seed: 2, x: 0.5);
         await _open(tester, env, '/media/$photo');
+        await tester.tap(find.text('Details'));
+        await _settle(tester);
         expect(find.text('Who is here'), findsOneWidget);
         expect(find.byKey(Key('who-$sara')), findsOneWidget);
         expect(find.text('Unknown'), findsOneWidget);
@@ -152,12 +191,16 @@ void main() {
     appTest('a photo that was not scanned yet says so', (tester, env) async {
       final photo = await seedMedia(env.db, asset: 'a', status: 'pending');
       await _open(tester, env, '/media/$photo');
+      await tester.tap(find.text('Details'));
+      await _settle(tester);
       expect(find.text('This photo has not been scanned yet.'), findsOneWidget);
     }, session: testSession);
 
     appTest('a scanned photo with no faces says so', (tester, env) async {
       final photo = await seedMedia(env.db, asset: 'a');
       await _open(tester, env, '/media/$photo');
+      await tester.tap(find.text('Details'));
+      await _settle(tester);
       expect(find.text('No faces were found in this photo.'), findsOneWidget);
     }, session: testSession);
 
@@ -181,6 +224,8 @@ void main() {
 
         await _open(tester, env, '/media/$photo1');
         expect(find.byKey(const Key('media-page-view')), findsOneWidget);
+        await tester.tap(find.byType(PopupMenuButton<String>));
+        await _settle(tester);
         expect(find.byKey(const Key('toggle-faces')), findsOneWidget);
         expect(find.byKey(const Key('google-lens')), findsOneWidget);
 

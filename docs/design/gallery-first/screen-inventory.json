@@ -1,0 +1,3122 @@
+{
+  "version": 1,
+  "scope": "Mobile gallery-first low-fidelity screen inventory; design only",
+  "locale": "en",
+  "notes": [
+    "This is a proposed screen map, not implemented application behavior.",
+    "All UI titles and labels use English to match the current app locale. purposeAr explains intent for review.",
+    "The four root destinations are Gallery, People, Discover and Studio.",
+    "backTo=origin restores the initiating screen, media ID, timestamp, selected detection, active sheet, filters and scroll position.",
+    "People and Characters are variants of one collection surface; photo/video results share one result viewer with appropriate controls.",
+    "Pose/outfit categories share one tabbed surface; matching results share one surface with pose, colour, body-area, group and saved-mark variants.",
+    "PC pairing is requested for compute actions; local browsing and stored review data remain available offline.",
+    "Photo-only group/equipment capabilities, optional body grouping and unsupported character identity sources remain explicit.",
+    "LoRA models, datasets, saved face identity sets, shared base engines and available DFM models are different entities.",
+    "Source-media/model/dataset provenance appears only when an explicit durable relationship is known; older unlinked records retain their available private snapshot.",
+    "Existing supported selection actions are retained; this inventory does not promise unrestricted file operations, semantic search, universal undo, arbitrary-step training resume or automatic garment-tag filters.",
+    "Artifact-aware deletion confirmation is a result-viewer state variant: list any same-ID dataset/model and files before confirming.",
+    "Implementation review: existing merge does not automatically preserve every LoRA/provenance link and can remove marks. Resolve this blocker before implementing the proposed safe merge flow; it is not product UI copy."
+  ],
+  "screens": [
+    {
+      "id": "welcome-gallery",
+      "family": "entry",
+      "title": "Your Gallery",
+      "purposeAr": "تعريف قصير يوصّل المستخدم لصور الهاتف قبل ربط الكمبيوتر.",
+      "surface": "screen",
+      "parentId": null,
+      "primaryAction": "Open gallery",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Your photos first",
+          "items": [
+            "Browse photos and folders",
+            "Find people in your library",
+            "Create with linked tools"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Photo access information"
+      ],
+      "states": [
+        "First launch",
+        "Returning user skips welcome"
+      ],
+      "backTo": "gallery-photos"
+    },
+    {
+      "id": "media-permission",
+      "family": "entry",
+      "title": "Photo access",
+      "purposeAr": "طلب إذن الصور وتوضيح الصور المحدودة أو المرفوضة دون ربط الكمبيوتر.",
+      "surface": "dialog",
+      "parentId": "welcome-gallery",
+      "primaryAction": "Allow photo access",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Choose what to share",
+          "items": [
+            "All permitted photos and videos",
+            "Selected photos on supported Android versions"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Continue with limited access",
+        "Open Android settings"
+      ],
+      "states": [
+        "Not requested",
+        "Limited access",
+        "Access denied",
+        "No permitted media"
+      ],
+      "backTo": "gallery-photos"
+    },
+    {
+      "id": "gallery-photos",
+      "family": "gallery",
+      "title": "Gallery",
+      "purposeAr": "بداية التطبيق تعرض كل الصور والفيديوهات المسموح بها مستقلة عن الفحص والكمبيوتر.",
+      "surface": "screen",
+      "parentId": null,
+      "primaryAction": "Open photo",
+      "sections": [
+        {
+          "type": "tabs",
+          "title": "Gallery view",
+          "items": [
+            "Photos",
+            "Folders"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Recent media",
+          "items": [
+            "Date groups",
+            "Photo thumbnails",
+            "Video duration",
+            "Analysis status only when relevant"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Filters",
+        "Activity",
+        "Settings",
+        "Switch to folders"
+      ],
+      "states": [
+        "Loading device media",
+        "No photos",
+        "Limited access",
+        "Photos not analyzed",
+        "Offline browsing",
+        "Missing thumbnail"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "gallery-folders",
+      "family": "gallery",
+      "title": "Folders",
+      "purposeAr": "عرض مجلدات الهاتف الحقيقية بأغلفتها وأعدادها دون تشغيل الفحص بمجرد فتحها.",
+      "surface": "tab",
+      "parentId": "gallery-photos",
+      "primaryAction": "Open folder",
+      "sections": [
+        {
+          "type": "tabs",
+          "title": "Gallery view",
+          "items": [
+            "Photos",
+            "Folders"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Device folders",
+          "items": [
+            "Folder cover",
+            "Folder name",
+            "Media count"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Back to photos",
+        "Manage analysis sources",
+        "Private results shortcut is labelled in-app"
+      ],
+      "states": [
+        "Loading folders",
+        "No accessible folders",
+        "Limited access"
+      ],
+      "backTo": "gallery-photos"
+    },
+    {
+      "id": "folder-media",
+      "family": "gallery",
+      "title": "Folder",
+      "purposeAr": "عرض وسائط المجلد مع الاحتفاظ بالمكان عند الرجوع من الصورة.",
+      "surface": "screen",
+      "parentId": "gallery-folders",
+      "primaryAction": "Open photo",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Folder context",
+          "items": [
+            "Current folder name",
+            "Media count"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Photos and videos",
+          "items": [
+            "Date groups",
+            "Photo thumbnails",
+            "Video duration"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Analyze this folder",
+        "Folder analysis options",
+        "Filters"
+      ],
+      "states": [
+        "Empty folder",
+        "Limited access",
+        "Original moved or removed",
+        "Offline browsing"
+      ],
+      "backTo": "gallery-folders"
+    },
+    {
+      "id": "gallery-filters",
+      "family": "gallery",
+      "title": "Filter media",
+      "purposeAr": "تصفية الصور بالأنواع وحالة التحليل والأشخاص بالوظائف المدعومة فقط.",
+      "surface": "sheet",
+      "parentId": "gallery-photos",
+      "primaryAction": "Show matching media",
+      "sections": [
+        {
+          "type": "fields",
+          "title": "Media filters",
+          "items": [
+            "All / Photos / Videos",
+            "All / Analyzed / Not analyzed / Failed",
+            "Has faces",
+            "Choose a person"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Clear filters"
+      ],
+      "states": [
+        "Default filters",
+        "Active filters",
+        "No matching media",
+        "Person filter needs analyzed data"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "photo-viewer",
+      "family": "viewer",
+      "title": "Photo",
+      "purposeAr": "الصورة تملأ الشاشة والسحب لأعلى أو زر التفاصيل يفتح الأشخاص والأدوات.",
+      "surface": "screen",
+      "parentId": "gallery-photos",
+      "primaryAction": "Open details",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Current photo",
+          "items": [
+            "Fit entire image",
+            "Pinch and double-tap zoom",
+            "Swipe horizontally within current collection"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Visible controls",
+          "items": [
+            "Back",
+            "Details",
+            "Tools",
+            "Detection overlays toggle"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Google Lens",
+        "Show detections",
+        "Hide controls",
+        "Expand original"
+      ],
+      "states": [
+        "Original available",
+        "Thumbnail fallback clearly labelled",
+        "Original missing",
+        "Not analyzed",
+        "No detections",
+        "Zoomed image blocks paging gesture"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "video-viewer",
+      "family": "viewer",
+      "title": "Video",
+      "purposeAr": "نفس عارض الجاليري مع التشغيل والأشخاص في الإطار الحالي وتوقيت اللقطات.",
+      "surface": "screen",
+      "parentId": "gallery-photos",
+      "primaryAction": "Play or pause",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Current video",
+          "items": [
+            "Playback controls",
+            "Seek timeline",
+            "Current time and duration"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Analysis context",
+          "items": [
+            "People in current analyzed frame",
+            "All people detected in video",
+            "Open referenced timestamp"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Details",
+        "Tools",
+        "Show detections",
+        "Open Reface"
+      ],
+      "states": [
+        "Playing",
+        "Paused",
+        "Seeking",
+        "Partially analyzed",
+        "Original missing",
+        "Photo-only group and equipment tools unavailable"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "media-details",
+      "family": "viewer",
+      "title": "Photo details",
+      "purposeAr": "لوحة السحب لأعلى تربط الأشخاص المختارين بموديلاتهم والإجراءات ونتائج الصورة.",
+      "surface": "sheet",
+      "parentId": "photo-viewer",
+      "primaryAction": "Open person",
+      "sections": [
+        {
+          "type": "list",
+          "title": "People here",
+          "items": [
+            "Known people open their profiles",
+            "Unknown person: Who is this?",
+            "Separate reassignment control"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Selected person",
+          "items": [
+            "Selected identity",
+            "Linked trained LoRAs",
+            "Training status is not a ready model"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Tools and related work",
+          "items": [
+            "Reface",
+            "Restyle",
+            "Use in dataset",
+            "Find similar",
+            "Related results when explicitly linked"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "File and analysis",
+          "items": [
+            "Date and folder",
+            "Analysis status",
+            "Advanced file details"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Choose another person",
+        "Analyze photo",
+        "Detection corrections",
+        "Google Lens"
+      ],
+      "states": [
+        "No analysis",
+        "No people found",
+        "Unknown people",
+        "Multiple people require a target",
+        "No linked model",
+        "Unlinked older result",
+        "Offline saved details"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "target-picker",
+      "family": "viewer",
+      "title": "Choose target",
+      "purposeAr": "اختيار الشخص أو الوجه أو الجسم المقصود داخل الصورة قبل أي أداة تعتمد عليه.",
+      "surface": "sheet",
+      "parentId": "media-details",
+      "primaryAction": "Use selected target",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Current media",
+          "items": [
+            "Selected face or body highlight"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Detected targets",
+          "items": [
+            "Face and body crops",
+            "Known name or Unknown",
+            "Timestamp for video target"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Analyze missing detections",
+        "Cancel"
+      ],
+      "states": [
+        "Single target",
+        "Multiple targets",
+        "No targets",
+        "Body-only appearance",
+        "Video frame context"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "detection-actions",
+      "family": "viewer",
+      "title": "Detection actions",
+      "purposeAr": "تصحيح ظهور محدد دون الخلط بين حذف الاكتشاف وحذف الملف الأصلي.",
+      "surface": "sheet",
+      "parentId": "media-details",
+      "primaryAction": "Open person or assign",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Selected detection",
+          "items": [
+            "Crop with original-media expansion"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Identity correction",
+          "items": [
+            "Open person",
+            "Assign / Create person",
+            "Reject this identity",
+            "Change Person / Character",
+            "Ignore false detection",
+            "Delete detection"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Body tools",
+          "items": [
+            "Similar pose / Colours / Body area",
+            "Name pose / Outfit",
+            "Mark tattoo",
+            "Group pose / Equipment on photos"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Redetect photo",
+        "Open original",
+        "Google Lens"
+      ],
+      "states": [
+        "Face detection",
+        "Body detection",
+        "Known identity",
+        "Unknown identity",
+        "Video disables photo-only tools",
+        "Confirmation names the affected record"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "image-preview",
+      "family": "viewer",
+      "title": "Image preview",
+      "purposeAr": "عارض موحد لتوسيع الأصل أو القصاصة مع الحفاظ على سلوك الاختيار في الشاشة السابقة.",
+      "surface": "screen",
+      "parentId": "photo-viewer",
+      "primaryAction": "View image",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Image",
+          "items": [
+            "Full image fit",
+            "Pinch / Pan / Double-tap zoom",
+            "Original / Crop switch when available"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Reset zoom",
+        "Google Lens",
+        "Back"
+      ],
+      "states": [
+        "Original available",
+        "Crop only",
+        "Original unavailable",
+        "Decode error",
+        "Lens unavailable"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "discover-home",
+      "family": "discover",
+      "title": "Discover",
+      "purposeAr": "مدخل بصري لميزات الأجسام والوضعيات والملابس والمجموعات والمعدات والعلامات الموجودة.",
+      "surface": "screen",
+      "parentId": null,
+      "primaryAction": "Choose discovery type",
+      "sections": [
+        {
+          "type": "grid",
+          "title": "Browse visually",
+          "items": [
+            "Bodies and poses",
+            "Outfits and colours",
+            "Group poses",
+            "Equipment",
+            "Saved person marks"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Context",
+          "items": [
+            "Choose a saved example or category",
+            "Results retain the target crop and original"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Activity",
+        "Open body area tools"
+      ],
+      "states": [
+        "No analyzed bodies",
+        "Offline saved categories",
+        "Required analysis unavailable"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "discover-bodies",
+      "family": "discover",
+      "title": "Bodies",
+      "purposeAr": "تصفح الأجسام وقصر النتائج على شخص عند الدخول من ملفه.",
+      "surface": "screen",
+      "parentId": "discover-home",
+      "primaryAction": "Open body",
+      "sections": [
+        {
+          "type": "tabs",
+          "title": "Browse",
+          "items": [
+            "All",
+            "Poses",
+            "Outfits",
+            "Group poses",
+            "Equipment"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Refine results",
+          "items": [
+            "Supported pose tags",
+            "Outfit colours",
+            "Person scope"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Body crops",
+          "items": [
+            "Target crop",
+            "Identity when known",
+            "Open original photo"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Find similar pose",
+        "Find similar colours",
+        "Name pose or outfit",
+        "Experimental body areas"
+      ],
+      "states": [
+        "Loading",
+        "No bodies",
+        "No matching filters",
+        "Person-scoped",
+        "Feature not analyzed"
+      ],
+      "backTo": "discover-home"
+    },
+    {
+      "id": "discover-categories",
+      "family": "discover",
+      "title": "Poses and outfits",
+      "purposeAr": "عرض فئات الوضعيات والملابس وأمثلتها المحفوظة مع الوصول للتعديل.",
+      "surface": "tab",
+      "parentId": "discover-bodies",
+      "primaryAction": "Open category",
+      "sections": [
+        {
+          "type": "tabs",
+          "title": "Saved categories",
+          "items": [
+            "Poses",
+            "Outfits"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Examples",
+          "items": [
+            "Illustrated pose choices",
+            "Reference crops",
+            "Category name and count"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Edit saved category",
+        "Choose a reference body",
+        "Clear filters"
+      ],
+      "states": [
+        "Pose mode",
+        "Outfit mode",
+        "No saved categories",
+        "No matching bodies"
+      ],
+      "backTo": "discover-bodies"
+    },
+    {
+      "id": "category-editor",
+      "family": "discover",
+      "title": "Edit category",
+      "purposeAr": "تسمية وضعية أو ملابس من مثال مع مراجعة الأعضاء وتعديلهم قبل الحفظ.",
+      "surface": "sheet",
+      "parentId": "discover-categories",
+      "primaryAction": "Save category",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Reference",
+          "items": [
+            "Selected body crop",
+            "Open original"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Category",
+          "items": [
+            "Pose or outfit name",
+            "Current person scope"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Included examples",
+          "items": [
+            "Preview matches",
+            "Untick unsuitable examples"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Cancel",
+        "Delete saved category"
+      ],
+      "states": [
+        "New pose",
+        "New outfit",
+        "Editing existing category",
+        "No selected examples"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "similarity-results",
+      "family": "discover",
+      "title": "Similar results",
+      "purposeAr": "نتائج التشابه تحتفظ بالجسم أو العلامة المستهدفة ومسار الرجوع للصورة.",
+      "surface": "screen",
+      "parentId": "discover-home",
+      "primaryAction": "Open original media",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Search reference",
+          "items": [
+            "Pose / Outfit colour / Body area / Mark / Group example"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Current criteria",
+          "items": [
+            "Supported comparison type",
+            "Person scope if selected"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Matches",
+          "items": [
+            "Target crops or full group photo",
+            "Open original",
+            "Identity if known"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Change reference",
+        "Clear criteria",
+        "Review identity for a mark match"
+      ],
+      "states": [
+        "Loading",
+        "No matches",
+        "Missing reference",
+        "Offline saved results",
+        "Mark results show It is them / Not them",
+        "No automatic identity assignment"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "group-poses",
+      "family": "discover",
+      "title": "Group poses",
+      "purposeAr": "اختيار أمثلة جماعية وفلاتر الهندسة والحركة والمعدات للصور فقط.",
+      "surface": "screen",
+      "parentId": "discover-home",
+      "primaryAction": "Show matching photos",
+      "sections": [
+        {
+          "type": "grid",
+          "title": "Visual group examples",
+          "items": [
+            "Two to six people",
+            "Named group actions",
+            "Saved group reference"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Match criteria",
+          "items": [
+            "Whole-group geometry",
+            "Detected members count",
+            "Equipment filter"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Comparison scope",
+          "items": [
+            "All detected group members are compared",
+            "Crowd subset selection is unavailable"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Use current group photo",
+        "Open matching original"
+      ],
+      "states": [
+        "No group photos",
+        "No matches",
+        "Photo-only feature",
+        "Incomplete detections affect results"
+      ],
+      "backTo": "discover-home"
+    },
+    {
+      "id": "equipment-browser",
+      "family": "discover",
+      "title": "Equipment",
+      "purposeAr": "عرض المعدات المرصودة واليدوية والبحث عن صورها مع توضيح المالك المشترك أو غير المؤكد.",
+      "surface": "screen",
+      "parentId": "discover-home",
+      "primaryAction": "Open equipment matches",
+      "sections": [
+        {
+          "type": "fields",
+          "title": "Equipment filters",
+          "items": [
+            "Equipment label",
+            "Person scope / Shared owner"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Detected equipment",
+          "items": [
+            "Object crop",
+            "Label",
+            "Owner or Shared"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Edit label or owner",
+        "Reject detection",
+        "Add equipment manually",
+        "Analyze equipment in a photo"
+      ],
+      "states": [
+        "Not analyzed",
+        "Loading",
+        "No equipment",
+        "Unclear owner remains shared",
+        "Photo-only feature"
+      ],
+      "backTo": "discover-home"
+    },
+    {
+      "id": "equipment-editor",
+      "family": "discover",
+      "title": "Edit equipment",
+      "purposeAr": "تصحيح تسمية المعدة ومالكها أو إضافة تسمية يدوية بلا رسم منطقة جديدة.",
+      "surface": "sheet",
+      "parentId": "equipment-browser",
+      "primaryAction": "Save correction",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Photo context",
+          "items": [
+            "Current photo",
+            "Existing equipment detection when available"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Equipment",
+          "items": [
+            "Label",
+            "Owner person / Shared"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Manual addition",
+          "items": [
+            "Saves a label and owner without drawing a new region"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Reject automatic detection",
+        "Cancel"
+      ],
+      "states": [
+        "Edit detection",
+        "Manual addition",
+        "Ambiguous owner",
+        "Analysis unavailable"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "body-areas",
+      "family": "discover",
+      "title": "Body area similarity",
+      "purposeAr": "بحث مشابه لمناطق الجسم مع إبقاء التجميع التجريبي اختياريًا ومغلقًا افتراضيًا.",
+      "surface": "screen",
+      "parentId": "discover-bodies",
+      "primaryAction": "Find similar photos",
+      "sections": [
+        {
+          "type": "tabs",
+          "title": "Body areas",
+          "items": [
+            "Chest",
+            "Lower body"
+          ]
+        },
+        {
+          "type": "preview",
+          "title": "Reference body",
+          "items": [
+            "Choose an available body crop"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Experimental groups",
+          "items": [
+            "Group body areas: off by default",
+            "Sample crops and assigned person only when enabled",
+            "Assign unclaimed bodies after explicit confirmation"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Choose reference",
+        "Toggle experimental groups",
+        "Review bridge suggestions"
+      ],
+      "states": [
+        "Feature not analyzed",
+        "No matches",
+        "Experimental grouping off",
+        "Experimental grouping on",
+        "Existing rejections remain respected"
+      ],
+      "backTo": "discover-bodies"
+    },
+    {
+      "id": "people-collection",
+      "family": "people",
+      "title": "People",
+      "purposeAr": "مكتبة الأشخاص والشخصيات مع البحث والترتيب والمجموعات والتحديد الجماعي الحالي.",
+      "surface": "screen",
+      "parentId": null,
+      "primaryAction": "Open person",
+      "sections": [
+        {
+          "type": "tabs",
+          "title": "Collection",
+          "items": [
+            "People",
+            "Characters"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Find people",
+          "items": [
+            "Name or identity group search",
+            "Most faces / Name / Newest",
+            "All / Favourites / Pinned / Hidden",
+            "Identity group filter"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Identities",
+          "items": [
+            "Cover image",
+            "Name",
+            "Face count",
+            "Review prompt when pending"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Unassigned faces",
+        "Review",
+        "Manage identity groups",
+        "Select / Select all / Invert",
+        "Collection tools"
+      ],
+      "states": [
+        "People mode",
+        "Characters mode",
+        "Empty library",
+        "No matching people",
+        "Hidden filter active",
+        "Selection mode",
+        "Search restored after collection switch"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "unassigned-faces",
+      "family": "people",
+      "title": "Unassigned faces",
+      "purposeAr": "تجميع الوجوه غير المنسوبة وتعيينها أو إنشاء أشخاص من تحديد متعدد.",
+      "surface": "screen",
+      "parentId": "people-collection",
+      "primaryAction": "Assign selected faces",
+      "sections": [
+        {
+          "type": "grid",
+          "title": "Unassigned faces",
+          "items": [
+            "Selectable face crops",
+            "Original expansion",
+            "Real people or characters context"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Create person",
+        "Ignore false faces",
+        "Convert Person / Character",
+        "Select all / Invert"
+      ],
+      "states": [
+        "No unassigned faces",
+        "Selection mode",
+        "Unknown character faces",
+        "Source missing"
+      ],
+      "backTo": "people-collection"
+    },
+    {
+      "id": "person-media",
+      "family": "person",
+      "title": "Person",
+      "purposeAr": "ملف الشخص يبدأ بصوره وفيديوهاته الأصلية بدل شبكة الوجوه.",
+      "surface": "screen",
+      "parentId": "people-collection",
+      "primaryAction": "Open photo",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Person",
+          "items": [
+            "Cover image and name",
+            "Identity group",
+            "Review prompt when pending"
+          ]
+        },
+        {
+          "type": "tabs",
+          "title": "Person",
+          "items": [
+            "Media",
+            "Identity",
+            "Models"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Photos and videos",
+          "items": [
+            "Original media containing this person",
+            "Photo / Video filters"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Use in Reface for real people",
+        "Person actions",
+        "Review suggestions"
+      ],
+      "states": [
+        "Named person",
+        "Unnamed person",
+        "Character profile",
+        "No linked originals",
+        "Offline browsing",
+        "Original missing"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "person-identity",
+      "family": "person",
+      "title": "Identity",
+      "purposeAr": "مراجع الوجوه والأجسام والعلامات والتصحيحات الخاصة بالشخص مع توضيح أنها ليست موديلات تدريب.",
+      "surface": "tab",
+      "parentId": "person-media",
+      "primaryAction": "Open faces",
+      "sections": [
+        {
+          "type": "list",
+          "title": "Identity references",
+          "items": [
+            "Faces",
+            "Bodies",
+            "Saved identity sets",
+            "Marks and tattoos"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Face crops",
+          "items": [
+            "Current cover",
+            "Quality-aware face previews",
+            "Open original at timestamp"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Add or split faces",
+        "Choose cover",
+        "Review suggestions",
+        "Face selection actions",
+        "Redetect person media"
+      ],
+      "states": [
+        "No faces",
+        "Character has restricted Studio source tools",
+        "Identity set empty",
+        "Source unavailable"
+      ],
+      "backTo": "person-media"
+    },
+    {
+      "id": "person-models",
+      "family": "person",
+      "title": "Models",
+      "purposeAr": "عرض موديلات LoRA وبيانات التدريب التابعة للشخص والمهام التي لم تصبح موديلًا جاهزًا.",
+      "surface": "tab",
+      "parentId": "person-media",
+      "primaryAction": "Open model",
+      "sections": [
+        {
+          "type": "list",
+          "title": "Trained LoRAs",
+          "items": [
+            "Saved model name or trigger word",
+            "Local ready state",
+            "Generate / Share / Build identity"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Datasets and training",
+          "items": [
+            "Related datasets",
+            "Active or failed training jobs",
+            "Prepare new dataset"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Build dataset",
+        "Open dataset",
+        "View results with known person link"
+      ],
+      "states": [
+        "No models",
+        "No datasets",
+        "Training running",
+        "Training paused or failed",
+        "Ready model available",
+        "Unknown training provenance is labelled"
+      ],
+      "backTo": "person-media"
+    },
+    {
+      "id": "person-actions",
+      "family": "person",
+      "title": "Person actions",
+      "purposeAr": "كل عمليات الشخص المخفية حاليًا مرتبة حسب التنظيم والتصحيح والتصدير دون فقد أي إجراء.",
+      "surface": "sheet",
+      "parentId": "person-media",
+      "primaryAction": "Choose action",
+      "sections": [
+        {
+          "type": "list",
+          "title": "Frequent actions",
+          "items": [
+            "Rename",
+            "Add faces",
+            "Choose cover / Best cover",
+            "Merge",
+            "Review suggestions"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Organize",
+          "items": [
+            "Favourite / Pin / Hide",
+            "Assign identity group",
+            "Organize original files",
+            "Lock automatic grouping",
+            "Convert Person / Character"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Correct and export",
+          "items": [
+            "Split faces",
+            "Mark two identities distinct",
+            "Redetect",
+            "Marks / Bodies",
+            "Share crops / Training export",
+            "Details / Delete identity"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Close"
+      ],
+      "states": [
+        "Single person",
+        "Multiple selected people",
+        "Characters restrict unsupported actions",
+        "Destructive action states its scope"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "face-selection",
+      "family": "person",
+      "title": "Choose faces",
+      "purposeAr": "اختيار الوجوه لإضافة أو فصل أو تصحيح أو تصدير الهوية مع بقاء الأصل قابلًا للفتح.",
+      "surface": "screen",
+      "parentId": "person-identity",
+      "primaryAction": "Apply selected action",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Selection purpose",
+          "items": [
+            "Add / Split / Choose cover / Saved identity set",
+            "Selected count"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Face references",
+          "items": [
+            "Selectable crops",
+            "Open original",
+            "Face quality details"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Select all / Invert",
+        "Assign / Create person",
+        "Reject identity",
+        "Remove assignment",
+        "Hide / Show",
+        "Ignore / Delete detection",
+        "Save / Share crop",
+        "Use in Reface for real faces",
+        "Find similar faces",
+        "Detection details"
+      ],
+      "states": [
+        "Single selection",
+        "Multiple selection",
+        "No selected faces",
+        "Original missing",
+        "Person / Character context"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "person-assignment",
+      "family": "person",
+      "title": "Who is this?",
+      "purposeAr": "تعيين ظهور أو مجموعة وجوه لشخص موجود أو إنشاء هوية جديدة دون استنتاج تلقائي.",
+      "surface": "sheet",
+      "parentId": "media-details",
+      "primaryAction": "Assign person",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Selected appearance",
+          "items": [
+            "Face or body crop",
+            "Original preview"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Choose identity",
+          "items": [
+            "Search current collection",
+            "Existing identity",
+            "New identity name for face-based creation"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Create person from face",
+        "Keep unknown",
+        "Cancel"
+      ],
+      "states": [
+        "Existing identity selected",
+        "Creating new person",
+        "Body links to existing identity",
+        "Characters collection",
+        "No matching identity"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "identity-merge",
+      "family": "person",
+      "title": "Merge people",
+      "purposeAr": "مقارنة هويتين قبل الدمج مع دعم تمييزهما كشخصين مختلفين.",
+      "surface": "screen",
+      "parentId": "person-media",
+      "primaryAction": "Choose survivor and confirm merge",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Compare identities",
+          "items": [
+            "Identity A cover and name",
+            "Identity B cover and name"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Reference evidence",
+          "items": [
+            "Faces from both identities",
+            "Open original media"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Decision",
+          "items": [
+            "Merge matching identities",
+            "Keep separate and mark distinct"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Merge impact",
+          "items": [
+            "Choose surviving identity",
+            "Review affected LoRAs, datasets, results and marks",
+            "Confirm how each linked item is kept",
+            "Original files stay in place"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Choose another identity",
+        "Mark distinct",
+        "Cancel"
+      ],
+      "states": [
+        "Merge candidate",
+        "No suitable second identity",
+        "Confirmation required",
+        "No promise of universal undo",
+        "Impact review required for linked artifacts"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "identity-groups",
+      "family": "people",
+      "title": "Identity groups",
+      "purposeAr": "إدارة مجموعات الأشخاص داخل التطبيق مع فصلها عن المجلدات الفعلية.",
+      "surface": "screen",
+      "parentId": "people-collection",
+      "primaryAction": "Open group",
+      "sections": [
+        {
+          "type": "list",
+          "title": "Groups",
+          "items": [
+            "Group name",
+            "Member count",
+            "People / Characters context"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Group actions",
+          "items": [
+            "Create or rename group",
+            "Assign selected identities",
+            "Remove group membership"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "View ungrouped identities",
+        "Open member media",
+        "Delete group"
+      ],
+      "states": [
+        "No groups",
+        "Empty group",
+        "Filtered collection",
+        "Deleting a group does not delete originals"
+      ],
+      "backTo": "people-collection"
+    },
+    {
+      "id": "organize-media",
+      "family": "person",
+      "title": "Organize original files",
+      "purposeAr": "معاينة خطة نقل الأصول إلى فولدرات الأشخاص ثم تسوية النتيجة بقرار صريح.",
+      "surface": "screen",
+      "parentId": "person-actions",
+      "primaryAction": "Review and apply move plan",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Selected identities",
+          "items": [
+            "People included",
+            "Destination folder strategy"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Move preview",
+          "items": [
+            "Original file",
+            "Proposed destination",
+            "Conflicts or missing files"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Operation result",
+          "items": [
+            "Completed moves",
+            "Skipped or failed moves",
+            "Reconcile moved originals"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Cancel plan",
+        "Review failures",
+        "Refresh media links"
+      ],
+      "states": [
+        "Preparing plan",
+        "Preview ready",
+        "File conflict",
+        "Permission unavailable",
+        "Partial completion",
+        "No files eligible"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "training-export",
+      "family": "person",
+      "title": "Export training images",
+      "purposeAr": "تصدير صور تدريب الشخص بالخيارات الحالية دون تشغيل تدريب تلقائي.",
+      "surface": "dialog",
+      "parentId": "person-actions",
+      "primaryAction": "Export selected images",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Export scope",
+          "items": [
+            "Current person",
+            "Eligible faces and bodies"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Export options",
+          "items": [
+            "Include faces",
+            "Include bodies",
+            "Face output size",
+            "Body long-side size",
+            "Maximum samples per video"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Stop export",
+        "Share completed ZIP",
+        "Close without stopping export"
+      ],
+      "states": [
+        "Planning",
+        "Exporting",
+        "Packing ZIP",
+        "Nothing eligible",
+        "Missing or small samples skipped",
+        "Completed",
+        "Cancelled",
+        "Failed"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "person-marks",
+      "family": "person",
+      "title": "Marks and tattoos",
+      "purposeAr": "إدارة العلامات المحفوظة للشخص والبحث عن ظهورها في صور أخرى ومراجعة التطابقات.",
+      "surface": "screen",
+      "parentId": "person-identity",
+      "primaryAction": "Search other photos",
+      "sections": [
+        {
+          "type": "grid",
+          "title": "Saved marks",
+          "items": [
+            "Mark patch",
+            "Body segment",
+            "Optional label"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Match decisions",
+          "items": [
+            "Strong / Possible matches",
+            "It is them / Not them",
+            "Open original"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Add mark from a body",
+        "Delete saved mark",
+        "Expand original or patch"
+      ],
+      "states": [
+        "No saved marks",
+        "Searching",
+        "No matches",
+        "Possible matches only",
+        "Source patch missing"
+      ],
+      "backTo": "person-identity"
+    },
+    {
+      "id": "mark-editor",
+      "family": "person",
+      "title": "Mark a tattoo",
+      "purposeAr": "تحديد مستطيل العلامة على الجسم الأصلي واختيار الجزء وحفظها للشخص.",
+      "surface": "screen",
+      "parentId": "detection-actions",
+      "primaryAction": "Save mark",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Mark region",
+          "items": [
+            "Original body image",
+            "Draw or adjust rectangle"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Mark details",
+          "items": [
+            "Body segment",
+            "Optional label",
+            "Assigned person"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Reset rectangle",
+        "Cancel",
+        "Open full image"
+      ],
+      "states": [
+        "No region selected",
+        "Region too small",
+        "Body identity needed",
+        "Original unavailable",
+        "Ready to save"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "quick-review",
+      "family": "review",
+      "title": "Quick review",
+      "purposeAr": "مراجعة اقتراح واحد في كل مرة مع نعم ولا وغير متأكد دون فقد طرق المراجعة الحالية.",
+      "surface": "screen",
+      "parentId": "people-collection",
+      "primaryAction": "Answer review question",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Evidence",
+          "items": [
+            "Highlighted original or crops",
+            "Reference identity images"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Question",
+          "items": [
+            "Match / Group / Duplicate / Body link",
+            "Reason including outfit, mark or experimental cluster"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Answers",
+          "items": [
+            "Yes",
+            "No",
+            "Not sure",
+            "Choose or name person for a group"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Open original",
+        "Expand references",
+        "Advanced review",
+        "Compare identities"
+      ],
+      "states": [
+        "Pending question",
+        "No pending reviews",
+        "Saved offline evidence",
+        "Not sure snoozes until new evidence",
+        "Character review mode"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "review-hub",
+      "family": "review",
+      "title": "Review",
+      "purposeAr": "القوائم المتقدمة للمطابقات والمجموعات والتكرارات وروابط الأجسام والملابس مع التأكيدات الجماعية.",
+      "surface": "screen",
+      "parentId": "people-collection",
+      "primaryAction": "Open review item",
+      "sections": [
+        {
+          "type": "tabs",
+          "title": "Review queues",
+          "items": [
+            "Matches",
+            "Groups",
+            "Duplicates",
+            "Body and outfit links"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Pending evidence",
+          "items": [
+            "Target and suggested identity",
+            "Reference photos",
+            "Accept / Reject / Assign"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Bulk actions",
+          "items": [
+            "Accept all applicable matches",
+            "Create all eligible groups",
+            "Accept all applicable body links"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Quick review",
+        "Open reference comparison",
+        "Compact video faces",
+        "Confirm bulk action"
+      ],
+      "states": [
+        "No pending items",
+        "Offline stored plan",
+        "Large queue",
+        "Bulk confirmation",
+        "People / Characters mode"
+      ],
+      "backTo": "people-collection"
+    },
+    {
+      "id": "album-review",
+      "family": "review",
+      "title": "Review person photos",
+      "purposeAr": "مراجعة الاقتراحات المرتبطة بشخص أو ألبومه مع الاحتفاظ بالصور المرجعية.",
+      "surface": "screen",
+      "parentId": "person-media",
+      "primaryAction": "Review selected suggestion",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Person context",
+          "items": [
+            "Person cover and name",
+            "Pending suggestion count"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Suggested media",
+          "items": [
+            "Highlighted candidate in original",
+            "Known reference photos"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Accept / Reject",
+        "Who is this?",
+        "Expand photo",
+        "Open full review"
+      ],
+      "states": [
+        "No pending suggestions",
+        "Offline evidence",
+        "Original missing",
+        "Multiple detections in photo"
+      ],
+      "backTo": "person-media"
+    },
+    {
+      "id": "review-comparison",
+      "family": "review",
+      "title": "Compare references",
+      "purposeAr": "مقارنة الصور المرجعية بالهدف وفتح الأصل أو القصاصة دون قبول الاقتراح تلقائيًا.",
+      "surface": "sheet",
+      "parentId": "review-hub",
+      "primaryAction": "Return to decision",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Candidate and references",
+          "items": [
+            "Highlighted target",
+            "Reference photos",
+            "Original / Crop choice"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Evidence",
+          "items": [
+            "Suggested identity",
+            "Existing reason and confidence when advanced review is enabled"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Expand image",
+        "Google Lens",
+        "Open person",
+        "Back"
+      ],
+      "states": [
+        "Single reference",
+        "Multiple references",
+        "Missing original keeps crop",
+        "No automatic decision on expansion"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "studio-home",
+      "family": "studio",
+      "title": "Studio",
+      "purposeAr": "بدء الأدوات بدون صورة محددة وإدارة التدريب والنتائج مع وصول واضح للنشاط.",
+      "surface": "screen",
+      "parentId": null,
+      "primaryAction": "Choose a tool",
+      "sections": [
+        {
+          "type": "grid",
+          "title": "Create",
+          "items": [
+            "Reface",
+            "Restyle",
+            "LoRA training and generation"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Your work",
+          "items": [
+            "Datasets and trained LoRAs",
+            "Private results",
+            "Activity and active jobs"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Choose from Gallery or Files",
+        "PC connection when a tool needs it"
+      ],
+      "states": [
+        "Ready",
+        "PC offline",
+        "Engine unavailable",
+        "No saved work",
+        "Current jobs continue in Activity"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "reface-target",
+      "family": "studio",
+      "title": "Reface · Target",
+      "purposeAr": "تحديد الوسيط والشخص المستهدف للاستبدال قبل اختيار هوية المصدر.",
+      "surface": "screen",
+      "parentId": "studio-home",
+      "primaryAction": "Continue to source identity",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Step 1 of 3",
+          "items": [
+            "Step 1 of 3: Target",
+            "Target: who will be replaced",
+            "Image entry pre-fills target media"
+          ]
+        },
+        {
+          "type": "preview",
+          "title": "Target media",
+          "items": [
+            "Choose Gallery or Files",
+            "Photo or video preview",
+            "Video trim handles and times"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Target identities",
+          "items": [
+            "Detected face crops",
+            "Grouped video identities",
+            "Selected target highlight"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Detect faces",
+        "Detect current video frame",
+        "Expand target",
+        "Change media"
+      ],
+      "states": [
+        "No target media",
+        "Analyzing faces",
+        "No faces",
+        "Multiple target people",
+        "Trim changed invalidates stale analysis",
+        "Legacy restrictions follow supported engine"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "reface-source",
+      "family": "studio",
+      "title": "Reface · Source identity",
+      "purposeAr": "اختيار هوية الشخص البديل منفصلة بوضوح عن وجوه الهدف.",
+      "surface": "screen",
+      "parentId": "reface-target",
+      "primaryAction": "Continue to options",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Step 2 of 3: Identity",
+          "items": [
+            "Source: the identity to use",
+            "Person entry pre-fills source only after Use this identity",
+            "Image entry pre-fills target, not source"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Choose source",
+          "items": [
+            "Library person",
+            "Saved identity set",
+            "Multiple Gallery photos or videos",
+            "Verified LoRA identity when available"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Source references",
+          "items": [
+            "Selected face poses",
+            "Grouped imported identities",
+            "Appearance count"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Import source media",
+        "Choose detected imported identity",
+        "Save identity set",
+        "Choose available DFM and bypass face source"
+      ],
+      "states": [
+        "Library empty still allows imports",
+        "Multiple imported identities require choice",
+        "No usable source face",
+        "Character is not an ArcFace source",
+        "Unsupported LoRA identity unavailable",
+        "DFM path may continue without source faces"
+      ],
+      "backTo": "reface-target"
+    },
+    {
+      "id": "reface-options",
+      "family": "studio",
+      "title": "Reface · Review and run",
+      "purposeAr": "مراجعة المصدر والهدف والمحرك والجودة قبل إرسال العملية مع بقاء الضوابط المتقدمة.",
+      "surface": "screen",
+      "parentId": "reface-source",
+      "primaryAction": "Run Reface",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Step 3 of 3",
+          "items": [
+            "Step 3 of 3: Review",
+            "Target person and media",
+            "Source identity or selected DFM",
+            "Selected video range"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Engine and quality",
+          "items": [
+            "Available V2 / V3 / DFM options",
+            "Restorer and fidelity",
+            "Mask and occlusion controls",
+            "Identity and output quality settings"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Run choices",
+          "items": [
+            "Preview when supported",
+            "Full output",
+            "Private result"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Back to source",
+        "Advanced options",
+        "PC readiness"
+      ],
+      "states": [
+        "Ready",
+        "PC offline",
+        "Engine unavailable",
+        "DFM unavailable",
+        "Uploading",
+        "Validation failed",
+        "Preview completed"
+      ],
+      "backTo": "reface-source"
+    },
+    {
+      "id": "identity-set-editor",
+      "family": "person",
+      "title": "Saved identity set",
+      "purposeAr": "حفظ اختيار وجوه مرجعية باسم واضح للشخص دون تسميته موديل LoRA مدرب.",
+      "surface": "sheet",
+      "parentId": "person-identity",
+      "primaryAction": "Save identity set",
+      "sections": [
+        {
+          "type": "fields",
+          "title": "Reference set",
+          "items": [
+            "Set name",
+            "Source person"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Selected faces",
+          "items": [
+            "Reference face poses",
+            "Add or remove selected faces"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Choose faces",
+        "Delete saved set",
+        "Cancel"
+      ],
+      "states": [
+        "New set",
+        "Editing set",
+        "No usable faces",
+        "Character source restriction"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "restyle",
+      "family": "studio",
+      "title": "Restyle",
+      "purposeAr": "تعديل الصورة مع تحديد الوجه والمراجع والمعلمات المتاحة وإظهار قدرات الكمبيوتر الفعلية.",
+      "surface": "screen",
+      "parentId": "studio-home",
+      "primaryAction": "Run Restyle",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Target photo",
+          "items": [
+            "Current viewer photo when provided",
+            "Selected face highlight",
+            "Expand original"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Restyle request",
+          "items": [
+            "Prompt",
+            "Face and padding",
+            "Strength"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "References",
+          "items": [
+            "Up to four reference images",
+            "Add or remove reference"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Advanced",
+          "items": [
+            "Negative prompt",
+            "Seed and steps",
+            "Optional refinement when available"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Choose another photo",
+        "Change selected face",
+        "PC readiness"
+      ],
+      "states": [
+        "No photo",
+        "Analyzing",
+        "No face selected",
+        "PC offline",
+        "Base engine unavailable",
+        "Refinement unavailable",
+        "Submitting",
+        "Validation error"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "training-library",
+      "family": "studio",
+      "title": "Datasets and models",
+      "purposeAr": "قائمة التدريب العامة تفرق بين Dataset وLoRA ومهمة تدريب لم تكتمل.",
+      "surface": "screen",
+      "parentId": "studio-home",
+      "primaryAction": "Open dataset or model",
+      "sections": [
+        {
+          "type": "tabs",
+          "title": "Training library",
+          "items": [
+            "Datasets",
+            "Trained LoRAs"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Saved artifacts",
+          "items": [
+            "Person or Unlinked",
+            "Trigger word",
+            "Dataset image count or model availability"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Training activity",
+          "items": [
+            "Running / Paused / Failed jobs are separate from ready models"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Build dataset",
+        "Generate with LoRA",
+        "Share model",
+        "Build verified identity",
+        "Open activity"
+      ],
+      "states": [
+        "No datasets",
+        "No models",
+        "Orphaned person link",
+        "Loading saved artifacts",
+        "Offline browsing"
+      ],
+      "backTo": "studio-home"
+    },
+    {
+      "id": "dataset-build",
+      "family": "studio",
+      "title": "Build dataset",
+      "purposeAr": "تجهيز صور وفيديوهات التدريب لشخص معلوم مع trigger word وخيارات التكرار الحالية.",
+      "surface": "screen",
+      "parentId": "training-library",
+      "primaryAction": "Build dataset",
+      "sections": [
+        {
+          "type": "fields",
+          "title": "Identity and naming",
+          "items": [
+            "Choose person",
+            "Trigger word",
+            "Repeats"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Training inputs",
+          "items": [
+            "Gallery photos",
+            "Video input",
+            "Selected input previews"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Add photos",
+        "Add video",
+        "Expand input",
+        "Remove selected input"
+      ],
+      "states": [
+        "No person",
+        "No inputs",
+        "PC needed to build",
+        "Preparing",
+        "Submitting",
+        "Input error"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "dataset-editor",
+      "family": "studio",
+      "title": "Dataset editor",
+      "purposeAr": "مراجعة الصور وكابتشن كل عنصر وتضمينه أو استبعاده ثم التدريب أو التصدير.",
+      "surface": "screen",
+      "parentId": "training-library",
+      "primaryAction": "Train with this dataset",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Dataset",
+          "items": [
+            "Associated person",
+            "Trigger word",
+            "Included / Total images"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Training images",
+          "items": [
+            "Image preview",
+            "Include or exclude",
+            "Editable caption"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Edit caption",
+        "Expand image",
+        "Export dataset"
+      ],
+      "states": [
+        "Loading",
+        "Empty dataset",
+        "Fewer than five included images disables training",
+        "Offline editing",
+        "Export error"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "lora-training",
+      "family": "studio",
+      "title": "Train LoRA",
+      "purposeAr": "ضبط تدريب LoRA على Dataset محدد دون وعد باستئناف أي خطوة غير مدعومة.",
+      "surface": "screen",
+      "parentId": "dataset-editor",
+      "primaryAction": "Start training",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Training source",
+          "items": [
+            "Selected dataset",
+            "Linked person"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Training settings",
+          "items": [
+            "Base checkpoint",
+            "Epochs"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Advanced",
+          "items": [
+            "Network dimension",
+            "Resolution",
+            "Learning rate"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Choose another dataset",
+        "PC readiness",
+        "Open training activity"
+      ],
+      "states": [
+        "No dataset",
+        "No base checkpoint",
+        "Engine unavailable",
+        "Ready",
+        "Submitting",
+        "Resume uses supported epoch checkpoint"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "model-details",
+      "family": "studio",
+      "title": "LoRA model",
+      "purposeAr": "عرض LoRA محلي جاهز واستخدامه وعلاقاته المعروفة دون اختلاق إصدار أو تاريخ تدريب قديم.",
+      "surface": "screen",
+      "parentId": "training-library",
+      "primaryAction": "Generate images",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Trained LoRA",
+          "items": [
+            "Trigger word or saved model name",
+            "Linked person or Unlinked",
+            "Local model file availability"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Known relationships",
+          "items": [
+            "Source dataset when explicitly linked",
+            "Training job when known",
+            "Generated results when linked"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Model actions",
+          "items": [
+            "Generate",
+            "Share model file",
+            "Build verified identity"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Open person",
+        "Open dataset",
+        "Open training job",
+        "View results"
+      ],
+      "states": [
+        "Ready local model",
+        "Model file missing",
+        "Person link missing",
+        "Unknown historical provenance",
+        "Identity not built",
+        "PC needed for generation"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "lora-generate",
+      "family": "studio",
+      "title": "Generate with LoRA",
+      "purposeAr": "اختيار LoRA وقاعدة التوليد والنص والمرجع مع الاحتفاظ بسياق الشخص والصورة.",
+      "surface": "screen",
+      "parentId": "model-details",
+      "primaryAction": "Generate",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Model",
+          "items": [
+            "Selected LoRA",
+            "Linked person",
+            "Base checkpoint"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Generation",
+          "items": [
+            "Prompt",
+            "Image count",
+            "Seed"
+          ]
+        },
+        {
+          "type": "preview",
+          "title": "Optional reference",
+          "items": [
+            "Current image can be a reference",
+            "Composition / Style / Both"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Change LoRA",
+        "Add or replace reference",
+        "Expand reference",
+        "PC readiness"
+      ],
+      "states": [
+        "No ready model",
+        "No base checkpoint",
+        "Engine unavailable",
+        "Ready",
+        "Submitting",
+        "Reference missing"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "activity-center",
+      "family": "activity",
+      "title": "Activity",
+      "purposeAr": "يجمع الفحص والمهام وسجلها بدل تبويب Jobs المنفصل دون فقد العمليات.",
+      "surface": "screen",
+      "parentId": "studio-home",
+      "primaryAction": "Open current operation",
+      "sections": [
+        {
+          "type": "tabs",
+          "title": "Activity",
+          "items": [
+            "Analysis",
+            "Studio jobs",
+            "History"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Operations",
+          "items": [
+            "Current stage and progress",
+            "Paused or failed state",
+            "Estimated time when available"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Open analysis details",
+        "Open job details",
+        "Open result",
+        "Return to gallery"
+      ],
+      "states": [
+        "No activity",
+        "Running scan",
+        "Queued jobs",
+        "Manually paused",
+        "PC offline",
+        "Completed history"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "scan-details",
+      "family": "activity",
+      "title": "Analysis progress",
+      "purposeAr": "تفاصيل الفحص وإعداداته والملفات الفاشلة مع احترام الإيقاف اليدوي والاستئناف.",
+      "surface": "screen",
+      "parentId": "activity-center",
+      "primaryAction": "Pause or resume analysis",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Current pass",
+          "items": [
+            "Analyzed / Remaining / Failed",
+            "Current file preview",
+            "Current stage"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Queue details",
+          "items": [
+            "Photo and video progress",
+            "Selected album scope",
+            "Failed media with retry",
+            "Video checkpoint details"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Retry failed media",
+        "Manage sources",
+        "Open current media",
+        "Analysis options"
+      ],
+      "states": [
+        "Enumerating",
+        "Analyzing",
+        "Offline waiting",
+        "User paused",
+        "Failed item",
+        "Completed",
+        "Maintenance blocks work"
+      ],
+      "backTo": "activity-center"
+    },
+    {
+      "id": "job-details",
+      "family": "activity",
+      "title": "Job details",
+      "purposeAr": "حالة المهمة والمراحل والوقت والتفاصيل المناسبة للتدريب أو Reface والنتيجة المحفوظة.",
+      "surface": "screen",
+      "parentId": "activity-center",
+      "primaryAction": "Open result or resume",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Job status",
+          "items": [
+            "Uploading / Queued / Running / Paused",
+            "Downloading / Completed / Failed / Lost",
+            "Progress and estimated time"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Operation details",
+          "items": [
+            "Type and source person",
+            "Stage / Epoch / Step where available",
+            "Reface actual swaps / Skips / Failures",
+            "Recorded warnings and event history"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Pause",
+        "Resume / Retry",
+        "Remove job with confirmation",
+        "Open result"
+      ],
+      "states": [
+        "Uploading",
+        "Queued",
+        "Running",
+        "Paused",
+        "Downloading",
+        "Completed",
+        "Failed",
+        "Lost",
+        "Offline recovery"
+      ],
+      "backTo": "activity-center"
+    },
+    {
+      "id": "results-gallery",
+      "family": "results",
+      "title": "Private results",
+      "purposeAr": "شبكة النتائج الخاصة مع المفضلة والنوع دون نشرها تلقائيًا في معرض الهاتف.",
+      "surface": "screen",
+      "parentId": "studio-home",
+      "primaryAction": "Open result",
+      "sections": [
+        {
+          "type": "fields",
+          "title": "Result filters",
+          "items": [
+            "All / Favourites",
+            "Photos / Videos"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Saved results",
+          "items": [
+            "Output preview",
+            "Creation time",
+            "Result type"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Open related job",
+        "Create new result"
+      ],
+      "states": [
+        "No results",
+        "No filter matches",
+        "Offline local results",
+        "Missing private output"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "result-viewer",
+      "family": "results",
+      "title": "Result",
+      "purposeAr": "عرض نتيجة صورة أو فيديو والمقارنة والأصل والعلاقات المعروفة مع الحفظ أو المشاركة الصريحة.",
+      "surface": "screen",
+      "parentId": "results-gallery",
+      "primaryAction": "Save to gallery",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Output",
+          "items": [
+            "Photo or video player",
+            "Before / After only when a source exists",
+            "Text-only generation has no Before view",
+            "Separate source and output expansion when present"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Source and tools",
+          "items": [
+            "Linked source media when known",
+            "Job / Person / Model when linked",
+            "Private original snapshot when source is missing"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Share",
+        "Favourite",
+        "Open original",
+        "Open related job",
+        "Delete private result",
+        "Open Reface"
+      ],
+      "states": [
+        "Photo result",
+        "Video result",
+        "Original missing keeps snapshot",
+        "Older unlinked source labelled",
+        "Output missing",
+        "Export cancelled",
+        "Share failed",
+        "Artifact-aware delete confirmation lists any same-ID model or dataset and files"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "analysis-sources",
+      "family": "settings",
+      "title": "Analysis sources",
+      "purposeAr": "اختيار مجلدات التحليل مختلف عن تصفح المجلدات في Gallery.",
+      "surface": "screen",
+      "parentId": "settings-home",
+      "primaryAction": "Start analysis",
+      "sections": [
+        {
+          "type": "list",
+          "title": "Device albums",
+          "items": [
+            "All media or selected albums",
+            "Media count",
+            "Illustrated album flag for a chosen real folder"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Current scope",
+          "items": [
+            "Selected albums",
+            "Current scan state"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Analysis options",
+        "Open activity",
+        "Open folder without analyzing"
+      ],
+      "states": [
+        "No albums chosen",
+        "Access limited",
+        "No accessible media",
+        "Active scan restricts changes",
+        "PC connection needed"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "analysis-settings",
+      "family": "settings",
+      "title": "Analysis settings",
+      "purposeAr": "إعدادات الصور والأجسام والفيديو والتجميع والجودة والمراجعة المتقدمة مع الحفاظ على القدرات الحالية.",
+      "surface": "screen",
+      "parentId": "analysis-sources",
+      "primaryAction": "Save analysis preferences",
+      "sections": [
+        {
+          "type": "fields",
+          "title": "Inputs",
+          "items": [
+            "Include videos",
+            "Adaptive sampling or frame interval",
+            "Detect bodies",
+            "Maximum image side"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Identity grouping",
+          "items": [
+            "Strict / Balanced / Loose",
+            "Quality threshold",
+            "Sort now"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Maintenance",
+          "items": [
+            "Retry missing outlines",
+            "Advanced review evidence",
+            "Photo-only / Experimental capabilities remain labelled"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Manage sources",
+        "Open analysis status",
+        "Retry outline processing"
+      ],
+      "states": [
+        "Saved",
+        "Scan running restricts inputs",
+        "PC offline",
+        "Outline retry running",
+        "No pending outlines"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "analyze-single",
+      "family": "settings",
+      "title": "Analyze a photo",
+      "purposeAr": "تجربة اكتشاف مستقلة للصورة أو للشخصيات دون اشتراط إضافتها لمكتبة الأشخاص.",
+      "surface": "screen",
+      "parentId": "settings-home",
+      "primaryAction": "Choose photo",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Analysis input",
+          "items": [
+            "Selected photo",
+            "Face and body overlays"
+          ]
+        },
+        {
+          "type": "grid",
+          "title": "Detected faces",
+          "items": [
+            "Crop",
+            "Identity suggestions when available",
+            "Open full image"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Analyze another photo",
+        "Person / Character mode",
+        "Explicitly assign detected identity"
+      ],
+      "states": [
+        "No photo",
+        "Analyzing",
+        "PC offline",
+        "No faces",
+        "Error with retry",
+        "Characters mode"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "library-insights",
+      "family": "settings",
+      "title": "Library insights",
+      "purposeAr": "إحصاءات التغطية والجودة ومداخل الملفات غير المصنفة والفحص بعيدًا عن بداية الجاليري.",
+      "surface": "screen",
+      "parentId": "settings-home",
+      "primaryAction": "Open relevant library view",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Library coverage",
+          "items": [
+            "Photos / Videos / People",
+            "Analyzed / Remaining / Failed",
+            "Face quality and grouping coverage"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Follow up",
+          "items": [
+            "Unassigned faces",
+            "Analysis sources",
+            "People with most appearances"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Start analysis",
+        "Open person",
+        "Open unassigned faces"
+      ],
+      "states": [
+        "No library data",
+        "Partial analysis",
+        "Offline local statistics"
+      ],
+      "backTo": "settings-home"
+    },
+    {
+      "id": "settings-home",
+      "family": "settings",
+      "title": "Settings",
+      "purposeAr": "تجميع الإعدادات التشغيلية والخصوصية وأدوات المكتبة مع مدخل من الجاليري.",
+      "surface": "screen",
+      "parentId": "gallery-photos",
+      "primaryAction": "Open settings category",
+      "sections": [
+        {
+          "type": "list",
+          "title": "Library",
+          "items": [
+            "Analysis sources and options",
+            "Analyze a photo",
+            "Library insights"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Privacy and storage",
+          "items": [
+            "App lock",
+            "Storage and cleanup",
+            "Encrypted backup and restore"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Device",
+          "items": [
+            "PC connection and resource readiness",
+            "Background and battery settings"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Back to gallery"
+      ],
+      "states": [
+        "Local settings available offline",
+        "Paired PC",
+        "No paired PC"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "pc-connection",
+      "family": "settings",
+      "title": "PC connection",
+      "purposeAr": "ربط الكمبيوتر عند الحاجة والتحقق من الاتصال والموارد والمحركات المتاحة.",
+      "surface": "screen",
+      "parentId": "settings-home",
+      "primaryAction": "Find or connect to PC",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Saved connection",
+          "items": [
+            "PC name and verified identity",
+            "Connected / Offline / Busy"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Pairing choices",
+          "items": [
+            "Scan QR code",
+            "Enter address manually",
+            "Find PCs on local network"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Resource readiness",
+          "items": [
+            "Advertised engine readiness",
+            "Shared base checkpoints",
+            "Available DFM models",
+            "Storage and device resource checks"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Network help",
+          "items": [
+            "Reachable PC endpoints",
+            "Phone local addresses",
+            "Connection diagnostics"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Retry discovery",
+        "Use a matching saved-PC endpoint",
+        "Forget PC",
+        "Return to pending tool"
+      ],
+      "states": [
+        "Never paired",
+        "Discovering",
+        "Connected",
+        "Busy",
+        "Offline",
+        "Certificate or identity mismatch",
+        "Engine missing"
+      ],
+      "backTo": "origin"
+    },
+    {
+      "id": "pair-qr",
+      "family": "settings",
+      "title": "Scan pairing code",
+      "purposeAr": "قراءة كود ربط الكمبيوتر ثم العودة للأداة التي طلبت الاتصال.",
+      "surface": "screen",
+      "parentId": "pc-connection",
+      "primaryAction": "Scan QR code",
+      "sections": [
+        {
+          "type": "preview",
+          "title": "Camera scanner",
+          "items": [
+            "Pairing QR target"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Pairing verification",
+          "items": [
+            "Detected PC address",
+            "Certificate identity confirmation when required"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Enter manually",
+        "Cancel"
+      ],
+      "states": [
+        "Camera permission needed",
+        "Scanning",
+        "Invalid code",
+        "Expired code",
+        "Pairing failed",
+        "Paired"
+      ],
+      "backTo": "pc-connection"
+    },
+    {
+      "id": "pair-manual",
+      "family": "settings",
+      "title": "Pair manually",
+      "purposeAr": "إدخال عنوان الكمبيوتر والكود والتحقق من بصمة الشهادة ضمن مسار الربط الحالي.",
+      "surface": "screen",
+      "parentId": "pc-connection",
+      "primaryAction": "Pair with PC",
+      "sections": [
+        {
+          "type": "fields",
+          "title": "PC address",
+          "items": [
+            "Host",
+            "Port",
+            "Pairing code"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Verify connection",
+          "items": [
+            "Certificate fingerprint",
+            "Server identity"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Scan QR instead",
+        "Cancel"
+      ],
+      "states": [
+        "Empty fields",
+        "Invalid address",
+        "Connection failed",
+        "Fingerprint confirmation",
+        "Code expired",
+        "Paired"
+      ],
+      "backTo": "pc-connection"
+    },
+    {
+      "id": "background-settings",
+      "family": "settings",
+      "title": "Background activity",
+      "purposeAr": "إدارة عمل الفحص والمهام في الخلفية ومساعدة إعدادات البطارية دون تشغيل مهمة موقوفة.",
+      "surface": "screen",
+      "parentId": "settings-home",
+      "primaryAction": "Open Android battery settings",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Background state",
+          "items": [
+            "Foreground work state",
+            "Notification and battery permission state"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Keep work running",
+          "items": [
+            "Battery optimization guidance",
+            "Relevant Android settings",
+            "Current scan or job progress"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Open activity",
+        "Refresh status"
+      ],
+      "states": [
+        "No active work",
+        "Background work active",
+        "Battery restriction",
+        "Notification permission denied",
+        "User paused remains paused"
+      ],
+      "backTo": "settings-home"
+    },
+    {
+      "id": "storage-settings",
+      "family": "settings",
+      "title": "Storage",
+      "purposeAr": "عرض استخدام التخزين والتنظيف بالخيارات الحالية مع فصل المؤقت عن النتائج المحفوظة.",
+      "surface": "screen",
+      "parentId": "settings-home",
+      "primaryAction": "Review cleanup",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "Storage use",
+          "items": [
+            "Private crops",
+            "Saved results and models",
+            "Temporary files"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Cleanup actions",
+          "items": [
+            "Clean orphaned leftovers",
+            "Delete temporary data",
+            "Optional removal of saved items with confirmation"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Refresh storage",
+        "Open backup"
+      ],
+      "states": [
+        "Calculating",
+        "No leftovers",
+        "Cleanup ready",
+        "Active operations restrict cleanup",
+        "Confirmation",
+        "Partial cleanup failure"
+      ],
+      "backTo": "settings-home"
+    },
+    {
+      "id": "backup-restore",
+      "family": "settings",
+      "title": "Backup and restore",
+      "purposeAr": "إنشاء نسخة مشفرة أو استعادة بعد معاينة المحتوى والتأكيد مع توضيح نطاق النسخة.",
+      "surface": "screen",
+      "parentId": "settings-home",
+      "primaryAction": "Create backup",
+      "sections": [
+        {
+          "type": "list",
+          "title": "Backup actions",
+          "items": [
+            "Create and share backup",
+            "Choose backup to inspect and restore"
+          ]
+        },
+        {
+          "type": "fields",
+          "title": "Encryption",
+          "items": [
+            "Encrypt backup: on by default",
+            "Password and confirmation for encrypted backup",
+            "Plaintext backup requires explicit opt-out"
+          ]
+        },
+        {
+          "type": "summary",
+          "title": "Included content",
+          "items": [
+            "App index and private derived artifacts",
+            "Device originals are not all copied",
+            "PC credentials are not transferred"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Inspect selected backup",
+        "Restore after explicit confirmation",
+        "Cancel operation"
+      ],
+      "states": [
+        "Idle",
+        "Creating",
+        "Share cancelled",
+        "Inspecting",
+        "Password required",
+        "Invalid backup",
+        "Restore confirmation",
+        "Restoring",
+        "Completed",
+        "Failure"
+      ],
+      "backTo": "settings-home"
+    },
+    {
+      "id": "app-lock",
+      "family": "settings",
+      "title": "App lock",
+      "purposeAr": "تفعيل أو فك قفل التطبيق بالمصادقة الحالية مع استمرار إعداد التقاط الشاشة الذي اختاره المستخدم.",
+      "surface": "dialog",
+      "parentId": "settings-home",
+      "primaryAction": "Authenticate and continue",
+      "sections": [
+        {
+          "type": "summary",
+          "title": "App access",
+          "items": [
+            "Device credential or supported authentication",
+            "Lock enabled state"
+          ]
+        },
+        {
+          "type": "list",
+          "title": "Controls",
+          "items": [
+            "Enable app lock",
+            "Disable app lock",
+            "Unlock current session"
+          ]
+        }
+      ],
+      "secondaryActions": [
+        "Cancel"
+      ],
+      "states": [
+        "Lock disabled",
+        "Authentication required",
+        "Unlock failed",
+        "Unlocked",
+        "System credential screen"
+      ],
+      "backTo": "origin"
+    }
+  ]
+}

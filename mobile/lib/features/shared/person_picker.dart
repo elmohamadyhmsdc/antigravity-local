@@ -77,9 +77,20 @@ class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final peopleState = ref.watch(
-      widget.kind == 'character' ? charactersProvider : peopleProvider,
-    );
+    final peopleOnly = ref.watch(peopleProvider);
+    final charactersOnly = ref.watch(charactersProvider);
+    final peopleState = widget.kind == 'all'
+        ? (peopleOnly.hasError
+              ? peopleOnly
+              : charactersOnly.hasError
+              ? charactersOnly
+              : peopleOnly.isLoading || charactersOnly.isLoading
+              ? const AsyncValue<List<PersonSummary>>.loading()
+              : AsyncValue.data([
+                  ...peopleOnly.value ?? const <PersonSummary>[],
+                  ...charactersOnly.value ?? const <PersonSummary>[],
+                ]))
+        : (widget.kind == 'character' ? charactersOnly : peopleOnly);
     final people = peopleState.value ?? const <PersonSummary>[];
     final shown = [
       for (final p in people)
@@ -149,18 +160,19 @@ class _PersonPickerSheetState extends ConsumerState<_PersonPickerSheet> {
                       radius: 20,
                     ),
                     title: Text(personName(l10n, p)),
-                    subtitle: Text(l10n.facesCount(p.faceCount)),
+                    subtitle: Text(
+                      '${l10n.facesCount(p.faceCount)}${widget.kind == 'all' ? (p.kind == 'character' ? ' · Character' : ' · Person') : ''}',
+                    ),
                     onTap: () =>
                         Navigator.pop(context, PersonChoice.existing(p.id)),
                   ),
                 if (peopleState.isLoading) const LoadingBox(),
                 if (peopleState.hasError)
                   RetryState(
-                    onRetry: () => ref.invalidate(
-                      widget.kind == 'character'
-                          ? charactersProvider
-                          : peopleProvider,
-                    ),
+                    onRetry: () {
+                      ref.invalidate(peopleProvider);
+                      ref.invalidate(charactersProvider);
+                    },
                   ),
                 if (!peopleState.isLoading &&
                     !peopleState.hasError &&

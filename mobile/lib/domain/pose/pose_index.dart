@@ -143,7 +143,7 @@ class PoseIndex {
       (await _db
               .customSelect(
                 '''SELECT COUNT(*) AS n FROM bodies b JOIN media m ON m.id = b.media_id
-               WHERE b.kind = 'person' AND b.kpts IS NOT NULL
+               WHERE b.kpts IS NOT NULL
                  AND NOT EXISTS (SELECT 1 FROM body_pose_features x WHERE x.body_id = b.id AND x.version = ?)''',
                 variables: [Variable.withInt(poseRulesVersion)],
                 readsFrom: {_db.bodies, _db.media, _db.bodyPoseFeatures},
@@ -163,7 +163,7 @@ class PoseIndex {
           .customSelect(
             '''SELECT b.id, b.kpts, b.extent, m.width, m.height, f.yaw
                FROM bodies b JOIN media m ON m.id = b.media_id LEFT JOIN faces f ON f.id = b.face_id
-               WHERE b.kind = 'person' AND b.kpts IS NOT NULL
+               WHERE b.kpts IS NOT NULL
                  AND NOT EXISTS (SELECT 1 FROM body_pose_features x WHERE x.body_id = b.id AND x.version = ?)
                ORDER BY b.id LIMIT ?''',
             variables: [
@@ -350,7 +350,7 @@ class PoseIndex {
     final rows = await _db
         .customSelect(
           '''SELECT b.id, b.appearance FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
-             WHERE b.kind = 'person' AND b.appearance IS NOT NULL
+             WHERE b.appearance IS NOT NULL
              ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}
              ORDER BY b.id DESC''',
           variables: [if (personId != null) Variable.withInt(personId)],

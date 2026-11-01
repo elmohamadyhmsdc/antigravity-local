@@ -199,37 +199,6 @@ class MediaTile extends ConsumerWidget {
               );
             },
           ),
-          if (item.faceCount > 0)
-            Positioned(
-              left: 4,
-              bottom: 4,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.face, size: 12, color: Colors.white),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${item.faceCount}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           if (item.kind == 'video')
             Positioned(
               right: 4,
@@ -261,13 +230,17 @@ class MediaTile extends ConsumerWidget {
                 ),
               ),
             ),
-          if (item.scanStatus == 'failed')
+          if (filter?.scan != null &&
+              filter!.scan != ScanFilter.all &&
+              item.scanStatus == 'failed')
             const Positioned(
               right: 4,
               top: 4,
               child: Icon(Icons.error, size: 18, color: Colors.redAccent),
             )
-          else if (item.scanStatus != 'done')
+          else if (filter?.scan != null &&
+              filter!.scan != ScanFilter.all &&
+              item.scanStatus != 'done')
             const Positioned(
               right: 4,
               top: 4,

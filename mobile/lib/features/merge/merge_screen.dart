@@ -143,14 +143,19 @@ class _MergeScreenState extends ConsumerState<MergeScreen> {
     final l10n = AppLocalizations.of(context);
     final router = GoRouter.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    final impacts = await Future.wait([
+      ref.read(peopleRepositoryProvider).impactOf(keep.id),
+      ref.read(peopleRepositoryProvider).impactOf(drop.id),
+    ]);
+    if (!context.mounted) return;
+    String summary(Map<String, int> values) => values.entries
+        .map((entry) => '${entry.key}: ${entry.value}')
+        .join(', ');
     final ok = await confirm(
       context,
       title: l10n.mergeConfirmTitle,
-      body: l10n.mergeConfirmBody(
-        personName(l10n, drop),
-        drop.faceCount,
-        personName(l10n, keep),
-      ),
+      body:
+          '${l10n.mergeConfirmBody(personName(l10n, drop), drop.faceCount, personName(l10n, keep))}\n\nKept: ${summary(impacts[0])}\nMoved: ${summary(impacts[1])}\nOriginal files stay in place.',
       confirmLabel: l10n.merge,
       cancelLabel: l10n.cancel,
     );

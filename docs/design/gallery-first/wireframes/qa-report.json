@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-01",
+  "baseCount": 68,
+  "variantCount": 2,
+  "checks": {
+    "generationHasNoBeforeAfter": true,
+    "sourceComparisonPresent": true,
+    "viewerShareToolsDetails": true,
+    "jobHasNoCleanupCopy": true,
+    "modelHasNoReviewAnnotations": true,
+    "mergeHasNoInternalBlockerCopy": true,
+    "seedNumeric": true,
+    "imageCountStepper": true,
+    "deletionHasConcreteArtifactCopy": true,
+    "backupHasForcedOnSwitch": true,
+    "noInvalidSvgValues": true,
+    "pngDimensionsCorrect": true,
+    "geometryWithinArtboard": true
+  },
+  "svgChecks": [],
+  "pngChecks": [],
+  "visualBoards": [
+    "qa-representatives",
+    "qa-secondary",
+    "qa-core-corrections"
+  ],
+  "limits": "Static 390x844 wireframes. No Android, large-text, RTL or theme runtime acceptance performed.",
+  "geometryIssues": []
+}

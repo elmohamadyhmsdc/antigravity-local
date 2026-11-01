@@ -7,11 +7,75 @@ import 'package:drift/drift.dart';
 import '../db/app_database.dart';
 import '../files/file_store.dart';
 import '../../domain/scan/video_scan.dart';
+import 'artifact_context.dart';
 
 class StudioRepository {
   StudioRepository(this.db, this.files);
   final AppDatabase db;
   final FileStore files;
+
+  Future<ArtifactContext?> contextFor(String id) async {
+    final row =
+        await (db.select(db.settings)
+              ..where((s) => s.key.equals('$artifactContextPrefix$id')))
+            .getSingleOrNull();
+    return ArtifactContext.decode(row?.value);
+  }
+
+  Stream<ArtifactContext?> watchContext(String id) =>
+      (db.select(db.settings)
+            ..where((s) => s.key.equals('$artifactContextPrefix$id')))
+          .watchSingleOrNull()
+          .map((row) => ArtifactContext.decode(row?.value));
+
+  Stream<List<ResultRow>> watchResultsForMedia(
+    int mediaId, {
+    String? assetId,
+  }) => db
+      .customSelect(
+        'SELECT r.*, c.value AS gallery_context FROM results r '
+        'LEFT JOIN settings c ON c.key = ? || r.id '
+        'ORDER BY r.created_at DESC',
+        variables: [Variable.withString(artifactContextPrefix)],
+        readsFrom: {db.results, db.settings},
+      )
+      .watch()
+      .map(
+        (rows) => [
+          for (final row in rows)
+            if (_matchesMedia(
+              ArtifactContext.decode(
+                row.readNullable<String>('gallery_context'),
+              ),
+              mediaId,
+              assetId,
+            ))
+              db.results.map(row.data),
+        ],
+      );
+
+  static bool _matchesMedia(
+    ArtifactContext? context,
+    int mediaId,
+    String? assetId,
+  ) =>
+      context?.mediaId == mediaId ||
+      context?.referenceMediaId == mediaId ||
+      (assetId != null && context?.assetId == assetId);
+
+  Future<List<String>> deletionItems(ResultRow row) async {
+    final model = await (db.select(
+      db.loras,
+    )..where((item) => item.id.equals(row.id))).getSingleOrNull();
+    final dataset = await (db.select(
+      db.datasets,
+    )..where((item) => item.id.equals(row.id))).getSingleOrNull();
+    return [
+      'Saved result and its private files',
+      if (model != null) 'Trained LoRA: ${model.triggerWord}',
+      if (dataset != null) 'Training dataset: ${dataset.triggerWord}',
+    ];
+  }
 
   Stream<List<JobRow>> watchJobs() => (db.select(
     db.jobs,
@@ -71,6 +135,7 @@ class StudioRepository {
     required File target,
     required bool video,
     int? personId,
+    ArtifactContext? context,
   }) async {
     return enqueueInputs(
       serverId: serverId,
@@ -80,6 +145,7 @@ class StudioRepository {
         'target': [target],
       },
       personId: personId,
+      context: context,
     );
   }
 
@@ -89,6 +155,7 @@ class StudioRepository {
     required Map<String, dynamic> params,
     required Map<String, List<File>> inputs,
     int? personId,
+    ArtifactContext? context,
   }) async {
     if (inputs.isEmpty || inputs.values.any((list) => list.isEmpty)) {
       throw const FormatException('Choose input files.');
@@ -121,29 +188,41 @@ class StudioRepository {
             : hashes.single;
       }
       final now = DateTime.now().millisecondsSinceEpoch;
-      await db
-          .into(db.jobs)
-          .insert(
-            JobsCompanion.insert(
-              id: id,
-              serverId: serverId,
-              type: type,
-              requestJson: jsonEncode({
-                'client_job_id': id,
-                'type': type,
-                'inputs': wireInputs,
-                'params': params,
-              }),
-              targetPath: firstPath!,
-              targetSha: firstSha!,
-              targetSize: firstSize,
-              inputFiles: Value(jsonEncode(stagedFiles)),
-              personId: Value(personId),
-              status: 'uploading',
-              createdAt: now,
-              updatedAt: now,
-            ),
-          );
+      await db.transaction(() async {
+        await db
+            .into(db.jobs)
+            .insert(
+              JobsCompanion.insert(
+                id: id,
+                serverId: serverId,
+                type: type,
+                requestJson: jsonEncode({
+                  'client_job_id': id,
+                  'type': type,
+                  'inputs': wireInputs,
+                  'params': params,
+                }),
+                targetPath: firstPath!,
+                targetSha: firstSha!,
+                targetSize: firstSize,
+                inputFiles: Value(jsonEncode(stagedFiles)),
+                personId: Value(personId),
+                status: 'uploading',
+                createdAt: now,
+                updatedAt: now,
+              ),
+            );
+        if (context != null) {
+          await db
+              .into(db.settings)
+              .insertOnConflictUpdate(
+                SettingsCompanion.insert(
+                  key: '$artifactContextPrefix$id',
+                  value: jsonEncode(context.toJson()),
+                ),
+              );
+        }
+      });
       return id;
     } catch (_) {
       for (final relative in stagedFiles.values) {
@@ -204,6 +283,9 @@ class StudioRepository {
       await update(row.id, const JobsCompanion(status: Value('completed')));
       await (db.delete(db.loras)..where((l) => l.id.equals(row.id))).go();
       await (db.delete(db.datasets)..where((d) => d.id.equals(row.id))).go();
+      await (db.delete(
+        db.settings,
+      )..where((s) => s.key.equals('$artifactContextPrefix${row.id}'))).go();
     });
     await files.deleteAll([row.path, row.originalPath]);
     await files.deleteAll(datasetFiles.map((i) => i.path));

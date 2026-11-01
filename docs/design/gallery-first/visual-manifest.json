@@ -1,0 +1,161 @@
+{
+  "status": "design-review",
+  "engine": "built-in image_gen",
+  "locale": "English UI / Arabic specification",
+  "finalScreens": [
+    {
+      "id": "01-gallery-photos",
+      "title": "Gallery / Photos",
+      "noteAr": "شبكة الصور هي البداية.",
+      "file": "screens/01-gallery-photos.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "6adf66317e10a6c4fc16e81c0d02122eee738188a4813ce28fbcb7eaaf8f484e"
+    },
+    {
+      "id": "02-gallery-folders",
+      "title": "Gallery / Folders",
+      "noteAr": "المجلدات داخل Gallery.",
+      "file": "screens/02-gallery-folders.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "1441db51dab02547f370319e0cf2a0569bde3ab657a6668e5cad7127217eb183"
+    },
+    {
+      "id": "03-photo-viewer",
+      "title": "Photo viewer",
+      "noteAr": "عرض الصورة والأدوات الأساسية.",
+      "file": "screens/03-photo-viewer.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "09cc105a83351473edabc432c532704a6453a29591be484d96e673acedb5b73f"
+    },
+    {
+      "id": "04-photo-details",
+      "title": "Photo details",
+      "noteAr": "الأشخاص والأدوات والموديلات من داخل الصورة.",
+      "file": "screens/04-photo-details.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "fd5b0a56009b17f9fc0a64b5b57e16060eba2c0a32173a44194b4c32d110a6c7"
+    },
+    {
+      "id": "05-person-media-v2",
+      "title": "Person / Media",
+      "noteAr": "صور الشخص الأصلية قبل قصاصات الهوية.",
+      "file": "screens/05-person-media-v2.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "e85691a05b398f20b37e748dbf4c738ba868e56aa2b6c4b6da9b3d9908649bba"
+    },
+    {
+      "id": "06-person-models-v2",
+      "title": "Person / Models",
+      "noteAr": "موديلات جاهزة وبيانات تدريب الشخص.",
+      "file": "screens/06-person-models-v2.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "c4c99b8683627e5c35ff4145dbc15188d7f529f4e0f3402d611caa8668e48dfd"
+    },
+    {
+      "id": "07-discover",
+      "title": "Discover",
+      "noteAr": "اكتشاف بصري بأمثلة وصور.",
+      "file": "screens/07-discover.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "5fdd227bd69afd7e997828e82bb3347f486dfd8859df3bf953e43339d39f383d"
+    },
+    {
+      "id": "08-studio",
+      "title": "Studio",
+      "noteAr": "الأدوات والموديلات والنتائج.",
+      "file": "screens/08-studio.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "477af516387d8a7b1a4aec876d0d5f7ff949095b519f96f6456453fa860f9224"
+    },
+    {
+      "id": "09-reface-v2",
+      "title": "Reface",
+      "noteAr": "مصدر الهوية منفصل عن الوجه المستهدف.",
+      "file": "screens/09-reface-v2.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "8041b191d03d3ed170714299bd7fa335232cda4755930962b959d7542551df95"
+    },
+    {
+      "id": "10-generate",
+      "title": "Generate",
+      "noteAr": "موديل الشخص والمراجع والتوليد.",
+      "file": "screens/10-generate.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "049da4c4e29a2c51a8e5a729a74a8e08d8e92d728eae7dca9ff1e081217a9aef"
+    },
+    {
+      "id": "11-people",
+      "title": "People",
+      "noteAr": "أشخاص وشخصيات ومداخل المراجعة.",
+      "file": "screens/11-people.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "8320c4e6bcb8e44e5f0f59ad9b033fc5e0f81a71dcd5855dd3a6ed7397835f3e"
+    },
+    {
+      "id": "12-generated-result",
+      "title": "Private generated result",
+      "noteAr": "نتيجة توليد خاصة بدون مقارنة زائفة بأصل.",
+      "file": "screens/12-generated-result.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "5124a08a62d5706d44617ff41b514b5b50e13964f93a7674ccef19cdb285075b"
+    },
+    {
+      "id": "13-activity",
+      "title": "Activity",
+      "noteAr": "الفحص والمهام والتقدم والإيقاف.",
+      "file": "screens/13-activity.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "9755ee539d2d4ae1829b92a73db066ba0266dd38a89499a6d6bdaac93bcc4552"
+    },
+    {
+      "id": "14-running-scan",
+      "title": "Running scan",
+      "noteAr": "فحص الصور الجاري، المعاينة والتقدم والإيقاف.",
+      "file": "screens/14-running-scan.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "75accc5f8f42ab6e02616bf66bdd2c973250aeb82e214c3a549d71aacad003b6"
+    },
+    {
+      "id": "15-running-video-scan",
+      "title": "Running video scan",
+      "noteAr": "تقدم مرحلة الفيديو منفصل عن تقدم المكتبة.",
+      "file": "screens/15-running-video-scan.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "35b2098804739487ea7cb29356158388cf05017bb7edea342abb09daac8ac039"
+    },
+    {
+      "id": "16-scan-paused",
+      "title": "Scan paused",
+      "noteAr": "إيقاف يدوي مع حفظ التقدم واستئناف صريح.",
+      "file": "screens/16-scan-paused.png",
+      "width": 853,
+      "height": 1844,
+      "sha256": "0e123fc5550611b2bf1e2df3445264244149c4291035cacf065c2a99a65a0116"
+    }
+  ],
+  "superseded": [
+    "05-person-media.png",
+    "06-person-models.png",
+    "09-reface.png"
+  ],
+  "notes": [
+    "Concept images are visual references, not pixel-perfect implementation specs.",
+    "Use final v2 assets for the person media/models and Reface screens.",
+    "All names, photos and counts are synthetic examples; no private library assets were read."
+  ]
+}

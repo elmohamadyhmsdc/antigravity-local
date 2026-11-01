@@ -7,20 +7,27 @@ ThemeData buildTheme(Brightness brightness) {
   final scheme = ColorScheme.fromSeed(seedColor: _seed, brightness: brightness)
       .copyWith(
         primary: dark ? const Color(0xFFA4D5BD) : _seed,
+        primaryContainer: dark
+            ? const Color(0xFF2D4F40)
+            : const Color(0xFFDDEBE2),
+        onPrimaryContainer: dark
+            ? const Color(0xFFBFE6D1)
+            : const Color(0xFF1E4A3B),
+        outline: dark ? const Color(0xFF87937F) : const Color(0xFF7A8274),
         onPrimary: dark ? const Color(0xFF12382C) : Colors.white,
-        surface: dark ? const Color(0xFF151B18) : const Color(0xFFF7F8F5),
-        surfaceContainerLowest: dark ? const Color(0xFF101612) : Colors.white,
-        surfaceContainerLow: dark ? const Color(0xFF1D2420) : Colors.white,
+        surface: dark ? const Color(0xFF171A17) : const Color(0xFFF7F6F2),
+        surfaceContainerLowest: dark ? const Color(0xFF171A17) : Colors.white,
+        surfaceContainerLow: dark ? const Color(0xFF20251F) : Colors.white,
         surfaceContainer: dark
-            ? const Color(0xFF242D27)
-            : const Color(0xFFEEF1EB),
-        onSurface: dark ? const Color(0xFFE6ECE5) : const Color(0xFF202A24),
+            ? const Color(0xFF2A3028)
+            : const Color(0xFFEDECE6),
+        onSurface: dark ? const Color(0xFFECEDE7) : const Color(0xFF242823),
         onSurfaceVariant: dark
-            ? const Color(0xFFB9C5BB)
-            : const Color(0xFF59665D),
+            ? const Color(0xFFB6BDAF)
+            : const Color(0xFF62675F),
         outlineVariant: dark
-            ? const Color(0xFF3B493F)
-            : const Color(0xFFDBE2D9),
+            ? const Color(0xFF454D41)
+            : const Color(0xFFDCDDD5),
       );
   final base = ThemeData(useMaterial3: true, colorScheme: scheme);
   final rounded = RoundedRectangleBorder(
@@ -32,13 +39,13 @@ ThemeData buildTheme(Brightness brightness) {
     scaffoldBackgroundColor: scheme.surface,
     textTheme: base.textTheme.copyWith(
       headlineMedium: base.textTheme.headlineMedium?.copyWith(
-        fontSize: 30,
+        fontSize: 28,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.8,
         height: 1.15,
       ),
       headlineSmall: base.textTheme.headlineSmall?.copyWith(
-        fontSize: 25,
+        fontSize: 22,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.5,
         height: 1.2,
@@ -71,7 +78,10 @@ ThemeData buildTheme(Brightness brightness) {
         minimumSize: const Size(48, 52),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        textStyle: base.textTheme.labelLarge?.copyWith(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -104,7 +114,7 @@ ThemeData buildTheme(Brightness brightness) {
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: WidgetStateProperty.resolveWith(
         (states) => TextStyle(
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: states.contains(WidgetState.selected)
               ? FontWeight.w700
               : FontWeight.w500,

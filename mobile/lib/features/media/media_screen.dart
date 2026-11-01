@@ -5,22 +5,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:photo_manager/photo_manager.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/router.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repositories/media_queries.dart';
+import '../../data/repositories/artifact_context.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
+import '../../providers.dart';
+import '../../studio_providers.dart';
 import '../bodies/body_naming.dart';
 import '../bodies/group_pose_screens.dart';
 import '../bodies/equipment_screens.dart';
 import '../marks/mark_tattoo.dart';
+import '../jobs/jobs_screen.dart' show jobTypeLabel;
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../people/people_actions.dart' show moveToOtherKind;
 import '../scan/redetect_flow.dart';
 import '../scan/scan_progress_card.dart' show startScan;
+import '../video_actions/video_actions_screen.dart';
 import '../shared/person_picker.dart';
 import '../shared/image_preview.dart';
 import 'video_media_view.dart';
@@ -36,10 +43,17 @@ final detectionsProvider = StreamProvider.autoDispose
     );
 
 class _Loaded {
-  const _Loaded(this.bytes, this.width, this.height);
+  const _Loaded(this.bytes, this.width, this.height, {this.fallback = false});
   final Uint8List bytes;
   final int width;
   final int height;
+  final bool fallback;
+}
+
+class MediaCollectionContext {
+  const MediaCollectionContext({required this.ids, this.loadMore});
+  final List<int> ids;
+  final Future<List<int>> Function()? loadMore;
 }
 
 /// S06 - one photo/video viewer with swipe navigation (PageView) across the active filter,
@@ -50,11 +64,13 @@ class MediaScreen extends ConsumerStatefulWidget {
     required this.mediaId,
     this.initialTimestampMs,
     this.filter,
+    this.collection,
   });
 
   final int mediaId;
   final int? initialTimestampMs;
   final MediaFilter? filter;
+  final MediaCollectionContext? collection;
 
   @override
   ConsumerState<MediaScreen> createState() => _MediaScreenState();
@@ -64,16 +80,33 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   late List<int> _mediaIds;
   int _currentIndex = 0;
   PageController? _pageController;
+  Offset? _swipeStart;
+  int _pointerCount = 0;
+  bool _multiTouch = false;
+  var _loadingMore = false;
+  int? _selectedDetectionId;
+  var _chromeVisible = true;
+  var _detailsOpen = false;
+  var _zoomed = false;
   var _showBodies = false;
-  var _showFaces = true;
+  var _showFaces = false;
 
   @override
   void initState() {
     super.initState();
-    _mediaIds = [widget.mediaId];
-    _currentIndex = 0;
-    _pageController = PageController(initialPage: 0);
-    _loadIds();
+    _mediaIds = List.of(widget.collection?.ids ?? [widget.mediaId]);
+    _currentIndex = _mediaIds.indexOf(widget.mediaId);
+    if (_currentIndex < 0) {
+      _mediaIds = [widget.mediaId];
+      _currentIndex = 0;
+    }
+    _pageController = PageController(initialPage: _currentIndex);
+    if (widget.collection == null) _loadIds();
+    if (_currentIndex >= _mediaIds.length - 3) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadMore();
+      });
+    }
   }
 
   Future<void> _loadIds() async {
@@ -90,6 +123,34 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         _pageController = PageController(initialPage: _currentIndex);
       });
     } catch (_) {}
+  }
+
+  Future<void> _loadMore() async {
+    final load = widget.collection?.loadMore;
+    if (load == null || _loadingMore) return;
+    _loadingMore = true;
+    try {
+      final ids = await load();
+      if (mounted && ids.isNotEmpty) {
+        setState(() {
+          for (final id in ids) {
+            if (!_mediaIds.contains(id)) _mediaIds.add(id);
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not load more photos. Return to Gallery to retry.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      _loadingMore = false;
+    }
   }
 
   @override
@@ -168,105 +229,529 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
             if (!d.isFace) d,
         ];
         return Scaffold(
-          bottomNavigationBar: media.scanError == null
-              ? null
-              : SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.warning_amber_rounded),
-                        const SizedBox(width: 10),
-                        Expanded(child: Text(media.scanError!)),
+          backgroundColor: Colors.black,
+          appBar: PreferredSize(
+            preferredSize: Size.fromHeight(_chromeVisible ? kToolbarHeight : 0),
+            child: IgnorePointer(
+              ignoring: !_chromeVisible,
+              child: AnimatedOpacity(
+                opacity: _chromeVisible ? 1 : 0,
+                duration: const Duration(milliseconds: 160),
+                child: AppBar(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  leading: BackButton(
+                    onPressed: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go(Routes.library);
+                      }
+                    },
+                  ),
+                  title: Text(
+                    taken ??
+                        (media.kind == 'video'
+                            ? l10n.videoTitle
+                            : l10n.photoTitle),
+                  ),
+                  actions: [
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'faces') {
+                          setState(() => _showFaces = !_showFaces);
+                        }
+                        if (value == 'bodies') {
+                          setState(() => _showBodies = !_showBodies);
+                        }
+                        if (value == 'redetect') {
+                          redetectFlow(context, ref, mediaId: media.id);
+                        }
+                        if (value == 'kind') _fileKindMenu(context, media);
+                      },
+                      itemBuilder: (_) => [
+                        if (faces.isNotEmpty)
+                          PopupMenuItem(
+                            key: const Key('toggle-faces'),
+                            value: 'faces',
+                            child: Text(
+                              _showFaces ? l10n.hideFaces : l10n.showFaces,
+                            ),
+                          ),
+                        if (bodies.isNotEmpty)
+                          PopupMenuItem(
+                            key: const Key('toggle-bodies'),
+                            value: 'bodies',
+                            child: Text(
+                              _showBodies ? l10n.hideBodies : l10n.showBodies,
+                            ),
+                          ),
+                        if (media.kind == 'photo')
+                          PopupMenuItem(
+                            value: 'redetect',
+                            child: Text(l10n.redetectTitle),
+                          ),
+                        PopupMenuItem(
+                          value: 'kind',
+                          child: Text(l10n.mediaKindTitle),
+                        ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
-          appBar: AppBar(
-            title: Text(
-              taken ??
-                  (media.kind == 'video' ? l10n.videoTitle : l10n.photoTitle),
+              ),
             ),
-            actions: [
-              if (faces.isNotEmpty)
-                IconButton(
-                  key: const Key('toggle-faces'),
-                  tooltip: _showFaces ? l10n.hideFaces : l10n.showFaces,
-                  icon: Icon(_showFaces ? Icons.face : Icons.face_outlined),
-                  onPressed: () => setState(() => _showFaces = !_showFaces),
-                ),
-              if (bodies.isNotEmpty)
-                IconButton(
-                  key: const Key('toggle-bodies'),
-                  tooltip: _showBodies ? l10n.hideBodies : l10n.showBodies,
-                  icon: Icon(
-                    _showBodies
-                        ? Icons.accessibility_new
-                        : Icons.accessibility_outlined,
-                  ),
-                  onPressed: () => setState(() => _showBodies = !_showBodies),
-                ),
-              if (media.kind == 'photo')
-                IconButton(
-                  key: const Key('media-redetect'),
-                  tooltip: l10n.redetectTitle,
-                  icon: const Icon(Icons.center_focus_strong),
-                  onPressed: () =>
-                      redetectFlow(context, ref, mediaId: media.id),
-                ),
-              IconButton(
-                key: const Key('media-kind'),
-                tooltip: l10n.mediaKindTitle,
-                icon: const Icon(Icons.swap_horiz),
-                onPressed: () => _fileKindMenu(context, media),
-              ),
-              IconButton(
-                key: const Key('google-lens'),
-                tooltip: l10n.searchGoogleLens,
-                icon: const Icon(Icons.camera_alt_outlined),
-                onPressed: () => _searchGoogleLens(context, media),
-              ),
-            ],
           ),
           body: Column(
             children: [
               Expanded(
-                child: PageView.builder(
-                  key: const Key('media-page-view'),
-                  controller: _pageController,
-                  itemCount: _mediaIds.length,
-                  onPageChanged: (i) {
-                    setState(() {
-                      _currentIndex = i;
-                    });
-                  },
-                  itemBuilder: (context, i) {
-                    final itemMediaId = _mediaIds[i];
-                    return _MediaPageViewItem(
-                      key: ValueKey(itemMediaId),
-                      mediaId: itemMediaId,
-                      showFaces: _showFaces,
-                      showBodies: _showBodies,
-                      people: people,
-                      onTapBox: (d) => _boxMenu(context, d, people),
-                      initialTimestampMs: (itemMediaId == widget.mediaId)
-                          ? widget.initialTimestampMs
-                          : null,
-                    );
-                  },
+                child: LayoutBuilder(
+                  builder: (context, constraints) => AnimatedPadding(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.only(
+                      bottom: _detailsOpen
+                          ? (constraints.maxHeight -
+                                    (MediaQuery.sizeOf(context).height * .25 -
+                                        kToolbarHeight))
+                                .clamp(0.0, constraints.maxHeight)
+                          : 0,
+                    ),
+                    child: Listener(
+                      onPointerDown: (event) {
+                        _pointerCount++;
+                        if (_pointerCount == 1) {
+                          _swipeStart = event.position;
+                          _multiTouch = false;
+                        } else {
+                          _multiTouch = true;
+                        }
+                      },
+                      onPointerUp: (event) {
+                        _pointerCount--;
+                        final start = _swipeStart;
+                        if (!_multiTouch &&
+                            !_zoomed &&
+                            media.kind == 'photo' &&
+                            start != null &&
+                            start.dy >
+                                MediaQuery.sizeOf(context).height * .65 &&
+                            start.dy - event.position.dy > 80 &&
+                            (start.dx - event.position.dx).abs() < 60) {
+                          _showDetails(context, media, faces, bodies, people);
+                        }
+                        if (_pointerCount == 0) _swipeStart = null;
+                      },
+                      onPointerCancel: (_) {
+                        _pointerCount = 0;
+                        _swipeStart = null;
+                        _multiTouch = true;
+                      },
+                      child: PageView.builder(
+                        key: const Key('media-page-view'),
+                        controller: _pageController,
+                        physics: _zoomed
+                            ? const NeverScrollableScrollPhysics()
+                            : null,
+                        itemCount: _mediaIds.length,
+                        onPageChanged: (i) {
+                          setState(() {
+                            _currentIndex = i;
+                            _selectedDetectionId = null;
+                          });
+                          if (i >= _mediaIds.length - 3) _loadMore();
+                        },
+                        itemBuilder: (context, i) {
+                          final itemMediaId = _mediaIds[i];
+                          return _MediaPageViewItem(
+                            key: ValueKey(itemMediaId),
+                            mediaId: itemMediaId,
+                            onToggleChrome: () => setState(
+                              () => _chromeVisible = !_chromeVisible,
+                            ),
+                            onZoomChanged: (zoomed) {
+                              if (_zoomed != zoomed &&
+                                  itemMediaId == _mediaIds[_currentIndex]) {
+                                setState(() => _zoomed = zoomed);
+                              }
+                            },
+                            showFaces: _showFaces,
+                            showBodies: _showBodies,
+                            people: people,
+                            onTapBox: (d) => _boxMenu(context, d, people),
+                            initialTimestampMs: (itemMediaId == widget.mediaId)
+                                ? widget.initialTimestampMs
+                                : null,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              _WhoIsHere(
-                faces: [...faces, ...bodies.where((b) => b.personId != null)],
-                people: people,
-                mediaScanned: media.scanStatus == 'done',
-                onOpen: (d) => _boxMenu(context, d, people),
-                onEdit: (d) => _reassign(context, d),
-              ),
+              if (_chromeVisible)
+                IgnorePointer(
+                  ignoring: !_chromeVisible,
+                  child: AnimatedOpacity(
+                    opacity: _chromeVisible ? 1 : 0,
+                    duration: const Duration(milliseconds: 160),
+                    child: SafeArea(
+                      top: false,
+                      child: GestureDetector(
+                        onVerticalDragEnd: (details) {
+                          if ((details.primaryVelocity ?? 0) < -200) {
+                            _showDetails(context, media, faces, bodies, people);
+                          }
+                        },
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => _shareOriginal(context, media),
+                                icon: const Icon(Icons.share_outlined),
+                                label: const Text('Share'),
+                              ),
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => _showDetails(
+                                  context,
+                                  media,
+                                  faces,
+                                  bodies,
+                                  people,
+                                ),
+                                icon: const Icon(Icons.info_outline),
+                                label: const Text('Details'),
+                              ),
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => _showTools(context, media),
+                                icon: const Icon(Icons.build_outlined),
+                                label: const Text('Tools'),
+                              ),
+                              TextButton.icon(
+                                key: const Key('google-lens'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () =>
+                                    _searchGoogleLens(context, media),
+                                icon: const Icon(Icons.camera_alt_outlined),
+                                label: const Text('Lens'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Future<void> _shareOriginal(BuildContext context, MediaRow media) async {
+    try {
+      final asset = await AssetEntity.fromId(media.assetId);
+      final file = await asset?.originFile;
+      if (file == null) throw StateError('Original file unavailable');
+      await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
+  void _showDetails(
+    BuildContext context,
+    MediaRow media,
+    List<MediaDetection> faces,
+    List<MediaDetection> bodies,
+    Map<int, PersonSummary> people,
+  ) {
+    final viewerContext = context;
+    setState(() => _detailsOpen = true);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: .75,
+          minChildSize: .3,
+          maxChildSize: .9,
+          builder: (context, controller) => ListView(
+            controller: controller,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Details',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              _WhoIsHere(
+                label: media.kind == 'video' ? 'People in this video' : null,
+                faces: [...faces, ...bodies.where((b) => b.personId != null)],
+                people: people,
+                mediaScanned: media.scanStatus == 'done',
+                selectedId: _selectedDetectionId,
+                onSelect: (d) {
+                  setSheetState(() => _selectedDetectionId = d.id);
+                },
+                onOpen: (d) => _boxMenu(context, d, people),
+                onEdit: (d) => _reassign(context, d),
+              ),
+              if (_selectedDetectionId != null)
+                for (final detection in [...faces, ...bodies])
+                  if (detection.id == _selectedDetectionId)
+                    ListTile(
+                      leading: const Icon(Icons.check_circle_outline),
+                      title: Text(
+                        detection.personId == null
+                            ? 'Selected target: Unknown'
+                            : 'Selected target: ${personNameOf(AppLocalizations.of(context), detection.personId!, people)}',
+                      ),
+                      subtitle: const Text('Choose an action for this target'),
+                      trailing: TextButton(
+                        onPressed: () => _boxMenu(context, detection, people),
+                        child: const Text('Tools'),
+                      ),
+                    ),
+              for (final personId in {
+                ...faces.map((d) => d.personId),
+                ...bodies.map((d) => d.personId),
+              })
+                if (personId != null && people[personId] != null)
+                  _PersonContext(
+                    person: people[personId]!,
+                    initiallyExpanded:
+                        {
+                          ...faces.map((d) => d.personId),
+                          ...bodies.map((d) => d.personId),
+                        }.whereType<int>().length ==
+                        1,
+                    mediaId: media.id,
+                    isPhoto: media.kind == 'photo',
+                    detection: [
+                      ...faces,
+                      ...bodies,
+                    ].firstWhere((d) => d.personId == personId),
+                    onTools: (d) => _boxMenu(context, d, people),
+                  ),
+              StreamBuilder<List<ResultRow>>(
+                stream: ref
+                    .read(studioRepositoryProvider)
+                    .watchResultsForMedia(media.id, assetId: media.assetId),
+                builder: (context, snapshot) {
+                  final results = snapshot.data ?? const <ResultRow>[];
+                  if (results.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        child: Text('Related results'),
+                      ),
+                      for (final result in results)
+                        FutureBuilder<ArtifactContext?>(
+                          future: ref
+                              .read(studioRepositoryProvider)
+                              .contextFor(result.id),
+                          builder: (context, relation) => ListTile(
+                            leading: const Icon(Icons.auto_awesome_outlined),
+                            title: Text(
+                              jobTypeLabel(
+                                AppLocalizations.of(context),
+                                result.type,
+                              ),
+                            ),
+                            subtitle: relation.data == null
+                                ? null
+                                : Text(
+                                    relation.data!.referenceMediaId ==
+                                                media.id &&
+                                            relation.data!.mediaId != media.id
+                                        ? 'Used as reference'
+                                        : 'Created from this media',
+                                  ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () =>
+                                context.push('${Routes.results}/${result.id}'),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: Text(media.kind == 'video' ? 'Video' : 'Photo'),
+                subtitle: Text(
+                  [
+                    if (media.takenAt != null && media.takenAt! > 0)
+                      DateFormat.yMMMd().add_Hm().format(
+                        DateTime.fromMillisecondsSinceEpoch(media.takenAt!),
+                      ),
+                    if (media.width != null && media.height != null)
+                      '${media.width} × ${media.height}',
+                    if (media.kind == 'video' && media.durationMs != null)
+                      videoTime(media.durationMs!),
+                    if (media.scanStatus == 'done')
+                      'Analysis complete'
+                    else if (media.scanStatus == 'failed')
+                      'Analysis failed'
+                    else if (media.scanStatus == 'scanning')
+                      'Analysis in progress'
+                    else if (media.scanStatus == 'pending')
+                      'Waiting for analysis'
+                    else
+                      'Not analyzed',
+                  ].join(' · '),
+                ),
+              ),
+              Consumer(
+                builder: (context, ref, _) {
+                  final location = ref.watch(
+                    mediaLocationProvider(media.assetId),
+                  );
+                  return ListTile(
+                    leading: const Icon(Icons.folder_outlined),
+                    title: Text(
+                      location.value?.fileName ?? 'Filename unavailable',
+                    ),
+                    subtitle: Text(
+                      location.value?.folderName ?? 'Folder unavailable',
+                    ),
+                  );
+                },
+              ),
+              if (media.scanError != null)
+                ListTile(
+                  leading: const Icon(Icons.warning_amber),
+                  title: Text(media.scanError!),
+                ),
+              ListTile(
+                leading: const Icon(Icons.build_outlined),
+                title: const Text('Tools'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showTools(viewerContext, media);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      if (mounted) setState(() => _detailsOpen = false);
+    });
+  }
+
+  void _showTools(BuildContext context, MediaRow media) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.motion_photos_on_outlined),
+                title: const Text('Name an action'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ActionExampleScreen(media: media),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.face_retouching_natural),
+                title: const Text('Reface'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  context.push('${Routes.reface}?media=${media.id}');
+                },
+              ),
+              if (media.kind == 'photo') ...[
+                ListTile(
+                  leading: const Icon(Icons.checkroom_outlined),
+                  title: const Text('Restyle'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    context.push('${Routes.restyle}?media=${media.id}');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.folder_outlined),
+                  title: const Text('Add to dataset'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    context.push('${Routes.loraBuild}?media=${media.id}');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome_outlined),
+                  title: const Text('Generate with this reference'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    context.push('${Routes.loraGenerate}?media=${media.id}');
+                  },
+                ),
+              ],
+              if (media.kind == 'photo')
+                ListTile(
+                  leading: const Icon(Icons.center_focus_strong),
+                  title: Text(
+                    media.scanStatus == 'done'
+                        ? AppLocalizations.of(context).redetectTitle
+                        : 'Analyze photo',
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    if (ref.read(mobileApiProvider) == null) {
+                      context.push(Routes.connection);
+                    } else {
+                      redetectFlow(context, ref, mediaId: media.id);
+                    }
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.swap_horiz),
+                title: Text(AppLocalizations.of(context).mediaKindTitle),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _fileKindMenu(context, media);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -336,6 +821,19 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                   subtitle: Text(d.isFace ? l10n.faceBox : l10n.bodyBox),
                 ),
                 const Divider(height: 1),
+                if (d.isFace && d.figure == 'person') ...[
+                  ListTile(
+                    leading: const Icon(Icons.face_retouching_natural),
+                    title: const Text('Reface this target'),
+                    onTap: () => Navigator.pop(context, 'reface-target'),
+                  ),
+                  if (d.frameNumber == null)
+                    ListTile(
+                      leading: const Icon(Icons.checkroom_outlined),
+                      title: const Text('Restyle this target'),
+                      onTap: () => Navigator.pop(context, 'restyle-target'),
+                    ),
+                ],
                 if (person != null)
                   ListTile(
                     key: const Key('box-open-person'),
@@ -426,6 +924,14 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     );
     if (action == null || !context.mounted) return;
     switch (action) {
+      case 'reface-target':
+        context.push(
+          '${Routes.reface}?media=${_mediaIds[_currentIndex]}&target=${d.id}',
+        );
+      case 'restyle-target':
+        context.push(
+          '${Routes.restyle}?media=${_mediaIds[_currentIndex]}&target=${d.id}',
+        );
       case 'open':
         context.push('${Routes.people}/${person!.id}');
       case 'similar-pose':
@@ -525,10 +1031,97 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   }
 }
 
+class _PersonContext extends ConsumerWidget {
+  const _PersonContext({
+    required this.person,
+    required this.initiallyExpanded,
+    required this.mediaId,
+    required this.isPhoto,
+    required this.detection,
+    required this.onTools,
+  });
+  final PersonSummary person;
+  final bool initiallyExpanded;
+  final int mediaId;
+  final bool isPhoto;
+  final MediaDetection detection;
+  final void Function(MediaDetection) onTools;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final models = ref.watch(lorasProvider);
+    return ExpansionTile(
+      initiallyExpanded: initiallyExpanded,
+      leading: PersonAvatar(
+        cropPath: person.avatarCropPath,
+        radius: 20,
+        expandable: false,
+      ),
+      title: Text(personName(l, person)),
+      subtitle: const Text('Person tools and models'),
+      children: [
+        if (models.isLoading) const LinearProgressIndicator(),
+        if (models.hasError)
+          ListTile(
+            title: const Text('Could not load models'),
+            trailing: TextButton(
+              onPressed: () => ref.invalidate(lorasProvider),
+              child: const Text('Retry'),
+            ),
+          ),
+        for (final model in models.value ?? const [])
+          if (model.personId == person.id)
+            ListTile(
+              leading: const Icon(Icons.model_training_outlined),
+              title: Text(model.triggerWord),
+              subtitle: const Text('Trained model'),
+              trailing: isPhoto
+                  ? IconButton(
+                      tooltip: 'Generate with this reference',
+                      icon: const Icon(Icons.auto_awesome_outlined),
+                      onPressed: () async {
+                        final available = await ref
+                            .read(fileStoreProvider)
+                            .resolve(model.path)
+                            .exists();
+                        if (!context.mounted) return;
+                        if (available) {
+                          context.push(
+                            '${Routes.loraGenerate}?id=${model.id}&media=$mediaId',
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Model file unavailable'),
+                            ),
+                          );
+                        }
+                      },
+                    )
+                  : const Icon(Icons.chevron_right),
+              onTap: () => context.push('${Routes.lora}/model/${model.id}'),
+            ),
+        ListTile(
+          leading: const Icon(Icons.person_outline),
+          title: const Text('Open person'),
+          onTap: () => context.push('${Routes.people}/${person.id}'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.build_outlined),
+          title: const Text('Person tools'),
+          onTap: () => onTools(detection),
+        ),
+      ],
+    );
+  }
+}
+
 class _MediaPageViewItem extends ConsumerStatefulWidget {
   const _MediaPageViewItem({
     super.key,
     required this.mediaId,
+    required this.onToggleChrome,
+    required this.onZoomChanged,
     required this.showFaces,
     required this.showBodies,
     required this.people,
@@ -537,6 +1130,8 @@ class _MediaPageViewItem extends ConsumerStatefulWidget {
   });
 
   final int mediaId;
+  final VoidCallback onToggleChrome;
+  final ValueChanged<bool> onZoomChanged;
   final bool showFaces;
   final bool showBodies;
   final Map<int, PersonSummary> people;
@@ -550,13 +1145,40 @@ class _MediaPageViewItem extends ConsumerStatefulWidget {
 class _MediaPageViewItemState extends ConsumerState<_MediaPageViewItem> {
   Future<_Loaded?>? _image;
   String? _assetId;
+  final _transform = TransformationController();
+  Offset _doubleTap = Offset.zero;
 
-  Future<_Loaded?> _load(String assetId) async {
-    final bytes = await ref.read(mediaLibraryProvider).viewerImage(assetId);
+  @override
+  void initState() {
+    super.initState();
+    _transform.addListener(_reportZoom);
+  }
+
+  void _reportZoom() =>
+      widget.onZoomChanged(_transform.value.getMaxScaleOnAxis() > 1.01);
+
+  @override
+  void dispose() {
+    _transform.removeListener(_reportZoom);
+    _transform.dispose();
+    super.dispose();
+  }
+
+  Future<_Loaded?> _load(String assetId, int width, int height) async {
+    var bytes = await ref.read(mediaLibraryProvider).viewerImage(assetId);
+    final fallback = bytes == null;
+    bytes ??= await ref
+        .read(thumbnailServiceProvider)
+        .get(assetId, width: width, height: height);
     if (bytes == null) return null;
     final decoded = await ui.instantiateImageCodec(bytes);
     final frame = await decoded.getNextFrame();
-    final loaded = _Loaded(bytes, frame.image.width, frame.image.height);
+    final loaded = _Loaded(
+      bytes,
+      frame.image.width,
+      frame.image.height,
+      fallback: fallback,
+    );
     frame.image.dispose();
     decoded.dispose();
     return loaded;
@@ -593,7 +1215,7 @@ class _MediaPageViewItemState extends ConsumerState<_MediaPageViewItem> {
         }
         if (_assetId != media.assetId) {
           _assetId = media.assetId;
-          _image = _load(media.assetId);
+          _image = _load(media.assetId, media.width ?? 1, media.height ?? 1);
         }
         final faces = [
           for (final d in detections)
@@ -617,14 +1239,50 @@ class _MediaPageViewItemState extends ConsumerState<_MediaPageViewItem> {
                 body: l10n.photoGoneBody,
               );
             }
-            return _AnnotatedPhoto(
-              image: image,
-              detections: [
-                if (widget.showFaces) ...faces,
-                if (widget.showBodies) ...bodies,
+            return Stack(
+              children: [
+                _AnnotatedPhoto(
+                  image: image,
+                  onTap: widget.onToggleChrome,
+                  onDoubleTapDown: (details) =>
+                      _doubleTap = details.localPosition,
+                  onDoubleTap: () {
+                    _transform.value =
+                        _transform.value.getMaxScaleOnAxis() > 1.01
+                        ? Matrix4.identity()
+                        : (Matrix4.identity()
+                            ..translateByDouble(
+                              -_doubleTap.dx * 2,
+                              -_doubleTap.dy * 2,
+                              0,
+                              1,
+                            )
+                            ..scaleByDouble(3, 3, 1, 1));
+                  },
+                  controller: _transform,
+                  detections: [
+                    if (!image.fallback && widget.showFaces) ...faces,
+                    if (!image.fallback && widget.showBodies) ...bodies,
+                  ],
+                  people: widget.people,
+                  onTapBox: widget.onTapBox,
+                ),
+                if (image.fallback)
+                  const Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: ColoredBox(
+                      color: Colors.black87,
+                      child: Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text(
+                          'Preview only · original unavailable',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
-              people: widget.people,
-              onTapBox: widget.onTapBox,
             );
           },
         );
@@ -637,12 +1295,20 @@ class _MediaPageViewItemState extends ConsumerState<_MediaPageViewItem> {
 class _AnnotatedPhoto extends StatelessWidget {
   const _AnnotatedPhoto({
     required this.image,
+    required this.onTap,
+    required this.onDoubleTap,
+    required this.onDoubleTapDown,
+    required this.controller,
     required this.detections,
     required this.people,
     required this.onTapBox,
   });
 
   final _Loaded image;
+  final VoidCallback onTap;
+  final VoidCallback onDoubleTap;
+  final GestureTapDownCallback onDoubleTapDown;
+  final TransformationController controller;
   final List<MediaDetection> detections;
   final Map<int, PersonSummary> people;
   final void Function(MediaDetection) onTapBox;
@@ -659,77 +1325,85 @@ class _AnnotatedPhoto extends StatelessWidget {
           constraints.biggest,
         ).destination;
         return Center(
-          child: InteractiveViewer(
-            maxScale: 5,
-            child: SizedBox(
-              key: const Key('annotated-photo'),
-              width: fitted.width,
-              height: fitted.height,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.memory(
-                    image.bytes,
-                    fit: BoxFit.fill,
-                    gaplessPlayback: true,
-                  ),
-                  for (final d in detections)
-                    Positioned(
-                      left: d.x * fitted.width,
-                      top: d.y * fitted.height,
-                      width: d.w * fitted.width,
-                      height: d.h * fitted.height,
-                      child: GestureDetector(
-                        key: Key('box-${d.kind}-${d.refId}'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => onTapBox(d),
-                        child: CustomPaint(
-                          painter: DetectionBoxPainter(
-                            isFace: d.isFace,
-                            outline: d.outline,
-                            fillColor: d.isFace
-                                ? (d.personId == null
-                                      ? Colors.amber.withValues(alpha: 0.10)
-                                      : scheme.primary.withValues(alpha: 0.12))
-                                : Colors.lightBlueAccent.withValues(
-                                    alpha: 0.18,
-                                  ),
-                            borderColor: d.isFace
-                                ? (d.personId == null
-                                      ? Colors.amber
-                                      : scheme.primary)
-                                : Colors.lightBlueAccent,
-                            borderWidth: d.isFace ? 2.5 : 2.0,
-                          ),
-                          child:
-                              d.personId != null &&
-                                  people[d.personId] != null &&
-                                  d.isFace
-                              ? Align(
-                                  alignment: Alignment.topLeft,
-                                  child: ColoredBox(
-                                    color: scheme.primary,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 3,
-                                      ),
-                                      child: Text(
-                                        personName(l10n, people[d.personId]!),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: scheme.onPrimary,
-                                          fontSize: 10,
+          child: GestureDetector(
+            onTap: onTap,
+            onDoubleTap: onDoubleTap,
+            onDoubleTapDown: onDoubleTapDown,
+            child: InteractiveViewer(
+              transformationController: controller,
+              maxScale: 5,
+              child: SizedBox(
+                key: const Key('annotated-photo'),
+                width: fitted.width,
+                height: fitted.height,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.memory(
+                      image.bytes,
+                      fit: BoxFit.fill,
+                      gaplessPlayback: true,
+                    ),
+                    for (final d in detections)
+                      Positioned(
+                        left: d.x * fitted.width,
+                        top: d.y * fitted.height,
+                        width: d.w * fitted.width,
+                        height: d.h * fitted.height,
+                        child: GestureDetector(
+                          key: Key('box-${d.kind}-${d.refId}'),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => onTapBox(d),
+                          child: CustomPaint(
+                            painter: DetectionBoxPainter(
+                              isFace: d.isFace,
+                              outline: d.outline,
+                              fillColor: d.isFace
+                                  ? (d.personId == null
+                                        ? Colors.amber.withValues(alpha: 0.10)
+                                        : scheme.primary.withValues(
+                                            alpha: 0.12,
+                                          ))
+                                  : Colors.lightBlueAccent.withValues(
+                                      alpha: 0.18,
+                                    ),
+                              borderColor: d.isFace
+                                  ? (d.personId == null
+                                        ? Colors.amber
+                                        : scheme.primary)
+                                  : Colors.lightBlueAccent,
+                              borderWidth: d.isFace ? 2.5 : 2.0,
+                            ),
+                            child:
+                                d.personId != null &&
+                                    people[d.personId] != null &&
+                                    d.isFace
+                                ? Align(
+                                    alignment: Alignment.topLeft,
+                                    child: ColoredBox(
+                                      color: scheme.primary,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 3,
+                                        ),
+                                        child: Text(
+                                          personName(l10n, people[d.personId]!),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: scheme.onPrimary,
+                                            fontSize: 10,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                )
-                              : null,
+                                  )
+                                : null,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -743,6 +1417,9 @@ class _AnnotatedPhoto extends StatelessWidget {
 /// pencil to say who it really is.
 class _WhoIsHere extends StatelessWidget {
   const _WhoIsHere({
+    this.label,
+    this.selectedId,
+    required this.onSelect,
     required this.faces,
     required this.people,
     required this.mediaScanned,
@@ -750,6 +1427,9 @@ class _WhoIsHere extends StatelessWidget {
     required this.onEdit,
   });
 
+  final String? label;
+  final int? selectedId;
+  final void Function(MediaDetection) onSelect;
   final List<MediaDetection> faces;
   final Map<int, PersonSummary> people;
   final bool mediaScanned;
@@ -770,7 +1450,7 @@ class _WhoIsHere extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                l10n.whoIsHere,
+                label ?? l10n.whoIsHere,
                 style: Theme.of(context).textTheme.labelLarge,
               ),
               const SizedBox(height: 6),
@@ -797,12 +1477,18 @@ class _WhoIsHere extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               ActionChip(
+                                backgroundColor: selectedId == d.id
+                                    ? Theme.of(
+                                        context,
+                                      ).colorScheme.primaryContainer
+                                    : null,
                                 key: d.personId != null && seen.add(d.personId!)
                                     ? Key('who-${d.personId}')
                                     : Key('who-${d.kind}-${d.refId}'),
                                 avatar: ClipOval(
                                   child: CropImage(
                                     path: d.cropPath,
+                                    expandable: false,
                                     placeholderIcon: d.isFace
                                         ? Icons.face_outlined
                                         : Icons.accessibility_new,
@@ -818,6 +1504,18 @@ class _WhoIsHere extends StatelessWidget {
                                     : context.push(
                                         '${Routes.people}/${d.personId}',
                                       ),
+                              ),
+                              IconButton(
+                                tooltip: selectedId == d.id
+                                    ? 'Target selected'
+                                    : 'Select for actions',
+                                icon: Icon(
+                                  selectedId == d.id
+                                      ? Icons.check_circle
+                                      : Icons.radio_button_unchecked,
+                                  size: 18,
+                                ),
+                                onPressed: () => onSelect(d),
                               ),
                               if (d.isFace)
                                 IconButton(

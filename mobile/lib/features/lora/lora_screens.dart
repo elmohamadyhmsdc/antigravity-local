@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/router.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repositories/lora_repository.dart';
+import '../../data/repositories/artifact_context.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
@@ -17,7 +18,9 @@ import '../../studio_providers.dart';
 import '../shared/empty_state.dart';
 import '../shared/screen_layout.dart';
 import '../shared/person_picker.dart';
+import '../shared/crop_image.dart';
 import '../studio/studio_helpers.dart';
+import '../jobs/jobs_screen.dart' show jobStatusLabel;
 import '../settings/background_screen.dart';
 
 final loraPhotosPickerProvider = Provider<Future<List<File>> Function()>(
@@ -45,8 +48,13 @@ class LoraScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final datasetState = ref.watch(datasetsProvider);
     final modelState = ref.watch(lorasProvider);
+    final trainingState = ref.watch(jobsProvider);
     final datasets = datasetState.value ?? const <DatasetRow>[];
     final models = modelState.value ?? const <LoraRow>[];
+    final people = [
+      ...ref.watch(peopleProvider).value ?? const [],
+      ...ref.watch(charactersProvider).value ?? const [],
+    ];
     return Scaffold(
       appBar: AppBar(title: Text(l.loraTitle)),
       body: ListView(
@@ -78,7 +86,20 @@ class LoraScreen extends ConsumerWidget {
             Card(
               child: ListTile(
                 title: Text(dataset.triggerWord),
-                subtitle: Text(l.loraDatasetEditor),
+                subtitle: StreamBuilder<List<DatasetItemRow>>(
+                  stream: ref
+                      .read(loraRepositoryProvider)
+                      .watchItems(dataset.id),
+                  builder: (context, snapshot) {
+                    final owner = people
+                        .where((p) => p.id == dataset.personId)
+                        .firstOrNull;
+                    final count = snapshot.data?.length;
+                    return Text(
+                      '${owner == null ? 'No person assigned' : personName(l, owner)} · ${count == null ? 'Loading images' : '$count images'}',
+                    );
+                  },
+                ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('${Routes.datasets}/${dataset.id}'),
               ),
@@ -93,30 +114,153 @@ class LoraScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Text(l.loraNoModels),
             ),
-          for (final model in models)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      model.triggerWord,
-                      style: Theme.of(context).textTheme.titleMedium,
+          for (final model in models) _ModelRow(model: model),
+          const SizedBox(height: 24),
+          Text('Training tasks', style: Theme.of(context).textTheme.titleLarge),
+          if (trainingState.isLoading) const LoadingBox(),
+          if (trainingState.hasError)
+            RetryState(onRetry: () => ref.invalidate(jobsProvider)),
+          for (final job in trainingState.value ?? const [])
+            if (job.type == 'train_lora' && job.status != 'completed')
+              ListTile(
+                leading: const Icon(Icons.pending_actions_outlined),
+                title: Text(jobStatusLabel(l, job.status)),
+                subtitle: Text(job.message ?? ''),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('${Routes.jobs}/${job.id}'),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModelRow extends ConsumerWidget {
+  const _ModelRow({required this.model});
+  final LoraRow model;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => FutureBuilder<bool>(
+    future: ref.read(fileStoreProvider).resolve(model.path).exists(),
+    builder: (context, snapshot) => ListTile(
+      leading: const Icon(Icons.model_training_outlined),
+      title: Text(model.triggerWord),
+      subtitle: Text(
+        snapshot.connectionState == ConnectionState.done
+            ? (snapshot.data == true
+                  ? 'Ready on this phone'
+                  : 'File unavailable')
+            : 'Checking file',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('${Routes.lora}/model/${model.id}'),
+    ),
+  );
+}
+
+class ModelDetailScreen extends ConsumerWidget {
+  const ModelDetailScreen({super.key, required this.id});
+  final String id;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(lorasProvider);
+    final l = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Model details')),
+      body: state.when(
+        loading: () => const LoadingBox(),
+        error: (_, _) =>
+            RetryState(onRetry: () => ref.invalidate(lorasProvider)),
+        data: (models) {
+          final model = models.where((m) => m.id == id).firstOrNull;
+          if (model == null) {
+            return const Center(child: Text('Model unavailable'));
+          }
+          return FutureBuilder<bool>(
+            future: ref.read(fileStoreProvider).resolve(model.path).exists(),
+            builder: (context, snapshot) {
+              final ready = snapshot.data == true;
+              return ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Text(
+                    model.triggerWord,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    snapshot.connectionState == ConnectionState.done
+                        ? (ready ? 'Ready on this phone' : 'File unavailable')
+                        : 'Checking file',
+                  ),
+                  if (model.personId != null)
+                    ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: const Text('Person'),
+                      onTap: () =>
+                          context.push('${Routes.people}/${model.personId}'),
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        FilledButton(
-                          onPressed: () => context.push(
-                            '${Routes.loraGenerate}?id=${model.id}',
-                          ),
-                          child: Text(l.loraGenerate),
+                  StreamBuilder<ArtifactContext?>(
+                    stream: ref
+                        .read(studioRepositoryProvider)
+                        .watchContext(model.id),
+                    builder: (context, snapshot) {
+                      final relation = snapshot.data;
+                      if (relation?.datasetId == null) {
+                        return const SizedBox.shrink();
+                      }
+                      return ListTile(
+                        leading: const Icon(Icons.folder_outlined),
+                        title: const Text('Source dataset'),
+                        onTap: () => context.push(
+                          '${Routes.datasets}/${relation!.datasetId}',
                         ),
-                        OutlinedButton(
-                          onPressed: () async {
+                      );
+                    },
+                  ),
+                  if ((ref.watch(jobsProvider).value ?? const []).any(
+                    (job) => job.id == model.id,
+                  ))
+                    ListTile(
+                      leading: const Icon(Icons.pending_actions_outlined),
+                      title: const Text('Training job'),
+                      onTap: () => context.push('${Routes.jobs}/${model.id}'),
+                    ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Generated results',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  for (final result
+                      in ref.watch(resultsProvider).value ?? const [])
+                    FutureBuilder<ArtifactContext?>(
+                      future: ref
+                          .read(studioRepositoryProvider)
+                          .contextFor(result.id),
+                      builder: (context, snapshot) =>
+                          snapshot.data?.modelId == model.id
+                          ? ListTile(
+                              leading: const Icon(Icons.photo_outlined),
+                              title: const Text('Generated result'),
+                              onTap: () => context.push(
+                                '${Routes.results}/${result.id}',
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: ready
+                        ? () => context.push(
+                            '${Routes.loraGenerate}?id=${model.id}',
+                          )
+                        : null,
+                    icon: const Icon(Icons.auto_awesome_outlined),
+                    label: Text(l.loraGenerate),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: ready
+                        ? () async {
                             try {
                               await SharePlus.instance.share(
                                 ShareParams(
@@ -130,19 +274,25 @@ class LoraScreen extends ConsumerWidget {
                                   ],
                                 ),
                               );
-                            } catch (e) {
-                              if (context.mounted) {
-                                studioError(context, e);
-                              }
+                            } catch (error) {
+                              if (context.mounted) studioError(context, error);
                             }
-                          },
-                          child: Text(l.resultShare),
-                        ),
-                        TextButton(
-                          onPressed: () async {
+                          }
+                        : null,
+                    icon: const Icon(Icons.share_outlined),
+                    label: Text(l.resultShare),
+                  ),
+                  TextButton(
+                    onPressed: ready
+                        ? () async {
                             try {
                               final api = ref.read(mobileApiProvider);
-                              if (api == null) return;
+                              if (api == null) {
+                                if (context.mounted) {
+                                  context.push(Routes.connection);
+                                }
+                                return;
+                              }
                               await ref
                                   .read(loraRepositoryProvider)
                                   .buildIdentity(model, api);
@@ -151,29 +301,28 @@ class LoraScreen extends ConsumerWidget {
                                   SnackBar(content: Text(l.loraIdentityReady)),
                                 );
                               }
-                            } catch (e) {
-                              if (context.mounted) {
-                                studioError(context, e);
-                              }
+                            } catch (error) {
+                              if (context.mounted) studioError(context, error);
                             }
-                          },
-                          child: Text(l.loraBuildIdentity),
-                        ),
-                      ],
-                    ),
-                    Text(l.loraIdentityHint),
-                  ],
-                ),
-              ),
-            ),
-        ],
+                          }
+                        : null,
+                    child: Text(l.loraBuildIdentity),
+                  ),
+                  Text(l.loraIdentityHint),
+                ],
+              );
+            },
+          );
+        },
       ),
     );
   }
 }
 
 class DatasetBuildScreen extends ConsumerStatefulWidget {
-  const DatasetBuildScreen({super.key});
+  const DatasetBuildScreen({super.key, this.personId, this.mediaId});
+  final int? personId;
+  final int? mediaId;
   @override
   ConsumerState<DatasetBuildScreen> createState() => _DatasetBuildScreenState();
 }
@@ -183,12 +332,51 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
   int? _person;
   String? _name;
   List<File> _photos = [];
+  File? _contextPhoto;
+  int? _contextMediaId;
+  String? _contextAssetId;
   bool _busy = false;
   String? _error;
   int _repeats = 20;
   @override
+  void initState() {
+    super.initState();
+    _person = widget.personId;
+    if (_person != null) _trigger.text = 'sks$_person';
+    if (widget.mediaId != null) Future<void>.microtask(_loadContextMedia);
+  }
+
+  Future<void> _loadContextMedia() async {
+    if (mounted) setState(() => _busy = true);
+    try {
+      final source = await ref
+          .read(mediaActionSourceProvider)
+          .resolve(widget.mediaId!);
+      if (source.isVideo) {
+        throw const FormatException('Choose photos for this dataset.');
+      }
+      final file = await privatePickedPhoto(ref, source.photoBytes!);
+      if (!mounted) {
+        await file.delete();
+        return;
+      }
+      setState(() {
+        _contextMediaId = source.media.id;
+        _contextAssetId = source.media.assetId;
+        _contextPhoto = file;
+        _photos = [file, ..._photos];
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
   void dispose() {
     _trigger.dispose();
+    _contextPhoto?.delete().ignore();
     super.dispose();
   }
 
@@ -233,6 +421,15 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
           .enqueueInputs(
             serverId: caps.serverId,
             type: 'build_lora_dataset',
+            context: ArtifactContext(
+              personId: _person,
+              mediaId: _contextPhoto != null && _photos.contains(_contextPhoto)
+                  ? _contextMediaId
+                  : null,
+              assetId: _contextPhoto != null && _photos.contains(_contextPhoto)
+                  ? _contextAssetId
+                  : null,
+            ),
             params: {
               'trigger_word': _trigger.text.trim(),
               'repeats': _repeats,
@@ -277,9 +474,16 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
             onPressed: _busy
                 ? null
                 : () async {
-                    final chosen = await pickPerson(context, allowNew: false);
+                    final chosen = await pickPerson(
+                      context,
+                      allowNew: false,
+                      kind: 'all',
+                    );
                     if (chosen?.personId != null && mounted) {
-                      final people = ref.read(peopleProvider).value ?? const [];
+                      final people = [
+                        ...ref.read(peopleProvider).value ?? const [],
+                        ...ref.read(charactersProvider).value ?? const [],
+                      ];
                       setState(() {
                         _person = chosen!.personId;
                         _name = people
@@ -290,7 +494,14 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
                       });
                     }
                   },
-            child: Text(_name ?? l.selectSourcePerson),
+            child: Text(
+              _name ??
+                  [
+                    ...ref.watch(peopleProvider).value ?? const [],
+                    ...ref.watch(charactersProvider).value ?? const [],
+                  ].where((p) => p.id == _person).firstOrNull?.name ??
+                  l.selectSourcePerson,
+            ),
           ),
           TextField(
             controller: _trigger,
@@ -337,42 +548,54 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final file in _photos.take(12))
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 72,
-                    height: 72,
-                    child:
-                        [
-                          '.mp4',
-                          '.mov',
-                          '.mkv',
-                          '.webm',
-                          '.avi',
-                          '.m4v',
-                          '.3gp',
-                          '.ts',
-                          '.mts',
-                          '.m2ts',
-                        ].any(
-                          (extension) =>
-                              file.path.toLowerCase().endsWith(extension),
-                        )
-                        ? ColoredBox(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainer,
-                            child: const Icon(Icons.play_circle_outline),
-                          )
-                        : PreviewImage.file(
-                            file,
-                            fit: BoxFit.cover,
-                            cacheWidth: 144,
-                            errorBuilder: (_, _, _) =>
-                                const Icon(Icons.broken_image_outlined),
-                          ),
-                  ),
+              for (final file in _photos)
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: 72,
+                        height: 72,
+                        child:
+                            [
+                              '.mp4',
+                              '.mov',
+                              '.mkv',
+                              '.webm',
+                              '.avi',
+                              '.m4v',
+                              '.3gp',
+                              '.ts',
+                              '.mts',
+                              '.m2ts',
+                            ].any(
+                              (extension) =>
+                                  file.path.toLowerCase().endsWith(extension),
+                            )
+                            ? ColoredBox(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainer,
+                                child: const Icon(Icons.play_circle_outline),
+                              )
+                            : PreviewImage.file(
+                                file,
+                                fit: BoxFit.cover,
+                                cacheWidth: 144,
+                                errorBuilder: (_, _, _) =>
+                                    const Icon(Icons.broken_image_outlined),
+                              ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Remove input',
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() => _photos.remove(file)),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
                 ),
             ],
           ),
@@ -609,6 +832,10 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
           .enqueueInputs(
             serverId: caps.serverId,
             type: 'train_lora',
+            context: ArtifactContext(
+              personId: dataset.personId,
+              datasetId: dataset.id,
+            ),
             params: {
               'trigger_word': dataset.triggerWord,
               'output_name': 'character',
@@ -750,8 +977,9 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
 }
 
 class LoraGenerateScreen extends ConsumerStatefulWidget {
-  const LoraGenerateScreen({super.key, this.loraId});
+  const LoraGenerateScreen({super.key, this.loraId, this.referenceMediaId});
   final String? loraId;
+  final int? referenceMediaId;
   @override
   ConsumerState<LoraGenerateScreen> createState() => _LoraGenerateScreenState();
 }
@@ -763,11 +991,40 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
   int _count = 4;
   String _referenceMode = 'composition';
   File? _reference;
+  int? _referenceMediaId;
   bool _busy = false, _initialized = false;
   @override
   void initState() {
     super.initState();
     _model = widget.loraId;
+    if (widget.referenceMediaId != null) {
+      Future<void>.microtask(_loadContextReference);
+    }
+  }
+
+  Future<void> _loadContextReference() async {
+    if (mounted) setState(() => _busy = true);
+    try {
+      final source = await ref
+          .read(mediaActionSourceProvider)
+          .resolve(widget.referenceMediaId!);
+      if (source.isVideo) {
+        throw const FormatException('Choose a photo as a reference.');
+      }
+      final file = await privatePickedPhoto(ref, source.photoBytes!);
+      if (!mounted) {
+        await file.delete();
+        return;
+      }
+      setState(() {
+        _reference = file;
+        _referenceMediaId = source.media.id;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -793,6 +1050,11 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
   Future<void> _submit(LoraRow model) async {
     final l = AppLocalizations.of(context);
     final caps = studioCapabilities(ref.read(serverStatusProvider).value);
+    if (!await ref.read(fileStoreProvider).resolve(model.path).exists()) {
+      if (mounted) setState(() => _error = 'Model file unavailable');
+      return;
+    }
+    if (!mounted) return;
     final seed = int.tryParse(_seed.text.trim());
     if (caps == null ||
         _base == null ||
@@ -815,6 +1077,11 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
           .enqueueInputs(
             serverId: caps.serverId,
             type: 'generate_lora_images',
+            context: ArtifactContext(
+              personId: model.personId,
+              modelId: model.id,
+              referenceMediaId: _referenceMediaId,
+            ),
             params: {
               'trigger_word': model.triggerWord,
               'base_checkpoint': _base,
@@ -847,24 +1114,45 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final caps = studioCapabilities(ref.watch(serverStatusProvider).value);
-    final models = ref.watch(lorasProvider).value ?? const <LoraRow>[];
-    if (!models.any((m) => m.id == _model)) _model = models.firstOrNull?.id;
+    final modelState = ref.watch(lorasProvider);
+    final models = modelState.value ?? const <LoraRow>[];
+    if (modelState.hasValue &&
+        _model != null &&
+        !models.any((m) => m.id == _model)) {
+      _model = null;
+    }
     final selected = models.where((m) => m.id == _model).firstOrNull;
     final bases = caps?.loraBaseCheckpoints ?? const <String>[];
     if (!bases.contains(_base)) _base = bases.firstOrNull;
     return Scaffold(
       appBar: AppBar(title: Text(l.loraGenerate)),
       bottomNavigationBar: StickyActionBar(
-        child: FilledButton(
-          key: const Key('generate-submit'),
-          onPressed:
-              _busy ||
-                  selected == null ||
-                  _base == null ||
-                  caps?.engines.loraGenerate != true
-              ? null
-              : () => _submit(selected),
-          child: Text(l.loraGenerate),
+        child: FutureBuilder<bool>(
+          future: selected == null
+              ? Future.value(false)
+              : ref.read(fileStoreProvider).resolve(selected.path).exists(),
+          builder: (context, snapshot) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (selected != null &&
+                  snapshot.connectionState == ConnectionState.done &&
+                  snapshot.data != true)
+                const Text('Model file unavailable'),
+              FilledButton(
+                key: const Key('generate-submit'),
+                onPressed:
+                    _busy ||
+                        selected == null ||
+                        _base == null ||
+                        caps?.engines.loraGenerate != true ||
+                        snapshot.data != true
+                    ? null
+                    : () => _submit(selected),
+                child: Text(l.loraGenerate),
+              ),
+            ],
+          ),
         ),
       ),
       body: ListView(
@@ -885,7 +1173,10 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
               isExpanded: true,
               key: ValueKey('generate-model-$_model'),
               initialValue: _model,
-              decoration: InputDecoration(labelText: l.loraModel),
+              decoration: InputDecoration(
+                labelText: l.loraModel,
+                hintText: 'Select a model',
+              ),
               items: [
                 for (final m in models)
                   DropdownMenuItem(value: m.id, child: Text(m.triggerWord)),
@@ -936,7 +1227,16 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
                           .pickPhoto();
                       if (bytes != null) {
                         final file = await privatePickedPhoto(ref, bytes);
-                        if (mounted) setState(() => _reference = file);
+                        if (mounted) {
+                          final previous = _reference;
+                          setState(() {
+                            _reference = file;
+                            _referenceMediaId = null;
+                          });
+                          previous?.delete().ignore();
+                        } else {
+                          await file.delete();
+                        }
                       }
                     } catch (e) {
                       if (context.mounted) {

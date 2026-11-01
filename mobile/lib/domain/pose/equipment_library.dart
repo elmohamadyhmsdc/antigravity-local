@@ -192,12 +192,7 @@ class EquipmentLibrary {
     }
     final bodies =
         await (db.select(db.bodies)
-              ..where(
-                (b) =>
-                    b.mediaId.equals(mediaId) &
-                    b.kind.equals('person') &
-                    b.frameNumber.isNull(),
-              )
+              ..where((b) => b.mediaId.equals(mediaId) & b.frameNumber.isNull())
               ..orderBy([(b) => OrderingTerm.asc(b.id)])
               ..limit(64))
             .get();
@@ -274,7 +269,7 @@ class EquipmentLibrary {
             .customSelect(
               '''SELECT m.id FROM media m WHERE m.kind = 'photo'
           AND m.illustrated = 0 AND m.scan_status = 'done'
-          AND EXISTS (SELECT 1 FROM bodies b WHERE b.media_id = m.id AND b.kind = 'person')
+          AND EXISTS (SELECT 1 FROM bodies b WHERE b.media_id = m.id)
           AND NOT EXISTS (SELECT 1 FROM equipment_photos e WHERE e.media_id = m.id AND e.version >= ?)
           ORDER BY m.id LIMIT 1''',
               variables: [Variable.withInt(equipmentVersion)],

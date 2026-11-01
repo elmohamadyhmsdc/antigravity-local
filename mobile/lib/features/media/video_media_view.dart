@@ -139,6 +139,19 @@ class _VideoMediaViewState extends State<VideoMediaView> {
             (d.timestampMs! - position).abs() <= 150)
           d,
     ];
+    final framePeople = <MediaDetection>[];
+    final seen = <int>{};
+    if (!value.isPlaying) {
+      for (final detection in widget.detections) {
+        if (detection.timestampMs != null &&
+            (detection.timestampMs! - position).abs() <= 150 &&
+            (detection.isFace || detection.personId != null)) {
+          if (detection.personId == null || seen.add(detection.personId!)) {
+            framePeople.add(detection);
+          }
+        }
+      }
+    }
     return Column(
       children: [
         Expanded(
@@ -224,79 +237,122 @@ class _VideoMediaViewState extends State<VideoMediaView> {
         ),
         SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    IconButton(
-                      key: const Key('video-play'),
-                      tooltip: value.isPlaying
-                          ? l10n.videoPause
-                          : l10n.videoPlay,
-                      onPressed: () =>
-                          value.isPlaying ? player.pause() : player.play(),
-                      icon: Icon(
-                        value.isPlaying ? Icons.pause : Icons.play_arrow,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${videoTime(position)} / ${videoTime(duration)}',
-                      ),
-                    ),
-                  ],
-                ),
-                Slider(
-                  min: 0,
-                  max: duration > 0 ? duration.toDouble() : 1,
-                  value: position.clamp(0, duration).toDouble(),
-                  semanticFormatterCallback: (value) =>
-                      videoTime(value.round()),
-                  onChanged: (v) =>
-                      player.seekTo(Duration(milliseconds: v.round())),
-                ),
-                if (samples.isNotEmpty) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      l10n.videoDetectedFrames,
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    height: MediaQuery.textScalerOf(context).scale(16) + 32,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: samples.length,
-                      itemBuilder: (context, index) {
-                        final sample = samples[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ActionChip(
-                            avatar: const Icon(
-                              Icons.person_pin_outlined,
-                              size: 18,
+          child: ColoredBox(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * .48,
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            key: const Key('video-play'),
+                            tooltip: value.isPlaying
+                                ? l10n.videoPause
+                                : l10n.videoPlay,
+                            onPressed: () => value.isPlaying
+                                ? player.pause()
+                                : player.play(),
+                            icon: Icon(
+                              value.isPlaying ? Icons.pause : Icons.play_arrow,
                             ),
-                            label: Text(videoTime(sample)),
-                            onPressed: () async {
-                              await player.pause();
-                              await player.seekTo(
-                                Duration(milliseconds: sample),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${videoTime(position)} / ${videoTime(duration)}',
+                            ),
+                          ),
+                        ],
+                      ),
+                      Slider(
+                        min: 0,
+                        max: duration > 0 ? duration.toDouble() : 1,
+                        value: position.clamp(0, duration).toDouble(),
+                        semanticFormatterCallback: (value) =>
+                            videoTime(value.round()),
+                        onChanged: (v) =>
+                            player.seekTo(Duration(milliseconds: v.round())),
+                      ),
+                      if (framePeople.isNotEmpty) ...[
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('People in this frame'),
+                        ),
+                        SizedBox(
+                          height:
+                              MediaQuery.textScalerOf(context).scale(16) + 32,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              for (final detection in framePeople)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ActionChip(
+                                    label: Text(
+                                      detection.personId == null
+                                          ? l10n.viewerUnknownPerson
+                                          : personNameOf(
+                                              l10n,
+                                              detection.personId!,
+                                              widget.people,
+                                            ),
+                                    ),
+                                    onPressed: () => widget.onTapBox(detection),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (samples.isNotEmpty) ...[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            l10n.videoDetectedFrames,
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height:
+                              MediaQuery.textScalerOf(context).scale(16) + 32,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: samples.length,
+                            itemBuilder: (context, index) {
+                              final sample = samples[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ActionChip(
+                                  avatar: const Icon(
+                                    Icons.person_pin_outlined,
+                                    size: 18,
+                                  ),
+                                  label: Text(videoTime(sample)),
+                                  onPressed: () async {
+                                    await player.pause();
+                                    await player.seekTo(
+                                      Duration(milliseconds: sample),
+                                    );
+                                  },
+                                ),
                               );
                             },
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      ] else
+                        Text(l10n.videoNoDetections),
+                    ],
                   ),
-                ] else
-                  Text(l10n.videoNoDetections),
-              ],
+                ),
+              ),
             ),
           ),
         ),

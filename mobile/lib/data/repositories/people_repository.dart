@@ -8,6 +8,8 @@ import '../files/file_store.dart';
 import '../index/embedding_index.dart';
 import '../api/dtos/embedding.dart';
 import 'face_suppression_store.dart';
+import 'artifact_context.dart';
+import 'action_frames.dart';
 
 class PersonSummary {
   const PersonSummary({
@@ -148,6 +150,25 @@ class PeopleRepository {
     groupId: r.readNullable<int>('group_id'),
     groupName: r.readNullable<String>('group_name'),
   );
+
+  /// Shared identity collection; the UI applies its optional kind filter.
+  Stream<List<PersonSummary>> watchIdentities() => _db
+      .customSelect(
+        '$_personSql ORDER BY face_count DESC, p.id',
+        readsFrom: {_db.persons, _db.faces, _db.identityGroups},
+      )
+      .watch()
+      .map((rows) => rows.map(_person).toList());
+
+  Future<List<PersonSummary>> identities() async =>
+      (await _db
+              .customSelect(
+                '$_personSql ORDER BY face_count DESC, p.id',
+                readsFrom: {_db.persons, _db.faces, _db.identityGroups},
+              )
+              .get())
+          .map(_person)
+          .toList();
 
   Stream<List<PersonSummary>> watchPeople() => _db
       .customSelect(
@@ -502,6 +523,37 @@ class PeopleRepository {
   /// Everything of `sourceId` moves to `targetId`, then `sourceId` is deleted (the PC's
   /// database.merge_persons). Corrections made against the source ("not this person",
   /// "different from ...") now hold for the target.
+  /// Exact persisted items affected by a merge, including hidden references.
+  Future<Map<String, int>> impactOf(int personId) async {
+    final counts = await _db
+        .customSelect(
+          'SELECT '
+          '(SELECT COUNT(*) FROM faces WHERE person_id = ?1) AS faces, '
+          '(SELECT COUNT(*) FROM bodies WHERE person_id = ?1) AS bodies, '
+          '(SELECT COUNT(*) FROM identity_sets WHERE person_id = ?1) AS identities, '
+          '(SELECT COUNT(*) FROM loras WHERE person_id = ?1) AS models, '
+          '(SELECT COUNT(*) FROM datasets WHERE person_id = ?1) AS datasets, '
+          '(SELECT COUNT(*) FROM jobs WHERE person_id = ?1) AS jobs, '
+          '(SELECT COUNT(*) FROM results WHERE person_id = ?1) AS results, '
+          '(SELECT COUNT(*) FROM body_marks WHERE person_id = ?1) AS marks',
+          variables: [Variable.withInt(personId)],
+        )
+        .getSingle();
+    return {
+      for (final key in [
+        'faces',
+        'bodies',
+        'identities',
+        'models',
+        'datasets',
+        'jobs',
+        'results',
+        'marks',
+      ])
+        key: counts.read<int>(key),
+    };
+  }
+
   Future<void> mergePeople({
     required int sourceId,
     required int targetId,
@@ -518,6 +570,29 @@ class PeopleRepository {
       final s = Variable.withInt(sourceId);
       final t = Variable.withInt(targetId);
 
+      await mergeActionPersonReferences(_db, sourceId, targetId);
+
+      final contexts = await (_db.select(
+        _db.settings,
+      )..where((row) => row.key.like('$artifactContextPrefix%'))).get();
+      for (final row in contexts) {
+        final context = ArtifactContext.decode(row.value);
+        if (context == null ||
+            (context.personId != sourceId &&
+                context.targetPersonId != sourceId)) {
+          continue;
+        }
+        await (_db.update(
+          _db.settings,
+        )..where((item) => item.key.equals(row.key))).write(
+          SettingsCompanion(
+            value: Value(
+              jsonEncode(context.mergePerson(sourceId, targetId).toJson()),
+            ),
+          ),
+        );
+      }
+
       await _db.customUpdate(
         'UPDATE faces SET person_id = ? WHERE person_id = ?',
         variables: [t, s],
@@ -526,6 +601,35 @@ class PeopleRepository {
       await (_db.update(_db.identitySets)
             ..where((set) => set.personId.equals(sourceId)))
           .write(IdentitySetsCompanion(personId: Value(targetId)));
+      // Move dependent artifacts before deleting the source identity. Their FK
+      // deletion rules would otherwise orphan models/results or erase marks.
+      await (_db.update(_db.loras)
+            ..where((row) => row.personId.equals(sourceId)))
+          .write(LorasCompanion(personId: Value(targetId)));
+      await (_db.update(_db.datasets)
+            ..where((row) => row.personId.equals(sourceId)))
+          .write(DatasetsCompanion(personId: Value(targetId)));
+      await (_db.update(_db.jobs)
+            ..where((row) => row.personId.equals(sourceId)))
+          .write(JobsCompanion(personId: Value(targetId)));
+      await (_db.update(_db.results)
+            ..where((row) => row.personId.equals(sourceId)))
+          .write(ResultsCompanion(personId: Value(targetId)));
+      await (_db.update(_db.bodyMarks)
+            ..where((row) => row.personId.equals(sourceId)))
+          .write(BodyMarksCompanion(personId: Value(targetId)));
+      await (_db.update(_db.bodyClusters)
+            ..where((row) => row.personId.equals(sourceId)))
+          .write(BodyClustersCompanion(personId: Value(targetId)));
+      await (_db.update(_db.outfitCategories)
+            ..where((row) => row.personId.equals(sourceId)))
+          .write(OutfitCategoriesCompanion(personId: Value(targetId)));
+      await (_db.update(_db.kindOverrides)
+            ..where((row) => row.targetPersonId.equals(sourceId)))
+          .write(KindOverridesCompanion(targetPersonId: Value(targetId)));
+      await (_db.update(_db.personMediaMoves)
+            ..where((row) => row.personId.equals(sourceId)))
+          .write(PersonMediaMovesCompanion(personId: Value(targetId)));
       await _db.customUpdate(
         'INSERT OR IGNORE INTO face_rejections (face_id, person_id) SELECT face_id, ? FROM face_rejections WHERE person_id = ?',
         variables: [t, s],

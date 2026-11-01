@@ -34,6 +34,105 @@ void main() {
     db.media,
   )..where((m) => m.assetId.equals(assetId))).getSingle();
 
+  group('gallery browsing without analysis', () {
+    test('opening originals does not enroll them in the scan queue', () async {
+      final assets = [_asset('b'), _asset('a'), _asset('b')];
+      final rows = await repo.ensureBrowsableAssets(assets);
+      expect(rows.map((media) => media.assetId), ['b', 'a', 'b']);
+      expect(rows.map((media) => media.scanStatus), everyElement('skipped'));
+      expect((await db.select(db.media).get()).length, 2);
+      expect(await repo.claimNext(), isNull);
+      expect((await repo.scanCounts()).total, 0);
+      expect((await repo.mediaByAssetId('a'))!.id, rows[1].id);
+      expect(await repo.mediaByAssetId('absent'), isNull);
+    });
+
+    test(
+      'browsing preserves analysis, failures and video checkpoints',
+      () async {
+        await repo.syncAssets([_asset('known')]);
+        await (db.update(
+          db.media,
+        )..where((m) => m.assetId.equals('known'))).write(
+          const MediaCompanion(
+            scanStatus: Value('failed'),
+            scanAttempts: Value(3),
+            scanError: Value('offline'),
+            lastScannedFrame: Value(42),
+            illustrated: Value(true),
+          ),
+        );
+        final before = await row('known');
+        final rows = await repo.ensureBrowsableAssets([
+          _asset('known', modified: 9000),
+          _asset('new'),
+        ]);
+        expect(rows.first, before);
+        expect(rows.last.scanStatus, 'skipped');
+        expect((await row('known')).lastScannedFrame, 42);
+        expect((await row('known')).illustrated, isTrue);
+      },
+    );
+
+    test(
+      'explicit source enumeration can later enroll browsed media',
+      () async {
+        await repo.ensureBrowsableAssets([
+          _asset('selected'),
+          _asset('outside'),
+        ]);
+        final result = await repo.syncAssets([_asset('selected')]);
+        expect(result.requeued, 1);
+        expect((await repo.claimNext())!.assetId, 'selected');
+        expect((await row('outside')).scanStatus, 'skipped');
+      },
+    );
+
+    test('large pages preserve ordering across SQL chunks', () async {
+      final assets = syntheticAssets(950);
+      final first = await repo.ensureBrowsableAssets(assets);
+      final second = await repo.ensureBrowsableAssets(assets.reversed.toList());
+      expect(
+        first.map((media) => media.assetId),
+        assets.map((asset) => asset.id),
+      );
+      expect(
+        second.map((media) => media.id),
+        first.reversed.map((media) => media.id),
+      );
+      expect((await db.select(db.media).get()).length, 950);
+      expect(await repo.claimNext(), isNull);
+    });
+
+    test(
+      'retry preserves a failed video checkpoint and only queues selected media',
+      () async {
+        await repo.syncAssets([_asset('first'), _asset('second')]);
+        await db
+            .update(db.media)
+            .write(
+              const MediaCompanion(
+                scanStatus: Value('failed'),
+                scanError: Value('offline'),
+                scanAttempts: Value(3),
+                lastScannedFrame: Value(84),
+              ),
+            );
+        final first = await row('first');
+        expect(await repo.requeueFailed(mediaIds: []), 0);
+        expect(await repo.requeueFailed(mediaIds: [first.id]), 1);
+        final retry = await row('first');
+        expect(
+          (retry.scanStatus, retry.scanAttempts, retry.scanError),
+          ('pending', 0, null),
+        );
+        expect(retry.lastScannedFrame, 84);
+        expect((await row('second')).scanStatus, 'failed');
+        expect((await repo.watchFailedMedia().first).single.assetId, 'second');
+      },
+    );
+  });
+
   group('syncAssets', () {
     test(
       'new photos are queued, an unchanged library queues nothing, running it twice is harmless',

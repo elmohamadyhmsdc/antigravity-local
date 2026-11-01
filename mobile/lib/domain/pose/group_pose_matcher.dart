@@ -192,9 +192,9 @@ class GroupPoseMatcher {
         .customSelect(
           '''SELECT m.id FROM media m
       WHERE m.kind = 'photo' AND EXISTS (SELECT 1 FROM bodies b
-      LEFT JOIN faces f ON f.id = b.face_id WHERE b.media_id = m.id AND b.kind = 'person'
+      LEFT JOIN faces f ON f.id = b.face_id WHERE b.media_id = m.id
       ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'})
-      AND (SELECT COUNT(*) FROM bodies b WHERE b.media_id = m.id AND b.kind = 'person'
+      AND (SELECT COUNT(*) FROM bodies b WHERE b.media_id = m.id
       AND b.frame_number IS NULL) BETWEEN 2 AND $maxGroupPosePeople ORDER BY m.id DESC''',
           variables: [if (personId != null) Variable.withInt(personId)],
           readsFrom: {db.media, db.bodies, db.faces},
@@ -213,12 +213,7 @@ class GroupPoseMatcher {
       )..where((m) => m.id.isIn(ids))).get();
       final bodies =
           await (db.select(db.bodies)
-                ..where(
-                  (b) =>
-                      b.mediaId.isIn(ids) &
-                      b.kind.equals('person') &
-                      b.frameNumber.isNull(),
-                )
+                ..where((b) => b.mediaId.isIn(ids) & b.frameNumber.isNull())
                 ..orderBy([(b) => OrderingTerm.asc(b.id)]))
               .get();
       final byMedia = <int, List<BodyRow>>{};
@@ -244,12 +239,7 @@ class GroupPoseMatcher {
     if (media == null) return null;
     final bodies =
         await (db.select(db.bodies)
-              ..where(
-                (b) =>
-                    b.mediaId.equals(mediaId) &
-                    b.kind.equals('person') &
-                    b.frameNumber.isNull(),
-              )
+              ..where((b) => b.mediaId.equals(mediaId) & b.frameNumber.isNull())
               ..orderBy([(b) => OrderingTerm.asc(b.id)]))
             .get();
     return _assemble(media, bodies);

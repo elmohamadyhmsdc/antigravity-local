@@ -27,6 +27,45 @@ void main() {
   });
 
   test(
+    'editing a saved identity is atomic and preserves its stable owner and model',
+    () async {
+      final owner = await seedPerson(db);
+      final other = await seedPerson(db);
+      final first = await seedFace(db, personId: owner, seed: 1);
+      final second = await seedFace(db, personId: owner, seed: 2);
+      final unrelated = await seedFace(db, personId: other, seed: 3);
+      final id = await identities.save(
+        name: 'Before',
+        personId: owner,
+        faceIds: [first],
+      );
+      final before = (await identities.watch().first).single;
+      await identities.update(
+        setId: id,
+        name: ' New selection ',
+        faceIds: [second],
+      );
+      final after = (await identities.watch().first).single;
+      expect(
+        (after.id, after.personId, after.modelId, after.createdAt),
+        (before.id, before.personId, before.modelId, before.createdAt),
+      );
+      expect(after.name, 'New selection');
+      expect((await identities.faces(id)).single.id, second);
+      await expectLater(
+        identities.update(setId: id, name: 'Invalid', faceIds: [unrelated]),
+        throwsFormatException,
+      );
+      expect((await identities.watch().first).single.name, 'New selection');
+      expect((await identities.faces(id)).single.id, second);
+      await expectLater(
+        identities.update(setId: 999, name: 'Missing', faceIds: [first]),
+        throwsFormatException,
+      );
+    },
+  );
+
+  test(
     'saved selections round-trip with backups and survive a person merge',
     () async {
       final first = await seedPerson(db, name: 'First');

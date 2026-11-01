@@ -108,4 +108,37 @@ class IdentityRepository {
   Future<void> delete(int id) async {
     await (db.delete(db.identitySets)..where((s) => s.id.equals(id))).go();
   }
+
+  Future<void> update({
+    required int setId,
+    required String name,
+    required Iterable<int> faceIds,
+  }) => db.transaction(() async {
+    final set = await (db.select(
+      db.identitySets,
+    )..where((row) => row.id.equals(setId))).getSingleOrNull();
+    if (set == null) {
+      throw const FormatException('This identity set was removed.');
+    }
+    final label = name.trim();
+    if (label.isEmpty || label.length > 80) {
+      throw const FormatException('Use a name of 1–80 characters.');
+    }
+    final selected = await selection(
+      personId: set.personId,
+      faceIds: faceIds,
+      modelId: set.modelId,
+    );
+    await (db.update(db.identitySets)..where((row) => row.id.equals(setId)))
+        .write(IdentitySetsCompanion(name: Value(label)));
+    await (db.delete(
+      db.identitySetFaces,
+    )..where((row) => row.setId.equals(setId))).go();
+    await db.batch(
+      (batch) => batch.insertAll(db.identitySetFaces, [
+        for (final face in selected)
+          IdentitySetFacesCompanion.insert(setId: setId, faceId: face.id),
+      ]),
+    );
+  });
 }

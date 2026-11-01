@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/router.dart';
 import '../../data/db/app_database.dart';
+import '../../data/repositories/artifact_context.dart';
 import '../../l10n/app_localizations.dart';
 import '../../studio_providers.dart';
+import '../../library_providers.dart';
+import '../../domain/scan/scan_state.dart';
 import '../../domain/jobs/job_progress.dart';
 import 'package:intl/intl.dart';
 import '../shared/empty_state.dart';
@@ -35,9 +38,10 @@ class JobsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final scan = ref.watch(scanProgressProvider).value;
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.navJobs),
+        title: const Text('Activity'),
         actions: [
           IconButton(
             tooltip: l10n.privateResults,
@@ -51,48 +55,76 @@ class JobsScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ref
-          .watch(jobsProvider)
-          .when(
-            loading: () => const LoadingBox(),
-            error: (_, _) =>
-                RetryState(onRetry: () => ref.invalidate(jobsProvider)),
-            data: (jobs) => jobs.isEmpty
-                ? EmptyState(
-                    icon: Icons.pending_actions_outlined,
-                    title: l10n.jobsEmpty,
-                    body: l10n.jobsEmptyHint,
-                    actionLabel: l10n.refaceTitle,
-                    onAction: () => context.push(Routes.reface),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      for (final states in const [
-                        ['uploading', 'running', 'downloading'],
-                        ['queued'],
-                        ['paused'],
-                        ['failed', 'lost'],
-                        ['completed'],
-                      ])
-                        if (jobs.any((j) => states.contains(j.status))) ...[
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              states.first == 'uploading'
-                                  ? l10n.jobsInProgress
-                                  : jobStatusLabel(l10n, states.first),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ),
-                          for (final job in jobs.where(
-                            (j) => states.contains(j.status),
-                          ))
-                            _JobTile(job: job),
-                        ],
-                    ],
+      body: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.document_scanner_outlined),
+            title: const Text('Library analysis'),
+            subtitle: scan == null || scan.phase == ScanPhase.idle
+                ? const Text('No active scan')
+                : Text(
+                    '${switch (scan.phase) {
+                      ScanPhase.paused => 'Paused',
+                      ScanPhase.completed => 'Completed',
+                      ScanPhase.waiting => 'Waiting',
+                      _ => 'In progress',
+                    }} · ${scan.done + scan.failed} / ${scan.total}',
                   ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(Routes.runningScan),
           ),
+          Expanded(
+            child: ref
+                .watch(jobsProvider)
+                .when(
+                  loading: () => const LoadingBox(),
+                  error: (_, _) =>
+                      RetryState(onRetry: () => ref.invalidate(jobsProvider)),
+                  data: (jobs) => jobs.isEmpty
+                      ? EmptyState(
+                          icon: Icons.pending_actions_outlined,
+                          title: l10n.jobsEmpty,
+                          body: l10n.jobsEmptyHint,
+                          actionLabel: l10n.refaceTitle,
+                          onAction: () => context.push(Routes.reface),
+                        )
+                      : ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
+                            for (final states in const [
+                              ['uploading', 'running', 'downloading'],
+                              ['queued'],
+                              ['paused'],
+                              ['failed', 'lost'],
+                              ['completed'],
+                            ])
+                              if (jobs.any(
+                                (j) => states.contains(j.status),
+                              )) ...[
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  child: Text(
+                                    states.first == 'uploading'
+                                        ? l10n.jobsInProgress
+                                        : jobStatusLabel(l10n, states.first),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                ),
+                                for (final job in jobs.where(
+                                  (j) => states.contains(j.status),
+                                ))
+                                  _JobTile(job: job),
+                              ],
+                          ],
+                        ),
+                ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -283,6 +315,65 @@ class JobDetailScreen extends ConsumerWidget {
                       ),
                   ],
                 ),
+              ),
+              StreamBuilder<ArtifactContext?>(
+                stream: ref.read(studioRepositoryProvider).watchContext(job.id),
+                builder: (context, snapshot) {
+                  final relation = snapshot.data;
+                  if (relation == null) return const SizedBox.shrink();
+                  return Column(
+                    children: [
+                      if (relation.mediaId != null)
+                        ListTile(
+                          leading: const Icon(Icons.photo_outlined),
+                          title: const Text('Source media'),
+                          onTap: () => context.push(
+                            '${Routes.media}/${relation.mediaId}',
+                          ),
+                        ),
+                      if (relation.referenceMediaId != null)
+                        ListTile(
+                          leading: const Icon(Icons.image_outlined),
+                          title: const Text('Reference photo'),
+                          onTap: () => context.push(
+                            '${Routes.media}/${relation.referenceMediaId}',
+                          ),
+                        ),
+                      if (relation.personId != null)
+                        ListTile(
+                          leading: const Icon(Icons.person_outline),
+                          title: const Text('Source identity'),
+                          onTap: () => context.push(
+                            '${Routes.people}/${relation.personId}',
+                          ),
+                        ),
+                      if (relation.targetPersonId != null)
+                        ListTile(
+                          leading: const Icon(Icons.person_pin_outlined),
+                          title: const Text('Target person'),
+                          onTap: () => context.push(
+                            '${Routes.people}/${relation.targetPersonId}',
+                          ),
+                        ),
+                      if (relation.modelId != null)
+                        ListTile(
+                          leading: const Icon(Icons.model_training_outlined),
+                          title: const Text('Model'),
+                          onTap: () => context.push(
+                            '${Routes.lora}/model/${relation.modelId}',
+                          ),
+                        ),
+                      if (relation.datasetId != null)
+                        ListTile(
+                          leading: const Icon(Icons.folder_outlined),
+                          title: const Text('Dataset'),
+                          onTap: () => context.push(
+                            '${Routes.datasets}/${relation.datasetId}',
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
               if (job.type.startsWith('reface_') &&
                   progress.details.isNotEmpty) ...[

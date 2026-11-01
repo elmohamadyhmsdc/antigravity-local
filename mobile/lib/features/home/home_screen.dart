@@ -69,7 +69,10 @@ class HomeScreen extends ConsumerWidget {
           ScreenIntro(title: l10n.homeIntro, body: l10n.homeIntroHint),
           _StatusBanner(
             status: status,
-            onPairAgain: () => ref.read(sessionProvider.notifier).forget(),
+            onPairAgain: () async {
+              await ref.read(sessionProvider.notifier).forget();
+              if (context.mounted) context.go(Routes.connection);
+            },
           ),
           const ScanProgressCard(),
           if (review > 0)
@@ -180,7 +183,10 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
     );
-    if (ok == true) await ref.read(sessionProvider.notifier).forget();
+    if (ok == true) {
+      await ref.read(sessionProvider.notifier).forget();
+      if (context.mounted) context.go(Routes.library);
+    }
   }
 }
 

@@ -20,6 +20,11 @@ class StudioScreen extends ConsumerWidget {
         title: Text(l10n.studioTitle),
         actions: [
           IconButton(
+            tooltip: 'Activity',
+            icon: const Icon(Icons.pending_actions_outlined),
+            onPressed: () => context.push(Routes.jobs),
+          ),
+          IconButton(
             key: const Key('studio-results'),
             tooltip: l10n.privateResults,
             icon: const Icon(Icons.photo_library_outlined),
@@ -30,7 +35,6 @@ class StudioScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
-          ScreenIntro(title: l10n.studioIntro, body: l10n.studioHint),
           if (status is ServerBusy ||
               (status is! ServerReady && status is! ServerBusy))
             Card(
@@ -77,6 +81,24 @@ class StudioScreen extends ConsumerWidget {
             onTap: () => context.push(Routes.lora),
           ),
           SectionHeading(title: l10n.studioSaved),
+          ActionRow(
+            key: const Key('studio-models'),
+            icon: Icons.model_training_outlined,
+            title: 'Models',
+            onTap: () => context.push(Routes.lora),
+          ),
+          ActionRow(
+            key: const Key('studio-datasets'),
+            icon: Icons.folder_outlined,
+            title: 'Datasets',
+            onTap: () => context.push(Routes.lora),
+          ),
+          ActionRow(
+            key: const Key('studio-activity'),
+            icon: Icons.pending_actions_outlined,
+            title: 'Activity',
+            onTap: () => context.push(Routes.jobs),
+          ),
           ActionRow(
             key: const Key('studio-results-row'),
             icon: Icons.photo_library_outlined,

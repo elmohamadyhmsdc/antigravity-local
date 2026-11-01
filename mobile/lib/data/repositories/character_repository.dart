@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 
 import '../../domain/geometry/outline.dart';
 import '../../domain/scan/scan_math.dart';
+import '../../domain/scan/video_tracks.dart';
 import '../api/dtos/analyze.dart';
 import '../api/dtos/embedding.dart';
 import '../db/app_database.dart';
@@ -31,6 +32,7 @@ class CharacterRepository {
     AnalyzeImageResponse analysis, {
     int? frameNumber,
     int? timestampMs,
+    Map<int, DetectedBody>? bodyEvidence,
   }) async {
     if (analysis.characters.isEmpty) return 0;
     final w = analysis.imageW, h = analysis.imageH;
@@ -39,6 +41,14 @@ class CharacterRepository {
     final bodiesHere = await _bodies(media.id, frameNumber);
     final usedFaces = <int>{}, usedBodies = <int>{};
     var inserted = 0;
+    final video = media.kind == 'video' && frameNumber != null;
+    final tracks = video
+        ? await _bodyTracks(media.id)
+        : <int, Track<List<double>?>>{};
+    final usedTracks = {
+      for (final b in bodiesHere)
+        if (b.track != null) b.track!,
+    };
 
     for (final c in analysis.characters) {
       int? faceId;
@@ -100,6 +110,11 @@ class CharacterRepository {
           facesHere.add(_Face(faceId, box, vector, frameNumber));
           inserted++;
         }
+        if (video) {
+          await (db.update(db.faces)..where((f) => f.id.equals(faceId!))).write(
+            FacesCompanion(trackId: Value(faceId)),
+          );
+        }
         usedFaces.add(faceId);
         await _putDetection(
           media.id,
@@ -127,7 +142,23 @@ class CharacterRepository {
         }
       }
       if (same != null) {
+        if(video) {
+          var restored = same.track == null ? null : tracks[same.track];
+          restored ??= faceId == null
+            ? assignTracks<List<double>?>(values:[body.appearance],boxes:[box],timestampMs:timestampMs,
+                tracks:tracks.values.where((t)=>t.faceTrack==null&&!usedTracks.contains(t.id)),
+                similarity:outfitSimilarity,identity:sameOutfitSimilarity,motion:trackMotionOutfit).single
+            : tracks.values.where((t)=>t.faceTrack==faceId&&!usedTracks.contains(t.id)).firstOrNull;
+          final trackId=restored?.id??same.id;
+          await (db.update(db.bodies)..where((b)=>b.id.equals(same!.id))).write(BodiesCompanion(trackId:Value(trackId)));
+          restored??=tracks[trackId]=Track(trackId,faceTrack:faceId);
+          if(!restored.views.any((v)=>v.id==same!.id)) {
+            restored.views.add(TrackView(id:same.id,value:body.appearance,quality:body.score));
+          }
+          usedTracks.add(trackId);
+        }
         usedBodies.add(same.id);
+        if (bodyEvidence != null) bodyEvidence[same.id] = body;
         await db.customUpdate(
           'UPDATE bodies SET face_id = COALESCE(face_id, ?), kpts = ?, extent = ?, appearance = COALESCE(?, appearance) WHERE id = ?',
           variables: [
@@ -154,6 +185,50 @@ class CharacterRepository {
         );
         continue;
       }
+      Track<List<double>?>? track;
+      if (video) {
+        if (faceId != null) {
+          track = tracks.values
+              .where((t) => t.faceTrack == faceId && !usedTracks.contains(t.id))
+              .firstOrNull;
+        } else {
+          track = assignTracks<List<double>?>(
+            values: [body.appearance],
+            boxes: [box],
+            timestampMs: timestampMs,
+            tracks: tracks.values.where(
+              (t) => t.faceTrack == null && !usedTracks.contains(t.id),
+            ),
+            similarity: outfitSimilarity,
+            identity: sameOutfitSimilarity,
+            motion: trackMotionOutfit,
+          ).single;
+        }
+        if (track != null) {
+          usedTracks.add(track.id);
+          final placement = placeInTrack<List<double>?>(
+            track,
+            body.appearance,
+            body.score,
+            similarity: outfitSimilarity,
+            maxViews: maxBodiesPerTrack,
+            diverse: trackDiverseOutfit,
+          );
+          if (placement case LinkView(:final view)) {
+            if (bodyEvidence != null) bodyEvidence[view.id] = body;
+            await _putDetection(
+              media.id,
+              'b',
+              view.id,
+              box,
+              frameNumber,
+              timestampMs,
+              encodeOutline(body.outline, body.bbox),
+            );
+            continue;
+          }
+        }
+      }
       final id = await db
           .into(db.bodies)
           .insert(
@@ -178,13 +253,24 @@ class CharacterRepository {
               createdAt: now,
             ),
           );
+      if (video) {
+        await (db.update(db.bodies)..where((b) => b.id.equals(id))).write(
+          BodiesCompanion(trackId: Value(track?.id ?? id)),
+        );
+        track ??= tracks[id] = Track(id, faceTrack: faceId);
+        track.views.add(
+          TrackView(id: id, value: body.appearance, quality: body.score),
+        );
+        usedTracks.add(track.id);
+      }
+      if (bodyEvidence != null) bodyEvidence[id] = body;
       if (body.cropJpeg != null) {
         final path = await files.writeBodyCrop(id, body.cropJpeg!);
         await (db.update(db.bodies)..where((b) => b.id.equals(id))).write(
           BodiesCompanion(cropPath: Value(path)),
         );
       }
-      bodiesHere.add(_Body(id, box));
+      bodiesHere.add(_Body(id, box, video ? track?.id ?? id : null));
       usedBodies.add(id);
       await _putDetection(
         media.id,
@@ -198,6 +284,57 @@ class CharacterRepository {
       if (faceId == null) inserted++;
     }
     return inserted;
+  }
+
+  Future<Map<int, Track<List<double>?>>> _bodyTracks(int mediaId) async {
+    final rows =
+        await (db.select(db.bodies)
+              ..where(
+                (b) =>
+                    b.mediaId.equals(mediaId) &
+                    b.kind.equals('character') &
+                    b.trackId.isNotNull(),
+              )
+              ..orderBy([(b) => OrderingTerm.desc(b.timestampMs)]))
+            .get();
+    final tracks = <int, Track<List<double>?>>{};
+    for (final b in rows) {
+      final track = tracks.putIfAbsent(
+        b.trackId!,
+        () => Track(b.trackId!, faceTrack: b.faceId),
+      );
+      track.views.add(
+        TrackView(
+          id: b.id,
+          value: b.appearance == null
+              ? null
+              : appearanceFromBlob(b.appearance!),
+          quality: b.score,
+        ),
+      );
+    }
+    final seen = await db
+        .customSelect(
+          '''SELECT b.track_id,d.x,d.y,d.w,d.h,d.timestamp_ms
+      FROM media_detections d JOIN bodies b ON d.ref_id=b.id AND d.kind='b'
+      WHERE d.media_id=? AND b.kind='character' AND b.track_id IS NOT NULL
+      ORDER BY d.timestamp_ms DESC''',
+          variables: [Variable.withInt(mediaId)],
+          readsFrom: {db.bodies, db.mediaDetections},
+        )
+        .get();
+    for (final r in seen) {
+      final track = tracks[r.read<int>('track_id')];
+      if (track == null || track.lastBox != null) continue;
+      track.lastBox = (
+        x: r.read<double>('x'),
+        y: r.read<double>('y'),
+        w: r.read<double>('w'),
+        h: r.read<double>('h'),
+      );
+      track.lastTimestampMs = r.readNullable<int>('timestamp_ms');
+    }
+    return tracks;
   }
 
   _Box _box(BBox pixels, int w, int h) {
@@ -239,7 +376,7 @@ class CharacterRepository {
   Future<List<_Body>> _bodies(int mediaId, int? frameNumber) async {
     final rows = await db
         .customSelect(
-          "SELECT id, bbox_x, bbox_y, bbox_w, bbox_h FROM bodies WHERE media_id = ? AND frame_number IS ? AND kind = 'character'",
+          "SELECT id, bbox_x, bbox_y, bbox_w, bbox_h, track_id FROM bodies WHERE media_id = ? AND frame_number IS ? AND kind = 'character'",
           variables: [Variable.withInt(mediaId), Variable<int>(frameNumber)],
           readsFrom: {db.bodies},
         )
@@ -251,7 +388,7 @@ class CharacterRepository {
           y: r.read<double>('bbox_y'),
           w: r.read<double>('bbox_w'),
           h: r.read<double>('bbox_h'),
-        )),
+        ), r.readNullable<int>('track_id')),
     ];
   }
 
@@ -302,7 +439,8 @@ class _Face {
 }
 
 class _Body {
-  _Body(this.id, this.box);
+  _Body(this.id, this.box, [this.track]);
+  final int? track;
   final int id;
   final _Box box;
 }

@@ -90,7 +90,6 @@ void main() {
             );
             await tester.pumpAndSettle();
           }
-          await next(tester);
           expect(find.text('Replace all faces'), findsWidgets);
           final submit = find.byKey(const Key('reface-next'));
           await tester.ensureVisible(submit);

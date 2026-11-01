@@ -11,13 +11,19 @@ import '../../data/api/dtos/analyze.dart';
 import '../../domain/geometry/outline.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../library_providers.dart';
+import '../../data/repositories/media_queries.dart';
+import '../../data/repositories/artifact_context.dart';
+import '../shared/media_target.dart';
 import '../../studio_providers.dart';
 import '../studio/studio_helpers.dart';
 import '../shared/screen_layout.dart';
 import '../settings/background_screen.dart';
 
 class RestyleScreen extends ConsumerStatefulWidget {
-  const RestyleScreen({super.key});
+  const RestyleScreen({super.key, this.targetMediaId, this.targetDetectionId});
+  final int? targetMediaId;
+  final int? targetDetectionId;
   @override
   ConsumerState<RestyleScreen> createState() => _RestyleScreenState();
 }
@@ -28,6 +34,9 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
       _seed = TextEditingController(text: '-1');
   Uint8List? _photo;
   AnalyzeImageResponse? _analysis;
+  MediaDetection? _contextTarget;
+  int? _contextMediaId;
+  String? _contextAssetId;
   final _references = <Uint8List>[];
   var _busy = false, _refine = true;
   var _face = 0;
@@ -35,6 +44,77 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
   var _steps = 26;
   String? _error;
   bool _initialized = false;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.targetMediaId != null) {
+      Future<void>.microtask(_loadContextTarget);
+    }
+  }
+
+  Future<void> _loadContextTarget() async {
+    if (mounted) setState(() => _busy = true);
+    try {
+      final source = await ref
+          .read(mediaActionSourceProvider)
+          .resolve(
+            widget.targetMediaId!,
+            targetDetectionId: widget.targetDetectionId,
+          );
+      if (source.isVideo) {
+        throw const FormatException('Restyle requires a photo.');
+      }
+      _contextTarget = source.target;
+      _contextMediaId = source.media.id;
+      _contextAssetId = source.media.assetId;
+      await _setPhoto(source.photoBytes!, target: source.target);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _detectCurrent() async {
+    final photo = _photo;
+    if (photo == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _setPhoto(photo, target: _contextTarget);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _setPhoto(Uint8List bytes, {MediaDetection? target}) async {
+    if (!mounted) return;
+    setState(() {
+      _photo = bytes;
+      _analysis = null;
+      _face = -1;
+    });
+    final api = ref.read(mobileApiProvider);
+    if (api == null) return;
+    final result = await api.analyzeImage(
+      bytes,
+      options: const AnalyzeOptions(detectBodies: false, minQuality: 0),
+    );
+    if (!mounted) return;
+    final matched = matchTargetFace(result, target);
+    setState(() {
+      _analysis = result;
+      _face = target == null && result.faces.length == 1 ? 0 : (matched ?? -1);
+      if (target != null && matched == null) {
+        _error = 'Select the target person in this photo.';
+      }
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -66,20 +146,10 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
         if (mounted) setState(() => _references.add(bytes));
         return;
       }
-      if (mounted) {
-        setState(() {
-          _photo = bytes;
-          _analysis = null;
-          _face = 0;
-        });
-      }
-      final api = ref.read(mobileApiProvider);
-      if (api == null) return;
-      final result = await api.analyzeImage(
-        bytes,
-        options: const AnalyzeOptions(detectBodies: false, minQuality: 0),
-      );
-      if (mounted) setState(() => _analysis = result);
+      _contextTarget = null;
+      _contextMediaId = null;
+      _contextAssetId = null;
+      await _setPhoto(bytes);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
@@ -89,7 +159,9 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
 
   BBox? get _protected {
     final result = _analysis;
-    if (result == null || result.faces.isEmpty) return null;
+    if (result == null || _face < 0 || _face >= result.faces.length) {
+      return null;
+    }
     final b = result.faces[_face].bbox;
     final x = (b.x - b.w * _padding).clamp(0, result.imageW.toDouble());
     final y = (b.y - b.h * _padding).clamp(0, result.imageH.toDouble());
@@ -135,11 +207,23 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
       for (final bytes in _references) {
         temporary.add(await privatePickedPhoto(ref, bytes));
       }
+      final matchedTarget = _analysis == null
+          ? null
+          : matchTargetFace(_analysis!, _contextTarget);
+      final selectedContext = matchedTarget != null && matchedTarget == _face
+          ? _contextTarget
+          : null;
       final id = await ref
           .read(studioRepositoryProvider)
           .enqueueInputs(
             serverId: caps.serverId,
             type: 'undress_image',
+            context: ArtifactContext(
+              mediaId: _contextMediaId,
+              assetId: _contextAssetId,
+              detectionId: selectedContext?.id,
+              targetPersonId: selectedContext?.personId,
+            ),
             params: {
               'prompt': _prompt.text.trim(),
               'negative_prompt': _negative.text.trim(),
@@ -176,7 +260,11 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
       bottomNavigationBar: StickyActionBar(
         child: FilledButton(
           key: const Key('restyle-submit'),
-          onPressed: _busy || _analysis == null || caps?.engines.undress != true
+          onPressed:
+              _busy ||
+                  _analysis == null ||
+                  (_analysis!.faces.length > 1 && _face < 0) ||
+                  caps?.engines.undress != true
               ? null
               : _submit,
           child: Text(l.restyleCreate),
@@ -201,6 +289,11 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
             onPressed: _busy || caps == null ? null : () => _pick(),
             child: Text(l.chooseTargetPhoto),
           ),
+          if (_photo != null && _analysis == null && caps != null)
+            TextButton(
+              onPressed: _busy ? null : _detectCurrent,
+              child: const Text('Detect target faces'),
+            ),
           if (_photo != null && _analysis != null)
             ImageExpand(
               source: ImagePreviewSource.bytes(_photo!),
@@ -223,6 +316,7 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
                               outline:
                                   _analysis != null &&
                                       _analysis!.faces.isNotEmpty &&
+                                      _face >= 0 &&
                                       _face < _analysis!.faces.length &&
                                       _analysis!.faces[_face].outline != null
                                   ? [
@@ -248,9 +342,10 @@ class _RestyleScreenState extends ConsumerState<RestyleScreen> {
               ),
             ),
           if (_analysis?.faces.isNotEmpty == true) ...[
+            if (_face < 0) const Text('Select the target person.'),
             DropdownButtonFormField<int>(
               isExpanded: true,
-              initialValue: _face,
+              initialValue: _face < 0 ? null : _face,
               decoration: InputDecoration(labelText: l.restyleFace),
               items: [
                 for (var i = 0; i < _analysis!.faces.length; i++)

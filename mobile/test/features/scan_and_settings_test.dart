@@ -498,7 +498,10 @@ void main() {
                 decision: 'suggest',
               ),
             );
-        await env.pump(tester);
+        await env.pump(
+          tester,
+          extra: [initialLocationProvider.overrideWithValue('/home')],
+        );
         await _settle(tester);
 
         expect(find.byKey(const Key('scan-library')), findsOneWidget);
@@ -523,7 +526,10 @@ void main() {
     appTest(
       'a recent backup silences the reminder; an empty library never nags',
       (tester, env) async {
-        await env.pump(tester);
+        await env.pump(
+          tester,
+          extra: [initialLocationProvider.overrideWithValue('/home')],
+        );
         await _settle(tester);
         expect(
           find.byKey(const Key('backup-reminder')),
@@ -544,7 +550,10 @@ void main() {
     );
 
     appTest('"Scan library" opens Sources', (tester, env) async {
-      await env.pump(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/home')],
+      );
       await tester.tap(find.byKey(const Key('scan-library')));
       await _settle(tester);
       expect(find.text('Sources & scan'), findsWidgets);

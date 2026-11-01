@@ -9,8 +9,71 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/fakes.dart';
 import '../support/fixtures.dart';
 import '../support/harness.dart';
+import '../support/seed.dart';
 
 void main() {
+  appTest('mixed types share bulk flags without cross-kind merge', (
+    tester,
+    env,
+  ) async {
+    final person = await seedPerson(env.db, name: 'Alice');
+    final character = await seedPerson(env.db, name: 'Hero');
+    await (env.db.update(env.db.persons)..where((p) => p.id.equals(character)))
+        .write(const PersonsCompanion(kind: Value('character')));
+    await env.pump(
+      tester,
+      extra: [initialLocationProvider.overrideWithValue('/people')],
+    );
+    expect(find.byKey(Key('person-$person')), findsOneWidget);
+    expect(find.byKey(Key('person-$character')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('people-select')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('person-$person')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('person-$character')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('people-selection-actions')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('people-action-merge')), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('people-more-actions')));
+    await tester.tap(find.byKey(const Key('people-more-actions')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('people-action-pin')), findsOneWidget);
+    expect(find.byKey(const Key('people-action-export')), findsOneWidget);
+  }, session: testSession);
+  appTest(
+    'character Reface entry explains an incompatible PC embedding model',
+    (tester, env) async {
+      final hero = await seedPerson(env.db, name: 'Hero');
+      await (env.db.update(env.db.persons)..where((p) => p.id.equals(hero)))
+          .write(const PersonsCompanion(kind: Value('character')));
+      final face = await seedFace(env.db, personId: hero);
+      await (env.db.update(
+        env.db.faces,
+      )..where((f) => f.id.equals(face))).write(
+        const FacesCompanion(
+          kind: Value('character'),
+          modelId: Value(characterEmbeddingModelId),
+        ),
+      );
+      env.picker.photo = tinyPng;
+      await env.pump(
+        tester,
+        extra: [
+          initialLocationProvider.overrideWithValue('/reface?person=$hero'),
+        ],
+      );
+      await pickRefaceTarget(tester);
+      await tester.tap(find.byKey(const Key('target-face-0')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('reface-next')));
+      await tester.tap(find.byKey(const Key('reface-next')));
+      await tester.pumpAndSettle();
+      expect(find.text('Hero'), findsOneWidget);
+      expect(find.textContaining('different embedding model'), findsOneWidget);
+    },
+    session: testSession,
+  );
   appTest(
     'characters are reachable from People and offer an isolated photo test',
     (tester, env) async {
@@ -103,11 +166,22 @@ void main() {
       expect(find.text('Hero'), findsOneWidget);
       expect(find.text('Alice'), findsNothing);
       expect(find.text('2 faces'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('open-all-types')));
+      await tester.pumpAndSettle();
+      expect(find.text('Hero'), findsOneWidget);
+      expect(find.text('Alice'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('open-people')));
+      await tester.pumpAndSettle();
+      expect(find.text('Alice'), findsOneWidget);
+      expect(find.text('Hero'), findsNothing);
+      await tester.tap(find.byKey(const Key('open-characters')));
+      await tester.pumpAndSettle();
+      expect(find.text('Hero'), findsOneWidget);
       await tester.tap(find.byKey(Key('person-$hero')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('person-title')), findsOneWidget);
-      // a drawn character is never a face-swap source
-      expect(find.byKey(const Key('person-use-studio')), findsNothing);
+      expect(find.byKey(const Key('person-use-studio')), findsOneWidget);
+      expect(find.byTooltip('Actions in media'), findsOneWidget);
     },
     session: testSession,
   );

@@ -133,7 +133,10 @@ class ScanProgressCard extends ConsumerWidget {
           );
         } else if (reason == PauseReason.revoked ||
             reason == PauseReason.notPaired) {
-          action = null;
+          action = TextButton(
+            onPressed: () => context.push(Routes.connection),
+            child: const Text('Connect PC'),
+          );
         } else {
           action = FilledButton(
             key: const Key('scan-resume'),
@@ -376,11 +379,118 @@ Future<void> showScanProgressSheet(BuildContext context) =>
     );
 
 /// Starts a scan from anywhere (Home, Library): needs a paired PC, otherwise explains.
-Future<void> startScan(WidgetRef ref, {bool enumerate = true}) async {
+Future<void> startScan(
+  WidgetRef ref, {
+  bool enumerate = true,
+  Set<String>? albumIds,
+}) async {
   final engine = ref.read(scanEngineProvider);
   if (engine.isRunning) return;
-  if (ref.read(mobileApiProvider) == null) return;
+  if (ref.read(mobileApiProvider) == null) {
+    if (ref.context.mounted) ref.context.push(Routes.connection);
+    return;
+  }
   await prepareBackgroundForWork(ref.context, ref);
   if (!ref.context.mounted) return;
-  unawaited(engine.start(enumerate: enumerate));
+  unawaited(engine.start(enumerate: enumerate, albumIds: albumIds));
+}
+
+/// A dedicated view of the live analysis, including video stages and controls.
+class RunningScanScreen extends ConsumerWidget {
+  const RunningScanScreen({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scope =
+        ref.watch(settingsProvider).value?.scanScopeAlbumIds ??
+        const <String>[];
+    final albums = ref.watch(albumsProvider).value ?? const [];
+    final names = [
+      for (final id in scope)
+        for (final album in albums)
+          if (album.id == id) album.name,
+    ];
+    final repo = ref.read(libraryRepositoryProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Library analysis')),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const ScanProgressCard(compact: true),
+          ListTile(
+            leading: const Icon(Icons.folder_outlined),
+            title: const Text('Analysis scope'),
+            subtitle: Text(names.isEmpty ? 'Current queue' : names.join(', ')),
+          ),
+          ListTile(
+            leading: const Icon(Icons.tune),
+            title: const Text('Scan settings'),
+            onTap: () => context.push(Routes.sources),
+          ),
+          StreamBuilder(
+            stream: repo.watchFailedMedia(),
+            builder: (context, snapshot) {
+              final rows = snapshot.data ?? const [];
+              if (snapshot.hasError) {
+                return const Text('Could not load failed items');
+              }
+              if (rows.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Failed items',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          await repo.requeueFailed();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Items queued for analysis.'),
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('Retry all'),
+                      ),
+                    ],
+                  ),
+                  for (final row in rows)
+                    ListTile(
+                      leading: Icon(
+                        row.kind == 'video'
+                            ? Icons.videocam_outlined
+                            : Icons.photo_outlined,
+                      ),
+                      title: Text(row.kind == 'video' ? 'Video' : 'Photo'),
+                      subtitle: Text(row.scanError ?? 'Analysis failed'),
+                      onTap: () => context.push('${Routes.media}/${row.id}'),
+                      trailing: IconButton(
+                        tooltip: 'Retry',
+                        icon: const Icon(Icons.refresh),
+                        onPressed: () async {
+                          await repo.requeueFailed(mediaIds: [row.id]);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Item queued for analysis.'),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }

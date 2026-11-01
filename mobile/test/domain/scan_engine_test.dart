@@ -107,6 +107,25 @@ void main() {
   });
   tearDown(() => rig.dispose());
 
+  test('a folder scan does not overwrite the saved source selection', () async {
+    await rig.choose(['cam']);
+    rig.library.addAlbum(
+      const AlbumInfo(id: 'trip', name: 'Trips', count: 2),
+      syntheticAssets(2, idStart: 100),
+    );
+    rig.everyPhotoHasANewFace();
+    final engine = rig.engine();
+    await engine.start(albumIds: {'trip'});
+    expect((await rig.settings.load()).albumIds, ['cam']);
+    expect((await rig.settings.load()).scanScopeAlbumIds, ['trip']);
+    expect((await rig.media()).map((media) => media.assetId), [
+      'asset-100',
+      'asset-101',
+    ]);
+    expect(engine.progress.phase, ScanPhase.completed);
+    await engine.dispose();
+  });
+
   test(
     'prepares only the next photo while the current photo is being analysed',
     () async {

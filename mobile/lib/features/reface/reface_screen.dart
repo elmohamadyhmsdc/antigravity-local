@@ -14,6 +14,9 @@ import '../../data/api/dtos/analyze.dart';
 import '../../data/api/dtos/system.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repositories/studio_repository.dart';
+import '../../data/repositories/artifact_context.dart';
+import '../../data/repositories/media_queries.dart';
+import '../shared/media_target.dart';
 import '../../l10n/app_localizations.dart';
 import '../shared/screen_layout.dart';
 import '../../library_providers.dart';
@@ -31,9 +34,19 @@ import 'reface_options.dart';
 import '../../domain/geometry/outline.dart';
 
 class RefaceScreen extends ConsumerStatefulWidget {
-  const RefaceScreen({super.key, this.personId, this.faceId});
+  const RefaceScreen({
+    super.key,
+    this.personId,
+    this.faceId,
+    this.identitySetId,
+    this.targetMediaId,
+    this.targetDetectionId,
+  });
   final int? personId;
   final int? faceId;
+  final int? identitySetId;
+  final int? targetMediaId;
+  final int? targetDetectionId;
   @override
   ConsumerState<RefaceScreen> createState() => _RefaceScreenState();
 }
@@ -43,6 +56,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   Uint8List? _photo;
   File? _video;
   AnalyzeImageResponse? _analysis;
+  MediaDetection? _contextTarget;
+  int? _contextMediaId;
+  String? _contextAssetId;
   final _targets = <int>{};
   bool _replaceAllFaces = false;
   final _sources = <int>{};
@@ -303,10 +319,58 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.targetMediaId != null) {
+      Future<void>.microtask(_loadContextTarget);
+    }
     if (widget.faceId != null) {
       Future<void>.microtask(() => _loadFace(widget.faceId!));
     } else if (widget.personId != null) {
-      Future<void>.microtask(() => _loadPerson(widget.personId!));
+      Future<void>.microtask(() async {
+        await _loadPerson(widget.personId!);
+        if (mounted && widget.identitySetId != null) {
+          final identities = await ref.read(identitySetsProvider.future);
+          if (mounted &&
+              identities.any(
+                (item) =>
+                    item.id == widget.identitySetId &&
+                    item.personId == widget.personId,
+              )) {
+            await _useIdentity(widget.identitySetId!);
+          }
+        }
+      });
+    }
+  }
+
+  Future<void> _loadContextTarget() async {
+    if (mounted) setState(() => _busy = true);
+    try {
+      final source = await ref
+          .read(mediaActionSourceProvider)
+          .resolve(
+            widget.targetMediaId!,
+            targetDetectionId: widget.targetDetectionId,
+          );
+      if (!mounted) return;
+      _contextTarget = source.target;
+      _contextMediaId = source.media.id;
+      _contextAssetId = source.media.assetId;
+      if (source.isVideo) {
+        setState(() {
+          _video = source.originalFile;
+          _videoTrim = null;
+          _targetRevision++;
+          _photo = null;
+          _analysis = null;
+          _targets.clear();
+        });
+      } else {
+        await _pickPhoto(source.photoBytes!, target: source.target);
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -331,11 +395,11 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   Future<void> _loadPerson(int id) async {
     try {
       final faces = await ref.read(studioRepositoryProvider).sourceFaces(id);
-      final people = await ref
-          .read(peopleRepositoryProvider)
-          .watchPeople()
-          .first;
-      final name = people.where((p) => p.id == id).firstOrNull?.name;
+      final db = ref.read(databaseProvider);
+      final person = await (db.select(
+        db.persons,
+      )..where((p) => p.id.equals(id))).getSingleOrNull();
+      final name = person?.name;
       if (!mounted) return;
       setState(() {
         _person = id;
@@ -466,14 +530,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     }
   }
 
-  Future<void> _pickPhoto(Uint8List bytes) async {
+  Future<void> _pickPhoto(Uint8List bytes, {MediaDetection? target}) async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       final api = ref.read(mobileApiProvider);
-      if (api == null) return;
       if (mounted) {
         setState(() {
           _photo = bytes;
@@ -483,7 +546,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           _targets.clear();
         });
       }
-      if (_replaceAllFaces) return;
+      if (api == null || _replaceAllFaces) return;
       final result = await api.analyzeImage(
         bytes,
         options: const AnalyzeOptions(minQuality: 0, detectBodies: false),
@@ -492,7 +555,16 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       setState(() {
         _analysis = result;
         _targetModelId = result.modelId;
-        _targets.addAll(List.generate(result.faces.length, (i) => i));
+        if (target != null) {
+          final matched = matchTargetFace(result, target);
+          if (matched != null) {
+            _targets.add(matched);
+          } else {
+            _error = 'Select the target person in this photo.';
+          }
+        } else if (result.faces.length == 1) {
+          _targets.add(0);
+        }
       });
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
@@ -511,6 +583,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     try {
       final target = await ref.read(refaceTargetPickerProvider)(source);
       if (target == null || !mounted) return;
+      _contextTarget = null;
+      _contextMediaId = null;
+      _contextAssetId = null;
       _targetScanGeneration++;
       _targetScanTimer?.cancel();
       _detectingTarget = false;
@@ -683,6 +758,16 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           'end_time': _videoTrim!.endSeconds,
         },
       };
+      final matchedTarget = _analysis == null
+          ? null
+          : matchTargetFace(_analysis!, _contextTarget);
+      final selectedContext =
+          !_replaceAllFaces &&
+              _targets.length == 1 &&
+              matchedTarget != null &&
+              _targets.contains(matchedTarget)
+          ? _contextTarget
+          : null;
       final id = await ref
           .read(studioRepositoryProvider)
           .enqueue(
@@ -692,6 +777,15 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
             target: file,
             video: _video != null,
             personId: _person,
+            context: ArtifactContext(
+              mediaId: _contextMediaId,
+              assetId: _contextAssetId,
+              detectionId: selectedContext?.id,
+              targetPersonId: selectedContext?.personId,
+              personId: _identityMode == 'dfm' || _useImportedSource
+                  ? null
+                  : _person,
+            ),
           );
       ref.read(jobTrackerProvider).start();
       if (mounted) {
@@ -754,7 +848,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           if (_busy) const LinearProgressIndicator(),
           Expanded(
             child: GuidedWorkflow(
-              progressLabel: l10n.workflowProgress(_step + 1, 4),
+              progressLabel: l10n.workflowProgress(_step + 1, 3),
               currentStep: _step,
               onStepCancel: _busy || _step == 0
                   ? null
@@ -766,7 +860,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                   ? null
                   : () {
                       if (!_validate(l10n)) return;
-                      if (_step < 3) {
+                      if (_step < 2) {
                         setState(() => _step++);
                       } else {
                         _submit(caps);
@@ -785,7 +879,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                     child: FilledButton(
                       key: const Key('reface-next'),
                       onPressed: details.onStepContinue,
-                      child: Text(_step == 3 ? l10n.submitReface : l10n.next),
+                      child: Text(_step == 2 ? l10n.submitReface : l10n.next),
                     ),
                   ),
                 ],
@@ -814,6 +908,17 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                         value: _replaceAllFaces,
                         onChanged: _busy ? null : _setReplaceAllFaces,
                       ),
+                      if (_photo != null &&
+                          _analysis == null &&
+                          caps != null &&
+                          !_replaceAllFaces)
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () =>
+                                    _pickPhoto(_photo!, target: _contextTarget),
+                          child: const Text('Detect target faces'),
+                        ),
                       if (_photo != null && _analysis == null)
                         PreviewImage.memory(
                           _photo!,
@@ -1034,7 +1139,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                   ),
                 ),
                 Step(
-                  title: Text(l10n.refaceIdentity),
+                  title: const Text('Source identity'),
                   isActive: _step == 1,
                   content: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1068,6 +1173,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                   final person = await pickPerson(
                                     context,
                                     allowNew: false,
+                                    kind: 'all',
                                     title: l10n.selectSourcePerson,
                                   );
                                   if (person?.personId != null && mounted) {
@@ -1075,6 +1181,15 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                   }
                                 },
                           child: Text(_personName ?? l10n.selectSourcePerson),
+                        ),
+                      if (_identityMode != 'dfm' &&
+                          _faces.isNotEmpty &&
+                          caps != null &&
+                          _faces.any(
+                            (face) => face.modelId != caps.embeddingModelId,
+                          ))
+                        const Text(
+                          'These source faces use a different embedding model from the connected PC. Select compatible source faces or a matching model.',
                         ),
                       if (_identityMode != 'dfm') ...[
                         OutlinedButton.icon(
@@ -1223,7 +1338,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                   ),
                 ),
                 Step(
-                  title: Text(l10n.refaceQuality),
+                  title: const Text('Review / options'),
                   isActive: _step == 2,
                   content: Column(
                     children: [
@@ -1240,96 +1355,97 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                           options: qualityOptions(l10n),
                           onChanged: _chooseQualityProfile,
                         ),
-                      if (_identityMode == 'dfm' && caps != null) ...[
-                        DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          initialValue: _dfm,
-                          decoration: InputDecoration(labelText: l10n.dfmModel),
-                          items: [
-                            for (final model in caps.engines.dfmModels)
-                              DropdownMenuItem(
-                                value: model,
-                                child: Text(model),
+                      ExpansionTile(
+                        title: const Text('Advanced options'),
+                        children: [
+                          if (_identityMode == 'dfm' && caps != null) ...[
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: _dfm,
+                              decoration: InputDecoration(
+                                labelText: l10n.dfmModel,
                               ),
+                              items: [
+                                for (final model in caps.engines.dfmModels)
+                                  DropdownMenuItem(
+                                    value: model,
+                                    child: Text(model),
+                                  ),
+                              ],
+                              onChanged: (value) =>
+                                  setState(() => _dfm = value),
+                            ),
+                            Text(l10n.refaceDfmHint),
+                          ] else ...[
+                            Text(l10n.refaceRestorationIntro),
+                            const SizedBox(height: 12),
+                            RefaceOptionPicker(
+                              fieldKey: ValueKey('restorer-$_qualityProfile'),
+                              descriptionKey: const Key(
+                                'reface-restorer-description',
+                              ),
+                              label: l10n.refaceRestorer,
+                              value: _restorer,
+                              options: restorationOptions(
+                                l10n,
+                                caps?.restorers ?? [],
+                                caps?.refaceProfiles[_qualityProfile],
+                              ),
+                              onChanged: (value) =>
+                                  setState(() => _restorer = value),
+                            ),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: _preset,
+                              decoration: InputDecoration(
+                                labelText: l10n.refacePreset,
+                              ),
+                              items: [
+                                DropdownMenuItem(
+                                  value: 'natural',
+                                  child: Text(l10n.presetNatural),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'maximum_detail',
+                                  child: Text(l10n.presetDetail),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'clean',
+                                  child: Text(l10n.presetClean),
+                                ),
+                              ],
+                              onChanged: (value) =>
+                                  setState(() => _preset = value!),
+                            ),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(l10n.useFaceParser),
+                              value: _parser,
+                              onChanged: (value) =>
+                                  setState(() => _parser = value),
+                            ),
+                            Text(l10n.refaceIdentityBoost),
+                            Slider(
+                              key: const Key('reface-identity-boost'),
+                              value: _identityBoost,
+                              min: 0,
+                              max: 1,
+                              divisions: 20,
+                              label: _identityBoost.toStringAsFixed(2),
+                              onChanged: (value) =>
+                                  setState(() => _identityBoost = value),
+                            ),
                           ],
-                          onChanged: (value) => setState(() => _dfm = value),
-                        ),
-                        Text(l10n.refaceDfmHint),
-                      ] else ...[
-                        Text(l10n.refaceRestorationIntro),
-                        const SizedBox(height: 12),
-                        RefaceOptionPicker(
-                          fieldKey: ValueKey('restorer-$_qualityProfile'),
-                          descriptionKey: const Key(
-                            'reface-restorer-description',
+                          Text(l10n.refaceSpeedNote),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(l10n.protectOcclusions),
+                            value: _occluder,
+                            onChanged: (v) => setState(() => _occluder = v),
                           ),
-                          label: l10n.refaceRestorer,
-                          value: _restorer,
-                          options: restorationOptions(
-                            l10n,
-                            caps?.restorers ?? [],
-                            caps?.refaceProfiles[_qualityProfile],
-                          ),
-                          onChanged: (value) =>
-                              setState(() => _restorer = value),
-                        ),
-                        DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          initialValue: _preset,
-                          decoration: InputDecoration(
-                            labelText: l10n.refacePreset,
-                          ),
-                          items: [
-                            DropdownMenuItem(
-                              value: 'natural',
-                              child: Text(l10n.presetNatural),
-                            ),
-                            DropdownMenuItem(
-                              value: 'maximum_detail',
-                              child: Text(l10n.presetDetail),
-                            ),
-                            DropdownMenuItem(
-                              value: 'clean',
-                              child: Text(l10n.presetClean),
-                            ),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => _preset = value!),
-                        ),
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(l10n.useFaceParser),
-                          value: _parser,
-                          onChanged: (value) => setState(() => _parser = value),
-                        ),
-                        Text(l10n.refaceIdentityBoost),
-                        Slider(
-                          key: const Key('reface-identity-boost'),
-                          value: _identityBoost,
-                          min: 0,
-                          max: 1,
-                          divisions: 20,
-                          label: _identityBoost.toStringAsFixed(2),
-                          onChanged: (value) =>
-                              setState(() => _identityBoost = value),
-                        ),
-                      ],
-                      Text(l10n.refaceSpeedNote),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(l10n.protectOcclusions),
-                        value: _occluder,
-                        onChanged: (v) => setState(() => _occluder = v),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                Step(
-                  title: Text(l10n.refaceReview),
-                  isActive: _step == 3,
-                  content: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                      const SizedBox(height: 24),
                       Text(
                         '${l10n.refaceTitle} · ${_video == null ? l10n.resultPhoto : l10n.resultVideo} · ${_identityMode == 'dfm' ? l10n.refaceTrainedIdentity : qualityOptions(l10n).firstWhere((option) => option.value == _qualityProfile).title}',
                       ),

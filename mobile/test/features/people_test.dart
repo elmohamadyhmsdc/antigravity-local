@@ -16,6 +16,10 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 Future<void> _selectFace(WidgetTester tester, int id) async {
+  if (find.text('Identity').evaluate().isNotEmpty) {
+    await tester.tap(find.text('Identity'));
+    await _settle(tester);
+  }
   await tester.longPress(find.byKey(Key('face-$id')));
   await _settle(tester);
   await tester.tap(find.byKey(const Key('people-action-select')));
@@ -116,9 +120,12 @@ void main() {
 
         await tester.tap(find.byKey(Key('person-$sara')));
         await _settle(tester);
+        expect(find.text('Media'), findsOneWidget);
+        expect(find.text('Models'), findsOneWidget);
+        await tester.tap(find.text('Identity'));
+        await _settle(tester);
         expect(find.byKey(const Key('tab-faces')), findsOneWidget);
         expect(find.text('Faces (1)'), findsOneWidget);
-        expect(find.text('Photos & videos'), findsOneWidget);
         expect(find.text('Bodies'), findsOneWidget);
         expect(find.text('Suggestions'), findsOneWidget);
       },
@@ -202,6 +209,8 @@ void main() {
           tester,
           extra: [initialLocationProvider.overrideWithValue('/people/$sara')],
         );
+        await _settle(tester);
+        await tester.tap(find.text('Identity'));
         await _settle(tester);
         await tester.ensureVisible(find.byKey(const Key('tab-suggestions')));
         await tester.tap(find.byKey(const Key('tab-suggestions')));
