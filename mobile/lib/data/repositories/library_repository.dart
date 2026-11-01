@@ -8,7 +8,9 @@ import 'kind_corrections.dart';
 /// Bump when what a scan extracts changes, so older results are redone.
 /// 3: characters get pose keypoints, body extent/outline and the people's face-body pairing;
 /// person/character corrections. 4: drawn faces boxed by the people's face detector.
-const scanVersion = 4;
+// v5 retains distinct same-outfit bodies and real per-frame action poses for
+// both identity kinds. The next explicit scan requeues older completed media.
+const scanVersion = 5;
 
 /// How many photos are where in the scan queue. The queue is the `media` table itself:
 /// `scan_status` = pending (waiting) | scanning (a worker has it) | done | failed | skipped

@@ -154,21 +154,45 @@ void main() {
     },
   );
 
-  test('explicit rescan upgrades older character body rows to the shared track', () async {
-    final id=await db.into(db.media).insert(MediaCompanion.insert(assetId:'old-anime',kind:'video'));
-    final m=await (db.select(db.media)..where((m)=>m.id.equals(id))).getSingle();
-    for(var i=0;i<3;i++) {
-      await store.store(m,faceAndBody(),frameNumber:i,timestampMs:i*1000);
-      await (db.update(db.bodies)..where((b)=>b.mediaId.equals(id))).write(const BodiesCompanion(trackId:Value(null)));
-    }
-    expect(await (db.select(db.bodies)..where((b)=>b.mediaId.equals(id))).get(),hasLength(3));
-    for(var i=0;i<3;i++) {
-      await store.store(m,faceAndBody(),frameNumber:i,timestampMs:i*1000);
-    }
-    final bodies=await (db.select(db.bodies)..where((b)=>b.mediaId.equals(id))).get();
-    expect(bodies.map((b)=>b.trackId).toSet(),{bodies.first.id});
-    expect(await ActionFrameStore(db).load(m),hasLength(3));
-  });
+  test(
+    'explicit rescan upgrades older character body rows to the shared track',
+    () async {
+      final id = await db
+          .into(db.media)
+          .insert(MediaCompanion.insert(assetId: 'old-anime', kind: 'video'));
+      final m = await (db.select(
+        db.media,
+      )..where((m) => m.id.equals(id))).getSingle();
+      for (var i = 0; i < 3; i++) {
+        await store.store(
+          m,
+          faceAndBody(),
+          frameNumber: i,
+          timestampMs: i * 1000,
+        );
+        await (db.update(db.bodies)..where((b) => b.mediaId.equals(id))).write(
+          const BodiesCompanion(trackId: Value(null)),
+        );
+      }
+      expect(
+        await (db.select(db.bodies)..where((b) => b.mediaId.equals(id))).get(),
+        hasLength(3),
+      );
+      for (var i = 0; i < 3; i++) {
+        await store.store(
+          m,
+          faceAndBody(),
+          frameNumber: i,
+          timestampMs: i * 1000,
+        );
+      }
+      final bodies = await (db.select(
+        db.bodies,
+      )..where((b) => b.mediaId.equals(id))).get();
+      expect(bodies.map((b) => b.trackId).toSet(), {bodies.first.id});
+      expect(await ActionFrameStore(db).load(m), hasLength(3));
+    },
+  );
 
   test(
     'Python character fixture decodes without a face and scores identically',

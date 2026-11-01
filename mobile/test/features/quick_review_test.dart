@@ -387,6 +387,9 @@ void main() {
         );
         await tester.tap(find.byKey(const Key('people-review-banner')));
         await _settle(tester);
+        expect(find.text('Choose type to review'), findsOneWidget);
+        await tester.tap(find.widgetWithText(ListTile, 'People'));
+        await _settle(tester);
         expect(find.byKey(const Key('quick-question')), findsOneWidget);
       },
       session: testSession,

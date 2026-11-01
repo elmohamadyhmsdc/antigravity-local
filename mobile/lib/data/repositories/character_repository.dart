@@ -142,18 +142,38 @@ class CharacterRepository {
         }
       }
       if (same != null) {
-        if(video) {
+        if (video) {
           var restored = same.track == null ? null : tracks[same.track];
           restored ??= faceId == null
-            ? assignTracks<List<double>?>(values:[body.appearance],boxes:[box],timestampMs:timestampMs,
-                tracks:tracks.values.where((t)=>t.faceTrack==null&&!usedTracks.contains(t.id)),
-                similarity:outfitSimilarity,identity:sameOutfitSimilarity,motion:trackMotionOutfit).single
-            : tracks.values.where((t)=>t.faceTrack==faceId&&!usedTracks.contains(t.id)).firstOrNull;
-          final trackId=restored?.id??same.id;
-          await (db.update(db.bodies)..where((b)=>b.id.equals(same!.id))).write(BodiesCompanion(trackId:Value(trackId)));
-          restored??=tracks[trackId]=Track(trackId,faceTrack:faceId);
-          if(!restored.views.any((v)=>v.id==same!.id)) {
-            restored.views.add(TrackView(id:same.id,value:body.appearance,quality:body.score));
+              ? assignTracks<List<double>?>(
+                  values: [body.appearance],
+                  boxes: [box],
+                  timestampMs: timestampMs,
+                  tracks: tracks.values.where(
+                    (t) => t.faceTrack == null && !usedTracks.contains(t.id),
+                  ),
+                  similarity: outfitSimilarity,
+                  identity: sameOutfitSimilarity,
+                  motion: trackMotionOutfit,
+                ).single
+              : tracks.values
+                    .where(
+                      (t) =>
+                          t.faceTrack == faceId && !usedTracks.contains(t.id),
+                    )
+                    .firstOrNull;
+          final trackId = restored?.id ?? same.id;
+          await (db.update(db.bodies)..where((b) => b.id.equals(same!.id)))
+              .write(BodiesCompanion(trackId: Value(trackId)));
+          restored ??= tracks[trackId] = Track(trackId, faceTrack: faceId);
+          if (!restored.views.any((v) => v.id == same!.id)) {
+            restored.views.add(
+              TrackView(
+                id: same.id,
+                value: body.appearance,
+                quality: body.score,
+              ),
+            );
           }
           usedTracks.add(trackId);
         }
