@@ -14,6 +14,7 @@ abstract final class PoseTag {
   static const lying = 'lying';
   static const standing = 'standing';
   static const sitting = 'sitting';
+  static const bent = 'bent';
   static const armsUp = 'arms_up';
   static const oneArmUp = 'one_arm_up';
   static const armsSpread = 'arms_spread';
@@ -26,6 +27,7 @@ abstract final class PoseTag {
     lying,
     standing,
     sitting,
+    bent,
     armsUp,
     oneArmUp,
     armsSpread,
@@ -36,7 +38,7 @@ abstract final class PoseTag {
   ];
 
   /// Posture / arms / orientation, the three groups of the filter UI.
-  static const posture = [lying, standing, sitting];
+  static const posture = [lying, standing, sitting, bent];
   static const arms = [armsUp, oneArmUp, armsSpread, handsOnHips];
   static const orientation = [frontal, profile, back];
 }
@@ -51,6 +53,7 @@ Set<String> tierATags(Pose pose, {bool guardRotatedStanding = false}) {
   }
   if (isStanding(pose)) tags.add(PoseTag.standing);
   if (isSitting(pose)) tags.add(PoseTag.sitting);
+  if (isBent(pose)) tags.add(PoseTag.bent);
   final torso = pose.torso;
   if (torso != null) {
     final up = _raisedArms(pose, torso);
@@ -80,6 +83,12 @@ bool isLying(Pose pose, {bool guardRotatedStanding = false}) {
   if (tilt == null || tilt <= 60) return false;
   if (guardRotatedStanding && _standingAfterRotation(pose)) return false;
   return true;
+}
+
+/// Body leaning / bending over with spine tilt >= 25 degrees and not lying down.
+bool isBent(Pose pose) {
+  final tilt = pose.spineTilt;
+  return tilt != null && tilt >= 25 && tilt <= 60;
 }
 
 /// Standing needs the whole leg: phi < 25, both knees straight, hip above knee above ankle, thigh not

@@ -86,16 +86,16 @@ void main() {
       expect(backTags.contains(PoseTag.standing), isTrue);
       expect(backTags.contains(PoseTag.frontal), isFalse);
 
-      // 3. Back Bent Over (shoulders shifted forward / tilt > 30 degrees)
+      // 3. Back Bent Over (shoulders shifted / tilt ~32 degrees)
       final backBentKpts = makeKpts(
-        noseY: 480,
+        noseY: 380,
         noseScore: 0.05,
         eyeScore: 0.05,
         hipY: 550,
         kneeY: 750,
         ankleY: 950,
-        shoulderTiltX: 0.25, // causes large spine tilt
-        shoulderY: 500,
+        shoulderTiltX: 0.095, // causes spine tilt ~32.3 degrees
+        shoulderY: 400,
       );
       final backBentPose = Pose.fromJson(backBentKpts, 1000, 1000, extent: 'full')!;
       final backBentTags = tierATags(backBentPose);

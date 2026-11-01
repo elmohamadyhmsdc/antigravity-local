@@ -108,6 +108,7 @@ class BodyCategories {
       exemplar,
       limit: 100000,
       sigma: sigma,
+      strict: true,
     );
     return [
       for (final r in ranked)

@@ -8,9 +8,11 @@ import '../../providers.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../shared/person_picker.dart';
+import 'body_inspection_sheet.dart';
 import 'body_naming.dart';
 import 'pose_visuals.dart';
 import '../../domain/pose/exposed_matching.dart';
+import '../../domain/pose/pose_index.dart' show decodeTags;
 
 /// Roadmap 7.5 / Phase 8, behind `body_clusters_enabled` (OFF until the user switches it on): groups of
 /// photos showing the same body area, given to a person with one tap, and bridge photos offered as a
@@ -28,6 +30,7 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
   List<({int fromCluster, int toCluster, int bridges})> _bridges = const [];
   Map<int, BodyTile> _tiles = const {};
   Map<int, String> _people = const {};
+  Map<int, String> _customNames = const {};
   bool _loaded = false;
 
   @override
@@ -47,14 +50,35 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
       for (final p in await db.select(db.persons).get())
         p.id: p.name ?? '#${p.id}',
     };
+    final customNames = <int, String>{};
+    for (final c in clusters) {
+      final name = await db.setting('cluster.name.${c.cluster.id}');
+      if (name != null && name.trim().isNotEmpty) {
+        customNames[c.cluster.id] = name.trim();
+      }
+    }
     if (!mounted) return;
     setState(() {
       _clusters = clusters;
       _bridges = bridges;
       _tiles = tiles;
       _people = people;
+      _customNames = customNames;
       _loaded = true;
     });
+  }
+
+  Future<void> _rename(int clusterId, String currentName) async {
+    final newName = await promptRenameDialog(
+      context,
+      title: 'Rename Area',
+      initialName: currentName,
+      labelText: 'Custom Area Name',
+    );
+    if (newName == null || !mounted) return;
+    final db = ref.read(databaseProvider);
+    await db.putSetting('cluster.name.$clusterId', newName.trim());
+    await _load();
   }
 
   Future<void> _assign(int clusterId, {int? personId}) async {
@@ -66,6 +90,32 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
     if (target == null || !mounted) return;
     await ref.read(exposedClustersProvider).assign(clusterId, target);
     await _load();
+  }
+
+  Future<void> _inspectBody(int bodyId, String clusterType) async {
+    final db = ref.read(databaseProvider);
+    final bodyRow = await (db.select(db.bodies)..where((b) => b.id.equals(bodyId))).getSingleOrNull();
+    final poseRow = await (db.select(db.bodyPoseFeatures)..where((x) => x.bodyId.equals(bodyId))).getSingleOrNull();
+    final tags = poseRow == null ? const <String>[] : decodeTags(poseRow.tags);
+    final bbox = bodyRow == null
+        ? null
+        : (x: bodyRow.bboxX, y: bodyRow.bboxY, w: bodyRow.bboxW, h: bodyRow.bboxH);
+    final areaKind = clusterType == 'buttocks' ? 'lower' : 'chest';
+
+    if (!mounted) return;
+    await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => BodyInspectionSheet(
+        bodyId: bodyId,
+        cropPath: _tiles[bodyId]?.cropPath,
+        kpts: bodyRow?.kpts,
+        bbox: bbox,
+        tags: tags,
+        exposedAreas: [areaKind],
+        mediaId: bodyRow?.mediaId,
+      ),
+    );
   }
 
   @override
@@ -121,11 +171,31 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
                           : 'chest',
                     ),
                   ),
-                  Text(
-                    entry.cluster.clusterType == 'buttocks'
-                        ? l.clusterTitleButtocks(entry.cluster.id)
-                        : l.clusterTitleChest(entry.cluster.id),
-                    style: Theme.of(context).textTheme.titleMedium,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _customNames[entry.cluster.id] ??
+                              (entry.cluster.clusterType == 'buttocks'
+                                  ? l.clusterTitleButtocks(entry.cluster.id)
+                                  : l.clusterTitleChest(entry.cluster.id)),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      IconButton(
+                        key: Key('rename-cluster-${entry.cluster.id}'),
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Rename Area',
+                        onPressed: () => _rename(
+                          entry.cluster.id,
+                          _customNames[entry.cluster.id] ??
+                              (entry.cluster.clusterType == 'buttocks'
+                                  ? l.clusterTitleButtocks(entry.cluster.id)
+                                  : l.clusterTitleChest(entry.cluster.id)),
+                        ),
+                      ),
+                    ],
                   ),
                   Text(l.categoryBodyCount(entry.bodyIds.length)),
                   const SizedBox(height: 8),
@@ -139,11 +209,19 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
                             padding: const EdgeInsets.only(right: 6),
                             child: SizedBox(
                               width: 60,
-                              child: ClipRRect(
+                              child: InkWell(
+                                key: Key('cluster-body-$id'),
                                 borderRadius: BorderRadius.circular(6),
-                                child: CropImage(
-                                  path: _tiles[id]?.cropPath,
-                                  placeholderIcon: Icons.accessibility_new,
+                                onTap: () => _inspectBody(
+                                  id,
+                                  entry.cluster.clusterType,
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: CropImage(
+                                    path: _tiles[id]?.cropPath,
+                                    placeholderIcon: Icons.accessibility_new,
+                                  ),
                                 ),
                               ),
                             ),
@@ -169,11 +247,21 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
                       ),
                     ),
                   if (entry.cluster.personId != null)
-                    Text(
-                      l.clusterBelongsTo(
-                        _people[entry.cluster.personId] ??
-                            '#${entry.cluster.personId}',
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          l.clusterBelongsTo(
+                            _people[entry.cluster.personId] ??
+                                '#${entry.cluster.personId}',
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.swap_horiz, size: 18),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Change person',
+                          onPressed: () => _assign(entry.cluster.id),
+                        ),
+                      ],
                     )
                   else
                     FilledButton.tonal(

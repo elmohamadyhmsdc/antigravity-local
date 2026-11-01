@@ -81,29 +81,57 @@ List<_Built> _build(List<_Job> jobs) {
   return out;
 }
 
-typedef _Candidate = ({
+typedef CandidatePose = ({
   int id,
   Uint8List feature,
   int mask,
   String scaleSource,
+  String tags,
 });
 
-List<({int id, double score, double similarity, double coverage})> _rank(
-  ({Uint8List feature, int mask, String scaleSource}) query,
-  List<_Candidate> candidates,
-  int limit,
-  double sigma,
-) {
+List<({int id, double score, double similarity, double coverage})> rankCandidates(
+  ({Uint8List feature, int mask, String scaleSource, String tags}) query,
+  List<CandidatePose> candidates, {
+  int limit = _maxResults,
+  double sigma = defaultPoseSigma,
+  bool strict = true,
+}) {
   final q = PoseFeature.fromBlob(query.feature, query.mask, query.scaleSource);
   final scored =
       <({int id, double score, double similarity, double coverage})>[];
+  final qTags = decodeTags(query.tags);
+  final qHasFrontal = qTags.contains(PoseTag.frontal);
+  final qHasBack = qTags.contains(PoseTag.back);
+  final qHasProfile = qTags.contains(PoseTag.profile);
+  final qHasStanding = qTags.contains(PoseTag.standing);
+  final qHasSitting = qTags.contains(PoseTag.sitting);
+  final qHasLying = qTags.contains(PoseTag.lying);
+  final qHasBent = qTags.contains(PoseTag.bent);
+
   for (final c in candidates) {
+    if (strict && query.tags.isNotEmpty && c.tags.isNotEmpty) {
+      final cTags = decodeTags(c.tags);
+      // 1. Orientation gating:
+      if (qHasBack && (cTags.contains(PoseTag.frontal) || cTags.contains(PoseTag.profile))) continue;
+      if (qHasFrontal && (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.profile))) continue;
+      if (qHasProfile && (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.frontal))) continue;
+
+      // 2. Posture & Bending gating:
+      if (qHasStanding && (cTags.contains(PoseTag.sitting) || cTags.contains(PoseTag.lying) || cTags.contains(PoseTag.bent))) continue;
+      if (qHasBent && cTags.contains(PoseTag.standing)) continue;
+      if (qHasSitting && (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.lying))) continue;
+      if (qHasLying && (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.sitting))) continue;
+    }
+
     final m = comparePoses(
       q,
       PoseFeature.fromBlob(c.feature, c.mask, c.scaleSource),
       sigma: sigma,
     );
     if (m != null) {
+      if (strict && (m.similarity < 0.55 || m.score < 0.45)) {
+        continue;
+      }
       scored.add((
         id: c.id,
         score: m.score,
@@ -263,6 +291,7 @@ class PoseIndex {
     int limit = _maxResults,
     double sigma = defaultPoseSigma,
     int? personId,
+    bool strict = false,
   }) async {
     final query =
         await (_db.select(_db.bodyPoseFeatures)..where(
@@ -276,8 +305,9 @@ class PoseIndex {
       feature: query.feature,
       mask: query.visibleMask,
       scaleSource: query.scaleSource,
+      tags: query.tags,
     );
-    final ranked = await _rankIsolated(q, candidates, limit, sigma);
+    final ranked = await _rankIsolated(q, candidates, limit, sigma, strict: strict);
     return [
       for (final r in ranked)
         (
@@ -296,14 +326,17 @@ class PoseIndex {
     int limit = _maxResults,
     double sigma = defaultPoseSigma,
     int? personId,
+    String tags = '',
+    bool strict = false,
   }) async {
     final candidates = await _candidates(personId: personId);
     final q = (
       feature: exemplar.toBlob(),
       mask: exemplar.mask,
       scaleSource: exemplar.scaleSource,
+      tags: tags,
     );
-    final ranked = await _rankIsolated(q, candidates, limit, sigma);
+    final ranked = await _rankIsolated(q, candidates, limit, sigma, strict: strict);
     return [
       for (final r in ranked)
         (
@@ -315,10 +348,10 @@ class PoseIndex {
     ];
   }
 
-  Future<List<_Candidate>> _candidates({int? excluding, int? personId}) async {
+  Future<List<CandidatePose>> _candidates({int? excluding, int? personId}) async {
     final rows = await _db
         .customSelect(
-          '''SELECT x.body_id, x.feature, x.visible_mask, x.scale_source
+          '''SELECT x.body_id, x.feature, x.visible_mask, x.scale_source, x.tags
              FROM body_pose_features x JOIN bodies b ON b.id = x.body_id
              LEFT JOIN faces f ON f.id = b.face_id
              WHERE x.visible_mask > 0 ${excluding == null ? '' : 'AND x.body_id != ?'}
@@ -337,6 +370,7 @@ class PoseIndex {
           feature: r.read<Uint8List>('feature'),
           mask: r.read<int>('visible_mask'),
           scaleSource: r.read<String>('scale_source'),
+          tags: r.read<String>('tags'),
         ),
     ];
   }
@@ -372,11 +406,12 @@ Future<List<_Built>> _buildIsolated(List<_Job> jobs) =>
 
 Future<List<({int id, double score, double similarity, double coverage})>>
 _rankIsolated(
-  ({Uint8List feature, int mask, String scaleSource}) query,
-  List<_Candidate> candidates,
+  ({Uint8List feature, int mask, String scaleSource, String tags}) query,
+  List<CandidatePose> candidates,
   int limit,
-  double sigma,
-) => Isolate.run(() => _rank(query, candidates, limit, sigma));
+  double sigma, {
+  bool strict = false,
+}) => Isolate.run(() => rankCandidates(query, candidates, limit: limit, sigma: sigma, strict: strict));
 
 Future<List<int>> _colorsIsolated(
   List<({int id, Uint8List appearance})> rows,

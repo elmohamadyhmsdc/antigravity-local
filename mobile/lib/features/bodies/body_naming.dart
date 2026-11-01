@@ -1,7 +1,8 @@
-import 'package:drift/drift.dart' show Variable;
+import 'package:drift/drift.dart' show Variable, Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/db/app_database.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
@@ -112,6 +113,65 @@ Future<bool> nameBodyOutfit(
   if (removed == null) return false;
   await categories.saveOutfit(draft, name.trim(), removed: removed);
   return true;
+}
+
+Future<bool> renamePoseCategory(
+  AppDatabase db,
+  int id,
+  String newName,
+) async {
+  final trimmed = newName.trim();
+  if (trimmed.isEmpty) return false;
+  final count = await (db.update(db.poseCategories)..where((c) => c.id.equals(id))).write(
+    PoseCategoriesCompanion(name: Value(trimmed)),
+  );
+  return count > 0;
+}
+
+Future<bool> renameOutfitCategory(
+  AppDatabase db,
+  int id,
+  String newName,
+) async {
+  final trimmed = newName.trim();
+  if (trimmed.isEmpty) return false;
+  final count = await (db.update(db.outfitCategories)..where((c) => c.id.equals(id))).write(
+    OutfitCategoriesCompanion(name: Value(trimmed)),
+  );
+  return count > 0;
+}
+
+Future<String?> promptRenameDialog(
+  BuildContext context, {
+  required String title,
+  required String initialName,
+  String? labelText,
+}) {
+  final controller = TextEditingController(text: initialName);
+  return showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: InputDecoration(
+          labelText: labelText ?? 'Name',
+        ),
+        onSubmitted: (val) => Navigator.pop(context, val),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, controller.text),
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _NameDialog extends StatefulWidget {

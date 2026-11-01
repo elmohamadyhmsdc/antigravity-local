@@ -1,6 +1,52 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Bodies Screen Redesign, High-Precision Pose Matching, Universal Naming & Interactive Overlays — 2026-11-02
+
+- Implemented comprehensive redesign and feature expansion for `BodiesScreen` across all 6 tabs (`All`, `Poses`, `Outfits`, `Group poses`, `Equipment`, `Areas`):
+  1. **High-Precision Pose Matching Engine (`pose_rules.dart`, `pose_index.dart`, `body_categories.dart`, `bodies_screen.dart`):**
+     - Implemented user's strict quality requirement ("ما تبقاش بالويام"):
+       - Added `PoseTag.bent = 'bent'` and `isBent(Pose pose)` checking `spineTilt >= 25 && spineTilt <= 60` to accurately detect bending over.
+       - Added strict gating to `rankCandidates` (`strict: true`):
+         - Orientation Gating: Back view NEVER matches Frontal or Profile view (and vice versa).
+         - Posture & Bending Gating: Standing upright NEVER matches Sitting, Lying, or Bent over. Bent over NEVER matches Upright Standing.
+         - Similarity & Score Cutoff: candidates below `similarity >= 0.55 && score >= 0.45` are strictly rejected.
+       - Preserved backward compatibility for raw mathematical similarity queries (`PoseIndex.findSimilar(strict: false)`).
+  2. **Interactive Body Crop Skeleton & Area Overlay (`pose_visuals.dart`):**
+     - Created `BodyCropAnnotatedView` & `_BodyCropOverlayPainter` mapping 17 COCO keypoints and connections to crop coordinates `(kp.x - bbox.x)/bbox.w`.
+     - Added glowing skeleton bone lines, joint dots, and area highlight visualization (`chest`, `lower`/`buttocks`) with translucent overlay and border.
+  3. **Modern Body Inspection Sheet (`body_inspection_sheet.dart`):**
+     - Created dedicated bottom sheet for body details:
+       - Crop preview with interactive on-screen toggle buttons: Skeleton (`Icons.accessibility_new`) and Area Highlight (`Icons.highlight_alt`).
+       - Tag badges for detected orientation and posture.
+       - Action buttons for similar pose (high precision), outfit colours, tattoo marks, full photo, group pose, equipment, and exposed region clustering.
+  4. **Universal Naming & In-Place Renaming (`body_naming.dart`, `body_areas.dart`, `bodies_screen.dart`):**
+     - Poses: inline rename button (`rename-pose-$id`) on pose category cards.
+     - Outfits: inline rename button (`rename-outfit-$id`) on outfit category cards.
+     - Body Areas: custom cluster naming persisted in `settings` (`cluster.name.<id>`) allowing users to freely name exposed regions (e.g. Chest, Buttocks, or any detected region) with custom titles.
+     - Added direct person re-assignment / re-linking dialog for exposed area clusters.
+     - Tapping any member body crop inside an area cluster directly opens `BodyInspectionSheet` with the active area highlight (Chest or Buttocks) and skeleton toggles.
+- Changed files:
+  - `mobile/lib/domain/pose/pose_rules.dart` (Bent posture detection)
+  - `mobile/lib/domain/pose/pose_index.dart` (High-precision gating & candidate ranking)
+  - `mobile/lib/domain/pose/body_categories.dart` (Strict candidate ranking for categories)
+  - `mobile/lib/features/bodies/pose_visuals.dart` (Crop skeleton & area overlay painter)
+  - `mobile/lib/features/bodies/body_inspection_sheet.dart` (New interactive inspection sheet)
+  - `mobile/lib/features/bodies/body_naming.dart` (Pose/outfit renaming helpers)
+  - `mobile/lib/features/bodies/body_areas.dart` (Cluster custom naming, person re-linking, cluster body tap inspection)
+  - `mobile/lib/features/bodies/bodies_screen.dart` (Inspection sheet wiring & inline rename buttons)
+  - Tests added: `pose_matching_precision_test.dart`, `body_overlay_painter_test.dart`, `body_inspection_sheet_test.dart`, `body_universal_naming_test.dart`.
+- Verification:
+  - 4 new focused test suites passed:
+    - `pose_matching_precision_test.dart` (2 tests passed: tags & strict gating)
+    - `body_overlay_painter_test.dart` (1 test passed: crop & overlay rendering)
+    - `body_inspection_sheet_test.dart` (2 tests passed: sheet preview & action keys)
+    - `body_universal_naming_test.dart` (3 tests passed: custom cluster naming, rename, and cluster crop inspection tap)
+  - 90 regression and domain/feature tests passed (`flutter test test/domain/... test/features/...`, 34s, 0 failures).
+  - Static analysis: `flutter analyze` in `mobile/` clean (`No issues found!`, 3.5s).
+  - Terminal policy and uncommitted data preserved; database schema remains 18; no unauthorized deployment or APK installation.
+
+
 ## Instant Gallery Caching, Zero-Copy Swipe Video Autoplay & Native Video Player Intent Bridge — 2026-11-01
 
 - Addressed gallery reloading and video playback clunkiness reported by the user:
