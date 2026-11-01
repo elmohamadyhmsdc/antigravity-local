@@ -5,7 +5,8 @@ scanner and the mobile API.
 `analyze_frame` runs everything that only needs the pixels:
 
     detect faces (multi-scale) -> embed -> quality v2 -> gate
-    drop drawn (anime/cartoon) and other non-human faces - never a person
+    drop drawn (anime/cartoon) and other non-human faces - never a person; in character
+    mode a drawn face is the character's face, boxed by this same detector
     detect bodies (+17 keypoints) -> outfit descriptor
     associate faces with bodies
 
@@ -111,6 +112,12 @@ class FrameAnalysis:
 # (drawn_faces) counts as a real person. Above the 0.40 store gate on purpose: a borderline
 # face stays a character.
 REAL_FACE_MIN_QUALITY = 0.50
+
+
+def _is_real(i, face_kinds, passes, drawn, quality) -> bool:
+    """In character mode: face i is a person (the user said so, or a clear face that is not drawn)."""
+    return face_kinds[i] == "person" or (face_kinds[i] is None and passes[i] and not drawn[i]
+                                         and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY)
 
 
 def _centre_inside(face_box, box) -> bool:
@@ -227,9 +234,11 @@ def analyze_frame(face_app, body, img, options,
     anime_faces = []
     if want_characters:
         ad = get_anime_detector()
+        saw_anime = False
         if ad is not None:
             try:
                 raw_anime = ad.detect(img, score_thresh=0.55)
+                saw_anime = bool(raw_anime)
                 # Real face veto at 0.40 quality/det threshold
                 veto_boxes = [f.bbox for i, f in enumerate(faces)
                               if face_kinds[i] == "person" or (face_kinds[i] is None and passes[i]
@@ -240,6 +249,22 @@ def analyze_frame(face_app, body, img, options,
                                and kind_of(a["bbox"], "face") != "person"]
             except Exception:
                 anime_faces = []
+        # In a drawing the people's detector places a face far more precisely than the anime
+        # detector: where both see a face its box is used; a drawn face only it found (and good
+        # enough for the gate - non-faces like hair look "drawn" too) is added only in a drawing
+        # (illustrated source, anime faces seen, or the user said so), so a dog in a photo is
+        # not a character; the anime detector's own faces fill in what it missed. Clear real
+        # faces stay people.
+        drawing = force == "character" or getattr(options, "faceless_characters", True) or saw_anime
+        for i, f in enumerate(faces):
+            if face_kinds[i] is not None or _is_real(i, face_kinds, passes, drawn, quality):
+                continue
+            same = [a for a in anime_faces if overlaps_real_face(f.bbox, a["bbox"])]
+            if not same and not (drawn[i] and passes[i] and drawing):
+                continue
+            anime_faces = [a for a in anime_faces if not any(a is m for m in same)]
+            anime_faces.append({"bbox": np.asarray(f.bbox, np.float32),
+                                "score": max([float(f.det_score)] + [float(m["score"]) for m in same])})
         # A human face the user called a character is that character's face.
         for i, f in enumerate(faces):
             if face_kinds[i] == "character":
@@ -261,9 +286,7 @@ def analyze_frame(face_app, body, img, options,
         candidates = [i for i, k in enumerate(body_kinds) if k != "person"]
         characters = detect_characters(img, [bodies[i] for i in candidates], anime_faces=anime_faces,
                                        keep=lambda b: kind_of(b.bbox, "body") == "character")
-        real = [i for i, f in enumerate(faces)
-                if face_kinds[i] == "person" or (face_kinds[i] is None and passes[i] and not drawn[i]
-                                                 and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY)]
+        real = [i for i in range(len(faces)) if _is_real(i, face_kinds, passes, drawn, quality)]
         # Without real faces, a faceless figure is a character only in a drawn source or
         # next to drawn faces; a person seen from behind in a photo stays a person.
         drawn_here = bool(anime_faces) or any(d and k is None for d, k in zip(drawn, face_kinds))

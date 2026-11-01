@@ -347,6 +347,61 @@ class KindCorrectionTests(unittest.TestCase):
         self.assertEqual(len(res.faces), 1)
         self.assertEqual([float(v) for v in res.faces[0].bbox], [40.0, 26.0, 60.0, 50.0])  # crop starts at (20, 6)
 
+    def drawn_face(self, box=(40, 10, 88, 72), score=.9):
+        import drawn_faces
+        f = self.face(box, score)
+        f.embedding = (drawn_faces._direction * 20).astype(np.float32)
+        return f
+
+    def test_a_drawn_face_is_boxed_by_the_people_detector(self):
+        """Both detectors see the face: the character keeps the people detector's box."""
+        self.anime.append({"bbox": np.array([30, 0, 100, 90], np.float32), "score": .6})
+        res = self.run_frame([self.drawn_face()], self.bodies((0, 0, 128, 256)))
+        self.assertEqual(res.faces, [])
+        self.assertEqual(len(res.characters), 1)
+        c = res.characters[0]
+        self.assertEqual(list(c.face_bbox), [40, 10, 88, 72])
+        self.assertAlmostEqual(c.face_score, .9, places=5)
+        self.assertEqual(list(c.body_bbox), [0, 0, 128, 256])
+        self.assertEqual(c.face_embedding.shape, (768,))
+
+    def test_a_drawn_face_the_anime_detector_missed_is_still_the_characters_face(self):
+        res = self.run_frame([self.drawn_face()], self.bodies((0, 0, 128, 256)))
+        self.assertEqual(len(res.characters), 1)
+        self.assertEqual(list(res.characters[0].face_bbox), [40, 10, 88, 72])
+        # Below the gate (hair, fabric look "drawn" too) it is no face unless the anime
+        # detector agrees; then the body is a faceless figure.
+        weak = self.run_frame([self.drawn_face()], self.bodies((0, 0, 128, 256)), quality=.2,
+                              min_face_quality=.4)
+        self.assertEqual(len(weak.characters), 1)
+        self.assertIsNone(weak.characters[0].face_bbox)
+        self.anime.append({"bbox": np.array([38, 8, 90, 74], np.float32), "score": .7})
+        agreed = self.run_frame([self.drawn_face()], self.bodies((0, 0, 128, 256)), quality=.2,
+                                min_face_quality=.4)
+        self.assertEqual(list(agreed.characters[0].face_bbox), [40, 10, 88, 72])
+
+    def test_in_an_ordinary_photo_a_drawn_looking_face_alone_is_no_character(self):
+        """A dog's face also looks "drawn": outside a drawing it needs the anime detector."""
+        res = self.run_frame([self.drawn_face()], self.bodies(), faceless_characters=False)
+        self.assertEqual(res.characters, [])
+        self.assertEqual(res.faces, [])
+        self.anime.append({"bbox": np.array([10, 150, 40, 190], np.float32), "score": .8})
+        seen = self.run_frame([self.drawn_face()], self.bodies(), faceless_characters=False)
+        self.assertEqual(sorted(list(c.face_bbox) for c in seen.characters),
+                         [[10, 150, 40, 190], [40, 10, 88, 72]])
+
+    def test_the_anime_detector_fills_in_faces_the_people_detector_missed(self):
+        self.anime.append({"bbox": np.array([10, 150, 40, 190], np.float32), "score": .8})
+        res = self.run_frame([self.drawn_face()], self.bodies((0, 0, 128, 256)))
+        boxes = sorted(list(c.face_bbox) for c in res.characters if c.face_bbox is not None)
+        self.assertEqual(boxes, [[10, 150, 40, 190], [40, 10, 88, 72]])
+
+    def test_a_clear_real_face_in_a_drawing_still_vetoes_and_stays_a_person(self):
+        self.anime.append({"bbox": np.array([40, 10, 88, 72], np.float32), "score": .9})
+        res = self.run_frame([self.face()], self.bodies((0, 0, 128, 256)))
+        self.assertEqual(len(res.faces), 1)
+        self.assertEqual(res.characters, [])
+
     def test_force_person_keeps_drawn_faces_and_makes_no_characters(self):
         import drawn_faces
         self.anime.append({"bbox": np.array([40, 10, 88, 72], np.float32), "score": .9})

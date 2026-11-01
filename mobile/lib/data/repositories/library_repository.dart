@@ -6,8 +6,8 @@ import 'kind_corrections.dart';
 
 /// Bump when what a scan extracts changes, so older results are redone.
 /// 3: characters get pose keypoints, body extent/outline and the people's face-body pairing;
-/// person/character corrections.
-const scanVersion = 3;
+/// person/character corrections. 4: drawn faces boxed by the people's face detector.
+const scanVersion = 4;
 
 /// How many photos are where in the scan queue. The queue is the `media` table itself:
 /// `scan_status` = pending (waiting) | scanning (a worker has it) | done | failed | skipped
