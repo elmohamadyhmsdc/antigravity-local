@@ -35,6 +35,8 @@ class VideoMediaView extends StatefulWidget {
     this.initialTimestampMs,
     this.focusKind,
     this.focusRefId,
+    this.isActive = true,
+    this.onOpenNativePlayer,
   });
   final String assetId;
   final int? initialTimestampMs;
@@ -46,6 +48,8 @@ class VideoMediaView extends StatefulWidget {
   final bool showBodies;
   final bool showFaces;
   final ValueChanged<MediaDetection> onTapBox;
+  final bool isActive;
+  final VoidCallback? onOpenNativePlayer;
 
   @override
   State<VideoMediaView> createState() => _VideoMediaViewState();
@@ -57,6 +61,7 @@ class _VideoMediaViewState extends State<VideoMediaView> {
   VideoPlayerController? _player;
   bool _loading = true;
   bool _error = false;
+  bool _muted = true;
 
   @override
   void initState() {
@@ -64,16 +69,36 @@ class _VideoMediaViewState extends State<VideoMediaView> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(VideoMediaView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      if (widget.isActive) {
+        _player?.play();
+      } else {
+        _player?.pause();
+      }
+    }
+  }
+
   Future<void> _load() async {
     VideoPlayerController? player;
     try {
       final source = widget.library;
-      final File? file = source is VideoMediaLibrary
-          ? await (source as VideoMediaLibrary).videoFile(widget.assetId)
+      final String? uri = source is VideoMediaLibrary
+          ? await (source as VideoMediaLibrary).videoUri(widget.assetId)
           : null;
-      if (file == null) throw const FileSystemException('Video unavailable');
-      player = VideoPlayerController.file(file);
+      if (uri != null && uri.isNotEmpty) {
+        player = VideoPlayerController.contentUri(Uri.parse(uri));
+      } else {
+        final File? file = source is VideoMediaLibrary
+            ? await (source as VideoMediaLibrary).videoFile(widget.assetId)
+            : null;
+        if (file == null) throw const FileSystemException('Video unavailable');
+        player = VideoPlayerController.file(file);
+      }
       await player.initialize();
+      await player.setVolume(_muted ? 0.0 : 1.0);
       if (widget.initialTimestampMs != null) {
         await player.seekTo(
           Duration(
@@ -90,6 +115,9 @@ class _VideoMediaViewState extends State<VideoMediaView> {
       }
       _player = player;
       player.addListener(_tick);
+      if (widget.isActive) {
+        unawaited(player.play());
+      }
       setState(() => _loading = false);
     } catch (_) {
       await player?.dispose();
@@ -263,12 +291,30 @@ class _VideoMediaViewState extends State<VideoMediaView> {
                               value.isPlaying ? Icons.pause : Icons.play_arrow,
                             ),
                           ),
+                          IconButton(
+                            key: const Key('video-mute-toggle'),
+                            tooltip: _muted ? 'Unmute' : 'Mute',
+                            onPressed: () {
+                              setState(() => _muted = !_muted);
+                              _player?.setVolume(_muted ? 0.0 : 1.0);
+                            },
+                            icon: Icon(
+                              _muted ? Icons.volume_off : Icons.volume_up,
+                            ),
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               '${videoTime(position)} / ${videoTime(duration)}',
                             ),
                           ),
+                          if (widget.onOpenNativePlayer != null)
+                            IconButton(
+                              key: const Key('video-open-native-button'),
+                              tooltip: 'Open with native player',
+                              icon: const Icon(Icons.smart_display_outlined),
+                              onPressed: widget.onOpenNativePlayer,
+                            ),
                         ],
                       ),
                       Slider(

@@ -15,6 +15,171 @@ import '../media/video_media_view.dart';
 import '../shared/empty_state.dart';
 
 /// Browses MediaStore independently of analysis; only loaded assets are registered.
+class NativeGalleryState {
+  const NativeGalleryState({
+    this.assets = const [],
+    this.assetIds = const {},
+    this.loading = true,
+    this.more = true,
+    this.access = true,
+    this.limited = false,
+    this.permissionIntro = false,
+    this.error,
+    this.albumId,
+  });
+
+  final List<AssetInfo> assets;
+  final Set<String> assetIds;
+  final bool loading;
+  final bool more;
+  final bool access;
+  final bool limited;
+  final bool permissionIntro;
+  final Object? error;
+  final String? albumId;
+
+  NativeGalleryState copyWith({
+    List<AssetInfo>? assets,
+    Set<String>? assetIds,
+    bool? loading,
+    bool? more,
+    bool? access,
+    bool? limited,
+    bool? permissionIntro,
+    Object? error,
+    bool clearError = false,
+    String? albumId,
+  }) {
+    return NativeGalleryState(
+      assets: assets ?? this.assets,
+      assetIds: assetIds ?? this.assetIds,
+      loading: loading ?? this.loading,
+      more: more ?? this.more,
+      access: access ?? this.access,
+      limited: limited ?? this.limited,
+      permissionIntro: permissionIntro ?? this.permissionIntro,
+      error: clearError ? null : (error ?? this.error),
+      albumId: albumId ?? this.albumId,
+    );
+  }
+}
+
+class NativeGalleryNotifier extends Notifier<NativeGalleryState> {
+  StreamIterator<List<AssetInfo>>? _pages;
+  Future<List<AssetInfo>>? _pending;
+  final _albumCache = <String, NativeGalleryState>{};
+
+  @override
+  NativeGalleryState build() {
+    ref.onDispose(() {
+      _pages?.cancel();
+    });
+    return const NativeGalleryState();
+  }
+
+  Future<void> open({AlbumInfo? album, bool explained = false}) async {
+    final targetId = album?.id ?? 'all';
+    if (state.albumId == targetId && state.assets.isNotEmpty && state.error == null) {
+      return;
+    }
+    if (_albumCache.containsKey(targetId) && _albumCache[targetId]!.assets.isNotEmpty) {
+      state = _albumCache[targetId]!;
+      return;
+    }
+    state = state.copyWith(loading: true, clearError: true, albumId: targetId);
+    try {
+      final library = ref.read(mediaLibraryProvider);
+      if (!explained && library is PhotoManagerLibrary) {
+        final status = await PhotoManager.getPermissionState(
+          requestOption: const PermissionRequestOption(),
+        );
+        if (status == PermissionState.notDetermined) {
+          state = state.copyWith(permissionIntro: true, loading: false);
+          return;
+        }
+      }
+      final access = await library.requestAccess();
+      if (!access) {
+        state = state.copyWith(access: false, loading: false);
+        return;
+      }
+      if (library is PhotoManagerLibrary) {
+        final permState = await PhotoManager.getPermissionState(
+          requestOption: const PermissionRequestOption(),
+        );
+        state = state.copyWith(limited: permState == PermissionState.limited);
+      }
+      final albums = album == null ? await library.albums() : <AlbumInfo>[album];
+      final all = album ?? albums.where((a) => a.isAll).firstOrNull;
+      if (all == null && albums.isNotEmpty) {
+        throw const FormatException(
+          'All photos are unavailable. Browse folders instead.',
+        );
+      }
+      if (all == null) {
+        state = state.copyWith(loading: false, more: false);
+        _albumCache[targetId] = state;
+        return;
+      }
+      await _pages?.cancel();
+      _pages = StreamIterator(library.photos({all.id}, pageSize: 120));
+      await loadNext();
+    } catch (error) {
+      state = state.copyWith(error: error, loading: false);
+      _albumCache[targetId] = state;
+    }
+  }
+
+  Future<List<AssetInfo>> loadNext() {
+    if (_pending != null) return _pending!;
+    if (!state.more || _pages == null) return Future.value(const []);
+    state = state.copyWith(loading: true);
+    final future = _readNext();
+    _pending = future;
+    return future.whenComplete(() => _pending = null);
+  }
+
+  Future<List<AssetInfo>> _readNext() async {
+    try {
+      final hasNext = await _pages!.moveNext();
+      final batch = hasNext ? _pages!.current : <AssetInfo>[];
+      final newAssetIds = Set<String>.from(state.assetIds);
+      final newAssets = List<AssetInfo>.from(state.assets);
+      for (final asset in batch) {
+        if (newAssetIds.add(asset.id)) {
+          newAssets.add(asset);
+        }
+      }
+      state = state.copyWith(
+        assets: newAssets,
+        assetIds: newAssetIds,
+        more: hasNext,
+        loading: false,
+      );
+      _albumCache[state.albumId ?? 'all'] = state;
+      return batch;
+    } catch (error) {
+      state = state.copyWith(error: error, loading: false);
+      _albumCache[state.albumId ?? 'all'] = state;
+      rethrow;
+    }
+  }
+
+  Future<void> refresh({AlbumInfo? album}) async {
+    await _pages?.cancel();
+    _pages = null;
+    final targetId = album?.id ?? 'all';
+    _albumCache.remove(targetId);
+    state = const NativeGalleryState();
+    await open(album: album, explained: true);
+  }
+}
+
+final nativeGalleryProvider =
+    NotifierProvider<NativeGalleryNotifier, NativeGalleryState>(
+  NativeGalleryNotifier.new,
+);
+
 class NativeGallery extends ConsumerStatefulWidget {
   const NativeGallery({super.key, this.album, this.kind});
   final AlbumInfo? album;
@@ -25,140 +190,40 @@ class NativeGallery extends ConsumerStatefulWidget {
 
 class _NativeGalleryState extends ConsumerState<NativeGallery> {
   final _scroll = ScrollController();
-  StreamIterator<List<AssetInfo>>? _pages;
-  final _assets = <AssetInfo>[];
-  final _assetIds = <String>{};
-  bool _loading = true, _more = true, _access = true, _limited = false;
-  bool _permissionIntro = false;
-  Object? _error;
-  Future<List<AssetInfo>>? _pending;
 
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_nearEnd);
-    _open();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(nativeGalleryProvider.notifier).open(album: widget.album);
+      }
+    });
   }
 
   @override
   void dispose() {
     _scroll.dispose();
-    _pages?.cancel();
     super.dispose();
   }
 
   void _nearEnd() {
-    if (_error == null &&
+    final state = ref.read(nativeGalleryProvider);
+    if (state.error == null &&
         _scroll.hasClients &&
         _scroll.position.extentAfter < 900) {
-      _next().ignore();
-    }
-  }
-
-  Future<void> _open({bool explained = false}) async {
-    try {
-      final library = ref.read(mediaLibraryProvider);
-      if (!explained && library is PhotoManagerLibrary) {
-        final status = await PhotoManager.getPermissionState(
-          requestOption: const PermissionRequestOption(),
-        );
-        if (!mounted) return;
-        if (status == PermissionState.notDetermined) {
-          setState(() {
-            _permissionIntro = true;
-            _loading = false;
-          });
-          return;
-        }
-      }
-      final access = await library.requestAccess();
-      if (!mounted) return;
-      if (!access) {
-        setState(() {
-          _access = false;
-          _loading = false;
-        });
-        return;
-      }
-      if (library is PhotoManagerLibrary) {
-        final state = await PhotoManager.getPermissionState(
-          requestOption: const PermissionRequestOption(),
-        );
-        if (mounted) {
-          setState(() => _limited = state == PermissionState.limited);
-        }
-      }
-      final albums = widget.album == null
-          ? await library.albums()
-          : <AlbumInfo>[widget.album!];
-      final all = widget.album ?? albums.where((a) => a.isAll).firstOrNull;
-      if (all == null && albums.isNotEmpty) {
-        throw const FormatException(
-          'All photos are unavailable. Browse folders instead.',
-        );
-      }
-      if (all == null) {
-        if (mounted) {
-          setState(() {
-            _loading = false;
-            _more = false;
-          });
-        }
-        return;
-      }
-      _pages = StreamIterator(library.photos({all.id}, pageSize: 120));
-      await _next();
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = error;
-          _loading = false;
-        });
-      }
-    }
-  }
-
-  Future<List<AssetInfo>> _next() {
-    if (_pending != null) return _pending!;
-    if (!_more || _pages == null) return Future.value(const []);
-    if (mounted) setState(() => _loading = true);
-    final future = _readNext();
-    _pending = future;
-    return future.whenComplete(() => _pending = null);
-  }
-
-  Future<List<AssetInfo>> _readNext() async {
-    try {
-      final hasNext = await _pages!.moveNext();
-      final batch = hasNext ? _pages!.current : <AssetInfo>[];
-      if (mounted) {
-        setState(() {
-          _assets.addAll(batch.where((asset) => _assetIds.add(asset.id)));
-          _more = hasNext;
-          _loading = false;
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _nearEnd();
-        });
-      }
-      return batch;
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = error;
-          _loading = false;
-        });
-      }
-      rethrow;
+      ref.read(nativeGalleryProvider.notifier).loadNext().ignore();
     }
   }
 
   Future<void> _openAsset(AssetInfo asset) async {
     try {
-      final visible = _assets
+      final gallery = ref.read(nativeGalleryProvider);
+      final visible = gallery.assets
           .where((asset) => widget.kind == null || asset.kind == widget.kind)
           .toList();
-      var registered = _assets.length;
+      var registered = gallery.assets.length;
       final rows = await ref
           .read(libraryRepositoryProvider)
           .ensureBrowsableAssets(visible);
@@ -172,17 +237,21 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
         extra: MediaCollectionContext(
           ids: ids,
           loadMore: () async {
-            var end = _assets.length;
-            var assets = _assets
+            final notifier = ref.read(nativeGalleryProvider.notifier);
+            var end = ref.read(nativeGalleryProvider).assets.length;
+            var assets = ref
+                .read(nativeGalleryProvider)
+                .assets
                 .skip(registered)
                 .where(
                   (asset) => widget.kind == null || asset.kind == widget.kind,
                 )
                 .toList();
-            while (assets.isEmpty && _more) {
-              await _next();
-              end = _assets.length;
-              assets = _assets
+            while (assets.isEmpty && ref.read(nativeGalleryProvider).more) {
+              await notifier.loadNext();
+              final currentAssets = ref.read(nativeGalleryProvider).assets;
+              end = currentAssets.length;
+              assets = currentAssets
                   .skip(registered)
                   .where(
                     (asset) => widget.kind == null || asset.kind == widget.kind,
@@ -206,7 +275,8 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
 
   @override
   Widget build(BuildContext context) {
-    if (_permissionIntro) {
+    final gallery = ref.watch(nativeGalleryProvider);
+    if (gallery.permissionIntro) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -227,11 +297,7 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () {
-                  setState(() {
-                    _permissionIntro = false;
-                    _loading = true;
-                  });
-                  _open(explained: true);
+                  ref.read(nativeGalleryProvider.notifier).open(album: widget.album, explained: true);
                 },
                 child: const Text('Allow photos'),
               ),
@@ -240,7 +306,7 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
         ),
       );
     }
-    if (!_access) {
+    if (!gallery.access) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -261,11 +327,7 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () {
-                  setState(() {
-                    _loading = true;
-                    _access = true;
-                  });
-                  _open();
+                  ref.read(nativeGalleryProvider.notifier).open(album: widget.album);
                 },
                 child: const Text('Allow photos'),
               ),
@@ -279,9 +341,9 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
         ),
       );
     }
-    if (_error != null && _assets.isEmpty) {
-      final message = _error is FormatException
-          ? (_error as FormatException).message
+    if (gallery.error != null && gallery.assets.isEmpty) {
+      final message = gallery.error is FormatException
+          ? (gallery.error as FormatException).message
           : 'Could not load photos.';
       return Center(
         child: Column(
@@ -290,11 +352,7 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
             Text(message, textAlign: TextAlign.center),
             TextButton(
               onPressed: () {
-                setState(() {
-                  _error = null;
-                  _loading = true;
-                });
-                _open();
+                ref.read(nativeGalleryProvider.notifier).refresh(album: widget.album);
               },
               child: const Text('Retry'),
             ),
@@ -302,14 +360,14 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
         ),
       );
     }
-    if (_loading && _assets.isEmpty) return const LoadingBox();
-    if (_assets.isEmpty) {
+    if (gallery.loading && gallery.assets.isEmpty) return const LoadingBox();
+    if (gallery.assets.isEmpty) {
       return const Center(child: Text('No photos or videos available'));
     }
-    final visible = _assets
+    final visible = gallery.assets
         .where((asset) => widget.kind == null || asset.kind == widget.kind)
         .toList();
-    if (visible.isEmpty && !_more) {
+    if (visible.isEmpty && !gallery.more) {
       return const Center(child: Text('No media matches this filter'));
     }
     final groups = <String, List<AssetInfo>>{};
@@ -323,7 +381,7 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
     }
     return Column(
       children: [
-        if (_limited)
+        if (gallery.limited)
           ListTile(
             title: const Text('Limited photo access'),
             subtitle: const Text(
@@ -332,16 +390,7 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
             trailing: TextButton(
               onPressed: () async {
                 await PhotoManager.presentLimited(type: RequestType.common);
-                await _pages?.cancel();
-                if (!mounted) return;
-                setState(() {
-                  _assets.clear();
-                  _assetIds.clear();
-                  _more = true;
-                  _loading = true;
-                  _pages = null;
-                });
-                await _open();
+                ref.read(nativeGalleryProvider.notifier).refresh(album: widget.album);
               },
               child: const Text('Manage access'),
             ),
@@ -373,28 +422,18 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
                   ),
                 ),
               ],
-              if (_error != null)
+              if (gallery.error != null)
                 SliverToBoxAdapter(
                   child: Center(
                     child: TextButton(
-                      onPressed: () async {
-                        await _pages?.cancel();
-                        if (!mounted) return;
-                        setState(() {
-                          _assets.clear();
-                          _assetIds.clear();
-                          _pages = null;
-                          _more = true;
-                          _error = null;
-                          _loading = true;
-                        });
-                        await _open();
+                      onPressed: () {
+                        ref.read(nativeGalleryProvider.notifier).refresh(album: widget.album);
                       },
                       child: const Text('Retry loading photos'),
                     ),
                   ),
                 )
-              else if (_more && _loading)
+              else if (gallery.more && gallery.loading)
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(16),

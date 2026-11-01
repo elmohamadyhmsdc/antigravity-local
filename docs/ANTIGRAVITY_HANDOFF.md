@@ -1,6 +1,28 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Instant Gallery Caching, Zero-Copy Swipe Video Autoplay & Native Video Player Intent Bridge — 2026-11-01
+
+- Addressed gallery reloading and video playback clunkiness reported by the user:
+  1. **Instant Gallery Remount (0ms Reload):** Converted `NativeGallery` state from a transient `StatefulWidget` to a Riverpod-managed `nativeGalleryProvider` (`NativeGalleryNotifier`) with in-memory caching across albums. Switching tabs or leaving the screen no longer clears the asset list; returning instantly paints loaded assets without showing a loading spinner.
+  2. **Zero-Copy Video Playback:** Added `videoUri(assetId)` to `VideoMediaLibrary` and `PhotoManagerLibrary` using Android's `entity.getMediaUrl()`. `VideoMediaView` instantiates `VideoPlayerController.contentUri(...)` directly, avoiding the previous `originFile` behaviour that copied hundreds of megabytes into app cache before playback could begin.
+  3. **Swipe Autoplay & Default Muted Audio:** `MediaScreen` passes `isActive: i == _currentIndex` to `VideoMediaView`. Videos now automatically start playing as soon as they are swiped into focus and pause when swiped away. In accordance with user request, video playback is muted by default (`_muted = true`), with an explicit on-screen mute/unmute toggle (`video-mute-toggle`).
+  4. **Native Player Intent Bridge ("Open with player"):** Created `mobile/lib/data/platform/native_video_player.dart` and implemented `antigravity/video_player` channel in `MainActivity.kt`. It launches `Intent(Intent.ACTION_VIEW)` with `FLAG_GRANT_READ_URI_PERMISSION` and an Android system chooser, allowing the user to open any video directly in Samsung Video Player (or their preferred native player). Exposed via top AppBar button (`media-open-native-player`) and bottom viewer tool bar (`media-open-native-player-bottom`).
+- Changed files:
+  - `mobile/lib/data/platform/native_video_player.dart` (New platform bridge)
+  - `mobile/android/app/src/main/kotlin/com/antigravity/antigravity_mobile/MainActivity.kt` (ACTION_VIEW intent channel)
+  - `mobile/lib/data/media/media_library.dart` (Direct contentUri resolution)
+  - `mobile/lib/features/library/native_gallery.dart` (Riverpod cached gallery state)
+  - `mobile/lib/features/media/video_media_view.dart` (Swipe autoplay, mute toggle, contentUri playback)
+  - `mobile/lib/features/media/media_screen.dart` (Swipe coordination and native player action buttons)
+  - Tests updated/added: `native_video_player_test.dart`, `media_library_uri_test.dart`, `video_media_view_test.dart`, `media_screen_native_player_test.dart`, `native_gallery_instant_test.dart`, `fakes.dart`, `video_scan_test.dart`.
+- Verification:
+  - 6 focused tests passed (`native_video_player_test.dart`, `media_library_uri_test.dart`, `video_media_view_test.dart`, `media_screen_native_player_test.dart`, `native_gallery_instant_test.dart`).
+  - 33 regression tests passed across library and viewer navigation (`library_test.dart`, `viewer_gestures_test.dart`, `gallery_first_test.dart`, `video_scan_test.dart`).
+  - Static analysis: `flutter analyze` clean (`No issues found!`, 5.9s).
+  - Terminal policy and uncommitted data preserved; no unauthorized deployment or APK installation.
+
+
 ## Gallery AppBar Scan Icon & Activity Navigation Preservation — 2026-11-01
 
 - Replaced the generic notification/activity icon in `LibraryScreen`'s AppBar with a dedicated library analysis / scan icon (`Icons.document_scanner` / `Icons.document_scanner_outlined`).

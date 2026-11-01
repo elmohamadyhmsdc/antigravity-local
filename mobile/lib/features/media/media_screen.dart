@@ -32,6 +32,8 @@ import '../shared/person_picker.dart';
 import '../shared/image_preview.dart';
 import 'video_media_view.dart';
 import '../../domain/geometry/outline.dart';
+import '../../data/media/media_library.dart';
+import '../../data/platform/native_video_player.dart';
 
 final mediaRowProvider = StreamProvider.autoDispose.family<MediaRow?, int>(
   (ref, id) => ref.watch(libraryRepositoryProvider).watchMedia(id),
@@ -167,6 +169,40 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     );
   }
 
+  Future<void> _openNativeVideoPlayer(BuildContext context, MediaRow media) async {
+    try {
+      final library = ref.read(mediaLibraryProvider);
+      String? uri;
+      if (library is VideoMediaLibrary) {
+        uri = await (library as VideoMediaLibrary).videoUri(media.assetId);
+      }
+      if (uri == null || uri.isEmpty) {
+        if (library is VideoMediaLibrary) {
+          final file = await (library as VideoMediaLibrary).videoFile(media.assetId);
+          uri = file?.uri.toString();
+        }
+      }
+      if (uri == null || uri.isEmpty) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Video unavailable to open')),
+        );
+        return;
+      }
+      final launched = await NativeVideoPlayer.openVideo(uri, title: media.assetId);
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open external player')),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to launch player: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -256,6 +292,13 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                             : l10n.photoTitle),
                   ),
                   actions: [
+                    if (media.kind == 'video')
+                      IconButton(
+                        key: const Key('media-open-native-player'),
+                        tooltip: 'Open with native player',
+                        icon: const Icon(Icons.smart_display_outlined),
+                        onPressed: () => _openNativeVideoPlayer(context, media),
+                      ),
                     PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'faces') {
@@ -365,6 +408,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                           return _MediaPageViewItem(
                             key: ValueKey(itemMediaId),
                             mediaId: itemMediaId,
+                            isActive: i == _currentIndex,
                             onToggleChrome: () => setState(
                               () => _chromeVisible = !_chromeVisible,
                             ),
@@ -381,6 +425,14 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                             initialTimestampMs: (itemMediaId == widget.mediaId)
                                 ? widget.initialTimestampMs
                                 : null,
+                            onOpenNativePlayer: () async {
+                              final row = await ref
+                                  .read(libraryRepositoryProvider)
+                                  .mediaById(itemMediaId);
+                              if (row != null && context.mounted) {
+                                _openNativeVideoPlayer(context, row);
+                              }
+                            },
                           );
                         },
                       ),
@@ -447,6 +499,17 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                                 icon: const Icon(Icons.camera_alt_outlined),
                                 label: const Text('Lens'),
                               ),
+                              if (media.kind == 'video')
+                                TextButton.icon(
+                                  key: const Key('media-open-native-player-bottom'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: () =>
+                                      _openNativeVideoPlayer(context, media),
+                                  icon: const Icon(Icons.smart_display_outlined),
+                                  label: const Text('Player'),
+                                ),
                             ],
                           ),
                         ),
@@ -1129,6 +1192,8 @@ class _MediaPageViewItem extends ConsumerStatefulWidget {
     required this.people,
     required this.onTapBox,
     this.initialTimestampMs,
+    this.isActive = true,
+    this.onOpenNativePlayer,
   });
 
   final int mediaId;
@@ -1139,6 +1204,8 @@ class _MediaPageViewItem extends ConsumerStatefulWidget {
   final Map<int, PersonSummary> people;
   final void Function(MediaDetection) onTapBox;
   final int? initialTimestampMs;
+  final bool isActive;
+  final VoidCallback? onOpenNativePlayer;
 
   @override
   ConsumerState<_MediaPageViewItem> createState() => _MediaPageViewItemState();
@@ -1213,6 +1280,8 @@ class _MediaPageViewItemState extends ConsumerState<_MediaPageViewItem> {
             showBodies: widget.showBodies,
             showFaces: widget.showFaces,
             onTapBox: widget.onTapBox,
+            isActive: widget.isActive,
+            onOpenNativePlayer: widget.onOpenNativePlayer,
           );
         }
         if (_assetId != media.assetId) {

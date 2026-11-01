@@ -53,6 +53,34 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler(CropExportBridge(appContext)::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/wakelock")
             .setMethodCallHandler(wakeLockBridge::handle)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/video_player")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "openNativePlayer") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val uriStr = call.argument<String>("uri")
+                if (uriStr == null) {
+                    result.error("no_uri", "Video URI is required", null)
+                    return@setMethodCallHandler
+                }
+                val title = call.argument<String>("title") ?: "Video"
+                try {
+                    val uri = android.net.Uri.parse(uriStr)
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, "video/*")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    val chooser = Intent.createChooser(intent, title).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(chooser)
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("launch_failed", e.message, null)
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/lens")
             .setMethodCallHandler { call, result ->
                 if (call.method != "searchImage") {

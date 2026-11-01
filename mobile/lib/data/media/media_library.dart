@@ -102,6 +102,7 @@ abstract interface class MediaLibrary {
 
 abstract interface class VideoMediaLibrary {
   Future<File?> videoFile(String assetId);
+  Future<String?> videoUri(String assetId);
 }
 
 /// Optional access to the actual original. Browsing and previews never require it.
@@ -203,6 +204,17 @@ class PhotoManagerLibrary
 
   @override
   Future<File?> videoFile(String assetId) => originalFile(assetId);
+
+  @override
+  Future<String?> videoUri(String assetId) async {
+    try {
+      final entity = await AssetEntity.fromId(assetId);
+      if (entity == null) return null;
+      return await entity.getMediaUrl();
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Future<File?> originalFile(String assetId) async =>

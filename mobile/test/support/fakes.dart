@@ -239,22 +239,34 @@ class FakeMobileApi implements MobileApi {
 }
 
 /// The phone's photo library, made of byte arrays.
-class FakeMediaLibrary implements MediaLibrary {
+class FakeMediaLibrary implements MediaLibrary, VideoMediaLibrary {
   FakeMediaLibrary({
     List<AlbumInfo>? albums,
     Map<String, List<AssetInfo>>? assets,
+    Map<String, String>? uris,
+    Map<String, File>? files,
   }) : _albums = albums ?? [],
-       _assets = assets ?? {};
+       _assets = assets ?? {},
+       uris = uris ?? {},
+       files = files ?? {};
 
   final List<AlbumInfo> _albums;
   final Map<String, List<AssetInfo>> _assets;
   final Map<String, Uint8List> bytes = {};
+  final Map<String, String> uris;
+  final Map<String, File> files;
   final Set<String> unreadable = {};
   final Map<String, Object> failures = {};
   var access = true;
   final reads = <String>[];
   final maxSides = <int>[];
   var cacheClears = 0;
+
+  @override
+  Future<File?> videoFile(String assetId) async => files[assetId];
+
+  @override
+  Future<String?> videoUri(String assetId) async => uris[assetId];
 
   void addAlbum(AlbumInfo album, List<AssetInfo> assets) {
     _albums.add(album);

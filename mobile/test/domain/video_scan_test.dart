@@ -30,6 +30,8 @@ class VideoLibrary extends FakeMediaLibrary implements VideoMediaLibrary {
   final File file;
   @override
   Future<File?> videoFile(String assetId) async => file;
+  @override
+  Future<String?> videoUri(String assetId) async => null;
 }
 
 class VideoPc implements VideoApi {
