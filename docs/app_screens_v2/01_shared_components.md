@@ -131,50 +131,57 @@ EntityCard(
 
 ## 2. سجل الإجراءات `ActionRegistry`
 
-كل صف يعرّف: `id`، الأيقونة، التسمية، الشرط، والنتيجة. الأسماء ثابتة في كل التطبيق.
+كل صف يعرّف: `id`، الأيقونة، التسمية العربية، التسمية الإنجليزية (ARB)، الشرط، والنتيجة. الأسماء ثابتة في كل التطبيق.
 
-| المجموعة | id | التسمية | النتيجة |
-|---|---|---|---|
-| **عرض** | `open` | فتح | يفتح شاشة الكيان |
-| | `info` | تفاصيل | يفتح `MediaInspector` (Half) |
-| | `expand` | تكبير / Lens | `ImagePreview` |
-| | `openPhoto` | فتح الصورة الأصلية | Viewer بالسياق |
-| **تعريف** | `rename` | إعادة تسمية | `NameSheet` |
-| | `assignPerson` | تعيين لشخص | `PersonPicker` ← يكتب |
-| | `notThisPerson` | ليس هذا الشخص | رفض + يتذكر `rejected_person_ids` |
-| | `setCover` | اجعله الصورة الرئيسية | Exemplar |
-| | `moveToGroup` | نقل لمجموعة | `GroupPicker` |
-| | `markTattoo` | تعليم وشم/علامة | `MarkEditor` sheet |
-| | `confirmLink` | تأكيد الربط | يثبّت الربط التلقائي كـ manual |
-| | `unlink` | فك الربط (رجوع للتلقائي) | بدون رفض؛ التجميع ممكن يربطه تاني |
-| | `notThisPerson` | ليس هذا الشخص | رفض الزوج (عنصر، شخص) ويُتذكّر |
-| | `belongsToNoOne` | ملوش صاحب | استبعاد صريح من أي ربط/اقتراح/تجميع |
-| | `notARealThing` | مش وجه/جسم/أداة أصلاً | اكتشاف خاطئ، يُخفى |
-| | `notSamePerson` | ليسوا نفس الشخص | يفصل عنصرين/مجموعتين (distinct) |
-| | `changeKind` | تغيير النوع (شخص ↔ شخصية) | يصحح `figure` للمربع |
-| | `setSensitivity` | حساسة / ليست حساسة (override) | يكتب `sensitiveOverride` |
-| | `addEquipment` | إضافة أداة يدوياً | رسم مربع + `NameSheet` |
-| | `namePose` / `nameOutfit` / `nameGroupPose` | تسمية الوضعية/الطقم/التشكيل | `NameSheet` + يحفظ كـ cluster |
-| **بحث** | `similarPose` | وضعية مشابهة | `/explore/all?similar=` (مطابقة صارمة) |
-| | `similarColours` | ألوان مشابهة | `/explore/all?colours=` |
-| | `similarFaces` | وجوه مشابهة | `/review?queue=similar&face=` |
-| | `personMedia` | وسائط هذا الشخص | Collection مقيّدة |
-| **إنشاء** | `refaceThis` | Reface بهذا الهدف | `/studio/reface?target=` |
-| | `refaceWith` | Reface بهذه الهوية | `/studio/reface?identity=` |
-| | `restyleThis` | Restyle لهذا الجسم | `/studio/restyle?target=` |
-| | `generateWith` | توليد بهذا الموديل | `/studio/generate?model=` |
-| | `addToDataset` | إضافة لمجموعة تدريب | `DatasetPicker` / dataset جديد |
-| | `trainModel` | تدريب موديل | `/studio/datasets/new?person=` |
-| | `runAgain` | تشغيل مرة أخرى بتعديل | يفتح الـ Flow بنفس المعاملات |
-| **إدارة** | `share` | مشاركة | Android share sheet |
-| | `saveToGallery` | حفظ في المعرض | MediaStore |
-| | `merge` | دمج مع... | `/merge/:a/:b` |
-| | `organizeFiles` | تنظيم الملفات | `/people/:id/files` |
-| | `exportDataset` | تصدير مجموعة التدريب | zip |
-| | `analyzeNow` | تحليل الآن | يضيف للطابور بأولوية |
-| | `pause` / `resume` / `cancel` / `retry` | للفحص والمهام | |
-| **خطر** | `remove` | إزالة من هنا | (وجه من شخص، عنصر من cluster...) |
-| | `delete` | حذف | `ConfirmSheet` خطير + Undo لو أمكن |
+| المجموعة | id | التسمية (AR) | التسمية (EN) | النتيجة |
+|---|---|---|---|---|
+| **عرض** | `open` | فتح | Open | يفتح شاشة الكيان |
+| | `info` | تفاصيل | Details | يفتح `MediaInspector` (Half) |
+| | `expand` | تكبير / Lens | Expand / Lens | `ImagePreview` |
+| | `openPhoto` | فتح الصورة الأصلية | Open original | Viewer بالسياق |
+| | `openNativePlayer` | مشغل خارجي | Open in player | مشغل النظام (Android Intent) |
+| **تعريف** | `rename` | إعادة تسمية | Rename | `NameSheet` |
+| | `assignPerson` | تعيين لشخص | Assign to person | `PersonPicker` ← يكتب |
+| | `setCover` | اجعله الصورة الرئيسية | Set as cover | Exemplar |
+| | `moveToGroup` | نقل لمجموعة | Move to group | `GroupPicker` |
+| | `markTattoo` | تعليم وشم/علامة | Mark tattoo | `MarkEditor` sheet |
+| | `confirmLink` | تأكيد الربط | Confirm link | يثبّت الربط التلقائي كـ manual |
+| | `unlink` | فك الربط (رجوع للتلقائي) | Unlink | بدون رفض؛ التجميع ممكن يربطه تاني |
+| | `notThisPerson` | ليس هذا الشخص | Not this person | رفض الزوج (عنصر، شخص) ويُتذكّر |
+| | `belongsToNoOne` | ملوش صاحب | Belongs to no one | استبعاد صريح من أي ربط/اقتراح/تجميع |
+| | `notARealThing` | مش وجه/جسم/أداة أصلاً | Not a real detection | اكتشاف خاطئ، يُخفى |
+| | `notSamePerson` | ليسوا نفس الشخص | Not same person | يفصل عنصرين/مجموعتين (distinct) |
+| | `changeKind` | تغيير النوع (شخص ↔ شخصية) | Change figure kind | يصحح `figure` للمربع |
+| | `changeFileKind` | نوع الملف كله | Change file kind | يغير وضع الفحص للملف (تلقائي/شخص/شخصية) |
+| | `setSensitivity` | حساسة / ليست حساسة | Set sensitive | يكتب `sensitiveOverride` |
+| | `addEquipment` | إضافة أداة يدوياً | Add equipment | رسم مربع + `NameSheet` |
+| | `boxEquipment` | صندوق أداة | Equipment box | معاينة/تحديد صندوق الأداة |
+| | `namePose` / `nameOutfit` / `nameGroupPose` | تسمية الوضعية/الطقم/التشكيل | Name pose / outfit / group | `NameSheet` + يحفظ كـ cluster |
+| **بحث** | `similarPose` | وضعية مشابهة | Similar pose | `/explore/all?similar=` (مطابقة صارمة) |
+| | `similarColours` | ألوان مشابهة | Similar colours | `/explore/all?colours=` |
+| | `similarFaces` | وجوه مشابهة | Similar faces | `/review?queue=similar&face=` |
+| | `personMedia` | وسائط هذا الشخص | Person media | Collection مقيّدة |
+| **إنشاء** | `refaceThis` | Reface بهذا الهدف | Reface target | `/studio/reface?target=` |
+| | `refaceWith` | Reface بهذه الهوية | Reface with identity | `/studio/reface?identity=` |
+| | `restyleThis` | Restyle لهذا الجسم | Restyle body | `/studio/restyle?target=` |
+| | `generateWith` | توليد بهذا الموديل | Generate with model | `/studio/generate?model=` |
+| | `addToDataset` | إضافة لمجموعة تدريب | Add to dataset | `DatasetPicker` / dataset جديد |
+| | `trainModel` | تدريب موديل | Train model | `/studio/datasets/new?person=` |
+| | `runAgain` | تشغيل مرة أخرى بتعديل | Run again | يفتح الـ Flow بنفس المعاملات |
+| **إدارة** | `share` | مشاركة | Share | Android share sheet |
+| | `saveToGallery` | حفظ في المعرض | Save to gallery | MediaStore |
+| | `merge` | دمج مع... | Merge with... | `/merge/:a/:b` |
+| | `organizeFiles` | تنظيم الملفات | Organize files | `/people/:id/files` |
+| | `exportDataset` | تصدير مجموعة التدريب | Export training | zip |
+| | `analyzeNow` | تحليل الآن | Analyze now | يضيف للطابور بأولوية |
+| | `redetect` | إعادة الفحص | Redetect | يعيد كشف الوجوه والأجسام للملف |
+| | `albumIncludeScan` | تضمين في الفحص | Include in scan | يضيف الألبوم لنطاق الفحص |
+| | `albumExcludeScan` | استبعاد من الفحص | Exclude from scan | يستبعد الألبوم من الفحص |
+| | `albumReview` | مراجعة الألبوم | Review album | `/review?album=` |
+| | `albumAnalyze` | تحليل الألبوم | Analyze album | يحلل وسائط الألبوم في الاستوديو |
+| | `pause` / `resume` / `cancel` / `retry` | تحكم بالمهام | Pause / Resume / Cancel / Retry | للفحص والمهام |
+| **خطر** | `remove` | إزالة من هنا | Remove | (وجه من شخص، عنصر من cluster...) |
+| | `delete` | حذف | Delete | `ConfirmSheet` خطير + Undo لو أمكن |
 
 ---
 
@@ -182,38 +189,44 @@ EntityCard(
 
 ● = متاح · ○ = متاح بشرط · — = غير متاح · **QA** = من الأزرار السريعة (`QuickActions`)
 
-| الإجراء | Media | Face | Body | Person | Cluster* | Result | Job | Model | Dataset |
-|---|---|---|---|---|---|---|---|---|---|
-| open | ● | ● (→Person) | ● (→Inspect) | ● | ● | ● | ● | ● | ● |
-| info | **QA** | ● | ● | — | — | ● | ● | ● | ● |
-| expand | ● | ● | ● | ● (avatar) | ● | ● | — | — | — |
-| openPhoto | — | ● | ● | — | — | ○ (المصدر) | — | — | — |
-| rename | — | — | — | **QA** | **QA** | — | — | ● | ● |
-| assignPerson | — | **QA** | ○ (ربط) | — | ○ Area/Mark | — | — | — | — |
-| notThisPerson | — | ● | ○ | — | — | — | — | — | — |
-| setCover | — | ● | — | — | — | — | — | — | — |
-| moveToGroup | — | — | — | ● | — | — | — | — | — |
-| markTattoo | — | — | **QA** | — | — | — | — | — | — |
-| namePose / nameOutfit | — | — | **QA** | — | — | — | — | — | — |
-| similarPose / Colours | — | — | **QA** | — | — | — | — | — | — |
-| similarFaces | — | ● | — | — | — | — | — | — | — |
-| personMedia | — | — | — | ● | — | — | — | — | — |
-| refaceThis | ● | **QA** | ● | — | — | — | — | — | — |
-| refaceWith | — | ○ | — | **QA** | — | — | — | — | — |
-| restyleThis | ● | — | **QA** | — | — | — | — | — | — |
-| generateWith | — | — | — | ○ | — | — | — | **QA** | — |
-| addToDataset | ● | ● | — | ● | — | — | — | — | — |
-| trainModel | — | — | — | **QA** | — | — | — | — | **QA** |
-| runAgain | — | — | — | — | — | **QA** | ○ | — | — |
-| share | **QA** | — | — | — | — | **QA** | — | — | — |
-| saveToGallery | — | — | — | — | — | **QA** | — | — | — |
-| merge | — | — | — | ● | — | — | — | — | — |
-| organizeFiles | — | — | — | ● | — | — | — | — | — |
-| exportDataset | — | — | — | — | — | — | — | — | ● |
-| analyzeNow | ● | — | — | — | — | — | — | — | — |
-| pause/resume/cancel/retry | — | — | — | — | — | — | ● | — | — |
-| remove | — | ● (من الشخص) | — | — | ● (عنصر) | — | — | — | ● (صورة) |
-| delete | — | ● | — | ● | ○ | ● | ○ (مسح السجل) | ● | ● |
+| الإجراء | Media | Face | Body | Person | Album | Group | Action | Cluster* | Result | Job | Model | Dataset |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| open | ● | ● (→Person) | ● (→Inspect) | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| info | **QA** | ● | ● | — | — | — | ● | — | ● | ● | ● | ● |
+| expand | ● | ● | ● | ● (avatar) | — | — | — | ● | ● | — | — | — |
+| openPhoto | — | ● | **QA** | — | — | — | ● | — | ○ (المصدر) | — | — | — |
+| openNativePlayer | ● (فيديو) | — | — | — | — | — | — | — | — | — | — | — |
+| rename | — | — | — | **QA** | — | **QA** | **QA** | **QA** | — | — | ● | ● |
+| assignPerson | — | **QA** | ○ (ربط) | — | — | — | — | ○ Area/Mark | — | — | — | — |
+| notThisPerson | — | ● | ○ | — | — | — | — | — | — | — | — | — |
+| setCover | — | ● | — | — | — | — | — | — | — | — | — | — |
+| moveToGroup | — | — | — | ● | — | — | — | — | — | — | — | — |
+| markTattoo | — | — | **QA** | — | — | — | — | — | — | — | — | — |
+| namePose / nameOutfit | — | — | **QA** | — | — | — | — | — | — | — | — | — |
+| similarPose / Colours | — | — | **QA** | — | — | — | — | — | — | — | — | — |
+| similarFaces | — | ● | — | — | — | — | — | — | — | — | — | — |
+| personMedia | — | — | — | ● | — | — | — | — | — | — | — | — |
+| refaceThis | ● | **QA** | ● | — | — | — | — | — | — | — | — | — |
+| refaceWith | — | ○ | — | **QA** | — | — | — | — | — | — | — | — |
+| restyleThis | ● | — | **QA** | — | — | — | — | — | — | — | — | — |
+| generateWith | — | — | — | ○ | — | — | — | — | — | — | **QA** | — |
+| addToDataset | ● | ● | — | ● | — | — | — | — | — | — | — | — |
+| trainModel | — | — | — | **QA** | — | — | — | — | — | — | — | **QA** |
+| runAgain | — | — | — | — | — | — | — | — | **QA** | ○ | — | — |
+| share | **QA** | — | — | — | — | — | — | — | **QA** | — | — | — |
+| saveToGallery | — | — | — | — | — | — | — | — | **QA** | — | — | — |
+| merge | — | — | — | ● | — | — | — | — | — | — | — | — |
+| organizeFiles | — | — | — | ● | — | ● | — | — | — | — | — | — |
+| exportDataset | — | — | — | — | — | — | — | — | — | — | — | ● |
+| analyzeNow | ● | — | — | — | ● | — | — | — | — | — | — | — |
+| redetect | ● | — | — | — | — | — | — | — | — | — | — | — |
+| albumIncludeScan | — | — | — | — | ● | — | — | — | — | — | — | — |
+| albumExcludeScan | — | — | — | — | ● | — | — | — | — | — | — | — |
+| albumReview | — | — | — | — | ● | — | — | — | — | — | — | — |
+| albumAnalyze | — | — | — | — | ● | — | — | — | — | — | — | — |
+| pause/resume/cancel/retry | — | — | — | — | — | — | — | — | — | ● | — | — |
+| remove | — | ● (من الشخص) | — | — | — | — | ● (عنصر) | ● (عنصر) | — | — | — | ● (صورة) |
+| delete | — | ● | — | ● | — | ● | ● | ○ | ● | ○ (مسح) | ● | ● |
 
 \* Cluster = وضعية/طقم/تشكيل جماعي/أداة/منطقة/وشم/نشاط/مجموعة.
 
@@ -223,11 +236,13 @@ EntityCard(
 |---|---|---|---|---|---|
 | nameGroupPose | — | ○ (لما ≥ 2 أجسام) | — | — | ● |
 | changeKind | ● | ● | — | — | — |
+| changeFileKind | — | — | — | — | ● |
 | rename | — | — | **QA** | **QA** | — |
 | assignPerson | **QA** | ○ | ● (ينتمي إلى) | ● (المالك) | — |
 | setSensitivity | — | — | ● | — | ● (override للصورة) |
 | markTattoo | — | **QA** | ● | — | — |
 | addEquipment | — | — | — | ● | ● (يدوي) |
+| boxEquipment | — | — | — | ● | — |
 | similarPose / similarColours | — | **QA** | — | — | — |
 | remove (رفض) | ● | — | ○ | ● | — |
 
@@ -275,23 +290,25 @@ EntityCard(
 
 ### 5.2 الأنواع × الأفعال
 
-● = موجود في الكود (تحققت) · ◐ = موصوف في التوثيق ولم أتحقق منه في الكود · 🆕 = **جديد، يحتاج تغيير بيانات** · — = لا ينطبق
+● = موجود في الكود (تحققت) · 🆕 = **جديد، يحتاج تغيير بيانات** · — = لا ينطبق
 
 | نوع الرابط | reassign | notThisPerson | belongsToNoOne | notARealThing | notSamePerson | unlink | confirm |
 |---|---|---|---|---|---|---|---|
 | **وجه ← شخص** | ● `assignFaces` | ● `rejectFaces` (جدول `face_rejections`) | 🆕 `clearAssignments` + `dismissFaces` + `faces.ownership` — `review_dismissed` لوحده مش كفاية لأن `deletePerson` وتجاهل المراجعة بيكتبوه كمان | ● حذف/إخفاء الوجه | — | ● `clearAssignments` | ● |
-| **جسم ← شخص** (وجه/ملابس/وجه ضعيف/يدوي) | ● `linkBody` | ● `rejectBody` (جدول `body_rejections`) | 🆕 | 🆕 | — | 🆕 (الموجود `rejectBody` بيفك + بيسجل رفض) | ● `acceptBodyLink` |
-| **جسم ≈ جسم** (نفس الظهور/الطقم/الـ track) | — | — | 🆕 للاتنين مع بعض | — | 🆕 | 🆕 | ◐ |
+| **جسم ← شخص** (وجه/ملابس/وجه ضعيف/يدوي) | ● `linkBody` | ● `rejectBody` (جدول `body_rejections`) | 🆕 `bodies.ownership = 'none'` | 🆕 `bodies.ownership = 'hidden'` | — | 🆕 (الموجود `rejectBody` بيفك + بيسجل رفض) | ● `acceptBodyLink` |
+| **جسم ≈ جسم** (نفس الظهور/الطقم/الـ track) | — | — | 🆕 للاتنين مع بعض | — | 🆕 فصل الـ track + تسجيل `body_distinct` لمنع إعادة الضم بـ `expandTracks` | 🆕 | ● (استبقاء الـ track المشترك) |
 | **أداة ← مالك** | ● (المالك `bodyId` اختياري) | — | ● (مالك فاضي) | ● حالة `rejected` | — | ● | ● حالة `manual` |
 | **منطقة حساسة** | — | — | — | ● `userState = dismissed` | — | — | ● `confirmed` / `sensitiveOverride` |
-| **عضوية cluster وضعية/طقم** | ◐ | — | — | ● حالة `rejected` (لا تُضاف تاني) | — | ● | ● `manual` |
+| **عضوية cluster وضعية/طقم** | ● (حذف أو `state='rejected'`) | — | — | ● حالة `rejected` في `body_pose_matches` / `body_outfit_matches` (لا تُضاف تاني) | — | ● (`state='auto'`) | ● `state='manual'` |
 | **شخص ↔ شخص** | ● `merge` | — | — | — | ● `markDistinct` (`person_distinct`) | — | — |
 | **وجه: شخص ↔ شخصية** | ● `kind_corrections` | — | — | — | — | — | — |
 | **اقتراح نشاط** | — | — | — | ● رفض | — | — | ● قبول |
 
-> ربط clusters المناطق المكشوفة بالأشخاص خارج نطاق v2 (08 §1)، فمالوش صف هنا، وعمود Area في المصفوفة التكميلية (§3) ينطبق منه `setSensitivity` بس لحد ما P0 يصحح المصفوفة.
+> **ملاحظة الفيديو بعد الـ Compaction:** نظراً لأن ضغط الفيديو (`VideoCompactor`) يدمج إطارات المسار المتتالية في صف تمثيلي واحد داخل `bodies` وتشاركه صفوف `media_detections`، فإن نطاقات `ScopePicker` للفيديو تنحصر نظيفاً في: (1) **هذا الظهور / المسار (This appearance / track)** و(2) **كل الفيديو (Whole video)**، لتفادي تشتت الصفوف المضغوطة.
 >
-> أي ◐ يتأكد منه في الكود قبل التنفيذ. أي 🆕 معناه: **تغيير في قاعدة بيانات الهاتف** (جدول أو عمود + migration + إدراجه في `.agbackup` + اختبارات). ملخصها في `07_migration_map.md` §6.
+> ربط clusters المناطق المكشوفة بالأشخاص خارج نطاق v2 (08 §1)، فمالوش صف هنا، وعمود Area في المصفوفة التكميلية (§3) ينطبق منه `setSensitivity` بس.
+>
+> أي 🆕 معناه: **تغيير في قاعدة بيانات الهاتف** (جدول أو عمود + migration + إدراجه في `.agbackup` + اختبارات). ملخصها في `07_migration_map.md` §6.
 
 ### 5.3 شكل `CorrectionSheet`
 ```

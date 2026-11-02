@@ -114,28 +114,36 @@ rankCandidates(
       final cTags = decodeTags(c.tags);
       // 1. Orientation gating:
       if (qHasBack &&
-          (cTags.contains(PoseTag.frontal) || cTags.contains(PoseTag.profile)))
+          (cTags.contains(PoseTag.frontal) ||
+              cTags.contains(PoseTag.profile))) {
         continue;
+      }
       if (qHasFrontal &&
-          (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.profile)))
+          (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.profile))) {
         continue;
+      }
       if (qHasProfile &&
-          (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.frontal)))
+          (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.frontal))) {
         continue;
+      }
 
       // 2. Posture & Bending gating:
       if (qHasStanding &&
           (cTags.contains(PoseTag.sitting) ||
               cTags.contains(PoseTag.lying) ||
-              cTags.contains(PoseTag.bent)))
+              cTags.contains(PoseTag.bent))) {
         continue;
+      }
       if (qHasBent && cTags.contains(PoseTag.standing)) continue;
       if (qHasSitting &&
-          (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.lying)))
+          (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.lying))) {
         continue;
+      }
       if (qHasLying &&
-          (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.sitting)))
+          (cTags.contains(PoseTag.standing) ||
+              cTags.contains(PoseTag.sitting))) {
         continue;
+      }
     }
 
     final m = comparePoses(

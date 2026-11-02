@@ -350,8 +350,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           );
       if (!mounted) return;
       _contextTarget = source.target;
-      if (source.target?.figure == 'character')
+      if (source.target?.figure == 'character') {
         throw const FormatException('Reface is available for people only.');
+      }
       _contextMediaId = source.media.id;
       _contextAssetId = source.media.assetId;
       if (source.isVideo) {
@@ -398,8 +399,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       final person = await (db.select(
         db.persons,
       )..where((p) => p.id.equals(id))).getSingleOrNull();
-      if (person == null || person.kind != 'person')
+      if (person == null || person.kind != 'person') {
         throw const FormatException('Reface is available for people only.');
+      }
       final name = person.name;
       if (!mounted) return;
       setState(() {
@@ -425,8 +427,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       final face = await (db.select(
         db.faces,
       )..where((f) => f.id.equals(id))).getSingle();
-      if (face.kind != 'person')
+      if (face.kind != 'person') {
         throw const FormatException('Reface is available for people only.');
+      }
       if (!mounted) return;
       setState(() {
         _directSource = true;

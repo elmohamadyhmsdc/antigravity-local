@@ -49,8 +49,9 @@ class ArtifactStore {
       if (existing == null &&
           returnedModel == null &&
           engine == null &&
-          warnings.isEmpty)
+          warnings.isEmpty) {
         return;
+      }
       final json = {...?existing?.toJson()};
       if (returnedModel != null) json['identityModelId'] = returnedModel;
       if (engine != null) json['executionEngine'] = engine;

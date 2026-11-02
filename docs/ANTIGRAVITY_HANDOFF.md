@@ -1,6 +1,29 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P0 (Baseline & Preparation) Completed on main — 2026-11-02
+
+- User instructed to execute directly on `main` without separate branches.
+- Baseline measurements verified with fresh evidence:
+  - `flutter analyze`: clean (**0 issues**, 3.6s).
+  - `flutter test`: **890 passed, 12 failed** (01:12; all 12 diagnosed in `_baseline.md` as outdated expectations against intentional UI/contract changes).
+  - Formatting & linter: 28 files formatted with `dart format` (committed in `838cdc5`), and 12 flow-control braces auto-fixed via `dart fix --apply`.
+- Scaffolding created: empty modules `lib/ui/`, `lib/domain/actions/`, `lib/domain/corrections/` added with `.gitkeep`.
+- Specification corrections in `01_shared_components.md`:
+  - Removed duplicate `notThisPerson`.
+  - Added English action names (`label_en`) column for all Registry actions.
+  - Added missing `ActionId` entries: `redetect`, `changeFileKind`, `openNativePlayer`, `boxEquipment`, `albumIncludeScan`, `albumExcludeScan`, `albumReview`, `albumAnalyze`.
+  - Added entity columns: `Album`, `Group`, `Action`, and aligned Person & Body `QuickActions`.
+  - Resolved video ScopePicker scope post-compaction: "This appearance / track" and "Whole video".
+- Resolved all 5 open architectural questions (◐ items) in `_baseline.md`:
+  - `body_pose_matches` and `body_outfit_matches` use column `state` (`auto` | `manual` | `rejected`).
+  - `BodyMarks.personId` is transferable without invalidating the anatomical `anchor`.
+  - `body ≈ body` track separation via distinct assignment and `body_distinct` record.
+  - `equipment_objects` bounding box confirmed (`bboxX`, `bboxY`, `bboxW`, `bboxH`).
+  - Video compaction scopes clarified.
+- Baseline and test mapping artifact saved at `docs/app_screens_v2/_baseline.md`.
+
+
 ## Screens redesign spec v2 (docs only, no code changed) — 2026-11-02
 
 - New spec in `docs/app_screens_v2/` (start at its `README.md`): the phone app's screens rewritten from scratch with the same features. 37 screens, 4 tabs (Library, People, Explore, Studio), global `ActivityPill` → `/activity`, Settings behind a gear. Supersedes `docs/app_screens/`, which describes the current (duplicated) structure.
