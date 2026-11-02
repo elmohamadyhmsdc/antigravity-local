@@ -12,7 +12,7 @@ void main() {
     await env.pump(tester);
 
     // Gallery is the landing tab; four destinations remain available.
-    for (final label in ['Gallery', 'People', 'Discover', 'Studio']) {
+    for (final label in ['Gallery', 'People', 'Explore', 'Studio']) {
       expect(find.widgetWithText(NavigationDestination, label), findsOneWidget);
     }
     expect(find.text('Gallery'), findsWidgets);
@@ -25,7 +25,7 @@ void main() {
       reason: 'the real People screen, empty',
     );
 
-    await tester.tap(find.widgetWithText(NavigationDestination, 'Discover'));
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Explore'));
     await tester.pumpAndSettle();
     expect(find.text('Poses'), findsOneWidget);
   }, session: testSession);

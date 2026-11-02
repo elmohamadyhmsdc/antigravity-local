@@ -12,21 +12,29 @@ import 'library_providers.dart';
 import 'providers.dart';
 import 'studio_providers.dart';
 import 'features/privacy/app_lock.dart';
+import 'ui/activity/activity_pill_host.dart';
 import 'data/api/mobile_api.dart';
 import 'data/platform/background_execution.dart';
 
 /// Where the app opens (null = Gallery, including before pairing). Tests can open a link.
 final initialLocationProvider = Provider<String?>((ref) => null);
 
+/// Tracks active PopupRoutes to gate interactions like the activity pill.
+final popupObserverProvider = Provider<AppPopupObserver>(
+  (ref) => AppPopupObserver(),
+);
+
 /// The router follows the session: pairing moves on to the permissions screen, forgetting the
 /// PC leaves local Gallery and saved library content available.
 final routerProvider = Provider<GoRouter>((ref) {
   final paired = ValueNotifier<bool>(ref.read(sessionProvider) != null);
   ref.listen(sessionProvider, (_, next) => paired.value = next != null);
+  final popupObserver = ref.watch(popupObserverProvider);
   final router = createRouter(
     isPaired: () => paired.value,
     refresh: paired,
     initialLocation: ref.read(initialLocationProvider),
+    observers: [popupObserver],
   );
   ref.onDispose(() {
     router.dispose();
@@ -114,15 +122,22 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         ref.read(jobTrackerProvider).start();
       }
     });
+    final router = ref.watch(routerProvider);
+    final popupObserver = ref.watch(popupObserverProvider);
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      builder: (context, child) =>
-          AppLockGate(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => AppLockGate(
+        child: ActivityPillHost(
+          router: router,
+          popupObserver: popupObserver,
+          child: child ?? const SizedBox.shrink(),
+        ),
+      ),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
       themeMode: ThemeMode.system,
-      routerConfig: ref.watch(routerProvider),
+      routerConfig: router,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,

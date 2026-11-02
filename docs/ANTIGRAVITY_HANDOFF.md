@@ -1,6 +1,36 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P3 (Shell & Navigation) Completed on main — 2026-11-02
+
+- Implemented unified target reference domain:
+  - `mobile/lib/domain/targets/target_ref.dart`: parsed and serialized `TargetRef(mediaId, detectionId, personId, identitySetId, faceId)` supporting unified `target=media:ID[,det:ID]` and legacy query parameters (`media`, `target`, `face`, `person`, `identity`).
+  - Unit tests verified in `test/domain/targets/target_ref_test.dart` (5 tests passed).
+- Implemented global Activity Pill & Hosting:
+  - `mobile/lib/ui/activity/activity_state_provider.dart`: unified `ActivityState` (`idle | scanning | job | multiple | failed`) reacting to `scanProgressProvider` and `jobsProvider`.
+  - `mobile/lib/ui/activity/activity_pill.dart`: interactive floating pill showing live progress, task type/count, and error badges with navigation to `/activity`.
+  - `mobile/lib/ui/activity/activity_pill_host.dart`: global host wrapping interior screens inside `AppLockGate`, automatic suppression on root tab destinations, onboarding (`/welcome`, `/pair`, `/permissions`), full-screen media viewer (`/media`), and during keyboard display or active `PopupRoute` modal sheets.
+  - `mobile/lib/app.dart`: integrated `ActivityPillHost` and `AppPopupObserver` in `MaterialApp.router`.
+- Updated Shell & Bottom Navigation:
+  - `mobile/lib/features/shell/app_shell.dart`: 4 destinations (Gallery, People, Explore, Studio) with integrated `ActivityPill` directly above `NavigationBar`.
+- Expanded Router with Final Route Hierarchy & Phase P3 Strangler Redirects:
+  - `mobile/lib/core/router.dart`:
+    - Defined all 37 v2 routes while pointing builders to existing screens.
+    - Preserved static before variable route ordering (`/people/unsorted`, `/explore/actions/:id/example`, `/studio/datasets/new`).
+    - Activated Phase P3 redirects (with query parameter and target translations): `/jobs` -> `/activity`, `/jobs/:id` -> `/activity/:jobId`, `/results/:id` -> `/studio/results/:id`, `/lora/model/:id` -> `/studio/models/:id`, `/lora/build` -> `/studio/datasets/new`, `/datasets/:id` -> `/studio/datasets/:id`, `/lora/train` -> `/studio/train`, `/lora/generate` -> `/studio/generate`, `/reface` -> `/studio/reface`, `/discover` -> `/explore`, `/connection` -> `/settings/computer`, `/storage` -> `/settings/storage`, `/background` -> `/settings/background`, `/backup` -> `/settings/backup`.
+    - Fixed `/pair` onboarding redirect: after pairing, seamlessly redirects to `/permissions`.
+    - Preserved unredirected legacy routes (`/lora`, `/results`, `/sources`, `/analyze`, `/insights`, `/running-scan`, `/home`, `/bodies`, `/marks`, `/characters`).
+- Verification:
+  - `flutter analyze` in `mobile/`: **0 issues**.
+  - All Phase P3 test suites passed (35 tests):
+    - `test/domain/targets/target_ref_test.dart` (5 passed)
+    - `test/core/router_test.dart` (18 passed)
+    - `test/ui/activity_pill_test.dart` (7 passed)
+    - `test/features/shell_test.dart` (3 passed)
+    - `test/widget_test.dart` (2 passed)
+  - All code formatted via `dart format lib test`.
+
+
 ## Phase P2 (Corrections Layer & Schema v19) Completed on main — 2026-11-02
 
 - Implemented database schema v19 in `mobile/lib/data/db/`:

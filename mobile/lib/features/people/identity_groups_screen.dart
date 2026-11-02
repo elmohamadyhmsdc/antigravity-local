@@ -334,8 +334,8 @@ final _groupRowProvider = StreamProvider.autoDispose
               .watchSingleOrNull(),
     );
 
-class _GroupMediaScreen extends ConsumerWidget {
-  const _GroupMediaScreen({required this.groupId});
+class GroupMediaScreen extends ConsumerWidget {
+  const GroupMediaScreen({super.key, required this.groupId});
   final int groupId;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -355,3 +355,5 @@ class _GroupMediaScreen extends ConsumerWidget {
     );
   }
 }
+
+typedef _GroupMediaScreen = GroupMediaScreen;
