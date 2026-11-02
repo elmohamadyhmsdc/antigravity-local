@@ -44,6 +44,7 @@ class _Old {
   final _Box box;
   final int? personId;
   bool hidden = false, dismissed = false;
+  String? ownership;
   String? linkMethod;
   double? linkConfidence;
   List<int> rejected = const [];
@@ -340,10 +341,11 @@ class Redetector {
         );
       }
       await db.customUpdate(
-        'UPDATE faces SET hidden = ?, review_dismissed = ? WHERE id = ?',
+        'UPDATE faces SET hidden = ?, review_dismissed = ?, ownership = ? WHERE id = ?',
         variables: [
           Variable.withBool(old.hidden),
           Variable.withBool(old.dismissed),
+          Variable<String>(old.ownership),
           Variable.withInt(next.id),
         ],
         updates: {db.faces},
@@ -382,6 +384,57 @@ class Redetector {
           updates: {db.bodies},
         );
       }
+      await db.customUpdate(
+        'UPDATE bodies SET hidden = ?, ownership = ? WHERE id = ?',
+        variables: [
+          Variable.withBool(old.hidden),
+          Variable<String>(old.ownership),
+          Variable.withInt(next.id),
+        ],
+        updates: {db.bodies},
+      );
+      for (final pid in old.rejected) {
+        await db
+            .into(db.bodyRejections)
+            .insert(
+              BodyRejectionsCompanion.insert(bodyId: next.id, personId: pid),
+              mode: InsertMode.insertOrIgnore,
+            );
+      }
+      await db.customUpdate(
+        'UPDATE OR REPLACE body_distinct SET body_a = ? WHERE body_a = ?',
+        variables: [Variable.withInt(next.id), Variable.withInt(old.id)],
+        updates: {db.bodyDistinct},
+      );
+      await db.customUpdate(
+        'UPDATE OR REPLACE body_distinct SET body_b = ? WHERE body_b = ?',
+        variables: [Variable.withInt(next.id), Variable.withInt(old.id)],
+        updates: {db.bodyDistinct},
+      );
+    }
+    final mediaRow = await _media(mediaId);
+    if (mediaRow != null) {
+      final overrides = await (db.select(
+        db.bodyOverrides,
+      )..where((o) => o.assetId.equals(mediaRow.assetId))).get();
+      for (final o in overrides) {
+        for (final next in newBodies) {
+          if (sameDetectionBox(
+            (x: o.x, y: o.y, w: o.w, h: o.h),
+            next.box,
+            'body',
+          )) {
+            await (db.update(
+              db.bodies,
+            )..where((b) => b.id.equals(next.id))).write(
+              BodiesCompanion(
+                ownership: Value(o.ownership),
+                hidden: Value(o.hidden),
+              ),
+            );
+          }
+        }
+      }
     }
   });
 
@@ -419,7 +472,7 @@ class Redetector {
     final rows = await db
         .customSelect(
           // The boxes this photo shows, whichever file the face row came from.
-          '''SELECT f.id, f.kind, f.person_id, f.hidden, f.review_dismissed,
+          '''SELECT f.id, f.kind, f.person_id, f.hidden, f.review_dismissed, f.ownership,
                d.x AS bbox_x, d.y AS bbox_y, d.w AS bbox_w, d.h AS bbox_h,
                (SELECT group_concat(person_id) FROM face_rejections r WHERE r.face_id = f.id) AS rejected
              FROM media_detections d JOIN faces f ON f.id = d.ref_id
@@ -438,6 +491,7 @@ class Redetector {
           ), r.readNullable<int>('person_id'))
           ..hidden = r.read<bool>('hidden')
           ..dismissed = r.read<bool>('review_dismissed')
+          ..ownership = r.readNullable<String>('ownership')
           ..rejected = [
             for (final s in (r.readNullable<String>('rejected') ?? '').split(
               ',',
@@ -450,12 +504,13 @@ class Redetector {
   Future<List<_Old>> _oldBodies(int mediaId) async {
     final rows = await db
         .customSelect(
-          '''SELECT b.id, b.kind, b.person_id, b.link_method, b.link_confidence,
-               d.x AS bbox_x, d.y AS bbox_y, d.w AS bbox_w, d.h AS bbox_h
+          '''SELECT b.id, b.kind, b.person_id, b.link_method, b.link_confidence, b.hidden, b.ownership,
+               d.x AS bbox_x, d.y AS bbox_y, d.w AS bbox_w, d.h AS bbox_h,
+               (SELECT group_concat(person_id) FROM body_rejections r WHERE r.body_id = b.id) AS rejected
              FROM media_detections d JOIN bodies b ON b.id = d.ref_id
              WHERE d.media_id = ? AND d.kind = 'b' AND d.frame_number IS NULL''',
           variables: [Variable.withInt(mediaId)],
-          readsFrom: {db.bodies, db.mediaDetections},
+          readsFrom: {db.bodies, db.bodyRejections, db.mediaDetections},
         )
         .get();
     return [
@@ -467,7 +522,15 @@ class Redetector {
             h: r.read<double>('bbox_h'),
           ), r.readNullable<int>('person_id'))
           ..linkMethod = r.readNullable<String>('link_method')
-          ..linkConfidence = r.readNullable<double>('link_confidence'),
+          ..linkConfidence = r.readNullable<double>('link_confidence')
+          ..hidden = r.read<bool>('hidden')
+          ..ownership = r.readNullable<String>('ownership')
+          ..rejected = [
+            for (final s in (r.readNullable<String>('rejected') ?? '').split(
+              ',',
+            ))
+              if (s.isNotEmpty) int.parse(s),
+          ],
     ];
   }
 

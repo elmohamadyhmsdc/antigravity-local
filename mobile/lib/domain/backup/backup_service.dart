@@ -41,14 +41,17 @@ const backupTables = [
   BackupTable('character_samples'),
   BackupTable('faces'),
   BackupTable('face_suppressions'),
+  BackupTable('face_overrides'),
   BackupTable('kind_overrides'),
   BackupTable('identity_sets'),
   BackupTable('identity_set_faces'),
   // bodies.*_cluster_id points at body_clusters (which only needs persons): clusters first.
   BackupTable('body_clusters'),
   BackupTable('bodies'),
+  BackupTable('body_overrides'),
   BackupTable('face_rejections'),
   BackupTable('body_rejections'),
+  BackupTable('body_distinct'),
   BackupTable('person_distinct'),
   BackupTable('media_detections'),
   // Roadmap v16: everything that points at bodies / persons comes after them, matches after categories.

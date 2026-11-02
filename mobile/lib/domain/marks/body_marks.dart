@@ -19,6 +19,7 @@ import '../../data/db/app_database.dart';
 import '../../data/files/file_store.dart';
 import '../pose/pose_geometry.dart';
 import 'mark_geometry.dart';
+import '../corrections/body_link_guard.dart';
 
 /// Cuts [rect] (a rotated rectangle in the photo's pixels) out of [media]'s original; null when the file is
 /// gone or unreadable. The real one decodes the original on the phone; tests pass a fake.
@@ -269,7 +270,14 @@ class MarkMatcher {
         final owner = await (_db.select(
           _db.bodies,
         )..where((b) => b.id.equals(h.bodyId))).getSingleOrNull();
-        if (owner == null || owner.personId != null || owner.faceId != null) {
+        if (owner == null ||
+            owner.personId != null ||
+            owner.faceId != null ||
+            owner.ownership == 'none' ||
+            owner.hidden) {
+          continue;
+        }
+        if (!await BodyLinkGuard(_db).canAutoLink(h.bodyId, mark.personId)) {
           continue;
         }
         await _db

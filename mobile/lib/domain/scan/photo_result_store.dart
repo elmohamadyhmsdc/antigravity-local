@@ -301,6 +301,18 @@ class PhotoResultStore {
             );
           }
         }
+        final faceOverrides = await (_db.select(
+          _db.faceOverrides,
+        )..where((o) => o.assetId.equals(media.assetId))).get();
+        for (final o in faceOverrides) {
+          if (sameDetectionBox((x: o.x, y: o.y, w: o.w, h: o.h), box, 'face') ||
+              (video && o.scope == 'track' && track != null)) {
+            await (_db.update(_db.faces)..where((f) => f.id.equals(id))).write(
+              FacesCompanion(ownership: Value(o.ownership)),
+            );
+            break;
+          }
+        }
         if (face.cropJpeg != null) {
           final path = await _files.writeFaceCrop(id, face.cropJpeg!);
           await (_db.update(_db.faces)..where((f) => f.id.equals(id))).write(
@@ -509,6 +521,21 @@ class PhotoResultStore {
             TrackView(id: id, value: body.appearance, quality: body.score),
           );
           usedTracks.add(track.id);
+        }
+        final bOverrides = await (_db.select(
+          _db.bodyOverrides,
+        )..where((o) => o.assetId.equals(media.assetId))).get();
+        for (final o in bOverrides) {
+          if (sameDetectionBox((x: o.x, y: o.y, w: o.w, h: o.h), box, 'body') ||
+              (video && o.scope == 'track' && bodyTrack != null)) {
+            await (_db.update(_db.bodies)..where((b) => b.id.equals(id))).write(
+              BodiesCompanion(
+                ownership: Value(o.ownership),
+                hidden: Value(o.hidden),
+              ),
+            );
+            break;
+          }
         }
         if (body.cropJpeg != null) {
           final path = await _files.writeBodyCrop(id, body.cropJpeg!);

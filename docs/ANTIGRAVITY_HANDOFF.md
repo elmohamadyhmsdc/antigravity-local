@@ -1,6 +1,36 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P2 (Corrections Layer & Schema v19) Completed on main — 2026-11-02
+
+- Implemented database schema v19 in `mobile/lib/data/db/`:
+  - `tables.dart`: added `BodyOverrides`, `BodyDistinct`, `FaceOverrides` tables; added `ownership` and `hidden` to `Bodies`; added `ownership` to `Faces`.
+  - `app_database.dart`: bumped `currentSchemaVersion = 19`, registered new tables in `@DriftDatabase`, and implemented idempotent step migration in `AppDatabase.migration`.
+  - Generated Drift types via `dart run build_runner build` (641 outputs generated).
+  - Registered `body_overrides`, `body_distinct`, and `face_overrides` in `BackupService.backupTables`.
+- Implemented domain corrections in `mobile/lib/domain/corrections/`:
+  - `correction_target.dart`: sealed class with `FaceLinkTarget`, `BodyLinkTarget`, `BodyPairTarget`, `EquipmentOwnerTarget`, `SensitiveRegionTarget`, `PoseMembershipTarget`, `PersonPairTarget`, `ActionSuggestionTarget`.
+  - `correction_verb.dart`: `reassign`, `notThisPerson`, `belongsToNoOne`, `notARealThing`, `notSamePerson`, `unlink`, `confirm`.
+  - `correction_scope.dart`: `single`, `track`, `cluster`, `wholeVideo`.
+  - `body_link_guard.dart`: `canAutoLink`, `getDistinctBodyIds`, `findMergeConflicts`, `onManualLink`.
+  - `correction_service.dart`: `allowedVerbs`, `preview`, `apply`, `undo` with snapshot-based state restoration.
+  - `corrections_queries.dart`: `excludedCounts`, `noOwnerIds`, `linksForMedia`.
+- Logic & pipeline enforcement:
+  - `grouping_inputs.dart`: `bodies()` and `pending()` exclude `ownership == 'none'` and `hidden == true`.
+  - `plan_applier.dart`: `applyBodyPlan` excludes `none`/`hidden` and checks `body_distinct` conflict.
+  - `people_repository.dart`: `mergePeople` leaves conflicting distinct bodies unassigned instead of violating distinctness.
+  - `redetect.dart`: restores `body_rejections`, transfers `body_distinct`, transfers `ownership` and `hidden`, re-applies `body_overrides`.
+  - `video_compactor.dart`: incorporates `ownership` and `hidden` into face/body merge flags to prevent merging disparate ownership states, and transfers `body_distinct`.
+  - `photo_result_store.dart`: applies `body_overrides` and `face_overrides` upon new insertions, including video track inheritance.
+  - `body_marks.dart` & `kind_corrections.dart`: guarded with `BodyLinkGuard`.
+  - `training_export.dart`: queries exclude `hidden` and `ownership == 'none'`.
+- Verification:
+  - `flutter analyze` in `mobile/`: **0 issues**.
+  - 4 new P2 test suites: **11 tests passed** (`test/data/schema_v19_test.dart`, `test/domain/backup_v19_test.dart`, `test/domain/corrections/correction_service_test.dart`, `test/domain/corrections/body_link_guard_test.dart`).
+  - All existing domain and data tests run: 586 tests passed (1 known baseline failure: `operation_contracts_test.dart`).
+
+
+
 ## Phase P1 (Shared Foundation Components & Pilots) Completed on main — 2026-11-02
 
 - Implemented entire shared UI foundation in `lib/ui/` and action system in `lib/domain/actions/`:

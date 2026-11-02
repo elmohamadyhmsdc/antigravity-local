@@ -133,7 +133,7 @@ class GroupingInputs {
     }
     final rows = await _db
         .customSelect(
-          'SELECT id, embedding, quality_score, media_id, frame_number FROM faces WHERE person_id IS NULL AND kind = ? ORDER BY id',
+          "SELECT id, embedding, quality_score, media_id, frame_number FROM faces WHERE person_id IS NULL AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND kind = ? ORDER BY id",
           variables: [Variable.withString(kind)],
           readsFrom: {_db.faces},
         )
@@ -203,7 +203,7 @@ class GroupingInputs {
           SELECT b.id, b.media_id, b.frame_number, b.appearance, b.weak_face_embedding, b.person_id,
                  b.link_method, bf.person_id AS face_person_id, m.taken_at AS taken_at
           FROM bodies b LEFT JOIN faces bf ON bf.id = b.face_id LEFT JOIN media m ON m.id = b.media_id
-          WHERE b.kind = ?
+          WHERE b.kind = ? AND (b.ownership IS NULL OR b.ownership != 'none') AND b.hidden = 0
           ORDER BY b.id
           ''',
           variables: [Variable.withString(kind)],

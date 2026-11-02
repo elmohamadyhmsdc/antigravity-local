@@ -636,6 +636,11 @@ class PeopleRepository {
         updates: {_db.faceRejections},
       );
       await _db.customUpdate(
+        'UPDATE bodies SET person_id = NULL WHERE person_id = ?1 AND EXISTS (SELECT 1 FROM body_distinct d JOIN bodies tb ON (tb.id = CASE WHEN d.body_a = bodies.id THEN d.body_b ELSE d.body_a END) WHERE (d.body_a = bodies.id OR d.body_b = bodies.id) AND tb.person_id = ?2)',
+        variables: [s, t],
+        updates: {_db.bodies},
+      );
+      await _db.customUpdate(
         'UPDATE bodies SET person_id = ? WHERE person_id = ?',
         variables: [t, s],
         updates: {_db.bodies},

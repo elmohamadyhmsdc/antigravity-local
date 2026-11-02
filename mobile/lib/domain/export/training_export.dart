@@ -125,7 +125,7 @@ class TrainingExportQueries {
             'FROM media_detections md '
             'JOIN faces f ON f.id = md.ref_id '
             'JOIN media m ON m.id = md.media_id '
-            "WHERE md.kind = 'f' AND f.person_id = ? AND f.hidden = 0",
+            "WHERE md.kind = 'f' AND f.person_id = ? AND f.hidden = 0 AND (f.ownership IS NULL OR f.ownership != 'none')",
             variables: [Variable.withInt(o.personId)],
           )
           .get();
@@ -141,8 +141,8 @@ class TrainingExportQueries {
             'JOIN bodies b ON b.id = md.ref_id '
             'LEFT JOIN faces f ON f.id = b.face_id '
             'JOIN media m ON m.id = md.media_id '
-            "WHERE md.kind = 'b' AND (b.person_id = ? "
-            'OR (b.person_id IS NULL AND f.person_id = ? AND f.hidden = 0))',
+            "WHERE md.kind = 'b' AND b.hidden = 0 AND (b.ownership IS NULL OR b.ownership != 'none') AND (b.person_id = ? "
+            "OR (b.person_id IS NULL AND f.person_id = ? AND f.hidden = 0 AND (f.ownership IS NULL OR f.ownership != 'none')))",
             variables: [
               Variable.withInt(o.personId),
               Variable.withInt(o.personId),

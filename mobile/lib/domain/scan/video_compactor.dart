@@ -154,7 +154,7 @@ class VideoCompactor {
     final rows = await _db
         .customSelect(
           '''
-          SELECT f.id, f.embedding, f.quality_score, f.person_id, f.review_dismissed, f.hidden,
+          SELECT f.id, f.embedding, f.quality_score, f.person_id, f.review_dismissed, f.hidden, f.ownership,
             f.bbox_x, f.bbox_y, f.bbox_w, f.bbox_h, f.timestamp_ms, f.frame_number,
             (EXISTS (SELECT 1 FROM identity_set_faces s WHERE s.face_id = f.id)
               OR EXISTS (SELECT 1 FROM persons p WHERE p.avatar_face_id = f.id)) AS pinned
@@ -180,7 +180,8 @@ class VideoCompactor {
         frame: r.read<int>('frame_number'),
         quality: r.read<double>('quality_score'),
         personId: r.readNullable<int>('person_id'),
-        flags: '${r.read<bool>('review_dismissed')}:${r.read<bool>('hidden')}',
+        flags:
+            '${r.read<bool>('review_dismissed')}:${r.read<bool>('hidden')}:${r.readNullable<String>('ownership') ?? ''}',
         pinned: r.read<bool>('pinned'),
         rejected: rejections[r.read<int>('id')] ?? const {},
       );
@@ -214,7 +215,7 @@ class VideoCompactor {
     final rows = await _db
         .customSelect(
           '''
-          SELECT b.id, b.appearance, b.score, b.person_id, b.link_method, b.face_id,
+          SELECT b.id, b.appearance, b.score, b.person_id, b.link_method, b.face_id, b.ownership, b.hidden,
             f.track_id AS face_track, b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h,
             b.timestamp_ms, b.frame_number
           FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
@@ -242,7 +243,8 @@ class VideoCompactor {
         quality: r.read<double>('score'),
         personId: r.readNullable<int>('person_id'),
         // a body with a face only merges into one of the same face track (or a faceless view)
-        flags: r.readNullable<String>('link_method') ?? '',
+        flags:
+            '${r.readNullable<String>('link_method') ?? ''}:${r.readNullable<String>('ownership') ?? ''}:${r.read<bool>('hidden') ? 1 : 0}',
         pinned: false,
         rejected: rejections[r.read<int>('id')] ?? const {},
       );
@@ -476,6 +478,12 @@ class VideoCompactor {
       );
       await _db.customStatement(
         'INSERT OR IGNORE INTO review_body_links (body_id, person_id, method, confidence) SELECT m.r, x.person_id, x.method, x.confidence FROM review_body_links x JOIN compact_map m ON m.d = x.body_id',
+      );
+      await _db.customStatement(
+        'INSERT OR IGNORE INTO body_distinct (body_a, body_b) SELECT CASE WHEN m.r < x.body_b THEN m.r ELSE x.body_b END, CASE WHEN m.r < x.body_b THEN x.body_b ELSE m.r END FROM body_distinct x JOIN compact_map m ON m.d = x.body_a WHERE m.r != x.body_b',
+      );
+      await _db.customStatement(
+        'INSERT OR IGNORE INTO body_distinct (body_a, body_b) SELECT CASE WHEN x.body_a < m.r THEN x.body_a ELSE m.r END, CASE WHEN x.body_a < m.r THEN m.r ELSE x.body_a END FROM body_distinct x JOIN compact_map m ON m.d = x.body_b WHERE m.r != x.body_a',
       );
     }
     final crops = [

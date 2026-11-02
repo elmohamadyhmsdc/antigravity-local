@@ -279,7 +279,8 @@ class ExposedClusters {
         : 'chest_cluster_id';
     final linked = await _db.customUpdate(
       'UPDATE bodies SET person_id = ?, link_method = \'manual\', link_confidence = 1 '
-      'WHERE $column = ? AND person_id IS NULL AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.id = bodies.face_id AND f.person_id IS NOT NULL) '
+      'WHERE $column = ? AND person_id IS NULL AND (ownership IS NULL OR ownership != \'none\') AND hidden = 0 '
+      'AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.id = bodies.face_id AND f.person_id IS NOT NULL) '
       'AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = bodies.id AND r.person_id = ?)',
       variables: [
         Variable.withInt(personId),
@@ -324,6 +325,7 @@ class ExposedClusters {
          SELECT b.id, c.person_id, 'cluster', 0.85 FROM bodies b
          JOIN body_clusters c ON c.id = b.chest_cluster_id OR c.id = b.buttocks_cluster_id
          WHERE c.person_id IS NOT NULL AND b.person_id IS NULL AND b.face_id IS NULL AND b.kind = 'person'
+           AND (b.ownership IS NULL OR b.ownership != 'none') AND b.hidden = 0
            AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = c.person_id)''',
       updates: {_db.reviewBodyLinks},
     );

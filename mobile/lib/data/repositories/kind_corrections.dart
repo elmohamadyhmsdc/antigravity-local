@@ -7,6 +7,7 @@ import '../api/dtos/analyze.dart';
 import '../db/app_database.dart';
 import '../files/file_store.dart';
 import '../index/embedding_index.dart';
+import '../../domain/corrections/body_link_guard.dart';
 
 typedef _Box = ({double x, double y, double w, double h});
 
@@ -148,11 +149,20 @@ class KindOverrideStore {
             updates: {_db.reviewMatches},
           );
         } else {
-          await _db.customUpdate(
-            "UPDATE bodies SET person_id = ?, link_method = 'manual', link_confidence = NULL WHERE id = ?",
-            variables: [person, id],
-            updates: {_db.bodies},
-          );
+          final bodyRow =
+              await (_db.select(_db.bodies)
+                    ..where((b) => b.id.equals(d.read<int>('ref_id'))))
+                  .getSingleOrNull();
+          if (bodyRow != null &&
+              bodyRow.ownership != 'none' &&
+              !bodyRow.hidden) {
+            await BodyLinkGuard(_db).onManualLink(bodyRow.id, target.id);
+            await _db.customUpdate(
+              "UPDATE bodies SET person_id = ?, link_method = 'manual', link_confidence = NULL WHERE id = ?",
+              variables: [person, id],
+              updates: {_db.bodies},
+            );
+          }
         }
         await (_db.update(_db.kindOverrides)..where((r) => r.id.equals(o.id)))
             .write(const KindOverridesCompanion(targetPersonId: Value(null)));

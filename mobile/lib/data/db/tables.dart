@@ -185,6 +185,25 @@ class Faces extends Table {
 
   // v14: 'person' | 'character' - a drawn face (model ccip-caformer24@1, 768-d embedding).
   TextColumn get kind => text().withDefault(const Constant('person'))();
+
+  // v19: 'none' | null (belongs to no one)
+  TextColumn get ownership => text().nullable()();
+}
+
+/// v19: the user's "this face belongs to no one" corrections.
+@TableIndex(name: 'face_overrides_asset', columns: {#assetId})
+@DataClassName('FaceOverrideRow')
+class FaceOverrides extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get assetId => text()();
+  RealColumn get x => real()();
+  RealColumn get y => real()();
+  RealColumn get w => real()();
+  RealColumn get h => real()();
+  IntColumn get timestampMs => integer().nullable()();
+  TextColumn get ownership => text().nullable()(); // 'none' | null
+  TextColumn get scope =>
+      text().withDefault(const Constant('single'))(); // 'single' | 'track'
 }
 
 /// Deletion decisions survive rescans and removal/reimport of the media row.
@@ -292,6 +311,27 @@ class Bodies extends Table {
     onDelete: KeyAction.setNull,
   )();
   TextColumn get morphology => text().nullable()();
+
+  // v19: corrections
+  TextColumn get ownership => text().nullable()(); // 'none' | null
+  BoolColumn get hidden => boolean().withDefault(const Constant(false))();
+}
+
+/// v19: the user's "this body belongs to no one / not a real body" corrections.
+@TableIndex(name: 'body_overrides_asset', columns: {#assetId})
+@DataClassName('BodyOverrideRow')
+class BodyOverrides extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get assetId => text()();
+  RealColumn get x => real()();
+  RealColumn get y => real()();
+  RealColumn get w => real()();
+  RealColumn get h => real()();
+  IntColumn get timestampMs => integer().nullable()();
+  TextColumn get ownership => text().nullable()(); // 'none' | null
+  BoolColumn get hidden => boolean().withDefault(const Constant(false))();
+  TextColumn get scope =>
+      text().withDefault(const Constant('single'))(); // 'single' | 'track'
 }
 
 /// "This face is not that person" - auto-grouping never redoes a correction.
@@ -316,6 +356,20 @@ class BodyRejections extends Table {
 
   @override
   Set<Column> get primaryKey => {bodyId, personId};
+}
+
+/// v19: "These two bodies belong to different people" (stored with bodyA < bodyB).
+@DataClassName('BodyDistinctRow')
+class BodyDistinct extends Table {
+  @ReferenceName('distinctBodyAsA')
+  IntColumn get bodyA =>
+      integer().references(Bodies, #id, onDelete: KeyAction.cascade)();
+  @ReferenceName('distinctBodyAsB')
+  IntColumn get bodyB =>
+      integer().references(Bodies, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column> get primaryKey => {bodyA, bodyB};
 }
 
 /// "These two people are different" (stored with personA < personB).

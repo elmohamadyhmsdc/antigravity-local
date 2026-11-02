@@ -86,6 +86,9 @@ class LibraryStats {
     EquipmentObjects,
     EquipmentPhotos,
     PersonMediaMoves,
+    FaceOverrides,
+    BodyOverrides,
+    BodyDistinct,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -93,7 +96,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 18;
+  static const currentSchemaVersion = 19;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -333,6 +336,28 @@ class AppDatabase extends _$AppDatabase {
         if (!existing.contains('person_media_moves')) {
           await m.createTable(personMediaMoves);
         }
+      }
+      if (from < 19) {
+        final existing = (await customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table'",
+        ).get()).map((r) => r.read<String>('name')).toSet();
+        if (!existing.contains('body_overrides')) {
+          await m.createTable(bodyOverrides);
+        }
+        if (!existing.contains('body_distinct')) {
+          await m.createTable(bodyDistinct);
+        }
+        if (!existing.contains('face_overrides')) {
+          await m.createTable(faceOverrides);
+        }
+        await addMissing(bodies, [bodies.ownership, bodies.hidden]);
+        await addMissing(faces, [faces.ownership]);
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS body_overrides_asset ON body_overrides (asset_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS face_overrides_asset ON face_overrides (asset_id)',
+        );
       }
     },
     beforeOpen: (details) async {

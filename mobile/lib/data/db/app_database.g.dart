@@ -2378,6 +2378,17 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
     requiredDuringInsert: false,
     defaultValue: const Constant('person'),
   );
+  static const VerificationMeta _ownershipMeta = const VerificationMeta(
+    'ownership',
+  );
+  @override
+  late final GeneratedColumn<String> ownership = GeneratedColumn<String>(
+    'ownership',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2407,6 +2418,7 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
     hidden,
     trackId,
     kind,
+    ownership,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2621,6 +2633,12 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
         kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
       );
     }
+    if (data.containsKey('ownership')) {
+      context.handle(
+        _ownershipMeta,
+        ownership.isAcceptableOrUnknown(data['ownership']!, _ownershipMeta),
+      );
+    }
     return context;
   }
 
@@ -2738,6 +2756,10 @@ class $FacesTable extends Faces with TableInfo<$FacesTable, FaceRow> {
         DriftSqlType.string,
         data['${effectivePrefix}kind'],
       )!,
+      ownership: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ownership'],
+      ),
     );
   }
 
@@ -2775,6 +2797,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
   final bool hidden;
   final int? trackId;
   final String kind;
+  final String? ownership;
   const FaceRow({
     required this.id,
     this.mediaId,
@@ -2803,6 +2826,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     required this.hidden,
     this.trackId,
     required this.kind,
+    this.ownership,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2856,6 +2880,9 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       map['track_id'] = Variable<int>(trackId);
     }
     map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || ownership != null) {
+      map['ownership'] = Variable<String>(ownership);
+    }
     return map;
   }
 
@@ -2904,6 +2931,9 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           ? const Value.absent()
           : Value(trackId),
       kind: Value(kind),
+      ownership: ownership == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownership),
     );
   }
 
@@ -2940,6 +2970,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       hidden: serializer.fromJson<bool>(json['hidden']),
       trackId: serializer.fromJson<int?>(json['trackId']),
       kind: serializer.fromJson<String>(json['kind']),
+      ownership: serializer.fromJson<String?>(json['ownership']),
     );
   }
   @override
@@ -2973,6 +3004,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       'hidden': serializer.toJson<bool>(hidden),
       'trackId': serializer.toJson<int?>(trackId),
       'kind': serializer.toJson<String>(kind),
+      'ownership': serializer.toJson<String?>(ownership),
     };
   }
 
@@ -3004,6 +3036,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     bool? hidden,
     Value<int?> trackId = const Value.absent(),
     String? kind,
+    Value<String?> ownership = const Value.absent(),
   }) => FaceRow(
     id: id ?? this.id,
     mediaId: mediaId.present ? mediaId.value : this.mediaId,
@@ -3034,6 +3067,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     hidden: hidden ?? this.hidden,
     trackId: trackId.present ? trackId.value : this.trackId,
     kind: kind ?? this.kind,
+    ownership: ownership.present ? ownership.value : this.ownership,
   );
   FaceRow copyWithCompanion(FacesCompanion data) {
     return FaceRow(
@@ -3076,6 +3110,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
       hidden: data.hidden.present ? data.hidden.value : this.hidden,
       trackId: data.trackId.present ? data.trackId.value : this.trackId,
       kind: data.kind.present ? data.kind.value : this.kind,
+      ownership: data.ownership.present ? data.ownership.value : this.ownership,
     );
   }
 
@@ -3108,7 +3143,8 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           ..write('createdAt: $createdAt, ')
           ..write('hidden: $hidden, ')
           ..write('trackId: $trackId, ')
-          ..write('kind: $kind')
+          ..write('kind: $kind, ')
+          ..write('ownership: $ownership')
           ..write(')'))
         .toString();
   }
@@ -3142,6 +3178,7 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
     hidden,
     trackId,
     kind,
+    ownership,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -3173,7 +3210,8 @@ class FaceRow extends DataClass implements Insertable<FaceRow> {
           other.createdAt == this.createdAt &&
           other.hidden == this.hidden &&
           other.trackId == this.trackId &&
-          other.kind == this.kind);
+          other.kind == this.kind &&
+          other.ownership == this.ownership);
 }
 
 class FacesCompanion extends UpdateCompanion<FaceRow> {
@@ -3204,6 +3242,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
   final Value<bool> hidden;
   final Value<int?> trackId;
   final Value<String> kind;
+  final Value<String?> ownership;
   const FacesCompanion({
     this.id = const Value.absent(),
     this.mediaId = const Value.absent(),
@@ -3232,6 +3271,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     this.hidden = const Value.absent(),
     this.trackId = const Value.absent(),
     this.kind = const Value.absent(),
+    this.ownership = const Value.absent(),
   });
   FacesCompanion.insert({
     this.id = const Value.absent(),
@@ -3261,6 +3301,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     this.hidden = const Value.absent(),
     this.trackId = const Value.absent(),
     this.kind = const Value.absent(),
+    this.ownership = const Value.absent(),
   }) : modelId = Value(modelId),
        embedding = Value(embedding),
        qualityScore = Value(qualityScore),
@@ -3301,6 +3342,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     Expression<bool>? hidden,
     Expression<int>? trackId,
     Expression<String>? kind,
+    Expression<String>? ownership,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3330,6 +3372,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
       if (hidden != null) 'hidden': hidden,
       if (trackId != null) 'track_id': trackId,
       if (kind != null) 'kind': kind,
+      if (ownership != null) 'ownership': ownership,
     });
   }
 
@@ -3361,6 +3404,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     Value<bool>? hidden,
     Value<int?>? trackId,
     Value<String>? kind,
+    Value<String?>? ownership,
   }) {
     return FacesCompanion(
       id: id ?? this.id,
@@ -3390,6 +3434,7 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
       hidden: hidden ?? this.hidden,
       trackId: trackId ?? this.trackId,
       kind: kind ?? this.kind,
+      ownership: ownership ?? this.ownership,
     );
   }
 
@@ -3477,6 +3522,9 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
     if (kind.present) {
       map['kind'] = Variable<String>(kind.value);
     }
+    if (ownership.present) {
+      map['ownership'] = Variable<String>(ownership.value);
+    }
     return map;
   }
 
@@ -3509,7 +3557,8 @@ class FacesCompanion extends UpdateCompanion<FaceRow> {
           ..write('createdAt: $createdAt, ')
           ..write('hidden: $hidden, ')
           ..write('trackId: $trackId, ')
-          ..write('kind: $kind')
+          ..write('kind: $kind, ')
+          ..write('ownership: $ownership')
           ..write(')'))
         .toString();
   }
@@ -5286,6 +5335,30 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _ownershipMeta = const VerificationMeta(
+    'ownership',
+  );
+  @override
+  late final GeneratedColumn<String> ownership = GeneratedColumn<String>(
+    'ownership',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _hiddenMeta = const VerificationMeta('hidden');
+  @override
+  late final GeneratedColumn<bool> hidden = GeneratedColumn<bool>(
+    'hidden',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("hidden" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5315,6 +5388,8 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
     chestClusterId,
     buttocksClusterId,
     morphology,
+    ownership,
+    hidden,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5526,6 +5601,18 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
         morphology.isAcceptableOrUnknown(data['morphology']!, _morphologyMeta),
       );
     }
+    if (data.containsKey('ownership')) {
+      context.handle(
+        _ownershipMeta,
+        ownership.isAcceptableOrUnknown(data['ownership']!, _ownershipMeta),
+      );
+    }
+    if (data.containsKey('hidden')) {
+      context.handle(
+        _hiddenMeta,
+        hidden.isAcceptableOrUnknown(data['hidden']!, _hiddenMeta),
+      );
+    }
     return context;
   }
 
@@ -5643,6 +5730,14 @@ class $BodiesTable extends Bodies with TableInfo<$BodiesTable, BodyRow> {
         DriftSqlType.string,
         data['${effectivePrefix}morphology'],
       ),
+      ownership: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ownership'],
+      ),
+      hidden: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}hidden'],
+      )!,
     );
   }
 
@@ -5680,6 +5775,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
   final int? chestClusterId;
   final int? buttocksClusterId;
   final String? morphology;
+  final String? ownership;
+  final bool hidden;
   const BodyRow({
     required this.id,
     this.mediaId,
@@ -5708,6 +5805,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     this.chestClusterId,
     this.buttocksClusterId,
     this.morphology,
+    this.ownership,
+    required this.hidden,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5777,6 +5876,10 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     if (!nullToAbsent || morphology != null) {
       map['morphology'] = Variable<String>(morphology);
     }
+    if (!nullToAbsent || ownership != null) {
+      map['ownership'] = Variable<String>(ownership);
+    }
+    map['hidden'] = Variable<bool>(hidden);
     return map;
   }
 
@@ -5845,6 +5948,10 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       morphology: morphology == null && nullToAbsent
           ? const Value.absent()
           : Value(morphology),
+      ownership: ownership == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownership),
+      hidden: Value(hidden),
     );
   }
 
@@ -5885,6 +5992,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       chestClusterId: serializer.fromJson<int?>(json['chestClusterId']),
       buttocksClusterId: serializer.fromJson<int?>(json['buttocksClusterId']),
       morphology: serializer.fromJson<String?>(json['morphology']),
+      ownership: serializer.fromJson<String?>(json['ownership']),
+      hidden: serializer.fromJson<bool>(json['hidden']),
     );
   }
   @override
@@ -5918,6 +6027,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       'chestClusterId': serializer.toJson<int?>(chestClusterId),
       'buttocksClusterId': serializer.toJson<int?>(buttocksClusterId),
       'morphology': serializer.toJson<String?>(morphology),
+      'ownership': serializer.toJson<String?>(ownership),
+      'hidden': serializer.toJson<bool>(hidden),
     };
   }
 
@@ -5949,6 +6060,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     Value<int?> chestClusterId = const Value.absent(),
     Value<int?> buttocksClusterId = const Value.absent(),
     Value<String?> morphology = const Value.absent(),
+    Value<String?> ownership = const Value.absent(),
+    bool? hidden,
   }) => BodyRow(
     id: id ?? this.id,
     mediaId: mediaId.present ? mediaId.value : this.mediaId,
@@ -5991,6 +6104,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
         ? buttocksClusterId.value
         : this.buttocksClusterId,
     morphology: morphology.present ? morphology.value : this.morphology,
+    ownership: ownership.present ? ownership.value : this.ownership,
+    hidden: hidden ?? this.hidden,
   );
   BodyRow copyWithCompanion(BodiesCompanion data) {
     return BodyRow(
@@ -6045,6 +6160,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
       morphology: data.morphology.present
           ? data.morphology.value
           : this.morphology,
+      ownership: data.ownership.present ? data.ownership.value : this.ownership,
+      hidden: data.hidden.present ? data.hidden.value : this.hidden,
     );
   }
 
@@ -6077,7 +6194,9 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           ..write('buttocksEmbedding: $buttocksEmbedding, ')
           ..write('chestClusterId: $chestClusterId, ')
           ..write('buttocksClusterId: $buttocksClusterId, ')
-          ..write('morphology: $morphology')
+          ..write('morphology: $morphology, ')
+          ..write('ownership: $ownership, ')
+          ..write('hidden: $hidden')
           ..write(')'))
         .toString();
   }
@@ -6111,6 +6230,8 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
     chestClusterId,
     buttocksClusterId,
     morphology,
+    ownership,
+    hidden,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -6151,7 +6272,9 @@ class BodyRow extends DataClass implements Insertable<BodyRow> {
           ) &&
           other.chestClusterId == this.chestClusterId &&
           other.buttocksClusterId == this.buttocksClusterId &&
-          other.morphology == this.morphology);
+          other.morphology == this.morphology &&
+          other.ownership == this.ownership &&
+          other.hidden == this.hidden);
 }
 
 class BodiesCompanion extends UpdateCompanion<BodyRow> {
@@ -6182,6 +6305,8 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
   final Value<int?> chestClusterId;
   final Value<int?> buttocksClusterId;
   final Value<String?> morphology;
+  final Value<String?> ownership;
+  final Value<bool> hidden;
   const BodiesCompanion({
     this.id = const Value.absent(),
     this.mediaId = const Value.absent(),
@@ -6210,6 +6335,8 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     this.chestClusterId = const Value.absent(),
     this.buttocksClusterId = const Value.absent(),
     this.morphology = const Value.absent(),
+    this.ownership = const Value.absent(),
+    this.hidden = const Value.absent(),
   });
   BodiesCompanion.insert({
     this.id = const Value.absent(),
@@ -6239,6 +6366,8 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     this.chestClusterId = const Value.absent(),
     this.buttocksClusterId = const Value.absent(),
     this.morphology = const Value.absent(),
+    this.ownership = const Value.absent(),
+    this.hidden = const Value.absent(),
   }) : bboxX = Value(bboxX),
        bboxY = Value(bboxY),
        bboxW = Value(bboxW),
@@ -6273,6 +6402,8 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     Expression<int>? chestClusterId,
     Expression<int>? buttocksClusterId,
     Expression<String>? morphology,
+    Expression<String>? ownership,
+    Expression<bool>? hidden,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -6302,6 +6433,8 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
       if (chestClusterId != null) 'chest_cluster_id': chestClusterId,
       if (buttocksClusterId != null) 'buttocks_cluster_id': buttocksClusterId,
       if (morphology != null) 'morphology': morphology,
+      if (ownership != null) 'ownership': ownership,
+      if (hidden != null) 'hidden': hidden,
     });
   }
 
@@ -6333,6 +6466,8 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     Value<int?>? chestClusterId,
     Value<int?>? buttocksClusterId,
     Value<String?>? morphology,
+    Value<String?>? ownership,
+    Value<bool>? hidden,
   }) {
     return BodiesCompanion(
       id: id ?? this.id,
@@ -6362,6 +6497,8 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
       chestClusterId: chestClusterId ?? this.chestClusterId,
       buttocksClusterId: buttocksClusterId ?? this.buttocksClusterId,
       morphology: morphology ?? this.morphology,
+      ownership: ownership ?? this.ownership,
+      hidden: hidden ?? this.hidden,
     );
   }
 
@@ -6449,6 +6586,12 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
     if (morphology.present) {
       map['morphology'] = Variable<String>(morphology.value);
     }
+    if (ownership.present) {
+      map['ownership'] = Variable<String>(ownership.value);
+    }
+    if (hidden.present) {
+      map['hidden'] = Variable<bool>(hidden.value);
+    }
     return map;
   }
 
@@ -6481,7 +6624,9 @@ class BodiesCompanion extends UpdateCompanion<BodyRow> {
           ..write('buttocksEmbedding: $buttocksEmbedding, ')
           ..write('chestClusterId: $chestClusterId, ')
           ..write('buttocksClusterId: $buttocksClusterId, ')
-          ..write('morphology: $morphology')
+          ..write('morphology: $morphology, ')
+          ..write('ownership: $ownership, ')
+          ..write('hidden: $hidden')
           ..write(')'))
         .toString();
   }
@@ -21204,6 +21349,1324 @@ class PersonMediaMovesCompanion extends UpdateCompanion<PersonMediaMoveRow> {
   }
 }
 
+class $FaceOverridesTable extends FaceOverrides
+    with TableInfo<$FaceOverridesTable, FaceOverrideRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FaceOverridesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _assetIdMeta = const VerificationMeta(
+    'assetId',
+  );
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+    'asset_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _xMeta = const VerificationMeta('x');
+  @override
+  late final GeneratedColumn<double> x = GeneratedColumn<double>(
+    'x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _yMeta = const VerificationMeta('y');
+  @override
+  late final GeneratedColumn<double> y = GeneratedColumn<double>(
+    'y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _wMeta = const VerificationMeta('w');
+  @override
+  late final GeneratedColumn<double> w = GeneratedColumn<double>(
+    'w',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hMeta = const VerificationMeta('h');
+  @override
+  late final GeneratedColumn<double> h = GeneratedColumn<double>(
+    'h',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _timestampMsMeta = const VerificationMeta(
+    'timestampMs',
+  );
+  @override
+  late final GeneratedColumn<int> timestampMs = GeneratedColumn<int>(
+    'timestamp_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ownershipMeta = const VerificationMeta(
+    'ownership',
+  );
+  @override
+  late final GeneratedColumn<String> ownership = GeneratedColumn<String>(
+    'ownership',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('single'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    assetId,
+    x,
+    y,
+    w,
+    h,
+    timestampMs,
+    ownership,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'face_overrides';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FaceOverrideRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(
+        _assetIdMeta,
+        assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_assetIdMeta);
+    }
+    if (data.containsKey('x')) {
+      context.handle(_xMeta, x.isAcceptableOrUnknown(data['x']!, _xMeta));
+    } else if (isInserting) {
+      context.missing(_xMeta);
+    }
+    if (data.containsKey('y')) {
+      context.handle(_yMeta, y.isAcceptableOrUnknown(data['y']!, _yMeta));
+    } else if (isInserting) {
+      context.missing(_yMeta);
+    }
+    if (data.containsKey('w')) {
+      context.handle(_wMeta, w.isAcceptableOrUnknown(data['w']!, _wMeta));
+    } else if (isInserting) {
+      context.missing(_wMeta);
+    }
+    if (data.containsKey('h')) {
+      context.handle(_hMeta, h.isAcceptableOrUnknown(data['h']!, _hMeta));
+    } else if (isInserting) {
+      context.missing(_hMeta);
+    }
+    if (data.containsKey('timestamp_ms')) {
+      context.handle(
+        _timestampMsMeta,
+        timestampMs.isAcceptableOrUnknown(
+          data['timestamp_ms']!,
+          _timestampMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ownership')) {
+      context.handle(
+        _ownershipMeta,
+        ownership.isAcceptableOrUnknown(data['ownership']!, _ownershipMeta),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FaceOverrideRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FaceOverrideRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      assetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}asset_id'],
+      )!,
+      x: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}x'],
+      )!,
+      y: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}y'],
+      )!,
+      w: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}w'],
+      )!,
+      h: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}h'],
+      )!,
+      timestampMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}timestamp_ms'],
+      ),
+      ownership: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ownership'],
+      ),
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $FaceOverridesTable createAlias(String alias) {
+    return $FaceOverridesTable(attachedDatabase, alias);
+  }
+}
+
+class FaceOverrideRow extends DataClass implements Insertable<FaceOverrideRow> {
+  final int id;
+  final String assetId;
+  final double x;
+  final double y;
+  final double w;
+  final double h;
+  final int? timestampMs;
+  final String? ownership;
+  final String scope;
+  const FaceOverrideRow({
+    required this.id,
+    required this.assetId,
+    required this.x,
+    required this.y,
+    required this.w,
+    required this.h,
+    this.timestampMs,
+    this.ownership,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['asset_id'] = Variable<String>(assetId);
+    map['x'] = Variable<double>(x);
+    map['y'] = Variable<double>(y);
+    map['w'] = Variable<double>(w);
+    map['h'] = Variable<double>(h);
+    if (!nullToAbsent || timestampMs != null) {
+      map['timestamp_ms'] = Variable<int>(timestampMs);
+    }
+    if (!nullToAbsent || ownership != null) {
+      map['ownership'] = Variable<String>(ownership);
+    }
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  FaceOverridesCompanion toCompanion(bool nullToAbsent) {
+    return FaceOverridesCompanion(
+      id: Value(id),
+      assetId: Value(assetId),
+      x: Value(x),
+      y: Value(y),
+      w: Value(w),
+      h: Value(h),
+      timestampMs: timestampMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timestampMs),
+      ownership: ownership == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownership),
+      scope: Value(scope),
+    );
+  }
+
+  factory FaceOverrideRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FaceOverrideRow(
+      id: serializer.fromJson<int>(json['id']),
+      assetId: serializer.fromJson<String>(json['assetId']),
+      x: serializer.fromJson<double>(json['x']),
+      y: serializer.fromJson<double>(json['y']),
+      w: serializer.fromJson<double>(json['w']),
+      h: serializer.fromJson<double>(json['h']),
+      timestampMs: serializer.fromJson<int?>(json['timestampMs']),
+      ownership: serializer.fromJson<String?>(json['ownership']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'assetId': serializer.toJson<String>(assetId),
+      'x': serializer.toJson<double>(x),
+      'y': serializer.toJson<double>(y),
+      'w': serializer.toJson<double>(w),
+      'h': serializer.toJson<double>(h),
+      'timestampMs': serializer.toJson<int?>(timestampMs),
+      'ownership': serializer.toJson<String?>(ownership),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  FaceOverrideRow copyWith({
+    int? id,
+    String? assetId,
+    double? x,
+    double? y,
+    double? w,
+    double? h,
+    Value<int?> timestampMs = const Value.absent(),
+    Value<String?> ownership = const Value.absent(),
+    String? scope,
+  }) => FaceOverrideRow(
+    id: id ?? this.id,
+    assetId: assetId ?? this.assetId,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    w: w ?? this.w,
+    h: h ?? this.h,
+    timestampMs: timestampMs.present ? timestampMs.value : this.timestampMs,
+    ownership: ownership.present ? ownership.value : this.ownership,
+    scope: scope ?? this.scope,
+  );
+  FaceOverrideRow copyWithCompanion(FaceOverridesCompanion data) {
+    return FaceOverrideRow(
+      id: data.id.present ? data.id.value : this.id,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      x: data.x.present ? data.x.value : this.x,
+      y: data.y.present ? data.y.value : this.y,
+      w: data.w.present ? data.w.value : this.w,
+      h: data.h.present ? data.h.value : this.h,
+      timestampMs: data.timestampMs.present
+          ? data.timestampMs.value
+          : this.timestampMs,
+      ownership: data.ownership.present ? data.ownership.value : this.ownership,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FaceOverrideRow(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('ownership: $ownership, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, assetId, x, y, w, h, timestampMs, ownership, scope);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FaceOverrideRow &&
+          other.id == this.id &&
+          other.assetId == this.assetId &&
+          other.x == this.x &&
+          other.y == this.y &&
+          other.w == this.w &&
+          other.h == this.h &&
+          other.timestampMs == this.timestampMs &&
+          other.ownership == this.ownership &&
+          other.scope == this.scope);
+}
+
+class FaceOverridesCompanion extends UpdateCompanion<FaceOverrideRow> {
+  final Value<int> id;
+  final Value<String> assetId;
+  final Value<double> x;
+  final Value<double> y;
+  final Value<double> w;
+  final Value<double> h;
+  final Value<int?> timestampMs;
+  final Value<String?> ownership;
+  final Value<String> scope;
+  const FaceOverridesCompanion({
+    this.id = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.w = const Value.absent(),
+    this.h = const Value.absent(),
+    this.timestampMs = const Value.absent(),
+    this.ownership = const Value.absent(),
+    this.scope = const Value.absent(),
+  });
+  FaceOverridesCompanion.insert({
+    this.id = const Value.absent(),
+    required String assetId,
+    required double x,
+    required double y,
+    required double w,
+    required double h,
+    this.timestampMs = const Value.absent(),
+    this.ownership = const Value.absent(),
+    this.scope = const Value.absent(),
+  }) : assetId = Value(assetId),
+       x = Value(x),
+       y = Value(y),
+       w = Value(w),
+       h = Value(h);
+  static Insertable<FaceOverrideRow> custom({
+    Expression<int>? id,
+    Expression<String>? assetId,
+    Expression<double>? x,
+    Expression<double>? y,
+    Expression<double>? w,
+    Expression<double>? h,
+    Expression<int>? timestampMs,
+    Expression<String>? ownership,
+    Expression<String>? scope,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (assetId != null) 'asset_id': assetId,
+      if (x != null) 'x': x,
+      if (y != null) 'y': y,
+      if (w != null) 'w': w,
+      if (h != null) 'h': h,
+      if (timestampMs != null) 'timestamp_ms': timestampMs,
+      if (ownership != null) 'ownership': ownership,
+      if (scope != null) 'scope': scope,
+    });
+  }
+
+  FaceOverridesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? assetId,
+    Value<double>? x,
+    Value<double>? y,
+    Value<double>? w,
+    Value<double>? h,
+    Value<int?>? timestampMs,
+    Value<String?>? ownership,
+    Value<String>? scope,
+  }) {
+    return FaceOverridesCompanion(
+      id: id ?? this.id,
+      assetId: assetId ?? this.assetId,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      w: w ?? this.w,
+      h: h ?? this.h,
+      timestampMs: timestampMs ?? this.timestampMs,
+      ownership: ownership ?? this.ownership,
+      scope: scope ?? this.scope,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (x.present) {
+      map['x'] = Variable<double>(x.value);
+    }
+    if (y.present) {
+      map['y'] = Variable<double>(y.value);
+    }
+    if (w.present) {
+      map['w'] = Variable<double>(w.value);
+    }
+    if (h.present) {
+      map['h'] = Variable<double>(h.value);
+    }
+    if (timestampMs.present) {
+      map['timestamp_ms'] = Variable<int>(timestampMs.value);
+    }
+    if (ownership.present) {
+      map['ownership'] = Variable<String>(ownership.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FaceOverridesCompanion(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('ownership: $ownership, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BodyOverridesTable extends BodyOverrides
+    with TableInfo<$BodyOverridesTable, BodyOverrideRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BodyOverridesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _assetIdMeta = const VerificationMeta(
+    'assetId',
+  );
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+    'asset_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _xMeta = const VerificationMeta('x');
+  @override
+  late final GeneratedColumn<double> x = GeneratedColumn<double>(
+    'x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _yMeta = const VerificationMeta('y');
+  @override
+  late final GeneratedColumn<double> y = GeneratedColumn<double>(
+    'y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _wMeta = const VerificationMeta('w');
+  @override
+  late final GeneratedColumn<double> w = GeneratedColumn<double>(
+    'w',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hMeta = const VerificationMeta('h');
+  @override
+  late final GeneratedColumn<double> h = GeneratedColumn<double>(
+    'h',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _timestampMsMeta = const VerificationMeta(
+    'timestampMs',
+  );
+  @override
+  late final GeneratedColumn<int> timestampMs = GeneratedColumn<int>(
+    'timestamp_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ownershipMeta = const VerificationMeta(
+    'ownership',
+  );
+  @override
+  late final GeneratedColumn<String> ownership = GeneratedColumn<String>(
+    'ownership',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _hiddenMeta = const VerificationMeta('hidden');
+  @override
+  late final GeneratedColumn<bool> hidden = GeneratedColumn<bool>(
+    'hidden',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("hidden" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('single'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    assetId,
+    x,
+    y,
+    w,
+    h,
+    timestampMs,
+    ownership,
+    hidden,
+    scope,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'body_overrides';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BodyOverrideRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(
+        _assetIdMeta,
+        assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_assetIdMeta);
+    }
+    if (data.containsKey('x')) {
+      context.handle(_xMeta, x.isAcceptableOrUnknown(data['x']!, _xMeta));
+    } else if (isInserting) {
+      context.missing(_xMeta);
+    }
+    if (data.containsKey('y')) {
+      context.handle(_yMeta, y.isAcceptableOrUnknown(data['y']!, _yMeta));
+    } else if (isInserting) {
+      context.missing(_yMeta);
+    }
+    if (data.containsKey('w')) {
+      context.handle(_wMeta, w.isAcceptableOrUnknown(data['w']!, _wMeta));
+    } else if (isInserting) {
+      context.missing(_wMeta);
+    }
+    if (data.containsKey('h')) {
+      context.handle(_hMeta, h.isAcceptableOrUnknown(data['h']!, _hMeta));
+    } else if (isInserting) {
+      context.missing(_hMeta);
+    }
+    if (data.containsKey('timestamp_ms')) {
+      context.handle(
+        _timestampMsMeta,
+        timestampMs.isAcceptableOrUnknown(
+          data['timestamp_ms']!,
+          _timestampMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ownership')) {
+      context.handle(
+        _ownershipMeta,
+        ownership.isAcceptableOrUnknown(data['ownership']!, _ownershipMeta),
+      );
+    }
+    if (data.containsKey('hidden')) {
+      context.handle(
+        _hiddenMeta,
+        hidden.isAcceptableOrUnknown(data['hidden']!, _hiddenMeta),
+      );
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BodyOverrideRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BodyOverrideRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      assetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}asset_id'],
+      )!,
+      x: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}x'],
+      )!,
+      y: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}y'],
+      )!,
+      w: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}w'],
+      )!,
+      h: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}h'],
+      )!,
+      timestampMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}timestamp_ms'],
+      ),
+      ownership: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ownership'],
+      ),
+      hidden: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}hidden'],
+      )!,
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+    );
+  }
+
+  @override
+  $BodyOverridesTable createAlias(String alias) {
+    return $BodyOverridesTable(attachedDatabase, alias);
+  }
+}
+
+class BodyOverrideRow extends DataClass implements Insertable<BodyOverrideRow> {
+  final int id;
+  final String assetId;
+  final double x;
+  final double y;
+  final double w;
+  final double h;
+  final int? timestampMs;
+  final String? ownership;
+  final bool hidden;
+  final String scope;
+  const BodyOverrideRow({
+    required this.id,
+    required this.assetId,
+    required this.x,
+    required this.y,
+    required this.w,
+    required this.h,
+    this.timestampMs,
+    this.ownership,
+    required this.hidden,
+    required this.scope,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['asset_id'] = Variable<String>(assetId);
+    map['x'] = Variable<double>(x);
+    map['y'] = Variable<double>(y);
+    map['w'] = Variable<double>(w);
+    map['h'] = Variable<double>(h);
+    if (!nullToAbsent || timestampMs != null) {
+      map['timestamp_ms'] = Variable<int>(timestampMs);
+    }
+    if (!nullToAbsent || ownership != null) {
+      map['ownership'] = Variable<String>(ownership);
+    }
+    map['hidden'] = Variable<bool>(hidden);
+    map['scope'] = Variable<String>(scope);
+    return map;
+  }
+
+  BodyOverridesCompanion toCompanion(bool nullToAbsent) {
+    return BodyOverridesCompanion(
+      id: Value(id),
+      assetId: Value(assetId),
+      x: Value(x),
+      y: Value(y),
+      w: Value(w),
+      h: Value(h),
+      timestampMs: timestampMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timestampMs),
+      ownership: ownership == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownership),
+      hidden: Value(hidden),
+      scope: Value(scope),
+    );
+  }
+
+  factory BodyOverrideRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BodyOverrideRow(
+      id: serializer.fromJson<int>(json['id']),
+      assetId: serializer.fromJson<String>(json['assetId']),
+      x: serializer.fromJson<double>(json['x']),
+      y: serializer.fromJson<double>(json['y']),
+      w: serializer.fromJson<double>(json['w']),
+      h: serializer.fromJson<double>(json['h']),
+      timestampMs: serializer.fromJson<int?>(json['timestampMs']),
+      ownership: serializer.fromJson<String?>(json['ownership']),
+      hidden: serializer.fromJson<bool>(json['hidden']),
+      scope: serializer.fromJson<String>(json['scope']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'assetId': serializer.toJson<String>(assetId),
+      'x': serializer.toJson<double>(x),
+      'y': serializer.toJson<double>(y),
+      'w': serializer.toJson<double>(w),
+      'h': serializer.toJson<double>(h),
+      'timestampMs': serializer.toJson<int?>(timestampMs),
+      'ownership': serializer.toJson<String?>(ownership),
+      'hidden': serializer.toJson<bool>(hidden),
+      'scope': serializer.toJson<String>(scope),
+    };
+  }
+
+  BodyOverrideRow copyWith({
+    int? id,
+    String? assetId,
+    double? x,
+    double? y,
+    double? w,
+    double? h,
+    Value<int?> timestampMs = const Value.absent(),
+    Value<String?> ownership = const Value.absent(),
+    bool? hidden,
+    String? scope,
+  }) => BodyOverrideRow(
+    id: id ?? this.id,
+    assetId: assetId ?? this.assetId,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    w: w ?? this.w,
+    h: h ?? this.h,
+    timestampMs: timestampMs.present ? timestampMs.value : this.timestampMs,
+    ownership: ownership.present ? ownership.value : this.ownership,
+    hidden: hidden ?? this.hidden,
+    scope: scope ?? this.scope,
+  );
+  BodyOverrideRow copyWithCompanion(BodyOverridesCompanion data) {
+    return BodyOverrideRow(
+      id: data.id.present ? data.id.value : this.id,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      x: data.x.present ? data.x.value : this.x,
+      y: data.y.present ? data.y.value : this.y,
+      w: data.w.present ? data.w.value : this.w,
+      h: data.h.present ? data.h.value : this.h,
+      timestampMs: data.timestampMs.present
+          ? data.timestampMs.value
+          : this.timestampMs,
+      ownership: data.ownership.present ? data.ownership.value : this.ownership,
+      hidden: data.hidden.present ? data.hidden.value : this.hidden,
+      scope: data.scope.present ? data.scope.value : this.scope,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyOverrideRow(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('ownership: $ownership, ')
+          ..write('hidden: $hidden, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    assetId,
+    x,
+    y,
+    w,
+    h,
+    timestampMs,
+    ownership,
+    hidden,
+    scope,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BodyOverrideRow &&
+          other.id == this.id &&
+          other.assetId == this.assetId &&
+          other.x == this.x &&
+          other.y == this.y &&
+          other.w == this.w &&
+          other.h == this.h &&
+          other.timestampMs == this.timestampMs &&
+          other.ownership == this.ownership &&
+          other.hidden == this.hidden &&
+          other.scope == this.scope);
+}
+
+class BodyOverridesCompanion extends UpdateCompanion<BodyOverrideRow> {
+  final Value<int> id;
+  final Value<String> assetId;
+  final Value<double> x;
+  final Value<double> y;
+  final Value<double> w;
+  final Value<double> h;
+  final Value<int?> timestampMs;
+  final Value<String?> ownership;
+  final Value<bool> hidden;
+  final Value<String> scope;
+  const BodyOverridesCompanion({
+    this.id = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.w = const Value.absent(),
+    this.h = const Value.absent(),
+    this.timestampMs = const Value.absent(),
+    this.ownership = const Value.absent(),
+    this.hidden = const Value.absent(),
+    this.scope = const Value.absent(),
+  });
+  BodyOverridesCompanion.insert({
+    this.id = const Value.absent(),
+    required String assetId,
+    required double x,
+    required double y,
+    required double w,
+    required double h,
+    this.timestampMs = const Value.absent(),
+    this.ownership = const Value.absent(),
+    this.hidden = const Value.absent(),
+    this.scope = const Value.absent(),
+  }) : assetId = Value(assetId),
+       x = Value(x),
+       y = Value(y),
+       w = Value(w),
+       h = Value(h);
+  static Insertable<BodyOverrideRow> custom({
+    Expression<int>? id,
+    Expression<String>? assetId,
+    Expression<double>? x,
+    Expression<double>? y,
+    Expression<double>? w,
+    Expression<double>? h,
+    Expression<int>? timestampMs,
+    Expression<String>? ownership,
+    Expression<bool>? hidden,
+    Expression<String>? scope,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (assetId != null) 'asset_id': assetId,
+      if (x != null) 'x': x,
+      if (y != null) 'y': y,
+      if (w != null) 'w': w,
+      if (h != null) 'h': h,
+      if (timestampMs != null) 'timestamp_ms': timestampMs,
+      if (ownership != null) 'ownership': ownership,
+      if (hidden != null) 'hidden': hidden,
+      if (scope != null) 'scope': scope,
+    });
+  }
+
+  BodyOverridesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? assetId,
+    Value<double>? x,
+    Value<double>? y,
+    Value<double>? w,
+    Value<double>? h,
+    Value<int?>? timestampMs,
+    Value<String?>? ownership,
+    Value<bool>? hidden,
+    Value<String>? scope,
+  }) {
+    return BodyOverridesCompanion(
+      id: id ?? this.id,
+      assetId: assetId ?? this.assetId,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      w: w ?? this.w,
+      h: h ?? this.h,
+      timestampMs: timestampMs ?? this.timestampMs,
+      ownership: ownership ?? this.ownership,
+      hidden: hidden ?? this.hidden,
+      scope: scope ?? this.scope,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (x.present) {
+      map['x'] = Variable<double>(x.value);
+    }
+    if (y.present) {
+      map['y'] = Variable<double>(y.value);
+    }
+    if (w.present) {
+      map['w'] = Variable<double>(w.value);
+    }
+    if (h.present) {
+      map['h'] = Variable<double>(h.value);
+    }
+    if (timestampMs.present) {
+      map['timestamp_ms'] = Variable<int>(timestampMs.value);
+    }
+    if (ownership.present) {
+      map['ownership'] = Variable<String>(ownership.value);
+    }
+    if (hidden.present) {
+      map['hidden'] = Variable<bool>(hidden.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyOverridesCompanion(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('w: $w, ')
+          ..write('h: $h, ')
+          ..write('timestampMs: $timestampMs, ')
+          ..write('ownership: $ownership, ')
+          ..write('hidden: $hidden, ')
+          ..write('scope: $scope')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BodyDistinctTable extends BodyDistinct
+    with TableInfo<$BodyDistinctTable, BodyDistinctRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BodyDistinctTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bodyAMeta = const VerificationMeta('bodyA');
+  @override
+  late final GeneratedColumn<int> bodyA = GeneratedColumn<int>(
+    'body_a',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _bodyBMeta = const VerificationMeta('bodyB');
+  @override
+  late final GeneratedColumn<int> bodyB = GeneratedColumn<int>(
+    'body_b',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES bodies (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [bodyA, bodyB];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'body_distinct';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BodyDistinctRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('body_a')) {
+      context.handle(
+        _bodyAMeta,
+        bodyA.isAcceptableOrUnknown(data['body_a']!, _bodyAMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyAMeta);
+    }
+    if (data.containsKey('body_b')) {
+      context.handle(
+        _bodyBMeta,
+        bodyB.isAcceptableOrUnknown(data['body_b']!, _bodyBMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyBMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {bodyA, bodyB};
+  @override
+  BodyDistinctRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BodyDistinctRow(
+      bodyA: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_a'],
+      )!,
+      bodyB: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}body_b'],
+      )!,
+    );
+  }
+
+  @override
+  $BodyDistinctTable createAlias(String alias) {
+    return $BodyDistinctTable(attachedDatabase, alias);
+  }
+}
+
+class BodyDistinctRow extends DataClass implements Insertable<BodyDistinctRow> {
+  final int bodyA;
+  final int bodyB;
+  const BodyDistinctRow({required this.bodyA, required this.bodyB});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['body_a'] = Variable<int>(bodyA);
+    map['body_b'] = Variable<int>(bodyB);
+    return map;
+  }
+
+  BodyDistinctCompanion toCompanion(bool nullToAbsent) {
+    return BodyDistinctCompanion(bodyA: Value(bodyA), bodyB: Value(bodyB));
+  }
+
+  factory BodyDistinctRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BodyDistinctRow(
+      bodyA: serializer.fromJson<int>(json['bodyA']),
+      bodyB: serializer.fromJson<int>(json['bodyB']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bodyA': serializer.toJson<int>(bodyA),
+      'bodyB': serializer.toJson<int>(bodyB),
+    };
+  }
+
+  BodyDistinctRow copyWith({int? bodyA, int? bodyB}) =>
+      BodyDistinctRow(bodyA: bodyA ?? this.bodyA, bodyB: bodyB ?? this.bodyB);
+  BodyDistinctRow copyWithCompanion(BodyDistinctCompanion data) {
+    return BodyDistinctRow(
+      bodyA: data.bodyA.present ? data.bodyA.value : this.bodyA,
+      bodyB: data.bodyB.present ? data.bodyB.value : this.bodyB,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyDistinctRow(')
+          ..write('bodyA: $bodyA, ')
+          ..write('bodyB: $bodyB')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(bodyA, bodyB);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BodyDistinctRow &&
+          other.bodyA == this.bodyA &&
+          other.bodyB == this.bodyB);
+}
+
+class BodyDistinctCompanion extends UpdateCompanion<BodyDistinctRow> {
+  final Value<int> bodyA;
+  final Value<int> bodyB;
+  final Value<int> rowid;
+  const BodyDistinctCompanion({
+    this.bodyA = const Value.absent(),
+    this.bodyB = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BodyDistinctCompanion.insert({
+    required int bodyA,
+    required int bodyB,
+    this.rowid = const Value.absent(),
+  }) : bodyA = Value(bodyA),
+       bodyB = Value(bodyB);
+  static Insertable<BodyDistinctRow> custom({
+    Expression<int>? bodyA,
+    Expression<int>? bodyB,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (bodyA != null) 'body_a': bodyA,
+      if (bodyB != null) 'body_b': bodyB,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BodyDistinctCompanion copyWith({
+    Value<int>? bodyA,
+    Value<int>? bodyB,
+    Value<int>? rowid,
+  }) {
+    return BodyDistinctCompanion(
+      bodyA: bodyA ?? this.bodyA,
+      bodyB: bodyB ?? this.bodyB,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bodyA.present) {
+      map['body_a'] = Variable<int>(bodyA.value);
+    }
+    if (bodyB.present) {
+      map['body_b'] = Variable<int>(bodyB.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BodyDistinctCompanion(')
+          ..write('bodyA: $bodyA, ')
+          ..write('bodyB: $bodyB, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -21279,6 +22742,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PersonMediaMovesTable personMediaMoves = $PersonMediaMovesTable(
     this,
   );
+  late final $FaceOverridesTable faceOverrides = $FaceOverridesTable(this);
+  late final $BodyOverridesTable bodyOverrides = $BodyOverridesTable(this);
+  late final $BodyDistinctTable bodyDistinct = $BodyDistinctTable(this);
   late final Index mediaScanStatus = Index(
     'media_scan_status',
     'CREATE INDEX media_scan_status ON media (scan_status)',
@@ -21379,6 +22845,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'equipment_objects_media',
     'CREATE INDEX equipment_objects_media ON equipment_objects (media_id)',
   );
+  late final Index faceOverridesAsset = Index(
+    'face_overrides_asset',
+    'CREATE INDEX face_overrides_asset ON face_overrides (asset_id)',
+  );
+  late final Index bodyOverridesAsset = Index(
+    'body_overrides_asset',
+    'CREATE INDEX body_overrides_asset ON body_overrides (asset_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -21426,6 +22900,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     equipmentObjects,
     equipmentPhotos,
     personMediaMoves,
+    faceOverrides,
+    bodyOverrides,
+    bodyDistinct,
     mediaScanStatus,
     facesPersonId,
     facesMediaId,
@@ -21451,6 +22928,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     sensitiveRegionsBody,
     bodyGarmentTagsTag,
     equipmentObjectsMedia,
+    faceOverridesAsset,
+    bodyOverridesAsset,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -21817,6 +23296,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('person_media_moves', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_distinct', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'bodies',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('body_distinct', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -25702,6 +27195,7 @@ typedef $$FacesTableCreateCompanionBuilder =
       Value<bool> hidden,
       Value<int?> trackId,
       Value<String> kind,
+      Value<String?> ownership,
     });
 typedef $$FacesTableUpdateCompanionBuilder =
     FacesCompanion Function({
@@ -25732,6 +27226,7 @@ typedef $$FacesTableUpdateCompanionBuilder =
       Value<bool> hidden,
       Value<int?> trackId,
       Value<String> kind,
+      Value<String?> ownership,
     });
 
 final class $$FacesTableReferences
@@ -25978,6 +27473,11 @@ class $$FacesTableFilterComposer extends Composer<_$AppDatabase, $FacesTable> {
 
   ColumnFilters<String> get kind => $composableBuilder(
     column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownership => $composableBuilder(
+    column: $table.ownership,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -26262,6 +27762,11 @@ class $$FacesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get ownership => $composableBuilder(
+    column: $table.ownership,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MediaTableOrderingComposer get mediaId {
     final $$MediaTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -26404,6 +27909,9 @@ class $$FacesTableAnnotationComposer
 
   GeneratedColumn<String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get ownership =>
+      $composableBuilder(column: $table.ownership, builder: (column) => column);
 
   $$MediaTableAnnotationComposer get mediaId {
     final $$MediaTableAnnotationComposer composer = $composerBuilder(
@@ -26614,6 +28122,7 @@ class $$FacesTableTableManager
                 Value<bool> hidden = const Value.absent(),
                 Value<int?> trackId = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<String?> ownership = const Value.absent(),
               }) => FacesCompanion(
                 id: id,
                 mediaId: mediaId,
@@ -26642,6 +28151,7 @@ class $$FacesTableTableManager
                 hidden: hidden,
                 trackId: trackId,
                 kind: kind,
+                ownership: ownership,
               ),
           createCompanionCallback:
               ({
@@ -26672,6 +28182,7 @@ class $$FacesTableTableManager
                 Value<bool> hidden = const Value.absent(),
                 Value<int?> trackId = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<String?> ownership = const Value.absent(),
               }) => FacesCompanion.insert(
                 id: id,
                 mediaId: mediaId,
@@ -26700,6 +28211,7 @@ class $$FacesTableTableManager
                 hidden: hidden,
                 trackId: trackId,
                 kind: kind,
+                ownership: ownership,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -28113,6 +29625,8 @@ typedef $$BodiesTableCreateCompanionBuilder =
       Value<int?> chestClusterId,
       Value<int?> buttocksClusterId,
       Value<String?> morphology,
+      Value<String?> ownership,
+      Value<bool> hidden,
     });
 typedef $$BodiesTableUpdateCompanionBuilder =
     BodiesCompanion Function({
@@ -28143,6 +29657,8 @@ typedef $$BodiesTableUpdateCompanionBuilder =
       Value<int?> chestClusterId,
       Value<int?> buttocksClusterId,
       Value<String?> morphology,
+      Value<String?> ownership,
+      Value<bool> hidden,
     });
 
 final class $$BodiesTableReferences
@@ -28450,6 +29966,42 @@ final class $$BodiesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$BodyDistinctTable, List<BodyDistinctRow>>
+  _distinctBodyAsATable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodyDistinct,
+    aliasName: 'bodies__id__body_distinct__body_a',
+  );
+
+  $$BodyDistinctTableProcessedTableManager get distinctBodyAsA {
+    final manager = $$BodyDistinctTableTableManager(
+      $_db,
+      $_db.bodyDistinct,
+    ).filter((f) => f.bodyA.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_distinctBodyAsATable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BodyDistinctTable, List<BodyDistinctRow>>
+  _distinctBodyAsBTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.bodyDistinct,
+    aliasName: 'bodies__id__body_distinct__body_b',
+  );
+
+  $$BodyDistinctTableProcessedTableManager get distinctBodyAsB {
+    final manager = $$BodyDistinctTableTableManager(
+      $_db,
+      $_db.bodyDistinct,
+    ).filter((f) => f.bodyB.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_distinctBodyAsBTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$BodiesTableFilterComposer
@@ -28568,6 +30120,16 @@ class $$BodiesTableFilterComposer
 
   ColumnFilters<String> get morphology => $composableBuilder(
     column: $table.morphology,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownership => $composableBuilder(
+    column: $table.ownership,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -28960,6 +30522,56 @@ class $$BodiesTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> distinctBodyAsA(
+    Expression<bool> Function($$BodyDistinctTableFilterComposer f) f,
+  ) {
+    final $$BodyDistinctTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyDistinct,
+      getReferencedColumn: (t) => t.bodyA,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyDistinctTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyDistinct,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> distinctBodyAsB(
+    Expression<bool> Function($$BodyDistinctTableFilterComposer f) f,
+  ) {
+    final $$BodyDistinctTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyDistinct,
+      getReferencedColumn: (t) => t.bodyB,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyDistinctTableFilterComposer(
+            $db: $db,
+            $table: $db.bodyDistinct,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$BodiesTableOrderingComposer
@@ -29078,6 +30690,16 @@ class $$BodiesTableOrderingComposer
 
   ColumnOrderings<String> get morphology => $composableBuilder(
     column: $table.morphology,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownership => $composableBuilder(
+    column: $table.ownership,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -29291,6 +30913,12 @@ class $$BodiesTableAnnotationComposer
     column: $table.morphology,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get ownership =>
+      $composableBuilder(column: $table.ownership, builder: (column) => column);
+
+  GeneratedColumn<bool> get hidden =>
+      $composableBuilder(column: $table.hidden, builder: (column) => column);
 
   $$MediaTableAnnotationComposer get mediaId {
     final $$MediaTableAnnotationComposer composer = $composerBuilder(
@@ -29682,6 +31310,56 @@ class $$BodiesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> distinctBodyAsA<T extends Object>(
+    Expression<T> Function($$BodyDistinctTableAnnotationComposer a) f,
+  ) {
+    final $$BodyDistinctTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyDistinct,
+      getReferencedColumn: (t) => t.bodyA,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyDistinctTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyDistinct,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> distinctBodyAsB<T extends Object>(
+    Expression<T> Function($$BodyDistinctTableAnnotationComposer a) f,
+  ) {
+    final $$BodyDistinctTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.bodyDistinct,
+      getReferencedColumn: (t) => t.bodyB,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodyDistinctTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodyDistinct,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$BodiesTableTableManager
@@ -29714,6 +31392,8 @@ class $$BodiesTableTableManager
             bool sensitiveRegionsRefs,
             bool bodyGarmentTagsRefs,
             bool equipmentObjectsRefs,
+            bool distinctBodyAsA,
+            bool distinctBodyAsB,
           })
         > {
   $$BodiesTableTableManager(_$AppDatabase db, $BodiesTable table)
@@ -29756,6 +31436,8 @@ class $$BodiesTableTableManager
                 Value<int?> chestClusterId = const Value.absent(),
                 Value<int?> buttocksClusterId = const Value.absent(),
                 Value<String?> morphology = const Value.absent(),
+                Value<String?> ownership = const Value.absent(),
+                Value<bool> hidden = const Value.absent(),
               }) => BodiesCompanion(
                 id: id,
                 mediaId: mediaId,
@@ -29784,6 +31466,8 @@ class $$BodiesTableTableManager
                 chestClusterId: chestClusterId,
                 buttocksClusterId: buttocksClusterId,
                 morphology: morphology,
+                ownership: ownership,
+                hidden: hidden,
               ),
           createCompanionCallback:
               ({
@@ -29814,6 +31498,8 @@ class $$BodiesTableTableManager
                 Value<int?> chestClusterId = const Value.absent(),
                 Value<int?> buttocksClusterId = const Value.absent(),
                 Value<String?> morphology = const Value.absent(),
+                Value<String?> ownership = const Value.absent(),
+                Value<bool> hidden = const Value.absent(),
               }) => BodiesCompanion.insert(
                 id: id,
                 mediaId: mediaId,
@@ -29842,6 +31528,8 @@ class $$BodiesTableTableManager
                 chestClusterId: chestClusterId,
                 buttocksClusterId: buttocksClusterId,
                 morphology: morphology,
+                ownership: ownership,
+                hidden: hidden,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -29869,6 +31557,8 @@ class $$BodiesTableTableManager
                 sensitiveRegionsRefs = false,
                 bodyGarmentTagsRefs = false,
                 equipmentObjectsRefs = false,
+                distinctBodyAsA = false,
+                distinctBodyAsB = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -29884,6 +31574,8 @@ class $$BodiesTableTableManager
                     if (sensitiveRegionsRefs) db.sensitiveRegions,
                     if (bodyGarmentTagsRefs) db.bodyGarmentTags,
                     if (equipmentObjectsRefs) db.equipmentObjects,
+                    if (distinctBodyAsA) db.bodyDistinct,
+                    if (distinctBodyAsB) db.bodyDistinct,
                   ],
                   addJoins:
                       <
@@ -30202,6 +31894,48 @@ class $$BodiesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (distinctBodyAsA)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          BodyDistinctRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._distinctBodyAsATable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).distinctBodyAsA,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.bodyA == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (distinctBodyAsB)
+                        await $_getPrefetchedData<
+                          BodyRow,
+                          $BodiesTable,
+                          BodyDistinctRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BodiesTableReferences
+                              ._distinctBodyAsBTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BodiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).distinctBodyAsB,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.bodyB == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -30239,6 +31973,8 @@ typedef $$BodiesTableProcessedTableManager =
         bool sensitiveRegionsRefs,
         bool bodyGarmentTagsRefs,
         bool equipmentObjectsRefs,
+        bool distinctBodyAsA,
+        bool distinctBodyAsB,
       })
     >;
 typedef $$FaceRejectionsTableCreateCompanionBuilder =
@@ -43282,6 +45018,933 @@ typedef $$PersonMediaMovesTableProcessedTableManager =
       PersonMediaMoveRow,
       PrefetchHooks Function({bool mediaId, bool personId})
     >;
+typedef $$FaceOverridesTableCreateCompanionBuilder =
+    FaceOverridesCompanion Function({
+      Value<int> id,
+      required String assetId,
+      required double x,
+      required double y,
+      required double w,
+      required double h,
+      Value<int?> timestampMs,
+      Value<String?> ownership,
+      Value<String> scope,
+    });
+typedef $$FaceOverridesTableUpdateCompanionBuilder =
+    FaceOverridesCompanion Function({
+      Value<int> id,
+      Value<String> assetId,
+      Value<double> x,
+      Value<double> y,
+      Value<double> w,
+      Value<double> h,
+      Value<int?> timestampMs,
+      Value<String?> ownership,
+      Value<String> scope,
+    });
+
+class $$FaceOverridesTableFilterComposer
+    extends Composer<_$AppDatabase, $FaceOverridesTable> {
+  $$FaceOverridesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownership => $composableBuilder(
+    column: $table.ownership,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$FaceOverridesTableOrderingComposer
+    extends Composer<_$AppDatabase, $FaceOverridesTable> {
+  $$FaceOverridesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownership => $composableBuilder(
+    column: $table.ownership,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FaceOverridesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FaceOverridesTable> {
+  $$FaceOverridesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<double> get x =>
+      $composableBuilder(column: $table.x, builder: (column) => column);
+
+  GeneratedColumn<double> get y =>
+      $composableBuilder(column: $table.y, builder: (column) => column);
+
+  GeneratedColumn<double> get w =>
+      $composableBuilder(column: $table.w, builder: (column) => column);
+
+  GeneratedColumn<double> get h =>
+      $composableBuilder(column: $table.h, builder: (column) => column);
+
+  GeneratedColumn<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ownership =>
+      $composableBuilder(column: $table.ownership, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+}
+
+class $$FaceOverridesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FaceOverridesTable,
+          FaceOverrideRow,
+          $$FaceOverridesTableFilterComposer,
+          $$FaceOverridesTableOrderingComposer,
+          $$FaceOverridesTableAnnotationComposer,
+          $$FaceOverridesTableCreateCompanionBuilder,
+          $$FaceOverridesTableUpdateCompanionBuilder,
+          (
+            FaceOverrideRow,
+            BaseReferences<_$AppDatabase, $FaceOverridesTable, FaceOverrideRow>,
+          ),
+          FaceOverrideRow,
+          PrefetchHooks Function()
+        > {
+  $$FaceOverridesTableTableManager(_$AppDatabase db, $FaceOverridesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FaceOverridesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FaceOverridesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FaceOverridesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> assetId = const Value.absent(),
+                Value<double> x = const Value.absent(),
+                Value<double> y = const Value.absent(),
+                Value<double> w = const Value.absent(),
+                Value<double> h = const Value.absent(),
+                Value<int?> timestampMs = const Value.absent(),
+                Value<String?> ownership = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+              }) => FaceOverridesCompanion(
+                id: id,
+                assetId: assetId,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                timestampMs: timestampMs,
+                ownership: ownership,
+                scope: scope,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String assetId,
+                required double x,
+                required double y,
+                required double w,
+                required double h,
+                Value<int?> timestampMs = const Value.absent(),
+                Value<String?> ownership = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+              }) => FaceOverridesCompanion.insert(
+                id: id,
+                assetId: assetId,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                timestampMs: timestampMs,
+                ownership: ownership,
+                scope: scope,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FaceOverridesTable, FaceOverrideRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $FaceOverridesTable,
+                    FaceOverrideRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$FaceOverridesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FaceOverridesTable,
+      FaceOverrideRow,
+      $$FaceOverridesTableFilterComposer,
+      $$FaceOverridesTableOrderingComposer,
+      $$FaceOverridesTableAnnotationComposer,
+      $$FaceOverridesTableCreateCompanionBuilder,
+      $$FaceOverridesTableUpdateCompanionBuilder,
+      (
+        FaceOverrideRow,
+        BaseReferences<_$AppDatabase, $FaceOverridesTable, FaceOverrideRow>,
+      ),
+      FaceOverrideRow,
+      PrefetchHooks Function()
+    >;
+typedef $$BodyOverridesTableCreateCompanionBuilder =
+    BodyOverridesCompanion Function({
+      Value<int> id,
+      required String assetId,
+      required double x,
+      required double y,
+      required double w,
+      required double h,
+      Value<int?> timestampMs,
+      Value<String?> ownership,
+      Value<bool> hidden,
+      Value<String> scope,
+    });
+typedef $$BodyOverridesTableUpdateCompanionBuilder =
+    BodyOverridesCompanion Function({
+      Value<int> id,
+      Value<String> assetId,
+      Value<double> x,
+      Value<double> y,
+      Value<double> w,
+      Value<double> h,
+      Value<int?> timestampMs,
+      Value<String?> ownership,
+      Value<bool> hidden,
+      Value<String> scope,
+    });
+
+class $$BodyOverridesTableFilterComposer
+    extends Composer<_$AppDatabase, $BodyOverridesTable> {
+  $$BodyOverridesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownership => $composableBuilder(
+    column: $table.ownership,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BodyOverridesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BodyOverridesTable> {
+  $$BodyOverridesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get w => $composableBuilder(
+    column: $table.w,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get h => $composableBuilder(
+    column: $table.h,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownership => $composableBuilder(
+    column: $table.ownership,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hidden => $composableBuilder(
+    column: $table.hidden,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BodyOverridesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BodyOverridesTable> {
+  $$BodyOverridesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<double> get x =>
+      $composableBuilder(column: $table.x, builder: (column) => column);
+
+  GeneratedColumn<double> get y =>
+      $composableBuilder(column: $table.y, builder: (column) => column);
+
+  GeneratedColumn<double> get w =>
+      $composableBuilder(column: $table.w, builder: (column) => column);
+
+  GeneratedColumn<double> get h =>
+      $composableBuilder(column: $table.h, builder: (column) => column);
+
+  GeneratedColumn<int> get timestampMs => $composableBuilder(
+    column: $table.timestampMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ownership =>
+      $composableBuilder(column: $table.ownership, builder: (column) => column);
+
+  GeneratedColumn<bool> get hidden =>
+      $composableBuilder(column: $table.hidden, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+}
+
+class $$BodyOverridesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BodyOverridesTable,
+          BodyOverrideRow,
+          $$BodyOverridesTableFilterComposer,
+          $$BodyOverridesTableOrderingComposer,
+          $$BodyOverridesTableAnnotationComposer,
+          $$BodyOverridesTableCreateCompanionBuilder,
+          $$BodyOverridesTableUpdateCompanionBuilder,
+          (
+            BodyOverrideRow,
+            BaseReferences<_$AppDatabase, $BodyOverridesTable, BodyOverrideRow>,
+          ),
+          BodyOverrideRow,
+          PrefetchHooks Function()
+        > {
+  $$BodyOverridesTableTableManager(_$AppDatabase db, $BodyOverridesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BodyOverridesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BodyOverridesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BodyOverridesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> assetId = const Value.absent(),
+                Value<double> x = const Value.absent(),
+                Value<double> y = const Value.absent(),
+                Value<double> w = const Value.absent(),
+                Value<double> h = const Value.absent(),
+                Value<int?> timestampMs = const Value.absent(),
+                Value<String?> ownership = const Value.absent(),
+                Value<bool> hidden = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+              }) => BodyOverridesCompanion(
+                id: id,
+                assetId: assetId,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                timestampMs: timestampMs,
+                ownership: ownership,
+                hidden: hidden,
+                scope: scope,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String assetId,
+                required double x,
+                required double y,
+                required double w,
+                required double h,
+                Value<int?> timestampMs = const Value.absent(),
+                Value<String?> ownership = const Value.absent(),
+                Value<bool> hidden = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+              }) => BodyOverridesCompanion.insert(
+                id: id,
+                assetId: assetId,
+                x: x,
+                y: y,
+                w: w,
+                h: h,
+                timestampMs: timestampMs,
+                ownership: ownership,
+                hidden: hidden,
+                scope: scope,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BodyOverridesTable, BodyOverrideRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $BodyOverridesTable,
+                    BodyOverrideRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BodyOverridesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BodyOverridesTable,
+      BodyOverrideRow,
+      $$BodyOverridesTableFilterComposer,
+      $$BodyOverridesTableOrderingComposer,
+      $$BodyOverridesTableAnnotationComposer,
+      $$BodyOverridesTableCreateCompanionBuilder,
+      $$BodyOverridesTableUpdateCompanionBuilder,
+      (
+        BodyOverrideRow,
+        BaseReferences<_$AppDatabase, $BodyOverridesTable, BodyOverrideRow>,
+      ),
+      BodyOverrideRow,
+      PrefetchHooks Function()
+    >;
+typedef $$BodyDistinctTableCreateCompanionBuilder =
+    BodyDistinctCompanion Function({
+      required int bodyA,
+      required int bodyB,
+      Value<int> rowid,
+    });
+typedef $$BodyDistinctTableUpdateCompanionBuilder =
+    BodyDistinctCompanion Function({
+      Value<int> bodyA,
+      Value<int> bodyB,
+      Value<int> rowid,
+    });
+
+final class $$BodyDistinctTableReferences
+    extends BaseReferences<_$AppDatabase, $BodyDistinctTable, BodyDistinctRow> {
+  $$BodyDistinctTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $BodiesTable _bodyATable(_$AppDatabase db) =>
+      db.bodies.createAlias('body_distinct__body_a__bodies__id');
+
+  $$BodiesTableProcessedTableManager get bodyA {
+    final $_column = $_itemColumn<int>('body_a')!;
+
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bodyATable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $BodiesTable _bodyBTable(_$AppDatabase db) =>
+      db.bodies.createAlias('body_distinct__body_b__bodies__id');
+
+  $$BodiesTableProcessedTableManager get bodyB {
+    final $_column = $_itemColumn<int>('body_b')!;
+
+    final manager = $$BodiesTableTableManager(
+      $_db,
+      $_db.bodies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bodyBTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$BodyDistinctTableFilterComposer
+    extends Composer<_$AppDatabase, $BodyDistinctTable> {
+  $$BodyDistinctTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$BodiesTableFilterComposer get bodyA {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyA,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableFilterComposer get bodyB {
+    final $$BodiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyB,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableFilterComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyDistinctTableOrderingComposer
+    extends Composer<_$AppDatabase, $BodyDistinctTable> {
+  $$BodyDistinctTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$BodiesTableOrderingComposer get bodyA {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyA,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableOrderingComposer get bodyB {
+    final $$BodiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyB,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyDistinctTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BodyDistinctTable> {
+  $$BodyDistinctTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  $$BodiesTableAnnotationComposer get bodyA {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyA,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$BodiesTableAnnotationComposer get bodyB {
+    final $$BodiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bodyB,
+      referencedTable: $db.bodies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BodiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.bodies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BodyDistinctTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BodyDistinctTable,
+          BodyDistinctRow,
+          $$BodyDistinctTableFilterComposer,
+          $$BodyDistinctTableOrderingComposer,
+          $$BodyDistinctTableAnnotationComposer,
+          $$BodyDistinctTableCreateCompanionBuilder,
+          $$BodyDistinctTableUpdateCompanionBuilder,
+          (BodyDistinctRow, $$BodyDistinctTableReferences),
+          BodyDistinctRow,
+          PrefetchHooks Function({bool bodyA, bool bodyB})
+        > {
+  $$BodyDistinctTableTableManager(_$AppDatabase db, $BodyDistinctTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BodyDistinctTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BodyDistinctTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BodyDistinctTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> bodyA = const Value.absent(),
+                Value<int> bodyB = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BodyDistinctCompanion(
+                bodyA: bodyA,
+                bodyB: bodyB,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int bodyA,
+                required int bodyB,
+                Value<int> rowid = const Value.absent(),
+              }) => BodyDistinctCompanion.insert(
+                bodyA: bodyA,
+                bodyB: bodyB,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BodyDistinctTable, BodyDistinctRow>(table),
+                  $$BodyDistinctTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({bodyA = false, bodyB = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (bodyA) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.bodyA,
+                                referencedTable: $$BodyDistinctTableReferences
+                                    ._bodyATable(db),
+                                referencedColumn: $$BodyDistinctTableReferences
+                                    ._bodyATable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (bodyB) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.bodyB,
+                                referencedTable: $$BodyDistinctTableReferences
+                                    ._bodyBTable(db),
+                                referencedColumn: $$BodyDistinctTableReferences
+                                    ._bodyBTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$BodyDistinctTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BodyDistinctTable,
+      BodyDistinctRow,
+      $$BodyDistinctTableFilterComposer,
+      $$BodyDistinctTableOrderingComposer,
+      $$BodyDistinctTableAnnotationComposer,
+      $$BodyDistinctTableCreateCompanionBuilder,
+      $$BodyDistinctTableUpdateCompanionBuilder,
+      (BodyDistinctRow, $$BodyDistinctTableReferences),
+      BodyDistinctRow,
+      PrefetchHooks Function({bool bodyA, bool bodyB})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -43369,4 +46032,10 @@ class $AppDatabaseManager {
       $$EquipmentPhotosTableTableManager(_db, _db.equipmentPhotos);
   $$PersonMediaMovesTableTableManager get personMediaMoves =>
       $$PersonMediaMovesTableTableManager(_db, _db.personMediaMoves);
+  $$FaceOverridesTableTableManager get faceOverrides =>
+      $$FaceOverridesTableTableManager(_db, _db.faceOverrides);
+  $$BodyOverridesTableTableManager get bodyOverrides =>
+      $$BodyOverridesTableTableManager(_db, _db.bodyOverrides);
+  $$BodyDistinctTableTableManager get bodyDistinct =>
+      $$BodyDistinctTableTableManager(_db, _db.bodyDistinct);
 }
