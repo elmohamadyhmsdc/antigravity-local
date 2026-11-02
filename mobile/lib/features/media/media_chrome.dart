@@ -127,6 +127,7 @@ class MediaChromeBottomBar extends StatelessWidget {
     required this.onLens,
     required this.onOpenNativePlayer,
     this.onTools,
+    this.onDetect,
     this.visible = true,
   });
 
@@ -137,6 +138,7 @@ class MediaChromeBottomBar extends StatelessWidget {
   final VoidCallback onLens;
   final VoidCallback onOpenNativePlayer;
   final VoidCallback? onTools;
+  final VoidCallback? onDetect;
   final bool visible;
 
   @override
@@ -172,6 +174,16 @@ class MediaChromeBottomBar extends StatelessWidget {
                       onPressed: onTools,
                       icon: const Icon(Icons.build_outlined),
                       label: const Text('Tools'),
+                    ),
+                  if (onDetect != null)
+                    TextButton.icon(
+                      key: const Key('media-actions-detect'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: onDetect,
+                      icon: const Icon(Icons.saved_search),
+                      label: const Text('Detect'),
                     ),
                   TextButton.icon(
                     key: const Key('media-actions-studio'),

@@ -30,9 +30,13 @@ import '../shared/empty_state.dart';
 import '../shared/image_preview.dart';
 import '../shared/person_picker.dart';
 import '../video_actions/video_actions_screen.dart';
+import '../inspector/targeted_detect_sheet.dart';
+import '../../data/api/dtos/analyze.dart';
+import '../../ui/sheets/undo_snackbar.dart';
 import 'layers_popover.dart';
 import 'media_chrome.dart';
 import 'media_page_item.dart';
+import 'roi_selection_overlay.dart';
 
 class MediaCollectionContext {
   const MediaCollectionContext({
@@ -78,6 +82,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   var _detailsOpen = false;
   var _zoomed = false;
   var _layers = const ViewerLayers(faces: false, bodies: false);
+  var _activeRoiMode = false;
+  var _activeRoiKind = 'area';
 
   @override
   void initState() {
@@ -500,9 +506,105 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
       onAction: (d, action) =>
           _dispatchDetectionAction(context, d, action, people),
       durationMs: media.durationMs,
+      onDetect: () => _startTargetedDetect(context, media),
     ).whenComplete(() {
       if (mounted) setState(() => _detailsOpen = false);
     });
+  }
+
+  void _startTargetedDetect(BuildContext context, MediaRow media) {
+    TargetedDetectSheet.show(
+      context: context,
+      onStart: (kind, isRoiMode) {
+        if (isRoiMode) {
+          setState(() {
+            _activeRoiKind = kind;
+            _activeRoiMode = true;
+          });
+        } else {
+          _submitTargetedDetect(media, kind, null);
+        }
+      },
+    );
+  }
+
+  Future<void> _submitTargetedDetect(
+    MediaRow media,
+    String kind,
+    BBox? roi,
+  ) async {
+    setState(() => _activeRoiMode = false);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Analyzing with high accuracy...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final bytes = await ref
+          .read(mediaLibraryProvider)
+          .viewerImage(media.assetId);
+      if (bytes == null || !mounted) return;
+      final api = ref.read(mobileApiProvider);
+      if (api == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connect to your PC first to run AI detection'),
+          ),
+        );
+        return;
+      }
+      final response = await api.analyzeTargeted(
+        bytes,
+        targetKind: kind,
+        roi: roi,
+      );
+
+      if (!mounted) return;
+      final first = response.detections.isNotEmpty
+          ? response.detections.first
+          : null;
+      final targetBBox =
+          first?.bbox ?? roi ?? const BBox(x: 0.25, y: 0.25, w: 0.5, h: 0.5);
+
+      TargetedNameSheet.show(
+        context: context,
+        kind: kind,
+        bbox: targetBBox,
+        initialName: first?.label ?? '',
+        isVideo: media.kind == 'video',
+        onSave: (name, personId, scope) async {
+          final entry = TargetedEntry(
+            mediaId: media.id,
+            kind: kind,
+            bbox: targetBBox,
+            label: name.isNotEmpty ? name : (first?.label ?? 'custom'),
+            personId: personId,
+            outline: first?.outline,
+            keypoints: first?.keypoints,
+            scope: scope,
+          );
+          final res = await ref
+              .read(targetedDetectionServiceProvider)
+              .apply(entry);
+          if (!mounted) return;
+          UndoSnackbar.show(
+            context: context,
+            message: 'Saved $kind detection',
+            onUndo: () =>
+                ref.read(targetedDetectionServiceProvider).undo(res.undoToken),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Targeted detection failed: $e')));
+    }
   }
 
   @override
@@ -622,52 +724,76 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                         _swipeStart = null;
                         _multiTouch = true;
                       },
-                      child: PageView.builder(
-                        key: const Key('media-page-view'),
-                        controller: _pageController,
-                        physics: _zoomed
-                            ? const NeverScrollableScrollPhysics()
-                            : null,
-                        itemCount: _mediaIds.length,
-                        onPageChanged: (i) {
-                          setState(() {
-                            _currentIndex = i;
-                            _selectedDetectionId = null;
-                          });
-                          if (i >= _mediaIds.length - 3) _loadMore();
-                        },
-                        itemBuilder: (context, i) {
-                          final itemMediaId = _mediaIds[i];
-                          return MediaPageViewItem(
-                            key: ValueKey(itemMediaId),
-                            mediaId: itemMediaId,
-                            isActive: i == _currentIndex,
-                            layers: _layers,
-                            people: people,
-                            onToggleChrome: () => setState(
-                              () => _chromeVisible = !_chromeVisible,
-                            ),
-                            onZoomChanged: (zoomed) {
-                              if (_zoomed != zoomed &&
-                                  itemMediaId == _mediaIds[_currentIndex]) {
-                                setState(() => _zoomed = zoomed);
-                              }
-                            },
-                            onTapBox: (d) =>
-                                _showDetectionActions(context, d, people),
-                            initialTimestampMs: (itemMediaId == widget.mediaId)
-                                ? widget.initialTimestampMs
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          PageView.builder(
+                            key: const Key('media-page-view'),
+                            controller: _pageController,
+                            physics: _zoomed
+                                ? const NeverScrollableScrollPhysics()
                                 : null,
-                            onOpenNativePlayer: () async {
-                              final row = await ref
-                                  .read(libraryRepositoryProvider)
-                                  .mediaById(itemMediaId);
-                              if (row != null && context.mounted) {
-                                _openNativeVideoPlayer(context, row);
-                              }
+                            itemCount: _mediaIds.length,
+                            onPageChanged: (i) {
+                              setState(() {
+                                _currentIndex = i;
+                                _selectedDetectionId = null;
+                              });
+                              if (i >= _mediaIds.length - 3) _loadMore();
                             },
-                          );
-                        },
+                            itemBuilder: (context, i) {
+                              final itemMediaId = _mediaIds[i];
+                              return MediaPageViewItem(
+                                key: ValueKey(itemMediaId),
+                                mediaId: itemMediaId,
+                                isActive: i == _currentIndex,
+                                layers: _layers,
+                                people: people,
+                                onToggleChrome: () => setState(
+                                  () => _chromeVisible = !_chromeVisible,
+                                ),
+                                onZoomChanged: (zoomed) {
+                                  if (_zoomed != zoomed &&
+                                      itemMediaId == _mediaIds[_currentIndex]) {
+                                    setState(() => _zoomed = zoomed);
+                                  }
+                                },
+                                onTapBox: (d) =>
+                                    _showDetectionActions(context, d, people),
+                                initialTimestampMs:
+                                    (itemMediaId == widget.mediaId)
+                                    ? widget.initialTimestampMs
+                                    : null,
+                                onOpenNativePlayer: () async {
+                                  final row = await ref
+                                      .read(libraryRepositoryProvider)
+                                      .mediaById(itemMediaId);
+                                  if (row != null && context.mounted) {
+                                    _openNativeVideoPlayer(context, row);
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                          if (_activeRoiMode)
+                            LayoutBuilder(
+                              builder: (context, constraints) =>
+                                  RoiSelectionOverlay(
+                                    fittedSize: Size(
+                                      constraints.maxWidth,
+                                      constraints.maxHeight,
+                                    ),
+                                    onChanged: (_) {},
+                                    onConfirm: (bbox) => _submitTargetedDetect(
+                                      media,
+                                      _activeRoiKind,
+                                      bbox,
+                                    ),
+                                    onCancel: () =>
+                                        setState(() => _activeRoiMode = false),
+                                  ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -679,6 +805,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                 onShare: () => _shareOriginal(context, media),
                 onStudio: () => _showStudioMenu(context, media),
                 onTools: () => _showTools(context, media),
+                onDetect: () => _startTargetedDetect(context, media),
                 onDetails: () =>
                     _showDetails(context, media, faces, bodies, people),
                 onLens: () => _searchGoogleLens(context, media),

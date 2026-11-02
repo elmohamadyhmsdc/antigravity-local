@@ -40,6 +40,7 @@ class MediaInspector extends ConsumerStatefulWidget {
     this.currentPositionMs,
     this.durationMs,
     this.onSeek,
+    this.onDetect,
   });
 
   final MediaRow media;
@@ -52,6 +53,7 @@ class MediaInspector extends ConsumerStatefulWidget {
   final int? currentPositionMs;
   final int? durationMs;
   final ValueChanged<int>? onSeek;
+  final VoidCallback? onDetect;
 
   static Future<void> show({
     required BuildContext context,
@@ -65,6 +67,7 @@ class MediaInspector extends ConsumerStatefulWidget {
     int? currentPositionMs,
     int? durationMs,
     ValueChanged<int>? onSeek,
+    VoidCallback? onDetect,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -88,6 +91,7 @@ class MediaInspector extends ConsumerStatefulWidget {
           currentPositionMs: currentPositionMs,
           durationMs: durationMs,
           onSeek: onSeek,
+          onDetect: onDetect,
         ),
       ),
     );
@@ -131,6 +135,7 @@ class _MediaInspectorState extends ConsumerState<MediaInspector> {
           currentPositionMs: widget.currentPositionMs,
           durationMs: widget.durationMs,
           onSeek: widget.onSeek,
+          onDetect: widget.onDetect,
         ),
       ),
     );
@@ -151,6 +156,7 @@ class MediaInspectorContent extends ConsumerStatefulWidget {
     this.currentPositionMs,
     this.durationMs,
     this.onSeek,
+    this.onDetect,
   });
 
   final MediaRow media;
@@ -164,6 +170,7 @@ class MediaInspectorContent extends ConsumerStatefulWidget {
   final int? currentPositionMs;
   final int? durationMs;
   final ValueChanged<int>? onSeek;
+  final VoidCallback? onDetect;
 
   @override
   ConsumerState<MediaInspectorContent> createState() =>
@@ -820,6 +827,16 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
           spacing: 8,
           runSpacing: 8,
           children: [
+            if (widget.onDetect != null)
+              ActionChip(
+                key: const Key('inspect-target-detect'),
+                avatar: const Icon(Icons.saved_search, size: 18),
+                label: const Text('Targeted Detect'),
+                onPressed: () {
+                  Navigator.of(context).maybePop();
+                  widget.onDetect!();
+                },
+              ),
             ActionChip(
               key: const Key('inspect-create-reface'),
               avatar: const Icon(Icons.face_retouching_natural, size: 18),
