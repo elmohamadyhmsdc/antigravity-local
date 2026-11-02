@@ -1,6 +1,23 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P8b (LoRA, Datasets, Models, Results Gallery & Flow Pickers) Completed on main — 2026-11-02
+
+- Implemented ST4–ST9 Flow Pickers:
+  - `mobile/lib/ui/flow/model_picker.dart`: created reusable LoRA model picker with empty state, trigger words, model identification, and selection checking.
+  - `mobile/lib/ui/flow/dataset_picker.dart`: created reusable training dataset picker with repeat counts and trigger words.
+- Results & Library Integration:
+  - `mobile/lib/features/results/results_screen.dart`: confirmed modular integration with `EntityCard`, filter chips (favourites, photos, videos), and persistent favorites.
+  - Studio My Library tab connects directly to models, datasets, and results.
+- Verification:
+  - `dart analyze lib test`: **0 issues**.
+  - All Phase P8b test suites passed (16 tests):
+    - `test/features/lora_model_anchor_test.dart` (14 passed)
+    - `test/features/privacy_and_lora_test.dart` (1 passed)
+    - `test/features/results_screen_test.dart` (1 passed)
+  - All code formatted with `dart format lib test`.
+
+
 ## Phase P8a (Studio Hub, Reface Flow, Flow Components) Completed on main — 2026-11-02
 
 - Implemented ST1 Studio Hub:
