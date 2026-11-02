@@ -80,8 +80,8 @@ class _BodyInspectionSheetState extends State<BodyInspectionSheet> {
               // 2. Inspection Preview Box
               Center(
                 child: Container(
-                  width: 140,
-                  height: 170,
+                  width: 120,
+                  height: 110,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     color: scheme.surfaceContainerHighest,
@@ -161,12 +161,16 @@ class _BodyInspectionSheetState extends State<BodyInspectionSheet> {
               if (widget.mediaId != null) ...[
                 ListTile(
                   key: const Key('action-group-pose'),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
                   leading: const Icon(Icons.groups_outlined),
                   title: Text(l.groupPoseName),
                   onTap: () => Navigator.pop(context, 'group-pose'),
                 ),
                 ListTile(
                   key: const Key('action-equipment'),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
                   leading: const Icon(Icons.sports_tennis_outlined),
                   title: Text(l.bodiesTabEquipment),
                   onTap: () => Navigator.pop(context, 'equipment'),
@@ -174,13 +178,25 @@ class _BodyInspectionSheetState extends State<BodyInspectionSheet> {
               ],
               ListTile(
                 key: const Key('action-similar'),
+                dense: true,
+                visualDensity: VisualDensity.compact,
                 leading: const Icon(Icons.compare_outlined),
                 title: Text(l.bodyActionSimilarPose),
                 onTap: () => Navigator.pop(context, 'similar'),
               ),
+              ListTile(
+                key: const Key('action-mark-tattoo'),
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                leading: const Icon(Icons.draw_outlined),
+                title: Text(l.bodyActionMarkTattoo),
+                onTap: () => Navigator.pop(context, 'mark'),
+              ),
               for (final kind in widget.exposedAreas)
                 ListTile(
                   key: Key('action-similar-$kind'),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
                   leading: const Icon(Icons.image_search_outlined),
                   title: Text(
                     kind == 'chest'
@@ -196,31 +212,33 @@ class _BodyInspectionSheetState extends State<BodyInspectionSheet> {
                 ),
               ListTile(
                 key: const Key('action-similar-colours'),
+                dense: true,
+                visualDensity: VisualDensity.compact,
                 leading: const Icon(Icons.palette_outlined),
                 title: Text(l.bodyActionSimilarColours),
                 onTap: () => Navigator.pop(context, 'colours'),
               ),
               ListTile(
                 key: const Key('action-name-pose'),
+                dense: true,
+                visualDensity: VisualDensity.compact,
                 leading: const Icon(Icons.accessibility_new),
                 title: Text(l.bodyActionNamePose),
                 onTap: () => Navigator.pop(context, 'pose'),
               ),
               ListTile(
                 key: const Key('action-name-outfit'),
+                dense: true,
+                visualDensity: VisualDensity.compact,
                 leading: const Icon(Icons.checkroom_outlined),
                 title: Text(l.bodyActionNameOutfit),
                 onTap: () => Navigator.pop(context, 'outfit'),
               ),
-              ListTile(
-                key: const Key('action-mark-tattoo'),
-                leading: const Icon(Icons.draw_outlined),
-                title: Text(l.bodyActionMarkTattoo),
-                onTap: () => Navigator.pop(context, 'mark'),
-              ),
               if (widget.mediaId != null)
                 ListTile(
                   key: const Key('action-open-photo'),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
                   leading: const Icon(Icons.photo_outlined),
                   title: Text(l.bodyActionOpenPhoto),
                   onTap: () => Navigator.pop(context, 'photo'),

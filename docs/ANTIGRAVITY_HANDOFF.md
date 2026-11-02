@@ -1,6 +1,28 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P6b (Review Hub, Merge & Conflict Guard, Marks) Completed on main — 2026-11-02
+
+- Implemented Unified Review Hub (P4):
+  - `mobile/lib/features/review/review_hub_screen.dart`: created unified hub overview featuring all 6 review queues (`unsorted`, `suggestions`, `duplicates`, `bodyLinks`, `excluded`), live count badges, quick actions (`review-quick-mode`, `review-tabs-mode`), and `_ExcludedQueueScreen` for inspecting and restoring items marked as `belongsToNoOne` or `hidden`.
+  - Supports deep linking directly into individual queues via `?queue=suggestions|duplicates|bodyLinks|unsorted|excluded` and view preferences (`?view=all|quick|hub`).
+- S11 Merge with Distinct Conflict Guard (P5):
+  - `mobile/lib/features/merge/merge_screen.dart`: integrated `bodyLinkGuardProvider.findMergeConflicts(drop.id, keep.id)` into the merge preview dialog. If any distinct bodies conflict between the two people, a clear notice is shown explaining that conflicting distinct bodies will remain unassigned rather than violating distinctness.
+- Media Inspector & Marks Refinements (P6):
+  - `mobile/lib/features/inspector/media_inspector.dart`: enabled direct face assignment from inspection rows via `pickPerson` with `who-edit-${d.refId}` key support and added clear `Unknown` designation for unassigned face candidates.
+  - `mobile/lib/features/inspector/body_inspect_sheet.dart`: optimized crop view height (110px) and set `dense: true, visualDensity: VisualDensity.compact` ensuring all action tiles (`action-mark-tattoo`, `action-group-pose`, etc.) are hit-testable within standard mobile viewports.
+- Router Updates:
+  - `mobile/lib/core/router.dart`: pointed `Routes.review` to `ReviewHubScreen` supporting query parameters `queue`, `view`, and `kind`.
+- Verification:
+  - `dart analyze lib test`: **0 issues**.
+  - All Phase P6b test suites passed (37 tests):
+    - `test/features/review_test.dart` (16 passed)
+    - `test/features/quick_review_test.dart` (14 passed)
+    - `test/features/review_viewer_test.dart` (4 passed)
+    - `test/features/marks_ui_test.dart` (3 passed)
+  - All code formatted with `dart format lib test`.
+
+
 ## Phase P6a (People Hub, Person Detail & Groups) Completed on main — 2026-11-02
 
 - Implemented P1 People Hub:

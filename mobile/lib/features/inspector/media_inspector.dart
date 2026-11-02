@@ -21,6 +21,7 @@ import '../marks/mark_tattoo.dart';
 import '../scan/redetect_flow.dart';
 import '../scan/scan_progress_card.dart' show startScan;
 import '../shared/crop_image.dart';
+import '../shared/person_picker.dart';
 import 'correction_sheet.dart';
 import 'video_track_strip.dart';
 
@@ -246,6 +247,29 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
 
     if (updated == true) {
       _loadLinks();
+    }
+  }
+
+  Future<void> _reassignFaceDirect(
+    BuildContext context,
+    MediaDetection d,
+  ) async {
+    final choice = await pickPerson(
+      context,
+      excludePersonId: d.personId,
+      allowNew: true,
+      kind: d.figure,
+    );
+    if (choice == null || !mounted) return;
+    final repo = ref.read(peopleRepositoryProvider);
+    final target = await resolveChoice(
+      ref,
+      choice,
+      faceIds: [d.refId],
+      kind: d.figure,
+    );
+    if (!choice.isNew) {
+      await repo.assignFaces([d.refId], target);
     }
   }
 
@@ -542,10 +566,20 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              key: Key('inspect-correct-${d.id}'),
+                              key: Key(
+                                d.isFace
+                                    ? 'who-edit-${d.refId}'
+                                    : 'inspect-correct-${d.id}',
+                              ),
                               icon: const Icon(Icons.edit_note, size: 20),
                               tooltip: 'Correct',
-                              onPressed: () => _openCorrectionSheet(context, d),
+                              onPressed: () {
+                                if (d.isFace) {
+                                  _reassignFaceDirect(context, d);
+                                } else {
+                                  _openCorrectionSheet(context, d);
+                                }
+                              },
                             ),
                             IconButton(
                               key: Key('inspect-more-${d.id}'),
@@ -597,16 +631,24 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                         ),
                       ),
                     ),
-                    title: Text(
-                      d.isFace ? 'Unassigned face' : 'Unassigned body',
-                    ),
+                    title: Text(d.isFace ? 'Unknown' : 'Unassigned body'),
                     subtitle: const Text('Needs decision'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         FilledButton.tonal(
-                          key: Key('inspect-correct-${d.id}'),
-                          onPressed: () => _openCorrectionSheet(context, d),
+                          key: Key(
+                            d.isFace
+                                ? 'who-edit-${d.refId}'
+                                : 'inspect-correct-${d.id}',
+                          ),
+                          onPressed: () {
+                            if (d.isFace) {
+                              _reassignFaceDirect(context, d);
+                            } else {
+                              _openCorrectionSheet(context, d);
+                            }
+                          },
                           child: const Text('Assign'),
                         ),
                         IconButton(

@@ -29,7 +29,7 @@ import '../features/people/unsorted_screen.dart';
 import '../features/reface/reface_screen.dart';
 import '../features/restyle/restyle_screen.dart';
 import '../features/results/results_screen.dart';
-import '../features/review/quick_review_screen.dart';
+import '../features/review/review_hub_screen.dart';
 import '../features/settings/background_screen.dart';
 import '../features/settings/connection_screen.dart';
 import '../features/settings/library_settings_screen.dart';
@@ -310,7 +310,8 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.review,
-        builder: (context, state) => ReviewEntryScreen(
+        builder: (context, state) => ReviewHubScreen(
+          queue: state.uri.queryParameters['queue'],
           view: state.uri.queryParameters['view'],
           kind: state.uri.queryParameters['kind'] == 'character'
               ? 'character'

@@ -147,15 +147,21 @@ class _MergeScreenState extends ConsumerState<MergeScreen> {
       ref.read(peopleRepositoryProvider).impactOf(keep.id),
       ref.read(peopleRepositoryProvider).impactOf(drop.id),
     ]);
+    final conflicts = await ref
+        .read(bodyLinkGuardProvider)
+        .findMergeConflicts(drop.id, keep.id);
     if (!context.mounted) return;
     String summary(Map<String, int> values) => values.entries
         .map((entry) => '${entry.key}: ${entry.value}')
         .join(', ');
+    final conflictNotice = conflicts.isNotEmpty
+        ? '\n\nNote: ${conflicts.length} conflicting distinct bodies will remain unassigned.'
+        : '';
     final ok = await confirm(
       context,
       title: l10n.mergeConfirmTitle,
       body:
-          '${l10n.mergeConfirmBody(personName(l10n, drop), drop.faceCount, personName(l10n, keep))}\n\nKept: ${summary(impacts[0])}\nMoved: ${summary(impacts[1])}\nOriginal files stay in place.',
+          '${l10n.mergeConfirmBody(personName(l10n, drop), drop.faceCount, personName(l10n, keep))}\n\nKept: ${summary(impacts[0])}\nMoved: ${summary(impacts[1])}\nOriginal files stay in place.$conflictNotice',
       confirmLabel: l10n.merge,
       cancelLabel: l10n.cancel,
     );
