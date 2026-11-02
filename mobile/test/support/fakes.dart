@@ -142,6 +142,20 @@ class FakeMobileApi implements MobileApi {
   @override
   Future<Health> health() async => Health.fromJson(fixture('Health.ok'));
 
+  TargetedAnalysisResponse targetedResult = const TargetedAnalysisResponse(
+    targetKind: 'body',
+    detections: [],
+  );
+
+  @override
+  Future<TargetedAnalysisResponse> analyzeTargeted(
+    Uint8List imageBytes, {
+    required String targetKind,
+    BBox? roi,
+    String? prompt,
+    bool highRes = true,
+  }) async => targetedResult;
+
   @override
   Future<AnalyzeImageResponse> analyzeImage(
     Uint8List jpegBytes, {

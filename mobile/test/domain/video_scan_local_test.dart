@@ -79,6 +79,15 @@ class FramePc extends VideoPc implements MobileApi {
   @override
   Future<GroupingPlanResponse> groupingPlan(GroupingPlanRequest request) =>
       throw UnimplementedError();
+
+  @override
+  Future<TargetedAnalysisResponse> analyzeTargeted(
+    Uint8List imageBytes, {
+    required String targetKind,
+    BBox? roi,
+    String? prompt,
+    bool highRes = true,
+  }) => throw UnimplementedError();
 }
 
 /// The phone decoder: frame k of a 30 fps video is a one-byte "JPEG" holding k ~/ 15.

@@ -19,6 +19,9 @@ import 'video_api.dart';
 import 'studio_api.dart';
 import 'resource_api.dart';
 import 'dtos/resources.dart';
+import 'dtos/targeted.dart';
+
+export 'dtos/targeted.dart';
 
 /// The PC a phone is paired with, and the secret that proves it.
 class ServerSession {
@@ -92,6 +95,15 @@ abstract interface class MobileApi {
 
   /// POST /v1/grouping/plan - a pure function on the PC (nothing is stored there).
   Future<GroupingPlanResponse> groupingPlan(GroupingPlanRequest request);
+
+  /// POST /v1/analyze/targeted - on-demand high-accuracy detection for bodies, areas, faces, and objects.
+  Future<TargetedAnalysisResponse> analyzeTargeted(
+    Uint8List imageBytes, {
+    required String targetKind,
+    BBox? roi,
+    String? prompt,
+    bool highRes = true,
+  });
 }
 
 /// The calls made before a token exists.
@@ -559,6 +571,31 @@ class HttpMobileApi
       });
       final response = await _dio.post('/v1/analyze/image', data: form);
       return AnalyzeImageResponse.fromJson(_json(response));
+    });
+  }
+
+  @override
+  Future<TargetedAnalysisResponse> analyzeTargeted(
+    Uint8List imageBytes, {
+    required String targetKind,
+    BBox? roi,
+    String? prompt,
+    bool highRes = true,
+  }) {
+    return _guard(() async {
+      final form = FormData.fromMap({
+        'image': MultipartFile.fromBytes(
+          imageBytes,
+          filename: 'photo.jpg',
+          contentType: DioMediaType('image', 'jpeg'),
+        ),
+        'target_kind': targetKind,
+        if (roi != null) 'roi': jsonEncode(roi.toJson()),
+        if (prompt != null && prompt.isNotEmpty) 'prompt': prompt,
+        'high_res': highRes,
+      });
+      final response = await _dio.post('/v1/analyze/targeted', data: form);
+      return TargetedAnalysisResponse.fromJson(_json(response));
     });
   }
 
