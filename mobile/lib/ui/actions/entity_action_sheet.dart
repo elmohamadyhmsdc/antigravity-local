@@ -56,9 +56,9 @@ class EntityActionSheet extends ConsumerWidget {
     }
 
     const groupOrder = [
-      ActionGroup.view,
-      ActionGroup.identity,
       ActionGroup.search,
+      ActionGroup.identity,
+      ActionGroup.view,
       ActionGroup.create,
       ActionGroup.manage,
       ActionGroup.danger,
@@ -92,6 +92,11 @@ class EntityActionSheet extends ConsumerWidget {
                     };
                     final tile = ListTile(
                       key: Key('action-sheet-${spec.id.name}'),
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                      ),
                       leading: Icon(
                         spec.icon,
                         color: spec.isDanger ? theme.colorScheme.error : null,

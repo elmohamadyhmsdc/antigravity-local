@@ -73,8 +73,16 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
               onSelected: (value) {
                 if (value == 'redetect') onRedetect();
                 if (value == 'kind') onChangeFileKind();
+                if (value == 'toggle-bodies') {
+                  onLayersChanged(layers.copyWith(bodies: true));
+                }
               },
               itemBuilder: (_) => [
+                PopupMenuItem(
+                  key: const Key('toggle-bodies'),
+                  value: 'toggle-bodies',
+                  child: Text(layers.bodies ? 'Hide bodies' : 'Show bodies'),
+                ),
                 if (media.kind == 'photo')
                   PopupMenuItem(
                     value: 'redetect',

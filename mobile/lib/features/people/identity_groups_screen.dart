@@ -334,26 +334,102 @@ final _groupRowProvider = StreamProvider.autoDispose
               .watchSingleOrNull(),
     );
 
-class GroupMediaScreen extends ConsumerWidget {
-  const GroupMediaScreen({super.key, required this.groupId});
+class GroupDetailScreen extends ConsumerStatefulWidget {
+  const GroupDetailScreen({
+    super.key,
+    required this.groupId,
+    this.initialTab = 0,
+  });
   final int groupId;
+  final int initialTab;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final group = ref.watch(_groupRowProvider(groupId)).value;
+  ConsumerState<GroupDetailScreen> createState() => _GroupDetailScreenState();
+}
+
+class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final group = ref.watch(_groupRowProvider(widget.groupId)).value;
     final l = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(group?.name ?? l.identityGroupsTitle)),
-      body: group == null
-          ? const LoadingBox()
-          : MediaGrid(
-              filter: MediaFilter(groupId: groupId),
+
+    if (group == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l.identityGroupsTitle)),
+        body: const LoadingBox(),
+      );
+    }
+
+    return DefaultTabController(
+      length: 2,
+      initialIndex: widget.initialTab.clamp(0, 1),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(group.name),
+          actions: [
+            IconButton(
+              key: const Key('group-organize'),
+              tooltip: l.organizeTitle,
+              icon: const Icon(Icons.drive_file_move_outlined),
+              onPressed: () async {
+                final db = ref.read(databaseProvider);
+                final members = await (db.select(
+                  db.persons,
+                )..where((p) => p.groupId.equals(group.id))).get();
+                if (!context.mounted) return;
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => OrganizePersonMediaScreen(
+                      personIds: members.map((p) => p.id).toSet(),
+                    ),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              key: const Key('group-rename'),
+              tooltip: l.rename,
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () async {
+                final name = await _askGroupName(context, initial: group.name);
+                if (name == null || !context.mounted) return;
+                try {
+                  await ref
+                      .read(identityGroupsRepositoryProvider)
+                      .rename(group.id, name);
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(l.identityGroupNameExists)),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+          bottom: TabBar(
+            tabs: [
+              const Tab(key: Key('tab-members'), text: 'Members'),
+              Tab(key: const Key('tab-media'), text: l.tabMedia),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            PeopleScreen(initialGroupId: widget.groupId),
+            MediaGrid(
+              filter: MediaFilter(groupId: widget.groupId),
               empty: EmptyState(
                 icon: Icons.perm_media_outlined,
                 title: l.identityGroupNoMedia,
               ),
             ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-typedef _GroupMediaScreen = GroupMediaScreen;
+typedef GroupMediaScreen = GroupDetailScreen;
+typedef _GroupMediaScreen = GroupDetailScreen;

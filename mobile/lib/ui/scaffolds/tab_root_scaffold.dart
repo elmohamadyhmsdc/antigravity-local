@@ -9,6 +9,7 @@ class TabRootScaffold extends StatelessWidget {
     this.primaryAction,
     this.bottom,
     this.floatingActionButton,
+    this.bottomNavigationBar,
     this.onSettingsTap,
   });
 
@@ -17,6 +18,7 @@ class TabRootScaffold extends StatelessWidget {
   final Widget? primaryAction;
   final PreferredSizeWidget? bottom;
   final Widget? floatingActionButton;
+  final Widget? bottomNavigationBar;
   final VoidCallback? onSettingsTap;
 
   @override
@@ -45,6 +47,7 @@ class TabRootScaffold extends StatelessWidget {
         bottom: bottom,
       ),
       body: body,
+      bottomNavigationBar: bottomNavigationBar,
       floatingActionButton: floatingActionButton,
     );
   }

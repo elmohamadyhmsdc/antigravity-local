@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router.dart';
+import '../../data/repositories/identity_groups.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
+import '../../ui/scaffolds/tab_root_scaffold.dart';
+import '../../ui/sheets/name_sheet.dart';
 import '../review/review_banner.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
@@ -129,6 +132,67 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
     context.push(uri.toString());
   }
 
+  void _showToolsSheet(
+    BuildContext context,
+    int review,
+    String scopedKind,
+    bool characters,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              key: const Key('manage-identity-groups'),
+              leading: const Icon(Icons.folder_outlined),
+              title: Text(l10n.identityGroupsTitle),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => IdentityGroupsScreen(kind: scopedKind),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              key: const Key('open-review'),
+              leading: const Icon(Icons.fact_check_outlined),
+              title: Text(l10n.reviewTitle),
+              trailing: review > 0 ? Text('$review') : null,
+              onTap: () {
+                Navigator.pop(ctx);
+                _openReview();
+              },
+            ),
+            ListTile(
+              key: const Key('test-character-photo'),
+              leading: const Icon(Icons.add_photo_alternate_outlined),
+              title: const Text('Analyze photo'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('${Routes.analyze}?characters=$characters');
+              },
+            ),
+            ListTile(
+              key: const Key('open-bodies'),
+              leading: const Icon(Icons.accessibility_new),
+              title: Text(l10n.bodiesTitle),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push(Routes.bodies);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -198,10 +262,12 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
         .toList();
     _selected.removeWhere((id) => !allPeople.any((p) => p.id == id));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.navPeople),
-        actions: [
+    return TabRootScaffold(
+      title: Text(l10n.navPeople),
+      onSettingsTap: () => context.push(Routes.settings),
+      primaryAction: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
           IconButton(
             key: const Key('people-select'),
             tooltip: l10n.peopleAction('selection'),
@@ -211,72 +277,60 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
               _selected.clear();
             }),
           ),
-          PopupMenuButton<String>(
+          IconButton(
             key: const Key('people-tools'),
             tooltip: l10n.peopleAction('more'),
             icon: Badge(
               isLabelVisible: review > 0,
               child: const Icon(Icons.more_horiz),
             ),
-            onSelected: (value) {
-              if (value == 'groups') {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => IdentityGroupsScreen(kind: scopedKind),
-                  ),
-                );
-              } else if (value == 'review') {
-                _openReview();
-              } else {
-                context.push(
-                  value == 'test'
-                      ? '${Routes.analyze}?characters=$characters'
-                      : Routes.bodies,
-                );
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                key: const Key('manage-identity-groups'),
-                value: 'groups',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.folder_outlined),
-                  title: Text(l10n.identityGroupsTitle),
-                ),
-              ),
-              PopupMenuItem(
-                key: const Key('open-review'),
-                value: 'review',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.fact_check_outlined),
-                  title: Text(l10n.reviewTitle),
-                  trailing: review > 0 ? Text('$review') : null,
-                ),
-              ),
-              PopupMenuItem(
-                key: const Key('test-character-photo'),
-                value: 'test',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.add_photo_alternate_outlined),
-                  title: const Text('Analyze photo'),
-                ),
-              ),
-              PopupMenuItem(
-                key: const Key('open-bodies'),
-                value: 'bodies',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.accessibility_new),
-                  title: Text(l10n.bodiesTitle),
-                ),
-              ),
-            ],
+            onPressed: () =>
+                _showToolsSheet(context, review, scopedKind, characters),
           ),
         ],
       ),
+      floatingActionButton: _selecting
+          ? null
+          : FloatingActionButton(
+              key: const Key('people-add'),
+              tooltip: _kind == 'group'
+                  ? l10n.identityGroupCreate
+                  : l10n.createPerson,
+              onPressed: () async {
+                if (_kind == 'group') {
+                  final name = await NameSheet.show(
+                    context: context,
+                    title: l10n.identityGroupCreate,
+                    hintText: l10n.identityGroupNameHint,
+                  );
+                  if (!mounted) return;
+                  if (name != null && name.isNotEmpty) {
+                    await ref
+                        .read(identityGroupsRepositoryProvider)
+                        .create(name);
+                  }
+                } else {
+                  final name = await NameSheet.show(
+                    context: context,
+                    title: l10n.createPerson,
+                  );
+                  if (!mounted) return;
+                  if (name != null && name.isNotEmpty) {
+                    final targetKind = _kind == 'character'
+                        ? 'character'
+                        : 'person';
+                    final id = await peopleRepositoryFor(
+                      ref,
+                      targetKind,
+                    ).createPerson(name: name);
+                    if (context.mounted) {
+                      context.push('${Routes.people}/$id');
+                    }
+                  }
+                }
+              },
+              child: const Icon(Icons.add),
+            ),
       bottomNavigationBar: !_selecting
           ? null
           : SafeArea(
@@ -368,6 +422,19 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                       showCheckmark: false,
                       onSelected: (_) => setState(() {
                         _kind = 'character';
+                        _selected.clear();
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      key: const Key('open-groups'),
+                      visualDensity: VisualDensity.compact,
+                      labelPadding: EdgeInsets.zero,
+                      label: Text(l10n.identityGroupsTitle),
+                      selected: _kind == 'group',
+                      showCheckmark: false,
+                      onSelected: (_) => setState(() {
+                        _kind = 'group';
                         _selected.clear();
                       }),
                     ),
@@ -707,15 +774,22 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                                     avatarRadius: avatarRadius,
                                     kind: 'character',
                                   ),
-                                for (final p in shown)
-                                  _PersonCard(
-                                    person: p,
-                                    selecting: _selecting,
-                                    selected: _selected.contains(p.id),
-                                    onToggle: () => _toggle(p.id),
-                                    onMenu: () => _menu([p]),
-                                    avatarRadius: avatarRadius,
-                                  ),
+                                if (_kind == 'group')
+                                  for (final g in groups)
+                                    _GroupCard(
+                                      group: g,
+                                      avatarRadius: avatarRadius,
+                                    )
+                                else
+                                  for (final p in shown)
+                                    _PersonCard(
+                                      person: p,
+                                      selecting: _selecting,
+                                      selected: _selected.contains(p.id),
+                                      onToggle: () => _toggle(p.id),
+                                      onMenu: () => _menu([p]),
+                                      avatarRadius: avatarRadius,
+                                    ),
                               ]),
                             ),
                           );
@@ -1053,6 +1127,98 @@ class _UnsortedCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: Text(
                   l10n.facesCount(count),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: text.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupCard extends StatelessWidget {
+  const _GroupCard({required this.group, this.avatarRadius = 34});
+
+  final IdentityGroupSummary group;
+  final double avatarRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final text = theme.textTheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key('group-${group.id}'),
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => context.push('${Routes.group}/${group.id}'),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: scheme.outlineVariant.withValues(alpha: 0.35),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: avatarRadius * 2,
+                height: avatarRadius * 2,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: scheme.secondaryContainer,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.folder_outlined,
+                  size: avatarRadius * 0.85,
+                  color: scheme.onSecondaryContainer,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Text(
+                  group.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Text(
+                  l10n.identityGroupMembers(group.people + group.characters),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,

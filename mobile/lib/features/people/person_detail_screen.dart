@@ -136,14 +136,13 @@ class PersonDetailScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                if (p.kind == 'person')
-                  IconButton.filledTonal(
-                    key: const Key('person-use-studio'),
-                    tooltip: l10n.useInStudio,
-                    onPressed: () =>
-                        context.push('${Routes.reface}?person=$personId'),
-                    icon: const Icon(Icons.face_retouching_natural),
-                  ),
+                IconButton.filledTonal(
+                  key: const Key('person-use-studio'),
+                  tooltip: l10n.useInStudio,
+                  onPressed: () =>
+                      context.push('${Routes.reface}?person=$personId'),
+                  icon: const Icon(Icons.face_retouching_natural),
+                ),
                 IconButton(
                   key: const Key('person-menu'),
                   tooltip: l10n.peopleAction('more'),

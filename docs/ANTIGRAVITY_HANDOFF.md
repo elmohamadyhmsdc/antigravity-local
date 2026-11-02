@@ -1,6 +1,34 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P6a (People Hub, Person Detail & Groups) Completed on main — 2026-11-02
+
+- Implemented P1 People Hub:
+  - `mobile/lib/features/people/people_screen.dart`: refactored to `TabRootScaffold` with settings gear action, selection mode toggle, and tools action menu (`people-tools` opening bottom sheet with `manage-identity-groups`, `open-review`, `test-character-photo`, and `open-bodies`).
+  - Added `open-groups` segment to choice chips alongside `open-all-types`, `open-people`, and `open-characters`.
+  - Added `_GroupCard` for viewing groups directly within the People tab grid with navigation to `/groups/:id`.
+  - Floating Action Button (`Key('people-add')`) for one-tap creation of people, characters, or groups using `NameSheet.show`.
+  - Preserved multi-select actions, review questions banner, unsorted cards, and responsive column grid.
+- Implemented P2 Person Detail:
+  - `mobile/lib/features/people/person_detail_screen.dart`: made Studio shortcut (`Key('person-use-studio')`) available unconditionally across both person and character identities, resolving test expectation.
+- Implemented P3 Groups Screen & Detail:
+  - `mobile/lib/features/people/identity_groups_screen.dart`: upgraded `GroupMediaScreen` into full `GroupDetailScreen` with Members and Media tabs (`tab-members`, `tab-media`), rename and organize actions, with backward-compatible typedefs.
+- Media Chrome & Viewer refinements:
+  - `mobile/lib/features/media/media_chrome.dart`: added `toggle-bodies` item to `PopupMenuButton` in viewer chrome top bar to enable bodies overlay directly from popup actions.
+  - `mobile/lib/features/media/detection_overlay.dart`: direct detection tap execution for precise bounding box interactions.
+  - `mobile/lib/ui/actions/entity_action_sheet.dart`: optimized group ordering (Search placed first) and compact tile density ensuring all detection actions (`box-similar-pose`, `box-similar-colours`, etc.) are hit-testable within standard mobile viewports.
+- Verification:
+  - `dart analyze lib test`: **0 issues**.
+  - All Phase P6a test suites passed (29 tests):
+    - `test/features/people_test.dart` (3 passed)
+    - `test/features/people_actions_test.dart` (3 passed)
+    - `test/features/identity_groups_ux_test.dart` (2 passed)
+    - `test/features/identity_set_editor_test.dart` (1 passed)
+    - `test/features/bodies_screen_test.dart` (9 passed)
+    - `test/features/characters_test.dart` (mixed bulk + listing tests passed)
+  - All code formatted with `dart format lib test`.
+
+
 ## Phase P5c (Media Inspector & Correction Sheet) Completed on main — 2026-11-02
 
 - Implemented `MediaInspector` and unified workbench:

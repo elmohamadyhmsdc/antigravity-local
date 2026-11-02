@@ -25,62 +25,7 @@ class DetectionOverlay extends StatelessWidget {
   final ValueChanged<MediaDetection> onTapDetection;
 
   void _handleTap(BuildContext context, MediaDetection tapped) {
-    // Check for overlapping detections at the same point
-    final overlapping = detections.where((other) {
-      if (other.id == tapped.id) return true;
-      if (other.isFace && !layers.faces) return false;
-      if (!other.isFace && !layers.bodies) return false;
-      // Overlap check
-      final tappedRect = Rect.fromLTWH(tapped.x, tapped.y, tapped.w, tapped.h);
-      final otherRect = Rect.fromLTWH(other.x, other.y, other.w, other.h);
-      return tappedRect.overlaps(otherRect);
-    }).toList();
-
-    if (overlapping.length > 1) {
-      // Disambiguation bottom sheet
-      showModalBottomSheet<void>(
-        context: context,
-        builder: (sheetContext) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Select item',
-                  style: Theme.of(sheetContext).textTheme.titleMedium,
-                ),
-              ),
-              for (final item in overlapping) ...[
-                ListTile(
-                  leading: Icon(
-                    item.isFace ? Icons.face : Icons.accessibility_new,
-                  ),
-                  title: Text(
-                    item.isFace
-                        ? (item.personId != null &&
-                                  people[item.personId] != null
-                              ? personName(
-                                  AppLocalizations.of(context),
-                                  people[item.personId]!,
-                                )
-                              : 'Unassigned face')
-                        : 'Body #${item.refId}',
-                  ),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    onTapDetection(item);
-                  },
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    } else {
-      onTapDetection(tapped);
-    }
+    onTapDetection(tapped);
   }
 
   @override
