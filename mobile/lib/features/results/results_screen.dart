@@ -13,6 +13,7 @@ import '../../data/repositories/artifact_context.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../studio_providers.dart';
+import '../../ui/cards/entity_card.dart';
 import '../jobs/jobs_screen.dart';
 import '../shared/empty_state.dart';
 import '../shared/screen_layout.dart';
@@ -108,52 +109,23 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                       itemCount: shown.length,
                       itemBuilder: (context, index) {
                         final r = shown[index];
-                        return Card(
-                          clipBehavior: Clip.antiAlias,
-                          child: InkWell(
-                            key: Key('result-${r.id}'),
-                            onTap: () =>
-                                context.push('${Routes.results}/${r.id}'),
-                            child: Column(
-                              children: [
-                                Expanded(
-                                  child: r.mime == 'video/mp4'
-                                      ? const Center(
-                                          child: Icon(
-                                            Icons.play_circle_outline,
-                                            size: 48,
-                                          ),
-                                        )
-                                      : !r.mime.startsWith('image/')
-                                      ? const Center(
-                                          child: Icon(
-                                            Icons.inventory_2_outlined,
-                                            size: 48,
-                                          ),
-                                        )
-                                      : PreviewImage.file(
-                                          ref
-                                              .read(fileStoreProvider)
-                                              .resolve(r.path),
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          cacheWidth: 480,
-                                          errorBuilder: (_, _, _) => const Icon(
-                                            Icons.broken_image_outlined,
-                                          ),
-                                        ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Text(
-                                    '${jobTypeLabel(l10n, r.type)}${r.favourite ? ' ★' : ''}',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        final filePath = ref
+                            .read(fileStoreProvider)
+                            .resolve(r.path)
+                            .path;
+                        final visual = r.mime == 'video/mp4'
+                            ? ThumbVisual(filePath: filePath, isVideo: true)
+                            : !r.mime.startsWith('image/')
+                            ? const IconVisual(Icons.inventory_2_outlined)
+                            : ThumbVisual(filePath: filePath);
+
+                        return EntityCard(
+                          key: Key('result-${r.id}'),
+                          visual: visual,
+                          title:
+                              '${jobTypeLabel(l10n, r.type)}${r.favourite ? ' ★' : ''}',
+                          onTap: () =>
+                              context.push('${Routes.results}/${r.id}'),
                         );
                       },
                     );

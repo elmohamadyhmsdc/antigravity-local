@@ -3,11 +3,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/storage/storage_sweeper.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
-import '../../domain/storage/storage_sweeper.dart';
+import '../../ui/settings/setting_group.dart';
+import '../../ui/settings/setting_tile.dart';
+import '../../ui/settings/settings_scaffold.dart';
+import '../../ui/sheets/confirm_sheet.dart';
 import '../shared/empty_state.dart';
 import '../shared/screen_layout.dart';
 
@@ -22,8 +26,6 @@ final storageSizesProvider = FutureProvider.autoDispose<Map<String, int>>((
   return sizes;
 });
 
-/// What the per-folder sizes do not show: the database, cache/scratch space and the leftovers
-/// that a sweep would remove. Its own provider, so a failure here never hides the sizes above.
 final storageExtrasProvider =
     FutureProvider.autoDispose<({StorageUsage usage, Leftovers leftovers})>((
       ref,
@@ -65,26 +67,24 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
       messenger.showSnackBar(SnackBar(content: Text(l.storageBusy)));
       return;
     }
-    if (!mounted ||
-        !await confirm(
-          context,
-          title: l.storageCleanLeftovers,
-          body: l.storageLeftoversConfirm,
-          confirmLabel: l.delete,
-          cancelLabel: l.cancel,
-          destructive: true,
-        )) {
-      return;
-    }
+    if (!mounted) return;
+    final confirmed = await ConfirmSheet.show(
+      context: context,
+      title: l.storageCleanLeftovers,
+      message: l.storageLeftoversConfirm,
+      confirmLabel: l.delete,
+      cancelLabel: l.cancel,
+      isDanger: true,
+    );
+    if (!mounted || confirmed != true) return;
+
     setState(() => _busy = true);
     final tracker = ref.read(jobTrackerProvider);
     final wasActive = await tracker.suspendForMaintenance();
     try {
       final sweeper = await ref.read(storageSweeperProvider.future);
       final result = await sweeper.sweep();
-      // thumbnails over the cache limit; they come back from the originals when shown
       final trimmed = await ref.read(cropCacheProvider).evict();
-      // photo_manager keeps its own copies of originals opened by this app
       await ref.read(mediaLibraryProvider).clearCache();
       ref.invalidate(storageSizesProvider);
       ref.invalidate(storageExtrasProvider);
@@ -129,22 +129,22 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
       }
       return;
     }
-    if (!mounted ||
-        !await confirm(
-          context,
-          title: switch (category) {
-            'results' => l.storageDeleteResults,
-            'datasets' => l.storageDeleteDatasets,
-            'loras' => l.storageDeleteLoras,
-            _ => l.storageDeleteTemporary,
-          },
-          body: l.storageConfirm,
-          confirmLabel: l.delete,
-          cancelLabel: l.cancel,
-          destructive: true,
-        )) {
-      return;
-    }
+    if (!mounted) return;
+    final confirmed = await ConfirmSheet.show(
+      context: context,
+      title: switch (category) {
+        'results' => l.storageDeleteResults,
+        'datasets' => l.storageDeleteDatasets,
+        'loras' => l.storageDeleteLoras,
+        _ => l.storageDeleteTemporary,
+      },
+      message: l.storageConfirm,
+      confirmLabel: l.delete,
+      cancelLabel: l.cancel,
+      isDanger: true,
+    );
+    if (!mounted || confirmed != true) return;
+
     setState(() => _busy = true);
     final tracker = ref.read(jobTrackerProvider);
     final wasActive = await tracker.suspendForMaintenance();
@@ -233,31 +233,36 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
       'work' => l.storageTemporary,
       _ => l.storageOther,
     };
-    return Scaffold(
-      appBar: AppBar(title: Text(l.storageTitle)),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        children: [
-          ScreenIntro(title: l.storageSavedTitle, body: l.storageHint),
-          if (_busy) const LinearProgressIndicator(),
-          ref
-              .watch(storageSizesProvider)
-              .when(
-                loading: () => const LoadingBox(),
-                error: (_, _) => RetryState(
-                  onRetry: () => ref.invalidate(storageSizesProvider),
-                ),
-                data: (sizes) {
-                  final total = sizes.values.fold<int>(
-                    0,
-                    (sum, bytes) => sum + bytes,
-                  );
-                  final entries = sizes.entries.toList()
-                    ..sort((a, b) => b.value.compareTo(a.value));
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SurfaceSection(
+
+    return SettingsScaffold(
+      title: l.storageTitle,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: ScreenIntro(title: l.storageSavedTitle, body: l.storageHint),
+        ),
+        if (_busy) const LinearProgressIndicator(),
+        ref
+            .watch(storageSizesProvider)
+            .when(
+              loading: () => const LoadingBox(),
+              error: (_, _) => RetryState(
+                onRetry: () => ref.invalidate(storageSizesProvider),
+              ),
+              data: (sizes) {
+                final total = sizes.values.fold<int>(
+                  0,
+                  (sum, bytes) => sum + bytes,
+                );
+                final entries = sizes.entries.toList()
+                  ..sort((a, b) => b.value.compareTo(a.value));
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SurfaceSection(
                         key: const Key('storage-total'),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,117 +280,136 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                           ],
                         ),
                       ),
-                      if (entries.isNotEmpty) ...[
-                        SectionHeading(title: l.storageCategories),
-                        for (final entry in entries)
+                    ),
+                    if (entries.isNotEmpty)
+                      SettingGroup(
+                        title: l.storageCategories,
+                        children: [
+                          for (final entry in entries)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(categoryLabel(entry.key)),
+                                      Text(sizeLabel(entry.value)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  LinearProgressIndicator(
+                                    value: total == 0 ? 0 : entry.value / total,
+                                    minHeight: 6,
+                                    semanticsLabel: categoryLabel(entry.key),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                  ],
+                );
+              },
+            ),
+        ref
+            .watch(storageExtrasProvider)
+            .maybeWhen(
+              data: (extras) => SettingGroup(
+                title: l.storageLeftoversTitle,
+                children: [
+                  Container(
+                    key: const Key('storage-extras'),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final row in [
+                          (l.storageDatabase, extras.usage.databaseBytes),
+                          (l.storageCache, extras.usage.tempBytes),
+                        ])
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Wrap(
-                                  alignment: WrapAlignment.spaceBetween,
-                                  spacing: 12,
-                                  runSpacing: 4,
-                                  children: [
-                                    Text(categoryLabel(entry.key)),
-                                    Text(sizeLabel(entry.value)),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                LinearProgressIndicator(
-                                  value: total == 0 ? 0 : entry.value / total,
-                                  minHeight: 6,
-                                  semanticsLabel: categoryLabel(entry.key),
-                                ),
-                              ],
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [Text(row.$1), Text(sizeLabel(row.$2))],
                             ),
                           ),
-                      ],
-                    ],
-                  );
-                },
-              ),
-          ref
-              .watch(storageExtrasProvider)
-              .maybeWhen(
-                data: (extras) => Column(
-                  key: const Key('storage-extras'),
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final row in [
-                      (l.storageDatabase, extras.usage.databaseBytes),
-                      (l.storageCache, extras.usage.tempBytes),
-                    ])
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          spacing: 12,
-                          children: [Text(row.$1), Text(sizeLabel(row.$2))],
+                        const SizedBox(height: 8),
+                        Text(
+                          extras.leftovers.isEmpty
+                              ? l.storageLeftoversNone
+                              : l.storageLeftoversFound(
+                                  sizeLabel(extras.leftovers.totalBytes),
+                                ),
+                          key: const Key('storage-leftovers-summary'),
                         ),
-                      ),
-                    SectionHeading(title: l.storageLeftoversTitle),
-                    Text(
-                      extras.leftovers.isEmpty
-                          ? l.storageLeftoversNone
-                          : l.storageLeftoversFound(
-                              sizeLabel(extras.leftovers.totalBytes),
-                            ),
-                      key: const Key('storage-leftovers-summary'),
+                        const SizedBox(height: 12),
+                        FilledButton.tonalIcon(
+                          key: const Key('storage-clean-leftovers'),
+                          onPressed: _busy || extras.leftovers.isEmpty
+                              ? null
+                              : _cleanLeftovers,
+                          icon: const Icon(Icons.auto_delete_outlined),
+                          label: Text(l.storageCleanLeftovers),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    FilledButton.tonalIcon(
-                      key: const Key('storage-clean-leftovers'),
-                      onPressed: _busy || extras.leftovers.isEmpty
-                          ? null
-                          : _cleanLeftovers,
-                      icon: const Icon(Icons.auto_delete_outlined),
-                      label: Text(l.storageCleanLeftovers),
-                    ),
-                  ],
-                ),
-                orElse: () => const SizedBox.shrink(),
+                  ),
+                ],
               ),
-          const SizedBox(height: 12),
-          StatusNotice(
+              orElse: () => const SizedBox.shrink(),
+            ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: StatusNotice(
             message: l.storageOriginalsHint,
             icon: Icons.photo_library_outlined,
           ),
-          SectionHeading(title: l.storageManage),
-          OutlinedButton.icon(
-            key: const Key('storage-clean-temporary'),
-            onPressed: _busy ? null : () => _clean('temporary'),
-            icon: const Icon(Icons.cleaning_services_outlined),
-            label: Text(l.storageDeleteTemporary),
-          ),
-          const SizedBox(height: 8),
-          ExpansionTile(
-            key: const Key('storage-saved-files'),
-            tilePadding: EdgeInsets.zero,
-            title: Text(l.storageRemoveSaved),
-            subtitle: Text(l.storageConfirm),
-            children: [
-              for (final action in [
-                ('results', l.storageDeleteResults),
-                ('datasets', l.storageDeleteDatasets),
-                ('loras', l.storageDeleteLoras),
-              ])
-                ListTile(
-                  key: Key('storage-delete-${action.$1}'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    Icons.delete_outline,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                  title: Text(action.$2),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _busy ? null : () => _clean(action.$1),
+        ),
+        SettingGroup(
+          title: l.storageManage,
+          children: [
+            SettingTile.action(
+              key: const Key('storage-clean-temporary'),
+              leading: const Icon(Icons.cleaning_services_outlined),
+              title: l.storageDeleteTemporary,
+              onTap: _busy ? null : () => _clean('temporary'),
+            ),
+            ExpansionTile(
+              key: const Key('storage-saved-files'),
+              leading: const Icon(Icons.folder_delete_outlined),
+              title: Text(l.storageRemoveSaved),
+              subtitle: Text(l.storageConfirm),
+              children: [
+                SettingTile.danger(
+                  key: const Key('storage-delete-results'),
+                  leading: const Icon(Icons.delete_outline),
+                  title: l.storageDeleteResults,
+                  onTap: _busy ? null : () => _clean('results'),
                 ),
-            ],
-          ),
-        ],
-      ),
+                SettingTile.danger(
+                  key: const Key('storage-delete-datasets'),
+                  leading: const Icon(Icons.delete_outline),
+                  title: l.storageDeleteDatasets,
+                  onTap: _busy ? null : () => _clean('datasets'),
+                ),
+                SettingTile.danger(
+                  key: const Key('storage-delete-loras'),
+                  leading: const Icon(Icons.delete_outline),
+                  title: l.storageDeleteLoras,
+                  onTap: _busy ? null : () => _clean('loras'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

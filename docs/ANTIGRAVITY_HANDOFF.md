@@ -1,6 +1,29 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P1 (Shared Foundation Components & Pilots) Completed on main — 2026-11-02
+
+- Implemented entire shared UI foundation in `lib/ui/` and action system in `lib/domain/actions/`:
+  - `lib/domain/actions/`: `entity_ref.dart`, `action_id.dart`, `action_context.dart`, `action_registry.dart`.
+  - `lib/ui/actions/`: `AppActionDispatcher`, `QuickActionsBar`, `EntityActionSheet`.
+  - `lib/ui/scaffolds/`: `TabRootScaffold`, `DetailScaffold`, `FlowScaffold`, `SheetScaffold`.
+  - `lib/ui/settings/`: `SettingTile`, `SettingGroup`, `SettingsScaffold`.
+  - `lib/ui/atoms/`: `CropView`, `AvatarView`, `ThumbView`, `InfoChip`, `CustomProgressBar`.
+  - `lib/ui/cards/`: `EntityCard` (grid/row/hero layouts, normal/selected/disabled/busy states, Thumb/Crop/Avatar/CropStack/Icon visuals).
+  - `lib/ui/collection/`: `CollectionSource<T>`, `InMemoryCollectionSource<T>`, `CollectionController`, `FilterBar`, `SegmentedBar`, `CollectionView`.
+  - `lib/ui/selection/`: `SelectionController<T>`, `SelectionTopBar`, `BulkActionBar` (with overflow sheet).
+  - `lib/ui/sheets/`: `NameSheet`, `ConfirmSheet`, `UndoSnackbar`, `SearchableListSheet<T>`, `GroupPicker`, `FacePicker`.
+  - `lib/ui/states/`: `EmptyState`, `ErrorState`, `ReadinessBanner`, `ProgressCard`.
+  - `lib/ui/viewers/`: `CompareSlider`.
+- Implemented and verified pilots:
+  - `StorageScreen` converted to `SettingsScaffold`, `SettingGroup`, `SettingTile`, and `ConfirmSheet.show`.
+  - `ResultsScreen` converted to `EntityCard` with `result-${r.id}` test keys.
+- Verification:
+  - `flutter analyze` in `mobile/`: **0 issues**.
+  - 10 new P1 test suites: **19 tests passed** (`test/domain/actions/`, `test/ui/`, `test/features/storage_screen_test.dart`, `test/features/results_screen_test.dart`).
+- All code formatted with `dart format lib test`.
+
+
 ## Phase P0 (Baseline & Preparation) Completed on main — 2026-11-02
 
 - User instructed to execute directly on `main` without separate branches.
