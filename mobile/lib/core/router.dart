@@ -10,7 +10,8 @@ import '../features/activity/job_detail_screen.dart';
 import '../features/analyze/analyze_screen.dart';
 import '../features/backup/backup_screen.dart';
 import '../features/bodies/bodies_screen.dart';
-import '../features/bodies/discover_screen.dart';
+import '../features/explore/explore_collection_screen.dart';
+import '../features/explore/explore_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/library/native_gallery.dart';
@@ -339,28 +340,23 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: '${Routes.explore}/:kind/:id',
-        builder: (context, state) => BodiesScreen(
+        builder: (context, state) => ExploreCollectionScreen(
+          kind: state.pathParameters['kind']!,
+          id: state.pathParameters['id'],
           personId: int.tryParse(state.uri.queryParameters['personId'] ?? ''),
-          initialSimilar: int.tryParse(
-            state.uri.queryParameters['similar'] ?? '',
-          ),
-          initialSimilarColours: int.tryParse(
-            state.uri.queryParameters['colours'] ?? '',
-          ),
-          initialTab: int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0,
+          similar: int.tryParse(state.uri.queryParameters['similar'] ?? ''),
+          colours: int.tryParse(state.uri.queryParameters['colours'] ?? ''),
+          tab: int.tryParse(state.uri.queryParameters['tab'] ?? ''),
         ),
       ),
       GoRoute(
         path: '${Routes.explore}/:kind',
-        builder: (context, state) => BodiesScreen(
+        builder: (context, state) => ExploreCollectionScreen(
+          kind: state.pathParameters['kind']!,
           personId: int.tryParse(state.uri.queryParameters['personId'] ?? ''),
-          initialSimilar: int.tryParse(
-            state.uri.queryParameters['similar'] ?? '',
-          ),
-          initialSimilarColours: int.tryParse(
-            state.uri.queryParameters['colours'] ?? '',
-          ),
-          initialTab: int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0,
+          similar: int.tryParse(state.uri.queryParameters['similar'] ?? ''),
+          colours: int.tryParse(state.uri.queryParameters['colours'] ?? ''),
+          tab: int.tryParse(state.uri.queryParameters['tab'] ?? ''),
         ),
       ),
       GoRoute(
@@ -640,7 +636,7 @@ GoRouter createRouter({
             routes: [
               GoRoute(
                 path: Routes.explore,
-                builder: (context, state) => const DiscoverScreen(),
+                builder: (context, state) => const ExploreScreen(),
               ),
             ],
           ),

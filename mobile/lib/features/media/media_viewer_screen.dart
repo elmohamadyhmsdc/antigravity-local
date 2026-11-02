@@ -29,6 +29,7 @@ import '../scan/scan_progress_card.dart' show startScan;
 import '../shared/empty_state.dart';
 import '../shared/image_preview.dart';
 import '../shared/person_picker.dart';
+import '../video_actions/video_actions_screen.dart';
 import 'layers_popover.dart';
 import 'media_chrome.dart';
 import 'media_page_item.dart';
@@ -301,6 +302,65 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showTools(BuildContext context, MediaRow media) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.motion_photos_on_outlined),
+                title: const Text('Name an action'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ActionExampleScreen(media: media),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.face_retouching_natural),
+                title: const Text('Reface'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  context.push(
+                    '${Routes.studioReface}?target=media:${media.id}',
+                  );
+                },
+              ),
+              if (media.kind == 'photo') ...[
+                ListTile(
+                  leading: const Icon(Icons.checkroom_outlined),
+                  title: const Text('Restyle'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    context.push('${Routes.restyle}?media=${media.id}');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.folder_outlined),
+                  title: const Text('Add to training dataset'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    context.push(
+                      '${Routes.studioDatasetsNew}?media=${media.id}',
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -617,6 +677,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                 visible: _chromeVisible,
                 onShare: () => _shareOriginal(context, media),
                 onStudio: () => _showStudioMenu(context, media),
+                onTools: () => _showTools(context, media),
                 onDetails: () =>
                     _showDetails(context, media, faces, bodies, people),
                 onLens: () => _searchGoogleLens(context, media),

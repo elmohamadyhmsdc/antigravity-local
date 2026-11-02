@@ -460,10 +460,7 @@ void main() {
       final unredirectedRoutes = [
         '/lora',
         '/results',
-        '/sources',
         '/analyze',
-        '/insights',
-        '/running-scan',
         '/home',
         '/bodies',
         '/marks',

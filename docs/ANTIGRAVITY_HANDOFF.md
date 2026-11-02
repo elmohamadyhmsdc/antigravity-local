@@ -1,6 +1,37 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P7 (Explore Hub, Visual Kinds, Outfits, Equipment & Actions) Completed on main — 2026-11-02
+
+- Implemented E1 Explore Hub:
+  - `mobile/lib/features/explore/explore_screen.dart`: built on `TabRootScaffold` replacing `discover_screen.dart`. Categorized into 3 main visual sections:
+    1. **Bodies:** All bodies, Poses, Outfits & colours, Group poses, Areas, and Marks. Includes dynamic crop stack and live counts.
+    2. **Objects:** Equipment with live detected count.
+    3. **Motion:** Actions browsing with navigation to action examples and catalog.
+  - Automatically renders `ScanInviteStrip` when no bodies have been analyzed yet.
+- Implemented E2 Explore Collection Screen & Unified View:
+  - `mobile/lib/features/explore/explore_collection_screen.dart`: created `ExploreCollectionScreen` and `ExploreCollectionView` supporting all visual kinds (`all`, `poses`, `outfits`, `groupPoses`, `equipment`, `areas`, `marks`, `actions`).
+  - Added universal "No owner" (`filter-no-owner`) chip backed by `correctionsQueriesProvider.noOwnerIds`.
+  - Added "Similar to #id" and "Colours of #id" filter chips with one-tap dismissal.
+- Media Chrome & Viewer Refinements:
+  - `mobile/lib/features/media/media_chrome.dart` & `media_viewer_screen.dart`: added `Tools` button to bottom viewer bar opening `_showTools` with `Name an action`, `Reface`, `Restyle`, and `Add to training dataset`.
+- Router Updates:
+  - `mobile/lib/core/router.dart`: pointed shell route `Routes.explore` to `const ExploreScreen()`, and `Routes.exploreCollection` (`/explore/:kind` and `/explore/:kind/:id`) to `ExploreCollectionScreen`.
+- Verification:
+  - `dart analyze lib test`: **0 issues**.
+  - All Phase P7 test suites passed (55 tests):
+    - `test/features/bodies_screen_test.dart` (9 passed)
+    - `test/features/body_universal_naming_test.dart` (3 passed)
+    - `test/features/group_pose_ux_test.dart` (2 passed)
+    - `test/features/actions_screen_test.dart` (2 passed)
+    - `test/domain/pose_matching_precision_test.dart` (2 passed)
+    - `test/domain/group_poses_test.dart` (8 passed)
+    - `test/domain/group_pose_matcher_test.dart` (10 passed)
+    - `test/data/video_actions_repository_test.dart` (1 passed)
+    - `test/core/router_test.dart` (18 passed)
+  - All code formatted with `dart format lib test`.
+
+
 ## Phase P6b (Review Hub, Merge & Conflict Guard, Marks) Completed on main — 2026-11-02
 
 - Implemented Unified Review Hub (P4):
