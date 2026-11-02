@@ -1,7 +1,8 @@
-import '../shared/image_preview.dart';
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -88,14 +89,20 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
     }
   }
 
-  Future<List<MediaListItem>> _page(int page) => _pages.putIfAbsent(
-    page,
-    () => _queries.page(
-      widget.filter,
-      offset: page * _pageSize,
-      limit: _pageSize,
-    ),
-  );
+  Future<List<MediaListItem>> _page(int page) =>
+      _pages.putIfAbsent(page, () async {
+        final items = await _queries.page(
+          widget.filter,
+          offset: page * _pageSize,
+          limit: _pageSize,
+        );
+        if (items.isNotEmpty) {
+          ref.read(thumbnailServiceProvider).preheat([
+            for (final it in items) it.assetId,
+          ]);
+        }
+        return items;
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +112,7 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
     if (count == 0) return widget.empty;
     return GridView.builder(
       key: const Key('media-grid'),
+      scrollCacheExtent: const ScrollCacheExtent.pixels(1400),
       padding: const EdgeInsets.all(2),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: widget.columns,
@@ -148,6 +156,16 @@ class MediaTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final thumbs = ref.watch(thumbnailServiceProvider);
+    final cached = thumbs.getSync(item.assetId);
+
+    Widget imageWidget(Uint8List bytes) => Image.memory(
+      bytes,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      cacheWidth: 256,
+      cacheHeight: 256,
+    );
+
     return GestureDetector(
       key: Key('media-${item.id}'),
       onTap: () {
@@ -168,37 +186,32 @@ class MediaTile extends ConsumerWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          FutureBuilder(
-            future: thumbs.get(
-              item.assetId,
-              width: item.width,
-              height: item.height,
+          if (cached != null)
+            imageWidget(cached)
+          else
+            FutureBuilder<Uint8List?>(
+              initialData: cached,
+              future: thumbs.get(
+                item.assetId,
+                width: item.width,
+                height: item.height,
+              ),
+              builder: (context, snapshot) {
+                final bytes = snapshot.data;
+                if (bytes == null) {
+                  return ColoredBox(
+                    color: scheme.surfaceContainerHighest,
+                    child: Icon(
+                      snapshot.connectionState == ConnectionState.done
+                          ? Icons.broken_image_outlined
+                          : Icons.photo_outlined,
+                      color: scheme.outline,
+                    ),
+                  );
+                }
+                return imageWidget(bytes);
+              },
             ),
-            builder: (context, snapshot) {
-              final bytes = snapshot.data;
-              if (bytes == null) {
-                return ColoredBox(
-                  color: scheme.surfaceContainerHighest,
-                  child: Icon(
-                    snapshot.connectionState == ConnectionState.done
-                        ? Icons.broken_image_outlined
-                        : Icons.photo_outlined,
-                    color: scheme.outline,
-                  ),
-                );
-              }
-              return PreviewImage.memory(
-                bytes,
-                fullSource: ImagePreviewSource.asset(
-                  item.assetId,
-                  video: item.kind == 'video',
-                  fallbackBytes: bytes,
-                ),
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-              );
-            },
-          ),
           if (item.kind == 'video')
             Positioned(
               right: 4,

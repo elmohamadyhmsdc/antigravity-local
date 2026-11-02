@@ -33,6 +33,8 @@ class MediaInspector extends ConsumerStatefulWidget {
     required this.media,
     required this.faces,
     required this.bodies,
+    this.areas = const [],
+    this.equipment = const [],
     required this.people,
     this.selectedDetectionId,
     this.onSelectDetection,
@@ -46,6 +48,8 @@ class MediaInspector extends ConsumerStatefulWidget {
   final MediaRow media;
   final List<MediaDetection> faces;
   final List<MediaDetection> bodies;
+  final List<MediaDetection> areas;
+  final List<MediaDetection> equipment;
   final Map<int, PersonSummary> people;
   final int? selectedDetectionId;
   final ValueChanged<MediaDetection>? onSelectDetection;
@@ -60,6 +64,8 @@ class MediaInspector extends ConsumerStatefulWidget {
     required MediaRow media,
     required List<MediaDetection> faces,
     required List<MediaDetection> bodies,
+    List<MediaDetection> areas = const [],
+    List<MediaDetection> equipment = const [],
     required Map<int, PersonSummary> people,
     int? selectedDetectionId,
     ValueChanged<MediaDetection>? onSelectDetection,
@@ -83,6 +89,8 @@ class MediaInspector extends ConsumerStatefulWidget {
           media: media,
           faces: faces,
           bodies: bodies,
+          areas: areas,
+          equipment: equipment,
           people: people,
           scrollController: scrollController,
           selectedDetectionId: selectedDetectionId,
@@ -148,6 +156,8 @@ class MediaInspectorContent extends ConsumerStatefulWidget {
     required this.media,
     required this.faces,
     required this.bodies,
+    this.areas = const [],
+    this.equipment = const [],
     required this.people,
     required this.scrollController,
     this.selectedDetectionId,
@@ -162,6 +172,8 @@ class MediaInspectorContent extends ConsumerStatefulWidget {
   final MediaRow media;
   final List<MediaDetection> faces;
   final List<MediaDetection> bodies;
+  final List<MediaDetection> areas;
+  final List<MediaDetection> equipment;
   final Map<int, PersonSummary> people;
   final ScrollController scrollController;
   final int? selectedDetectionId;
@@ -211,6 +223,12 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
   }
 
   Color _chipBorderColor(ThemeData theme, MediaDetection d) {
+    if (d.isArea) {
+      return Colors.deepOrangeAccent;
+    }
+    if (d.isEquipment) {
+      return Colors.teal;
+    }
     if (d.personId == null) {
       return Colors.amber; // unassigned
     }
@@ -224,17 +242,31 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
     BuildContext context,
     MediaDetection d,
   ) async {
-    final target = d.isFace
-        ? FaceLinkTarget(
-            faceId: d.refId,
-            mediaId: widget.media.id,
-            personId: d.personId,
-          )
-        : BodyLinkTarget(
-            bodyId: d.refId,
-            mediaId: widget.media.id,
-            personId: d.personId,
-          );
+    final CorrectionTarget target;
+    if (d.isFace) {
+      target = FaceLinkTarget(
+        faceId: d.refId,
+        mediaId: widget.media.id,
+        personId: d.personId,
+      );
+    } else if (d.isBody) {
+      target = BodyLinkTarget(
+        bodyId: d.refId,
+        mediaId: widget.media.id,
+        personId: d.personId,
+      );
+    } else if (d.isArea) {
+      target = SensitiveRegionTarget(
+        regionId: d.refId,
+        mediaId: widget.media.id,
+      );
+    } else {
+      target = EquipmentOwnerTarget(
+        objectId: d.refId,
+        mediaId: widget.media.id,
+        bodyId: d.personId,
+      );
+    }
 
     final personName = d.personId != null && widget.people[d.personId] != null
         ? widget.people[d.personId]!.name
@@ -328,11 +360,24 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
         mediaId: widget.media.id,
         personId: d.personId,
       );
-    } else {
+    } else if (d.isBody) {
       entityRef = BodyEntityRef(
         d.refId,
         mediaId: widget.media.id,
         personId: d.personId,
+      );
+    } else if (d.isArea) {
+      entityRef = SensitiveRegionEntityRef(
+        d.refId,
+        mediaId: widget.media.id,
+        bodyId: d.personId,
+      );
+    } else {
+      entityRef = EquipmentEntityRef(
+        d.refId,
+        mediaId: widget.media.id,
+        bodyId: d.personId,
+        name: d.label,
       );
     }
 
@@ -348,7 +393,12 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final allDetections = [...widget.faces, ...widget.bodies];
+    final allDetections = [
+      ...widget.faces,
+      ...widget.bodies,
+      ...widget.areas,
+      ...widget.equipment,
+    ];
     final isVideo = widget.media.kind == 'video';
 
     final groupedByPerson = <int, List<MediaDetection>>{};
@@ -460,6 +510,10 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                                   path: d.cropPath,
                                   placeholderIcon: d.isFace
                                       ? Icons.face_outlined
+                                      : d.isArea
+                                      ? Icons.crop_square_outlined
+                                      : d.isEquipment
+                                      ? Icons.sports_tennis_outlined
                                       : Icons.accessibility_new,
                                 ),
                               ),
@@ -599,11 +653,23 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                               path: d.cropPath,
                               placeholderIcon: d.isFace
                                   ? Icons.face_outlined
+                                  : d.isArea
+                                  ? Icons.crop_square_outlined
+                                  : d.isEquipment
+                                  ? Icons.sports_tennis_outlined
                                   : Icons.accessibility_new,
                             ),
                           ),
                         ),
-                        title: Text(d.isFace ? 'Face' : 'Body'),
+                        title: Text(
+                          d.isFace
+                              ? 'Face'
+                              : d.isArea
+                              ? (d.label ?? 'Area')
+                              : d.isEquipment
+                              ? (d.label ?? 'Equipment')
+                              : 'Body',
+                        ),
                         subtitle: Text(
                           d.linkMethod != null
                               ? 'Via ${d.linkMethod}'
@@ -674,12 +740,22 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                           path: d.cropPath,
                           placeholderIcon: d.isFace
                               ? Icons.face_outlined
+                              : d.isArea
+                              ? Icons.crop_square_outlined
+                              : d.isEquipment
+                              ? Icons.sports_tennis_outlined
                               : Icons.accessibility_new,
                         ),
                       ),
                     ),
                     title: Text(
-                      d.isFace ? 'Unassigned face' : 'Unassigned body',
+                      d.isFace
+                          ? 'Unassigned face'
+                          : d.isArea
+                          ? (d.label ?? 'Area')
+                          : d.isEquipment
+                          ? (d.label ?? 'Equipment')
+                          : 'Unassigned body',
                     ),
                     subtitle: const Text('Needs decision'),
                     trailing: Row(

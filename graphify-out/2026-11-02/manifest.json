@@ -264,15 +264,15 @@
     "semantic_hash": ""
   },
   "mobile/lib/data/media/media_library.dart": {
-    "mtime": 1793565175.1181557,
-    "seen": 1793569451.8536122,
-    "ast_hash": "b5e15f6786f6032802d1fd289cf871bd",
+    "mtime": 1793646851.1723063,
+    "seen": 1793647022.187384,
+    "ast_hash": "a9e3f282115dd2e0c41adeae907a1c21",
     "semantic_hash": ""
   },
   "mobile/lib/data/media/thumbnail_service.dart": {
-    "mtime": 1791742137.4466903,
-    "seen": 1793484749.4999769,
-    "ast_hash": "50097f1a7abaf42544996b84457361a2",
+    "mtime": 1793646851.1678264,
+    "seen": 1793647022.187389,
+    "ast_hash": "c9cffa3e508e503ab15d3ef0ad539971",
     "semantic_hash": ""
   },
   "mobile/lib/data/platform/background_execution.dart": {
@@ -444,9 +444,9 @@
     "semantic_hash": ""
   },
   "mobile/lib/domain/geometry/outline.dart": {
-    "mtime": 1793479261.8054366,
-    "seen": 1793484749.5000331,
-    "ast_hash": "dcd3bcb23d8756fee804e7ced3de025f",
+    "mtime": 1793646925.1236415,
+    "seen": 1793647022.1875374,
+    "ast_hash": "c1e61458a2f0907bc150bc3b71f872d4",
     "semantic_hash": ""
   },
   "mobile/lib/domain/grouping/grouping_config.dart": {
@@ -630,9 +630,9 @@
     "semantic_hash": ""
   },
   "mobile/lib/features/library/media_grid.dart": {
-    "mtime": 1793552069.3785863,
-    "seen": 1793569451.85374,
-    "ast_hash": "321b0024a7b8b52a6346a2495cf251b7",
+    "mtime": 1793646851.195431,
+    "seen": 1793647022.187728,
+    "ast_hash": "a9710e549856671266abe9c90f0cac7c",
     "semantic_hash": ""
   },
   "mobile/lib/features/lora/lora_screens.dart": {
@@ -720,9 +720,9 @@
     "semantic_hash": ""
   },
   "mobile/lib/features/people/people_screen.dart": {
-    "mtime": 1793644711.4181736,
-    "seen": 1793644843.3125212,
-    "ast_hash": "138137446bef6cc0b8a3dfa9e14dfb15",
+    "mtime": 1793645582.0638857,
+    "seen": 1793645703.6518176,
+    "ast_hash": "8d593f39dd85553991ad4f1d161987d9",
     "semantic_hash": ""
   },
   "mobile/lib/features/people/person_detail_screen.dart": {
@@ -2772,9 +2772,9 @@
     "semantic_hash": ""
   },
   "docs/ANTIGRAVITY_HANDOFF.md": {
-    "mtime": 1793644754.064448,
-    "seen": 1793644843.3130102,
-    "ast_hash": "82a83e2fbe2d4e739a4038700758ddc0",
+    "mtime": 1793646939.2115757,
+    "seen": 1793647022.189365,
+    "ast_hash": "37103a3fb5f0b2ff280c31733fbbbc7a",
     "semantic_hash": ""
   },
   "docs/bulk-scan-1.2.0-2026-10-30.md": {
@@ -3666,9 +3666,9 @@
     "semantic_hash": ""
   },
   "mobile/lib/features/library/native_gallery.dart": {
-    "mtime": 1793629685.5649002,
-    "seen": 1793644843.312499,
-    "ast_hash": "fa2843c5c0482012258376c3f6fe6cc1",
+    "mtime": 1793646851.1895974,
+    "seen": 1793647022.1877306,
+    "ast_hash": "0c20801c9179e7dbbd4b809f79c59504",
     "semantic_hash": ""
   },
   "mobile/lib/features/marks/mark_tattoo.dart": {
@@ -5880,9 +5880,9 @@
     "semantic_hash": ""
   },
   "mobile/lib/domain/corrections/targeted_detection_service.dart": {
-    "mtime": 1793643710.020717,
-    "seen": 1793644843.3124342,
-    "ast_hash": "0f35ed42a30c3a13dd86cf1b16d4c80c",
+    "mtime": 1793646987.7712207,
+    "seen": 1793647022.1875234,
+    "ast_hash": "b4a3bf2870bd2a2cbe384d357b762a11",
     "semantic_hash": ""
   },
   "mobile/lib/domain/targets/target_ref.dart": {
@@ -6156,9 +6156,9 @@
     "semantic_hash": ""
   },
   "mobile/lib/ui/pickers/media_picker.dart": {
-    "mtime": 1793629695.2201993,
-    "seen": 1793644843.312583,
-    "ast_hash": "2b5ba9adb72bdd560fb63965b4753ffc",
+    "mtime": 1793646751.3452232,
+    "seen": 1793647022.1880057,
+    "ast_hash": "e1fac596f99d3e6fc1d9f2d3e5406270",
     "semantic_hash": ""
   },
   "mobile/lib/ui/scaffolds/detail_scaffold.dart": {
@@ -6579,6 +6579,12 @@
     "mtime": 1793643073.6693468,
     "seen": 1793644843.3130617,
     "ast_hash": "a3f2650d8f0965af034a1ece63814047",
+    "semantic_hash": ""
+  },
+  "mobile/test/data/thumbnail_service_test.dart": {
+    "mtime": 1793646519.8774276,
+    "seen": 1793647022.1881564,
+    "ast_hash": "13e7909505b5f5a8b45fd854421a9464",
     "semantic_hash": ""
   }
 }

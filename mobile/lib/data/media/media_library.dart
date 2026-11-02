@@ -283,15 +283,62 @@ class PhotoManagerLibrary
     required int height,
     int size = 256,
   }) async {
+    // 1. Direct platform channel call bypassing expensive AssetEntity.fromId metadata SQL queries
+    try {
+      final ThumbnailOption option;
+      if (Platform.isIOS || Platform.isMacOS) {
+        option = ThumbnailOption.ios(
+          size: ThumbnailSize.square(size),
+          quality: 75,
+        );
+      } else {
+        option = ThumbnailOption(
+          size: ThumbnailSize.square(size),
+          quality: 75,
+          frame: 0,
+        );
+      }
+      final bytes = await PhotoManager.plugin.getThumbnail(
+        id: assetId,
+        option: option,
+      );
+      if (bytes != null && bytes.isNotEmpty) return bytes;
+    } catch (_) {}
+
+    // 2. Fallback via AssetEntity
     try {
       final entity = await AssetEntity.fromId(assetId);
       return await entity?.thumbnailDataWithSize(
         ThumbnailSize.square(size),
-        quality: 80,
+        quality: 75,
       );
     } catch (_) {
       return null;
     }
+  }
+
+  /// Triggers background pre-caching for a batch of assets on native platform (e.g. Glide).
+  Future<void> preheatThumbnails(
+    List<String> assetIds, {
+    int size = 256,
+  }) async {
+    if (assetIds.isEmpty) return;
+    try {
+      final ThumbnailOption option;
+      if (Platform.isIOS || Platform.isMacOS) {
+        option = ThumbnailOption.ios(
+          size: ThumbnailSize.square(size),
+          quality: 75,
+        );
+      } else {
+        option = ThumbnailOption(
+          size: ThumbnailSize.square(size),
+          quality: 75,
+          frame: 0,
+        );
+      }
+      await PhotoManager.plugin.requestCacheAssetsThumbnail(assetIds, option);
+    } catch (_) {}
   }
 
   @override

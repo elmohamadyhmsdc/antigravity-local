@@ -377,9 +377,42 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     MediaDetection d,
     Map<int, PersonSummary> people,
   ) {
-    final entity = d.isFace
-        ? FaceEntityRef(d.refId, mediaId: widget.mediaId, personId: d.personId)
-        : BodyEntityRef(d.refId, mediaId: widget.mediaId, personId: d.personId);
+    final EntityRef entity;
+    final String title;
+    if (d.isFace) {
+      entity = FaceEntityRef(
+        d.refId,
+        mediaId: widget.mediaId,
+        personId: d.personId,
+      );
+      title = 'Face actions';
+    } else if (d.isBody) {
+      entity = BodyEntityRef(
+        d.refId,
+        mediaId: widget.mediaId,
+        personId: d.personId,
+      );
+      title = 'Body actions';
+    } else if (d.isArea) {
+      entity = SensitiveRegionEntityRef(
+        d.refId,
+        mediaId: widget.mediaId,
+        bodyId: d.personId,
+      );
+      title = d.label != null && d.label!.isNotEmpty
+          ? d.label!
+          : 'Area actions';
+    } else {
+      entity = EquipmentEntityRef(
+        d.refId,
+        mediaId: widget.mediaId,
+        bodyId: d.personId,
+        name: d.label,
+      );
+      title = d.label != null && d.label!.isNotEmpty
+          ? d.label!
+          : 'Equipment actions';
+    }
 
     final actionContext = ActionContext(
       isMultiSelect: false,
@@ -391,7 +424,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     EntityActionSheet.show(
       context: context,
       entity: entity,
-      title: d.isFace ? 'Face actions' : 'Body actions',
+      title: title,
       actionContext: actionContext,
       onActionSelected: (id) =>
           _dispatchDetectionAction(context, d, id, people),
@@ -492,6 +525,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     MediaRow media,
     List<MediaDetection> faces,
     List<MediaDetection> bodies,
+    List<MediaDetection> areas,
+    List<MediaDetection> equipment,
     Map<int, PersonSummary> people,
   ) {
     setState(() => _detailsOpen = true);
@@ -500,6 +535,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
       media: media,
       faces: faces,
       bodies: bodies,
+      areas: areas,
+      equipment: equipment,
       people: people,
       selectedDetectionId: _selectedDetectionId,
       onSelectDetection: (d) => setState(() => _selectedDetectionId = d.id),
@@ -591,6 +628,17 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
               .read(targetedDetectionServiceProvider)
               .apply(entry);
           if (!mounted) return;
+          setState(() {
+            if (kind == 'area') {
+              _layers = _layers.copyWith(areas: true);
+            } else if (kind == 'object') {
+              _layers = _layers.copyWith(equipment: true);
+            } else if (kind == 'body') {
+              _layers = _layers.copyWith(bodies: true);
+            } else if (kind == 'face') {
+              _layers = _layers.copyWith(faces: true);
+            }
+          });
           UndoSnackbar.show(
             context: context,
             message: 'Saved $kind detection',
@@ -651,14 +699,22 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
         ];
         final bodies = [
           for (final d in detections)
-            if (!d.isFace) d,
+            if (d.isBody) d,
+        ];
+        final areas = [
+          for (final d in detections)
+            if (d.isArea) d,
+        ];
+        final equipment = [
+          for (final d in detections)
+            if (d.isEquipment) d,
         ];
 
         final availability = LayerAvailability(
           hasFaces: faces.isNotEmpty,
           hasBodies: bodies.isNotEmpty,
-          hasAreas: false,
-          hasEquipment: false,
+          hasAreas: areas.isNotEmpty,
+          hasEquipment: equipment.isNotEmpty,
         );
 
         return Scaffold(
@@ -715,7 +771,15 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                                 MediaQuery.sizeOf(context).height * .65 &&
                             start.dy - event.position.dy > 80 &&
                             (start.dx - event.position.dx).abs() < 60) {
-                          _showDetails(context, media, faces, bodies, people);
+                          _showDetails(
+                            context,
+                            media,
+                            faces,
+                            bodies,
+                            areas,
+                            equipment,
+                            people,
+                          );
                         }
                         if (_pointerCount == 0) _swipeStart = null;
                       },
@@ -806,8 +870,15 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                 onStudio: () => _showStudioMenu(context, media),
                 onTools: () => _showTools(context, media),
                 onDetect: () => _startTargetedDetect(context, media),
-                onDetails: () =>
-                    _showDetails(context, media, faces, bodies, people),
+                onDetails: () => _showDetails(
+                  context,
+                  media,
+                  faces,
+                  bodies,
+                  areas,
+                  equipment,
+                  people,
+                ),
                 onLens: () => _searchGoogleLens(context, media),
                 onOpenNativePlayer: () =>
                     _openNativeVideoPlayer(context, media),

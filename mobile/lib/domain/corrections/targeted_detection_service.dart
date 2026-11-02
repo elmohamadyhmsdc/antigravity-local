@@ -5,6 +5,8 @@ import 'package:drift/drift.dart';
 
 import '../../data/api/dtos/analyze.dart';
 import '../../data/db/app_database.dart';
+import '../../data/repositories/sensitive_store.dart';
+import '../geometry/outline.dart';
 
 class TargetedEntry {
   const TargetedEntry({
@@ -43,13 +45,17 @@ class _TargetedUndoItem {
     required this.kind,
     required this.insertedId,
     this.insertedOverrideId,
+    this.insertedDetectionId,
     this.settingKey,
+    required this.mediaId,
   });
 
   final String kind;
   final int insertedId;
   final int? insertedOverrideId;
+  final int? insertedDetectionId;
   final String? settingKey;
+  final int mediaId;
 }
 
 class TargetedDetectionService {
@@ -68,6 +74,7 @@ class TargetedDetectionService {
 
     int insertedId = 0;
     int? insertedOverrideId;
+    int? insertedDetectionId;
     String? settingKey;
 
     if (entry.kind == 'body') {
@@ -104,6 +111,21 @@ class TargetedDetectionService {
                     ? 'track'
                     : 'single',
               ),
+            ),
+          );
+
+      insertedDetectionId = await db
+          .into(db.mediaDetections)
+          .insert(
+            MediaDetectionsCompanion.insert(
+              mediaId: entry.mediaId,
+              kind: 'b',
+              refId: insertedId,
+              x: entry.bbox.x,
+              y: entry.bbox.y,
+              w: entry.bbox.w,
+              h: entry.bbox.h,
+              outline: Value(encodeOutline(entry.outline, entry.bbox)),
             ),
           );
     } else if (entry.kind == 'face') {
@@ -144,6 +166,21 @@ class TargetedDetectionService {
               ),
             ),
           );
+
+      insertedDetectionId = await db
+          .into(db.mediaDetections)
+          .insert(
+            MediaDetectionsCompanion.insert(
+              mediaId: entry.mediaId,
+              kind: 'f',
+              refId: insertedId,
+              x: entry.bbox.x,
+              y: entry.bbox.y,
+              w: entry.bbox.w,
+              h: entry.bbox.h,
+              outline: Value(encodeOutline(entry.outline, entry.bbox)),
+            ),
+          );
     } else if (entry.kind == 'object') {
       insertedId = await db
           .into(db.equipmentObjects)
@@ -159,18 +196,69 @@ class TargetedDetectionService {
               state: const Value('confirmed'),
             ),
           );
+
+      insertedDetectionId = await db
+          .into(db.mediaDetections)
+          .insert(
+            MediaDetectionsCompanion.insert(
+              mediaId: entry.mediaId,
+              kind: 'e',
+              refId: insertedId,
+              x: entry.bbox.x,
+              y: entry.bbox.y,
+              w: entry.bbox.w,
+              h: entry.bbox.h,
+              outline: Value(encodeOutline(entry.outline, entry.bbox)),
+            ),
+          );
     } else if (entry.kind == 'area') {
       settingKey =
           'area.name.${entry.mediaId}_${(entry.bbox.x * 1000).toInt()}_${(entry.bbox.y * 1000).toInt()}';
       await db.putSetting(settingKey, entry.label);
-      insertedId = now;
+
+      insertedId = await db
+          .into(db.sensitiveRegions)
+          .insert(
+            SensitiveRegionsCompanion.insert(
+              mediaId: entry.mediaId,
+              label: entry.label,
+              exposed: true,
+              score: 1.0,
+              x: entry.bbox.x,
+              y: entry.bbox.y,
+              w: entry.bbox.w,
+              h: entry.bbox.h,
+              modelVersion: 1,
+              userState: const Value('confirmed'),
+              createdAt: now,
+            ),
+          );
+
+      await SensitiveStore(db).markChecked(entry.mediaId, 1);
+
+      insertedDetectionId = await db
+          .into(db.mediaDetections)
+          .insert(
+            MediaDetectionsCompanion.insert(
+              mediaId: entry.mediaId,
+              kind: 'a',
+              refId: insertedId,
+              x: entry.bbox.x,
+              y: entry.bbox.y,
+              w: entry.bbox.w,
+              h: entry.bbox.h,
+              outline: Value(encodeOutline(entry.outline, entry.bbox)),
+            ),
+          );
     }
 
     _undoHistory[undoToken] = _TargetedUndoItem(
       kind: entry.kind,
       insertedId: insertedId,
       insertedOverrideId: insertedOverrideId,
+      insertedDetectionId: insertedDetectionId,
       settingKey: settingKey,
+      mediaId: entry.mediaId,
     );
 
     return TargetedApplyResult(undoToken: undoToken, insertedId: insertedId);
@@ -179,6 +267,12 @@ class TargetedDetectionService {
   Future<void> undo(String undoToken) async {
     final item = _undoHistory.remove(undoToken);
     if (item == null) return;
+
+    if (item.insertedDetectionId != null) {
+      await (db.delete(
+        db.mediaDetections,
+      )..where((d) => d.id.equals(item.insertedDetectionId!))).go();
+    }
 
     if (item.kind == 'body') {
       await (db.delete(
@@ -202,10 +296,16 @@ class TargetedDetectionService {
       await (db.delete(
         db.equipmentObjects,
       )..where((o) => o.id.equals(item.insertedId))).go();
-    } else if (item.kind == 'area' && item.settingKey != null) {
+    } else if (item.kind == 'area') {
       await (db.delete(
-        db.settings,
-      )..where((s) => s.key.equals(item.settingKey!))).go();
+        db.sensitiveRegions,
+      )..where((s) => s.id.equals(item.insertedId))).go();
+      if (item.settingKey != null) {
+        await (db.delete(
+          db.settings,
+        )..where((s) => s.key.equals(item.settingKey!))).go();
+      }
+      await SensitiveStore(db).recompute(item.mediaId);
     }
   }
 }

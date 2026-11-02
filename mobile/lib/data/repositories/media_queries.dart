@@ -101,14 +101,15 @@ class MediaDetection {
     this.timestampMs,
     this.outline,
     this.figure = 'person',
+    this.label,
   });
 
   final int id;
-  final String kind; // f | b
+  final String kind; // f | b | a | e
 
   /// Whose face or body: 'person', or 'character' for a drawn figure.
   final String figure;
-  final int refId; // faces.id / bodies.id
+  final int refId; // faces.id / bodies.id / sensitiveRegions.id / equipmentObjects.id
   final double x, y, w, h;
   final int? personId;
   final String? cropPath;
@@ -116,8 +117,12 @@ class MediaDetection {
   final int? frameNumber;
   final int? timestampMs;
   final List<Offset>? outline;
+  final String? label;
 
   bool get isFace => kind == 'f';
+  bool get isBody => kind == 'b';
+  bool get isArea => kind == 'a';
+  bool get isEquipment => kind == 'e';
 }
 
 class MediaQueries {
@@ -280,18 +285,82 @@ class MediaQueries {
         '''
         SELECT d.id, d.kind, d.ref_id, d.x, d.y, d.w, d.h, d.frame_number, d.timestamp_ms, d.outline,
           CASE WHEN d.kind = 'f' THEN f.person_id
-               ELSE COALESCE((SELECT person_id FROM faces WHERE id = b.face_id), b.person_id) END AS person_id,
-          CASE WHEN d.kind = 'f' THEN f.crop_path ELSE b.crop_path END AS crop_path,
+               WHEN d.kind = 'b' THEN COALESCE((SELECT person_id FROM faces WHERE id = b.face_id), b.person_id)
+               WHEN d.kind = 'a' THEN (SELECT person_id FROM bodies WHERE id = s.body_id)
+               ELSE NULL END AS person_id,
+          CASE WHEN d.kind = 'f' THEN f.crop_path
+               WHEN d.kind = 'b' THEN b.crop_path
+               ELSE NULL END AS crop_path,
           b.link_method AS link_method,
-          CASE WHEN d.kind = 'f' THEN f.kind ELSE b.kind END AS figure
+          CASE WHEN d.kind = 'f' THEN f.kind
+               WHEN d.kind = 'b' THEN b.kind
+               ELSE 'person' END AS figure,
+          CASE WHEN d.kind = 'a' THEN s.label
+               WHEN d.kind = 'e' THEN eq.label
+               ELSE NULL END AS label
         FROM media_detections d
         LEFT JOIN faces f ON d.kind = 'f' AND f.id = d.ref_id
         LEFT JOIN bodies b ON d.kind = 'b' AND b.id = d.ref_id
+        LEFT JOIN sensitive_regions s ON d.kind = 'a' AND s.id = d.ref_id
+        LEFT JOIN equipment_objects eq ON d.kind = 'e' AND eq.id = d.ref_id
         WHERE d.media_id = ?
-        ORDER BY d.kind DESC, d.x
+
+        UNION ALL
+
+        SELECT
+          -sr.id AS id,
+          'a' AS kind,
+          sr.id AS ref_id,
+          sr.x, sr.y, sr.w, sr.h,
+          sr.frame_number,
+          sr.timestamp_ms,
+          NULL AS outline,
+          (SELECT person_id FROM bodies WHERE id = sr.body_id) AS person_id,
+          NULL AS crop_path,
+          NULL AS link_method,
+          'person' AS figure,
+          sr.label AS label
+        FROM sensitive_regions sr
+        WHERE sr.media_id = ?
+          AND (sr.user_state IS NULL OR sr.user_state != 'dismissed')
+          AND sr.id NOT IN (SELECT ref_id FROM media_detections WHERE media_id = ? AND kind = 'a')
+
+        UNION ALL
+
+        SELECT
+          -100000 - eq.id AS id,
+          'e' AS kind,
+          eq.id AS ref_id,
+          eq.x, eq.y, eq.w, eq.h,
+          NULL AS frame_number,
+          NULL AS timestamp_ms,
+          NULL AS outline,
+          NULL AS person_id,
+          NULL AS crop_path,
+          NULL AS link_method,
+          'person' AS figure,
+          eq.label AS label
+        FROM equipment_objects eq
+        WHERE eq.media_id = ?
+          AND (eq.state != 'rejected')
+          AND eq.id NOT IN (SELECT ref_id FROM media_detections WHERE media_id = ? AND kind = 'e')
+
+        ORDER BY kind DESC, x
         ''',
-        variables: [Variable.withInt(mediaId)],
-        readsFrom: {_db.mediaDetections, _db.faces, _db.bodies},
+        variables: [
+          Variable.withInt(mediaId),
+          Variable.withInt(mediaId),
+          Variable.withInt(mediaId),
+          Variable.withInt(mediaId),
+          Variable.withInt(mediaId),
+        ],
+        readsFrom: {
+          _db.mediaDetections,
+          _db.faces,
+          _db.bodies,
+          _db.sensitiveRegions,
+          _db.equipmentObjects,
+        },
       )
       .watch()
       .map(
@@ -312,6 +381,7 @@ class MediaQueries {
               linkMethod: r.readNullable<String>('link_method'),
               figure: r.readNullable<String>('figure') ?? 'person',
               outline: decodeOutline(r.readNullable<String>('outline')),
+              label: r.readNullable<String>('label'),
             ),
         ],
       );

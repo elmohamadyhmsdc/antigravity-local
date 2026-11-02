@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -162,6 +164,11 @@ class NativeGalleryNotifier extends Notifier<NativeGalleryState> {
         loading: false,
       );
       _albumCache[state.albumId ?? 'all'] = state;
+      if (batch.isNotEmpty) {
+        ref.read(thumbnailServiceProvider).preheat([
+          for (final a in batch) a.id,
+        ]);
+      }
       return batch;
     } catch (error) {
       state = state.copyWith(error: error, loading: false);
@@ -229,7 +236,7 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
     final state = ref.read(nativeGalleryProvider);
     if (state.error == null &&
         _scroll.hasClients &&
-        _scroll.position.extentAfter < 900) {
+        _scroll.position.extentAfter < 1400) {
       ref.read(nativeGalleryProvider.notifier).loadNext().ignore();
     }
   }
@@ -432,6 +439,7 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
             child: CustomScrollView(
               key: const Key('native-gallery-grid'),
               controller: _scroll,
+              scrollCacheExtent: const ScrollCacheExtent.pixels(1400),
               slivers: [
                 for (final group in groups.entries) ...[
                   SliverToBoxAdapter(
@@ -491,21 +499,7 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
     child: Stack(
       fit: StackFit.expand,
       children: [
-        FutureBuilder(
-          future: ref
-              .read(thumbnailServiceProvider)
-              .get(asset.id, width: asset.width, height: asset.height),
-          builder: (context, snapshot) => snapshot.data == null
-              ? ColoredBox(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: const Icon(Icons.photo_outlined),
-                )
-              : Image.memory(
-                  snapshot.data!,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                ),
-        ),
+        _AssetThumbnail(asset: asset),
         if (asset.kind == 'video')
           Positioned(
             right: 4,
@@ -533,6 +527,48 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
       ],
     ),
   );
+}
+
+class _AssetThumbnail extends ConsumerWidget {
+  const _AssetThumbnail({required this.asset});
+
+  final AssetInfo asset;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final thumbs = ref.watch(thumbnailServiceProvider);
+    final cached = thumbs.getSync(asset.id, size: 256);
+    if (cached != null) {
+      return Image.memory(
+        cached,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        cacheWidth: 256,
+        cacheHeight: 256,
+      );
+    }
+
+    return FutureBuilder<Uint8List?>(
+      initialData: cached,
+      future: thumbs.get(asset.id, width: asset.width, height: asset.height),
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        if (data == null) {
+          return ColoredBox(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Icon(Icons.photo_outlined),
+          );
+        }
+        return Image.memory(
+          data,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          cacheWidth: 256,
+          cacheHeight: 256,
+        );
+      },
+    );
+  }
 }
 
 class GalleryFolders extends ConsumerWidget {

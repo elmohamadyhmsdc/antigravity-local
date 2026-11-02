@@ -4,7 +4,7 @@ import 'package:flutter/rendering.dart';
 
 import '../../data/api/dtos/analyze.dart';
 
-/// Encodes image-pixel outline points to box-relative flat JSON.
+/// Encodes outline points to box-relative flat JSON.
 ///
 /// Returns null if [px] is null, has fewer than 3 points, or [box] has zero/negative size.
 String? encodeOutline(List<Offset>? px, BBox box) {
@@ -12,9 +12,11 @@ String? encodeOutline(List<Offset>? px, BBox box) {
     return null;
   }
   final flat = <double>[];
+  final bool isImageRelative =
+      px.any((p) => p.dx > box.w + 0.05 && box.x > 0.05);
   for (final p in px) {
-    var relX = (p.dx - box.x) / box.w;
-    var relY = (p.dy - box.y) / box.h;
+    var relX = isImageRelative ? (p.dx - box.x) / box.w : p.dx;
+    var relY = isImageRelative ? (p.dy - box.y) / box.h : p.dy;
     relX = relX.clamp(-0.25, 1.25);
     relY = relY.clamp(-0.25, 1.25);
     flat.add(double.parse(relX.toStringAsFixed(3)));

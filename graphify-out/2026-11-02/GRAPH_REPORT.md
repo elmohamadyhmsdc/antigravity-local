@@ -1,16 +1,16 @@
 # Graph Report - gallary  (2026-11-02)
 
 ## Corpus Check
-- 859 files · ~3,490,390 words
+- 860 files · ~3,491,933 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 15845 nodes · 26539 edges · 437 communities (402 shown, 23 thin omitted)
+- 15857 nodes · 26571 edges · 461 communities (423 shown, 26 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 414 edges (avg confidence: 0.92)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `749b9133`
+- Built from commit: `64134e8c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -18,37 +18,37 @@
 - app_localizations.dart
 - app_localizations_en.dart
 - app_database.dart
-- ../support/seed.dart
-- package:drift/drift.dart
-- tables.dart
 - package:flutter/material.dart
-- review_hub_screen.dart
-- package:flutter_riverpod/flutter_riverpod.dart
+- pose_visuals.dart
+- tables.dart
+- StatelessWidget
+- dart:io
+- ../../l10n/app_localizations.dart
 - reface_screen.dart
 - JsonDatabase
-- analyze_frame
+- test_character_detection.py
 - test_reface_v2.py
 - ApiError
-- ConsumerState
+- lora_screens.dart
 - Pose
 - محتوى كل سطح وحالاته
 - gallery_page.py
 - fakes.dart
 - video_actions_repository.dart
 - people_repository.dart
-- native_gallery.dart
-- package:flutter_test/flutter_test.dart
-- test_lora_identity.py
+- ConsumerState
+- dart:typed_data
+- Faceset
 - test_undress.py
 - test_gallery.py
 - library_providers.dart
 - job_tracker_test.dart
-- dart:typed_data
-- reface_engine_v3.py
+- outline_backfill_test.dart
+- ConsumerWidget
 - analyze.dart
-- StudioTests
+- AuthStore
 - router.dart
-- create_app
+- server.py
 - identity_builder.py
 - test_mobile_api_contract.py
 - undress_core.py
@@ -58,28 +58,28 @@
 - mobile_api.dart
 - grouping.dart
 - scan_engine.dart
-- package:antigravity_mobile/data/db/app_database.dart
-- lora_generate_job.py
+- int?
+- return
 - backup_service.dart
 - test_resource_monitor.py
-- AppDatabase
+- gallery_context_repository_test.dart
 - Florence2PostProcesser
 - Antigravity handoff — 2026-10-19
-- Faceset
+- reface_engine_v3.py
 - training_export.dart
-- dashboard.py
+- database.py
 - export_selection.dart
 - people_actions.dart
 - LibraryScanner
 - media_viewer_screen.dart
-- test_mobile_operation_parity.py
-- ensure_cert
-- media_inspector.dart
+- quick_review_screen.dart
+- drawn_face_sweep.dart
+- video_hash.dart
 - Reface Realism Phase 1 — Implementation Plan
 - undress_engine.py
 - test_grouping_core.py
-- scan_engine_test.dart
-- studio_repository.dart
+- AppDatabase
+- video_scan.dart
 - system.dart
 - app_settings.dart
 - RefaceEngineV3
@@ -90,7 +90,7 @@
 - JobManager
 - video_scan_test.dart
 - test_compositor.py
-- artifact_jobs.py
+- ArtifactTests
 - dfl_bridge.py
 - media_queries.dart
 - crop_math.dart
@@ -100,7 +100,7 @@
 - foreground_keep_alive.dart
 - library_repository.dart
 - OutlineEngine
-- background_test.dart
+- package:flutter_riverpod/flutter_riverpod.dart
 - crop_cache.dart
 - Workspace
 - lan_network.dart
@@ -109,8 +109,8 @@
 - seed.dart
 - training_export_test.dart
 - gallery_grouping.py
-- JobStatus
-- quick_review_screen.dart
+- dashboard.py
+- person_detail_screen.dart
 - RetentionTests
 - eval_reface.py
 - grouping_core.py
@@ -123,37 +123,37 @@
 - storage_sweeper.dart
 - main.py
 - Florence2LanguageConfig
-- match_faces
+- cluster_faces
 - @DataClassName
 - job_tracker.dart
-- embedding_backfill.dart
+- equipment_library.dart
 - DFMEngine
 - lora_staging.py
 - reface_faces.dart
-- quick_review_test.dart
+- embedding_backfill.dart
 - jobs.dart
-- character_detection_test.dart
+- test_reference_reface_gpu_smoke.py
 - video_scan_progress.dart
 - FlorenceCaptioner
-- String?
+- mark_tattoo.dart
 - modeling_florence2.py
 - image_preview.dart
 - video_compactor.dart
-- harness.dart
+- setting_tile.dart
 - resolve_route
-- lora_screens.dart
+- crop_image.dart
 - pairing_controller.dart
 - resource_panel.dart
 - resources.dart
 - test_body_embeddings.py
-- add_nvidia_dll_dirs
+- mask_utils.py
 - VideoTests
 - person_linking.py
 - test_reface_desktop.py
 - LoRA Identity Source for Reface V2 (Design Document)
 - grouping_inputs.dart
 - CcipEmbedder
-- connection_test.dart
+- FileStore
 - entity_action_sheet.dart
 - ANTIGRAVITY_HANDOFF.md
 - grouping_runner.dart
@@ -165,7 +165,7 @@
 - DFLMetadata
 - entity_card.dart
 - make_fixtures.py
-- shared/person_picker.dart
+- training_export_dialog.dart
 - Your Gallery
 - Tensor
 - training_export_controller.dart
@@ -178,14 +178,14 @@
 - platform_services.dart
 - DeepFaceLab Integration Guide
 - DeepFaceLabEnvironment
-- AnalyzeOptions
+- fileStoreProvider
 - test_mobile_stateless.py
 - Architecture
 - mark_geometry.dart
 - osnet.py
 - AnimeFaceDetector
 - resource_monitor.py
-- garment_backfill.dart
+- analyze_controller.dart
 - people_screen.dart
 - embedding.dart
 - Face Recognition Python Service
@@ -205,10 +205,10 @@
 - Reface: Advanced Face Swapping Documentation
 - crop_source.dart
 - Fix Error 126: LoadLibrary failed for onnxruntime_providers_cuda.dll
-- bool get
+- background_execution.dart
 - Your Gallery — إعادة تصميم تجربة الموبايل
 - Data format (single source of truth, used by every task)
-- equipment_detection.py
+- outline_backfill.dart
 - Antigravity Local — Project Guide for Claude
 - download_upgrades.py
 - DaViT
@@ -227,7 +227,7 @@
 - UndressClient
 - CUDA Version Compatibility Warning
 - Install cuDNN 9.x for CUDA 12.6
-- Discovery
+- garment_backfill.dart
 - correction_service.dart
 - collection_controller.dart
 - activity_state_provider.dart
@@ -235,7 +235,7 @@
 - download_restyle_base.py
 - Next Steps After Installing cuDNN 9.17.0
 - GPU Setup for DeepFaceLab
-- review_questions.dart
+- String?
 - validate_reface
 - kind_corrections.dart
 - ../db/app_database.dart
@@ -253,21 +253,21 @@
 - Reface quality roadmap: identity building, better models, measured choices
 - Anime & Character Unified Detection Implementation Plan
 - entity_ref.dart
-- privacy_and_lora_test.dart
-- json_util.dart
+- privacy_service.dart
+- media_chrome.dart
 - grouping_config.dart
 - check_gpu.py
 - DeepFaceLab GPU Status
 - Florence2Attention
 - Florence2FlashAttention2
-- explore_screen.dart
+- explore_collection_screen.dart
 - Mobile completion — 2026-10-18
 - compare_slider.dart
 - Intent
 - redetect.dart
 - SecurityBridge.kt
 - static const
-- dart:io
+- package:drift/native.dart
 - download_models.py
 - exposed_matching.dart
 - equipment_screens.dart
@@ -277,14 +277,14 @@
 - test_mobile_garments.py
 - action_registry.dart
 - Media Viewer Swipe Navigation, Face Box Toggle & Google Lens Implementation Plan
-- unit
+- StudioTests
 - bodies_screen.dart
 - File
 - check_cuda_dlls.py
 - check_gpu_with_env.py
 - drawn_faces.py
-- app.dart
-- test_reface_unified.py
+- connection_screen.dart
+- sensitive_backfill.dart
 - group_poses.dart
 - Mobile Reface workflow and temporary server storage — 2026-10-25
 - المعرض وعرض الوسائط (Gallery & Media Viewing)
@@ -307,7 +307,7 @@
 - root
 - reference_reface.py
 - .agent/rules/project-context.md
-- body_embeddings.py
+- BodyAnalyzer
 - mobile/.agent/rules/project-context.md
 - outfit_palette.dart
 - video_sampling.dart
@@ -325,22 +325,22 @@
 - KindCorrectionTests
 - app_lock.dart
 - Gallery-first — عقود المسارات والحالات
-- reface_media.dart
+- VoidCallback?
 - الاستوديو وتوليد الذكاء الاصطناعي (Studio & AI Generation)
 - النظام البصري للـwireframes: Gallery first
-- sensitive_detection.py
+- FaceCompositor
 - الإعدادات، الاتصال، وحماية النظام (Settings, Connection & System)
 - test_mobile_sensitive.py
 - تصور الموبايل الجديد: الجاليري هو الأصل
 - artifact_context.dart
 - MediaOrganizerBridge
 - 02 — المعرض وعارض الوسائط
-- lora_generate.py
+- test_lora_trainer_smoke.py
 - outline.dart
 - الأشخاص والهويات (People & Identities)
 - 2. شاشة الأجسام الشاملة (Bodies Screen)
 - sensitive_store.dart
-- lora_repository.dart
+- media_inspector.dart
 - render-wireframes.cjs
 - النشاط، الفحص، والتحليل (Activity, Scans & Management)
 - Instant Gallery Loading, Video Swipe Autoplay & Native Video Player Design
@@ -368,48 +368,48 @@
 - QualityTests
 - 5. Clothing & appearance
 - Wireframe atlas · Gallery first
-- password_sheet.dart
+- explore_screen.dart
 - int get
 - Roadmap implementation, night run — Phase 0 (body links), Phase 5, S3/S4, pose track 1-4 — 2026-11-02
 - Roadmap implementation, night run — S0, S1, S2 (sensitive regions) — 2026-11-02
 - 2. Keypoints, preprocessing and the pose descriptor
 - 9. Roadmap
-- BodyAnalyzer
+- bulk_transfer.dart
 - export_dinov2.py
-- NeuralEnhancer
+- studio_api.dart
 - wireframes/README.md
-- resource_ui.py
-- InsightEngines
+- person_marks_screen.dart
+- AnalyzeOptions
 - backend-parity/README.md
 - anime_reference/README.md
 - Image
 - Object?
-- BodyAssociationTests
+- shared/person_picker.dart
 - targeted_detect_sheet.dart
-- .engines
+- InsightEngines
 - progress_card.dart
-- group_pose_ux_test.dart
+- package:drift/drift.dart
 - app_screens/README.md
-- target_ref.dart
+- bool get
 - 03 — الأشخاص والمراجعة
 - Mobile connectivity
 - Reface target people and gallery source identities — 2026-10-25
 - Android device acceptance — 2026-10-18
 - 05 — الاستوديو والنشاط
-- corrections_queries.dart
-- test_pose_filters.py
+- review_hub_screen.dart
+- analyze_screen.dart
 - 4. أنماط التفاعل الموحدة
 - name_sheet.dart
-- group_picker.dart
+- pair_screen.dart
 - 3. المراحل
 - roi_selection_overlay.dart
 - video_trimmer.dart
-- action_dispatcher_test.dart
+- package:flutter_test/flutter_test.dart
 - 04 — الاستكشاف
 - 1. القواعد العامة (تنطبق على كل مرحلة)
 - equipment_api.dart
 - fake_media_organizer.dart
-- filter_bar.dart
+- List
 - searchable_list_sheet.dart
 - targeted.dart
 - plan_applier.dart
@@ -419,32 +419,56 @@
 - Duration
 - 2. تشخيص الاختبارات الفاشلة الـ 12 الموروثة (Legacy Test Failures)
 - action_context.dart
-- MockSession
+- studio_repository.dart
 - session_store.dart
 - String get
 - 06 — البداية والإعدادات
-- garment_tags.py
-- ensure_ip_adapter
-- SamplingTests
+- correction_sheet.dart
+- permissions_screen.dart
+- quick_review_test.dart
 - Targeted Detection & In-Viewer Correction Design
-- identity_repository.dart
+- NeuralEnhancer
+- identity_groups_screen.dart
 - confirm_sheet.dart
-- test_grouping_character.py
-- test_mask_utils.py
+- detect_undress_subject
 - double?
 - Full-Body Pose-Guided LoRA Generation Implementation Plan
 - Targeted Detection & In-Viewer Correction Implementation Plan
 - theme.dart
-- test_florence_captioner.py
-- TargetedTests
-- VideoFrameSampler.kt
-- plan_refine_tiles
+- ETACalculator
+- background_screen.dart
+- layers_popover.dart
+- UiTests
 - ../inspector/body_inspect_sheet.dart
+- ActionMatchApi
+- mark_editor.dart
+- harmonize_generated_region
+- match_faces
+- manual_pair_screen.dart
+- refine_mask_edges
+- qr_scan_screen.dart
+- VideoJobs
+- resource_ui.py
+- ensure_cert
+- password_sheet.dart
+- IsolatedCapture
+- DecoderProcess
+- welcome_screen.dart
+- equipment_detection.py
+- HyperSwapper
+- SamplingTests
+- character_descriptor.dart
+- run_reference_reface
+- _target_detector
+- EquipmentTests
+- test_florence_captioner.py
+- appearance_descriptor
+- PairingApi
 
 ## God Nodes (most connected - your core abstractions)
 1. `JsonDatabase` - 111 edges
 2. `AppDatabase` - 94 edges
-3. `Antigravity handoff — 2026-10-19` - 91 edges
+3. `Antigravity handoff — 2026-10-19` - 93 edges
 4. `محتوى كل سطح وحالاته` - 69 edges
 5. `test()` - 66 edges
 6. `check()` - 66 edges
@@ -456,19 +480,19 @@
 ## Surprising Connections (you probably didn't know these)
 - `main()` --calls--> `pose()`  [INFERRED]
   mobile/tools/check_restyle_base.py → the app/test_pose_filters.py
+- `main()` --calls--> `create_app()`  [INFERRED]
+  mobile/tools/stateless_studio_fixture.py → the app/mobile_api/app.py
 - `main()` --indirect_call--> `resource_fixture()`  [INFERRED]
   mobile/tools/stateless_studio_fixture.py → the app/mobile_api/contract/resource_fixture.py
+- `main()` --uses--> `CapabilityProbe`  [INFERRED]
+  mobile/tools/stateless_studio_fixture.py → the app/mobile_api/engines.py
 - `main()` --uses--> `InsightEngines`  [INFERRED]
   mobile/tools/stateless_studio_fixture.py → the app/mobile_api/engines.py
-- `main()` --calls--> `ensure_cert()`  [INFERRED]
-  mobile/tools/stateless_studio_fixture.py → the app/mobile_api/tls.py
-- `_merge_alike_groups()` --calls--> `root()`  [INFERRED]
-  the app/person_linking.py → python-services/main.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (437 total, 23 thin omitted)
+## Communities (461 total, 26 thin omitted)
 
 ### Community 0 - "app_localizations.dart"
 Cohesion: 0.00
@@ -482,53 +506,53 @@ Nodes (1079): app_localizations.dart, accept, acceptAllMatches, acceptAllMatches
 Cohesion: 0.00
 Nodes (480): class BodyGarmentTagRow extends, class BodyOutfitMatchRow extends, class BodyPoseFeatureRow extends, class BodyPoseMatchRow extends, class BodyRejectionRow extends, class CharacterIdentityRow extends, class CharacterSampleRow extends, class EquipmentObjectRow extends (+472 more)
 
-### Community 3 - "../support/seed.dart"
+### Community 3 - "package:flutter/material.dart"
 Cohesion: 0.02
-Nodes (154): AnimatedOpacity, CheckboxListTile, crop_cache.dart, dart:ui, ../domain/job_tracker_test.dart, FilledButton, InteractiveViewer, cutCrop (+146 more)
+Nodes (153): CustomPaint, ../../features/shared/person_picker.dart, FilledButton, backupPassword, PersonPicker, show, show, UndoSnackbar (+145 more)
 
-### Community 4 - "package:drift/drift.dart"
-Cohesion: 0.03
-Nodes (85): KindCorrections, PhotoResultStore, Redetector, main, bodies, character, corrections, db (+77 more)
+### Community 4 - "pose_visuals.dart"
+Cohesion: 0.06
+Nodes (32): ColorScheme, CustomPainter, domain/pose/group_pose_matcher.dart, ../../domain/pose/pose_geometry.dart, ../../domain/pose/pose_rules.dart, DetectionBoxPainter, GroupPoseFeature, DetectionsPainter (+24 more)
 
 ### Community 5 - "tables.dart"
 Cohesion: 0.01
 Nodes (179): BlobColumn get, BoolColumn get, IntColumn get, acknowledged, anchor, appearance, assetId, attempts (+171 more)
 
-### Community 6 - "package:flutter/material.dart"
-Cohesion: 0.01
-Nodes (231): activity_state_provider.dart, analyze_controller.dart, BorderRadius?, BoxFit, Color?, ControlsWidgetBuilder, crop.dart, EdgeInsetsGeometry? (+223 more)
-
-### Community 7 - "review_hub_screen.dart"
+### Community 6 - "StatelessWidget"
 Cohesion: 0.05
-Nodes (42): bool?, domain/corrections/corrections_queries.dart, _activeQueue, _all, badge, build, color, count (+34 more)
+Nodes (50): _GroupCard, _PersonCard, _SelectionActionButton, _UnsortedCard, actionLabel, body, build, confirm (+42 more)
 
-### Community 8 - "package:flutter_riverpod/flutter_riverpod.dart"
-Cohesion: 0.01
-Nodes (223): ../../core/router.dart, ../../data/api/pairing_payload.dart, ../../data/db/app_database.dart, data/index/index_loader.dart, data/platform/backup_crypto.dart, data/repositories/app_settings.dart, ../../data/repositories/insights_repository.dart, domain/backup/backup_service.dart (+215 more)
+### Community 7 - "dart:io"
+Cohesion: 0.02
+Nodes (109): dart:io, dart:math, KindCorrections, PhotoResultStore, Redetector, channel, main, bodies (+101 more)
+
+### Community 8 - "../../l10n/app_localizations.dart"
+Cohesion: 0.03
+Nodes (111): ../../core/router.dart, data/repositories/app_settings.dart, ../../data/repositories/artifact_context.dart, ../../data/repositories/insights_repository.dart, ../../domain/jobs/job_progress.dart, domain/storage/storage_sweeper.dart, face_grid.dart, ../jobs/jobs_screen.dart (+103 more)
 
 ### Community 9 - "reface_screen.dart"
-Cohesion: 0.03
-Nodes (73): data/api/dtos/system.dart, _analysis, _caps, _chooseIdentityMode, _chooseQualityProfile, _contextAssetId, _contextMediaId, _contextTarget (+65 more)
+Cohesion: 0.02
+Nodes (112): data/api/studio_api.dart, ../../data/db/app_database.dart, data/platform/studio_notifications.dart, data/repositories/identity_repository.dart, data/repositories/lora_repository.dart, data/repositories/studio_repository.dart, domain/jobs/job_tracker.dart, StudioRepository (+104 more)
 
 ### Community 10 - "JsonDatabase"
 Cohesion: 0.04
-Nodes (39): JsonDatabase, norm_path(), person_media_ids(), Any, ndarray, Path, Everyone who appears in one media file, by face or by body., media_id -> {faces, bodies, people, body_only_people} in one pass over the… (+31 more)
+Nodes (36): assign_face_to_person(), create_person(), JsonDatabase, Any, ndarray, Path, Everyone who appears in one media file, by face or by body., media_id -> {faces, bodies, people, body_only_people} in one pass over the… (+28 more)
 
-### Community 11 - "analyze_frame"
-Cohesion: 0.09
-Nodes (26): analyze_frame(), Everything the pixels of one BGR frame can tell us. face_app insightface…, attach_identity(), _body_fields(), describe(), detect_characters(), _portrait(), Face-independent character appearance, using the installed HumanArt body boxes.… (+18 more)
+### Community 11 - "test_character_detection.py"
+Cohesion: 0.07
+Nodes (33): AnalyzeOptions, FrameAnalysis, attach_identity(), _body_fields(), Character, describe(), detect_characters(), _portrait() (+25 more)
 
 ### Community 12 - "test_reface_v2.py"
-Cohesion: 0.06
-Nodes (74): as_68_points(), compute_frame_range(), fit_to_frame(), get_source_face(), OcclusionHandler, ndarray, Enhance the input image using the selected method. Args: image: BGR image array…, Return an (68, 2) float32 array, or None when the layout is not 68-point. The… (+66 more)
+Cohesion: 0.05
+Nodes (80): as_68_points(), compute_frame_range(), fit_to_frame(), get_source_face(), OcclusionHandler, ndarray, Return an (68, 2) float32 array, or None when the layout is not 68-point. The…, Advanced occlusion handling using landmarks and geometric priors. Detects and… (+72 more)
 
 ### Community 13 - "ApiError"
-Cohesion: 0.04
-Nodes (57): FileResponse, Request, ApiError, bad_request(), not_found(), Any, Exception, The error envelope: every non-2xx answer is {"error": {"code", "message",… (+49 more)
-
-### Community 14 - "ConsumerState"
 Cohesion: 0.03
-Nodes (165): ConsumerState, ConsumerWidget, data/api/studio_api.dart, data/platform/studio_notifications.dart, data/repositories/identity_repository.dart, data/repositories/lora_repository.dart, data/repositories/studio_repository.dart, domain/jobs/job_tracker.dart (+157 more)
+Nodes (79): FileResponse, Request, main(), Opt-in loopback-only server for the separately packaged Android QA app., create_app(), FastAPI, The FastAPI application (HTTPS, port 8443 by default). `create_app(ctx)` is a…, ServerContext (+71 more)
+
+### Community 14 - "lora_screens.dart"
+Cohesion: 0.03
+Nodes (93): core/theme.dart, features/privacy/app_lock.dart, App, _AppState, autoResumeScanProvider, build, createState, didChangeAppLifecycleState (+85 more)
 
 ### Community 15 - "Pose"
 Cohesion: 0.05
@@ -539,36 +563,36 @@ Cohesion: 0.03
 Nodes (69): 01 · Your Gallery · welcome-gallery, 02 · Photo access · media-permission, 03 · Gallery · gallery-photos, 04 · Folders · gallery-folders, 05 · Folder · folder-media, 06 · Filter media · gallery-filters, 07 · Photo · photo-viewer, 08 · Video · video-viewer (+61 more)
 
 ### Community 17 - "gallery_page.py"
-Cohesion: 0.09
-Nodes (66): dialog, Small desktop view of illustrated character identities and their source media., render_characters(), _annotated(), _annotated_body_context(), _annotated_body_context_bytes(), _annotated_bytes(), avatar_strip() (+58 more)
+Cohesion: 0.08
+Nodes (71): dialog, Small desktop view of illustrated character identities and their source media., render_characters(), _annotated(), _annotated_body_context(), _annotated_body_context_bytes(), _annotated_bytes(), avatar_strip() (+63 more)
 
 ### Community 18 - "fakes.dart"
 Cohesion: 0.02
-Nodes (89): fake_video_controller.dart, fixtures.dart, access, addAlbum, _albums, analyzeCalls, analyzeError, analyzeGarments (+81 more)
+Nodes (88): fake_video_controller.dart, fixtures.dart, access, addAlbum, _albums, analyzeCalls, analyzeError, analyzeGarments (+80 more)
 
 ### Community 19 - "video_actions_repository.dart"
 Cohesion: 0.03
-Nodes (60): ../api/action_api.dart, ../api/api_exception.dart, ../../domain/pose/action_matcher.dart, int mediaId, startMs, endMs,, action, ActionExample, ActionParticipant, actors (+52 more)
+Nodes (61): ../api/action_api.dart, ../api/api_exception.dart, ../../domain/pose/action_matcher.dart, int mediaId, startMs, endMs,, action, ActionExample, ActionParticipant, actors (+53 more)
 
 ### Community 20 - "people_repository.dart"
 Cohesion: 0.03
 Nodes (75): bool hidden, favorite, pinned,, face_suppression_store.dart, areDistinct, _assign, assignFaces, availableFaces, avatarCropPath, avatarOf (+67 more)
 
-### Community 21 - "native_gallery.dart"
-Cohesion: 0.05
-Nodes (40): ../media/media_screen.dart, access, album, _albumCache, albumId, assetIds, assets, copyWith (+32 more)
-
-### Community 22 - "package:flutter_test/flutter_test.dart"
+### Community 21 - "ConsumerState"
 Cohesion: 0.02
-Nodes (98): FlutterError, FormatException, TargetedDetectionService, GarmentBackfill, EmbeddingBackfill, main, main, _norm (+90 more)
+Nodes (110): ../cards/entity_card.dart, ../collection/segmented_bar.dart, ConsumerState, _GroupCard, ../media/media_screen.dart, ../media/video_media_view.dart, MediaQueries get, AlbumInfo (+102 more)
 
-### Community 23 - "test_lora_identity.py"
-Cohesion: 0.10
-Nodes (39): FaceData, _cosine(), _label(), main(), _mean_unit(), Antigravity Local - Phase 0 measurement for the LoRA identity source (Reface…, Unit-norm mean embedding of a list of FaceData - the held-out ground truth for…, _unit() (+31 more)
+### Community 22 - "dart:typed_data"
+Cohesion: 0.04
+Nodes (46): dart:typed_data, FormatException, GarmentBackfill, bytes, decodeEmbedding, dim, files, _fixtureDir (+38 more)
+
+### Community 23 - "Faceset"
+Cohesion: 0.04
+Nodes (69): FaceData, _cosine(), _label(), main(), _mean_unit(), Antigravity Local - Phase 0 measurement for the LoRA identity source (Reface…, Unit-norm mean embedding of a list of FaceData - the held-out ground truth for…, _unit() (+61 more)
 
 ### Community 24 - "test_undress.py"
-Cohesion: 0.08
-Nodes (70): check(), Antigravity Local - Magic Undress core tests No GPU, no Hugging Face, no…, SegFormer often labels neckline ruffles as face. The torso gap must still…, Plunging necklines: inpaint the side garment, not the exposed chest., Stock-photo bars on fabric must go; the same bar on the backdrop must stay., test(), test_annotate_face_preview_does_not_mutate_original(), test_arm_keep_without_any_clothes_label_is_untouched() (+62 more)
+Cohesion: 0.07
+Nodes (69): check(), Antigravity Local - Magic Undress core tests No GPU, no Hugging Face, no…, SegFormer often labels neckline ruffles as face. The torso gap must still…, Plunging necklines: inpaint the side garment, not the exposed chest., Stock-photo bars on fabric must go; the same bar on the backdrop must stay., test(), test_composite_keeps_original_pixels_outside_the_inpaint_mask(), test_feather_mask_at_size_softens_after_upscale() (+61 more)
 
 ### Community 25 - "test_gallery.py"
 Cohesion: 0.07
@@ -576,91 +600,92 @@ Nodes (66): assess(), _clip01(), components(), passes_gate(), pose_from_kps(), n
 
 ### Community 26 - "library_providers.dart"
 Cohesion: 0.03
-Nodes (71): AppLocalizations get, data/api/action_api.dart, data/files/crop_cache.dart, data/files/crop_cutter.dart, data/media/thumbnail_service.dart, data/repositories/media_action_source.dart, domain/corrections/correction_service.dart, domain/corrections/targeted_detection_service.dart (+63 more)
+Nodes (89): AppLocalizations get, data/api/action_api.dart, data/files/crop_cache.dart, data/files/crop_cutter.dart, data/index/index_loader.dart, data/media/thumbnail_service.dart, data/platform/backup_crypto.dart, data/repositories/media_action_source.dart (+81 more)
 
 ### Community 27 - "job_tracker_test.dart"
 Cohesion: 0.02
-Nodes (114): dart:async, DioException, domain/scan/redetect.dart, FileSystemException, HttpClientAdapter, HttpServer, ApiException, SessionStore (+106 more)
+Nodes (103): dart:async, DioException, fakes.dart, FileSystemException, Finder? scrollable,
+  double, HttpClientAdapter, HttpServer, ApiException (+95 more)
 
-### Community 28 - "dart:typed_data"
-Cohesion: 0.02
-Nodes (75): CustomPaint, dart:math, dart:typed_data, MediaQueries, characterAutoMatch, characterDescriptorDim, characterMatchMargin, characterModelId (+67 more)
+### Community 28 - "outline_backfill_test.dart"
+Cohesion: 0.07
+Nodes (28): FakeMediaLibrary, SensitiveBackfill, analyzeOutlines, api, calls, createBackfill, db, downscaledJpeg (+20 more)
 
-### Community 29 - "reface_engine_v3.py"
-Cohesion: 0.09
-Nodes (23): available_swappers(), Antigravity Local - Reface Engine V3 (HD) A clean, facefusion-style pipeline…, resolve_swapper_name(), FaceSelector, match_reference(), Reference identity selection shared by the video swap engines., Verify current pixels against all references, including unselected people., assignment() (+15 more)
+### Community 29 - "ConsumerWidget"
+Cohesion: 0.03
+Nodes (103): ConsumerWidget, ../../domain/scan/scan_state.dart, insightsProvider, backgroundStatusProvider, ScanProgress, ActivityScreen, _ActivityScreenState, build (+95 more)
 
 ### Community 30 - "analyze.dart"
 Cohesion: 0.02
 Nodes (98): ../../../domain/scan/character_descriptor.dart, AnalyzeGarmentsResponse, AnalyzeMarksResponse, AnalyzeOptions, AnalyzeOutlinesResponse, AnalyzeSensitiveResponse, appearance, bodies (+90 more)
 
-### Community 31 - "StudioTests"
+### Community 31 - "AuthStore"
 Cohesion: 0.12
-Nodes (4): encode_embedding(), StudioTests, Capture, Six frames at 2 fps, including a face/body on every sampled frame.
+Nodes (5): AuthStore, hash_token(), new_token(), Register a device and return {"token": <plain, shown once>, **public device…, AdminTests
 
 ### Community 32 - "router.dart"
 Cohesion: 0.02
 Nodes (99): ../domain/targets/target_ref.dart, ../features/activity/activity_screen.dart, ../features/activity/job_detail_screen.dart, ../features/analyze/analyze_screen.dart, ../features/backup/backup_screen.dart, ../features/bodies/bodies_screen.dart, ../features/explore/explore_collection_screen.dart, ../features/explore/explore_screen.dart (+91 more)
 
-### Community 33 - "create_app"
+### Community 33 - "server.py"
 Cohesion: 0.04
-Nodes (77): main(), Isolated HTTPS server used by the actual Flutter Studio client acceptance test.…, Socket?, main(), Opt-in loopback-only server for the separately packaged Android QA app., build_admin_router(), pause_device_jobs(), PC-only controls shared by the pairing page and the Streamlit dashboard. (+69 more)
+Nodes (52): Socket?, build_admin_router(), pause_device_jobs(), PC-only controls shared by the pairing page and the Streamlit dashboard., revoke_device(), address_labels(), Discovery, _instance_name() (+44 more)
 
 ### Community 34 - "identity_builder.py"
 Cohesion: 0.08
-Nodes (54): _aligned_crop(), assign_identity(), build_identity(), Candidate, _candidates(), candidates_from_image(), candidates_from_video(), coverage() (+46 more)
+Nodes (56): _aligned_crop(), assign_identity(), build_identity(), Candidate, _candidates(), candidates_from_image(), candidates_from_video(), coverage() (+48 more)
 
 ### Community 35 - "test_mobile_api_contract.py"
-Cohesion: 0.12
-Nodes (51): Clock, _analyze(), _big_grouping_request(), check(), check_schema(), Env, fixture(), jpeg_bytes() (+43 more)
+Cohesion: 0.06
+Nodes (68): ActionRequestError, _assignment(), compare(), _distance(), match_request(), _mirrored(), ValueError, Bounded stateless pose/action comparison for either identity kind. Names,… (+60 more)
 
 ### Community 36 - "undress_core.py"
-Cohesion: 0.08
-Nodes (59): test_watermark_on_arm_stays_inpaint_after_keep_punch(), annotate_face_preview(), _as_gray_u8(), build_inpaint_mask(), clean_binary_mask(), composite_inpaint(), expand_head_bbox(), exposed_skin_mask() (+51 more)
+Cohesion: 0.09
+Nodes (49): test_annotate_face_preview_does_not_mutate_original(), test_expand_head_bbox_pads_up_more_than_down_and_clamps(), test_exposed_skin_keeps_hands_darker_than_the_face(), test_protection_preview_tints_background_keep_and_torso_restyle(), annotate_face_preview(), _as_gray_u8(), composite_inpaint(), expand_head_bbox() (+41 more)
 
 ### Community 37 - "DataClass"
 Cohesion: 0.04
 Nodes (93): BlobHintRow, BlobHintsCompanion, BodiesCompanion, BodyClusterRow, BodyClustersCompanion, BodyDistinctCompanion, BodyDistinctRow, BodyGarmentTagRow (+85 more)
 
 ### Community 38 - "review_repository.dart"
-Cohesion: 0.03
-Nodes (57): ../api/dtos/grouping.dart, a, acceptBodyLink, acceptMatches, assignGroup, b, bodyId, bodyLinks (+49 more)
+Cohesion: 0.02
+Nodes (111): ../api/dtos/grouping.dart, Likelihood get, all, buildQuestions, duplicate, evidence, face, group (+103 more)
 
 ### Community 39 - "review_media_viewer.dart"
-Cohesion: 0.02
-Nodes (85): ../cards/entity_card.dart, class, ../collection/segmented_bar.dart, data/platform/media_organizer.dart, domain/organization/person_media_organizer.dart, AlbumInfo, AssetInfo, apply (+77 more)
+Cohesion: 0.03
+Nodes (63): class, data/platform/media_organizer.dart, domain/organization/person_media_organizer.dart, apply, build, choices, createState, done (+55 more)
 
 ### Community 40 - "mobile_api.dart"
 Cohesion: 0.03
-Nodes (63): action_api.dart, bulk_transfer.dart, class HttpMobileApi, Dio, dtos/grouping.dart, dtos/targeted.dart, equipment_api.dart, analyzeEquipment (+55 more)
+Nodes (60): action_api.dart, bulk_transfer.dart, class HttpMobileApi, Dio, dtos/grouping.dart, dtos/targeted.dart, equipment_api.dart, analyzeEquipment (+52 more)
 
 ### Community 41 - "grouping.dart"
 Cohesion: 0.04
 Nodes (56): embedding.dart, anchorPersonId, appearance, assignments, autoCreate, bodies, bodyId, BodyLinkPlan (+48 more)
 
 ### Community 42 - "scan_engine.dart"
-Cohesion: 0.03
-Nodes (75): dart:collection, ../../data/api/dtos/jobs.dart, ../../data/api/video_api.dart, data/platform/video_frames.dart, data/repositories/library_repository.dart, ../grouping/grouping_config.dart, ../grouping/grouping_runner.dart, _active (+67 more)
+Cohesion: 0.04
+Nodes (56): dart:collection, ../grouping/grouping_config.dart, ../grouping/grouping_runner.dart, _active, _allowReconnectResume, busyRetries, cacheClearEvery, _canDetectCharacters (+48 more)
 
-### Community 43 - "package:antigravity_mobile/data/db/app_database.dart"
+### Community 43 - "int?"
 Cohesion: 0.03
-Nodes (70): await, Checkbox, InputChip, BackupService, PersonMediaOrganizer, db, dir, identities (+62 more)
+Nodes (63): ../../data/repositories/media_queries.dart, ../../data/repositories/people_repository.dart, detection_overlay.dart, ../../domain/geometry/outline.dart, int?, layers_popover.dart, Map, details (+55 more)
 
-### Community 44 - "lora_generate_job.py"
-Cohesion: 0.12
-Nodes (26): queue_worker(), Main queue worker that processes jobs one at a time. Runs continuously until no…, build_generation_params(), describe_generation_state(), generation_log_path(), generation_output_dir(), generation_problems(), generation_request() (+18 more)
+### Community 44 - "return"
+Cohesion: 0.04
+Nodes (46): await, Checkbox, InputChip, main, bridge, db, luffy, main (+38 more)
 
 ### Community 45 - "backup_service.dart"
-Cohesion: 0.04
-Nodes (53): AppSettings, BackupException, backupExtension, backupFormat, backupFormatVersion, BackupInfo, BackupProgress, BackupTable (+45 more)
+Cohesion: 0.03
+Nodes (71): AppSettings, BackupException, backupExtension, backupFormat, backupFormatVersion, BackupInfo, BackupService, BackupTable (+63 more)
 
 ### Community 46 - "test_resource_monitor.py"
 Cohesion: 0.11
 Nodes (6): Deterministic resource example shared by contract generation and tests., resource_fixture(), FakeMonitor, IntegrationTests, LimitsTests, CPU-only synthetic resource telemetry, admission and UI checks. Run with the…
 
-### Community 47 - "AppDatabase"
-Cohesion: 0.04
-Nodes (55): _, @DriftDatabase, AppDatabase, IdentityGroupsRepository, PeopleRepository, BodyLinkGuard, canAutoLink, db (+47 more)
+### Community 47 - "gallery_context_repository_test.dart"
+Cohesion: 0.11
+Nodes (16): LibraryRepository, db, files, library, main, studio, temp, _asset (+8 more)
 
 ### Community 48 - "Florence2PostProcesser"
 Cohesion: 0.06
@@ -668,19 +693,19 @@ Nodes (26): BatchFeature, ImageInput, object, PaddingStrategy, PreTokenizedInput
 
 ### Community 49 - "Antigravity handoff — 2026-10-19"
 Cohesion: 0.02
-Nodes (87): 1. Start every task here, 2. Architecture and ownership, 3. Existing environments, 4. Model installation is complete for configured capabilities, 5. Important current-source differences, 6. Implemented work and recorded verification, 7. Phone, signing and outstanding work, 8. File map and focused checks (+79 more)
+Nodes (89): 1. Start every task here, 2. Architecture and ownership, 3. Existing environments, 4. Model installation is complete for configured capabilities, 5. Important current-source differences, 6. Implemented work and recorded verification, 7. Phone, signing and outstanding work, 8. File map and focused checks (+81 more)
 
-### Community 50 - "Faceset"
-Cohesion: 0.04
-Nodes (77): build_concat_command(), build_mux_command(), concat_list_text(), _ffmpeg_exe(), mux_audio(), Path, ffmpeg_utils.py - Shared FFmpeg discovery and command construction, Return path to ffmpeg binary (env-configured, bundled, or PATH fallback). (+69 more)
+### Community 50 - "reface_engine_v3.py"
+Cohesion: 0.06
+Nodes (50): add_nvidia_dll_dirs(), Make the pip-installed NVIDIA DLLs (venv/Lib/site-packages/nvidia/*/bin)…, Antigravity Local - ONNX face restoration (CodeFormer / GFPGAN / GPEN) Runs a…, Return a restorer name whose model file exists in models/, preferring…, resolve_restorer_name(), available_swappers(), load_swapper(), Antigravity Local - face swapper models for the V3 pipeline Every swapper here… (+42 more)
 
 ### Community 51 - "training_export.dart"
 Cohesion: 0.04
 Nodes (50): bool faces,, crop_math.dart, double faceMargin,, export_selection.dart, int done, total, exported,, int exported, tooSmall, missing,, bodies, bodyLongSide (+42 more)
 
-### Community 52 - "dashboard.py"
-Cohesion: 0.03
-Nodes (55): DataFrame, count_media_files(), delete_person(), detect_undress_subject(), ETACalculator, _gen_speed(), get_all_persons(), get_database_stats() (+47 more)
+### Community 52 - "database.py"
+Cohesion: 0.04
+Nodes (28): DataFrame, delete_person(), get_database_stats(), get_source_analytics(), Get database statistics using JsonDatabase, Get analytics about source files, Delete a person. If delete_faces is True, delete face images from disk too;…, add_face() (+20 more)
 
 ### Community 53 - "export_selection.dart"
 Cohesion: 0.04
@@ -688,47 +713,47 @@ Nodes (50): double? yaw,, int? imgW,, a, abs, assetId, b, _better, boxArea (+42 
 
 ### Community 54 - "people_actions.dart"
 Cohesion: 0.02
-Nodes (147): action_face_picker.dart, action_sheet.dart, data/repositories/review_questions.dart, identity_groups_screen.dart, FaceItem, _reassignFaceDirect, _decide, a (+139 more)
+Nodes (95): action_face_picker.dart, action_sheet.dart, media_library.dart, _cache, capacity, clear, getSync, _library (+87 more)
 
 ### Community 55 - "LibraryScanner"
 Cohesion: 0.08
-Nodes (26): cache_resource, The pixels a detection was made on: the photo itself, or that frame of the…, Face analyzer + body analyzer, loaded once per session., Scan files with a live progress panel, then group. Returns (ScanSummary,…, _read_source_frame(), scan_with_ui(), _scanner_models(), collect_media() (+18 more)
+Nodes (25): Desktop persistence of character samples. Never used by the stateless API., store_character(), clear_caches(), cache_resource, Face analyzer + body analyzer, loaded once per session., Scan files with a live progress panel, then group. Returns (ScanSummary,…, scan_with_ui(), _scanner_models() (+17 more)
 
 ### Community 56 - "media_viewer_screen.dart"
-Cohesion: 0.02
-Nodes (104): ../bodies/body_naming.dart, ../bodies/equipment_screens.dart, ../../data/platform/native_video_player.dart, ../../data/repositories/media_queries.dart, ../inspector/media_inspector.dart, ../inspector/targeted_detect_sheet.dart, int?, media_chrome.dart (+96 more)
-
-### Community 57 - "test_mobile_operation_parity.py"
-Cohesion: 0.13
-Nodes (17): ActionRequestError, _assignment(), compare(), _distance(), match_request(), _mirrored(), ValueError, Bounded stateless pose/action comparison for either identity kind. Names,… (+9 more)
-
-### Community 58 - "ensure_cert"
-Cohesion: 0.33
-Nodes (10): Certificate, CertInfo, ensure_cert(), fingerprint_of_cert(), fingerprint_of_pem_file(), _generate(), Path, Self-signed TLS certificate, generated on first run and kept in… (+2 more)
-
-### Community 59 - "media_inspector.dart"
 Cohesion: 0.04
-Nodes (56): ../bodies/group_pose_screens.dart, correction_sheet.dart, ../../domain/corrections/correction_scope.dart, ../../domain/corrections/correction_target.dart, ../../domain/corrections/correction_verb.dart, build, _busy, CorrectionSheet (+48 more)
+Nodes (47): ../bodies/body_naming.dart, ../bodies/equipment_screens.dart, ../../data/platform/native_video_player.dart, ../inspector/media_inspector.dart, ../inspector/targeted_detect_sheet.dart, media_chrome.dart, media_page_item.dart, media_viewer_screen.dart (+39 more)
+
+### Community 57 - "quick_review_screen.dart"
+Cohesion: 0.05
+Nodes (48): bool advanced,, ConsumerStatefulWidget, int position,, MediaPageViewItem, MediaViewerScreen, _all, _answered, _busy (+40 more)
+
+### Community 58 - "drawn_face_sweep.dart"
+Cohesion: 0.08
+Nodes (23): app.dart, ../../data/api/dtos/embedding.dart, data/db/open_database.dart, data/files/file_store.dart, data/index/embedding_index.dart, data/repositories/session_store.dart, data/secrets/secret_store.dart, drawn_faces.dart (+15 more)
+
+### Community 59 - "video_hash.dart"
+Cohesion: 0.09
+Nodes (22): dart:isolate, Digest, Isolate?, add, cancelled, close, control, digest (+14 more)
 
 ### Community 60 - "Reface Realism Phase 1 — Implementation Plan"
 Cohesion: 0.04
 Nodes (45): Before you start, File structure, Final verification, Reface Realism Phase 1 — Implementation Plan, Task 10: FaceCompositor — alignment and coverage fill, Task 11: Mask assembly, Task 12: Harmonize and paste, Task 13: Temporal state (+37 more)
 
 ### Community 61 - "undress_engine.py"
-Cohesion: 0.09
-Nodes (45): main(), Offline GPU smoke test of the approved base weights, using synthetic inputs.…, ensure_local_model(), fit_work_size(), format_result_line(), garment_color_from_prompt(), hands_keep_mask(), limited_size() (+37 more)
+Cohesion: 0.07
+Nodes (52): main(), Offline GPU smoke test of the approved base weights, using synthetic inputs.…, test_clean_binary_mask_fills_holes_and_drops_specks(), test_ensure_local_model_uses_cached_inpaint_snapshot(), test_fit_work_size_upsizes_a_small_crop_to_768(), test_limited_size_is_multiple_of_64_and_never_zero(), test_mask_crop_box_pads_and_stays_inside_the_image(), test_scale_bbox_maps_original_coords_onto_resized_image() (+44 more)
 
 ### Community 62 - "test_grouping_core.py"
 Cohesion: 0.10
 Nodes (44): A synthetic library: `people` identities, first one optionally curated., seed_library(), b64(), bodies_json(), both(), build(), check(), db_state() (+36 more)
 
-### Community 63 - "scan_engine_test.dart"
+### Community 63 - "AppDatabase"
 Cohesion: 0.02
-Nodes (86): LibraryRepository, ReviewRepository, GroupingInputs, GroupingRunner, _golden, main, _asset, db (+78 more)
+Nodes (125): _, @DriftDatabase, AppDatabase, InMemoryEmbeddingIndex, PeopleRepository, ReviewRepository, BodyLinkGuard, CorrectionService (+117 more)
 
-### Community 64 - "studio_repository.dart"
-Cohesion: 0.08
-Nodes (24): artifact_context.dart, domain/scan/video_scan.dart, contextFor, db, deleteResult, deletionItems, encodeFaces, enqueue (+16 more)
+### Community 64 - "video_scan.dart"
+Cohesion: 0.10
+Nodes (19): ../../data/api/dtos/jobs.dart, ../../data/api/video_api.dart, data/platform/video_frames.dart, data/repositories/library_repository.dart, db, fileSha256, isolatedFileSha256, localFrames (+11 more)
 
 ### Community 65 - "system.dart"
 Cohesion: 0.03
@@ -739,16 +764,16 @@ Cohesion: 0.04
 Nodes (46): adaptiveVideoSampling, albumIds, _all, backedUp, characterAlbumIds, _db, defaultMaxSide, defaultQualityGate (+38 more)
 
 ### Community 67 - "RefaceEngineV3"
-Cohesion: 0.07
-Nodes (22): _label(), main(), Antigravity Local - V3 realism A/B Renders one target image through the 'clean'…, render(), Return a restorer name whose model file exists in models/, preferring…, resolve_restorer_name(), load_swapper(), A non-insightface swapper by name, or None if it isn't one / isn't downloaded. (+14 more)
+Cohesion: 0.06
+Nodes (23): _label(), main(), Antigravity Local - V3 realism A/B Renders one target image through the 'clean'…, render(), profile_catalog(), profile_defaults(), Model-free configuration for the single public Reface pipeline., Path (+15 more)
 
 ### Community 68 - "reface_video_trimmer.dart"
 Cohesion: 0.05
-Nodes (42): bool active,, Duration start, end,, 0, _at, _boundary, build, _change, createState (+34 more)
+Nodes (41): bool active,, Duration start, end,, 0, _at, _boundary, build, _change, createState (+33 more)
 
 ### Community 69 - "media_decode.py"
-Cohesion: 0.11
-Nodes (18): skipUnless, venv_ai side: JSON list of image paths on stdin, one RESULT_PREFIX line per…, _worker(), decode_image(), DecoderProcess, ffmpeg_exe(), ffmpeg_frame(), ImageTooLarge (+10 more)
+Cohesion: 0.33
+Nodes (11): decode_image(), ffmpeg_exe(), ffmpeg_frame(), ImageTooLarge, main(), MediaDecodeError, probe_video(), ValueError (+3 more)
 
 ### Community 70 - "Face Clustering Workflow - Detailed Documentation"
 Cohesion: 0.05
@@ -756,11 +781,11 @@ Nodes (41): 10a. Check for Existing Person Assignment, 10b. Create New Person (i
 
 ### Community 71 - "face_masking.py"
 Cohesion: 0.09
-Nodes (28): main(), Antigravity Local - compositor stage diagnostic Walks one image through the V3…, stat(), (parser map, occlusion matte) of the original crop. Neither depends on the…, Return (paste_mask, region_orig, skin_orig), all float32 [0,1]. `orig_masks` is…, box_mask(), FaceMasker, feather_mask() (+20 more)
+Nodes (32): main(), Antigravity Local - compositor stage diagnostic Walks one image through the V3…, stat(), box_mask(), FaceMasker, feather_mask(), harden_occlusion(), _layout() (+24 more)
 
 ### Community 72 - "JobManager"
 Cohesion: 0.07
-Nodes (25): add_job_to_queue(), gpu_heavy_job_running(), Job, JobManager, Any, Path, List recent jobs, sorted by creation time (newest first)., Get jobs in queue, sorted by creation time (oldest first = next to run). (+17 more)
+Nodes (29): add_job_to_queue(), finish_v3_video(), Job, JobManager, Any, Path, List recent jobs, sorted by creation time (newest first)., Get jobs in queue, sorted by creation time (oldest first = next to run). (+21 more)
 
 ### Community 73 - "video_scan_test.dart"
 Cohesion: 0.03
@@ -768,11 +793,11 @@ Nodes (70): LinearProgressIndicator, analyzed, analyzeGarments, analyzeImage, an
 
 ### Community 74 - "test_compositor.py"
 Cohesion: 0.04
-Nodes (133): alignment_matrix(), _as_2x3(), compose_affine(), CompositeConfig, config_from_preset(), FaceCompositor, frame_roi(), _from_roi() (+125 more)
+Nodes (119): alignment_matrix(), _as_2x3(), compose_affine(), CompositeConfig, config_from_preset(), _from_roi(), ndarray, Antigravity Local - face compositor Owns everything after the swap: align ->… (+111 more)
 
-### Community 75 - "artifact_jobs.py"
-Cohesion: 0.10
-Nodes (22): detect_character_record_from_image(), detect_face_record_from_image(), Runs face detection directly on an image that was NOT pre-mined into the…, Match CCIP against detected portraits, then crop only that figure's associated…, bounded(), dataset_anchor(), extract_dataset(), Stateless clothing restyle and character LoRA adapters over the installed… (+14 more)
+### Community 75 - "ArtifactTests"
+Cohesion: 0.11
+Nodes (10): extract_dataset(), Accept only bounded image/caption bundles; never extract executables or…, hub_roots(), Read-only checks for local Restyle weights; never start workers or downloads., Require real weights, rather than treating an empty models directory as ready., restyle_missing_models(), files_for_repo(), main() (+2 more)
 
 ### Community 76 - "dfl_bridge.py"
 Cohesion: 0.13
@@ -791,8 +816,8 @@ Cohesion: 0.06
 Nodes (37): best, closest, faceSimilarity, faceTrack, id, InsertView, isNear, lastBox (+29 more)
 
 ### Community 80 - "lora_dataset.py"
-Cohesion: 0.08
-Nodes (36): get_person_lora_info(), set_person_lora_info(), FaceRestorer, ndarray, Antigravity Local - ONNX face restoration (CodeFormer / GFPGAN / GPEN) Runs a…, Build the weight tensor matching the model's declared dtype and rank.…, Restore an aligned face crop. Returns BGR uint8 at model size., ONNX face restorer operating on an aligned crop. (+28 more)
+Cohesion: 0.06
+Nodes (50): get_all_persons(), get_faces_for_person(), Any, Get all persons with their face counts, Get faces for a specific person, get_faces_by_person(), get_person_lora_info(), set_person_lora_info() (+42 more)
 
 ### Community 81 - "Uint8List?"
 Cohesion: 0.06
@@ -810,9 +835,9 @@ Nodes (44): action_frames.dart, kind_corrections.dart, added, changed, claimNext
 Cohesion: 0.08
 Nodes (36): apply_affine(), mask_to_polygon(), OutlineEngine, Any, ndarray, Path, Exact face & body outlines generation. Extracts real shape contours for faces…, Map a polygon using a 2x3 affine matrix. (+28 more)
 
-### Community 85 - "background_test.dart"
+### Community 85 - "package:flutter_riverpod/flutter_riverpod.dart"
 Cohesion: 0.05
-Nodes (38): _buildApp, main, acquire, acquires, active, async, calls, current (+30 more)
+Nodes (44): FakeMobileApi, Capabilities, _buildApp, main, calls, capabilities, capabilitiesCalls, _CapabilitiesTimeoutApi (+36 more)
 
 ### Community 86 - "crop_cache.dart"
 Cohesion: 0.06
@@ -827,12 +852,12 @@ Cohesion: 0.06
 Nodes (34): ../api/lan_host.dart, address, bindings, _channel, contains, discover, discoverLan, duration (+26 more)
 
 ### Community 89 - "pinned_http.dart"
-Cohesion: 0.07
-Nodes (27): api_exception.dart, binaryUploadBody, _bufferBytes, _diskBlocks, downloadResumableFile, pending, _uploadViews, baseUrl (+19 more)
+Cohesion: 0.11
+Nodes (18): baseUrl, certificateFingerprint, connectTimeout, createPinnedDio, diff, dio, _explain, pinned (+10 more)
 
 ### Community 90 - "photo_result_store.dart"
-Cohesion: 0.03
-Nodes (60): app.dart, ../../data/api/dtos/embedding.dart, data/db/open_database.dart, data/files/file_store.dart, data/index/embedding_index.dart, ../../data/repositories/action_frames.dart, data/repositories/character_repository.dart, ../../data/repositories/face_suppression_store.dart (+52 more)
+Cohesion: 0.05
+Nodes (39): ../../data/repositories/action_frames.dart, data/repositories/character_repository.dart, ../../data/repositories/face_suppression_store.dart, appearance, _blobOf, _bodyTracks, _Box, _db (+31 more)
 
 ### Community 91 - "seed.dart"
 Cohesion: 0.06
@@ -845,16 +870,16 @@ Cohesion: 0.06
 Nodes (32): PxRect, main, cand, _id, main, asset, close, closed (+24 more)
 
 ### Community 93 - "gallery_grouping.py"
-Cohesion: 0.13
-Nodes (21): accept_faces(), _body_inputs(), create_person_from_faces(), face_quality_of(), FaceSuggestion, frame_key(), group_library(), GroupingSummary (+13 more)
+Cohesion: 0.09
+Nodes (26): norm_path(), person_media_ids(), Source files for a person, including faces mined before media records existed…, Key used to recognise the same media file across scans., A deleted occurrence stays deleted, without banning that person in new photos., accept_faces(), _body_inputs(), create_person_from_faces() (+18 more)
 
-### Community 94 - "JobStatus"
-Cohesion: 0.07
-Nodes (54): Enum, _dfl_status(), _fmt_duration(), _gen_active(), _gen_images(), _gen_reference_thumb(), _gen_render_finished(), _gen_render_queued() (+46 more)
+### Community 94 - "dashboard.py"
+Cohesion: 0.06
+Nodes (71): Enum, count_media_files(), _dfl_status(), _fmt_duration(), _gen_active(), _gen_images(), _gen_reference_thumb(), _gen_render_finished() (+63 more)
 
-### Community 95 - "quick_review_screen.dart"
+### Community 95 - "person_detail_screen.dart"
 Cohesion: 0.02
-Nodes (117): bool advanced,, ConsumerStatefulWidget, data/repositories/review_repository.dart, ../../data/repositories/review_visual_repository.dart, _GroupCard, highlighted_photo.dart, int position,, ReviewMatchGroup (+109 more)
+Nodes (116): data/repositories/review_questions.dart, data/repositories/review_repository.dart, ../../data/repositories/review_visual_repository.dart, highlighted_photo.dart, identity_groups_screen.dart, PersonSummary, _reassignFaceDirect, _decide (+108 more)
 
 ### Community 97 - "eval_reface.py"
 Cohesion: 0.11
@@ -869,12 +894,12 @@ Cohesion: 0.08
 Nodes (32): BusyInfo get, data/api/connection_recovery.dart, ServerSession, api, build, busy, capabilities, checkServer (+24 more)
 
 ### Community 100 - "embedding_index.dart"
-Cohesion: 0.04
-Nodes (58): dart:isolate, Digest, Isolate?, add, addAll, _closed, _commands, contains (+50 more)
+Cohesion: 0.06
+Nodes (35): add, addAll, _closed, _commands, contains, cosine, _data, dispose (+27 more)
 
 ### Community 101 - "restyle_screen.dart"
 Cohesion: 0.07
-Nodes (29): AnalyzeController, _analysis, _busy, _contextAssetId, _contextMediaId, _contextTarget, createState, _detectCurrent (+21 more)
+Nodes (28): _analysis, _busy, _contextAssetId, _contextMediaId, _contextTarget, createState, _detectCurrent, didChangeDependencies (+20 more)
 
 ### Community 102 - "FaceMiner"
 Cohesion: 0.12
@@ -882,11 +907,11 @@ Nodes (16): FaceData, FaceMiner, Any, ndarray, Initialize InsightFace model with
 
 ### Community 103 - "scan_state.dart"
 Cohesion: 0.07
-Nodes (30): ForegroundServiceKeepAlive, bodiesFound, charactersFound, copyWith, currentAssetId, currentKind, done, eta (+22 more)
+Nodes (30): double get, ForegroundServiceKeepAlive, bodiesFound, charactersFound, copyWith, currentAssetId, currentKind, done (+22 more)
 
 ### Community 104 - "media_library.dart"
-Cohesion: 0.06
-Nodes (38): class PhotoManagerLibrary, FilterOptionGroup get, albums, clearCache, count, downscaledJpeg, durationMs, fileName (+30 more)
+Cohesion: 0.05
+Nodes (40): class PhotoManagerLibrary, FilterOptionGroup get, albums, clearCache, count, downscaledJpeg, durationMs, fileName (+32 more)
 
 ### Community 105 - "storage_sweeper.dart"
 Cohesion: 0.06
@@ -900,9 +925,9 @@ Nodes (31): post, cluster_faces(), ClusteringRequest, ClusteringResponse, compar
 Cohesion: 0.09
 Nodes (13): PreTrainedModel, Florence2LanguageConfig, r""" This is the configuration class to store the configuration of a…, Florence2Decoder, Florence2DecoderLayer, Florence2Encoder, Florence2EncoderLayer, Florence2LanguageModel (+5 more)
 
-### Community 108 - "match_faces"
-Cohesion: 0.12
-Nodes (36): Hashable, load(), main(), pairwise(), Measure gallery grouping accuracy against the people you've already curated.…, b64(), main(), measure() (+28 more)
+### Community 108 - "cluster_faces"
+Cohesion: 0.19
+Nodes (20): Hashable, load(), main(), pairwise(), Measure gallery grouping accuracy against the people you've already curated.…, _assign_within_frames(), _average_linkage(), build_person_models() (+12 more)
 
 ### Community 109 - "@DataClassName"
 Cohesion: 0.10
@@ -912,9 +937,9 @@ Nodes (48): @DataClassName, @TableIndex, BlobHints, Bodies, BodyClusters, BodyDi
 Cohesion: 0.06
 Nodes (30): artifact_store.dart, _ack, _check, _closeEvents, dispose, _disposed, _download, _events (+22 more)
 
-### Community 111 - "embedding_backfill.dart"
-Cohesion: 0.03
-Nodes (77): ../../data/api/dtos/analyze.dart, ../../data/api/equipment_api.dart, data/api/mobile_api.dart, ../../data/media/media_library.dart, ../../data/repositories/sensitive_store.dart, ../geometry/outline.dart, mark_geometry.dart, media_library.dart (+69 more)
+### Community 111 - "equipment_library.dart"
+Cohesion: 0.08
+Nodes (22): ../../data/api/equipment_api.dart, ../../data/media/media_library.dart, mark_geometry.dart, call, _library, markPatchMaxOutput, markPatchMinSide, originalMaxSide (+14 more)
 
 ### Community 112 - "DFMEngine"
 Cohesion: 0.10
@@ -925,20 +950,20 @@ Cohesion: 0.14
 Nodes (29): clear_staged(), find_media(), _fingerprint(), fingerprint_data(), fingerprint_file(), _free_name(), import_folder(), is_media() (+21 more)
 
 ### Community 114 - "reface_faces.dart"
-Cohesion: 0.05
-Nodes (36): DetectedFace get, Float32List, Float32List get, _directionB64, dot, drawnFaceDirection, drawnFaceMinScore, drawnFaceScore (+28 more)
+Cohesion: 0.07
+Nodes (29): DetectedFace get, Float32List get, absorb, add, affinity, _ambiguousMerge, appearances, _center (+21 more)
 
-### Community 115 - "quick_review_test.dart"
-Cohesion: 0.09
-Nodes (21): db, ensureVisible, _likelihood, m, main, _match, _Matches, _open (+13 more)
+### Community 115 - "embedding_backfill.dart"
+Cohesion: 0.11
+Nodes (17): async, bodyEmbeddingModelVersion, db, EmbeddingBackfill, embeddingBackfillKey, isRunning, _mark, maxSide (+9 more)
 
 ### Community 116 - "jobs.dart"
 Cohesion: 0.06
 Nodes (30): analyzedTimestampMs, completed, details, error, frameInterval, frames, framesDone, fromJson (+22 more)
 
-### Community 117 - "character_detection_test.dart"
-Cohesion: 0.07
-Nodes (29): VideoActionsRepository, actor, calls, compareActions, db, main, offline, photo (+21 more)
+### Community 117 - "test_reference_reface_gpu_smoke.py"
+Cohesion: 0.28
+Nodes (14): _open_rgb(), create_clip(), derive_identity(), ensure_compute_idle(), iou(), locality(), main(), mask_union() (+6 more)
 
 ### Community 118 - "video_scan_progress.dart"
 Cohesion: 0.07
@@ -948,9 +973,9 @@ Nodes (29): analyzedTimestampMs, bodiesFound, bytesPerSecond, charactersFound, d
 Cohesion: 0.12
 Nodes (18): _worker(), caption_paths(), clean_caption(), ensure_model_code(), florence_enabled(), FlorenceCaptioner, get_florence_captioner(), Image (+10 more)
 
-### Community 120 - "String?"
-Cohesion: 0.03
-Nodes (75): double fx,, Key photoKey,, _MarkChoice, ../marks/mark_tattoo.dart, build, createState, cropPath, fy (+67 more)
+### Community 120 - "mark_tattoo.dart"
+Cohesion: 0.06
+Nodes (32): anchor, bh, body, box, build, bw, bx, by (+24 more)
 
 ### Community 121 - "modeling_florence2.py"
 Cohesion: 0.09
@@ -958,76 +983,71 @@ Nodes (14): ChannelAttention, ChannelBlock, DepthWiseConv2d, Mlp, PreNorm, # TOD
 
 ### Community 122 - "image_preview.dart"
 Cohesion: 0.06
-Nodes (36): ../../data/platform/visual_search.dart, visualSearchProvider, asset, assetId, build, bytes, child, createState (+28 more)
+Nodes (35): ../../data/platform/visual_search.dart, visualSearchProvider, asset, assetId, build, bytes, child, createState (+27 more)
 
 ### Community 123 - "video_compactor.dart"
 Cohesion: 0.07
 Nodes (27): _apply, bodiesRemoved, box, compactAll, CompactResult, compactVideo, _db, facesRemoved (+19 more)
 
-### Community 124 - "harness.dart"
-Cohesion: 0.15
-Nodes (12): fakes.dart, Finder? scrollable,
-  double, appTest, delta, ensureVisible, pickRefaceTarget, pumpAndSettle, revealForTap (+4 more)
+### Community 124 - "setting_tile.dart"
+Cohesion: 0.04
+Nodes (42): bool?, Key fieldKey,, build, description, descriptionKey, onChanged, options, qualityOptions (+34 more)
 
 ### Community 125 - "resolve_route"
 Cohesion: 0.12
 Nodes (25): navigate_to(), on_nav_page_change(), Update URL query parameter when user selects a menu tab., Programmatically navigate to any page and update the URL safely across widget…, get_gallery_person_param(), get_primary_slug(), get_url_route(), Any (+17 more)
 
-### Community 126 - "lora_screens.dart"
-Cohesion: 0.05
-Nodes (42): _actions, _base, _busy, _contextAssetId, _contextMediaId, _contextPhoto, _count, createState (+34 more)
+### Community 126 - "crop_image.dart"
+Cohesion: 0.04
+Nodes (45): BorderRadius?, BoxFit, crop.dart, ../../features/shared/crop_image.dart, ../../features/shared/image_preview.dart, image_preview.dart, cacheWidth, cropPath (+37 more)
 
 ### Community 127 - "pairing_controller.dart"
 Cohesion: 0.09
 Nodes (26): ../../data/api/lan_host.dart, build, code, _complete, confirm, error, fingerprint, host (+18 more)
 
 ### Community 128 - "resource_panel.dart"
-Cohesion: 0.09
-Nodes (25): ../../data/api/dtos/resources.dart, ../../data/api/resource_api.dart, ResourceSnapshot, api, build, _bytes, closed, createState (+17 more)
+Cohesion: 0.10
+Nodes (24): ../../data/api/dtos/resources.dart, ../../data/api/resource_api.dart, api, build, _bytes, closed, createState, didChangeAppLifecycleState (+16 more)
 
 ### Community 129 - "resources.dart"
 Cohesion: 0.08
-Nodes (24): admissionBlocked, admissionReasons, alerts, appRamBytes, appStorageBytes, appUsedBytes, availableRamBytes, diskFreeBytes (+16 more)
+Nodes (25): admissionBlocked, admissionReasons, alerts, appRamBytes, appStorageBytes, appUsedBytes, availableRamBytes, diskFreeBytes (+17 more)
 
 ### Community 130 - "test_body_embeddings.py"
 Cohesion: 0.26
 Nodes (18): body(), check(), FakeEmbedder, picture(), Phase 8 PC half (roadmap 7.5): DINOv2 patch embeddings + morphology of exposed…, region(), test(), test_analyse_bodies_pairs_regions_with_their_body_only() (+10 more)
 
-### Community 131 - "add_nvidia_dll_dirs"
-Cohesion: 0.09
-Nodes (25): add_nvidia_dll_dirs(), Make the pip-installed NVIDIA DLLs (venv/Lib/site-packages/nvidia/*/bin)…, HyperSwapper, ndarray, Antigravity Local - face swapper models for the V3 pipeline Every swapper here…, frame->crop similarity transform taking 5-point kps onto a template…, FaceFusion HyperSwap 1a/1b/1c at 256 px, on onnxruntime., Swap an already-aligned crop (arcface_128 at self.size). (+17 more)
-
-### Community 132 - "VideoTests"
-Cohesion: 0.18
-Nodes (3): adaptive_interval(), Duration-aware sampling; the selected grid is pinned in each job checkpoint., VideoTests
+### Community 131 - "mask_utils.py"
+Cohesion: 0.11
+Nodes (20): generate_body_mask(), get_person_bbox(), _get_rmbg_session(), get_segmentation_mask(), keep_person(), _main_face_box(), ndarray, Generates an inpainting mask for the body. White = Area to Inpaint… (+12 more)
 
 ### Community 133 - "person_linking.py"
-Cohesion: 0.09
-Nodes (29): appearance_descriptor(), appearance_similarity(), appearance_similarity_many(), BodyLink, bone_ratio_veto(), Cluster, _EventTimeline, face_body_score() (+21 more)
+Cohesion: 0.11
+Nodes (25): appearance_similarity(), appearance_similarity_many(), associate_faces_bodies(), BodyLink, bone_ratio_veto(), Cluster, _EventTimeline, face_body_score() (+17 more)
 
 ### Community 134 - "test_reface_desktop.py"
-Cohesion: 0.13
-Nodes (16): gallery_faceset(), Desktop controls and adapters for the public Reface pipeline. Importing this…, List the same configured folders accepted by the former gallery workflow., Discard reference faces when the target changes, including same-name uploads., Do not rewrite a large video on every quality/face-selection rerun., New jobs select identities explicitly; never fall back to detection order., Reuse the selected person's stored embeddings without rescanning crops., select_target() (+8 more)
+Cohesion: 0.12
+Nodes (17): gallery_faceset(), Desktop controls and adapters for the public Reface pipeline. Importing this…, List the same configured folders accepted by the former gallery workflow., Discard reference faces when the target changes, including same-name uploads., Do not rewrite a large video on every quality/face-selection rerun., New jobs select identities explicitly; never fall back to detection order., Return the exact constructor options used by foreground and queued swaps., Reuse the selected person's stored embeddings without rescanning crops. (+9 more)
 
 ### Community 135 - "LoRA Identity Source for Reface V2 (Design Document)"
 Cohesion: 0.08
 Nodes (23): 10. Verification, 1. Problem and hypothesis, 2. Phase 0 — measure before building (go/no-go), 3. How it plugs in, 4.1 Real-photo reference vectors — `real_photo_embeddings(person_id, person_name, face_app)`, 4.2 Clean generated portraits — `clean_generated_images(person_name, jobs_manager)`, 4.3 Per-face gate — `filter_by_anchor(detections, anchor, min_similarity)` (pure), 4.4 Building the faceset — `faceset_from_detections(name, detections)` (pure) (+15 more)
 
 ### Community 136 - "grouping_inputs.dart"
-Cohesion: 0.07
-Nodes (26): _anchorForEvent, bodies, buildPersonModel, cap, _db, _derivedLinks, dim, dismissedFaceIds (+18 more)
+Cohesion: 0.06
+Nodes (32): Float32List, _anchorForEvent, bodies, buildPersonModel, cap, _db, _derivedLinks, dim (+24 more)
 
 ### Community 137 - "CcipEmbedder"
-Cohesion: 0.14
-Nodes (18): get_ccip_embedder(), Lazily load the CCIP character identity model if it is installed., asymmetric_ccip_crop(), CcipEmbedder, extract_hat_hue(), extract_outfit_hue(), ndarray, Character Embedder using deepghs/ccip (caformer-24) ONNX and hybrid appearance… (+10 more)
+Cohesion: 0.15
+Nodes (16): asymmetric_ccip_crop(), CcipEmbedder, extract_hat_hue(), extract_outfit_hue(), ndarray, Character Embedder using deepghs/ccip (caformer-24) ONNX and hybrid appearance…, Extract 16 hue features (weights + counts) from the torso below the face (y2 to…, Extracts 768-d CCIP character identity embedding plus hue features. (+8 more)
 
-### Community 138 - "connection_test.dart"
-Cohesion: 0.06
-Nodes (33): FakeMediaLibrary, FakeMobileApi, SensitiveBackfill, calls, capabilities, capabilitiesCalls, _CapabilitiesTimeoutApi, _CompletelyDeadApi (+25 more)
+### Community 138 - "FileStore"
+Cohesion: 0.05
+Nodes (39): ../files/file_store.dart, FileStore, anchor, buildIdentity, dataset, db, exportDataset, files (+31 more)
 
 ### Community 139 - "entity_action_sheet.dart"
 Cohesion: 0.06
-Nodes (37): action_dispatcher.dart, ../actions/action_dispatcher.dart, @visibleForTesting, ../../domain/actions/action_context.dart, ../../domain/actions/action_id.dart, ../../domain/actions/action_registry.dart, ../../domain/actions/entity_ref.dart, ActionContext (+29 more)
+Nodes (36): action_dispatcher.dart, ../actions/action_dispatcher.dart, @visibleForTesting, ../../domain/actions/action_context.dart, ../../domain/actions/action_id.dart, ../../domain/actions/action_registry.dart, ../../domain/actions/entity_ref.dart, ActionHandler (+28 more)
 
 ### Community 140 - "ANTIGRAVITY_HANDOFF.md"
 Cohesion: 0.12
@@ -1042,12 +1062,12 @@ Cohesion: 0.09
 Nodes (22): appearanceFromBlob, appearanceSimilarity, appearanceToBlob, clampBox, cosine, cx, cy, dot (+14 more)
 
 ### Community 143 - "overlaps_real_face"
-Cohesion: 0.14
-Nodes (18): _face_in_region(), The best face found around `box` (twice its size each way), in frame…, box_containment(), box_iou(), _get_bbox(), _get_score(), overlaps_real_face(), Any (+10 more)
+Cohesion: 0.15
+Nodes (16): box_containment(), box_iou(), _get_bbox(), _get_score(), overlaps_real_face(), Any, Face routing and baby-face veto logic. Decides whether a detection is a real…, Helper to get [x1, y1, x2, y2] from either a dict or an object with… (+8 more)
 
 ### Community 144 - "MobileDashboardController"
-Cohesion: 0.06
-Nodes (28): HTTPRedirectHandler, _came_up(), _control_path(), describe(), is_child(), Keeps the Mobile API up: the server runs in a child process and is started…, What the supervisor told this server about earlier crashes, or None on a first…, recovery_info() (+20 more)
+Cohesion: 0.09
+Nodes (17): HTTPRedirectHandler, ControlError, MobileDashboardController, NoRedirect, RuntimeError, Local Streamlit → Mobile API control bridge. No GPU imports or Internet…, For local callers/tests that need the exit record fully committed., mobile_controller() (+9 more)
 
 ### Community 145 - "test_gallery_ui.py"
 Cohesion: 0.25
@@ -1063,15 +1083,15 @@ Nodes (14): convert_insightface_landmarks(), DFLFaceInfo, DFLMetadata, ndarray, 
 
 ### Community 148 - "entity_card.dart"
 Cohesion: 0.06
-Nodes (37): ../atoms/avatar.dart, ../atoms/thumb.dart, AvatarVisual, badge, build, _buildCropStack, _buildGrid, _buildHero (+29 more)
+Nodes (36): ../atoms/avatar.dart, ../atoms/thumb.dart, AvatarVisual, badge, build, _buildCropStack, _buildGrid, _buildHero (+28 more)
 
 ### Community 149 - "make_fixtures.py"
 Cohesion: 0.18
 Nodes (21): analyze_fixture(), b64(), blend_to_similarity(), grouping_fixtures(), hellinger_descriptor(), job_fixtures(), jpeg_b64(), noisy() (+13 more)
 
-### Community 150 - "shared/person_picker.dart"
-Cohesion: 0.03
-Nodes (68): crop_image.dart, ../../data/repositories/people_repository.dart, ../../domain/export/export_selection.dart, ../../domain/export/training_export.dart, empty_state.dart, Future, _GroupNameDialog, Iterable (+60 more)
+### Community 150 - "training_export_dialog.dart"
+Cohesion: 0.09
+Nodes (25): ../../domain/export/export_selection.dart, ../../domain/export/training_export.dart, _GroupNameDialog, _GroupNameDialogState, _GroupNameState, trainingExportProvider, _bodies, _bodySize (+17 more)
 
 ### Community 151 - "Your Gallery"
 Cohesion: 0.09
@@ -1094,8 +1114,8 @@ Cohesion: 0.10
 Nodes (20): badResponse, badResponseCode, certificate, certificateCode, code, fromEnvelope, isGpuBusy, isOffline (+12 more)
 
 ### Community 156 - "video_api.dart"
-Cohesion: 0.06
-Nodes (36): dtos/jobs.dart, ActionMatchApi, compareActions, StudioJobStatus, EquipmentApi, HttpMobileApi, MobileApi, controlStudioJob (+28 more)
+Cohesion: 0.09
+Nodes (25): StudioJobStatus, EquipmentApi, HttpMobileApi, MobileApi, StudioApi, controlVideoJob, createVideoJob, deleteVideoJob (+17 more)
 
 ### Community 157 - "CropExportBridge"
 Cohesion: 0.22
@@ -1121,9 +1141,9 @@ Nodes (19): 1. `services/deepfacelab_utils.py`, 2. `services/face_swap.py`, 3. G
 Cohesion: 0.14
 Nodes (13): DeepFaceLabEnvironment, get_dfl_environment(), Path, DeepFaceLab Integration Utilities Handles environment setup and path…, Manages DeepFaceLab environment setup, Get the Python command to use for DeepFaceLab, Initialize DeepFaceLab environment. Args: dfl_base_path: Path to…, Get the path to DeepFaceLab's main.py (+5 more)
 
-### Community 163 - "AnalyzeOptions"
-Cohesion: 0.09
-Nodes (21): AnalyzeOptions, AnalyzeOptions, The subset of ScanOptions analysis needs. Any object with these three…, Character, One drawn figure. Like a person it can have a face, a body, or both: `bbox` is…, decode_result(), _encode_base(), encode_result() (+13 more)
+### Community 163 - "fileStoreProvider"
+Cohesion: 0.06
+Nodes (41): data/api/dtos/system.dart, build, JobDetailScreen, _ModelRow, runFaceAction, _loadPerson, build, _exportActions (+33 more)
 
 ### Community 164 - "test_mobile_stateless.py"
 Cohesion: 0.22
@@ -1149,13 +1169,13 @@ Nodes (12): AnimeFaceDetector, decode_yolo(), letterbox(), Any, ndarray, Anime /
 Cohesion: 0.15
 Nodes (11): admission_reasons(), _folder_entries(), folder_usage(), _number(), Bounded, read-only resource sampling. No ML imports, downloads or process…, Yield running totals so one directory walk can span many short samples., Only the limits the user enabled in PC Settings gate scans; system RAM use…, Admission thresholds, not an OS allocation cap or an OOM guarantee. (+3 more)
 
-### Community 170 - "garment_backfill.dart"
-Cohesion: 0.07
-Nodes (30): data/api/api_exception.dart, AnalyzeImageResponse, async, db, garmentModelVersion, garmentTagsEnabledKey, garmentTagsOf, isRunning (+22 more)
+### Community 170 - "analyze_controller.dart"
+Cohesion: 0.16
+Nodes (15): data/api/api_exception.dart, AnalyzeImageResponse, AnalyzeDone, AnalyzeFailed, AnalyzeIdle, AnalyzeState, AnalyzeWorking, build (+7 more)
 
 ### Community 171 - "people_screen.dart"
-Cohesion: 0.03
-Nodes (69): bool selecting,, data/repositories/identity_groups.dart, ../library/media_grid.dart, listProvider, _askGroupName, assignIdentityGroup, build, choice (+61 more)
+Cohesion: 0.05
+Nodes (42): bool selecting,, data/repositories/identity_groups.dart, assign, create, db, delete, IdentityGroupsRepository, IdentityGroupSummary (+34 more)
 
 ### Community 172 - "embedding.dart"
 Cohesion: 0.11
@@ -1190,16 +1210,16 @@ Cohesion: 0.05
 Nodes (41): appearance, bodiesInOutfit, bodiesInPose, bodyId, CategoryMatch, _db, defaultOutfitThreshold, defaultPoseThreshold (+33 more)
 
 ### Community 181 - "activity_pill_host.dart"
-Cohesion: 0.08
-Nodes (26): activity_pill.dart, GoRouter?, ActivityPill, build, ActivityPillHost, _ActivityPillHostState, AppPopupObserver, build (+18 more)
+Cohesion: 0.10
+Nodes (21): activity_pill.dart, GoRouter?, ActivityPillHost, _ActivityPillHostState, AppPopupObserver, child, createState, didPop (+13 more)
 
 ### Community 182 - "pose_rules.dart"
 Cohesion: 0.05
 Nodes (40): all, arms, armsSpread, armsUp, back, bent, dist, ears (+32 more)
 
 ### Community 183 - "connection_recovery.dart"
-Cohesion: 0.12
-Nodes (15): dtos/system.dart, mobile_api.dart, api, ApiFactory, candidates, capabilities, moved, null (+7 more)
+Cohesion: 0.13
+Nodes (14): dtos/system.dart, mobile_api.dart, api, ApiFactory, candidates, capabilities, moved, null (+6 more)
 
 ### Community 184 - "pairing_payload.dart"
 Cohesion: 0.12
@@ -1225,9 +1245,9 @@ Nodes (14): ../../domain/export/crop_math.dart, int rawWidth,, AndroidCropSource
 Cohesion: 0.13
 Nodes (14): After Installation, Alternative: Use CPU Version (If GPU Not Critical), CUDA Version Compatibility, Fix Error 126: LoadLibrary failed for onnxruntime_providers_cuda.dll, Problem, Root Cause, Solution: Install CUDA Toolkit, Step 1: Download CUDA Toolkit (+6 more)
 
-### Community 190 - "bool get"
-Cohesion: 0.09
-Nodes (22): bool get, bool supported, notifications, unrestricted,, AndroidBackgroundExecution, BackgroundExecution, BackgroundStatus, openSettings, ready, request (+14 more)
+### Community 190 - "background_execution.dart"
+Cohesion: 0.15
+Nodes (13): bool supported, notifications, unrestricted,, AndroidBackgroundExecution, BackgroundExecution, BackgroundStatus, openSettings, ready, request, running (+5 more)
 
 ### Community 191 - "Your Gallery — إعادة تصميم تجربة الموبايل"
 Cohesion: 0.14
@@ -1237,9 +1257,9 @@ Nodes (13): Your Gallery — إعادة تصميم تجربة الموبايل, 
 Cohesion: 0.14
 Nodes (13): Constraints (read before starting), Data format (single source of truth, used by every task), Exact Face & Body Outlines: Implementation Plan, Review checklist (what Claude will check after you finish), Task 1: Python outline module (`the app/outlines.py`), CPU-tested, Task 2: Wire outlines through analysis, the scan worker and the API response, Task 3: Contract + golden fixtures, Task 4: Real-GPU check and a visual debug script (evidence for the review) (+5 more)
 
-### Community 193 - "equipment_detection.py"
-Cohesion: 0.16
-Nodes (10): associate_objects(), detect_equipment(), equipment_label(), model_available(), model_path(), _point_distance(), Local Florence object detection, isolated from ONNX/CUDA in venv_ai. Object…, Keep equipment in contact range; leave an ambiguous owner unassigned. (+2 more)
+### Community 193 - "outline_backfill.dart"
+Cohesion: 0.10
+Nodes (18): ../../data/api/dtos/analyze.dart, ../geometry/outline.dart, backfillPhoto, db, _debouncedMediaIds, _inFlight, isRetrying, maxSide (+10 more)
 
 ### Community 194 - "Antigravity Local — Project Guide for Claude"
 Cohesion: 0.14
@@ -1263,15 +1283,15 @@ Nodes (8): Context, FlutterEngine, provideFlutterEngine(), MethodCall, MethodCha
 
 ### Community 199 - "video_actions_screen.dart"
 Cohesion: 0.06
-Nodes (38): data/repositories/video_actions_repository.dart, int? _videoId,, ActionExampleScreen, _ActionExampleScreenState, actionId, build, _busy, createState (+30 more)
+Nodes (38): data/repositories/video_actions_repository.dart, int? _videoId,, VideoTrimSelection, ActionExampleScreen, _ActionExampleScreenState, actionId, build, _busy (+30 more)
 
 ### Community 200 - "Findings (most severe first)"
 Cohesion: 0.15
 Nodes (12): 1. HIGH (verified): RMBG preprocessing is wrong, so the "person" mask is almost the whole frame, 2. MEDIUM (regression): MediaPipe fallback now receives BGR, 3. MEDIUM: RMBG is salient-object segmentation, not person segmentation, 4. MEDIUM: "Detail" now uses HyperSwap 1c, against this repo's own measurement, 5. MEDIUM (unverified quality): Hyper-SD is always on, generation not A/B-tested, 6. LOW: V6 inpainting housekeeping, 7. LOW: Florence-2 captioner is not wired in, and its code lives outside the repo, 8. LOW: `download_upgrades.py` checks size only (+4 more)
 
 ### Community 201 - "video_media_view.dart"
-Cohesion: 0.02
-Nodes (118): detection_overlay.dart, ../../domain/geometry/outline.dart, layers_popover.dart, Map, details, JobProgress, number, remaining (+110 more)
+Cohesion: 0.06
+Nodes (31): assetId, build, createState, detections, didUpdateWidget, dispose, _error, _focused (+23 more)
 
 ### Community 202 - "Florence2LanguageForConditionalGeneration"
 Cohesion: 0.18
@@ -1302,8 +1322,8 @@ Cohesion: 0.05
 Nodes (37): bodiesWithColor, bodiesWithTag, _build, _buildIsolated, _Built, CandidatePose, _candidates, _colorMatches (+29 more)
 
 ### Community 209 - "UndressClient"
-Cohesion: 0.21
-Nodes (6): Popen, parse_result_stdout(), Any, Persistent venv_ai worker. Loads SD weights once, then runs jobs as JSON lines., terminate_process(), UndressClient
+Cohesion: 0.12
+Nodes (12): Popen, test_format_and_parse_result_ignores_leading_noise(), test_parse_result_stdout_rejects_missing_marker(), test_terminate_process_actually_stops_the_child(), test_undress_client_reads_marker_line_and_kills_on_timeout(), format_result_line(), get_shared_client(), parse_result_stdout() (+4 more)
 
 ### Community 210 - "CUDA Version Compatibility Warning"
 Cohesion: 0.17
@@ -1313,28 +1333,28 @@ Nodes (11): Compatibility Status, CUDA Version Compatibility Warning, Current St
 Cohesion: 0.17
 Nodes (11): Alternative: Add cuDNN to PATH, Install cuDNN 9.x for CUDA 12.6, Problem, Quick Copy Commands (PowerShell as Administrator), Solution: Install cuDNN 9.x, Step 1: Download cuDNN, Step 2: Extract and Install cuDNN, Step 3: Verify Installation (+3 more)
 
-### Community 212 - "Discovery"
-Cohesion: 0.09
-Nodes (9): Discovery, _instance_name(), Zeroconf reports async UDP errors through logging, not start()., Wraps zeroconf; failures only disable discovery, never the server., _SocketFailureHandler, LanResponder, NetworkMonitor, private_v4() (+1 more)
+### Community 212 - "garment_backfill.dart"
+Cohesion: 0.13
+Nodes (14): async, db, garmentModelVersion, garmentTagsEnabledKey, garmentTagsOf, isRunning, maxSide, media (+6 more)
 
 ### Community 213 - "correction_service.dart"
 Cohesion: 0.06
 Nodes (31): body_link_guard.dart, correction_scope.dart, correction_target.dart, correction_verb.dart, affectedCount, allowedVerbs, apply, _applyBodyCorrection (+23 more)
 
 ### Community 214 - "collection_controller.dart"
-Cohesion: 0.06
-Nodes (31): collection_source.dart, clearFilters, clearSelection, CollectionState, CollectionStatus, copyWith, errorMessage, filters (+23 more)
+Cohesion: 0.05
+Nodes (41): collection_source.dart, integer, list, map, number, numbers, optionalNumber, value (+33 more)
 
 ### Community 215 - "activity_state_provider.dart"
 Cohesion: 0.08
-Nodes (30): double get, activeJobCount, activeJobs, ActivityFailed, ActivityIdle, ActivityJob, ActivityMultiple, ActivityScanning (+22 more)
+Nodes (30): ScanPhase, activeJobCount, activeJobs, ActivityFailed, ActivityIdle, ActivityJob, ActivityMultiple, ActivityScanning (+22 more)
 
 ### Community 216 - "secret_store.dart"
 Cohesion: 0.22
 Nodes (10): FlutterSecureStorage, delete, FlutterSecretStore, MemorySecretStore, read, SecretStore, _storage, values (+2 more)
 
 ### Community 217 - "download_restyle_base.py"
-Cohesion: 0.27
+Cohesion: 0.24
 Nodes (9): emit(), main(), metadata(), Download only the explicitly approved base Restyle files, never SDXL. Run with…, transfer(), verify(), main(), Download and verify the missing SDXL FP16 refinement components only. Uses the… (+1 more)
 
 ### Community 218 - "Next Steps After Installing cuDNN 9.17.0"
@@ -1345,9 +1365,9 @@ Nodes (10): If cuDNN is in `C:\cudnn\` (or similar):, If You Can't Find cuDNN, N
 Cohesion: 0.18
 Nodes (10): Common Issues, GPU Not Detected, GPU Setup for DeepFaceLab, Important: Environment Setup, Key Points, Performance Notes, Status, Troubleshooting (+2 more)
 
-### Community 220 - "review_questions.dart"
-Cohesion: 0.06
-Nodes (30): Likelihood get, all, buildQuestions, duplicate, evidence, face, group, high (+22 more)
+### Community 220 - "String?"
+Cohesion: 0.05
+Nodes (37): IconData, Key photoKey,, body, build, icon, onTap, ReviewBanner, title (+29 more)
 
 ### Community 221 - "validate_reface"
 Cohesion: 0.11
@@ -1358,8 +1378,8 @@ Cohesion: 0.05
 Nodes (36): domain/corrections/body_link_guard.dart, ../index/embedding_index.dart, applyTargets, _Box, _chunks, crops, _db, dtos (+28 more)
 
 ### Community 223 - "../db/app_database.dart"
-Cohesion: 0.11
-Nodes (17): ../db/app_database.dart, actionCatalogPrefix, actionFramePrefix, ActionFrameStore, db, load, mergeActionPersonReferences, put (+9 more)
+Cohesion: 0.07
+Nodes (25): ../db/app_database.dart, LibraryStats, actionCatalogPrefix, actionFramePrefix, ActionFrameStore, db, load, mergeActionPersonReferences (+17 more)
 
 ### Community 224 - "Anime & Character Unified Detection Architecture Design"
 Cohesion: 0.20
@@ -1398,8 +1418,8 @@ Cohesion: 0.06
 Nodes (30): _assemble, assetId, assignment, bodies, buildGroupPose, categories, compareGroupPoses, db (+22 more)
 
 ### Community 233 - "test_event_linking.py"
-Cohesion: 0.29
-Nodes (19): body(), check(), descriptor(), link(), outfit_image(), Roadmap section 7.2 / Phase 5 - event-context body linking in person_linking,…, test(), test_bare_skin_is_not_an_outfit() (+11 more)
+Cohesion: 0.11
+Nodes (41): body(), check(), descriptor(), link(), outfit_image(), Roadmap section 7.2 / Phase 5 - event-context body linking in person_linking,…, test(), test_bare_skin_is_not_an_outfit() (+33 more)
 
 ### Community 234 - "pose_descriptor.dart"
 Cohesion: 0.06
@@ -1417,13 +1437,13 @@ Nodes (8): Anime & Character Unified Detection Implementation Plan, Task 1: Stag
 Cohesion: 0.09
 Nodes (30): ActionEntityRef, AlbumEntityRef, BodyEntityRef, bodyId, ClusterEntityRef, ClusterKind, DatasetEntityRef, EntityRef (+22 more)
 
-### Community 238 - "privacy_and_lora_test.dart"
-Cohesion: 0.09
-Nodes (22): AndroidPrivacyService, authenticate, _channel, exportMedia, PrivacyService, authenticate, calls, exportMedia (+14 more)
+### Community 238 - "privacy_service.dart"
+Cohesion: 0.29
+Nodes (7): AndroidPrivacyService, authenticate, _channel, exportMedia, PrivacyService, FakePrivacy, _FakePrivacy
 
-### Community 239 - "json_util.dart"
-Cohesion: 0.25
-Nodes (7): integer, list, map, number, numbers, optionalNumber, value
+### Community 239 - "media_chrome.dart"
+Cohesion: 0.05
+Nodes (38): availability, build, layers, media, MediaChromeBottomBar, MediaChromeTopBar, onChangeFileKind, onDetails (+30 more)
 
 ### Community 240 - "grouping_config.dart"
 Cohesion: 0.22
@@ -1445,9 +1465,9 @@ Nodes (5): Florence2Attention, Florence2SdpaAttention, Input shape: Batch x Time
 Cohesion: 0.31
 Nodes (4): Florence2FlashAttention2, _get_unpad_data(), Calls the forward method of Flash Attention - if the input hidden states…, Florence2 flash attention module. This module inherits from…
 
-### Community 245 - "explore_screen.dart"
-Cohesion: 0.04
-Nodes (51): ../bodies/bodies_screen.dart, ../bodies/pose_visuals.dart, ../library/scan_invite_strip.dart, ../marks/person_marks_screen.dart, build, clusterId, colours, createState (+43 more)
+### Community 245 - "explore_collection_screen.dart"
+Cohesion: 0.07
+Nodes (29): ../bodies/bodies_screen.dart, ../marks/person_marks_screen.dart, cropPath, db, _discoverCrops, DiscoverScreen, _DiscoverTile, icon (+21 more)
 
 ### Community 246 - "Mobile completion — 2026-10-18"
 Cohesion: 0.25
@@ -1458,8 +1478,8 @@ Cohesion: 0.10
 Nodes (20): CustomClipper, _ComparisonClip, after, afterLabel, before, beforeLabel, build, CompareSlider (+12 more)
 
 ### Community 248 - "Intent"
-Cohesion: 0.43
-Nodes (4): Intent, MethodCall, MethodChannel, MediaPickerBridge
+Cohesion: 0.22
+Nodes (8): Activity, Intent, MethodCall, MethodChannel, MediaPickerBridge, ByteArray, MethodCall, VideoFrameSampler
 
 ### Community 249 - "redetect.dart"
 Cohesion: 0.06
@@ -1473,26 +1493,26 @@ Nodes (3): MethodCall, MethodChannel, SecurityBridge
 Cohesion: 0.17
 Nodes (11): AndroidBackupCrypto, BackupCrypto, _channel, decrypt, encrypt, isEncrypted, _run, _channel (+3 more)
 
-### Community 252 - "dart:io"
-Cohesion: 0.02
-Nodes (99): app_database.dart, Completer, dart:io, ../../data/repositories/artifact_context.dart, Directory, int? personId,
-  double, applyDatabaseKey, DatabaseEncryptionException (+91 more)
+### Community 252 - "package:drift/native.dart"
+Cohesion: 0.03
+Nodes (75): app_database.dart, Completer, Directory, int? personId,
+  double, applyDatabaseKey, DatabaseEncryptionException, databaseFileName, _dbKeyName (+67 more)
 
 ### Community 253 - "download_models.py"
 Cohesion: 0.39
 Nodes (7): _download_from(), _download_one(), _human(), main(), _mirrors(), Antigravity Local - Reface model downloader Fetches the ONNX models used by the…, FaceFusion publishes the same files on Hugging Face, which serves them 20-40x…
 
 ### Community 254 - "exposed_matching.dart"
-Cohesion: 0.06
-Nodes (31): _all, assign, async, cluster, clusterColumn, column, copy, _db (+23 more)
+Cohesion: 0.05
+Nodes (42): _all, assign, async, cluster, clusterColumn, column, copy, _db (+34 more)
 
 ### Community 255 - "equipment_screens.dart"
-Cohesion: 0.02
-Nodes (104): ColorScheme, CustomPainter, domain/pose/group_pose_matcher.dart, ../../domain/pose/pose_geometry.dart, ../../domain/pose/pose_rules.dart, int? categoryId,, MaterialPageRoute, DetectionBoxPainter (+96 more)
+Cohesion: 0.03
+Nodes (70): int? categoryId,, MaterialPageRoute, GroupPosePhoto, build, add, bodies, build, color (+62 more)
 
 ### Community 256 - "identity_keep_mask"
-Cohesion: 0.36
-Nodes (8): _arm_scene(), Left half garment (label 7), right half arm (label 14), on a 120x120 map., test_arm_keep_drops_misparsed_garment_next_to_clothes(), test_arm_keep_erodes_only_at_the_garment_border(), test_arm_keep_is_unchanged_without_an_image(), test_shadowed_arm_far_from_clothes_is_not_eaten(), identity_keep_mask(), Hair/hat/bag, the real face ellipse, arms (except a watermark bar), hands. Arms…
+Cohesion: 0.27
+Nodes (10): _arm_scene(), Left half garment (label 7), right half arm (label 14), on a 120x120 map., test_arm_keep_drops_misparsed_garment_next_to_clothes(), test_arm_keep_erodes_only_at_the_garment_border(), test_arm_keep_is_unchanged_without_an_image(), test_arm_keep_without_any_clothes_label_is_untouched(), test_identity_keep_does_not_protect_face_bleed_on_the_chest(), test_shadowed_arm_far_from_clothes_is_not_eaten() (+2 more)
 
 ### Community 257 - "correction_target.dart"
 Cohesion: 0.11
@@ -1503,8 +1523,8 @@ Cohesion: 0.07
 Nodes (26): ../corrections/body_link_guard.dart, _anchor, bodiesPerRequest, bodyId, BodyMarkStore, create, _db, delete (+18 more)
 
 ### Community 259 - "test_mobile_garments.py"
-Cohesion: 0.33
-Nodes (12): api_env(), check(), jpeg_bytes(), Roadmap Phase 7 (PC half): garment tags per body from the WD14 tagger. CPU…, test(), test_capabilities_advertise_the_tagger(), test_crop_for_body_pads_clamps_and_skips_tiny_bodies(), test_endpoint_returns_the_contract_shape_and_validates_bodies() (+4 more)
+Cohesion: 0.12
+Nodes (22): crop_for_body(), GarmentTagger, ndarray, Roadmap Phase 7 (optional): garment tags for a body, from the WD14 tagger that…, The body box with a small margin, clamped to the image; None when it is too…, Vocabulary tags at or above MIN_SCORE, best first: [{tag, category, score}]…, Reads the vocabulary's probabilities from a loaded `WD14Tagger` (one forward…, One tag list per body (an empty list for a body too small to tag), in order. (+14 more)
 
 ### Community 260 - "action_registry.dart"
 Cohesion: 0.08
@@ -1514,13 +1534,13 @@ Nodes (22): action_context.dart, action_id.dart, ActionGroup get, ActionGroup, A
 Cohesion: 0.33
 Nodes (5): Media Viewer Swipe Navigation, Face Box Toggle & Google Lens Implementation Plan, Task 1: Add `ids(MediaFilter)` to `MediaQueries` and update route parameters, Task 2: Implement Face Box Toggle in `MediaScreen` & `VideoMediaView`, Task 3: Implement Google Lens native channel and action button, Task 4: Implement Swipe Navigation (`PageView`) in `MediaScreen`
 
-### Community 262 - "unit"
-Cohesion: 0.20
-Nodes (19): FakeBody, FakeFace, ndarray, Stand-in for an insightface Face (raw embedding norm ~22 like the real…, unit(), check(), _img(), analysis.analyze_frame - the pure frame-analysis core shared by the gallery… (+11 more)
+### Community 262 - "StudioTests"
+Cohesion: 0.10
+Nodes (5): encode_embedding(), FakeProbe, StudioTests, Capture, Six frames at 2 fps, including a face/body on every sampled frame.
 
 ### Community 263 - "bodies_screen.dart"
 Cohesion: 0.03
-Nodes (92): body_areas.dart, body_inspection_sheet.dart, body_naming.dart, domain/pose/body_categories.dart, domain/pose/exposed_matching.dart, ../../domain/pose/group_poses.dart, ../../domain/pose/outfit_palette.dart, domain/pose/pose_index.dart (+84 more)
+Nodes (81): body_areas.dart, body_inspection_sheet.dart, body_naming.dart, domain/pose/body_categories.dart, domain/pose/exposed_matching.dart, ../../domain/pose/group_poses.dart, ../../domain/pose/outfit_palette.dart, domain/pose/pose_index.dart (+73 more)
 
 ### Community 264 - "File"
 Cohesion: 0.21
@@ -1538,13 +1558,13 @@ Nodes (5): check_gpu_with_env(), GPU Check with DeepFaceLab Environment Setup Th
 Cohesion: 0.40
 Nodes (5): drawn_score(), is_drawn(), Drawn (anime, cartoon, manga) and other non-human faces, told apart by the face…, Cosine between a face embedding (any length scale) and the drawn-face direction., True for a drawn or non-human face: never a person.
 
-### Community 268 - "app.dart"
-Cohesion: 0.03
-Nodes (90): core/theme.dart, ../../data/platform/background_execution.dart, data/platform/foreground_keep_alive.dart, data/platform/lan_network.dart, data/platform/platform_services.dart, features/privacy/app_lock.dart, App, _AppState (+82 more)
+### Community 268 - "connection_screen.dart"
+Cohesion: 0.08
+Nodes (30): data/platform/lan_network.dart, lanNetworkProvider, analyzeControllerProvider, AnalyzeScreen, build, build, _busy, _connect (+22 more)
 
-### Community 269 - "test_reface_unified.py"
-Cohesion: 0.13
-Nodes (9): FakeProbe, profile_catalog(), profile_defaults(), Model-free configuration for the single public Reface pipeline., Return the exact constructor options used by foreground and queued swaps., render_options(), RefaceEngine, One-pipeline/profile regressions; synthetic pixels, no model loading. (+1 more)
+### Community 269 - "sensitive_backfill.dart"
+Cohesion: 0.14
+Nodes (13): data/api/mobile_api.dart, ../../data/repositories/sensitive_store.dart, db, isRunning, maxSide, media, _one, pending (+5 more)
 
 ### Community 270 - "group_poses.dart"
 Cohesion: 0.07
@@ -1576,7 +1596,7 @@ Nodes (5): LocalizationsDelegate, AppLocalizations, _AppLocalizationsDelegate, A
 
 ### Community 277 - "person_media_organizer.dart"
 Cohesion: 0.07
-Nodes (26): OriginalMediaInfo, OriginalMediaMove, apply, bridge, _busy, bytes, canApply, cancelPending (+18 more)
+Nodes (27): OriginalMediaInfo, OriginalMediaMove, apply, bridge, _busy, bytes, canApply, cancelPending (+19 more)
 
 ### Community 278 - "NetworkBridge.kt"
 Cohesion: 0.60
@@ -1616,28 +1636,28 @@ Cohesion: 0.50
 Nodes (3): Android update, Detailed mobile video scan progress — 1.2.1, Verification
 
 ### Community 287 - "schemas.py"
-Cohesion: 0.12
-Nodes (25): body_crop(), face_crop(), FrameAnalysis, get_anime_detector(), _is_real(), Frame analysis - the pure "what is in this picture?" step shared by the gallery…, In character mode: face i is a person (the user said so, or a clear face that…, The face box plus `pad_ratio` of its longer side on every side. (+17 more)
+Cohesion: 0.13
+Nodes (26): body_crop(), build_analyze_router(), parse_sensitive_bodies(), APIRouter, POST /v1/analyze/image - faces, bodies and face<->body pairs for one picture., `bodies` form field: [{bbox: {x, y, w, h} pixels, kpts: [[x, y, score] x17] |…, bbox_xywh(), body_json() (+18 more)
 
 ### Community 289 - "root"
 Cohesion: 0.67
 Nodes (3): get, health(), root()
 
 ### Community 290 - "reference_reface.py"
-Cohesion: 0.09
-Nodes (44): det_sizes(), detect_faces(), Small scale catches faces that fill the frame, large ones catch small faces in…, insightface's FaceAnalysis.get, but with per-image detector scales., apply_regions(), _atomic_json(), choose_target(), _cpu_onnx_instance() (+36 more)
+Cohesion: 0.16
+Nodes (21): apply_regions(), _atomic_json(), choose_target(), decode_identity(), _emit(), _face_mask(), locate_video(), normalized_box() (+13 more)
 
-### Community 292 - "body_embeddings.py"
-Cohesion: 0.13
-Nodes (22): analyse_bodies(), analyse_body(), areola_contrast(), encode_vector(), micro_marks(), model_available(), ndarray, Path (+14 more)
+### Community 292 - "BodyAnalyzer"
+Cohesion: 0.07
+Nodes (38): Body, BodyAnalyzer, default_providers(), _download(), ensure_model(), PersonDetector, PoseEstimator, ndarray (+30 more)
 
 ### Community 294 - "outfit_palette.dart"
 Cohesion: 0.08
 Nodes (24): best, bottom, colorShares, dominantColor, false, hasColor, _hueBins, _hueFamily (+16 more)
 
 ### Community 316 - "media_action_source.dart"
-Cohesion: 0.12
-Nodes (15): library_repository.dart, ../media/media_library.dart, media_queries.dart, isVideo, library, media, MediaActionSource, originalFile (+7 more)
+Cohesion: 0.09
+Nodes (21): crop_cache.dart, library_repository.dart, ../media/media_library.dart, media_queries.dart, cutCrop, originalLoader, isVideo, library (+13 more)
 
 ### Community 317 - "action_matcher.dart"
 Cohesion: 0.09
@@ -1659,9 +1679,9 @@ Nodes (19): ../../data/platform/privacy_service.dart, appLockEnabledProvider, Ap
 Cohesion: 0.09
 Nodes (22): 10. F-GENERATE وF-RESULT: من الموديل للنتيجة ثم الأصل, 11. F-DISCOVER: بحث بصري له مثال وهدف واضحان, 12. F-REVIEW: تصحيح الهوية ثم احترام القرار, 13. F-ACTIVITY: الفحص والمهام والسجل, 14. F-OFFLINE وF-MISSING: الاتصال والأصل المفقود, 15. F-DESTRUCTIVE: نطاق الأفعال والتأكيدات, 16. F-BACKUP: النسخ والاستعادة والخصوصية, 17. مصفوفة الحفاظ على القدرات: الحالي ← المكان الجديد (+14 more)
 
-### Community 322 - "reface_media.dart"
-Cohesion: 0.07
-Nodes (26): any, defaultSensitiveThreshold, mediaIsSensitive, regionCounts, SensitiveInput, sensitiveLabels, sensitiveModelVersion, sensitivePolicyVersion (+18 more)
+### Community 322 - "VoidCallback?"
+Cohesion: 0.05
+Nodes (37): activity_state_provider.dart, ControlsWidgetBuilder, ../../features/shared/screen_layout.dart, ActivityPill, build, enabled, build, onTap (+29 more)
 
 ### Community 323 - "الاستوديو وتوليد الذكاء الاصطناعي (Studio & AI Generation)"
 Cohesion: 0.12
@@ -1671,9 +1691,9 @@ Nodes (16): 1. شاشة الاستوديو الرئيسية (Studio Screen), 2. 
 Cohesion: 0.10
 Nodes (21): 10. الحالات والرسائل والخصوصية, 11. النص الكبير والشاشات الضيقة والحركة, 12. ثمانية تراكيب أساسية للمسار الأول, 13. ضوابط رسم ومراجعة كل شاشة, 1. المبدأ الذي يحكم الرسم, 2. وحدات القياس وإطار الشاشات, 3. الألوان والوضوح, 4. الخط والنصوص (+13 more)
 
-### Community 325 - "sensitive_detection.py"
-Cohesion: 0.13
-Nodes (19): Roadmap section 8: regions with `body_index`. Loaded on first use only., assign_regions_to_bodies(), decode_output(), detect_for_bodies(), env_model_path(), model_available(), _overlap(), plausible_on_torso() (+11 more)
+### Community 325 - "FaceCompositor"
+Cohesion: 0.08
+Nodes (16): FaceCompositor, frame_roi(), _into_roi(), Clear temporal state. Call at the start of each video., Advance the frame counter and evict stale tracks., Log a degradation once per run. Per-frame logging buries the output on a…, Paste the swap crop the same way insightface does (invert M onto the frame),…, Warp the swapper's crop into FFHQ space, filling anything it doesn't cover… (+8 more)
 
 ### Community 326 - "الإعدادات، الاتصال، وحماية النظام (Settings, Connection & System)"
 Cohesion: 0.12
@@ -1699,13 +1719,13 @@ Nodes (5): MethodCall, MethodChannel, MediaOrganizerBridge, Pending, Uri
 Cohesion: 0.10
 Nodes (19): 02 — المعرض وعارض الوسائط, AppBar, Chrome (يظهر/يختفي بنقرة واحدة), L1 — المعرض `/library`, L2 — الألبوم `/library/album/:id`, L3 — عارض الوسائط `/media/:id`, L3a — `MediaInspector` (جزء من L3 — بديل `MediaInfoSheet`), L4 — المعاينة الكاملة `ImagePreview` (+11 more)
 
-### Community 332 - "lora_generate.py"
-Cohesion: 0.20
-Nodes (15): denoising_steps(), emit(), generation_prompts(), load_person_lora(), main(), Antigravity Local - LoRA reference-image generation Runs in venv_ai (Python…, How the request follows its reference image, or None when it has none., Denoising steps each image actually runs. img2img skips the start of the… (+7 more)
+### Community 332 - "test_lora_trainer_smoke.py"
+Cohesion: 0.08
+Nodes (41): _resume_controls(), emit(), generation_prompts(), load_person_lora(), main(), Antigravity Local - LoRA reference-image generation Runs in venv_ai (Python…, How the request follows its reference image, or None when it has none., SD1.5 working size that keeps the reference's aspect ratio: short side at… (+33 more)
 
 ### Community 333 - "outline.dart"
-Cohesion: 0.13
-Nodes (14): borderColor, borderWidth, decodeOutline, detectionPath, encodeOutline, fillColor, flat, isFace (+6 more)
+Cohesion: 0.12
+Nodes (15): borderColor, borderWidth, decodeOutline, detectionPath, encodeOutline, fillColor, flat, isFace (+7 more)
 
 ### Community 334 - "الأشخاص والهويات (People & Identities)"
 Cohesion: 0.12
@@ -1719,9 +1739,9 @@ Nodes (15): 1. شاشة الاستكشاف الرئيسية (Discover Screen), 2
 Cohesion: 0.14
 Nodes (13): ../api/dtos/analyze.dart, ../../domain/sensitive/sensitive_policy.dart, _db, _frame, markChecked, mediaOfPerson, peopleOfMedia, recompute (+5 more)
 
-### Community 337 - "lora_repository.dart"
-Cohesion: 0.14
-Nodes (13): ../files/file_store.dart, anchor, buildIdentity, dataset, db, exportDataset, files, LoraRepository (+5 more)
+### Community 337 - "media_inspector.dart"
+Cohesion: 0.06
+Nodes (33): ../bodies/group_pose_screens.dart, correction_sheet.dart, bodies, build, _chipBorderColor, createState, currentPositionMs, didUpdateWidget (+25 more)
 
 ### Community 338 - "render-wireframes.cjs"
 Cohesion: 0.17
@@ -1784,8 +1804,8 @@ Cohesion: 0.25
 Nodes (7): Instant Gallery Loading, Video Swipe Autoplay & Native Video Player Implementation Plan, Task 1: Native Video Player Bridge (Android Kotlin & Dart Service), Task 2: Direct Content URI Resolution for Videos (Zero-Copy), Task 3: Video Autoplay on Swipe & Mute Control in `VideoMediaView`, Task 4: Integrate Swipe Autoplay & Native Player Action in `MediaScreen`, Task 5: Instant Gallery Loading with In-Memory Riverpod State, Task 6: Static Analysis, Regression Verification & Documentation Update
 
 ### Community 353 - "index_loader.dart"
-Cohesion: 0.14
-Nodes (13): embedding_index.dart, addAll, dispose, _disposed, _inner, lastId, loadFacesIntoIndex, nearest (+5 more)
+Cohesion: 0.08
+Nodes (23): embedding_index.dart, Future, addAll, dispose, _disposed, _inner, lastId, loadFacesIntoIndex (+15 more)
 
 ### Community 354 - "Gallery-first mobile implementation — 2026-11-01"
 Cohesion: 0.29
@@ -1793,7 +1813,7 @@ Nodes (7): Actual Flutter previews, Adjacent-body regression, Dynamic photo/vide
 
 ### Community 355 - "targeted_detection_service.dart"
 Cohesion: 0.10
-Nodes (19): apply, bbox, db, insertedId, insertedOverrideId, keypoints, kind, label (+11 more)
+Nodes (20): apply, bbox, db, insertedId, insertedOverrideId, keypoints, kind, label (+12 more)
 
 ### Community 356 - "3. Single-person pose taxonomy"
 Cohesion: 0.33
@@ -1821,7 +1841,7 @@ Nodes (5): Equipment recognition, How matching works, Using it, Verification, Vi
 
 ### Community 362 - "QualityTests"
 Cohesion: 0.07
-Nodes (19): rank(), Identity first; within 0.015 of the best (run-to-run noise), the sharper result…, AveragedSource, build_identity_embedding(), ndarray, Antigravity Local - Source identity builder inswapper consumes ONLY the source…, Minimal stand-in for an insightface Face that exposes only what INSwapper.get…, Quality, medoid/outlier and duplicate gates shared by every V3 source. (+11 more)
+Nodes (24): rank(), Identity first; within 0.015 of the best (run-to-run noise), the sharper result…, AveragedSource, build_identity_embedding(), ndarray, Antigravity Local - Source identity builder inswapper consumes ONLY the source…, Minimal stand-in for an insightface Face that exposes only what INSwapper.get…, Quality, medoid/outlier and duplicate gates shared by every V3 source. (+16 more)
 
 ### Community 363 - "5. Clothing & appearance"
 Cohesion: 0.40
@@ -1831,13 +1851,13 @@ Nodes (5): 5.1 Tier 1 — existing 80-float descriptor (phone, free), 5.2 Outfit
 Cohesion: 0.40
 Nodes (5): Wireframe atlas · Gallery first, التحقق وحدود التسليم, حالات إضافية, فهرس الشاشات, لوحات المراجعة
 
-### Community 365 - "password_sheet.dart"
-Cohesion: 0.15
-Nodes (13): FormState, build, _confirmation, createState, creating, dispose, _form, _password (+5 more)
+### Community 365 - "explore_screen.dart"
+Cohesion: 0.07
+Nodes (32): ../bodies/pose_visuals.dart, ../library/scan_invite_strip.dart, bodyCount, build, _buildSectionHeader, count, cropPath, db (+24 more)
 
 ### Community 366 - "int get"
-Cohesion: 0.10
-Nodes (19): int get, LibraryStats, AndroidVideoFrames, _channel, close, durationMs, fps, frameCount (+11 more)
+Cohesion: 0.15
+Nodes (13): int get, AndroidVideoFrames, _channel, close, durationMs, fps, frameCount, frames (+5 more)
 
 ### Community 367 - "Roadmap implementation, night run — Phase 0 (body links), Phase 5, S3/S4, pose track 1-4 — 2026-11-02"
 Cohesion: 0.50
@@ -1855,49 +1875,49 @@ Nodes (4): 2.1 COCO 17 keypoints, 2.2 Mandatory preprocessing (`mobile/lib/domai
 Cohesion: 0.50
 Nodes (4): 9.1 Rules & Exact Execution Commands for Implementing Agents, 9. Roadmap, Notes for the implementing agent (Antigravity), Track S — sensitive content (§8)
 
-### Community 371 - "BodyAnalyzer"
-Cohesion: 0.14
-Nodes (15): Body, BodyAnalyzer, default_providers(), _download(), ensure_model(), PersonDetector, PoseEstimator, ndarray (+7 more)
+### Community 371 - "bulk_transfer.dart"
+Cohesion: 0.20
+Nodes (9): api_exception.dart, binaryUploadBody, _bufferBytes, _diskBlocks, downloadResumableFile, pending, _uploadViews, package:dio/dio.dart (+1 more)
 
-### Community 373 - "NeuralEnhancer"
-Cohesion: 0.15
-Nodes (12): FaceEnhancer, ndarray, Apply global color correction to match target image statistics. Uses simple…, Face enhancement using OpenCV techniques., Enhance image using OpenCV techniques (Unsharp Mask + Bilateral)., is_valid_model_file(), NeuralEnhancer, Path (+4 more)
+### Community 373 - "studio_api.dart"
+Cohesion: 0.22
+Nodes (8): dtos/jobs.dart, controlStudioJob, createStudioJob, downloadStudioResult, studioEvents, studioJob, studioResult, video_api.dart
 
-### Community 375 - "resource_ui.py"
-Cohesion: 0.36
-Nodes (10): get_resource_monitor(), load_limits(), ResourceLimits, save_limits(), human_bytes(), fragment, Resource status and opt-in admission settings for the desktop dashboard., render_resource_details() (+2 more)
+### Community 375 - "person_marks_screen.dart"
+Cohesion: 0.08
+Nodes (28): domain/marks/body_marks.dart, ../../domain/marks/mark_geometry.dart, mark_tattoo.dart, _refreshConnection, _analyze, showMarkTattoo, build, _card (+20 more)
 
-### Community 376 - "InsightEngines"
-Cohesion: 0.13
-Nodes (12): DinoEmbedder, main(), Visual debug script for face and body outlines. Usage: python debug_outlines.py…, GarmentTagger, Reads the vocabulary's probabilities from a loaded `WD14Tagger` (one forward…, _bodies_as_dicts(), InsightEngines, The engines behind the API, and the probe that reports what this PC can do.… (+4 more)
+### Community 376 - "AnalyzeOptions"
+Cohesion: 0.06
+Nodes (47): analyze_frame(), AnalyzeOptions, face_crop(), _face_in_region(), get_anime_detector(), get_ccip_embedder(), _is_real(), Frame analysis - the pure "what is in this picture?" step shared by the gallery… (+39 more)
 
-### Community 381 - "BodyAssociationTests"
-Cohesion: 0.26
-Nodes (3): body_with_head(), BodyAssociationTests, r"""CPU-only regressions for neighbouring people and face/body association. No…
+### Community 381 - "shared/person_picker.dart"
+Cohesion: 0.08
+Nodes (26): crop_image.dart, empty_state.dart, Iterable, allowNew, _askNewName, _clearSearch, createState, dispose (+18 more)
 
 ### Community 382 - "targeted_detect_sheet.dart"
-Cohesion: 0.11
-Nodes (19): bbox, build, createState, dispose, initialName, initState, _isRoiMode, isVideo (+11 more)
+Cohesion: 0.10
+Nodes (22): _GroupNameDialog, bbox, build, createState, dispose, initialName, initState, _isRoiMode (+14 more)
 
-### Community 383 - ".engines"
-Cohesion: 0.14
-Nodes (9): _nvidia_smi(), Path, hub_roots(), Read-only checks for local Restyle weights; never start workers or downloads., Require real weights, rather than treating an empty models directory as ready., restyle_missing_models(), files_for_repo(), main() (+1 more)
+### Community 383 - "InsightEngines"
+Cohesion: 0.05
+Nodes (41): main(), Visual debug script for face and body outlines. Usage: python debug_outlines.py…, _bodies_as_dicts(), CapabilityProbe, InsightEngines, _nvidia_smi(), Path, The engines behind the API, and the probe that reports what this PC can do.… (+33 more)
 
 ### Community 384 - "progress_card.dart"
 Cohesion: 0.11
 Nodes (18): ../atoms/progress_bar.dart, build, data, etaLabel, isPaused, margin, onCancel, onPause (+10 more)
 
-### Community 385 - "group_pose_ux_test.dart"
-Cohesion: 0.11
-Nodes (17): main, directory, ensureVisible, main, media, _photo, points, _preview (+9 more)
+### Community 385 - "package:drift/drift.dart"
+Cohesion: 0.02
+Nodes (117): AnimatedOpacity, CheckboxListTile, dart:ui, ../domain/job_tracker_test.dart, InteractiveViewer, _channel, NativeVideoPlayer, openVideo (+109 more)
 
 ### Community 386 - "app_screens/README.md"
 Cohesion: 0.33
 Nodes (4): 🎨 المفاهيم المشتركة وأنماط التفاعل (Interaction Patterns), 🗺️ خريطة التنقل الرئيسية (Navigation Architecture), دليل وتوثيق شاشات تطبيق Your Gallery, 📂 فهرس ملفات الدليل في هذا المجلد
 
-### Community 387 - "target_ref.dart"
-Cohesion: 0.11
-Nodes (17): @immutable, detectionId, faceId, fromQueryParams, fromUri, hashCode, identitySetId, isEmpty (+9 more)
+### Community 387 - "bool get"
+Cohesion: 0.07
+Nodes (26): @immutable, bool get, detectionId, faceId, fromQueryParams, fromUri, hashCode, identitySetId (+18 more)
 
 ### Community 388 - "03 — الأشخاص والمراجعة"
 Cohesion: 0.11
@@ -1919,13 +1939,13 @@ Nodes (4): Android device acceptance — 2026-10-18, Issue found and fixed, Rema
 Cohesion: 0.11
 Nodes (18): 05 — الاستوديو والنشاط, A1 — النشاط `/activity`, A2 — المهمة `/activity/:jobId`, ActivityPill (تذكير), ST1 — الاستوديو `/studio`, ST2 — Reface `/studio/reface`, ST3 — Restyle `/studio/restyle`, ST4 — Generate `/studio/generate` (+10 more)
 
-### Community 393 - "corrections_queries.dart"
-Cohesion: 0.11
-Nodes (17): bodiesHidden, bodiesNone, db, elementId, equipmentRejected, ExcludedCounts, facesDismissed, facesNone (+9 more)
+### Community 393 - "review_hub_screen.dart"
+Cohesion: 0.05
+Nodes (41): domain/corrections/corrections_queries.dart, bodiesHidden, bodiesNone, CorrectionsQueries, db, elementId, equipmentRejected, ExcludedCounts (+33 more)
 
-### Community 394 - "test_pose_filters.py"
-Cohesion: 0.29
-Nodes (17): cases(), check(), golden(), main(), mirrored(), moved(), pose(), Pose rules + descriptor in Python (pose_filters.py) against hand-written… (+9 more)
+### Community 394 - "analyze_screen.dart"
+Cohesion: 0.08
+Nodes (24): analyze_controller.dart, Color?, DetectedFace, bodyColor, _Centered, characters, children, face (+16 more)
 
 ### Community 395 - "4. أنماط التفاعل الموحدة"
 Cohesion: 0.12
@@ -1935,9 +1955,9 @@ Nodes (16): 01 — الـ Components المشتركة وسجل الـ Actions, 2
 Cohesion: 0.13
 Nodes (15): build, _canSave, confirmLabel, _controller, createState, dispose, hintText, initialValue (+7 more)
 
-### Community 397 - "group_picker.dart"
-Cohesion: 0.13
-Nodes (13): ../atoms/crop.dart, cropPath, faceId, FacePicker, FacePickerOption, label, show, allowNone (+5 more)
+### Community 397 - "pair_screen.dart"
+Cohesion: 0.09
+Nodes (25): _confirmFingerprint, build, _buildManualView, _code, _confirmFingerprint, createState, dispose, _formKey (+17 more)
 
 ### Community 398 - "3. المراحل"
 Cohesion: 0.13
@@ -1951,9 +1971,9 @@ Nodes (14): build, _buildHandle, createState, fittedSize, initialBBox, initState
 Cohesion: 0.14
 Nodes (14): build, createState, duration, _endSeconds, _formatDuration, initialEnd, initialStart, initState (+6 more)
 
-### Community 401 - "action_dispatcher_test.dart"
-Cohesion: 0.15
-Nodes (11): main, main, main, main, package:antigravity_mobile/domain/actions/action_context.dart, package:antigravity_mobile/domain/actions/action_id.dart, package:antigravity_mobile/domain/actions/action_registry.dart, package:antigravity_mobile/domain/actions/entity_ref.dart (+3 more)
+### Community 401 - "package:flutter_test/flutter_test.dart"
+Cohesion: 0.03
+Nodes (55): FlutterError, MediaQueries, main, db, ids, main, queries, seedLibrary (+47 more)
 
 ### Community 402 - "04 — الاستكشاف"
 Cohesion: 0.14
@@ -1971,9 +1991,9 @@ Nodes (13): dtos/analyze.dart, dtos/json_util.dart, BBox, analyzeEquipment, body
 Cohesion: 0.14
 Nodes (13): MediaOrganizerBridge, AndroidMediaOrganizer, cancel, check, crashAfter, FakeMediaOrganizer, inspect, move (+5 more)
 
-### Community 406 - "filter_bar.dart"
-Cohesion: 0.14
-Nodes (13): build, currentValue, FilterBar, FilterOption, filters, FilterSpec, isActive, key (+5 more)
+### Community 406 - "List"
+Cohesion: 0.05
+Nodes (39): EdgeInsetsGeometry?, List, actions, build, description, phase, PlaceholderScreen, title (+31 more)
 
 ### Community 407 - "searchable_list_sheet.dart"
 Cohesion: 0.15
@@ -2008,12 +2028,12 @@ Cohesion: 0.17
 Nodes (11): 1. نتائج القياس الفعلي (Fresh Baseline Evidence), 2. تشخيص الاختبارات الفاشلة الـ 12 الموروثة (Legacy Test Failures), 3. حسم الأسئلة المعمارية المفتوحة (بنود ◐ في `01_shared_components.md`), 4. خريطة الاختبارات والشاشات والمراحل (Test Migration Map), 5. قائمة المفاتيح الرئيسية المستهدفة للحفظ (Key Inventory), أ) `test/data/operation_contracts_test.dart` (فشل واحد), ب) `test/features/characters_test.dart` (فشلان), ج) `test/features/marks_ui_test.dart` (فشلان) (+3 more)
 
 ### Community 415 - "action_context.dart"
-Cohesion: 0.17
-Nodes (11): entity_ref.dart, belongsToNoOne, copyWith, defaultContext, extra, hasPerson, isCharacter, isMultiSelect (+3 more)
+Cohesion: 0.15
+Nodes (12): entity_ref.dart, ActionContext, belongsToNoOne, copyWith, defaultContext, extra, hasPerson, isCharacter (+4 more)
 
-### Community 416 - "MockSession"
-Cohesion: 0.17
-Nodes (3): get_db(), get_session(), MockSession
+### Community 416 - "studio_repository.dart"
+Cohesion: 0.08
+Nodes (24): artifact_context.dart, domain/scan/video_scan.dart, contextFor, db, deleteResult, deletionItems, encodeFaces, enqueue (+16 more)
 
 ### Community 417 - "session_store.dart"
 Cohesion: 0.18
@@ -2032,33 +2052,37 @@ Nodes (9): belongsToNoOne,
 Cohesion: 0.18
 Nodes (11): 06 — البداية والإعدادات, O1 — Welcome `/welcome`, O2 — الاقتران `/pair`, O3 — الأذونات `/permissions`, S1 — الإعدادات `/settings`, S2 — الكمبيوتر `/settings/computer`, S3 — المكتبة والفحص `/settings/library`, S4 — الخصوصية والقفل `/settings/privacy` (+3 more)
 
-### Community 420 - "garment_tags.py"
-Cohesion: 0.24
-Nodes (7): crop_for_body(), ndarray, Roadmap Phase 7 (optional): garment tags for a body, from the WD14 tagger that…, The body box with a small margin, clamped to the image; None when it is too…, Vocabulary tags at or above MIN_SCORE, best first: [{tag, category, score}]…, One tag list per body (an empty list for a body too small to tag), in order., select_scores()
+### Community 420 - "correction_sheet.dart"
+Cohesion: 0.09
+Nodes (23): ../../domain/corrections/correction_scope.dart, ../../domain/corrections/correction_target.dart, ../../domain/corrections/correction_verb.dart, build, _busy, CorrectionSheet, _CorrectionSheetState, createState (+15 more)
 
-### Community 421 - "ensure_ip_adapter"
-Cohesion: 0.22
-Nodes (9): ensure_ip_adapter(), get_shared_client(), hf_cache_snapshot(), Path, Local snapshot of the SD1.5 IP-Adapter weights plus its CLIP image encoder.…, Entry point for job_manager.run_single_job (job_type == undress_image)., Return a complete-enough local snapshot folder, or None., run_undress_job() (+1 more)
+### Community 421 - "permissions_screen.dart"
+Cohesion: 0.10
+Nodes (22): data/platform/platform_services.dart, _confirmForget, build, createState, didChangeAppLifecycleState, dispose, icon, initState (+14 more)
+
+### Community 422 - "quick_review_test.dart"
+Cohesion: 0.09
+Nodes (21): db, ensureVisible, _likelihood, m, main, _match, _Matches, _open (+13 more)
 
 ### Community 423 - "Targeted Detection & In-Viewer Correction Design"
 Cohesion: 0.20
 Nodes (9): 1. Overview, 2. Architecture & Data Flow, 3. Server-Side Specifications (`the app/mobile_api`), 4. Mobile Client Specifications (`mobile/lib`), 5. Testing & Verification, Components:, Endpoint: `POST /v1/analyze/targeted`, Engine Handlers: (+1 more)
 
-### Community 424 - "identity_repository.dart"
-Cohesion: 0.20
-Nodes (9): db, delete, faces, IdentityRepository, save, selection, update, _validate (+1 more)
+### Community 424 - "NeuralEnhancer"
+Cohesion: 0.13
+Nodes (13): FaceEnhancer, ndarray, Apply global color correction to match target image statistics. Uses simple…, Face enhancement using OpenCV techniques., Enhance image using OpenCV techniques (Unsharp Mask + Bilateral)., is_valid_model_file(), NeuralEnhancer, Path (+5 more)
 
-### Community 425 - "confirm_sheet.dart"
-Cohesion: 0.20
-Nodes (9): build, cancelLabel, confirmLabel, ConfirmSheet, consequences, isDanger, message, show (+1 more)
+### Community 425 - "identity_groups_screen.dart"
+Cohesion: 0.10
+Nodes (26): ../library/media_grid.dart, _askGroupName, assignIdentityGroup, build, choice, createState, dispose, GroupDetailScreen (+18 more)
 
-### Community 426 - "test_grouping_character.py"
+### Community 426 - "confirm_sheet.dart"
+Cohesion: 0.11
+Nodes (17): ../atoms/crop.dart, build, cancelLabel, confirmLabel, ConfirmSheet, consequences, isDanger, message (+9 more)
+
+### Community 427 - "detect_undress_subject"
 Cohesion: 0.40
-Nodes (5): character(), CharacterGroupingTests, enc(), Drawn characters go through the same grouping step as people, with 768-d CCIP…, request()
-
-### Community 427 - "test_mask_utils.py"
-Cohesion: 0.22
-Nodes (4): _Face, _FaceApp, mask_utils: RMBG 1.4 pre/post-processing, person selection, BGR/RGB handling.…, _Sess
+Nodes (5): detect_undress_subject(), get_face_analyzer(), cache_resource, Image, Largest face bbox (xyxy ints), or None if no face.
 
 ### Community 428 - "double?"
 Cohesion: 0.22
@@ -2076,37 +2100,121 @@ Nodes (7): Targeted Detection & In-Viewer Correction Implementation Plan, Task 1
 Cohesion: 0.29
 Nodes (6): base, buildTheme, dark, rounded, scheme, _seed
 
-### Community 432 - "test_florence_captioner.py"
+### Community 432 - "ETACalculator"
+Cohesion: 0.40
+Nodes (3): ETACalculator, Helper to calculate and format estimated time remaining, update_swap()
+
+### Community 433 - "background_screen.dart"
+Cohesion: 0.12
+Nodes (18): ../../data/platform/background_execution.dart, data/platform/foreground_keep_alive.dart, backgroundExecutionProvider, BackgroundScreen, _BackgroundScreenState, build, _busy, createState (+10 more)
+
+### Community 434 - "layers_popover.dart"
+Cohesion: 0.11
+Nodes (17): areas, availability, bodies, build, copyWith, equipment, faces, hasAreas (+9 more)
+
+### Community 437 - "ActionMatchApi"
+Cohesion: 0.50
+Nodes (3): ActionMatchApi, compareActions, _RemoteMatcher
+
+### Community 438 - "mark_editor.dart"
+Cohesion: 0.12
+Nodes (16): double fx,, _MarkChoice, ../marks/mark_tattoo.dart, build, createState, cropPath, fy, MarkChoice (+8 more)
+
+### Community 439 - "harmonize_generated_region"
+Cohesion: 0.50
+Nodes (4): test_harmonize_accepts_work_sized_masks_on_full_res(), test_harmonize_moves_generated_skin_toward_original_skin(), harmonize_generated_region(), Seamlessly composite the generated region using a tight alpha blend. Poisson…
+
+### Community 440 - "match_faces"
+Cohesion: 0.18
+Nodes (16): b64(), main(), measure(), payload_mb(), How many member faces per person must the phone send to POST /v1/grouping/plan?…, Everything eval_grouping measures about matching + duplicates, for one cap., What the models part of one request weighs for this library: raw and gzipped…, identity_scores() (+8 more)
+
+### Community 441 - "manual_pair_screen.dart"
+Cohesion: 0.14
+Nodes (14): build, _code, createState, dispose, _formKey, _host, initialHost, initialPort (+6 more)
+
+### Community 442 - "refine_mask_edges"
+Cohesion: 0.67
+Nodes (3): test_refine_mask_edges_snaps_a_blocky_mask_to_the_real_edge(), Lift a work-res mask to the guide's resolution. The guided filter was removed…, refine_mask_edges()
+
+### Community 443 - "qr_scan_screen.dart"
+Cohesion: 0.17
+Nodes (14): _buildQrView, build, _CameraScanner, _CameraScannerState, _controller, createState, dispose, _lastRejected (+6 more)
+
+### Community 445 - "resource_ui.py"
+Cohesion: 0.27
+Nodes (12): local_dashboard_session(), Use the server's WebSocket peer, not the frontend-supplied context IP., get_resource_monitor(), load_limits(), ResourceLimits, save_limits(), human_bytes(), fragment (+4 more)
+
+### Community 446 - "ensure_cert"
+Cohesion: 0.23
+Nodes (12): Certificate, main(), Isolated HTTPS server used by the actual Flutter Studio client acceptance test.…, CertInfo, ensure_cert(), fingerprint_of_cert(), fingerprint_of_pem_file(), _generate() (+4 more)
+
+### Community 447 - "password_sheet.dart"
+Cohesion: 0.15
+Nodes (13): FormState, build, _confirmation, createState, creating, dispose, _form, _password (+5 more)
+
+### Community 448 - "IsolatedCapture"
+Cohesion: 0.20
+Nodes (3): skipUnless, IsolatedCapture, The small VideoCapture interface used by VideoJobs, backed by a child process.
+
+### Community 449 - "DecoderProcess"
+Cohesion: 0.26
+Nodes (4): venv_ai side: JSON list of image paths on stdin, one RESULT_PREFIX line per…, _worker(), DecoderProcess, MediaDecodeTests
+
+### Community 450 - "welcome_screen.dart"
+Cohesion: 0.22
+Nodes (9): ../../data/api/pairing_payload.dart, createState, _handleLink, initState, link, WelcomeScreen, _WelcomeScreenState, pairing_controller.dart (+1 more)
+
+### Community 451 - "equipment_detection.py"
+Cohesion: 0.33
+Nodes (8): associate_objects(), detect_equipment(), equipment_label(), model_available(), model_path(), _point_distance(), Local Florence object detection, isolated from ONNX/CUDA in venv_ai. Object…, Keep equipment in contact range; leave an ambiguous owner unassigned.
+
+### Community 452 - "HyperSwapper"
+Cohesion: 0.27
+Nodes (6): HyperSwapper, ndarray, frame->crop similarity transform taking 5-point kps onto a template…, FaceFusion HyperSwap 1a/1b/1c at 256 px, on onnxruntime., Swap an already-aligned crop (arcface_128 at self.size)., template_matrix()
+
+### Community 454 - "character_descriptor.dart"
+Cohesion: 0.25
+Nodes (7): characterAutoMatch, characterDescriptorDim, characterMatchMargin, characterModelId, characterSimilarity, cosinePart, scores
+
+### Community 455 - "run_reference_reface"
+Cohesion: 0.25
+Nodes (7): Drain output while polling pause even during silent model loading; no orphan…, run_process(), Use the existing Studio compute guard, ownership, retention and ACK lifecycle., Asset availability only; never a claim that inference/quality was tested., reference_reface_missing(), reference_reface_ready(), run_reference_reface()
+
+### Community 456 - "_target_detector"
+Cohesion: 0.29
+Nodes (7): det_sizes(), detect_faces(), Small scale catches faces that fill the frame, large ones catch small faces in…, insightface's FaceAnalysis.get, but with per-image detector scales., _cpu_onnx_instance(), Reuse existing detector/embedder methods with CPU-only local sessions., _target_detector()
+
+### Community 458 - "test_florence_captioner.py"
 Cohesion: 0.33
 Nodes (4): cancel(), Cancelled, Exception, florence_captioner: caption cleaning and the venv_ai worker client (no model,…
 
-### Community 434 - "VideoFrameSampler.kt"
-Cohesion: 0.47
-Nodes (4): Activity, ByteArray, MethodCall, VideoFrameSampler
+### Community 459 - "appearance_descriptor"
+Cohesion: 0.33
+Nodes (6): appearance_descriptor(), _kp_box(), outfit_regions(), (torso box, legs box) in image pixels; either may be None., 80 floats: HSV histograms of the torso and legs regions (zeros where a region…, _region_hist()
 
-### Community 435 - "plan_refine_tiles"
-Cohesion: 0.50
-Nodes (4): plan_refine_tiles(), Evenly spaced tile origins across [start, end), each fully inside [0, limit).…, Overlapping tile boxes covering the mask, so a refine pass has flat VRAM cost.…, _tile_positions()
+### Community 460 - "PairingApi"
+Cohesion: 0.67
+Nodes (3): HttpPairingApi, PairingApi, FakePairingApi
 
 ## Knowledge Gaps
-- **9038 isolated node(s):** `version`, `date`, `width`, `height`, `baseSurfaceCount` (+9033 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 10916 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **23 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **9046 isolated node(s):** `version`, `date`, `width`, `height`, `baseSurfaceCount` (+9041 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 10925 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **26 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `AppDatabase` connect `AppDatabase` to `app_database.dart`, `body_marks.dart`, `package:drift/drift.dart`, `grouping_inputs.dart`, `corrections_queries.dart`, `connection_test.dart`, `grouping_runner.dart`, `group_poses.dart`, `fakes.dart`, `video_actions_repository.dart`, `people_repository.dart`, `person_media_organizer.dart`, `package:flutter_test/flutter_test.dart`, `dart:convert`, `plan_applier.dart`, `job_tracker_test.dart`, `dart:typed_data`, `session_store.dart`, `review_repository.dart`, `identity_repository.dart`, `garment_backfill.dart`, `scan_engine.dart`, `package:antigravity_mobile/data/db/app_database.dart`, `backup_service.dart`, `training_export.dart`, `body_categories.dart`, `review_visual_repository.dart`, `scan_engine_test.dart`, `studio_repository.dart`, `app_settings.dart`, `video_scan_test.dart`, `media_queries.dart`, `sensitive_store.dart`, `Uint8List?`, `lora_repository.dart`, `library_repository.dart`, `pose_index.dart`, `correction_service.dart`, `crop_cache.dart`, `photo_result_store.dart`, `training_export_test.dart`, `kind_corrections.dart`, `../db/app_database.dart`, `targeted_detection_service.dart`, `providers.dart`, `group_pose_matcher.dart`, `storage_sweeper.dart`, `int get`, `embedding_backfill.dart`, `character_detection_test.dart`, `redetect.dart`, `video_compactor.dart`, `dart:io`, `exposed_matching.dart`?**
-  _High betweenness centrality (0.025) - this node is a cross-community bridge._
-- **Why does `JobManager` connect `JobManager` to `create_app`, `test_mobile_api_contract.py`, `test_reface_desktop.py`, `lora_generate_job.py`, `ApiError`, `test_reface_v2.py`, `test_resource_monitor.py`, `Faceset`, `dashboard.py`, `WorkerTests`, `test_lora_identity.py`, `JobStatus`?**
-  _High betweenness centrality (0.017) - this node is a cross-community bridge._
-- **Why does `JobStatus` connect `JobStatus` to `test_mobile_api_contract.py`, `undress_core.py`, `ensure_ip_adapter`, `test_reface_desktop.py`, `JobManager`, `test_compositor.py`, `lora_generate_job.py`, `dfl_bridge.py`, `test_reface_v2.py`, `test_resource_monitor.py`, `Faceset`, `dashboard.py`, `WorkerTests`, `test_lora_identity.py`?**
-  _High betweenness centrality (0.016) - this node is a cross-community bridge._
-- **Are the 18 inferred relationships involving `JsonDatabase` (e.g. with `accept_faces()` and `_body_inputs()`) actually correct?**
-  _`JsonDatabase` has 18 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `AppDatabase` connect `AppDatabase` to `package:drift/drift.dart`, `app_database.dart`, `body_marks.dart`, `dart:io`, `grouping_inputs.dart`, `reface_screen.dart`, `FileStore`, `review_hub_screen.dart`, `grouping_runner.dart`, `group_poses.dart`, `sensitive_backfill.dart`, `package:flutter_test/flutter_test.dart`, `fakes.dart`, `video_actions_repository.dart`, `people_repository.dart`, `person_media_organizer.dart`, `dart:typed_data`, `dart:convert`, `plan_applier.dart`, `job_tracker_test.dart`, `outline_backfill_test.dart`, `studio_repository.dart`, `session_store.dart`, `review_repository.dart`, `people_screen.dart`, `return`, `backup_service.dart`, `gallery_context_repository_test.dart`, `training_export.dart`, `body_categories.dart`, `drawn_face_sweep.dart`, `review_visual_repository.dart`, `video_scan.dart`, `outline_backfill.dart`, `app_settings.dart`, `video_scan_test.dart`, `media_queries.dart`, `sensitive_store.dart`, `Uint8List?`, `pose_index.dart`, `library_repository.dart`, `garment_backfill.dart`, `correction_service.dart`, `crop_cache.dart`, `photo_result_store.dart`, `training_export_test.dart`, `kind_corrections.dart`, `../db/app_database.dart`, `targeted_detection_service.dart`, `providers.dart`, `group_pose_matcher.dart`, `storage_sweeper.dart`, `equipment_library.dart`, `embedding_backfill.dart`, `redetect.dart`, `video_compactor.dart`, `package:drift/native.dart`, `exposed_matching.dart`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+- **Why does `JobStatus` connect `dashboard.py` to `test_mobile_api_contract.py`, `undress_core.py`, `test_reface_desktop.py`, `JobManager`, `test_compositor.py`, `dfl_bridge.py`, `test_lora_trainer_smoke.py`, `test_reface_v2.py`, `test_resource_monitor.py`, `WorkerTests`, `Faceset`?**
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._
+- **Why does `JobManager` connect `JobManager` to `test_mobile_api_contract.py`, `test_reface_desktop.py`, `test_lora_trainer_smoke.py`, `ApiError`, `test_reface_v2.py`, `test_resource_monitor.py`, `WorkerTests`, `Faceset`, `dashboard.py`?**
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._
 - **What connects `version`, `date`, `width` to the rest of the system?**
-  _9038 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _9046 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `app_localizations.dart` be split into smaller, more focused modules?**
   _Cohesion score 0.0018331805682859762 - nodes in this community are weakly interconnected._
 - **Should `app_localizations_en.dart` be split into smaller, more focused modules?**
   _Cohesion score 0.001851851851851852 - nodes in this community are weakly interconnected._
+- **Should `app_database.dart` be split into smaller, more focused modules?**
+  _Cohesion score 0.004158004158004158 - nodes in this community are weakly interconnected._

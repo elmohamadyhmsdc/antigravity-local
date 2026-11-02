@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/media/media_library.dart';
@@ -236,6 +239,7 @@ class _MediaPickerState extends ConsumerState<MediaPicker> {
                 ? const Center(child: Text('No media items'))
                 : GridView.builder(
                     key: const Key('media-picker-grid'),
+                    scrollCacheExtent: const ScrollCacheExtent.pixels(1400),
                     padding: const EdgeInsets.all(4),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
@@ -247,34 +251,43 @@ class _MediaPickerState extends ConsumerState<MediaPicker> {
                     itemBuilder: (context, index) {
                       final asset = _assets[index];
                       final isSelected = _selectedIds.contains(asset.id);
+                      final thumbs = ref.watch(thumbnailServiceProvider);
+                      final cached = thumbs.getSync(asset.id, size: 256);
+
+                      Widget buildImage(Uint8List bytes) => Image.memory(
+                        bytes,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        cacheWidth: 256,
+                        cacheHeight: 256,
+                      );
+
                       return InkWell(
                         key: ValueKey('picker-item-${asset.id}'),
                         onTap: () => _onAssetTap(asset),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            FutureBuilder(
-                              future: ref
-                                  .read(thumbnailServiceProvider)
-                                  .get(
-                                    asset.id,
-                                    width: asset.width,
-                                    height: asset.height,
-                                  ),
-                              builder: (context, snapshot) =>
-                                  snapshot.data == null
-                                  ? ColoredBox(
-                                      color: theme
-                                          .colorScheme
-                                          .surfaceContainerHighest,
-                                      child: const Icon(Icons.photo_outlined),
-                                    )
-                                  : Image.memory(
-                                      snapshot.data!,
-                                      fit: BoxFit.cover,
-                                      gaplessPlayback: true,
-                                    ),
-                            ),
+                            if (cached != null)
+                              buildImage(cached)
+                            else
+                              FutureBuilder<Uint8List?>(
+                                initialData: cached,
+                                future: thumbs.get(
+                                  asset.id,
+                                  width: asset.width,
+                                  height: asset.height,
+                                ),
+                                builder: (context, snapshot) =>
+                                    snapshot.data == null
+                                    ? ColoredBox(
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                        child: const Icon(Icons.photo_outlined),
+                                      )
+                                    : buildImage(snapshot.data!),
+                              ),
                             if (widget.multiple)
                               Positioned(
                                 top: 6,

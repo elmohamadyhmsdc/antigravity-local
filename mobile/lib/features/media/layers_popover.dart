@@ -69,6 +69,7 @@ class LayersPopover extends StatelessWidget {
     required LayerAvailability availability,
     required ValueChanged<ViewerLayers> onChanged,
   }) {
+    var currentLayers = layers;
     return SheetScaffold.show<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -76,9 +77,10 @@ class LayersPopover extends StatelessWidget {
           return SheetScaffold(
             title: 'Detection Layers',
             child: LayersPopover(
-              layers: layers,
+              layers: currentLayers,
               availability: availability,
               onChanged: (updated) {
+                currentLayers = updated;
                 onChanged(updated);
                 setSheetState(() {});
               },

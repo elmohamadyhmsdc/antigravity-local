@@ -1,6 +1,95 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Targeted Detection Persistence & Layers Popover Fix Completed on main — 2026-11-02
+
+- User Request:
+  1. Targeted detection (`area`, `body`, `face`, `object`) inside the media viewer does not persist or reflect in the image ("الـ detection مبيتسيڤش تقريبًا، يعني لما بعمل detection للـ exposed area مبتتسيڤش ولا بتسمع في الصورة مع إنه بيعمل لها detect").
+  2. Layer overlays on the screen don't show or draw boundaries/circles around detected areas/items ("الـ layers في الشاشة مش شغالة وبتعلق، يعني أنت حتى بعد ما بتعمل لها detect متعرفش ترسم حولها، ترسم حولها دايرة عشان تحددها").
+  3. The Layers bottom sheet popover lags/desyncs: tapping checkboxes looks like they weren't tapped, and layers appear/disappear erratically ("الـ bottom sheet اللي بيطلع بتاع الـ layers بيعلق، بتضغط والـ checkbox أكنه متضغطش والـ area تظهر مرة ومرة متظهرش").
+  4. The Areas row in the Layers bottom sheet is permanently disabled even when an exposed area has been detected, named, and saved ("الـ row بتاع الـ areas في الـ bottom sheet ده بتبقى disabled مع إن إحنا عملنا detection مرة ولقينا وسميناها وسيڤناها").
+- Root Causes Identified:
+  1. Targeted Detection Persistence: `TargetedDetectionService.apply` only recorded area names as arbitrary strings in `settings` without inserting into `sensitive_regions` or updating `media.is_sensitive = true`. It also omitted inserting into `media_detections` for area, body, face, and object kinds, preventing reactive streams (`watchDetections`) from emitting them.
+  2. Layers Popover Stale Closure: `LayersPopover.show` enclosed the initial immutable `layers` parameter directly in `StatefulBuilder`. When a checkbox was tapped, `setModalState` rebuilt the sheet with the original `layers` object instead of the modified `currentLayers`, causing checkboxes to appear unresponsive and layer state to desync.
+  3. Hardcoded Layer Availability: `MediaViewerScreen` passed `hasAreas: false` and `hasEquipment: false` hardcoded into `LayerAvailability`, permanently disabling the "Areas & Regions" tile in the Layers sheet regardless of detected areas.
+  4. Overlay & Query Exclusion: `MediaQueries.watchDetections` joined only `faces` and `bodies`, omitting `sensitive_regions` (exposed areas) and `equipment_objects`. Furthermore, `DetectionOverlay` ignored `isArea` and `isEquipment` layers and lacked boundary drawing (oval / contour paths and distinct styling) for areas.
+- Architecture & Changes (`mobile/`):
+  - `mobile/lib/domain/corrections/targeted_detection_service.dart`:
+    - Persists detected areas to `sensitive_regions` with contour/outline points, bounding boxes, labels, and exposed flags.
+    - Inserts corresponding records into `media_detections` (kind `'a'` for areas, `'b'` for bodies, `'f'` for faces, `'e'` for equipment/objects) so that reactive streams immediately propagate detections.
+    - Updates `media.is_sensitive = true` when an exposed area is detected and saved.
+    - Updated `undo` token mechanism to cleanly remove inserted rows from all corresponding tables and restore previous `is_sensitive` state.
+  - `mobile/lib/domain/geometry/outline.dart`:
+    - Enhanced `encodeOutline` to safely handle image-relative vs box-relative coordinate spaces for area contours.
+  - `mobile/lib/data/repositories/media_queries.dart`:
+    - Extended `MediaDetection` model with `label`, `isArea`, `isEquipment`, and `isBody` flags.
+    - Updated `watchDetections` query with joins and `UNION ALL` across `media_detections`, `sensitive_regions`, and `equipment_objects`.
+  - `mobile/lib/features/media/layers_popover.dart`:
+    - Rewrote `LayersPopover.show` to maintain and update a local `currentLayers` state within `StatefulBuilder`, ensuring immediate visual feedback on checkbox taps.
+  - `mobile/lib/features/media/detection_overlay.dart`:
+    - Added support for `layers.areas` and `layers.equipment`.
+    - Implemented area overlay drawing with vibrant deep-orange accents, semi-transparent highlight fills, contour outline / ellipse boundary drawing, and floating label tags.
+    - Implemented equipment overlay drawing with teal accents and object bounding boxes.
+  - `mobile/lib/features/media/media_viewer_screen.dart`:
+    - Dynamically computed `hasAreas: areas.isNotEmpty` and `hasEquipment: equipment.isNotEmpty` for `LayerAvailability`.
+    - Automatically enables the target item's layer in `layers` when saved so the newly detected area/body/face immediately renders on the screen.
+    - Passed detected `areas` and `equipment` to `MediaInspector`.
+  - `mobile/lib/features/inspector/media_inspector.dart`:
+    - Displayed detected areas and equipment objects with dedicated badges and action sheets.
+- Verification & Quality:
+  - Unit & Integration Tests:
+    - `mobile/test/domain/corrections/targeted_detection_service_test.dart`: **4/4 passed** (verifying body, area, face, object persistence & undo).
+    - `mobile/test/features/layers_popover_test.dart`: **3/3 passed** (verifying layer availability and interactive toggle).
+    - `mobile/test/features/targeted_detect_ux_test.dart`: **passed**.
+    - `mobile/test/data/media_queries_test.dart`: **9/9 passed**.
+    - `mobile/test/features/viewer_gestures_test.dart`: **3/3 passed**.
+    - `mobile/test/features/inspector/media_inspector_test.dart`: **passed**.
+    - `mobile/test/features/outline_overlay_test.dart`: **3/3 passed**.
+    - `mobile/test/features/body_overlay_painter_test.dart`: **3/3 passed**.
+  - Static Analysis: `flutter analyze` reports **No issues found!** (0 issues).
+  - Preserved baseline: 12 documented pre-existing baseline failures in `_baseline.md` unchanged.
+
+
+## Image & Video Scrolling Performance Acceleration Completed on main — 2026-11-02
+
+- User Request:
+  - Accelerate photo and video thumbnail loading during scrolling ("تحميل الصور والفيديوهات واحنا بنعمل سكرول بطيء جدا، فإحنا عايزين نسرع الموضوع ده").
+- Root Causes Identified:
+  1. Duplicate Platform Channel & SQLite Overhead: `PhotoManagerLibrary.thumbnail` was calling `AssetEntity.fromId(assetId)` which performed an Android ContentResolver SQL metadata query, before calling `thumbnailDataWithSize` which queried SQLite again.
+  2. Missing Synchronous Memory Cache: `ThumbnailService` only stored `Future<Uint8List?>`. In `FutureBuilder`, even resolved futures yielded null on frame 0, causing placeholder gray-box flicker during fast scroll.
+  3. No Viewport Pre-rendering: Grid views used the default 250px cache extent, which only rendered tiles 1-2 rows ahead.
+  4. Video Extraction Latency: On-demand video keyframe decoding in Glide was triggered one-by-one only as tiles entered the screen without batch pre-caching.
+  5. Excessive Widget Hierarchy: `MediaTile` wrapped each image in `PreviewImage.memory`, adding an unused `ImageExpand` overlay button to every single grid tile.
+- Architecture & Performance Enhancements (`mobile/`):
+  - `mobile/lib/data/media/media_library.dart`:
+    - Replaced redundant `AssetEntity.fromId` metadata querying with direct `PhotoManager.plugin.getThumbnail` (bypassing Android SQLite queries completely with graceful fallback).
+    - Added `preheatThumbnails(List<String> assetIds, {int size = 256})` to request native background pre-caching via Glide.
+  - `mobile/lib/data/media/thumbnail_service.dart`:
+    - Expanded LRU cache capacity from 500 to 2,000 items.
+    - Added synchronous in-memory peek `getSync(String assetId, {int size = 256})` for 0-frame rendering without waiting on `FutureBuilder`.
+    - Added `preheat(List<String> assetIds)` for background platform preheating.
+  - `mobile/lib/features/library/native_gallery.dart`:
+    - Added `scrollCacheExtent: const ScrollCacheExtent.pixels(1400)` to `CustomScrollView` (rendering 2-3 screen heights ahead).
+    - Extracted `_AssetThumbnail` widget that renders `Image.memory` directly on frame 0 when cached in memory, and passes `initialData` to `FutureBuilder` to eliminate placeholder flashing.
+    - Added engine raster bounding: `cacheWidth: 256, cacheHeight: 256, gaplessPlayback: true`.
+    - Automatic preheating: preheats all incoming batch IDs upon paging.
+    - Paging threshold tuned to `extentAfter < 1400`.
+  - `mobile/lib/features/library/media_grid.dart`:
+    - Added `scrollCacheExtent: const ScrollCacheExtent.pixels(1400)` to `GridView.builder`.
+    - Replaced `PreviewImage.memory` with direct, lightweight `Image.memory` with `cacheWidth: 256, cacheHeight: 256` and synchronous cache check.
+    - Added automatic page item preheating.
+  - `mobile/lib/ui/pickers/media_picker.dart`:
+    - Added `scrollCacheExtent: const ScrollCacheExtent.pixels(1400)` and synchronous cache check with clamped raster dimensions.
+- Quality Metrics & Verification:
+  - Unit Tests: `test/data/thumbnail_service_test.dart` (**4/4 passed**).
+  - Gallery Tests: `test/features/native_gallery_instant_test.dart` & `test/features/library_test.dart` (**11/11 passed**).
+  - Picker Tests: `test/features/media_picker_test.dart` (**2/2 passed**).
+  - Video & Media Tests: `test/features/video_media_view_test.dart` & `test/features/gallery_first_test.dart` (**4/4 passed**).
+  - Full Static Analysis: `dart analyze lib test` reports **0 issues**.
+  - Code Formatting: Formatted with `dart format`.
+  - Documented baseline failures (12 tests) unchanged per `_baseline.md`.
+
+
 ## Persons Screen Restructuring & Multi-Select Enhancements Completed on main — 2026-11-02
 
 - User Request:
