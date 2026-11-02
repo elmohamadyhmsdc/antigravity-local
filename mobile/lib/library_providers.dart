@@ -35,6 +35,9 @@ import 'domain/backup/backup_service.dart';
 import 'domain/corrections/body_link_guard.dart';
 import 'domain/corrections/correction_service.dart';
 import 'domain/corrections/corrections_queries.dart';
+import 'domain/corrections/targeted_detection_service.dart';
+
+export 'domain/corrections/targeted_detection_service.dart';
 import 'domain/grouping/grouping_runner.dart';
 import 'domain/scan/drawn_face_sweep.dart';
 import 'domain/scan/outline_backfill.dart';
@@ -589,4 +592,8 @@ final correctionServiceProvider = Provider<CorrectionService>((ref) {
 
 final correctionsQueriesProvider = Provider<CorrectionsQueries>((ref) {
   return CorrectionsQueries(ref.watch(databaseProvider));
+});
+
+final targetedDetectionServiceProvider = Provider<TargetedDetectionService>((ref) {
+  return TargetedDetectionService(db: ref.watch(databaseProvider));
 });
