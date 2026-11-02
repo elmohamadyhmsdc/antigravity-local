@@ -382,42 +382,57 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         child: Wrap(
                           alignment: WrapAlignment.spaceBetween,
                           crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 4,
+                          runSpacing: 2,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               child: Text(
                                 l10n.selectedCount(_selected.length),
                                 style: Theme.of(context).textTheme.titleSmall
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                             ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextButton(
-                                  onPressed: () => setState(
-                                    () =>
-                                        _selected.addAll(visible.map((p) => p.id)),
-                                  ),
-                                  child: Text(l10n.selectAll),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
                                 ),
-                                TextButton(
-                                  onPressed: () => setState(() {
-                                    final next = visible
-                                        .map((p) => p.id)
-                                        .where((id) => !_selected.contains(id))
-                                        .toSet();
-                                    _selected
-                                      ..clear()
-                                      ..addAll(next);
-                                  }),
-                                  child: Text(l10n.peopleAction('invert')),
+                              ),
+                              onPressed: () => setState(
+                                () =>
+                                    _selected.addAll(visible.map((p) => p.id)),
+                              ),
+                              child: Text(l10n.selectAll),
+                            ),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
                                 ),
-                              ],
+                              ),
+                              onPressed: () => setState(() {
+                                final next = visible
+                                    .map((p) => p.id)
+                                    .where((id) => !_selected.contains(id))
+                                    .toSet();
+                                _selected
+                                  ..clear()
+                                  ..addAll(next);
+                              }),
+                              child: Text(l10n.peopleAction('invert')),
                             ),
                           ],
                         ),
@@ -1417,13 +1432,14 @@ class _SelectionActionButton extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.1),
+                textScaler: MediaQuery.textScalerOf(
+                  context,
+                ).clamp(maxScaleFactor: 1.1),
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: effectiveColor,
                   fontWeight: FontWeight.w600,
                   fontSize: 10,
                 ),
-              ),
               ),
             ],
           ),

@@ -1,6 +1,38 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Persons Screen Restructuring & Multi-Select Enhancements Completed on main — 2026-11-02
+
+- User Request:
+  - Restructure the Persons screen (`PeopleScreen` in `mobile/lib/features/people/people_screen.dart`):
+    1. Remove the expand button overlay on the person's avatar chip (`PersonAvatar`), eliminating unnecessary clutter on facial cards.
+    2. Long press on a person card directly selects that person and enters Multi-Select mode with haptic feedback.
+    3. Provide accessible bulk actions on selected items: Merge (`people-action-merge`), Delete (`people-action-deletePerson`), Add to group (`people-action-setGroup`), and Rename / More actions.
+    4. Restructure the screen layout for intuitive bulk management and responsive safety across narrow screens and large accessibility fonts.
+- Architecture & Changes (`mobile/`):
+  - `mobile/lib/features/shared/crop_image.dart`:
+    - Updated `PersonAvatar` default `expandable` parameter from `true` to `false`. Person avatar chips no longer show the intrusive expand button overlay.
+  - `mobile/lib/features/people/people_screen.dart`:
+    - Long-press interaction: `onLongPress` on `_PersonCard` triggers `onStartSelection`, providing medium haptic feedback and selecting the person directly.
+    - Card selection styling: Animated primary checkmark badge when selected, subtle radio outline when in selection mode but unselected, and a 2.0dp primary border.
+    - Selection mode chrome:
+      - Top App Bar: Replaces filter/search header with selection count and cancel button (`Key('people-select')`, `Icons.close_rounded`) to exit selection mode.
+      - Back gesture: `PopScope` intercepts back navigation during selection to safely exit multi-select mode.
+      - Bottom Action Bar: Resilient responsive layout using `Wrap` with `WrapAlignment.spaceBetween` for "X selected", "Select all", and "Invert selection", preventing `RenderFlex` overflows on narrow viewports or large text scaling.
+      - Primary action strip: `_SelectionActionButton` widgets for Merge, Rename (if single person), Group, Delete, and More (`_menu`). Clamps font scale factor to 1.1 with `TextOverflow.ellipsis`.
+  - `mobile/lib/features/people/people_actions.dart`:
+    - `_merge`: When 2+ people are selected (`source.length >= 2`), uses the first selected person as keeper directly rather than redundantly showing `pickPerson` dialog.
+- Verification & Quality:
+  - Static Analysis: `dart analyze` on modified files reports **0 issues**.
+  - Code Formatting: Formatted with `dart format`.
+  - Tests verified:
+    - `test/features/people_actions_test.dart`: **5/5 passed** (including long-press selection, multi-person merge, multi-person hide/restore).
+    - `test/features/people_test.dart`: **10/10 passed** (all 10 S07/S08/S09 people tests).
+    - `test/features/identity_groups_ux_test.dart`: **4/4 passed**.
+    - `test/features/people_simplified_ux_test.dart`: `narrow phones support large text, selection and scrollable tools` passed.
+  - Documented baseline failures (12 tests) unchanged per `_baseline.md`.
+
+
 ## Targeted On-Demand Detection & In-Viewer Correction Completed on main — 2026-11-02
 
 - User Request:

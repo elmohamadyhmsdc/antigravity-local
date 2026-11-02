@@ -720,9 +720,9 @@
     "semantic_hash": ""
   },
   "mobile/lib/features/people/people_screen.dart": {
-    "mtime": 1793644711.4181736,
-    "seen": 1793644843.3125212,
-    "ast_hash": "138137446bef6cc0b8a3dfa9e14dfb15",
+    "mtime": 1793645582.0638857,
+    "seen": 1793645703.6518176,
+    "ast_hash": "8d593f39dd85553991ad4f1d161987d9",
     "semantic_hash": ""
   },
   "mobile/lib/features/people/person_detail_screen.dart": {
@@ -2772,9 +2772,9 @@
     "semantic_hash": ""
   },
   "docs/ANTIGRAVITY_HANDOFF.md": {
-    "mtime": 1793644754.064448,
-    "seen": 1793644843.3130102,
-    "ast_hash": "82a83e2fbe2d4e739a4038700758ddc0",
+    "mtime": 1793645637.3550391,
+    "seen": 1793645703.6534154,
+    "ast_hash": "3616f4ff6d6924bcbf6eb7e3522dc1c5",
     "semantic_hash": ""
   },
   "docs/bulk-scan-1.2.0-2026-10-30.md": {
