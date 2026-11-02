@@ -185,6 +185,18 @@ final nativeGalleryProvider =
       NativeGalleryNotifier.new,
     );
 
+class GalleryDensityNotifier extends Notifier<int> {
+  @override
+  int build() => 4;
+  void setDensity(int density) => state = density.clamp(3, 5);
+  void zoomIn() => setDensity(state - 1);
+  void zoomOut() => setDensity(state + 1);
+}
+
+final galleryDensityProvider = NotifierProvider<GalleryDensityNotifier, int>(
+  GalleryDensityNotifier.new,
+);
+
 class NativeGallery extends ConsumerStatefulWidget {
   const NativeGallery({super.key, this.album, this.kind});
   final AlbumInfo? album;
@@ -409,53 +421,64 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
             ),
           ),
         Expanded(
-          child: CustomScrollView(
-            key: const Key('native-gallery-grid'),
-            controller: _scroll,
-            slivers: [
-              for (final group in groups.entries) ...[
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                    child: Text(
-                      group.key,
-                      style: Theme.of(context).textTheme.labelLarge,
+          child: GestureDetector(
+            onScaleUpdate: (details) {
+              if (details.scale > 1.35) {
+                ref.read(galleryDensityProvider.notifier).zoomIn();
+              } else if (details.scale < 0.75) {
+                ref.read(galleryDensityProvider.notifier).zoomOut();
+              }
+            },
+            child: CustomScrollView(
+              key: const Key('native-gallery-grid'),
+              controller: _scroll,
+              slivers: [
+                for (final group in groups.entries) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                      child: Text(
+                        group.key,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
                     ),
                   ),
-                ),
-                SliverGrid(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => _tile(group.value[index]),
-                    childCount: group.value.length,
+                  SliverGrid(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _tile(group.value[index]),
+                      childCount: group.value.length,
+                    ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: ref
+                          .watch(galleryDensityProvider)
+                          .clamp(3, 5),
+                      mainAxisSpacing: 2,
+                      crossAxisSpacing: 2,
+                    ),
                   ),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 2,
-                    crossAxisSpacing: 2,
+                ],
+                if (gallery.error != null)
+                  SliverToBoxAdapter(
+                    child: Center(
+                      child: TextButton(
+                        onPressed: () {
+                          ref
+                              .read(nativeGalleryProvider.notifier)
+                              .refresh(album: widget.album);
+                        },
+                        child: const Text('Retry loading photos'),
+                      ),
+                    ),
+                  )
+                else if (gallery.more && gallery.loading)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
                   ),
-                ),
               ],
-              if (gallery.error != null)
-                SliverToBoxAdapter(
-                  child: Center(
-                    child: TextButton(
-                      onPressed: () {
-                        ref
-                            .read(nativeGalleryProvider.notifier)
-                            .refresh(album: widget.album);
-                      },
-                      child: const Text('Retry loading photos'),
-                    ),
-                  ),
-                )
-              else if (gallery.more && gallery.loading)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
       ],
@@ -596,28 +619,59 @@ class _FolderScreenState extends ConsumerState<FolderScreen> {
     final progress = ref.watch(scanProgressProvider).value;
     final active =
         (progress?.isActive ?? false) || progress?.phase == ScanPhase.paused;
+    final settings = ref.watch(settingsProvider).value;
+    final isIncluded = settings?.albumIds.contains(album.id) ?? false;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(album.name),
         actions: [
           PopupMenuButton<String>(
+            key: const Key('folder-menu'),
             onSelected: (value) async {
+              if (value == 'include_scan') {
+                final currentIds = settings?.albumIds.toSet() ?? <String>{};
+                final next = Set<String>.from(currentIds);
+                if (isIncluded) {
+                  next.remove(album.id);
+                } else {
+                  next.add(album.id);
+                }
+                await ref.read(appSettingsProvider).setAlbumIds(next);
+                return;
+              }
+              if (value == 'review') {
+                context.push(
+                  '${Routes.review}?queue=suggestions&album=${album.id}',
+                );
+                return;
+              }
               if (value == 'settings') {
-                context.push(Routes.sources);
+                context.push(Routes.settingsLibrary);
                 return;
               }
               if (active) {
-                context.push(Routes.runningScan);
+                context.push(Routes.activity);
                 return;
               }
               if (ref.read(mobileApiProvider) == null) {
-                context.push(Routes.connection);
+                context.push(Routes.settingsComputer);
                 return;
               }
               await startScan(ref, albumIds: {album.id});
-              if (context.mounted) context.push(Routes.runningScan);
+              if (context.mounted) context.push(Routes.activity);
             },
             itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'include_scan',
+                child: Text(
+                  isIncluded ? 'Exclude from scan' : 'Include in scan',
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'review',
+                child: Text('Review this album'),
+              ),
               PopupMenuItem(
                 value: 'analyze',
                 child: Text(

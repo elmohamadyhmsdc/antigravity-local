@@ -44,33 +44,26 @@ Future<void> _open(WidgetTester tester, TestEnv env, String location) async {
 
 void main() {
   group('S04 Library', () {
-    appTest('an empty library points to Sources', (tester, env) async {
-      await _open(tester, env, '/library');
-      expect(find.text('No photos or videos available'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('gallery-more')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Scan library'));
-      await _settle(tester);
-      expect(find.text('Albums to scan'), findsOneWidget);
-    }, session: testSession);
-
     appTest(
-      'scan button navigates to running-scan and activity is in more menu',
+      'an empty library shows empty state and settings navigation',
       (tester, env) async {
         await _open(tester, env, '/library');
-        expect(find.byKey(const Key('library-scan-button')), findsOneWidget);
-        await tester.tap(find.byKey(const Key('library-scan-button')));
+        expect(find.text('No photos or videos available'), findsOneWidget);
+        expect(find.byKey(const Key('tab-root-settings')), findsOneWidget);
+        await tester.tap(find.byKey(const Key('tab-root-settings')));
         await _settle(tester);
-        expect(find.text('Library analysis'), findsOneWidget);
+        expect(find.text('Settings'), findsWidgets);
+      },
+      session: testSession,
+    );
 
-        await tester.tap(find.byType(BackButton));
-        await _settle(tester);
-        await tester.tap(find.byKey(const Key('gallery-more')));
-        await tester.pumpAndSettle();
-        expect(find.text('Activity'), findsOneWidget);
-        await tester.tap(find.text('Activity'));
-        await _settle(tester);
-        expect(find.text('Activity'), findsOneWidget);
+    appTest(
+      'gallery provides tabs and filter toggle in TabRootScaffold',
+      (tester, env) async {
+        await _open(tester, env, '/library');
+        expect(find.byKey(const Key('library-tabs')), findsOneWidget);
+        expect(find.byKey(const Key('library-filters-toggle')), findsOneWidget);
+        expect(find.byKey(const Key('tab-root-settings')), findsOneWidget);
       },
       session: testSession,
     );

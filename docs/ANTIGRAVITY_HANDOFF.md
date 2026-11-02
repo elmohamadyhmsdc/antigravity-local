@@ -1,6 +1,32 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P5a (Library & Albums, MediaPicker) Completed on main — 2026-11-02
+
+- Implemented L1 Gallery Screen:
+  - `mobile/lib/features/library/library_screen.dart`: refactored to `TabRootScaffold` with filter action and settings gear; `SegmentedBar(Photos || Folders)`; active `FilterBar` with clear button; and `ScanInviteStrip`.
+  - Density & zoom: pinch gesture scaling between 3, 4, and 5 columns using `galleryDensityProvider` (`GalleryDensityNotifier`).
+  - Preserved Riverpod caching with 0ms remount instant rendering and date-grouped grid layout.
+- Implemented L2 Folder/Album Screen:
+  - `mobile/lib/features/library/native_gallery.dart`: updated `FolderScreen` popup menu with album inclusion/exclusion toggle (`albumIncludeScan` / `albumExcludeScan`), album review (`/review?queue=suggestions&album=:id`), and folder analysis triggers.
+- Implemented `ScanInviteStrip`:
+  - `mobile/lib/features/library/scan_invite_strip.dart`: banner displaying unanalyzed photo counts and one-tap scan start when no scan is active; cleanly hides when scanning starts and replaces old AppBar scan entry.
+  - Verified: `test/features/scan_invite_strip_test.dart` (3 passed).
+- Implemented `MediaPicker`:
+  - `mobile/lib/ui/pickers/media_picker.dart`: unified media picker supporting single/multi selection, photo/video filtering, folder browsing, checkmark overlays, and confirmation.
+  - Verified: `test/features/media_picker_test.dart` (2 passed).
+- Verification:
+  - `flutter analyze` in `mobile/`: **0 issues**.
+  - All Phase P5a test suites passed (20 tests):
+    - `test/features/library_test.dart` (10 passed)
+    - `test/features/media_picker_test.dart` (2 passed)
+    - `test/features/scan_invite_strip_test.dart` (3 passed)
+    - `test/features/native_gallery_instant_test.dart` (1 passed)
+    - `test/features/gallery_first_test.dart` (3 passed)
+    - `test/features/gallery_first_preview_test.dart` (1 passed)
+  - All code formatted via `dart format lib test`.
+
+
 ## Phase P4 (Activity, Settings & Onboarding) Completed on main — 2026-11-02
 
 - Implemented unified Onboarding flow (O1–O3):

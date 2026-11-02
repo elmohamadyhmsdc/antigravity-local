@@ -7,16 +7,18 @@ import '../../data/repositories/media_queries.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
-import '../../studio_providers.dart';
-import '../../domain/scan/scan_state.dart';
-import '../shared/empty_state.dart';
+import '../../ui/collection/filter_bar.dart';
+import '../../ui/collection/segmented_bar.dart';
+import '../../ui/scaffolds/tab_root_scaffold.dart';
 import '../shared/crop_image.dart';
+import '../shared/empty_state.dart';
 import '../shared/person_picker.dart';
 import 'media_grid.dart';
 import 'native_gallery.dart';
+import 'scan_invite_strip.dart';
 
-/// S04 - the photo library: a grid of every photo the app knows with filters (person, scanned or
-/// not, has faces). Tap a photo for the viewer with its face boxes.
+/// L1 Gallery screen: Photo and Album browsing using TabRootScaffold,
+/// SegmentedBar, FilterSheet/FilterBar, and ScanInviteStrip.
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -158,156 +160,88 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final density = ref.watch(galleryDensityProvider);
 
-    final scanProgress = ref.watch(scanProgressProvider).value;
-    final isScanning =
-        (scanProgress?.isActive ?? false) ||
-        (scanProgress?.phase != null && scanProgress!.phase != ScanPhase.idle);
-    final activeScan = isScanning;
-    final pending =
-        (ref.watch(jobsProvider).value ?? const [])
-            .where(
-              (job) =>
-                  !const ['completed', 'failed', 'lost'].contains(job.status),
-            )
-            .length +
-        (activeScan ? 1 : 0);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gallery'),
-        actions: [
-          IconButton(
-            key: const Key('library-filters-toggle'),
-            tooltip: 'Filters',
-            icon: const Icon(Icons.tune),
-            onPressed: _openFilters,
-          ),
-          IconButton(
-            key: const Key('library-scan-button'),
-            tooltip: isScanning
-                ? 'Library analysis in progress'
-                : 'Scan library',
-            icon: Badge(
-              isLabelVisible: isScanning,
-              smallSize: 8,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child: Icon(
-                isScanning
-                    ? Icons.document_scanner
-                    : Icons.document_scanner_outlined,
-                color: isScanning
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
-              ),
-            ),
-            onPressed: () => context.push(Routes.runningScan),
-          ),
-          PopupMenuButton<String>(
-            key: const Key('gallery-more'),
-            onSelected: (value) {
-              if (value == 'scan') context.push(Routes.sources);
-              if (value == 'activity') context.push(Routes.jobs);
-              if (value == 'settings') context.push(Routes.settings);
-              if (value == 'connection') context.push(Routes.connection);
-              if (value == 'home') context.push(Routes.home);
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(value: 'scan', child: Text(l10n.scanLibrary)),
-              PopupMenuItem(
-                value: 'activity',
-                child: Text(pending > 0 ? 'Activity ($pending)' : 'Activity'),
-              ),
-              const PopupMenuItem(
-                value: 'connection',
-                child: Text('Connection'),
-              ),
-              PopupMenuItem(value: 'settings', child: Text(l10n.settings)),
-              const PopupMenuItem(value: 'home', child: Text('Overview')),
-            ],
-          ),
-        ],
+    return TabRootScaffold(
+      title: const Text('Gallery'),
+      primaryAction: IconButton(
+        key: const Key('library-filters-toggle'),
+        tooltip: 'Filters',
+        icon: Badge(
+          isLabelVisible: !_filter.isDefault,
+          smallSize: 8,
+          child: const Icon(Icons.tune),
+        ),
+        onPressed: _openFilters,
       ),
+      onSettingsTap: () => context.push(Routes.settings),
       body: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        width: 2,
-                        color: _tab == 0
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.transparent,
-                      ),
-                    ),
-                  ),
-                  child: TextButton(
-                    onPressed: () => setState(() => _tab = 0),
-                    child: Text(
-                      'Photos',
-                      style: TextStyle(
-                        fontWeight: _tab == 0
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                ),
+          SegmentedBar<int>(
+            key: const Key('library-tabs'),
+            segments: const [
+              SegmentItem(
+                value: 0,
+                label: 'Photos',
+                icon: Icons.photo_outlined,
               ),
-              Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        width: 2,
-                        color: _tab == 1
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.transparent,
-                      ),
-                    ),
-                  ),
-                  child: TextButton(
-                    onPressed: () => setState(() => _tab = 1),
-                    child: Text(
-                      'Folders',
-                      style: TextStyle(
-                        fontWeight: _tab == 1
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                ),
+              SegmentItem(
+                value: 1,
+                label: 'Folders',
+                icon: Icons.folder_outlined,
               ),
             ],
+            selected: _tab,
+            onSelected: (i) => setState(() => _tab = i),
           ),
-          if ((ref.watch(scanProgressProvider).value?.phase ??
-                  ScanPhase.idle) !=
-              ScanPhase.idle)
-            ListTile(
-              leading: const Icon(Icons.document_scanner_outlined),
-              title: const Text('Library analysis'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(Routes.runningScan),
-            ),
+          if (_tab == 0) const ScanInviteStrip(),
           if (_tab == 0 && !_filter.isDefault)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'Filters include photos you have opened or analyzed.',
-              ),
+            FilterBar(
+              filters: [
+                if (_filter.kind != null)
+                  FilterSpec(
+                    key: 'kind',
+                    label: _filter.kind!,
+                    options: const [],
+                    currentValue: _filter.kind,
+                  ),
+                if (_filter.scan != ScanFilter.all)
+                  FilterSpec(
+                    key: 'scan',
+                    label: _filter.scan.name,
+                    options: const [],
+                    currentValue: _filter.scan,
+                  ),
+                if (_filter.hasFaces == true)
+                  const FilterSpec(
+                    key: 'faces',
+                    label: 'Faces',
+                    options: [],
+                    currentValue: true,
+                  ),
+                if (_filter.personId != null)
+                  FilterSpec(
+                    key: 'person',
+                    label: 'Person',
+                    options: const [],
+                    currentValue: _filter.personId,
+                  ),
+              ],
+              onFilterChanged: (_, _) {},
+              onClearAll: () => setState(() => _filter = const MediaFilter()),
             ),
           if (_tab == 0 && !_filter.isDefault)
             Align(
               alignment: AlignmentDirectional.centerEnd,
-              child: TextButton.icon(
-                key: const Key('library-clear-filters'),
-                onPressed: () => setState(() => _filter = const MediaFilter()),
-                icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
-                label: Text(l10n.clearFilters),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextButton.icon(
+                  key: const Key('library-clear-filters'),
+                  onPressed: () =>
+                      setState(() => _filter = const MediaFilter()),
+                  icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
+                  label: Text(l10n.clearFilters),
+                ),
               ),
             ),
           Expanded(
@@ -319,7 +253,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   children: [
                     const NativeGallery(),
                     MediaGrid(
-                      columns: 4,
+                      columns: density,
                       filter: _filter,
                       empty: _filter.isDefault
                           ? EmptyState(
@@ -327,7 +261,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               title: l10n.libraryEmptyTitle,
                               body: l10n.libraryEmptyBody,
                               actionLabel: l10n.chooseAlbums,
-                              onAction: () => context.push(Routes.sources),
+                              onAction: () =>
+                                  context.push(Routes.settingsLibrary),
                             )
                           : EmptyState(
                               icon: Icons.filter_alt_off_outlined,
