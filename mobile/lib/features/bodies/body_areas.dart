@@ -94,12 +94,21 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
 
   Future<void> _inspectBody(int bodyId, String clusterType) async {
     final db = ref.read(databaseProvider);
-    final bodyRow = await (db.select(db.bodies)..where((b) => b.id.equals(bodyId))).getSingleOrNull();
-    final poseRow = await (db.select(db.bodyPoseFeatures)..where((x) => x.bodyId.equals(bodyId))).getSingleOrNull();
+    final bodyRow = await (db.select(
+      db.bodies,
+    )..where((b) => b.id.equals(bodyId))).getSingleOrNull();
+    final poseRow = await (db.select(
+      db.bodyPoseFeatures,
+    )..where((x) => x.bodyId.equals(bodyId))).getSingleOrNull();
     final tags = poseRow == null ? const <String>[] : decodeTags(poseRow.tags);
     final bbox = bodyRow == null
         ? null
-        : (x: bodyRow.bboxX, y: bodyRow.bboxY, w: bodyRow.bboxW, h: bodyRow.bboxH);
+        : (
+            x: bodyRow.bboxX,
+            y: bodyRow.bboxY,
+            w: bodyRow.bboxW,
+            h: bodyRow.bboxH,
+          );
     final areaKind = clusterType == 'buttocks' ? 'lower' : 'chest';
 
     if (!mounted) return;
@@ -212,10 +221,8 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
                               child: InkWell(
                                 key: Key('cluster-body-$id'),
                                 borderRadius: BorderRadius.circular(6),
-                                onTap: () => _inspectBody(
-                                  id,
-                                  entry.cluster.clusterType,
-                                ),
+                                onTap: () =>
+                                    _inspectBody(id, entry.cluster.clusterType),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(6),
                                   child: CropImage(

@@ -79,10 +79,13 @@ class NativeGalleryNotifier extends Notifier<NativeGalleryState> {
 
   Future<void> open({AlbumInfo? album, bool explained = false}) async {
     final targetId = album?.id ?? 'all';
-    if (state.albumId == targetId && state.assets.isNotEmpty && state.error == null) {
+    if (state.albumId == targetId &&
+        state.assets.isNotEmpty &&
+        state.error == null) {
       return;
     }
-    if (_albumCache.containsKey(targetId) && _albumCache[targetId]!.assets.isNotEmpty) {
+    if (_albumCache.containsKey(targetId) &&
+        _albumCache[targetId]!.assets.isNotEmpty) {
       state = _albumCache[targetId]!;
       return;
     }
@@ -109,7 +112,9 @@ class NativeGalleryNotifier extends Notifier<NativeGalleryState> {
         );
         state = state.copyWith(limited: permState == PermissionState.limited);
       }
-      final albums = album == null ? await library.albums() : <AlbumInfo>[album];
+      final albums = album == null
+          ? await library.albums()
+          : <AlbumInfo>[album];
       final all = album ?? albums.where((a) => a.isAll).firstOrNull;
       if (all == null && albums.isNotEmpty) {
         throw const FormatException(
@@ -177,8 +182,8 @@ class NativeGalleryNotifier extends Notifier<NativeGalleryState> {
 
 final nativeGalleryProvider =
     NotifierProvider<NativeGalleryNotifier, NativeGalleryState>(
-  NativeGalleryNotifier.new,
-);
+      NativeGalleryNotifier.new,
+    );
 
 class NativeGallery extends ConsumerStatefulWidget {
   const NativeGallery({super.key, this.album, this.kind});
@@ -297,7 +302,9 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () {
-                  ref.read(nativeGalleryProvider.notifier).open(album: widget.album, explained: true);
+                  ref
+                      .read(nativeGalleryProvider.notifier)
+                      .open(album: widget.album, explained: true);
                 },
                 child: const Text('Allow photos'),
               ),
@@ -327,7 +334,9 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () {
-                  ref.read(nativeGalleryProvider.notifier).open(album: widget.album);
+                  ref
+                      .read(nativeGalleryProvider.notifier)
+                      .open(album: widget.album);
                 },
                 child: const Text('Allow photos'),
               ),
@@ -352,7 +361,9 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
             Text(message, textAlign: TextAlign.center),
             TextButton(
               onPressed: () {
-                ref.read(nativeGalleryProvider.notifier).refresh(album: widget.album);
+                ref
+                    .read(nativeGalleryProvider.notifier)
+                    .refresh(album: widget.album);
               },
               child: const Text('Retry'),
             ),
@@ -390,7 +401,9 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
             trailing: TextButton(
               onPressed: () async {
                 await PhotoManager.presentLimited(type: RequestType.common);
-                ref.read(nativeGalleryProvider.notifier).refresh(album: widget.album);
+                ref
+                    .read(nativeGalleryProvider.notifier)
+                    .refresh(album: widget.album);
               },
               child: const Text('Manage access'),
             ),
@@ -427,7 +440,9 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
                   child: Center(
                     child: TextButton(
                       onPressed: () {
-                        ref.read(nativeGalleryProvider.notifier).refresh(album: widget.album);
+                        ref
+                            .read(nativeGalleryProvider.notifier)
+                            .refresh(album: widget.album);
                       },
                       child: const Text('Retry loading photos'),
                     ),

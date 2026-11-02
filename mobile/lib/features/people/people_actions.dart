@@ -57,7 +57,8 @@ List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
       people.every((p) => p.groupingLocked) ? 'unlock' : 'lock',
       Icons.lock_outline,
     ),
-    if (single && people.first.kind == 'person') const PeopleMenuAction('studio', Icons.face_retouching_natural),
+    if (single && people.first.kind == 'person')
+      const PeopleMenuAction('studio', Icons.face_retouching_natural),
     PeopleMenuAction(
       people.first.kind == 'person' ? 'toCharacters' : 'toPeople',
       Icons.swap_horiz,
@@ -96,7 +97,8 @@ List<PeopleMenuAction> faceMenuActions(List<FaceItem> faces) {
         const PeopleMenuAction('cover', Icons.account_circle_outlined),
       ],
       const PeopleMenuAction('similar', Icons.person_search_outlined),
-      if (faces.single.kind == 'person') const PeopleMenuAction('studio', Icons.face_retouching_natural),
+      if (faces.single.kind == 'person')
+        const PeopleMenuAction('studio', Icons.face_retouching_natural),
       const PeopleMenuAction('save', Icons.save_alt),
       const PeopleMenuAction('details', Icons.info_outline),
     ],
@@ -370,7 +372,8 @@ Future<void> runPersonAction(
         if (choice?.personId == null) return;
         await repo.markDistinct(p.id, choice!.personId!);
       case 'studio':
-        if (p.kind != 'person') throw const FormatException('Studio is available for people only.');
+        if (p.kind != 'person')
+          throw const FormatException('Studio is available for people only.');
         context.push('${Routes.reface}?person=${p.id}');
         return;
       case 'export':
@@ -617,7 +620,8 @@ Future<void> runFaceAction(
       case 'cover':
         if (f.personId != null) await repo.setAvatar(f.personId!, f.id);
       case 'studio':
-        if (f.kind != 'person') throw const FormatException('Studio is available for people only.');
+        if (f.kind != 'person')
+          throw const FormatException('Studio is available for people only.');
         context.push('${Routes.reface}?face=${f.id}');
         return;
       case 'save':

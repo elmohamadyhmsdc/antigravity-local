@@ -37,18 +37,26 @@ class ArtifactStore {
         db.settings,
       )..where((s) => s.key.equals(key))).getSingleOrNull();
       final existing = ArtifactContext.decode(row?.value);
-      final engine=metadata['engine'] is String?metadata['engine'] as String:null;
-      final warnings=metadata['warnings'] is List?[for(final w in metadata['warnings'])if(w is String)w].take(8).toList():<String>[];
-      if (existing == null && returnedModel == null && engine==null && warnings.isEmpty) return;
-      final json = {
-        ...?existing?.toJson(),
-
-      };
-      if(returnedModel!=null)json['identityModelId']=returnedModel;
-      if(engine!=null)json['executionEngine']=engine;
-      if(warnings.isNotEmpty)json['qualityWarnings']=warnings;
+      final engine = metadata['engine'] is String
+          ? metadata['engine'] as String
+          : null;
+      final warnings = metadata['warnings'] is List
+          ? [
+              for (final w in metadata['warnings'])
+                if (w is String) w,
+            ].take(8).toList()
+          : <String>[];
+      if (existing == null &&
+          returnedModel == null &&
+          engine == null &&
+          warnings.isEmpty)
+        return;
+      final json = {...?existing?.toJson()};
+      if (returnedModel != null) json['identityModelId'] = returnedModel;
+      if (engine != null) json['executionEngine'] = engine;
+      if (warnings.isNotEmpty) json['qualityWarnings'] = warnings;
       await db.putSetting(
-        '$artifactContextPrefix${resultId??job.id}',
+        '$artifactContextPrefix${resultId ?? job.id}',
         jsonEncode(json),
       );
     }

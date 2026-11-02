@@ -36,7 +36,8 @@ Iterable<(String, int)> embeddingsIn(
   int dim = 512,
 ]) sync* {
   if (node is Map) {
-    final ccip = node['strictness'] == 'character' ||
+    final ccip =
+        node['strictness'] == 'character' ||
         '${node['identity_model_id'] ?? node['embedding_model_id'] ?? node['model_id'] ?? ''}'
             .startsWith('ccip');
     for (final e in node.entries) {

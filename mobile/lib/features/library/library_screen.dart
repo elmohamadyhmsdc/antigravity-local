@@ -160,14 +160,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final l10n = AppLocalizations.of(context);
 
     final scanProgress = ref.watch(scanProgressProvider).value;
-    final isScanning = (scanProgress?.isActive ?? false) ||
+    final isScanning =
+        (scanProgress?.isActive ?? false) ||
         (scanProgress?.phase != null && scanProgress!.phase != ScanPhase.idle);
     final activeScan = isScanning;
-    final pending = (ref.watch(jobsProvider).value ?? const [])
-        .where(
-          (job) => !const ['completed', 'failed', 'lost'].contains(job.status),
-        )
-        .length + (activeScan ? 1 : 0);
+    final pending =
+        (ref.watch(jobsProvider).value ?? const [])
+            .where(
+              (job) =>
+                  !const ['completed', 'failed', 'lost'].contains(job.status),
+            )
+            .length +
+        (activeScan ? 1 : 0);
 
     return Scaffold(
       appBar: AppBar(
@@ -212,9 +216,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               PopupMenuItem(value: 'scan', child: Text(l10n.scanLibrary)),
               PopupMenuItem(
                 value: 'activity',
-                child: Text(
-                  pending > 0 ? 'Activity ($pending)' : 'Activity',
-                ),
+                child: Text(pending > 0 ? 'Activity ($pending)' : 'Activity'),
               ),
               const PopupMenuItem(
                 value: 'connection',

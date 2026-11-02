@@ -136,13 +136,14 @@ class PersonDetailScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                if (p.kind == 'person') IconButton.filledTonal(
-                  key: const Key('person-use-studio'),
-                  tooltip: l10n.useInStudio,
-                  onPressed: () =>
-                      context.push('${Routes.reface}?person=$personId'),
-                  icon: const Icon(Icons.face_retouching_natural),
-                ),
+                if (p.kind == 'person')
+                  IconButton.filledTonal(
+                    key: const Key('person-use-studio'),
+                    tooltip: l10n.useInStudio,
+                    onPressed: () =>
+                        context.push('${Routes.reface}?person=$personId'),
+                    icon: const Icon(Icons.face_retouching_natural),
+                  ),
                 IconButton(
                   key: const Key('person-menu'),
                   tooltip: l10n.peopleAction('more'),
@@ -221,17 +222,21 @@ class PersonDetailScreen extends ConsumerWidget {
                                   FaceGrid(personId: personId, kind: p.kind),
                                   _BodiesTab(personId: personId, kind: p.kind),
                                   _SuggestionsTab(person: p),
-                                  _SavedIdentities(personId: personId, allowStudio: p.kind == 'person'),
+                                  _SavedIdentities(
+                                    personId: personId,
+                                    allowStudio: p.kind == 'person',
+                                  ),
                                 ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                      if (p.kind == 'person') _PersonModels(
-                        personId: personId,
-                        avatarPath: p.avatarCropPath,
-                      ),
+                      if (p.kind == 'person')
+                        _PersonModels(
+                          personId: personId,
+                          avatarPath: p.avatarCropPath,
+                        ),
                     ],
                   ),
                 ),
@@ -276,11 +281,12 @@ class PersonDetailScreen extends ConsumerWidget {
           Icons.accessibility_new,
           label: l.bodiesTitle,
         ),
-        if (p.kind == 'person') PeopleMenuAction(
-          'exportTraining',
-          Icons.model_training,
-          label: l.exportTrainingTitle,
-        ),
+        if (p.kind == 'person')
+          PeopleMenuAction(
+            'exportTraining',
+            Icons.model_training,
+            label: l.exportTrainingTitle,
+          ),
         PeopleMenuAction(
           'delete',
           Icons.delete_outline,
@@ -927,9 +933,11 @@ class _SavedIdentities extends ConsumerWidget {
                     ),
                   ),
                 ),
-                onTap: !allowStudio ? null : () => context.push(
-                  '${Routes.reface}?person=$personId&identity=${item.id}',
-                ),
+                onTap: !allowStudio
+                    ? null
+                    : () => context.push(
+                        '${Routes.reface}?person=$personId&identity=${item.id}',
+                      ),
               ),
           ],
         );

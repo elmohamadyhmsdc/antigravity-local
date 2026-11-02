@@ -54,22 +54,26 @@ void main() {
       expect(find.text('Albums to scan'), findsOneWidget);
     }, session: testSession);
 
-    appTest('scan button navigates to running-scan and activity is in more menu', (tester, env) async {
-      await _open(tester, env, '/library');
-      expect(find.byKey(const Key('library-scan-button')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('library-scan-button')));
-      await _settle(tester);
-      expect(find.text('Library analysis'), findsOneWidget);
+    appTest(
+      'scan button navigates to running-scan and activity is in more menu',
+      (tester, env) async {
+        await _open(tester, env, '/library');
+        expect(find.byKey(const Key('library-scan-button')), findsOneWidget);
+        await tester.tap(find.byKey(const Key('library-scan-button')));
+        await _settle(tester);
+        expect(find.text('Library analysis'), findsOneWidget);
 
-      await tester.tap(find.byType(BackButton));
-      await _settle(tester);
-      await tester.tap(find.byKey(const Key('gallery-more')));
-      await tester.pumpAndSettle();
-      expect(find.text('Activity'), findsOneWidget);
-      await tester.tap(find.text('Activity'));
-      await _settle(tester);
-      expect(find.text('Activity'), findsOneWidget);
-    }, session: testSession);
+        await tester.tap(find.byType(BackButton));
+        await _settle(tester);
+        await tester.tap(find.byKey(const Key('gallery-more')));
+        await tester.pumpAndSettle();
+        expect(find.text('Activity'), findsOneWidget);
+        await tester.tap(find.text('Activity'));
+        await _settle(tester);
+        expect(find.text('Activity'), findsOneWidget);
+      },
+      session: testSession,
+    );
 
     appTest(
       'photos appear as tiles with their face count; filters narrow the grid',

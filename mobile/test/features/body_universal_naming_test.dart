@@ -12,42 +12,58 @@ import 'package:antigravity_mobile/providers.dart';
 import '../support/seed.dart';
 
 void main() {
-  test('renamePoseCategory and renameOutfitCategory update names in database', () async {
-    final db = AppDatabase(NativeDatabase.memory());
-    addTearDown(db.close);
+  test(
+    'renamePoseCategory and renameOutfitCategory update names in database',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
 
-    // Seed pose category
-    final poseId = await db.into(db.poseCategories).insert(
-      PoseCategoriesCompanion.insert(
-        name: 'Initial Pose',
-        exemplarFeature: Uint8List(0),
-        exemplarMask: 0,
-        exemplarScaleSource: 'torso',
-        threshold: 0.75,
-        createdAt: 1000,
-      ),
-    );
+      // Seed pose category
+      final poseId = await db
+          .into(db.poseCategories)
+          .insert(
+            PoseCategoriesCompanion.insert(
+              name: 'Initial Pose',
+              exemplarFeature: Uint8List(0),
+              exemplarMask: 0,
+              exemplarScaleSource: 'torso',
+              threshold: 0.75,
+              createdAt: 1000,
+            ),
+          );
 
-    // Seed outfit category
-    final outfitId = await db.into(db.outfitCategories).insert(
-      OutfitCategoriesCompanion.insert(
-        name: 'Initial Outfit',
-        exemplarAppearance: Uint8List(0),
-        threshold: 0.75,
-        createdAt: 1000,
-      ),
-    );
+      // Seed outfit category
+      final outfitId = await db
+          .into(db.outfitCategories)
+          .insert(
+            OutfitCategoriesCompanion.insert(
+              name: 'Initial Outfit',
+              exemplarAppearance: Uint8List(0),
+              threshold: 0.75,
+              createdAt: 1000,
+            ),
+          );
 
-    expect(await renamePoseCategory(db, poseId, 'Renamed Pose'), isTrue);
-    final updatedPose = await (db.select(db.poseCategories)..where((c) => c.id.equals(poseId))).getSingle();
-    expect(updatedPose.name, 'Renamed Pose');
+      expect(await renamePoseCategory(db, poseId, 'Renamed Pose'), isTrue);
+      final updatedPose = await (db.select(
+        db.poseCategories,
+      )..where((c) => c.id.equals(poseId))).getSingle();
+      expect(updatedPose.name, 'Renamed Pose');
 
-    expect(await renameOutfitCategory(db, outfitId, 'Renamed Outfit'), isTrue);
-    final updatedOutfit = await (db.select(db.outfitCategories)..where((c) => c.id.equals(outfitId))).getSingle();
-    expect(updatedOutfit.name, 'Renamed Outfit');
-  });
+      expect(
+        await renameOutfitCategory(db, outfitId, 'Renamed Outfit'),
+        isTrue,
+      );
+      final updatedOutfit = await (db.select(
+        db.outfitCategories,
+      )..where((c) => c.id.equals(outfitId))).getSingle();
+      expect(updatedOutfit.name, 'Renamed Outfit');
+    },
+  );
 
-  testWidgets('BodyAreasTab renders custom cluster name and handles rename', (tester) async {
+  testWidgets('BodyAreasTab renders custom cluster name and handles rename', (
+    tester,
+  ) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
 
@@ -56,27 +72,25 @@ void main() {
     await db.putSetting('cluster.name.1', 'Dragon Chest Tattoo');
 
     // Seed body cluster
-    await db.into(db.bodyClusters).insert(
-      BodyClustersCompanion.insert(
-        id: const Value(1),
-        clusterType: 'chest',
-        centroidEmbedding: Uint8List(384 * 4),
-        bodyCount: const Value(3),
-        createdAt: 1000,
-      ),
-    );
+    await db
+        .into(db.bodyClusters)
+        .insert(
+          BodyClustersCompanion.insert(
+            id: const Value(1),
+            clusterType: 'chest',
+            centroidEmbedding: Uint8List(384 * 4),
+            bodyCount: const Value(3),
+            createdAt: 1000,
+          ),
+        );
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-        ],
+        overrides: [databaseProvider.overrideWithValue(db)],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(
-            body: BodyAreasTab(),
-          ),
+          home: const Scaffold(body: BodyAreasTab()),
         ),
       ),
     );
@@ -94,50 +108,49 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
   });
 
-  testWidgets('BodyAreasTab opens BodyInspectionSheet when tapping cluster crop', (tester) async {
-    final db = AppDatabase(NativeDatabase.memory());
-    addTearDown(db.close);
+  testWidgets(
+    'BodyAreasTab opens BodyInspectionSheet when tapping cluster crop',
+    (tester) async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
 
-    await db.putSetting('body_clusters_enabled', 'true');
-    await db.into(db.bodyClusters).insert(
-      BodyClustersCompanion.insert(
-        id: const Value(1),
-        clusterType: 'chest',
-        centroidEmbedding: Uint8List(384 * 4),
-        bodyCount: const Value(1),
-        createdAt: 1000,
-      ),
-    );
+      await db.putSetting('body_clusters_enabled', 'true');
+      await db
+          .into(db.bodyClusters)
+          .insert(
+            BodyClustersCompanion.insert(
+              id: const Value(1),
+              clusterType: 'chest',
+              centroidEmbedding: Uint8List(384 * 4),
+              bodyCount: const Value(1),
+              createdAt: 1000,
+            ),
+          );
 
-    final mediaId = await seedMedia(db, asset: 'm1');
-    final bodyId = await seedBody(db, mediaId: mediaId, cropPath: null);
-    await (db.update(db.bodies)..where((b) => b.id.equals(bodyId))).write(
-      const BodiesCompanion(
-        chestClusterId: Value(1),
-      ),
-    );
+      final mediaId = await seedMedia(db, asset: 'm1');
+      final bodyId = await seedBody(db, mediaId: mediaId, cropPath: null);
+      await (db.update(db.bodies)..where((b) => b.id.equals(bodyId))).write(
+        const BodiesCompanion(chestClusterId: Value(1)),
+      );
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-        ],
-        child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(
-            body: BodyAreasTab(),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [databaseProvider.overrideWithValue(db)],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: BodyAreasTab()),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(Key('cluster-body-$bodyId')), findsOneWidget);
-    await tester.tap(find.byKey(Key('cluster-body-$bodyId')));
-    await tester.pumpAndSettle();
+      expect(find.byKey(Key('cluster-body-$bodyId')), findsOneWidget);
+      await tester.tap(find.byKey(Key('cluster-body-$bodyId')));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('toggle-skeleton-btn')), findsOneWidget);
-    expect(find.byKey(const Key('toggle-area-btn')), findsOneWidget);
-  });
+      expect(find.byKey(const Key('toggle-skeleton-btn')), findsOneWidget);
+      expect(find.byKey(const Key('toggle-area-btn')), findsOneWidget);
+    },
+  );
 }

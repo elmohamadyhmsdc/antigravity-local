@@ -144,7 +144,9 @@ class _BodyInspectionSheetState extends State<BodyInspectionSheet> {
                           style: const TextStyle(fontSize: 12),
                         ),
                         visualDensity: VisualDensity.compact,
-                        backgroundColor: scheme.secondaryContainer.withValues(alpha: 0.5),
+                        backgroundColor: scheme.secondaryContainer.withValues(
+                          alpha: 0.5,
+                        ),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                       ),
                   ],

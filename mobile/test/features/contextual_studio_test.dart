@@ -50,13 +50,16 @@ void main() {
       );
       final detection =
           (await env.db.select(env.db.mediaDetections).get()).single;
-      final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
       const paths = MethodChannel('plugins.flutter.io/path_provider');
       messenger.setMockMethodCallHandler(paths, (_) async => env.tmp.path);
       addTearDown(() => messenger.setMockMethodCallHandler(paths, null));
       env.library.bytes['context-photo'] = (await tester.runAsync(() async {
         final recorder = ui.PictureRecorder();
-        ui.Canvas(recorder).drawColor(const Color(0xff448866), ui.BlendMode.src);
+        ui.Canvas(
+          recorder,
+        ).drawColor(const Color(0xff448866), ui.BlendMode.src);
         final image = await recorder.endRecording().toImage(32, 32);
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
         image.dispose();
@@ -80,7 +83,15 @@ void main() {
             '/reface?person=$source&media=$media&target=${detection.id}',
           ),
           studioApiProvider.overrideWithValue(FakeStudioApi()),
-          jobTrackerProvider.overrideWith((ref) { final tracker = JobTracker(repository: ref.read(studioRepositoryProvider), api: () => null, keepAlive: const NoKeepAlive()); ref.onDispose(tracker.dispose); return tracker; }),
+          jobTrackerProvider.overrideWith((ref) {
+            final tracker = JobTracker(
+              repository: ref.read(studioRepositoryProvider),
+              api: () => null,
+              keepAlive: const NoKeepAlive(),
+            );
+            ref.onDispose(tracker.dispose);
+            return tracker;
+          }),
         ],
         settle: false,
       );

@@ -61,8 +61,15 @@ class ArtifactContext {
         identityModelId: json['identityModelId'] is String
             ? json['identityModelId'] as String
             : null,
-        executionEngine: json['executionEngine'] is String ? json['executionEngine'] as String : null,
-        qualityWarnings: json['qualityWarnings'] is List ? [for(final v in json['qualityWarnings'])if(v is String)v] : const [],
+        executionEngine: json['executionEngine'] is String
+            ? json['executionEngine'] as String
+            : null,
+        qualityWarnings: json['qualityWarnings'] is List
+            ? [
+                for (final v in json['qualityWarnings'])
+                  if (v is String) v,
+              ]
+            : const [],
         datasetId: json['datasetId'] is String
             ? json['datasetId'] as String
             : null,

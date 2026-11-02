@@ -169,7 +169,10 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     );
   }
 
-  Future<void> _openNativeVideoPlayer(BuildContext context, MediaRow media) async {
+  Future<void> _openNativeVideoPlayer(
+    BuildContext context,
+    MediaRow media,
+  ) async {
     try {
       final library = ref.read(mediaLibraryProvider);
       String? uri;
@@ -178,7 +181,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       }
       if (uri == null || uri.isEmpty) {
         if (library is VideoMediaLibrary) {
-          final file = await (library as VideoMediaLibrary).videoFile(media.assetId);
+          final file = await (library as VideoMediaLibrary).videoFile(
+            media.assetId,
+          );
           uri = file?.uri.toString();
         }
       }
@@ -189,7 +194,10 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         );
         return;
       }
-      final launched = await NativeVideoPlayer.openVideo(uri, title: media.assetId);
+      final launched = await NativeVideoPlayer.openVideo(
+        uri,
+        title: media.assetId,
+      );
       if (!launched && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not open external player')),
@@ -197,9 +205,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       }
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to launch player: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to launch player: $e')));
     }
   }
 
@@ -501,13 +509,17 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                               ),
                               if (media.kind == 'video')
                                 TextButton.icon(
-                                  key: const Key('media-open-native-player-bottom'),
+                                  key: const Key(
+                                    'media-open-native-player-bottom',
+                                  ),
                                   style: TextButton.styleFrom(
                                     foregroundColor: Colors.white,
                                   ),
                                   onPressed: () =>
                                       _openNativeVideoPlayer(context, media),
-                                  icon: const Icon(Icons.smart_display_outlined),
+                                  icon: const Icon(
+                                    Icons.smart_display_outlined,
+                                  ),
                                   label: const Text('Player'),
                                 ),
                             ],
@@ -731,7 +743,11 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   }
 
   void _showTools(BuildContext context, MediaRow media) {
-    final selected = (ref.read(detectionsProvider(media.id)).value ?? const <MediaDetection>[]).where((d) => d.id == _selectedDetectionId).firstOrNull;
+    final selected =
+        (ref.read(detectionsProvider(media.id)).value ??
+                const <MediaDetection>[])
+            .where((d) => d.id == _selectedDetectionId)
+            .firstOrNull;
     final allowStudio = selected?.figure != 'character';
     showModalBottomSheet<void>(
       context: context,
@@ -742,24 +758,27 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (allowStudio) ListTile(
-                leading: const Icon(Icons.motion_photos_on_outlined),
-                title: const Text('Name an action'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ActionExampleScreen(media: media),
-                    ),
-                  );
-                },
-              ),
+              if (allowStudio)
+                ListTile(
+                  leading: const Icon(Icons.motion_photos_on_outlined),
+                  title: const Text('Name an action'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ActionExampleScreen(media: media),
+                      ),
+                    );
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.face_retouching_natural),
                 title: const Text('Reface'),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  context.push('${Routes.reface}?media=${media.id}${selected == null ? '' : '&target=${selected.id}'}');
+                  context.push(
+                    '${Routes.reface}?media=${media.id}${selected == null ? '' : '&target=${selected.id}'}',
+                  );
                 },
               ),
               if (media.kind == 'photo' && allowStudio) ...[
@@ -768,7 +787,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                   title: const Text('Restyle'),
                   onTap: () {
                     Navigator.pop(sheetContext);
-                    context.push('${Routes.restyle}?media=${media.id}${selected == null ? '' : '&target=${selected.id}'}');
+                    context.push(
+                      '${Routes.restyle}?media=${media.id}${selected == null ? '' : '&target=${selected.id}'}',
+                    );
                   },
                 ),
                 ListTile(
@@ -1123,9 +1144,12 @@ class _PersonContext extends ConsumerWidget {
         expandable: false,
       ),
       title: Text(personName(l, person)),
-      subtitle: Text(person.kind == 'person' ? 'Person tools and models' : 'Character tools'),
+      subtitle: Text(
+        person.kind == 'person' ? 'Person tools and models' : 'Character tools',
+      ),
       children: [
-        if (person.kind == 'person' && models.isLoading) const LinearProgressIndicator(),
+        if (person.kind == 'person' && models.isLoading)
+          const LinearProgressIndicator(),
         if (person.kind == 'person' && models.hasError)
           ListTile(
             title: const Text('Could not load models'),

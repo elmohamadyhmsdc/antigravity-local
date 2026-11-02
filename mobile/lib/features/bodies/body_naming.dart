@@ -115,16 +115,13 @@ Future<bool> nameBodyOutfit(
   return true;
 }
 
-Future<bool> renamePoseCategory(
-  AppDatabase db,
-  int id,
-  String newName,
-) async {
+Future<bool> renamePoseCategory(AppDatabase db, int id, String newName) async {
   final trimmed = newName.trim();
   if (trimmed.isEmpty) return false;
-  final count = await (db.update(db.poseCategories)..where((c) => c.id.equals(id))).write(
-    PoseCategoriesCompanion(name: Value(trimmed)),
-  );
+  final count =
+      await (db.update(db.poseCategories)..where((c) => c.id.equals(id))).write(
+        PoseCategoriesCompanion(name: Value(trimmed)),
+      );
   return count > 0;
 }
 
@@ -135,9 +132,9 @@ Future<bool> renameOutfitCategory(
 ) async {
   final trimmed = newName.trim();
   if (trimmed.isEmpty) return false;
-  final count = await (db.update(db.outfitCategories)..where((c) => c.id.equals(id))).write(
-    OutfitCategoriesCompanion(name: Value(trimmed)),
-  );
+  final count =
+      await (db.update(db.outfitCategories)..where((c) => c.id.equals(id)))
+          .write(OutfitCategoriesCompanion(name: Value(trimmed)));
   return count > 0;
 }
 
@@ -155,9 +152,7 @@ Future<String?> promptRenameDialog(
       content: TextField(
         controller: controller,
         autofocus: true,
-        decoration: InputDecoration(
-          labelText: labelText ?? 'Name',
-        ),
+        decoration: InputDecoration(labelText: labelText ?? 'Name'),
         onSubmitted: (val) => Navigator.pop(context, val),
       ),
       actions: [

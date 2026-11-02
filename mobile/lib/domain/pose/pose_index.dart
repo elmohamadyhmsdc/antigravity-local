@@ -89,7 +89,8 @@ typedef CandidatePose = ({
   String tags,
 });
 
-List<({int id, double score, double similarity, double coverage})> rankCandidates(
+List<({int id, double score, double similarity, double coverage})>
+rankCandidates(
   ({Uint8List feature, int mask, String scaleSource, String tags}) query,
   List<CandidatePose> candidates, {
   int limit = _maxResults,
@@ -112,15 +113,29 @@ List<({int id, double score, double similarity, double coverage})> rankCandidate
     if (strict && query.tags.isNotEmpty && c.tags.isNotEmpty) {
       final cTags = decodeTags(c.tags);
       // 1. Orientation gating:
-      if (qHasBack && (cTags.contains(PoseTag.frontal) || cTags.contains(PoseTag.profile))) continue;
-      if (qHasFrontal && (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.profile))) continue;
-      if (qHasProfile && (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.frontal))) continue;
+      if (qHasBack &&
+          (cTags.contains(PoseTag.frontal) || cTags.contains(PoseTag.profile)))
+        continue;
+      if (qHasFrontal &&
+          (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.profile)))
+        continue;
+      if (qHasProfile &&
+          (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.frontal)))
+        continue;
 
       // 2. Posture & Bending gating:
-      if (qHasStanding && (cTags.contains(PoseTag.sitting) || cTags.contains(PoseTag.lying) || cTags.contains(PoseTag.bent))) continue;
+      if (qHasStanding &&
+          (cTags.contains(PoseTag.sitting) ||
+              cTags.contains(PoseTag.lying) ||
+              cTags.contains(PoseTag.bent)))
+        continue;
       if (qHasBent && cTags.contains(PoseTag.standing)) continue;
-      if (qHasSitting && (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.lying))) continue;
-      if (qHasLying && (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.sitting))) continue;
+      if (qHasSitting &&
+          (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.lying)))
+        continue;
+      if (qHasLying &&
+          (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.sitting)))
+        continue;
     }
 
     final m = comparePoses(
@@ -307,7 +322,13 @@ class PoseIndex {
       scaleSource: query.scaleSource,
       tags: query.tags,
     );
-    final ranked = await _rankIsolated(q, candidates, limit, sigma, strict: strict);
+    final ranked = await _rankIsolated(
+      q,
+      candidates,
+      limit,
+      sigma,
+      strict: strict,
+    );
     return [
       for (final r in ranked)
         (
@@ -336,7 +357,13 @@ class PoseIndex {
       scaleSource: exemplar.scaleSource,
       tags: tags,
     );
-    final ranked = await _rankIsolated(q, candidates, limit, sigma, strict: strict);
+    final ranked = await _rankIsolated(
+      q,
+      candidates,
+      limit,
+      sigma,
+      strict: strict,
+    );
     return [
       for (final r in ranked)
         (
@@ -348,7 +375,10 @@ class PoseIndex {
     ];
   }
 
-  Future<List<CandidatePose>> _candidates({int? excluding, int? personId}) async {
+  Future<List<CandidatePose>> _candidates({
+    int? excluding,
+    int? personId,
+  }) async {
     final rows = await _db
         .customSelect(
           '''SELECT x.body_id, x.feature, x.visible_mask, x.scale_source, x.tags
@@ -411,7 +441,15 @@ _rankIsolated(
   int limit,
   double sigma, {
   bool strict = false,
-}) => Isolate.run(() => rankCandidates(query, candidates, limit: limit, sigma: sigma, strict: strict));
+}) => Isolate.run(
+  () => rankCandidates(
+    query,
+    candidates,
+    limit: limit,
+    sigma: sigma,
+    strict: strict,
+  ),
+);
 
 Future<List<int>> _colorsIsolated(
   List<({int id, Uint8List appearance})> rows,

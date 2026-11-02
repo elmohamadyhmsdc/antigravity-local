@@ -52,8 +52,14 @@ class _OrganizePersonMediaState
           ..clear()
           ..addAll(
             plan
-                .where((i) => i.canApply && i.status != 'already' &&
-                    (!preserveSelection || previousSelection.contains(i.media.id) || i.media.id == changedMedia))
+                .where(
+                  (i) =>
+                      i.canApply &&
+                      i.status != 'already' &&
+                      (!preserveSelection ||
+                          previousSelection.contains(i.media.id) ||
+                          i.media.id == changedMedia),
+                )
                 .map((i) => i.media.id),
           );
         if (resume) {
@@ -155,12 +161,16 @@ class _OrganizePersonMediaState
                     children: [
                       if (busy || loading)
                         LinearProgressIndicator(
-                          value: loading || done == 0 || total == 0 ? null : done / total,
+                          value: loading || done == 0 || total == 0
+                              ? null
+                              : done / total,
                         ),
                       Text(l.organizeSelection(images, videos)),
                       FilledButton.icon(
                         key: const Key('organize-apply'),
-                        onPressed: busy || loading || picked.isEmpty ? null : apply,
+                        onPressed: busy || loading || picked.isEmpty
+                            ? null
+                            : apply,
                         icon: const Icon(Icons.drive_file_move_outlined),
                         label: Text(busy ? l.organizeWorking : l.organizeApply),
                       ),

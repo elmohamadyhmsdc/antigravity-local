@@ -536,12 +536,21 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
     final mediaId = _rows[bodyId]?.mediaId;
     final exposedKinds = await ref.read(exposedMatcherProvider).kindsOf(bodyId);
     final db = ref.read(databaseProvider);
-    final bodyRow = await (db.select(db.bodies)..where((b) => b.id.equals(bodyId))).getSingleOrNull();
-    final poseRow = await (db.select(db.bodyPoseFeatures)..where((x) => x.bodyId.equals(bodyId))).getSingleOrNull();
+    final bodyRow = await (db.select(
+      db.bodies,
+    )..where((b) => b.id.equals(bodyId))).getSingleOrNull();
+    final poseRow = await (db.select(
+      db.bodyPoseFeatures,
+    )..where((x) => x.bodyId.equals(bodyId))).getSingleOrNull();
     final tags = poseRow == null ? const <String>[] : decodeTags(poseRow.tags);
     final bbox = bodyRow == null
         ? null
-        : (x: bodyRow.bboxX, y: bodyRow.bboxY, w: bodyRow.bboxW, h: bodyRow.bboxH);
+        : (
+            x: bodyRow.bboxX,
+            y: bodyRow.bboxY,
+            w: bodyRow.bboxW,
+            h: bodyRow.bboxH,
+          );
 
     if (!mounted) return;
     final choice = await showModalBottomSheet<String>(

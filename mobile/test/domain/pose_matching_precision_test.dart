@@ -65,7 +65,12 @@ void main() {
         kneeY: 750,
         ankleY: 950,
       );
-      final frontalPose = Pose.fromJson(frontalKpts, 1000, 1000, extent: 'full')!;
+      final frontalPose = Pose.fromJson(
+        frontalKpts,
+        1000,
+        1000,
+        extent: 'full',
+      )!;
       final frontalTags = tierATags(frontalPose);
       expect(frontalTags.contains(PoseTag.frontal), isTrue);
       expect(frontalTags.contains(PoseTag.standing), isTrue);
@@ -97,7 +102,12 @@ void main() {
         shoulderTiltX: 0.095, // causes spine tilt ~32.3 degrees
         shoulderY: 400,
       );
-      final backBentPose = Pose.fromJson(backBentKpts, 1000, 1000, extent: 'full')!;
+      final backBentPose = Pose.fromJson(
+        backBentKpts,
+        1000,
+        1000,
+        extent: 'full',
+      )!;
       final backBentTags = tierATags(backBentPose);
       expect(backBentTags.contains(PoseTag.back), isTrue);
       expect(backBentTags.contains(PoseTag.bent), isTrue);
@@ -106,8 +116,14 @@ void main() {
 
     test('ranking rejects back vs frontal and bent vs upright', () {
       final qTags = encodeTags([PoseTag.back, PoseTag.standing]);
-      final candidateBackStandingTags = encodeTags([PoseTag.back, PoseTag.standing]);
-      final candidateFrontalStandingTags = encodeTags([PoseTag.frontal, PoseTag.standing]);
+      final candidateBackStandingTags = encodeTags([
+        PoseTag.back,
+        PoseTag.standing,
+      ]);
+      final candidateFrontalStandingTags = encodeTags([
+        PoseTag.frontal,
+        PoseTag.standing,
+      ]);
       final candidateBackBentTags = encodeTags([PoseTag.back, PoseTag.bent]);
 
       final dummyKpts = makeKpts(
@@ -129,17 +145,47 @@ void main() {
       );
 
       final candidates = [
-        (id: 1, feature: feat.toBlob(), mask: feat.mask, scaleSource: feat.scaleSource, tags: candidateBackStandingTags),
-        (id: 2, feature: feat.toBlob(), mask: feat.mask, scaleSource: feat.scaleSource, tags: candidateFrontalStandingTags),
-        (id: 3, feature: feat.toBlob(), mask: feat.mask, scaleSource: feat.scaleSource, tags: candidateBackBentTags),
+        (
+          id: 1,
+          feature: feat.toBlob(),
+          mask: feat.mask,
+          scaleSource: feat.scaleSource,
+          tags: candidateBackStandingTags,
+        ),
+        (
+          id: 2,
+          feature: feat.toBlob(),
+          mask: feat.mask,
+          scaleSource: feat.scaleSource,
+          tags: candidateFrontalStandingTags,
+        ),
+        (
+          id: 3,
+          feature: feat.toBlob(),
+          mask: feat.mask,
+          scaleSource: feat.scaleSource,
+          tags: candidateBackBentTags,
+        ),
       ];
 
       final results = rankCandidates(query, candidates, limit: 10);
       final resultIds = [for (final r in results) r.id];
 
-      expect(resultIds, contains(1), reason: 'Exact match (back + standing) must pass');
-      expect(resultIds, isNot(contains(2)), reason: 'Frontal pose must NEVER match Back pose');
-      expect(resultIds, isNot(contains(3)), reason: 'Bent pose must NEVER match Upright Standing pose');
+      expect(
+        resultIds,
+        contains(1),
+        reason: 'Exact match (back + standing) must pass',
+      );
+      expect(
+        resultIds,
+        isNot(contains(2)),
+        reason: 'Frontal pose must NEVER match Back pose',
+      );
+      expect(
+        resultIds,
+        isNot(contains(3)),
+        reason: 'Bent pose must NEVER match Upright Standing pose',
+      );
     });
   });
 }

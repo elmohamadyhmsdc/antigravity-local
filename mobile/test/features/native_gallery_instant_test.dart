@@ -19,63 +19,67 @@ class DelayedFakeMediaLibrary extends FakeMediaLibrary {
 }
 
 void main() {
-  testWidgets('NativeGallery retains state in memory and renders instantly upon remount', (tester) async {
-    final assets = syntheticAssets(10);
-    final allAlbum = const AlbumInfo(id: 'all', name: 'All', isAll: true, count: 10);
-    final library = DelayedFakeMediaLibrary(
-      albums: [allAlbum],
-      assets: {'all': assets},
-    );
+  testWidgets(
+    'NativeGallery retains state in memory and renders instantly upon remount',
+    (tester) async {
+      final assets = syntheticAssets(10);
+      final allAlbum = const AlbumInfo(
+        id: 'all',
+        name: 'All',
+        isAll: true,
+        count: 10,
+      );
+      final library = DelayedFakeMediaLibrary(
+        albums: [allAlbum],
+        assets: {'all': assets},
+      );
 
-    final container = ProviderContainer(
-      overrides: [
-        mediaLibraryProvider.overrideWithValue(library),
-      ],
-    );
-    addTearDown(container.dispose);
+      final container = ProviderContainer(
+        overrides: [mediaLibraryProvider.overrideWithValue(library)],
+      );
+      addTearDown(container.dispose);
 
-    // Initial mount and load
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: Scaffold(body: NativeGallery()),
+      // Initial mount and load
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Scaffold(body: NativeGallery()),
+          ),
         ),
-      ),
-    );
+      );
 
-    // Let initial load finish
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('native-gallery-grid')), findsOneWidget);
+      // Let initial load finish
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('native-gallery-grid')), findsOneWidget);
 
-    // Navigate away by replacing widget with empty container
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(
-          home: Scaffold(body: SizedBox()),
+      // Navigate away by replacing widget with empty container
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: Scaffold(body: SizedBox())),
         ),
-      ),
-    );
-    await tester.pump();
-    expect(find.byKey(const Key('native-gallery-grid')), findsNothing);
+      );
+      await tester.pump();
+      expect(find.byKey(const Key('native-gallery-grid')), findsNothing);
 
-    // Remount NativeGallery - must render grid immediately on first frame without LoadingBox
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: Scaffold(body: NativeGallery()),
+      // Remount NativeGallery - must render grid immediately on first frame without LoadingBox
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Scaffold(body: NativeGallery()),
+          ),
         ),
-      ),
-    );
+      );
 
-    // FIRST frame: instant render check
-    await tester.pump();
-    expect(find.byKey(const Key('native-gallery-grid')), findsOneWidget);
-    expect(find.byType(LoadingBox), findsNothing);
-  });
+      // FIRST frame: instant render check
+      await tester.pump();
+      expect(find.byKey(const Key('native-gallery-grid')), findsOneWidget);
+      expect(find.byType(LoadingBox), findsNothing);
+    },
+  );
 }
