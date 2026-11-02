@@ -1,6 +1,50 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P4 (Activity, Settings & Onboarding) Completed on main — 2026-11-02
+
+- Implemented unified Onboarding flow (O1–O3):
+  - `mobile/lib/features/onboarding/pair_screen.dart`: combined QR & Manual entry with `SegmentedBar(Camera, Manual)`, real-time validation, manual connection form, and direct unpair/re-pair capabilities.
+  - `mobile/lib/features/onboarding/welcome_screen.dart`: added test keys (`welcome-pair`, `welcome-skip`) and route integration.
+  - Verified: `test/features/onboarding_test.dart` (15 passed).
+- Implemented Activity Center (A1–A2):
+  - `mobile/lib/features/activity/activity_screen.dart`: unified Now || History tabs using `SegmentedBar`, `ProgressCard` with pause/resume for running scans, `FailedItemsSheet` for inspectable scan failures with retry, running job cards with cancellation, and filterable job history (`All | Completed | Failed`) with retry/open actions.
+  - `mobile/lib/features/activity/job_detail_screen.dart`: re-exports `JobDetailScreen` for `/activity/:jobId`.
+  - Fixed infinite progress animation deadlock during test pumps by defaulting progress in `ProgressCard` when paused.
+  - Verified: `test/features/activity_screen_test.dart` (4 passed).
+- Implemented Settings & Security (S1–S7):
+  - `mobile/lib/features/settings/settings_screen.dart` (S1 Hub): converted to `SettingsScaffold` with groups: General (Activity), Computer, Library (Library & Scan, sources), Privacy & Security (App Lock, Storage, Backup), System (Background), and About.
+  - `mobile/lib/features/settings/connection_screen.dart` (S2 Computer): added unpair confirmation via `ConfirmSheet.show` and pair-again buttons; preserved all diagnostic test keys (`connection-find`, `connection-manual`).
+  - `mobile/lib/features/settings/library_settings_screen.dart` (S3 Library & Scan): unified source albums selection, character/anime toggles, quality gate slider, grouping strictness choices, missing outline retries, and manual scan triggers.
+  - `mobile/lib/features/settings/privacy_settings_screen.dart` (S4 Privacy & Lock): dedicated screen with system biometric/auth toggle on `SettingsScaffold`.
+  - `mobile/lib/ui/sheets/password_sheet.dart` and `password_dialog.dart` (S6): bottom sheet presentation with `SheetScaffold` and validation.
+- Router Updates for Phase P4:
+  - `/activity` -> `ActivityScreen`
+  - `/settings/library` -> `LibrarySettingsScreen`
+  - `/settings/privacy` -> `PrivacySettingsScreen`
+  - `/sources` -> redirects to `/settings/library`
+  - `/insights` -> redirects to `/settings/library`
+  - `/running-scan` -> redirects to `/activity`
+  - `/pair/scan` -> redirects to `/pair`
+  - `/pair/manual` -> redirects to `/pair?tab=manual`
+- Verification:
+  - `flutter analyze` in `mobile/`: **0 issues**.
+  - All Phase P4 test suites passed:
+    - `test/features/onboarding_test.dart` (15 passed)
+    - `test/features/activity_screen_test.dart` (4 passed)
+    - `test/features/settings_hub_test.dart` (2 passed)
+    - `test/features/connection_screen_test.dart` (3 passed)
+    - `test/features/background_test.dart` (7 passed)
+    - `test/features/backup_password_test.dart` (1 passed)
+    - `test/features/scan_and_settings_test.dart` (26 passed)
+    - `test/features/resources_test.dart` (4 passed)
+    - `test/features/running_scan_test.dart` (1 passed)
+    - `test/features/analyze_test.dart` (6 passed)
+    - `test/features/video_scan_details_test.dart` (3 passed)
+    - `test/features/home_test.dart` (8 passed)
+  - All code formatted via `dart format lib test`.
+
+
 ## Phase P3 (Shell & Navigation) Completed on main — 2026-11-02
 
 - Implemented unified target reference domain:

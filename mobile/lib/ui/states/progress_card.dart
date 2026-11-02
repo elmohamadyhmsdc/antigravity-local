@@ -101,7 +101,9 @@ class ProgressCard extends StatelessWidget {
               ],
               const SizedBox(height: 12),
               CustomProgressBar(
-                progress: data.progress,
+                progress: data.isPaused
+                    ? (data.progress ?? 0.0)
+                    : data.progress,
                 label: data.stepLabel,
                 secondaryLabel: data.etaLabel,
               ),

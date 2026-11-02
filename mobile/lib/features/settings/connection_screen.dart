@@ -7,6 +7,7 @@ import '../../data/api/api_exception.dart';
 import '../../data/platform/lan_network.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../ui/sheets/confirm_sheet.dart';
 import '../onboarding/pairing_controller.dart';
 import '../shared/screen_layout.dart';
 import 'resource_panel.dart';
@@ -279,6 +280,36 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen>
           ),
           const SizedBox(height: 16),
           StatusNotice(message: l.connectionPinSafety, icon: Icons.link),
+          if (saved != null) ...[
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              key: const Key('connection-pair-again'),
+              onPressed: () => context.push(Routes.pair),
+              icon: const Icon(Icons.qr_code_scanner),
+              label: Text(l.connectionPairAtAddress),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              key: const Key('connection-unpair'),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              onPressed: () async {
+                final ok = await ConfirmSheet.show(
+                  context: context,
+                  title: l.forgetPcTitle(saved.name),
+                  message: l.forgetPcBody,
+                  confirmLabel: l.forgetPc,
+                  isDanger: true,
+                );
+                if (ok == true) {
+                  await ref.read(sessionProvider.notifier).forget();
+                }
+              },
+              icon: const Icon(Icons.link_off),
+              label: Text(l.forgetPc),
+            ),
+          ],
         ],
       ),
     );

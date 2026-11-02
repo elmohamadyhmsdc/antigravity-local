@@ -5,22 +5,21 @@ import '../data/db/app_database.dart';
 import '../data/media/media_library.dart';
 import '../data/repositories/media_queries.dart';
 import '../domain/targets/target_ref.dart';
+import '../features/activity/activity_screen.dart';
+import '../features/activity/job_detail_screen.dart';
 import '../features/analyze/analyze_screen.dart';
 import '../features/backup/backup_screen.dart';
 import '../features/bodies/bodies_screen.dart';
 import '../features/bodies/discover_screen.dart';
 import '../features/home/home_screen.dart';
-import '../features/insights/insights_screen.dart';
-import '../features/jobs/jobs_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/library/native_gallery.dart';
 import '../features/lora/lora_screens.dart';
 import '../features/marks/person_marks_screen.dart';
 import '../features/media/media_screen.dart';
 import '../features/merge/merge_screen.dart';
-import '../features/onboarding/manual_pair_screen.dart';
+import '../features/onboarding/pair_screen.dart';
 import '../features/onboarding/permissions_screen.dart';
-import '../features/onboarding/qr_scan_screen.dart';
 import '../features/onboarding/welcome_screen.dart';
 import '../features/people/identity_groups_screen.dart';
 import '../features/people/organize_media_screen.dart';
@@ -31,10 +30,10 @@ import '../features/reface/reface_screen.dart';
 import '../features/restyle/restyle_screen.dart';
 import '../features/results/results_screen.dart';
 import '../features/review/quick_review_screen.dart';
-import '../features/scan/scan_progress_card.dart';
-import '../features/scan/sources_screen.dart';
 import '../features/settings/background_screen.dart';
 import '../features/settings/connection_screen.dart';
+import '../features/settings/library_settings_screen.dart';
+import '../features/settings/privacy_settings_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/storage/storage_screen.dart';
@@ -183,21 +182,25 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.pair,
-        builder: (context, state) => ManualPairScreen(
+        builder: (context, state) => PairScreen(
           initialHost: state.uri.queryParameters['host'],
           initialPort: int.tryParse(state.uri.queryParameters['port'] ?? ''),
+          initialTab: state.uri.queryParameters['tab'] == 'manual' ? 1 : 0,
         ),
       ),
-      GoRoute(
-        path: Routes.scan,
-        builder: (context, state) => const QrScanScreen(),
-      ),
+      GoRoute(path: Routes.scan, redirect: (context, state) => Routes.pair),
       GoRoute(
         path: Routes.manual,
-        builder: (context, state) => ManualPairScreen(
-          initialHost: state.uri.queryParameters['host'],
-          initialPort: int.tryParse(state.uri.queryParameters['port'] ?? ''),
-        ),
+        redirect: (context, state) => Uri(
+          path: Routes.pair,
+          queryParameters: {
+            'tab': 'manual',
+            if (state.uri.queryParameters['host'] != null)
+              'host': state.uri.queryParameters['host']!,
+            if (state.uri.queryParameters['port'] != null)
+              'port': state.uri.queryParameters['port']!,
+          },
+        ).toString(),
       ),
       GoRoute(
         path: Routes.permissions,
@@ -460,7 +463,7 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.activity,
-        builder: (context, state) => const JobsScreen(),
+        builder: (context, state) => const ActivityScreen(),
       ),
 
       // -----------------------------------------------------------------------
@@ -472,11 +475,11 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.settingsLibrary,
-        builder: (context, state) => const SourcesScreen(),
+        builder: (context, state) => const LibrarySettingsScreen(),
       ),
       GoRoute(
         path: Routes.settingsPrivacy,
-        builder: (context, state) => const SettingsScreen(),
+        builder: (context, state) => const PrivacySettingsScreen(),
       ),
       GoRoute(
         path: Routes.settingsStorage,
@@ -495,10 +498,10 @@ GoRouter createRouter({
         builder: (context, state) => const SettingsScreen(),
       ),
 
-      // Legacy Settings & Status Routes
+      // Legacy Settings & Status Routes (Phase P4 Redirects)
       GoRoute(
         path: Routes.sources,
-        builder: (context, state) => const SourcesScreen(),
+        redirect: (context, state) => Routes.settingsLibrary,
       ),
       GoRoute(
         path: Routes.analyze,
@@ -508,11 +511,11 @@ GoRouter createRouter({
       ),
       GoRoute(
         path: Routes.insights,
-        builder: (context, state) => const InsightsScreen(),
+        redirect: (context, state) => Routes.settingsLibrary,
       ),
       GoRoute(
         path: Routes.runningScan,
-        builder: (context, state) => const RunningScanScreen(),
+        redirect: (context, state) => Routes.activity,
       ),
       GoRoute(
         path: Routes.home,

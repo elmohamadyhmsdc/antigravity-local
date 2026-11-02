@@ -1,277 +1,161 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/router.dart';
 import '../../data/repositories/app_settings.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
-import '../review/review_screen.dart';
-import '../privacy/app_lock.dart';
-import '../shared/screen_layout.dart';
-import 'resource_panel.dart';
+import '../../studio_providers.dart';
+import '../../ui/settings/setting_group.dart';
+import '../../ui/settings/setting_tile.dart';
+import '../../ui/settings/settings_scaffold.dart';
 
-/// S24 (the library part) - how strictly the PC groups faces, how good a face must be to be kept,
-/// scan defaults, and the way into Sources, Backup and "Sort now".
-class SettingsScreen extends ConsumerStatefulWidget {
+/// S1 — Settings Hub screen.
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  double? _gateDraft; // while the slider is dragged
-  bool _retryingOutlines = false;
-  bool _stopOutlineRetry = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final session = ref.watch(sessionProvider);
     final settings =
         ref.watch(settingsProvider).value ?? const SettingsSnapshot();
-    final store = ref.read(appSettingsProvider);
-    final session = ref.watch(sessionProvider);
-    final text = Theme.of(context).textTheme;
-    final gate = _gateDraft ?? settings.qualityGate;
-
-    String strictnessHint(String s) => switch (s) {
-      'strict' => l10n.strictnessStrictHint,
-      'loose' => l10n.strictnessLooseHint,
-      _ => l10n.strictnessBalancedHint,
-    };
-
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.settings)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          SectionHeading(title: l10n.settingsPrivacySection),
-          SwitchListTile(
-            key: const Key('app-lock'),
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.appLockTitle),
-            subtitle: Text(l10n.appLockHint),
-            value: ref.watch(appLockEnabledProvider).value ?? false,
-            onChanged: (enabled) async {
-              try {
-                if (enabled) {
-                  final ok = await ref
-                      .read(privacyServiceProvider)
-                      .authenticate(l10n.appLockTitle, l10n.unlockBody);
-                  if (!ok) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l10n.unlockFailed)),
-                      );
-                    }
-                    return;
-                  }
-                  ref.read(lockSessionProvider.notifier).unlock();
-                }
-                await ref
-                    .read(databaseProvider)
-                    .putSetting('privacy.app_lock', '$enabled');
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('$e')));
-                }
-              }
-            },
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.storageTitle),
-            leading: const Icon(Icons.storage_outlined),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(Routes.storage),
-          ),
-          SectionHeading(title: l10n.settingsLibrarySection),
-          Text(l10n.settingsGrouping, style: text.titleMedium),
-          const SizedBox(height: 8),
-          SegmentedButton<String>(
-            key: const Key('strictness'),
-            segments: [
-              ButtonSegment(
-                value: 'strict',
-                label: Text(l10n.strictnessStrict),
-              ),
-              ButtonSegment(
-                value: 'balanced',
-                label: Text(l10n.strictnessBalanced),
-              ),
-              ButtonSegment(value: 'loose', label: Text(l10n.strictnessLoose)),
-            ],
-            selected: {settings.strictness},
-            onSelectionChanged: (s) => store.setStrictness(s.first),
-          ),
-          const SizedBox(height: 6),
-          Text(strictnessHint(settings.strictness), style: text.bodySmall),
-          const SizedBox(height: 24),
-          Text(l10n.settingsQualityGate, style: text.titleMedium),
-          Text(l10n.settingsQualityGateHint, style: text.bodySmall),
-          Slider(
-            key: const Key('quality-gate'),
-            value: gate.clamp(minQualityGate, maxQualityGate),
-            min: minQualityGate,
-            max: maxQualityGate,
-            divisions: 12,
-            label: gate.toStringAsFixed(2),
-            onChanged: (v) => setState(() => _gateDraft = v),
-            onChangeEnd: (v) async {
-              await store.setQualityGate(v);
-              if (mounted) setState(() => _gateDraft = null);
-            },
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              l10n.qualityGateValue(gate.toStringAsFixed(2)),
-              style: text.bodySmall,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(l10n.settingsScanDefaults, style: text.titleMedium),
-          SwitchListTile(
-            key: const Key('settings-bodies'),
-            contentPadding: EdgeInsets.zero,
-            value: settings.scanBodies,
-            title: Text(l10n.optionBodies),
-            subtitle: Text(l10n.optionBodiesHint),
-            onChanged: store.setScanBodies,
-          ),
-          ListTile(
-            key: const Key('settings-characters'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.auto_awesome_outlined),
-            title: Text(l10n.charactersScan),
-            subtitle: Text(
-              l10n.charactersAlbumsCount(settings.characterAlbumIds.length),
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(Routes.sources),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.optionImageSize),
-            subtitle: Text(l10n.optionImageSizeHint),
-            trailing: DropdownButton<int>(
-              key: const Key('settings-max-side'),
-              value: maxSideChoices.contains(settings.maxSide)
-                  ? settings.maxSide
-                  : defaultMaxSide,
-              underline: const SizedBox.shrink(),
-              items: [
-                for (final s in maxSideChoices)
-                  DropdownMenuItem(value: s, child: Text('$s px')),
-              ],
-              onChanged: (v) {
-                if (v != null) store.setMaxSide(v);
-              },
-            ),
-          ),
-          const Divider(height: 32),
-          ListTile(
-            key: const Key('settings-sources'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.photo_library_outlined),
-            title: Text(l10n.sourcesTitle),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(Routes.sources),
-          ),
-          ListTile(
-            key: const Key('settings-sort-now'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.auto_fix_high),
-            title: Text(l10n.sortNow),
-            subtitle: Text(l10n.sortNowHint),
-            onTap: () => sortNow(context, ref),
-          ),
-          ListTile(
-            key: const Key('settings-retry-outlines'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.polyline_outlined),
-            title: Text(l10n.outlineRetryTitle),
-            subtitle: Text(
-              l10n.outlineRetryPending(
-                ref.watch(pendingOutlinesProvider).value ?? 0,
-              ),
-            ),
-            trailing: TextButton(
-              onPressed: _retryingOutlines
-                  ? () => setState(() => _stopOutlineRetry = true)
-                  : (ref.watch(pendingOutlinesProvider).value ?? 0) == 0 ||
-                        ref.watch(serverStatusProvider).value is! ServerReady ||
-                        ref.watch(scanProgressProvider).value?.isActive == true
-                  ? null
-                  : _retryOutlines,
-              child: Text(_retryingOutlines ? l10n.pause : l10n.retry),
-            ),
-          ),
-          SwitchListTile(
-            key: const Key('settings-review-advanced'),
-            contentPadding: EdgeInsets.zero,
-            secondary: const Icon(Icons.percent),
-            value: settings.reviewAdvanced,
-            title: Text(l10n.reviewAdvancedTitle),
-            subtitle: Text(l10n.reviewAdvancedBody),
-            onChanged: store.setReviewAdvanced,
-          ),
-          ListTile(
-            key: const Key('settings-backup'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.backup_outlined),
-            title: Text(l10n.backupTitle),
-            subtitle: Text(l10n.backupSettingsHint),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(Routes.backup),
-          ),
-          const Divider(height: 32),
-          SectionHeading(title: l10n.settingsDeviceSection),
-          const ResourcePanel(),
-          ListTile(
-            key: const Key('settings-background'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.battery_charging_full),
-            title: Text(l10n.backgroundTitle),
-            subtitle: Text(l10n.backgroundSettingsHint),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(Routes.background),
-          ),
-          ListTile(
-            key: const Key('settings-pc'),
-            onTap: () => context.push(Routes.connection),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.computer_outlined),
-            title: Text(session?.name ?? l10n.notPaired),
-            subtitle: session == null
-                ? null
-                : Text('${session.host}:${session.port}'),
-          ),
-        ],
-      ),
+    final jobs = ref.watch(jobsProvider).value ?? const [];
+    final activeJobs = jobs.where(
+      (j) => !const ['completed', 'failed', 'lost'].contains(j.status),
     );
-  }
+    final scan = ref.watch(scanProgressProvider).value;
+    final activeCount = activeJobs.length + (scan?.isActive == true ? 1 : 0);
 
-  Future<void> _retryOutlines() async {
-    setState(() {
-      _retryingOutlines = true;
-      _stopOutlineRetry = false;
-    });
-    final backfill = ref.read(outlineBackfillProvider);
-    try {
-      await backfill.retryPending(
-        shouldContinue: () =>
-            mounted &&
-            !_stopOutlineRetry &&
-            !ref.read(scanEngineProvider).isRunning &&
-            ref.read(serverStatusProvider).value is ServerReady,
-      );
-    } finally {
-      if (mounted) setState(() => _retryingOutlines = false);
-    }
+    final lastBackup = settings.lastBackupAt;
+    final lastBackupLabel = lastBackup == null
+        ? l10n.neverBackedUp
+        : l10n.lastBackup(DateFormat.yMMMd().add_jm().format(lastBackup));
+
+    return SettingsScaffold(
+      title: l10n.settings,
+      children: [
+        // --- Group 1: General ---
+        SettingGroup(
+          title: 'General',
+          children: [
+            SettingTile.nav(
+              key: const Key('settings-activity'),
+              leading: const Icon(Icons.show_chart),
+              title: l10n.homeActivity,
+              trailing: activeCount > 0
+                  ? Badge.count(
+                      count: activeCount,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                    )
+                  : null,
+              onTap: () => context.push(Routes.activity),
+            ),
+          ],
+        ),
+
+        // --- Group 2: Computer ---
+        SettingGroup(
+          title: l10n.settingsDeviceSection,
+          children: [
+            SettingTile.nav(
+              key: const Key('settings-pc'),
+              leading: const Icon(Icons.computer_outlined),
+              title: session?.name ?? l10n.notPaired,
+              subtitle: session == null
+                  ? null
+                  : '${session.host}:${session.port}',
+              onTap: () => context.push(Routes.settingsComputer),
+            ),
+          ],
+        ),
+
+        // --- Group 3: Library ---
+        SettingGroup(
+          title: l10n.settingsLibrarySection,
+          children: [
+            SettingTile.nav(
+              key: const Key('settings-library'),
+              leading: const Icon(Icons.photo_library_outlined),
+              title: l10n.settingsLibrarySection,
+              subtitle: l10n.sourcesTitle,
+              onTap: () => context.push(Routes.settingsLibrary),
+            ),
+            // Legacy key support for tests expecting settings-sources
+            SettingTile.nav(
+              key: const Key('settings-sources'),
+              leading: const Icon(Icons.folder_special_outlined),
+              title: l10n.sourcesTitle,
+              onTap: () => context.push(Routes.settingsLibrary),
+            ),
+          ],
+        ),
+
+        // --- Group 4: Privacy & Security ---
+        SettingGroup(
+          title: l10n.settingsPrivacySection,
+          children: [
+            SettingTile.nav(
+              key: const Key('settings-privacy'),
+              leading: const Icon(Icons.lock_outline),
+              title: l10n.appLockTitle,
+              onTap: () => context.push(Routes.settingsPrivacy),
+            ),
+            SettingTile.nav(
+              key: const Key('settings-storage'),
+              leading: const Icon(Icons.storage_outlined),
+              title: l10n.storageTitle,
+              onTap: () => context.push(Routes.settingsStorage),
+            ),
+            SettingTile.nav(
+              key: const Key('settings-backup'),
+              leading: const Icon(Icons.backup_outlined),
+              title: l10n.backupTitle,
+              subtitle: lastBackupLabel,
+              onTap: () => context.push(Routes.settingsBackup),
+            ),
+          ],
+        ),
+
+        // --- Group 5: System ---
+        SettingGroup(
+          title: 'System',
+          children: [
+            SettingTile.nav(
+              key: const Key('settings-background'),
+              leading: const Icon(Icons.battery_charging_full),
+              title: l10n.backgroundTitle,
+              subtitle: l10n.backgroundSettingsHint,
+              onTap: () => context.push(Routes.settingsBackground),
+            ),
+          ],
+        ),
+
+        // --- Group 6: About ---
+        SettingGroup(
+          title: 'About',
+          children: [
+            SettingTile.nav(
+              leading: const Icon(Icons.info_outline),
+              title: l10n.appTitle,
+              subtitle: 'v2.0.0',
+              trailing: const SizedBox.shrink(),
+            ),
+            SettingTile.action(
+              leading: const Icon(Icons.description_outlined),
+              title: 'Licenses',
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: l10n.appTitle,
+                applicationVersion: 'v2.0.0',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }

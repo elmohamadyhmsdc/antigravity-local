@@ -372,13 +372,22 @@ void main() {
           await _open(
             tester,
             env,
-            '/settings',
+            '/settings/library',
             progress: ScanProgress(
               phase: scanning ? ScanPhase.running : ScanPhase.idle,
             ),
           );
           final tile = find.byKey(const Key('settings-retry-outlines'));
-          await revealForTap(tester, tile);
+          if (scanning) {
+            await tester.scrollUntilVisible(
+              tile,
+              180,
+              scrollable: find.byType(Scrollable).first,
+            );
+            await tester.pump(const Duration(milliseconds: 100));
+          } else {
+            await revealForTap(tester, tile);
+          }
           expect(find.textContaining('1 photo waiting'), findsOneWidget);
           final button = tester.widget<TextButton>(
             find.descendant(of: tile, matching: find.byType(TextButton)),
@@ -393,7 +402,7 @@ void main() {
       tester,
       env,
     ) async {
-      await _open(tester, env, '/settings');
+      await _open(tester, env, '/settings/library');
       expect(find.text('Balanced'), findsOneWidget);
       expect(find.textContaining('Recommended'), findsOneWidget);
 
@@ -403,6 +412,12 @@ void main() {
       expect(find.textContaining('Fewer mistakes'), findsOneWidget);
 
       final slider = find.byKey(const Key('quality-gate'));
+      await tester.scrollUntilVisible(
+        slider,
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await _settle(tester);
       await tester.drag(slider, const Offset(200, 0));
       await _settle(tester);
       final gate = (await env.settingsSnapshot()).qualityGate;
@@ -556,7 +571,7 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('scan-library')));
       await _settle(tester);
-      expect(find.text('Sources & scan'), findsWidgets);
+      expect(find.text('Library & scanning'), findsWidgets);
       expect(find.text('Albums to scan'), findsOneWidget);
     }, session: testSession);
   });

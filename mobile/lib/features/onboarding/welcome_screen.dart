@@ -115,18 +115,26 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                     ),
                     const SizedBox(height: 24),
                     FilledButton.icon(
-                      onPressed: () => context.push(Routes.scan),
+                      key: const Key('welcome-scan'),
+                      onPressed: () => context.push(Routes.pair),
                       icon: const Icon(Icons.qr_code_scanner),
                       label: Text(l10n.welcomeScan),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
+                      key: const Key('welcome-manual'),
                       onPressed: () => context.push(Routes.manual),
                       icon: const Icon(Icons.keyboard_outlined),
                       label: Text(l10n.welcomeManual),
                     ),
+                    const SizedBox(height: 12),
                     TextButton(
-                      onPressed: () => context.push(Routes.connection),
+                      key: const Key('welcome-browse'),
+                      onPressed: () => context.push(Routes.permissions),
+                      child: Text(l10n.permContinue),
+                    ),
+                    TextButton(
+                      onPressed: () => context.push(Routes.settingsComputer),
                       child: Text(l10n.connectionTitle),
                     ),
                   ],
