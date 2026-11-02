@@ -281,6 +281,70 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
             raise ApiError(500, "internal", "Equipment recognition failed. Try again.", retryable=True)
         return JSONResponse({"model_version": equipment_detection.VERSION, "objects": objects})
 
+    @router.post("/v1/analyze/targeted")
+    async def analyze_targeted(
+        image: UploadFile = File(...),
+        target_kind: str = Form(...),
+        roi: str = Form(default=""),
+        prompt: str = Form(default=""),
+        high_res: bool = Form(default=True),
+        _: dict = Depends(require_device),
+    ):
+        valid_kinds = {"area", "body", "face", "object"}
+        if target_kind not in valid_kinds:
+            raise bad_request(f"target_kind must be one of {sorted(valid_kinds)}", code="bad_request")
+
+        parsed_roi = None
+        if roi and roi.strip():
+            try:
+                raw_roi = json.loads(roi)
+                if not isinstance(raw_roi, dict) or not all(k in raw_roi for k in ("x", "y", "w", "h")):
+                    raise ValueError()
+                parsed_roi = {
+                    "x": float(raw_roi["x"]),
+                    "y": float(raw_roi["y"]),
+                    "w": float(raw_roi["w"]),
+                    "h": float(raw_roi["h"]),
+                }
+            except Exception as e:
+                raise bad_request("roi must be a JSON object with numeric x, y, w, h", code="bad_request") from e
+
+        data = await image.read(ctx.max_image_upload_bytes + 1)
+        await image.close()
+        if len(data) > ctx.max_image_upload_bytes:
+            raise ApiError(413, "too_large", "The image is larger than the server accepts.")
+
+        try:
+            def compute():
+                with ctx.compute_lock:
+                    ctx.gpu.require_free()
+                    img = ctx.image_decoder.image(data, ctx.max_image_px)
+                    if hasattr(ctx.engines, "compute_targeted"):
+                        return ctx.engines.compute_targeted(img, target_kind, parsed_roi, prompt)
+                    return ctx.engines.targeted_analyze(img, target_kind, parsed_roi, prompt, high_res)
+            detections = await run_in_threadpool(compute)
+        except ApiError:
+            raise
+        except Exception:
+            log.exception("targeted analyze failed")
+            raise ApiError(500, "internal", "Targeted analysis failed.", retryable=True)
+
+        if not detections and parsed_roi is not None:
+            detections = [
+                {
+                    "bbox": parsed_roi,
+                    "score": 1.0,
+                    "label": "custom",
+                    "outline": None,
+                    "keypoints": None,
+                }
+            ]
+
+        return JSONResponse({
+            "target_kind": target_kind,
+            "detections": detections or [],
+        })
+
     return router
 
 

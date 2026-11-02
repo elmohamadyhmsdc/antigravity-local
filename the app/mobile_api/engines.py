@@ -179,6 +179,93 @@ class InsightEngines:
 
             return results
 
+    def targeted_analyze(self, img, target_kind: str, roi=None, prompt: str = "", high_res: bool = True) -> list:
+        with self._lock:
+            h, w = img.shape[:2]
+            if roi is not None:
+                rx = max(0, int(roi['x'] * w))
+                ry = max(0, int(roi['y'] * h))
+                rw = max(1, int(roi['w'] * w))
+                rh = max(1, int(roi['h'] * h))
+                crop = img[ry:ry+rh, rx:rx+rw]
+            else:
+                rx, ry, rw, rh = 0, 0, w, h
+                crop = img
+
+            detections = []
+            if target_kind == 'face':
+                self.load(faces=True)
+                if self._face_app is not None:
+                    faces = self._face_app.get(crop)
+                    for f in faces:
+                        fx1, fy1, fx2, fy2 = f.bbox
+                        abs_x = (rx + fx1) / w
+                        abs_y = (ry + fy1) / h
+                        abs_w = (fx2 - fx1) / w
+                        abs_h = (fy2 - fy1) / h
+                        detections.append({
+                            "bbox": {"x": float(abs_x), "y": float(abs_y), "w": float(abs_w), "h": float(abs_h)},
+                            "score": float(f.det_score),
+                            "label": "face",
+                            "outline": None,
+                            "keypoints": None,
+                        })
+            elif target_kind == 'area':
+                if self._sensitive_detector is None:
+                    from sensitive_detection import SensitiveDetector, env_model_path
+                    self._sensitive_detector = SensitiveDetector(env_model_path())
+                raw_regions = self._sensitive_detector.detect(crop)
+                for r in raw_regions:
+                    bx1, by1, bx2, by2 = r['bbox']
+                    abs_x = (rx + bx1) / w
+                    abs_y = (ry + by1) / h
+                    abs_w = (bx2 - bx1) / w
+                    abs_h = (by2 - by1) / h
+                    detections.append({
+                        "bbox": {"x": float(abs_x), "y": float(abs_y), "w": float(abs_w), "h": float(abs_h)},
+                        "score": float(r.get('score', 0.8)),
+                        "label": r.get('label', 'exposed_area'),
+                        "outline": None,
+                        "keypoints": None,
+                    })
+            elif target_kind == 'body':
+                if self._body is None:
+                    from body_detector import BodyAnalyzer
+                    self._body = BodyAnalyzer(log=self._log, allow_downloads=False)
+                bodies = self._body.detect(crop)
+                for b in bodies:
+                    bx1, by1, bx2, by2 = b.bbox
+                    abs_x = (rx + bx1) / w
+                    abs_y = (ry + by1) / h
+                    abs_w = (bx2 - bx1) / w
+                    abs_h = (by2 - by1) / h
+                    kpts = None
+                    if getattr(b, 'kpts', None) is not None:
+                        kpts = [[float((rx + kp[0]) / w), float((ry + kp[1]) / h), float(kp[2])] for kp in b.kpts]
+                    detections.append({
+                        "bbox": {"x": float(abs_x), "y": float(abs_y), "w": float(abs_w), "h": float(abs_h)},
+                        "score": float(getattr(b, 'score', 0.85)),
+                        "label": "person",
+                        "outline": None,
+                        "keypoints": kpts,
+                    })
+            elif target_kind == 'object':
+                from equipment_detection import detect_equipment
+                objs = detect_equipment(crop, [])
+                for obj in objs:
+                    bx = rx / w + obj['bbox']['x'] * (rw / w)
+                    by = ry / h + obj['bbox']['y'] * (rh / h)
+                    bw = obj['bbox']['w'] * (rw / w)
+                    bh = obj['bbox']['h'] * (rh / h)
+                    detections.append({
+                        "bbox": {"x": float(bx), "y": float(by), "w": float(bw), "h": float(bh)},
+                        "score": 0.9,
+                        "label": obj.get('label', 'object'),
+                        "outline": None,
+                        "keypoints": None,
+                    })
+            return detections
+
     def unload(self):
         import gc
         with self._lock:
