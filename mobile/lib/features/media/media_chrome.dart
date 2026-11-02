@@ -16,6 +16,7 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onOpenNativePlayer,
     required this.onRedetect,
     required this.onChangeFileKind,
+    this.onLens,
     this.visible = true,
   });
 
@@ -27,6 +28,7 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onOpenNativePlayer;
   final VoidCallback onRedetect;
   final VoidCallback onChangeFileKind;
+  final VoidCallback? onLens;
   final bool visible;
 
   @override
@@ -73,16 +75,33 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
               onSelected: (value) {
                 if (value == 'redetect') onRedetect();
                 if (value == 'kind') onChangeFileKind();
+                if (value == 'toggle-faces') {
+                  onLayersChanged(layers.copyWith(faces: !layers.faces));
+                }
                 if (value == 'toggle-bodies') {
-                  onLayersChanged(layers.copyWith(bodies: true));
+                  onLayersChanged(layers.copyWith(bodies: !layers.bodies));
+                }
+                if (value == 'lens') {
+                  onLens?.call();
                 }
               },
               itemBuilder: (_) => [
+                PopupMenuItem(
+                  key: const Key('toggle-faces'),
+                  value: 'toggle-faces',
+                  child: Text(layers.faces ? 'Hide faces' : 'Show faces'),
+                ),
                 PopupMenuItem(
                   key: const Key('toggle-bodies'),
                   value: 'toggle-bodies',
                   child: Text(layers.bodies ? 'Hide bodies' : 'Show bodies'),
                 ),
+                if (media.kind == 'photo' && onLens != null)
+                  const PopupMenuItem(
+                    key: Key('google-lens'),
+                    value: 'lens',
+                    child: Text('Google Lens'),
+                  ),
                 if (media.kind == 'photo')
                   PopupMenuItem(
                     value: 'redetect',
@@ -138,18 +157,11 @@ class MediaChromeBottomBar extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   TextButton.icon(
-                    key: const Key('media-actions-share'),
+                    key: const Key('media-actions-details'),
                     style: TextButton.styleFrom(foregroundColor: Colors.white),
-                    onPressed: onShare,
-                    icon: const Icon(Icons.share_outlined),
-                    label: const Text('Share'),
-                  ),
-                  TextButton.icon(
-                    key: const Key('media-actions-studio'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.white),
-                    onPressed: onStudio,
-                    icon: const Icon(Icons.auto_awesome),
-                    label: const Text('Studio'),
+                    onPressed: onDetails,
+                    icon: const Icon(Icons.info_outline),
+                    label: const Text('Details'),
                   ),
                   if (onTools != null)
                     TextButton.icon(
@@ -162,15 +174,22 @@ class MediaChromeBottomBar extends StatelessWidget {
                       label: const Text('Tools'),
                     ),
                   TextButton.icon(
-                    key: const Key('media-actions-details'),
+                    key: const Key('media-actions-studio'),
                     style: TextButton.styleFrom(foregroundColor: Colors.white),
-                    onPressed: onDetails,
-                    icon: const Icon(Icons.info_outline),
-                    label: const Text('Details'),
+                    onPressed: onStudio,
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const Text('Studio'),
+                  ),
+                  TextButton.icon(
+                    key: const Key('media-actions-share'),
+                    style: TextButton.styleFrom(foregroundColor: Colors.white),
+                    onPressed: onShare,
+                    icon: const Icon(Icons.share_outlined),
+                    label: const Text('Share'),
                   ),
                   if (media.kind == 'photo')
                     TextButton.icon(
-                      key: const Key('google-lens'),
+                      key: const Key('media-lens-bottom'),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white,
                       ),

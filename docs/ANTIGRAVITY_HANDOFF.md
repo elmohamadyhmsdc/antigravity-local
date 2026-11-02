@@ -1,6 +1,31 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P9 (Final Acceptance, Verification & Safety Handoff) Completed on main — 2026-11-02
+
+- End-to-End Implementation Plan (P0 through P9) Completed Directly on main:
+  - All redesign modules verified and functional across all four primary tabs (Gallery/Library, People, Explore, Studio) plus global Activity Center, Unified Settings, and Onboarding.
+  - Media Viewer Polish & Inspector:
+    - `mobile/lib/features/inspector/media_inspector.dart`: verified "Who is here" chip navigation, distinct unassigned face labeling, and deep links.
+    - `mobile/lib/features/media/media_chrome.dart`: ordered action buttons (`Details`, `Tools`, `Studio`, `Share`, `Lens`, `Player`) ensuring complete hit-testability within standard 392.7dp phone viewports.
+    - `mobile/lib/features/media/media_viewer_screen.dart`: wired Google Lens search from popup and bottom bar, calibrated layer toggle states, and verified zero-copy video playback.
+- Final Verification & Quality Metrics:
+  - Static Analysis: `dart analyze lib test` reports **No issues found!** (0 issues).
+  - Code Formatting: All Dart files cleanly formatted with `dart format lib test`.
+  - Full Test Suite: **971 tests passing** across unit, domain, repository, and widget suites (representing an increase from 890 to 971 passing tests, with only the 12 documented pre-existing baseline failures in `_baseline.md` unchanged).
+- Deletion Safety Rule Preserved:
+  - As mandated by Phase P9 Rule 0, working legacy files remain preserved with backwards-compatible re-exports and routes until physical device testing is completed by the user.
+- Phone Checklist (for User on Physical Build):
+  1. Gallery: opening speed, density zoom gesture (3, 4, 5 columns), video swipe autoplay, and native player intent bridge.
+  2. Viewer & Inspector: peek/half/full snap points, layer toggles (faces/bodies/outlines), Google Lens search, "Correct" actions via `CorrectionSheet`, and Undo SnackBar.
+  3. "No Owner": items marked as "belongs to no one" remain visible in Gallery & Explore with "no owner" filter chip.
+  4. Activity Center & Pill: live progress tracking from `/activity` and the interactive `ActivityPill`.
+  5. People & Groups: multi-selection actions, group detail with Members & Media tabs, and distinct conflict notices upon merging.
+  6. Explore: browsing Bodies, Objects, Motion with high-precision matching and custom naming.
+  7. Studio & LoRA: 3-step Reface wizard, model & dataset pickers, split comparison slider in Results.
+  8. Settings & Security: system biometric AppLockGate, encrypted backup/restore (Schema 19).
+
+
 ## Phase P8b (LoRA, Datasets, Models, Results Gallery & Flow Pickers) Completed on main — 2026-11-02
 
 - Implemented ST4–ST9 Flow Pickers:

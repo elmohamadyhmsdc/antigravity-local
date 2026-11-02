@@ -497,6 +497,46 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
             ),
           ),
         ),
+        if (groupedByPerson.isNotEmpty || unassigned.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final entry in groupedByPerson.entries)
+                  ActionChip(
+                    key: Key('who-${entry.key}'),
+                    avatar: CircleAvatar(
+                      radius: 12,
+                      child: Text(
+                        widget.people[entry.key]?.name?.isNotEmpty == true
+                            ? widget.people[entry.key]!.name![0]
+                            : '?',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ),
+                    label: Text(
+                      widget.people[entry.key]?.name ?? 'Person #${entry.key}',
+                    ),
+                    onPressed: () =>
+                        context.push('${Routes.people}/${entry.key}'),
+                  ),
+                if (unassigned.isNotEmpty)
+                  const ActionChip(label: Text('Unknown'), onPressed: null),
+              ],
+            ),
+          ),
+        if (widget.media.scanStatus != 'done')
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('This photo has not been scanned yet.'),
+          )
+        else if (widget.faces.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('No faces were found in this photo.'),
+          ),
         if (allDetections.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -631,7 +671,9 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                         ),
                       ),
                     ),
-                    title: Text(d.isFace ? 'Unknown' : 'Unassigned body'),
+                    title: Text(
+                      d.isFace ? 'Unassigned face' : 'Unassigned body',
+                    ),
                     subtitle: const Text('Needs decision'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,

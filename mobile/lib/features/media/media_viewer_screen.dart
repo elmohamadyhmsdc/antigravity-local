@@ -77,7 +77,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   var _chromeVisible = true;
   var _detailsOpen = false;
   var _zoomed = false;
-  var _layers = const ViewerLayers(faces: true, bodies: true);
+  var _layers = const ViewerLayers(faces: false, bodies: false);
 
   @override
   void initState() {
@@ -575,6 +575,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
               onOpenNativePlayer: () => _openNativeVideoPlayer(context, media),
               onRedetect: () => redetectFlow(context, ref, mediaId: media.id),
               onChangeFileKind: () => _fileKindMenu(context, media),
+              onLens: () => _searchGoogleLens(context, media),
             ),
           ),
           body: Column(
