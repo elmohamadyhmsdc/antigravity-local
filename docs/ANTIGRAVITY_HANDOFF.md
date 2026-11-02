@@ -1,6 +1,29 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P8a (Studio Hub, Reface Flow, Flow Components) Completed on main — 2026-11-02
+
+- Implemented ST1 Studio Hub:
+  - `mobile/lib/features/studio/studio_screen.dart`: refactored to `TabRootScaffold` with `SegmentedBar(Create || My Library)`.
+  - In Create tab: readiness banner (`studioNeedsPc` / `studioBusyHint`), 4 hero tool cards (Reface with `Key('studio-reface')`, Restyle with `Key('studio-restyle')`, Generate with `Key('studio-generate')`, Train/LoRA with `Key('studio-lora')`), recent results section with "See all" (`Key('studio-results')`), and private results row (`Key('studio-results-row')`).
+  - In My Library tab: categorized segments (Results, Models, Datasets), action rows for `Models` (`Key('studio-models')`), `Datasets` (`Key('studio-datasets')`), and `Activity` (`Key('studio-activity')`).
+- Implemented Reusable Flow Components:
+  - `mobile/lib/ui/flow/job_submit_bar.dart`: sticky submit bar with readiness checking, validation errors, and floating SnackBar linking to `/activity` without forcing unwanted navigation.
+  - `mobile/lib/ui/flow/target_picker.dart`: reusable media target picker with change action and detection choice chips.
+  - `mobile/lib/ui/flow/identity_picker.dart`: reusable identity selector with ArcFace vs CCIP embedding indicators.
+  - `mobile/lib/ui/flow/video_trimmer.dart`: video duration trimmer with 3s min and 2min max limits.
+- Verification:
+  - `dart analyze lib test`: **0 issues**.
+  - All Phase P8a test suites passed (38 tests):
+    - `test/features/studio_test.dart` (10 passed)
+    - `test/features/contextual_studio_test.dart` (7 passed)
+    - `test/features/reface_all_faces_test.dart` (14 passed)
+    - `test/features/reface_direct_identity_test.dart` (5 passed)
+    - `test/features/reface_options_test.dart` (1 passed)
+    - `test/features/reface_trimmer_test.dart` (1 passed)
+  - All code formatted with `dart format lib test`.
+
+
 ## Phase P7 (Explore Hub, Visual Kinds, Outfits, Equipment & Actions) Completed on main — 2026-11-02
 
 - Implemented E1 Explore Hub:
