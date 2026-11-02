@@ -21,18 +21,17 @@ import '../../ui/actions/entity_action_sheet.dart';
 import '../bodies/body_naming.dart';
 import '../bodies/equipment_screens.dart';
 import '../bodies/group_pose_screens.dart';
+import '../inspector/media_inspector.dart';
 import '../marks/mark_tattoo.dart';
 import '../people/people_actions.dart' show moveToOtherKind;
 import '../scan/redetect_flow.dart';
 import '../scan/scan_progress_card.dart' show startScan;
-import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../shared/image_preview.dart';
 import '../shared/person_picker.dart';
 import 'layers_popover.dart';
 import 'media_chrome.dart';
 import 'media_page_item.dart';
-import 'video_media_view.dart';
 
 class MediaCollectionContext {
   const MediaCollectionContext({
@@ -430,88 +429,17 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     Map<int, PersonSummary> people,
   ) {
     setState(() => _detailsOpen = true);
-    showModalBottomSheet<void>(
+    MediaInspector.show(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) => DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: .75,
-          minChildSize: .3,
-          maxChildSize: .9,
-          builder: (context, controller) => ListView(
-            controller: controller,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  'Details',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              _WhoIsHere(
-                label: media.kind == 'video' ? 'People in this video' : null,
-                faces: [...faces, ...bodies.where((b) => b.personId != null)],
-                people: people,
-                mediaScanned: media.scanStatus == 'done',
-                selectedId: _selectedDetectionId,
-                onSelect: (d) {
-                  setSheetState(() => _selectedDetectionId = d.id);
-                },
-                onOpen: (d) => _showDetectionActions(context, d, people),
-                onEdit: (d) => _dispatchDetectionAction(
-                  context,
-                  d,
-                  ActionId.assignPerson,
-                  people,
-                ),
-              ),
-              for (final personId in {
-                ...faces.map((d) => d.personId),
-                ...bodies.map((d) => d.personId),
-              })
-                if (personId != null && people[personId] != null)
-                  _PersonContext(
-                    person: people[personId]!,
-                    initiallyExpanded:
-                        {
-                          ...faces.map((d) => d.personId),
-                          ...bodies.map((d) => d.personId),
-                        }.whereType<int>().length ==
-                        1,
-                    mediaId: media.id,
-                    isPhoto: media.kind == 'photo',
-                    detection: [
-                      ...faces,
-                      ...bodies,
-                    ].firstWhere((d) => d.personId == personId),
-                    onTools: (d) => _showDetectionActions(context, d, people),
-                  ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: Text(media.kind == 'video' ? 'Video' : 'Photo'),
-                subtitle: Text(
-                  [
-                    if (media.takenAt != null && media.takenAt! > 0)
-                      DateFormat.yMMMd().add_Hm().format(
-                        DateTime.fromMillisecondsSinceEpoch(media.takenAt!),
-                      ),
-                    if (media.width != null && media.height != null)
-                      '${media.width} × ${media.height}',
-                    if (media.kind == 'video' && media.durationMs != null)
-                      videoTime(media.durationMs!),
-                    media.scanStatus == 'done'
-                        ? 'Analysis complete'
-                        : 'Not analyzed',
-                  ].join(' · '),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      media: media,
+      faces: faces,
+      bodies: bodies,
+      people: people,
+      selectedDetectionId: _selectedDetectionId,
+      onSelectDetection: (d) => setState(() => _selectedDetectionId = d.id),
+      onAction: (d, action) =>
+          _dispatchDetectionAction(context, d, action, people),
+      durationMs: media.durationMs,
     ).whenComplete(() {
       if (mounted) setState(() => _detailsOpen = false);
     });
@@ -699,144 +627,6 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _WhoIsHere extends StatelessWidget {
-  const _WhoIsHere({
-    this.label,
-    this.selectedId,
-    required this.onSelect,
-    required this.faces,
-    required this.people,
-    required this.mediaScanned,
-    required this.onOpen,
-    required this.onEdit,
-  });
-
-  final String? label;
-  final int? selectedId;
-  final void Function(MediaDetection) onSelect;
-  final List<MediaDetection> faces;
-  final Map<int, PersonSummary> people;
-  final bool mediaScanned;
-  final void Function(MediaDetection) onOpen;
-  final void Function(MediaDetection) onEdit;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final seen = <int>{};
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label ?? l10n.whoIsHere,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-              const SizedBox(height: 12),
-              if (faces.isEmpty && mediaScanned)
-                Text(
-                  l10n.noFacesInPhoto,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                )
-              else if (faces.isEmpty && !mediaScanned)
-                Text(
-                  l10n.notScannedYet,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final d in faces)
-                      if (d.personId != null) ...[
-                        if (seen.add(d.personId!))
-                          InputChip(
-                            avatar: PersonAvatar(
-                              cropPath: people[d.personId]?.avatarCropPath,
-                              radius: 12,
-                              expandable: false,
-                            ),
-                            label: Text(
-                              personNameOf(l10n, d.personId!, people),
-                            ),
-                            onPressed: () => onOpen(d),
-                          ),
-                      ] else
-                        InputChip(
-                          avatar: const Icon(Icons.help_outline, size: 16),
-                          label: Text(l10n.unsortedFace),
-                          onPressed: () => onOpen(d),
-                        ),
-                  ],
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PersonContext extends ConsumerWidget {
-  const _PersonContext({
-    required this.person,
-    required this.initiallyExpanded,
-    required this.mediaId,
-    required this.isPhoto,
-    required this.detection,
-    required this.onTools,
-  });
-  final PersonSummary person;
-  final bool initiallyExpanded;
-  final int mediaId;
-  final bool isPhoto;
-  final MediaDetection detection;
-  final void Function(MediaDetection) onTools;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context);
-    return ExpansionTile(
-      initiallyExpanded: initiallyExpanded,
-      leading: PersonAvatar(
-        cropPath: person.avatarCropPath,
-        radius: 20,
-        expandable: false,
-      ),
-      title: Text(personName(l, person)),
-      subtitle: Text(
-        person.kind == 'person' ? 'Person tools and models' : 'Character tools',
-      ),
-      children: [
-        ListTile(
-          leading: const Icon(Icons.person_outline),
-          title: const Text('Open person'),
-          trailing: IconButton(
-            tooltip: 'Select for actions',
-            icon: const Icon(Icons.more_horiz),
-            onPressed: () => onTools(detection),
-          ),
-          onTap: () => context.push('${Routes.people}/${person.id}'),
-        ),
-        ListTile(
-          leading: const Icon(Icons.build_outlined),
-          title: const Text('Person tools'),
-          onTap: () => onTools(detection),
-        ),
-      ],
     );
   }
 }

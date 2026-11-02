@@ -32,6 +32,9 @@ import 'data/repositories/kind_corrections.dart';
 import 'data/repositories/review_questions.dart';
 import 'data/repositories/review_repository.dart';
 import 'domain/backup/backup_service.dart';
+import 'domain/corrections/body_link_guard.dart';
+import 'domain/corrections/correction_service.dart';
+import 'domain/corrections/corrections_queries.dart';
 import 'domain/grouping/grouping_runner.dart';
 import 'domain/scan/drawn_face_sweep.dart';
 import 'domain/scan/outline_backfill.dart';
@@ -571,3 +574,19 @@ final personMediaOrganizerProvider = Provider<PersonMediaOrganizer>(
     },
   ),
 );
+
+final bodyLinkGuardProvider = Provider<BodyLinkGuard>((ref) {
+  return BodyLinkGuard(ref.watch(databaseProvider));
+});
+
+final correctionServiceProvider = Provider<CorrectionService>((ref) {
+  return CorrectionService(
+    db: ref.watch(databaseProvider),
+    peopleRepo: ref.watch(peopleRepositoryProvider),
+    bodyLinkGuard: ref.watch(bodyLinkGuardProvider),
+  );
+});
+
+final correctionsQueriesProvider = Provider<CorrectionsQueries>((ref) {
+  return CorrectionsQueries(ref.watch(databaseProvider));
+});

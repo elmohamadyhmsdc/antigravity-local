@@ -1,6 +1,41 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P5c (Media Inspector & Correction Sheet) Completed on main — 2026-11-02
+
+- Implemented `MediaInspector` and unified workbench:
+  - `mobile/lib/features/inspector/media_inspector.dart`: `DraggableScrollableSheet` with Peek (~0.12), Half (~0.6), and Full (~0.92) snap points. Peek row displays interactive chips for each detected face/body with link status borders (`manual` / primary, `auto` / teal, `unassigned` / amber, `no_owner` / grey), count badges, and selection highlighting.
+  - Sections implemented:
+    1. **Who is here (In this photo / video):** Detection rows grouped by person, unassigned, and no owner. Each row has crop view, link source badge, "Correct" button opening `CorrectionSheet`, and overflow menu with full `EntityActionSheet` actions.
+    2. **Links:** Dynamic links from `linksForMedia` (bodies to persons, equipment to bodies) with inline "Confirm" (locks link as verified) and "Correct" buttons.
+    3. **Activities & Marks:** Tattoo marking trigger (`MarkEditorSheet`), group pose naming, and activity tags.
+    4. **Create with AI:** Studio shortcuts for Reface, Restyle (disabled for video frames with user tooltip), Similar Pose, Similar Colours, and Add to Dataset.
+    5. **File info:** Resolution, format, timestamp, scan status, with direct "Analyze now" and "Redetect" triggers.
+- Implemented `CorrectionSheet`:
+  - `mobile/lib/features/inspector/correction_sheet.dart`: unified sheet for correcting any detection or link using `CorrectionService` allowed verbs (`reassign`, `notThisPerson`, `belongsToNoOne`, `notARealThing`, `notSamePerson`, `unlink`, `confirm`).
+  - Video ScopePicker: switches between "This appearance / track" and "Whole video".
+  - Interactive preview and execution with `UndoSnackbar` (8s duration) supporting instant undo via `service.undo`.
+- Implemented `VideoTrackStrip`:
+  - `mobile/lib/features/inspector/video_track_strip.dart`: interactive timeline strip above the video scrubber displaying appearance markers along the duration, with playhead and seek synchronization.
+- Implemented `MarkEditorSheet`:
+  - `mobile/lib/features/inspector/mark_editor.dart`: bottom sheet for selecting anatomical segments, placing tattoo patches on the body crop, and adjusting size.
+- Modularized `BodyInspectionSheet`:
+  - `mobile/lib/features/inspector/body_inspect_sheet.dart`: extracted to inspector package; re-exported from `mobile/lib/features/bodies/body_inspection_sheet.dart` preserving 100% backward compatibility.
+- Providers & Integration:
+  - `mobile/lib/library_providers.dart`: added `bodyLinkGuardProvider`, `correctionServiceProvider`, and `correctionsQueriesProvider`.
+  - `mobile/lib/features/media/media_viewer_screen.dart`: wired bottom bar "Details" button to open `MediaInspector.show` and updated detection actions.
+- Verification:
+  - `flutter analyze` in `mobile/`: **0 issues**.
+  - All Phase P5c test suites passed (8 tests):
+    - `test/features/inspector/correction_sheet_test.dart` (2 passed)
+    - `test/features/inspector/video_track_strip_test.dart` (1 passed)
+    - `test/features/inspector/media_inspector_test.dart` (1 passed)
+    - `test/features/body_inspection_sheet_test.dart` (1 passed)
+    - `test/features/viewer_gestures_test.dart` (3 passed)
+  - All Phase P5b regression suites passed (20 tests).
+  - All code formatted via `dart format lib test`.
+
+
 ## Phase P5b (Media Viewer & Layers) Completed on main — 2026-11-02
 
 - Modularized `MediaScreen` into reusable feature components:
