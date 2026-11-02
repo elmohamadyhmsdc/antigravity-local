@@ -73,32 +73,55 @@ class EntityActionSheet extends ConsumerWidget {
           for (final group in groupOrder) ...[
             if (groups.containsKey(group)) ...[
               for (final spec in groups[group]!) ...[
-                ListTile(
-                  key: Key('action-sheet-${spec.id.name}'),
-                  leading: Icon(
-                    spec.icon,
-                    color: spec.isDanger ? theme.colorScheme.error : null,
-                  ),
-                  title: Text(
-                    spec.labelEn,
-                    style: TextStyle(
-                      color: spec.isDanger ? theme.colorScheme.error : null,
-                      fontWeight: spec.isDanger ? FontWeight.w600 : null,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    if (onActionSelected != null) {
-                      onActionSelected!(spec.id);
-                    } else {
-                      AppActionDispatcher.dispatch(
-                        context,
-                        ref,
-                        spec.id,
-                        entity,
-                        actionContext,
-                      );
+                Builder(
+                  builder: (context) {
+                    final legacyKey = switch (spec.id) {
+                      ActionId.assignPerson => 'box-assign',
+                      ActionId.notThisPerson => 'box-reject',
+                      ActionId.changeKind => 'box-kind',
+                      ActionId.nameGroupPose => 'box-name-group-pose',
+                      ActionId.boxEquipment => 'box-equipment',
+                      ActionId.similarPose => 'box-similar-pose',
+                      ActionId.similarColours => 'box-similar-colours',
+                      ActionId.namePose => 'box-name-pose',
+                      ActionId.markTattoo => 'box-mark-tattoo',
+                      ActionId.nameOutfit => 'box-name-outfit',
+                      ActionId.delete => 'box-delete',
+                      ActionId.open => 'box-open-person',
+                      _ => null,
+                    };
+                    final tile = ListTile(
+                      key: Key('action-sheet-${spec.id.name}'),
+                      leading: Icon(
+                        spec.icon,
+                        color: spec.isDanger ? theme.colorScheme.error : null,
+                      ),
+                      title: Text(
+                        spec.labelEn,
+                        style: TextStyle(
+                          color: spec.isDanger ? theme.colorScheme.error : null,
+                          fontWeight: spec.isDanger ? FontWeight.w600 : null,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        if (onActionSelected != null) {
+                          onActionSelected!(spec.id);
+                        } else {
+                          AppActionDispatcher.dispatch(
+                            context,
+                            ref,
+                            spec.id,
+                            entity,
+                            actionContext,
+                          );
+                        }
+                      },
+                    );
+                    if (legacyKey != null) {
+                      return KeyedSubtree(key: Key(legacyKey), child: tile);
                     }
+                    return tile;
                   },
                 ),
               ],

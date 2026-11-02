@@ -1,6 +1,31 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P5b (Media Viewer & Layers) Completed on main — 2026-11-02
+
+- Modularized `MediaScreen` into reusable feature components:
+  - `mobile/lib/features/media/layers_popover.dart`: `ViewerLayers` state, `LayerAvailability`, and `LayersPopover` for toggling faces, bodies, poses, areas, and equipment with availability badges.
+  - `mobile/lib/features/media/detection_overlay.dart`: `DetectionOverlay` rendering bounding boxes, outlines, and handling overlapping disambiguation.
+  - `mobile/lib/features/media/media_chrome.dart`: `MediaChromeTopBar` with back navigation, timestamp, layers toggle popover, native player launcher, and overflow menu; `MediaChromeBottomBar` with share, Studio shortcuts, details sheet opener, Google Lens, and player controls.
+  - `mobile/lib/features/media/media_page_item.dart`: `MediaPageViewItem` coordinating zero-copy video playback (`VideoMediaView`), image decoding with `ui.instantiateImageCodec`, double-tap zoom via `InteractiveViewer`, and gesture recognition.
+  - `mobile/lib/features/media/media_viewer_screen.dart`: top-level `MediaViewerScreen` coordinating `PageView`, horizontal swiping, auto-play, detection selection, and action dispatching.
+  - `mobile/lib/ui/actions/entity_action_sheet.dart`: added legacy key mapping (`KeyedSubtree(key: Key(legacyKey))`) ensuring backward compatibility for `box-similar-pose`, `box-open-person`, `box-assign`, `box-mark-tattoo`, `box-equipment`, etc.
+  - `mobile/lib/features/media/media_screen.dart`: light shell wrapping `MediaViewerScreen` and re-exporting context and providers.
+- Verification:
+  - `flutter analyze` in `mobile/`: **0 issues**.
+  - All Phase P5b test suites passed (20 tests):
+    - `test/features/entity_action_sheet_from_viewer_test.dart` (2 passed)
+    - `test/features/layers_popover_test.dart` (1 passed)
+    - `test/features/viewer_gestures_test.dart` (10 passed)
+    - `test/features/media_screen_native_player_test.dart` (1 passed)
+    - `test/features/video_media_view_test.dart` (1 passed)
+    - `test/features/media_target_test.dart` (1 passed)
+    - `test/features/outline_overlay_test.dart` (1 passed)
+    - `test/features/body_overlay_painter_test.dart` (1 passed)
+    - `test/features/review_viewer_test.dart` (2 passed)
+  - All code formatted via `dart format lib test`.
+
+
 ## Phase P5a (Library & Albums, MediaPicker) Completed on main — 2026-11-02
 
 - Implemented L1 Gallery Screen:
