@@ -431,19 +431,27 @@ Future<void> _merge(
 ) async {
   final repo = peopleRepositoryFor(ref, source.first.kind);
   final l = AppLocalizations.of(context);
-  final choice = await pickPerson(
-    context,
-    excludePersonId: source.length == 1 ? source.single.id : null,
-    title: l.mergeWith,
-    allowNew: false,
-    kind: source.first.kind,
-  );
-  if (choice?.personId == null || !context.mounted) return;
-  final target = await repo.person(choice!.personId!);
-  if (target == null || !context.mounted) return;
-  final members = {
-    for (final p in [...source, target]) p.id: p,
-  }.values.toList();
+  final List<PersonSummary> members;
+  final PersonSummary target;
+  if (source.length >= 2) {
+    target = source.first;
+    members = source;
+  } else {
+    final choice = await pickPerson(
+      context,
+      excludePersonId: source.length == 1 ? source.single.id : null,
+      title: l.mergeWith,
+      allowNew: false,
+      kind: source.first.kind,
+    );
+    if (choice?.personId == null || !context.mounted) return;
+    final picked = await repo.person(choice!.personId!);
+    if (picked == null || !context.mounted) return;
+    target = picked;
+    members = {
+      for (final p in [...source, picked]) p.id: p,
+    }.values.toList();
+  }
   final allFaces = <FaceItem>[];
   for (final p in members) {
     allFaces.addAll(await repo.personFaces(p.id));

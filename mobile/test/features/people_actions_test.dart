@@ -6,11 +6,28 @@ import '../support/harness.dart';
 import '../support/seed.dart';
 
 Future<void> action(WidgetTester tester, String id) async {
-  final target = find.byKey(Key('people-action-$id'));
+  var target = find.byKey(Key('people-action-$id'));
   if (target.evaluate().isEmpty) {
-    await tester.tap(find.byKey(const Key('people-more-actions')));
-    await tester.pumpAndSettle();
+    final selectionActions = find.byKey(const Key('people-selection-actions'));
+    if (selectionActions.evaluate().isNotEmpty) {
+      final messenger = ScaffoldMessenger.maybeOf(
+        tester.element(selectionActions),
+      );
+      messenger?.clearSnackBars();
+      await tester.pumpAndSettle();
+      await tester.tap(selectionActions, warnIfMissed: false);
+      await tester.pumpAndSettle();
+    }
+    target = find.byKey(Key('people-action-$id'));
+    if (target.evaluate().isEmpty) {
+      final more = find.byKey(const Key('people-more-actions'));
+      if (more.evaluate().isNotEmpty) {
+        await tester.tap(more.first, warnIfMissed: false);
+        await tester.pumpAndSettle();
+      }
+    }
   }
+  target = find.byKey(Key('people-action-$id'));
   await tester.ensureVisible(target);
   await tester.pumpAndSettle();
   await tester.tap(target);

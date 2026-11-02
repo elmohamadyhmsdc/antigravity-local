@@ -48,9 +48,31 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
   bool _selecting = false;
   final _selected = <int>{};
 
+  void _startSelection(int id) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _selecting = true;
+      _selected.add(id);
+    });
+  }
+
   void _toggle(int id) => setState(() {
     if (!_selected.remove(id)) _selected.add(id);
   });
+
+  Future<void> _runAction(List<PersonSummary> allPeople, String action) async {
+    final selectedPeople = allPeople
+        .where((p) => _selected.contains(p.id))
+        .toList();
+    if (selectedPeople.isEmpty) return;
+    await runPersonAction(context, ref, selectedPeople, action);
+    if (mounted) {
+      setState(() {
+        _selected.clear();
+        _selecting = false;
+      });
+    }
+  }
 
   Future<void> _menu(List<PersonSummary> people) async {
     final mixed = people.map((p) => p.kind).toSet().length > 1;
@@ -262,545 +284,646 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
         .toList();
     _selected.removeWhere((id) => !allPeople.any((p) => p.id == id));
 
-    return TabRootScaffold(
-      title: Text(l10n.navPeople),
-      onSettingsTap: () => context.push(Routes.settings),
-      primaryAction: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            key: const Key('people-select'),
-            tooltip: l10n.peopleAction('selection'),
-            icon: Icon(_selecting ? Icons.close : Icons.checklist),
-            onPressed: () => setState(() {
-              _selecting = !_selecting;
-              _selected.clear();
-            }),
-          ),
-          IconButton(
-            key: const Key('people-tools'),
-            tooltip: l10n.peopleAction('more'),
-            icon: Badge(
-              isLabelVisible: review > 0,
-              child: const Icon(Icons.more_horiz),
+    final selectedPeople = allPeople
+        .where((p) => _selected.contains(p.id))
+        .toList();
+    final mixedKinds = selectedPeople.map((p) => p.kind).toSet().length > 1;
+
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selecting) {
+          setState(() {
+            _selecting = false;
+            _selected.clear();
+          });
+        }
+      },
+      child: TabRootScaffold(
+        title: Text(l10n.navPeople),
+        onSettingsTap: () => context.push(Routes.settings),
+        primaryAction: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              key: const Key('people-select'),
+              tooltip: _selecting
+                  ? l10n.cancel
+                  : l10n.peopleAction('selection'),
+              icon: Icon(_selecting ? Icons.close : Icons.checklist),
+              onPressed: () => setState(() {
+                _selecting = !_selecting;
+                _selected.clear();
+              }),
             ),
-            onPressed: () =>
-                _showToolsSheet(context, review, scopedKind, characters),
-          ),
-        ],
-      ),
-      floatingActionButton: _selecting
-          ? null
-          : FloatingActionButton(
-              key: const Key('people-add'),
-              tooltip: _kind == 'group'
-                  ? l10n.identityGroupCreate
-                  : l10n.createPerson,
-              onPressed: () async {
-                if (_kind == 'group') {
-                  final name = await NameSheet.show(
-                    context: context,
-                    title: l10n.identityGroupCreate,
-                    hintText: l10n.identityGroupNameHint,
-                  );
-                  if (!mounted) return;
-                  if (name != null && name.isNotEmpty) {
-                    await ref
-                        .read(identityGroupsRepositoryProvider)
-                        .create(name);
-                  }
-                } else {
-                  final name = await NameSheet.show(
-                    context: context,
-                    title: l10n.createPerson,
-                  );
-                  if (!mounted) return;
-                  if (name != null && name.isNotEmpty) {
-                    final targetKind = _kind == 'character'
-                        ? 'character'
-                        : 'person';
-                    final id = await peopleRepositoryFor(
-                      ref,
-                      targetKind,
-                    ).createPerson(name: name);
-                    if (context.mounted) {
-                      context.push('${Routes.people}/$id');
+            if (!_selecting)
+              IconButton(
+                key: const Key('people-tools'),
+                tooltip: l10n.peopleAction('more'),
+                icon: Badge(
+                  isLabelVisible: review > 0,
+                  child: const Icon(Icons.more_horiz),
+                ),
+                onPressed: () =>
+                    _showToolsSheet(context, review, scopedKind, characters),
+              ),
+          ],
+        ),
+        floatingActionButton: _selecting
+            ? null
+            : FloatingActionButton(
+                key: const Key('people-add'),
+                tooltip: _kind == 'group'
+                    ? l10n.identityGroupCreate
+                    : l10n.createPerson,
+                onPressed: () async {
+                  if (_kind == 'group') {
+                    final name = await NameSheet.show(
+                      context: context,
+                      title: l10n.identityGroupCreate,
+                      hintText: l10n.identityGroupNameHint,
+                    );
+                    if (!mounted) return;
+                    if (name != null && name.isNotEmpty) {
+                      await ref
+                          .read(identityGroupsRepositoryProvider)
+                          .create(name);
+                    }
+                  } else {
+                    final name = await NameSheet.show(
+                      context: context,
+                      title: l10n.createPerson,
+                    );
+                    if (!mounted) return;
+                    if (name != null && name.isNotEmpty) {
+                      final targetKind = _kind == 'character'
+                          ? 'character'
+                          : 'person';
+                      final id = await peopleRepositoryFor(
+                        ref,
+                        targetKind,
+                      ).createPerson(name: name);
+                      if (context.mounted) {
+                        context.push('${Routes.people}/$id');
+                      }
                     }
                   }
-                }
-              },
-              child: const Icon(Icons.add),
-            ),
-      bottomNavigationBar: !_selecting
-          ? null
-          : SafeArea(
-              top: false,
-              child: Material(
-                color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                },
+                child: const Icon(Icons.add),
+              ),
+        bottomNavigationBar: !_selecting
+            ? null
+            : SafeArea(
+                top: false,
+                child: Material(
+                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                  elevation: 4,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(l10n.selectedCount(_selected.length)),
-                      TextButton(
-                        onPressed: () => setState(
-                          () => _selected.addAll(visible.map((p) => p.id)),
-                        ),
-                        child: Text(l10n.selectAll),
-                      ),
-                      TextButton(
-                        onPressed: () => setState(() {
-                          final next = visible
-                              .map((p) => p.id)
-                              .where((id) => !_selected.contains(id))
-                              .toSet();
-                          _selected
-                            ..clear()
-                            ..addAll(next);
-                        }),
-                        child: Text(l10n.peopleAction('invert')),
-                      ),
-                      FilledButton(
-                        key: const Key('people-selection-actions'),
-                        onPressed: _selected.isEmpty
-                            ? null
-                            : () => _menu(
-                                allPeople
-                                    .where((p) => _selected.contains(p.id))
-                                    .toList(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        child: Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: Text(
+                                l10n.selectedCount(_selected.length),
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold),
                               ),
-                        child: Text(l10n.peopleAction('more')),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                  onPressed: () => setState(
+                                    () =>
+                                        _selected.addAll(visible.map((p) => p.id)),
+                                  ),
+                                  child: Text(l10n.selectAll),
+                                ),
+                                TextButton(
+                                  onPressed: () => setState(() {
+                                    final next = visible
+                                        .map((p) => p.id)
+                                        .where((id) => !_selected.contains(id))
+                                        .toSet();
+                                    _selected
+                                      ..clear()
+                                      ..addAll(next);
+                                  }),
+                                  child: Text(l10n.peopleAction('invert')),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            if (!mixedKinds)
+                              _SelectionActionButton(
+                                key: const Key('people-action-merge'),
+                                icon: Icons.merge,
+                                label: l10n.peopleAction('merge'),
+                                enabled: _selected.isNotEmpty,
+                                onPressed: () => _runAction(allPeople, 'merge'),
+                              ),
+                            if (_selected.length == 1)
+                              _SelectionActionButton(
+                                key: const Key('people-action-rename'),
+                                icon: Icons.edit_outlined,
+                                label: l10n.rename,
+                                enabled: true,
+                                onPressed: () =>
+                                    _runAction(allPeople, 'rename'),
+                              ),
+                            _SelectionActionButton(
+                              key: const Key('people-action-setGroup'),
+                              icon: Icons.folder_outlined,
+                              label: l10n.identityGroupsTitle,
+                              enabled: _selected.isNotEmpty,
+                              onPressed: () =>
+                                  _runAction(allPeople, 'setGroup'),
+                            ),
+                            _SelectionActionButton(
+                              key: const Key('people-action-deletePerson'),
+                              icon: Icons.delete_outline,
+                              label: l10n.delete,
+                              color: Theme.of(context).colorScheme.error,
+                              enabled: _selected.isNotEmpty,
+                              onPressed: () =>
+                                  _runAction(allPeople, 'deletePerson'),
+                            ),
+                            _SelectionActionButton(
+                              key: const Key('people-selection-actions'),
+                              icon: Icons.more_horiz,
+                              label: l10n.peopleAction('more'),
+                              enabled: _selected.isNotEmpty,
+                              onPressed: () => _menu(selectedPeople),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!_selecting)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    ChoiceChip(
-                      key: const Key('open-all-types'),
-                      visualDensity: VisualDensity.compact,
-                      labelPadding: EdgeInsets.zero,
-                      label: const Text('All types'),
-                      selected: allKinds,
-                      showCheckmark: false,
-                      onSelected: (_) => setState(() {
-                        _kind = 'all';
-                        _selected.clear();
-                      }),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      key: const Key('open-people'),
-                      visualDensity: VisualDensity.compact,
-                      labelPadding: EdgeInsets.zero,
-                      label: Text(l10n.navPeople),
-                      selected: _kind == 'person',
-                      showCheckmark: false,
-                      onSelected: (_) => setState(() {
-                        _kind = 'person';
-                        _selected.clear();
-                      }),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      key: const Key('open-characters'),
-                      visualDensity: VisualDensity.compact,
-                      labelPadding: EdgeInsets.zero,
-                      label: Text(l10n.peopleCharacters),
-                      selected: characters,
-                      showCheckmark: false,
-                      onSelected: (_) => setState(() {
-                        _kind = 'character';
-                        _selected.clear();
-                      }),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      key: const Key('open-groups'),
-                      visualDensity: VisualDensity.compact,
-                      labelPadding: EdgeInsets.zero,
-                      label: Text(l10n.identityGroupsTitle),
-                      selected: _kind == 'group',
-                      showCheckmark: false,
-                      onSelected: (_) => setState(() {
-                        _kind = 'group';
-                        _selected.clear();
-                      }),
-                    ),
-                  ],
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!_selecting)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      ChoiceChip(
+                        key: const Key('open-all-types'),
+                        visualDensity: VisualDensity.compact,
+                        labelPadding: EdgeInsets.zero,
+                        label: const Text('All types'),
+                        selected: allKinds,
+                        showCheckmark: false,
+                        onSelected: (_) => setState(() {
+                          _kind = 'all';
+                          _selected.clear();
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        key: const Key('open-people'),
+                        visualDensity: VisualDensity.compact,
+                        labelPadding: EdgeInsets.zero,
+                        label: Text(l10n.navPeople),
+                        selected: _kind == 'person',
+                        showCheckmark: false,
+                        onSelected: (_) => setState(() {
+                          _kind = 'person';
+                          _selected.clear();
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        key: const Key('open-characters'),
+                        visualDensity: VisualDensity.compact,
+                        labelPadding: EdgeInsets.zero,
+                        label: Text(l10n.peopleCharacters),
+                        selected: characters,
+                        showCheckmark: false,
+                        onSelected: (_) => setState(() {
+                          _kind = 'character';
+                          _selected.clear();
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        key: const Key('open-groups'),
+                        visualDensity: VisualDensity.compact,
+                        labelPadding: EdgeInsets.zero,
+                        label: Text(l10n.identityGroupsTitle),
+                        selected: _kind == 'group',
+                        showCheckmark: false,
+                        onSelected: (_) => setState(() {
+                          _kind = 'group';
+                          _selected.clear();
+                        }),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          Expanded(
-            child: people.when(
-              loading: () => const LoadingBox(),
-              error: (e, _) => EmptyState(
-                icon: Icons.people_outline,
-                title: '$e',
-                actionLabel: l10n.retry,
-                onAction: () => ref.invalidate(listProvider),
-              ),
-              data: (all) {
-                if (all.isEmpty && unsorted == 0) {
-                  return EmptyState(
-                    icon: characters
-                        ? Icons.auto_awesome_outlined
-                        : Icons.groups_outlined,
-                    title: characters
-                        ? l10n.charactersEmpty
-                        : l10n.noPeopleTitle,
-                    body: characters
-                        ? l10n.charactersEmptyHint
-                        : l10n.noPeopleBody,
-                    actionLabel: l10n.scanLibrary,
-                    onAction: () => context.push(Routes.sources),
-                  );
-                }
-                final shown = [...visible];
-                switch (_sort) {
-                  case PeopleSort.mostFaces:
-                    break; // the query already orders by face count
-                  case PeopleSort.name:
-                    shown.sort(
-                      (a, b) => personName(l10n, a).toLowerCase().compareTo(
-                        personName(l10n, b).toLowerCase(),
-                      ),
+            Expanded(
+              child: people.when(
+                loading: () => const LoadingBox(),
+                error: (e, _) => EmptyState(
+                  icon: Icons.people_outline,
+                  title: '$e',
+                  actionLabel: l10n.retry,
+                  onAction: () => ref.invalidate(listProvider),
+                ),
+                data: (all) {
+                  if (all.isEmpty && unsorted == 0) {
+                    return EmptyState(
+                      icon: characters
+                          ? Icons.auto_awesome_outlined
+                          : Icons.groups_outlined,
+                      title: characters
+                          ? l10n.charactersEmpty
+                          : l10n.noPeopleTitle,
+                      body: characters
+                          ? l10n.charactersEmptyHint
+                          : l10n.noPeopleBody,
+                      actionLabel: l10n.scanLibrary,
+                      onAction: () => context.push(Routes.sources),
                     );
-                  case PeopleSort.newest:
-                    shown.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                }
-                shown.sort((a, b) {
-                  final pin = (b.pinned ? 1 : 0).compareTo(a.pinned ? 1 : 0);
-                  if (pin != 0) return pin;
-                  return switch (_sort) {
-                    PeopleSort.name =>
-                      personName(l10n, a).toLowerCase().compareTo(
-                        personName(l10n, b).toLowerCase(),
+                  }
+                  final shown = [...visible];
+                  switch (_sort) {
+                    case PeopleSort.mostFaces:
+                      break; // the query already orders by face count
+                    case PeopleSort.name:
+                      shown.sort(
+                        (a, b) => personName(l10n, a).toLowerCase().compareTo(
+                          personName(l10n, b).toLowerCase(),
+                        ),
+                      );
+                    case PeopleSort.newest:
+                      shown.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                  }
+                  shown.sort((a, b) {
+                    final pin = (b.pinned ? 1 : 0).compareTo(a.pinned ? 1 : 0);
+                    if (pin != 0) return pin;
+                    return switch (_sort) {
+                      PeopleSort.name =>
+                        personName(l10n, a).toLowerCase().compareTo(
+                          personName(l10n, b).toLowerCase(),
+                        ),
+                      PeopleSort.newest => b.createdAt.compareTo(a.createdAt),
+                      PeopleSort.mostFaces => b.faceCount.compareTo(
+                        a.faceCount,
                       ),
-                    PeopleSort.newest => b.createdAt.compareTo(a.createdAt),
-                    PeopleSort.mostFaces => b.faceCount.compareTo(a.faceCount),
-                  };
-                });
-                return CustomScrollView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Column(
-                        children: [
-                          if (questions > 0 && !_selecting)
-                            ReviewBanner(
-                              key: const Key('people-review-banner'),
-                              icon: Icons.swipe_outlined,
-                              title: l10n.peopleReviewBanner(questions),
-                              body: l10n.peopleReviewBannerBody,
-                              onTap: () => _openReview(quick: true),
-                            ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
-                            child: TextField(
-                              key: const Key('people-search'),
-                              controller: _search,
-                              decoration: InputDecoration(
-                                prefixIcon: const Icon(Icons.search_rounded),
-                                suffixIcon: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (_query.isNotEmpty)
-                                      IconButton(
-                                        key: const Key('people-clear-search'),
-                                        tooltip: l10n.clearSearch,
-                                        onPressed: _clearSearch,
-                                        icon: const Icon(Icons.close_rounded),
+                    };
+                  });
+                  return CustomScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Column(
+                          children: [
+                            if (questions > 0 && !_selecting)
+                              ReviewBanner(
+                                key: const Key('people-review-banner'),
+                                icon: Icons.swipe_outlined,
+                                title: l10n.peopleReviewBanner(questions),
+                                body: l10n.peopleReviewBannerBody,
+                                onTap: () => _openReview(quick: true),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+                              child: TextField(
+                                key: const Key('people-search'),
+                                controller: _search,
+                                decoration: InputDecoration(
+                                  prefixIcon: const Icon(Icons.search_rounded),
+                                  suffixIcon: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_query.isNotEmpty)
+                                        IconButton(
+                                          key: const Key('people-clear-search'),
+                                          tooltip: l10n.clearSearch,
+                                          onPressed: _clearSearch,
+                                          icon: const Icon(Icons.close_rounded),
+                                        ),
+                                      PopupMenuButton<PeopleSort>(
+                                        key: const Key('people-sort'),
+                                        tooltip: l10n.sortBy,
+                                        icon: const Icon(Icons.sort),
+                                        initialValue: _sort,
+                                        onSelected: (v) =>
+                                            setState(() => _sort = v),
+                                        itemBuilder: (context) => [
+                                          CheckedPopupMenuItem(
+                                            value: PeopleSort.mostFaces,
+                                            checked:
+                                                _sort == PeopleSort.mostFaces,
+                                            child: Text(l10n.sortMostFaces),
+                                          ),
+                                          CheckedPopupMenuItem(
+                                            value: PeopleSort.name,
+                                            checked: _sort == PeopleSort.name,
+                                            child: Text(l10n.sortName),
+                                          ),
+                                          CheckedPopupMenuItem(
+                                            value: PeopleSort.newest,
+                                            checked: _sort == PeopleSort.newest,
+                                            child: Text(l10n.sortNewest),
+                                          ),
+                                        ],
                                       ),
-                                    PopupMenuButton<PeopleSort>(
-                                      key: const Key('people-sort'),
-                                      tooltip: l10n.sortBy,
-                                      icon: const Icon(Icons.sort),
-                                      initialValue: _sort,
-                                      onSelected: (v) =>
-                                          setState(() => _sort = v),
-                                      itemBuilder: (context) => [
-                                        CheckedPopupMenuItem(
-                                          value: PeopleSort.mostFaces,
-                                          checked:
-                                              _sort == PeopleSort.mostFaces,
-                                          child: Text(l10n.sortMostFaces),
+                                    ],
+                                  ),
+                                  hintText: characters
+                                      ? l10n.peopleSearchCharacters
+                                      : l10n.searchPeopleHint,
+                                  filled: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                                onChanged: (v) => setState(() => _query = v),
+                              ),
+                            ),
+                            if (groups.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  14,
+                                  4,
+                                  14,
+                                  8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: DropdownButtonFormField<int>(
+                                        key: ValueKey(
+                                          'people-group-filter-$groupId',
                                         ),
-                                        CheckedPopupMenuItem(
-                                          value: PeopleSort.name,
-                                          checked: _sort == PeopleSort.name,
-                                          child: Text(l10n.sortName),
+                                        initialValue: groupId ?? 0,
+                                        isExpanded: true,
+                                        decoration: InputDecoration(
+                                          labelText: l10n.identityGroupsTitle,
                                         ),
-                                        CheckedPopupMenuItem(
-                                          value: PeopleSort.newest,
-                                          checked: _sort == PeopleSort.newest,
-                                          child: Text(l10n.sortNewest),
-                                        ),
-                                      ],
+                                        items: [
+                                          DropdownMenuItem(
+                                            value: 0,
+                                            child: Text(l10n.identityGroupAll),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: -1,
+                                            child: Text(
+                                              l10n.identityGroupUngrouped,
+                                            ),
+                                          ),
+                                          for (final group in groups)
+                                            DropdownMenuItem(
+                                              value: group.id,
+                                              child: Text(
+                                                group.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                        ],
+                                        onChanged: (id) => setState(() {
+                                          _groupId = id == 0 ? null : id;
+                                          _selected.clear();
+                                        }),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      key: const Key('people-manage-groups'),
+                                      tooltip: l10n.identityGroupsTitle,
+                                      onPressed: () =>
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute<void>(
+                                              builder: (_) =>
+                                                  IdentityGroupsScreen(
+                                                    kind: scopedKind,
+                                                  ),
+                                            ),
+                                          ),
+                                      icon: const Icon(
+                                        Icons.create_new_folder_outlined,
+                                      ),
                                     ),
                                   ],
                                 ),
-                                hintText: characters
-                                    ? l10n.peopleSearchCharacters
-                                    : l10n.searchPeopleHint,
-                                filled: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
                               ),
-                              onChanged: (v) => setState(() => _query = v),
-                            ),
-                          ),
-                          if (groups.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: DropdownButtonFormField<int>(
-                                      key: ValueKey(
-                                        'people-group-filter-$groupId',
-                                      ),
-                                      initialValue: groupId ?? 0,
-                                      isExpanded: true,
-                                      decoration: InputDecoration(
-                                        labelText: l10n.identityGroupsTitle,
-                                      ),
-                                      items: [
-                                        DropdownMenuItem(
-                                          value: 0,
-                                          child: Text(l10n.identityGroupAll),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                ),
+                                child: Row(
+                                  children: [
+                                    for (final filter in [
+                                      'all',
+                                      'favorites',
+                                      'pinned',
+                                      'hidden',
+                                    ])
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 8,
                                         ),
-                                        DropdownMenuItem(
-                                          value: -1,
-                                          child: Text(
-                                            l10n.identityGroupUngrouped,
+                                        child: ChoiceChip(
+                                          key: Key('people-filter-$filter'),
+                                          avatar: switch (filter) {
+                                            'favorites' => const Icon(
+                                              Icons.star_rounded,
+                                              size: 16,
+                                            ),
+                                            'pinned' => const Icon(
+                                              Icons.push_pin_rounded,
+                                              size: 16,
+                                            ),
+                                            'hidden' => const Icon(
+                                              Icons.visibility_off_rounded,
+                                              size: 16,
+                                            ),
+                                            _ => null,
+                                          },
+                                          label: Text(
+                                            l10n.peopleAction(filter),
                                           ),
-                                        ),
-                                        for (final group in groups)
-                                          DropdownMenuItem(
-                                            value: group.id,
-                                            child: Text(
-                                              group.name,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                          selected: _filter == filter,
+                                          onSelected: (_) => setState(() {
+                                            _filter = filter;
+                                            _selected.clear();
+                                          }),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              20,
                                             ),
                                           ),
-                                      ],
-                                      onChanged: (id) => setState(() {
-                                        _groupId = id == 0 ? null : id;
-                                        _selected.clear();
-                                      }),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    key: const Key('people-manage-groups'),
-                                    tooltip: l10n.identityGroupsTitle,
-                                    onPressed: () => Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => IdentityGroupsScreen(
-                                          kind: scopedKind,
                                         ),
                                       ),
-                                    ),
-                                    icon: const Icon(
-                                      Icons.create_new_folder_outlined,
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                              ),
-                              child: Row(
-                                children: [
-                                  for (final filter in [
-                                    'all',
-                                    'favorites',
-                                    'pinned',
-                                    'hidden',
-                                  ])
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 8),
-                                      child: ChoiceChip(
-                                        key: Key('people-filter-$filter'),
-                                        avatar: switch (filter) {
-                                          'favorites' => const Icon(
-                                            Icons.star_rounded,
-                                            size: 16,
-                                          ),
-                                          'pinned' => const Icon(
-                                            Icons.push_pin_rounded,
-                                            size: 16,
-                                          ),
-                                          'hidden' => const Icon(
-                                            Icons.visibility_off_rounded,
-                                            size: 16,
-                                          ),
-                                          _ => null,
-                                        },
-                                        label: Text(l10n.peopleAction(filter)),
-                                        selected: _filter == filter,
-                                        onSelected: (_) => setState(() {
-                                          _filter = filter;
-                                          _selected.clear();
-                                        }),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (shown.isEmpty &&
-                        (q.isNotEmpty ||
-                            _filter != 'all' ||
-                            groupId != null ||
-                            unsorted == 0))
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: EmptyState(
-                          icon: Icons.person_search_outlined,
-                          title: q.isNotEmpty
-                              ? l10n.peopleNoMatches
-                              : l10n.peopleAction('noResults'),
-                          actionLabel: q.isNotEmpty
-                              ? l10n.clearSearch
-                              : l10n.clearFilters,
-                          onAction: q.isNotEmpty
-                              ? _clearSearch
-                              : () => setState(() {
-                                  _filter = 'all';
-                                  _groupId = null;
-                                }),
+                          ],
                         ),
-                      )
-                    else
-                      SliverLayoutBuilder(
-                        builder: (context, constraints) {
-                          final width = constraints.crossAxisExtent;
-                          // Responsive column count: 3 on normal phones (< 480dp width),
-                          // 4 on wider screens / landscape (480dp - 720dp),
-                          // 5+ on tablets / desktop (>= 720dp).
-                          final crossAxisCount = width < 480
-                              ? 3
-                              : width < 720
-                              ? 4
-                              : (width / 140).floor().clamp(4, 8);
-                          const crossAxisSpacing = 8.0;
-                          const mainAxisSpacing = 10.0;
-                          const horizontalPadding = 12.0;
-
-                          final totalSpacing =
-                              (crossAxisCount - 1) * crossAxisSpacing;
-                          final cardWidth =
-                              (width - (horizontalPadding * 2) - totalSpacing) /
-                              crossAxisCount;
-                          final avatarRadius = (cardWidth * 0.28).clamp(
-                            30.0,
-                            42.0,
-                          );
-
-                          final textScaler = MediaQuery.textScalerOf(context);
-                          final textScaleDelta = (textScaler.scale(14) - 14)
-                              .clamp(0.0, 30.0);
-                          final mainAxisExtent =
-                              64.0 +
-                              (avatarRadius * 2) +
-                              textScaleDelta * 2.5 +
-                              (shown.any((p) => p.groupName != null)
-                                  ? 22 + textScaleDelta
-                                  : 0);
-
-                          return SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(
-                              horizontalPadding,
-                              2,
-                              horizontalPadding,
-                              24,
-                            ),
-                            sliver: SliverGrid(
-                              key: const Key('people-grid'),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: crossAxisCount,
-                                    crossAxisSpacing: crossAxisSpacing,
-                                    mainAxisSpacing: mainAxisSpacing,
-                                    mainAxisExtent: mainAxisExtent,
-                                  ),
-                              delegate: SliverChildListDelegate([
-                                if ((allKinds ? humanUnsorted : unsorted) > 0 &&
-                                    q.isEmpty &&
-                                    _filter == 'all' &&
-                                    groupId == null &&
-                                    !_selecting)
-                                  _UnsortedCard(
-                                    count: allKinds ? humanUnsorted : unsorted,
-                                    avatarRadius: avatarRadius,
-                                    kind: scopedKind,
-                                  ),
-                                if (allKinds &&
-                                    characterUnsorted > 0 &&
-                                    q.isEmpty &&
-                                    _filter == 'all' &&
-                                    groupId == null &&
-                                    !_selecting)
-                                  _UnsortedCard(
-                                    count: characterUnsorted,
-                                    avatarRadius: avatarRadius,
-                                    kind: 'character',
-                                  ),
-                                if (_kind == 'group')
-                                  for (final g in groups)
-                                    _GroupCard(
-                                      group: g,
-                                      avatarRadius: avatarRadius,
-                                    )
-                                else
-                                  for (final p in shown)
-                                    _PersonCard(
-                                      person: p,
-                                      selecting: _selecting,
-                                      selected: _selected.contains(p.id),
-                                      onToggle: () => _toggle(p.id),
-                                      onMenu: () => _menu([p]),
-                                      avatarRadius: avatarRadius,
-                                    ),
-                              ]),
-                            ),
-                          );
-                        },
                       ),
-                  ],
-                );
-              },
+                      if (shown.isEmpty &&
+                          (q.isNotEmpty ||
+                              _filter != 'all' ||
+                              groupId != null ||
+                              unsorted == 0))
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: EmptyState(
+                            icon: Icons.person_search_outlined,
+                            title: q.isNotEmpty
+                                ? l10n.peopleNoMatches
+                                : l10n.peopleAction('noResults'),
+                            actionLabel: q.isNotEmpty
+                                ? l10n.clearSearch
+                                : l10n.clearFilters,
+                            onAction: q.isNotEmpty
+                                ? _clearSearch
+                                : () => setState(() {
+                                    _filter = 'all';
+                                    _groupId = null;
+                                  }),
+                          ),
+                        )
+                      else
+                        SliverLayoutBuilder(
+                          builder: (context, constraints) {
+                            final width = constraints.crossAxisExtent;
+                            // Responsive column count: 3 on normal phones (< 480dp width),
+                            // 4 on wider screens / landscape (480dp - 720dp),
+                            // 5+ on tablets / desktop (>= 720dp).
+                            final crossAxisCount = width < 480
+                                ? 3
+                                : width < 720
+                                ? 4
+                                : (width / 140).floor().clamp(4, 8);
+                            const crossAxisSpacing = 8.0;
+                            const mainAxisSpacing = 10.0;
+                            const horizontalPadding = 12.0;
+
+                            final totalSpacing =
+                                (crossAxisCount - 1) * crossAxisSpacing;
+                            final cardWidth =
+                                (width -
+                                    (horizontalPadding * 2) -
+                                    totalSpacing) /
+                                crossAxisCount;
+                            final avatarRadius = (cardWidth * 0.28).clamp(
+                              30.0,
+                              42.0,
+                            );
+
+                            final textScaler = MediaQuery.textScalerOf(context);
+                            final textScaleDelta = (textScaler.scale(14) - 14)
+                                .clamp(0.0, 30.0);
+                            final mainAxisExtent =
+                                64.0 +
+                                (avatarRadius * 2) +
+                                textScaleDelta * 2.5 +
+                                (shown.any((p) => p.groupName != null)
+                                    ? 22 + textScaleDelta
+                                    : 0);
+
+                            return SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                2,
+                                horizontalPadding,
+                                24,
+                              ),
+                              sliver: SliverGrid(
+                                key: const Key('people-grid'),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: crossAxisCount,
+                                      crossAxisSpacing: crossAxisSpacing,
+                                      mainAxisSpacing: mainAxisSpacing,
+                                      mainAxisExtent: mainAxisExtent,
+                                    ),
+                                delegate: SliverChildListDelegate([
+                                  if ((allKinds ? humanUnsorted : unsorted) >
+                                          0 &&
+                                      q.isEmpty &&
+                                      _filter == 'all' &&
+                                      groupId == null &&
+                                      !_selecting)
+                                    _UnsortedCard(
+                                      count: allKinds
+                                          ? humanUnsorted
+                                          : unsorted,
+                                      avatarRadius: avatarRadius,
+                                      kind: scopedKind,
+                                    ),
+                                  if (allKinds &&
+                                      characterUnsorted > 0 &&
+                                      q.isEmpty &&
+                                      _filter == 'all' &&
+                                      groupId == null &&
+                                      !_selecting)
+                                    _UnsortedCard(
+                                      count: characterUnsorted,
+                                      avatarRadius: avatarRadius,
+                                      kind: 'character',
+                                    ),
+                                  if (_kind == 'group')
+                                    for (final g in groups)
+                                      _GroupCard(
+                                        group: g,
+                                        avatarRadius: avatarRadius,
+                                      )
+                                  else
+                                    for (final p in shown)
+                                      _PersonCard(
+                                        person: p,
+                                        selecting: _selecting,
+                                        selected: _selected.contains(p.id),
+                                        onToggle: () => _toggle(p.id),
+                                        onStartSelection: () =>
+                                            _startSelection(p.id),
+                                        onMenu: () => _menu([p]),
+                                        avatarRadius: avatarRadius,
+                                      ),
+                                ]),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -812,13 +935,14 @@ class _PersonCard extends StatelessWidget {
     required this.selecting,
     required this.selected,
     required this.onToggle,
+    required this.onStartSelection,
     required this.onMenu,
     this.avatarRadius = 34,
   });
 
   final PersonSummary person;
   final bool selecting, selected;
-  final VoidCallback onToggle, onMenu;
+  final VoidCallback onToggle, onStartSelection, onMenu;
   final double avatarRadius;
 
   @override
@@ -839,11 +963,11 @@ class _PersonCard extends StatelessWidget {
             ? onToggle
             : () => context.push('${Routes.people}/${person.id}'),
         onLongPress: () {
-          HapticFeedback.selectionClick();
+          HapticFeedback.mediumImpact();
           if (selecting) {
             onToggle();
           } else {
-            onMenu();
+            onStartSelection();
           }
         },
         child: AnimatedContainer(
@@ -858,19 +982,19 @@ class _PersonCard extends StatelessWidget {
               color: isSelected
                   ? scheme.primary
                   : scheme.outlineVariant.withValues(alpha: 0.35),
-              width: isSelected ? 1.5 : 1.0,
+              width: isSelected ? 2.0 : 1.0,
             ),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: scheme.primary.withValues(alpha: 0.15),
-                      blurRadius: 6,
+                      color: scheme.primary.withValues(alpha: 0.2),
+                      blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
                   ]
                 : [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 4,
                       offset: const Offset(0, 1),
                     ),
@@ -900,6 +1024,7 @@ class _PersonCard extends StatelessWidget {
                       child: PersonAvatar(
                         cropPath: person.avatarCropPath,
                         radius: avatarRadius,
+                        expandable: false,
                       ),
                     ),
                     if (selecting)
@@ -912,14 +1037,25 @@ class _PersonCard extends StatelessWidget {
                           child: Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: scheme.surface,
+                              color: isSelected
+                                  ? scheme.primary
+                                  : scheme.surface,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 4,
+                                ),
+                              ],
                             ),
+                            padding: const EdgeInsets.all(1.5),
                             child: Icon(
-                              selected
+                              isSelected
                                   ? Icons.check_circle_rounded
                                   : Icons.radio_button_unchecked_rounded,
-                              size: 22,
-                              color: selected ? scheme.primary : scheme.outline,
+                              size: 20,
+                              color: isSelected
+                                  ? scheme.onPrimary
+                                  : scheme.outline,
                             ),
                           ),
                         ),
@@ -1227,6 +1363,67 @@ class _GroupCard extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectionActionButton extends StatelessWidget {
+  const _SelectionActionButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.enabled = true,
+    this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool enabled;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final effectiveColor = enabled
+        ? (color ?? scheme.onSurface)
+        : scheme.onSurface.withValues(alpha: 0.38);
+
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: enabled
+            ? () {
+                HapticFeedback.selectionClick();
+                onPressed?.call();
+              }
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: effectiveColor, size: 22),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.1),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: effectiveColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 10,
+                ),
+              ),
               ),
             ],
           ),

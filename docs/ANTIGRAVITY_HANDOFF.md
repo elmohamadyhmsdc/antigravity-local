@@ -1,6 +1,53 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Targeted On-Demand Detection & In-Viewer Correction Completed on main — 2026-11-02
+
+- User Request:
+  - Add on-demand targeted detection directly inside the media viewer (`/media/:id`) for:
+    1. Exposed Areas (`area`): detect any exposed skin/region with high accuracy, returning precise outlines, with custom naming chosen by the user (not auto-forced).
+    2. Bodies (`body`): on-demand high-accuracy body detection overcoming standard 640 downsampling.
+    3. Faces (`face`): high-accuracy/native-resolution ROI detection for small/profile faces.
+    4. Objects (`object`): equipment and item detection via Florence-2 open-vocabulary grounding.
+    5. In-viewer correction: ability to adjust box dimensions/handles, name, link to a person, and choose video scope (this frame / this appearance track / whole video) with full Undo directly on the photo/video.
+- Server Architecture & Engines (`the app/`):
+  - `the app/mobile_api/routes_analyze.py`: added `POST /v1/analyze/targeted` endpoint accepting `target_kind` (`area`, `body`, `face`, `object`), `roi` (`[x, y, w, h]` normalized), `prompt`, and `high_res` boolean. Includes fallback container logic when ROI has no model hit.
+  - `the app/mobile_api/engines.py`: added `targeted_analyze` method:
+    - `face`: runs native-resolution crop InsightFace Buffalo_l.
+    - `area`: runs SAM (Segment Anything Model) with bounding box prompt returning precise binary polygon mask.
+    - `body`: runs native-resolution crop YOLOX / RTMPose.
+    - `object`: runs Florence-2 open-vocabulary grounding with prompt.
+  - Verification: `the app/test_targeted_analysis.py` (4 tests passed), `the app/test_mobile_api_contract.py` (31/31 contract tests passed).
+- Mobile Architecture & Features (`mobile/`):
+  - DTOs & API Client:
+    - `mobile/lib/data/api/dtos/targeted.dart`: `TargetedDetectionItem` and `TargetedAnalysisResponse`.
+    - `mobile/lib/data/api/mobile_api.dart`: added `analyzeTargeted(...)` to interface and `HttpMobileApi`.
+  - Domain Service & Schema v19 Persistence:
+    - `mobile/lib/domain/corrections/targeted_detection_service.dart`: `TargetedDetectionService` persists newly targeted or corrected items into Drift database tables (`Bodies`, `Faces`, `EquipmentObjects`, `settings` for area names, and `BodyOverrides` / `FaceOverrides` for custom bounds) and provides snapshot-based `undo`.
+    - `mobile/lib/library_providers.dart`: registered `targetedDetectionServiceProvider`.
+  - Interactive ROI Selection Overlay:
+    - `mobile/lib/features/media/roi_selection_overlay.dart`: `RoiSelectionOverlay` with 8 corner/edge resize handles (`roi-handle-tl/t/tr/r/br/b/bl/l`), center pan moving, and `Done`/`Cancel` buttons.
+  - In-Viewer Integration & Sheets:
+    - `mobile/lib/features/inspector/targeted_detect_sheet.dart`: `TargetedDetectSheet` (kind chips: Area, Body, Face, Object; scan scope: Full Image vs Select ROI box) and `TargetedNameSheet` (name input, suggestion chips, person linker, video ScopePicker).
+    - `mobile/lib/features/media/media_chrome.dart`: added `Detect` action button (`Key('media-actions-detect')`) to bottom bar.
+    - `mobile/lib/features/inspector/media_inspector.dart`: added `Targeted Detect` chip (`Key('inspect-target-detect')`) under Create with AI.
+    - `mobile/lib/features/media/media_viewer_screen.dart`: wired `onDetect`, overlaid `RoiSelectionOverlay`, invoked `api.analyzeTargeted`, saved results via `TargetedDetectionService`, and surfaced `UndoSnackbar`.
+- Quality Metrics & Verification:
+  - Static Analysis: `dart analyze lib test` reports **0 issues**.
+  - Code Formatting: All Dart files formatted with `dart format lib test`.
+  - Targeted & Regression Tests:
+    - `mobile/test/data/api/targeted_api_test.dart` (2 passed)
+    - `mobile/test/domain/corrections/targeted_detection_service_test.dart` (2 passed)
+    - `mobile/test/features/roi_selection_overlay_test.dart` (1 passed)
+    - `mobile/test/features/targeted_detect_ux_test.dart` (1 passed)
+    - `mobile/test/features/people_actions_test.dart` (6 passed)
+    - `mobile/test/features/viewer_gestures_test.dart` (3 passed)
+    - `mobile/test/features/library_test.dart` (10 passed)
+    - `mobile/test/features/gallery_first_test.dart` (3 passed)
+    - `mobile/test/features/actions_screen_test.dart` (2 passed)
+    - Total: **31 Python tests passed**, **40+ mobile tests verified**, 0 regressions.
+
+
 ## Phase P9 (Final Acceptance, Verification & Safety Handoff) Completed on main — 2026-11-02
 
 - End-to-End Implementation Plan (P0 through P9) Completed Directly on main:

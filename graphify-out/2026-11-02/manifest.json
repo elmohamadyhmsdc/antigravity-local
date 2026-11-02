@@ -2772,9 +2772,9 @@
     "semantic_hash": ""
   },
   "docs/ANTIGRAVITY_HANDOFF.md": {
-    "mtime": 1793569902.351403,
-    "seen": 1793569952.8854742,
-    "ast_hash": "c3d698273f5d1846abe1c78909bd7766",
+    "mtime": 1793570492.4846797,
+    "seen": 1793570541.7676399,
+    "ast_hash": "37442e23d6557c2ac097d187f7c3f13f",
     "semantic_hash": ""
   },
   "docs/bulk-scan-1.2.0-2026-10-30.md": {
@@ -5763,6 +5763,54 @@
     "mtime": 1793562141.4393911,
     "seen": 1793569451.854421,
     "ast_hash": "267d2638ddda463409f64acb26084734",
+    "semantic_hash": ""
+  },
+  "mobile/lib/features/bodies/body_inspection_sheet.dart": {
+    "mtime": 1793569090.5128968,
+    "seen": 1793570541.7671793,
+    "ast_hash": "b36e1fe326e39955651221fb9577eee4",
+    "semantic_hash": ""
+  },
+  "docs/app_screens/01_gallery_and_media.md": {
+    "mtime": 1793570325.7178535,
+    "seen": 1793570541.7676408,
+    "ast_hash": "0229d8b1c0ffaa2ca4cfff4db08d7cb0",
+    "semantic_hash": ""
+  },
+  "docs/app_screens/02_people_and_identities.md": {
+    "mtime": 1793570351.8965392,
+    "seen": 1793570541.7676415,
+    "ast_hash": "44bec9c7162c458415e738629d463324",
+    "semantic_hash": ""
+  },
+  "docs/app_screens/03_discovery_bodies_actions.md": {
+    "mtime": 1793570384.8347466,
+    "seen": 1793570541.7676427,
+    "ast_hash": "b423ab764f176a08bd44d8df82b857ae",
+    "semantic_hash": ""
+  },
+  "docs/app_screens/04_studio_and_ai.md": {
+    "mtime": 1793570412.1551542,
+    "seen": 1793570541.7676435,
+    "ast_hash": "1accb2ade994179b330a7b151bcc23f8",
+    "semantic_hash": ""
+  },
+  "docs/app_screens/05_activity_and_scans.md": {
+    "mtime": 1793570445.1818733,
+    "seen": 1793570541.7676442,
+    "ast_hash": "736316509e152e9386f257b2ec998636",
+    "semantic_hash": ""
+  },
+  "docs/app_screens/06_settings_and_system.md": {
+    "mtime": 1793570467.430011,
+    "seen": 1793570541.767645,
+    "ast_hash": "7899e55d58a526979d2ead9ea8d077a5",
+    "semantic_hash": ""
+  },
+  "docs/app_screens/README.md": {
+    "mtime": 1793570292.2363088,
+    "seen": 1793570541.7676456,
+    "ast_hash": "05e5ba1beeda7cfaa9f232844cf53b80",
     "semantic_hash": ""
   }
 }

@@ -84,7 +84,7 @@ class PersonAvatar extends StatelessWidget {
     super.key,
     required this.cropPath,
     this.radius = 28,
-    this.expandable = true,
+    this.expandable = false,
   });
 
   final String? cropPath;
