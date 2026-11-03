@@ -4,6 +4,8 @@ import 'package:drift/drift.dart';
 import '../db/app_database.dart';
 import '../media/media_library.dart';
 import 'kind_corrections.dart';
+import '../../domain/organization/sidecar_ingestion_service.dart';
+import '../../domain/organization/sidecar_storage.dart';
 
 /// Bump when what a scan extracts changes, so older results are redone.
 /// 3: characters get pose keypoints, body extent/outline and the people's face-body pairing;
@@ -57,6 +59,7 @@ class SyncResult {
     this.changed = 0,
     this.requeued = 0,
     this.unchanged = 0,
+    this.restored = 0,
   });
 
   final int added; // never seen before
@@ -64,6 +67,7 @@ class SyncResult {
   final int
   requeued; // known, but needed another go (failed / skipped / older scan version)
   final int unchanged;
+  final int restored;
 
   int get queued => added + changed + requeued;
 
@@ -72,14 +76,21 @@ class SyncResult {
     changed: changed + o.changed,
     requeued: requeued + o.requeued,
     unchanged: unchanged + o.unchanged,
+    restored: restored + o.restored,
   );
 }
 
 /// The scan queue and the media table.
 class LibraryRepository {
-  LibraryRepository(this._db);
+  LibraryRepository(
+    this._db, {
+    this.ingestionService,
+    this.sidecarStorage = const SidecarStorage(),
+  });
 
   final AppDatabase _db;
+  final SidecarIngestionService? ingestionService;
+  final SidecarStorage sidecarStorage;
 
   /// Finds any analysis already associated with a device original.
   Future<MediaRow?> mediaByAssetId(String assetId) => (_db.select(
@@ -190,10 +201,13 @@ class LibraryRepository {
     );
   }
 
-  Future<SyncResult> syncAssets(List<AssetInfo> assets) async {
+  Future<SyncResult> syncAssets(
+    List<AssetInfo> assets, {
+    Map<String, String>? assetPaths,
+  }) async {
     if (assets.isEmpty) return const SyncResult();
     return _db.transaction(() async {
-      var added = 0, changed = 0, requeued = 0, unchanged = 0;
+      var added = 0, changed = 0, requeued = 0, unchanged = 0, restored = 0;
       for (var start = 0; start < assets.length; start += 400) {
         final chunk = assets.sublist(
           start,
@@ -218,6 +232,19 @@ class LibraryRepository {
             move.assetId,
         };
         for (final incoming in chunk) {
+          if (ingestionService != null &&
+              assetPaths != null &&
+              assetPaths.containsKey(incoming.id)) {
+            final path = assetPaths[incoming.id];
+            if (path != null) {
+              final sidecar = await sidecarStorage.readSidecar(path);
+              if (sidecar != null && sidecar.assetId == incoming.id) {
+                await ingestionService!.ingest(sidecar);
+                restored++;
+                continue;
+              }
+            }
+          }
           final previous = known[incoming.id];
           // Moving to a new Android album must not change a file's real/anime
           // scan mode and discard its character identities on the next sync.
@@ -327,6 +354,7 @@ class LibraryRepository {
         changed: changed,
         requeued: requeued,
         unchanged: unchanged,
+        restored: restored,
       );
     });
   }
