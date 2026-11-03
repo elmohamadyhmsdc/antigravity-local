@@ -117,7 +117,8 @@ def validate_artifact(body, caps):
             raise bad_request('Choose 512 or 768 resolution.')
     else:
         allowed_params = {'trigger_word','base_checkpoint','prompt','negative_prompt','seed','steps','guidance_scale',
-                          'num_images','lora_scale','multi_angle','reference_mode','reference_strength','reference_scale','identity_model_id'}
+                          'num_images','lora_scale','multi_angle','reference_mode','reference_strength','reference_scale','identity_model_id',
+                          'generation_mode','aspect_ratio','pose_media_id','enable_face_detailer','pose_strength'}
         bounded(params, 'num_images', 4, 1, 16, True)
         bounded(params, 'lora_scale', .75, 0, 1.5)
         bounded(params, 'reference_strength', .6, .05, 1)
@@ -126,6 +127,16 @@ def validate_artifact(body, caps):
             raise bad_request('Choose a supported reference mode.')
         if 'multi_angle' in params and not isinstance(params['multi_angle'], bool):
             raise bad_request('multi_angle must be true or false.')
+        if 'generation_mode' in params and params['generation_mode'] not in ('portrait', 'full_body'):
+            raise bad_request("generation_mode must be 'portrait' or 'full_body'.")
+        if 'aspect_ratio' in params and params['aspect_ratio'] not in ('square', 'vertical_768', 'tall_896'):
+            raise bad_request("aspect_ratio must be 'square', 'vertical_768', or 'tall_896'.")
+        if 'pose_media_id' in params and (isinstance(params['pose_media_id'], bool) or not isinstance(params['pose_media_id'], int)):
+            raise bad_request('pose_media_id must be an integer ID.')
+        if 'enable_face_detailer' in params and not isinstance(params['enable_face_detailer'], bool):
+            raise bad_request('enable_face_detailer must be true or false.')
+        if 'pose_strength' in params:
+            bounded(params, 'pose_strength', 1.0, 0, 2)
     if set(params) - allowed_params:
         raise bad_request('An unsupported job option was supplied.')
     if kind in ('train_lora','generate_lora_images') and 'identity_model_id' in params and params['identity_model_id'] not in (EMBEDDING_MODEL_ID, CHARACTER_FACE_MODEL_ID):

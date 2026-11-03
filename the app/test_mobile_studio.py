@@ -365,6 +365,21 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/v1/jobs/{id}", headers=self.headers).status_code, 404)
         self.assertFalse(self.ctx.workspace.job_dir(id).exists())
 
+    def test_full_body_lora_request_schema(self):
+        payload = {
+            "person_id": 1,
+            "generation_mode": "full_body",
+            "aspect_ratio": "vertical_768",
+            "pose_media_id": 42,
+            "enable_face_detailer": True,
+            "num_images": 2,
+        }
+        from mobile_api.studio_jobs import validate_generate_lora_request
+        parsed = validate_generate_lora_request(payload)
+        self.assertEqual(parsed["generation_mode"], "full_body")
+        self.assertEqual(parsed["aspect_ratio"], "vertical_768")
+        self.assertEqual(parsed["pose_media_id"], 42)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

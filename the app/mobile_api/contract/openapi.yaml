@@ -1745,6 +1745,11 @@ components:
         reference_mode: { type: string, enum: [composition, style, both] }
         reference_strength: { type: number, default: 0.6 }
         reference_scale: { type: number, default: 0.5 }
+        generation_mode: { type: string, enum: [portrait, full_body], default: portrait }
+        aspect_ratio: { type: string, enum: [square, vertical_768, tall_896], default: square }
+        pose_media_id: { type: integer, nullable: true }
+        enable_face_detailer: { type: boolean, default: true }
+        pose_strength: { type: number, default: 1.0 }
 
     JobCreate:
       type: object

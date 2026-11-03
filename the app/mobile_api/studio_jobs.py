@@ -26,6 +26,33 @@ REFACE_TYPES.update(("reface_image", "reface_video"))
 REFACE_TYPES.update(REFERENCE_TYPES)
 
 
+def validate_generate_lora_request(params: dict) -> dict:
+    if not isinstance(params, dict):
+        raise bad_request("Parameters must be a JSON object.")
+    result = dict(params)
+    mode = params.get("generation_mode", "portrait")
+    if mode not in ("portrait", "full_body"):
+        raise bad_request("generation_mode must be 'portrait' or 'full_body'.")
+    result["generation_mode"] = mode
+
+    aspect = params.get("aspect_ratio", "square")
+    if aspect not in ("square", "vertical_768", "tall_896"):
+        raise bad_request("aspect_ratio must be 'square', 'vertical_768', or 'tall_896'.")
+    result["aspect_ratio"] = aspect
+
+    pose_id = params.get("pose_media_id")
+    if pose_id is not None and (isinstance(pose_id, bool) or not isinstance(pose_id, int)):
+        raise bad_request("pose_media_id must be an integer ID.")
+    result["pose_media_id"] = pose_id
+
+    detailer = params.get("enable_face_detailer", True)
+    if not isinstance(detailer, bool):
+        raise bad_request("enable_face_detailer must be a boolean.")
+    result["enable_face_detailer"] = detailer
+
+    return result
+
+
 def validate_reface(body, capabilities):
     if body.get("type") in REFERENCE_TYPES:
         return validate_reference_reface(body, capabilities)
