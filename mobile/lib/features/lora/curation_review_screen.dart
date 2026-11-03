@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/router.dart';
 import '../../domain/curation/auto_dataset_curator.dart';
+import '../../features/studio/studio_helpers.dart';
+import '../../providers.dart';
+import '../../ui/pickers/media_picker.dart';
 import 'curation_controller.dart';
 
 class CurationReviewScreen extends ConsumerStatefulWidget {
@@ -47,6 +52,53 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _onAdd() async {
+    final picked = await MediaPicker.pick(context, multiple: true);
+    if (picked == null || picked.isEmpty || !mounted) return;
+
+    final currentCat = switch (_activeCategory) {
+      'face' => CurationCategory.face,
+      'upper' => CurationCategory.upper,
+      _ => CurationCategory.body,
+    };
+
+    final newCandidates = picked.map((asset) {
+      final now = DateTime.now().microsecondsSinceEpoch;
+      return CurationCandidate(
+        detectionId: now + (int.tryParse(asset.id) ?? 0),
+        mediaId: int.tryParse(asset.id) ?? 0,
+        assetId: asset.id,
+        isVideo: asset.kind == 'video',
+        category: currentCat,
+        quality: 0.85,
+        hasExposedRegion: currentCat == CurationCategory.body,
+        skinRatio: currentCat == CurationCategory.body ? 0.5 : 0.0,
+      );
+    }).toList();
+
+    ref.read(curationControllerProvider.notifier).addItems(newCandidates, currentCat);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('تمت إضافة ${newCandidates.length} صورة بنجاح'),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<void> _onSubmit() async {
+    final caps = studioCapabilities(ref.read(serverStatusProvider).value);
+    if (caps == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('الرجاء التأكد من الاتصال بالكمبيوتر لبدء التدريب'),
+        ),
+      );
+      return;
+    }
+    context.push('${Routes.studioDatasetsNew}?person=${widget.personId}');
   }
 
   void _openSettings(BuildContext context, CurationState state) {
@@ -200,9 +252,7 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                 key: const Key('curation-add'),
                 icon: const Icon(Icons.add),
                 label: const Text('إضافة'),
-                onPressed: () {
-                  // Media picker hook
-                },
+                onPressed: _onAdd,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -210,11 +260,7 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                   key: const Key('curation-submit'),
                   icon: const Icon(Icons.bolt_rounded),
                   label: const Text('بدء تدريب الموديل الآن ⚡'),
-                  onPressed: state.canSubmit
-                      ? () {
-                          // Submit hook
-                        }
-                      : null,
+                  onPressed: state.canSubmit ? _onSubmit : null,
                 ),
               ),
             ],
