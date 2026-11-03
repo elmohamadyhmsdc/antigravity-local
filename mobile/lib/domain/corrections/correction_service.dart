@@ -915,10 +915,14 @@ class CorrectionService {
       await peopleRepo.markDistinct(pp.personAId, pp.personBId);
       return 2;
     } else if (verb == CorrectionVerb.reassign) {
-      await peopleRepo.mergePeople(
-        sourceId: pp.personAId,
-        targetId: pp.personBId,
-      );
+      try {
+        await peopleRepo.mergePeople(
+          sourceId: pp.personAId,
+          targetId: pp.personBId,
+        );
+      } on MergeBlockedException {
+        return 0; // they share a frame (or a kind differs): not the same person
+      }
       return 2;
     }
     return 0;

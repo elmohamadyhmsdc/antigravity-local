@@ -507,33 +507,32 @@ void main() {
       await env.dispose(tester);
     });
 
-    testWidgets('curation route /studio/curation/:placeholder/:id redirects safely', (
-      tester,
-    ) async {
-      final env = TestEnv(session: testSession);
-      final router = createRouter(
-        isPaired: () => true,
-        initialLocation: '/studio/curation/:id/155?name=Jelly%20Bean%20Brains',
-      );
-      addTearDown(router.dispose);
+    testWidgets(
+      'curation route /studio/curation/:placeholder/:id redirects safely',
+      (tester) async {
+        final env = TestEnv(session: testSession);
+        final router = createRouter(
+          isPaired: () => true,
+          initialLocation:
+              '/studio/curation/:id/155?name=Jelly%20Bean%20Brains',
+        );
+        addTearDown(router.dispose);
 
-      await tester.pumpWidget(_buildApp(router, env.overrides));
-      await tester.pump(const Duration(milliseconds: 50));
+        await tester.pumpWidget(_buildApp(router, env.overrides));
+        await tester.pump(const Duration(milliseconds: 50));
 
-      expect(
-        router.routerDelegate.currentConfiguration.uri.path,
-        '/studio/curation/155',
-      );
-      expect(find.byType(CurationReviewScreen), findsOneWidget);
-      await env.dispose(tester);
-    });
+        expect(
+          router.routerDelegate.currentConfiguration.uri.path,
+          '/studio/curation/155',
+        );
+        expect(find.byType(CurationReviewScreen), findsOneWidget);
+        await env.dispose(tester);
+      },
+    );
 
     testWidgets('root / redirects to /library', (tester) async {
       final env = TestEnv(session: testSession);
-      final router = createRouter(
-        isPaired: () => true,
-        initialLocation: '/',
-      );
+      final router = createRouter(isPaired: () => true, initialLocation: '/');
       addTearDown(router.dispose);
 
       await tester.pumpWidget(_buildApp(router, env.overrides));

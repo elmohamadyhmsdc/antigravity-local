@@ -183,9 +183,14 @@ def _assign_within_frames(s: np.ndarray, frame_keys) -> np.ndarray:
 
 def match_faces(embeddings: np.ndarray, models: Dict[int, PersonModel], params: GroupingParams,
                 frame_keys: Optional[Sequence[Optional[Hashable]]] = None,
-                rejected: Optional[Sequence[Iterable[int]]] = None) -> List[Match]:
+                rejected: Optional[Sequence[Iterable[int]]] = None,
+                alike: Optional[Dict[int, set]] = None) -> List[Match]:
     """Best known person for each face, honouring "not this person" feedback and
-    the one-person-per-frame rule."""
+    the one-person-per-frame rule.
+
+    `alike` maps a person id to the people that are (almost certainly) the same real person, i.e.
+    duplicates the user has not merged yet. Such a person is not a rival: a face that fits both
+    halves of a split person clearly belongs to them, so the runner-up margin ignores them."""
     n = len(embeddings)
     pids, s = identity_scores(embeddings, models)
     if not pids:
@@ -204,7 +209,15 @@ def match_faces(embeddings: np.ndarray, models: Dict[int, PersonModel], params: 
             out.append(Match(i, None, 0.0, 0.0, None))
             continue
         score = float(s[i, j])
-        others = np.delete(s[i], j)
+        if alike and alike.get(pids[j]):
+            keep = np.ones(s.shape[1], dtype=bool)
+            keep[j] = False
+            for twin in alike[pids[j]]:
+                if twin in col:
+                    keep[col[twin]] = False
+            others = s[i][keep]
+        else:
+            others = np.delete(s[i], j)
         runner_up = float(others.max()) if len(others) else 0.0
         margin = score - max(runner_up, 0.0)
         if score >= params.match_auto and margin >= params.match_margin:
@@ -408,13 +421,14 @@ def suggest_merges(models: Dict[int, PersonModel], params: GroupingParams,
     protos = np.stack([models[p].proto for p in pids])
     quick = protos @ protos.T
     out = []
-    for i in range(len(pids)):
-        for j in range(i + 1, len(pids)):
-            if quick[i, j] < params.merge_suggest - 0.15 or frozenset((pids[i], pids[j])) in skip:
-                continue
-            sc = person_pair_score(models[pids[i]], models[pids[j]])
-            if sc >= params.merge_suggest:
-                out.append((pids[i], pids[j], round(sc, 4)))
+    # row-major over the upper triangle = the order of the nested loops this replaces
+    ii, jj = np.nonzero(np.triu(quick >= params.merge_suggest - 0.15, 1))
+    for i, j in zip(ii.tolist(), jj.tolist()):
+        if frozenset((pids[i], pids[j])) in skip:
+            continue
+        sc = person_pair_score(models[pids[i]], models[pids[j]])
+        if sc >= params.merge_suggest:
+            out.append((pids[i], pids[j], round(sc, 4)))
     out.sort(key=lambda t: -t[2])
     return out
 

@@ -542,12 +542,21 @@ Future<void> _merge(
     ),
   );
   if (yes != true) return;
-  await repo.mergeMany(
-    members.map((p) => p.id),
-    target.id,
-    name: name.trim(),
-    coverFaceId: cover,
-  );
+  try {
+    await repo.mergeMany(
+      members.map((p) => p.id),
+      target.id,
+      name: name.trim(),
+      coverFaceId: cover,
+    );
+  } on MergeBlockedException catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+    return;
+  }
   if (context.mounted) peopleUpdated(context);
 }
 

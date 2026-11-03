@@ -152,6 +152,7 @@ class GroupingPlanRequest {
     this.distinctPairs = const [],
     this.bodies = const [],
     this.maxSuggestionsPerPerson = 60,
+    this.linkAlikePeople = false,
   });
 
   final String mode; // apply | review
@@ -163,6 +164,10 @@ class GroupingPlanRequest {
   final List<(int, int)> distinctPairs;
   final List<GroupingBody> bodies;
   final int maxSuggestionsPerPerson;
+
+  /// Unmerged duplicates of one person do not block each other, and a new group that clearly is a
+  /// known person joins them (openapi.yaml `link_alike_people`).
+  final bool linkAlikePeople;
 
   Map<String, dynamic> toJson() => {
     'mode': mode,
@@ -176,6 +181,7 @@ class GroupingPlanRequest {
     ],
     'bodies': [for (final b in bodies) b.toJson()],
     'max_suggestions_per_person': maxSuggestionsPerPerson,
+    if (linkAlikePeople) 'link_alike_people': true,
   };
 
   factory GroupingPlanRequest.fromJson(Map<String, dynamic> json) =>
@@ -208,6 +214,7 @@ class GroupingPlanRequest {
         ],
         maxSuggestionsPerPerson:
             (json['max_suggestions_per_person'] as int?) ?? 60,
+        linkAlikePeople: (json['link_alike_people'] as bool?) ?? false,
       );
 
   /// The request body exactly as it goes on the wire: JSON, gzipped (a first scan is several MB of

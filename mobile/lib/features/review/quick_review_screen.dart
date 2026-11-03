@@ -207,7 +207,12 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
     final keep = keepA ? d.a : d.b;
     final drop = keepA ? d.b : d.a;
     final messenger = ScaffoldMessenger.of(context);
-    await _people.mergePeople(sourceId: drop.id, targetId: keep.id);
+    try {
+      await _people.mergePeople(sourceId: drop.id, targetId: keep.id);
+    } on MergeBlockedException catch (e) {
+      _toast(messenger, e.message);
+      return false;
+    }
     // an unnamed person takes the other one's name (PeopleRepository.mergePeople)
     final shown = !keep.isNamed && drop.isNamed ? drop : keep;
     _toast(messenger, l.mergedInto(personName(l, shown)));

@@ -1346,6 +1346,14 @@ components:
           type: array
           items: { $ref: "#/components/schemas/GroupingBody" }
         max_suggestions_per_person: { type: integer, default: 60 }
+        link_alike_people:
+          type: boolean
+          default: false
+          description: >-
+            Treat known people who are almost certainly one real person (person-pair score at or above the
+            strictness profile's merge_auto, and not in distinct_pairs) as one when matching: they do not
+            count as each other's runner-up, and in apply mode a freshly clustered group that clearly is a
+            known person comes back as auto assignments to them instead of a new group.
 
       allOf:
         - if: { properties: { strictness: { const: character } } }

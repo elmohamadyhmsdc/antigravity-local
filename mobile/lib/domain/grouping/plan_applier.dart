@@ -41,10 +41,12 @@ class PlanApplier {
     for (final a in plan.assignments) {
       if (!a.isAuto || !people.contains(a.personId)) continue;
       assigned += await _db.customUpdate(
-        'UPDATE faces SET person_id = ? WHERE id = ? AND person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id = ?) AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ? AND p.grouping_locked = 0)',
+        // the last NOT EXISTS is the one-person-per-frame rule against faces the person already has
+        'UPDATE faces SET person_id = ? WHERE id = ? AND person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id = ?) AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ? AND p.grouping_locked = 0) AND (faces.media_id IS NULL OR NOT EXISTS (SELECT 1 FROM faces o WHERE o.person_id = ? AND o.media_id = faces.media_id AND o.frame_number IS faces.frame_number))',
         variables: [
           Variable.withInt(a.personId),
           Variable.withInt(a.faceId),
+          Variable.withInt(a.personId),
           Variable.withInt(a.personId),
           Variable.withInt(a.personId),
         ],
@@ -63,6 +65,9 @@ class PlanApplier {
           .get();
       if (rows.length != g.faceIds.length) {
         continue; // part of the group was sorted meanwhile: ask again next round
+      }
+      if (await _fromOneFile(g.faceIds)) {
+        continue; // one appearance in one video is not a person yet (Review still offers it)
       }
       final quality = {
         for (final r in rows)
@@ -153,6 +158,30 @@ class PlanApplier {
     }
     return linked;
   });
+
+  /// True when every face of the group comes from the same file. A photo cannot give two faces of
+  /// one person, so this is a video: one stranger passing through it yields several views and would
+  /// otherwise become a "person" of its own. Faces seen in other files (duplicates of a stored face
+  /// are linked through media_detections) count as other files; a face with no file counts as unknown.
+  Future<bool> _fromOneFile(List<int> faceIds) async {
+    final marks = List.filled(faceIds.length, '?').join(',');
+    final vars = [for (final id in faceIds) Variable.withInt(id)];
+    final row = await _db
+        .customSelect(
+          '''
+          SELECT COUNT(DISTINCT m) AS files, SUM(m IS NULL) AS unknown FROM (
+            SELECT media_id AS m FROM faces WHERE id IN ($marks)
+            UNION ALL
+            SELECT media_id AS m FROM media_detections WHERE kind = 'f' AND ref_id IN ($marks)
+          )
+          ''',
+          variables: [...vars, ...vars],
+          readsFrom: {_db.faces, _db.mediaDetections},
+        )
+        .getSingle();
+    return row.read<int>('files') == 1 &&
+        (row.readNullable<int>('unknown') ?? 0) == 0;
+  }
 
   Future<Set<int>> _personIds() async => {
     for (final r

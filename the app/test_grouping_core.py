@@ -635,6 +635,83 @@ def test_an_empty_library_gives_an_empty_plan():
     check(gc.plan_request(req)["unsorted_face_ids"] == [], "apply mode never lists unsorted faces")
 
 
+# ---------------------------------------------------------------------------
+# link_alike_people: a person split in two must not keep spawning a third
+# ---------------------------------------------------------------------------
+
+def _unit(rng):
+    v = rng.normal(size=512)
+    return v / np.linalg.norm(v)
+
+
+def _faces_near(center, n, rng, noise=0.6):
+    return pl.normalize_rows(np.stack([center + noise * _unit(rng) for _ in range(n)]))
+
+
+def _split_person_snapshot(link, pending_n=3, stranger=False):
+    """People 1 and 2 are the same real person (never merged); `pending_n` new faces of that person."""
+    rng = np.random.default_rng(7)
+    u, v = _unit(rng), _unit(rng)
+    models = pl.build_person_models(np.vstack([_faces_near(u, 6, rng), _faces_near(u, 6, rng)]),
+                                    [1] * 6 + [2] * 6, [0.8] * 12)
+    pending = _faces_near(v if stranger else u, pending_n, rng)
+    return gc.Snapshot(models=models,
+                       pending=[gc.PendingFace(100 + i, pending[i], 0.8, f"m{i}:") for i in range(pending_n)],
+                       link_alike_people=link)
+
+
+@test
+def test_alike_people_do_not_block_each_others_matches():
+    base = gc.plan(_split_person_snapshot(False, 2), "apply", ["match"])
+    check(not base.assignments, f"without the flag the margin against the twin blocks the match: {base.assignments}")
+    out = gc.plan(_split_person_snapshot(True, 2), "apply", ["match"])
+    check(sorted(a.face_id for a in out.assignments) == [100, 101] and all(a.decision == "auto" for a in out.assignments),
+          f"with the flag both faces join the person: {out.assignments}")
+    check(len({a.person_id for a in out.assignments}) <= 2, "they join one of the two halves")
+
+
+@test
+def test_distinct_people_still_block_each_other():
+    snap = _split_person_snapshot(True, 2)
+    snap.distinct_pairs = [(1, 2)]     # the user said these are different people (or they share a photo)
+    out = gc.plan(snap, "apply", ["match"])
+    check(not out.assignments, f"a pair marked distinct keeps the margin rule: {out.assignments}")
+
+
+@test
+def test_a_new_group_that_is_a_known_person_joins_them_instead_of_duplicating():
+    base = gc.plan(_split_person_snapshot(False), "apply", ["cluster"])
+    check(len(base.groups) == 1 and base.groups[0].auto_create and not base.assignments,
+          f"without the flag a duplicate person would be created: {base.groups}")
+    out = gc.plan(_split_person_snapshot(True), "apply", ["cluster"])
+    check(not out.groups, f"no new group: {out.groups}")
+    check(sorted(a.face_id for a in out.assignments) == [100, 101, 102]
+          and len({a.person_id for a in out.assignments}) == 1
+          and all(a.decision == "auto" for a in out.assignments), f"one known person gets them: {out.assignments}")
+    review = gc.plan(_split_person_snapshot(True), "review", ["cluster"])
+    check(len(review.groups) == 1, "review mode still shows the group")
+
+
+@test
+def test_a_stranger_group_and_a_rejected_person_are_not_folded():
+    out = gc.plan(_split_person_snapshot(True, stranger=True), "apply", ["cluster"])
+    check(len(out.groups) == 1 and not out.assignments, f"a stranger stays a new person: {out}")
+    snap = _split_person_snapshot(True)
+    for f in snap.pending:
+        f.rejected_person_ids = {1, 2}
+    out = gc.plan(snap, "apply", ["cluster"])
+    check(len(out.groups) == 1 and not out.assignments, "people the faces were rejected from are never targets")
+
+
+@test
+def test_link_alike_people_must_be_a_boolean():
+    req = {"mode": "apply", "stages": ["match"], "strictness": "balanced", "models": [], "pending": [],
+           "distinct_pairs": [], "bodies": [], "link_alike_people": "yes"}
+    refused(req, "link_alike_people")
+    req["link_alike_people"] = True
+    check(gc.plan_request(req)["assignments"] == [], "the flag is accepted")
+
+
 @test
 def test_grouping_core_imports_no_database():
     import ast

@@ -92,6 +92,16 @@ class BodyItem {
   final double score;
 }
 
+/// A merge that would contradict the data (not a failure of the database).
+class MergeBlockedException implements Exception {
+  const MergeBlockedException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 Iterable<List<int>> _chunks(Iterable<int> ids, [int size = 400]) sync* {
   final list = ids.toSet().toList();
   for (var i = 0; i < list.length; i += size) {
@@ -557,6 +567,36 @@ class PeopleRepository {
     };
   }
 
+  /// How many photos / video frames hold a face of [a] AND a face of [b]. One person cannot be
+  /// twice in a frame, so more than zero means they are two people (or a face is on the wrong one).
+  Future<int> sharedFrames(int a, int b) async =>
+      (await _db
+              .customSelect(
+                'SELECT COUNT(*) AS n FROM faces x JOIN faces y ON y.media_id = x.media_id AND y.frame_number IS x.frame_number WHERE x.person_id = ? AND y.person_id = ?',
+                variables: [Variable.withInt(a), Variable.withInt(b)],
+                readsFrom: {_db.faces},
+              )
+              .getSingle())
+          .read<int>('n');
+
+  /// Throws [MergeBlockedException] when merging [sourceId] into [targetId] would put two faces of
+  /// the same frame on one person, or mix a real person with a drawn character (their embeddings
+  /// have different sizes, which would break grouping for that kind altogether).
+  Future<void> _checkMergeable(PersonRow source, PersonRow target) async {
+    if (source.kind != target.kind) {
+      throw const MergeBlockedException(
+        'A person and a drawn character cannot be merged.',
+      );
+    }
+    final shared = await sharedFrames(source.id, target.id);
+    if (shared > 0) {
+      throw MergeBlockedException(
+        'These two appear together in $shared photo/video frame(s), so they cannot be the same person. '
+        'Move or reject the wrong face first, or mark them as different people.',
+      );
+    }
+  }
+
   Future<void> mergePeople({
     required int sourceId,
     required int targetId,
@@ -570,6 +610,7 @@ class PeopleRepository {
         _db.persons,
       )..where((p) => p.id.equals(targetId))).getSingleOrNull();
       if (source == null || target == null) return;
+      await _checkMergeable(source, target);
       final s = Variable.withInt(sourceId);
       final t = Variable.withInt(targetId);
 

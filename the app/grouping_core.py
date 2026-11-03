@@ -80,6 +80,10 @@ class Snapshot:
     bodies: List[BodyInput] = field(default_factory=list)
     distinct_pairs: List[Tuple[int, int]] = field(default_factory=list)
     dismissed_face_ids: Set[int] = field(default_factory=set)
+    # Opt-in (the phone sets it; the PC gallery keeps its historical behaviour): people who are the same
+    # real person but were never merged do not block each other's matches (see person_linking.match_faces),
+    # and in apply mode a new group that clearly is a known person joins them instead of becoming a duplicate.
+    link_alike_people: bool = False
 
 
 @dataclass
@@ -143,6 +147,24 @@ class GroupingPlan:
 # The decision step
 # ---------------------------------------------------------------------------
 
+def _known_person_for(emb: np.ndarray, qual: np.ndarray, rejected: List[Set[int]], models: Dict[int, pl.PersonModel],
+                      pids: List[int], protos: np.ndarray, params: pl.GroupingParams) -> Optional[Tuple[int, float]]:
+    """The known person a freshly clustered group clearly is (person-pair score >= merge_auto, the bar at
+    which new groups are folded together), else None. A person any face of the group was told it is NOT
+    is never a candidate. Without this a person split in two keeps spawning a third."""
+    group = pl.build_person_models(emb, [0] * len(emb), qual)[0]
+    quick = protos @ group.proto
+    best: Optional[Tuple[int, float]] = None
+    for k in np.nonzero(quick >= params.merge_auto - 0.15)[0].tolist():
+        pid = pids[k]
+        if any(pid in r for r in rejected):
+            continue
+        score = pl.person_pair_score(group, models[pid])
+        if score >= params.merge_auto and (best is None or score > best[1]):
+            best = (pid, score)
+    return best
+
+
 def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_STAGES,
          strictness: Union[str, pl.GroupingParams] = "balanced",
          max_suggestions_per_person: int = DEFAULT_MAX_SUGGESTIONS_PER_PERSON) -> GroupingPlan:
@@ -177,10 +199,19 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
 
     claimed: Set[int] = set()   # positions in `pending` that are spoken for
 
+    link_alike = snapshot.link_alike_people and bool(models)
+    alike: Optional[Dict[int, Set[int]]] = None
+    if link_alike and len(models) > 1 and n and "match" in wanted:
+        alike = {}
+        for a, b, score in pl.suggest_merges(models, params, [tuple(p) for p in snapshot.distinct_pairs]):
+            if score >= params.merge_auto:
+                alike.setdefault(a, set()).add(b)
+                alike.setdefault(b, set()).add(a)
+
     if "match" in wanted and models and n:
         per_person: Dict[int, List[FaceAssignment]] = {}
         accepted = ("auto", "suggest") if review else ("auto",)
-        for m in pl.match_faces(e, models, params, keys, rejected):
+        for m in pl.match_faces(e, models, params, keys, rejected, alike):
             if m.decision in accepted:
                 per_person.setdefault(m.person_id, []).append(
                     FaceAssignment(pending[m.index].id, m.person_id, round(m.score, 3), round(m.margin, 3),
@@ -198,8 +229,19 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
             rest = [i for i in range(n) if i not in claimed]
         if rest:
             sub = np.asarray(rest)
+            fold_pids = sorted(models) if link_alike and not review else []
+            fold_protos = np.stack([models[p].proto for p in fold_pids]) if fold_pids else None
             for c in pl.cluster_faces(e[sub], q[sub], params, [keys[i] for i in rest]):
                 idx = [rest[i] for i in c.indices]
+                if fold_pids:
+                    target = _known_person_for(e[idx], q[idx], [rejected[i] for i in idx], models, fold_pids,
+                                               fold_protos, params)
+                    if target is not None:
+                        pid, score = target
+                        result.assignments.extend(
+                            FaceAssignment(pending[i].id, pid, round(score, 3),
+                                           round(score - params.merge_auto, 3), "auto") for i in idx)
+                        continue
                 result.groups.append(FaceGroup([pending[i].id for i in idx], round(c.cohesion, 3),
                                                round(c.quality, 3), bool(pl.should_auto_create(c, params))))
                 if review:
@@ -355,7 +397,10 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
         distinct.append((_int(p[0], f"distinct_pairs[{i}][0]"), _int(p[1], f"distinct_pairs[{i}][1]")))
 
     dismissed = set(_int_list(req.get("dismissed_face_ids", []), "dismissed_face_ids"))
-    return Snapshot(models, pending, bodies, distinct, dismissed), mode, list(stages), strictness, cap
+    link_alike = req.get("link_alike_people", False)
+    _expect(isinstance(link_alike, bool), "link_alike_people must be true or false")
+    return (Snapshot(models, pending, bodies, distinct, dismissed, link_alike), mode, list(stages),
+            strictness, cap)
 
 
 def plan_request(req: Dict) -> Dict[str, Any]:

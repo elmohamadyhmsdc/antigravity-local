@@ -166,9 +166,14 @@ class _MergeScreenState extends ConsumerState<MergeScreen> {
       cancelLabel: l10n.cancel,
     );
     if (!ok) return;
-    await ref
-        .read(peopleRepositoryProvider)
-        .mergePeople(sourceId: drop.id, targetId: keep.id);
+    try {
+      await ref
+          .read(peopleRepositoryProvider)
+          .mergePeople(sourceId: drop.id, targetId: keep.id);
+    } on MergeBlockedException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      return;
+    }
     messenger.showSnackBar(
       SnackBar(content: Text(l10n.mergedInto(personName(l10n, keep)))),
     );

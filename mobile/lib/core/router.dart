@@ -175,10 +175,7 @@ GoRouter createRouter({
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/',
-        redirect: (context, state) => Routes.library,
-      ),
+      GoRoute(path: '/', redirect: (context, state) => Routes.library),
       // -----------------------------------------------------------------------
       // Onboarding Routes
       // -----------------------------------------------------------------------
@@ -445,8 +442,9 @@ GoRouter createRouter({
       GoRoute(
         path: Routes.studioDatasetsNew,
         builder: (context, state) {
-          final personId =
-              int.tryParse(state.uri.queryParameters['person'] ?? '');
+          final personId = int.tryParse(
+            state.uri.queryParameters['person'] ?? '',
+          );
           if (personId != null) {
             return CurationReviewScreen(
               personId: personId,

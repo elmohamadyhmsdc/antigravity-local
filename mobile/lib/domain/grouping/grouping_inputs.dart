@@ -84,6 +84,23 @@ class GroupingInputs {
   /// 'person' (buffalo_l, 512-d) or 'character' (CCIP, 768-d): only that kind's rows are read.
   final String kind;
 
+  int get _dim => kind == 'character' ? characterEmbeddingDim : embeddingDim;
+
+  /// A stored vector the PC will accept: right length, finite numbers. One damaged row would
+  /// otherwise make the PC refuse the whole request (400) on every run, so it is left out instead.
+  Float32List? _vector(Uint8List blob) {
+    try {
+      final v = vectorFromBlob(blob);
+      if (v.length != _dim) return null;
+      for (final x in v) {
+        if (!x.isFinite) return null;
+      }
+      return v;
+    } on FormatException {
+      return null;
+    }
+  }
+
   Future<List<GroupingModel>> models({int cap = groupingMemberCap}) async {
     final people = await _db
         .customSelect(
@@ -102,16 +119,15 @@ class GroupingInputs {
             readsFrom: {_db.faces},
           )
           .get();
-      if (rows.isEmpty) continue;
-      out.add(
-        buildPersonModel(pid, [
-          for (final r in rows)
-            FaceVector(
-              vectorFromBlob(r.read<Uint8List>('embedding')),
-              r.read<double>('quality_score'),
-            ),
-        ], cap: cap),
-      );
+      final faces = <FaceVector>[];
+      for (final r in rows) {
+        final v = _vector(r.read<Uint8List>('embedding'));
+        if (v != null) {
+          faces.add(FaceVector(v, r.read<double>('quality_score')));
+        }
+      }
+      if (faces.isEmpty) continue;
+      out.add(buildPersonModel(pid, faces, cap: cap));
     }
     return out;
   }
@@ -138,11 +154,14 @@ class GroupingInputs {
           readsFrom: {_db.faces},
         )
         .get();
-    return [
-      for (final r in rows)
+    final out = <GroupingFace>[];
+    for (final r in rows) {
+      final v = _vector(r.read<Uint8List>('embedding'));
+      if (v == null) continue;
+      out.add(
         GroupingFace(
           id: r.read<int>('id'),
-          embedding: vectorFromBlob(r.read<Uint8List>('embedding')),
+          embedding: v,
           quality: r.read<double>('quality_score'),
           frameKey: frameKeyOf(
             r.readNullable<int>('media_id'),
@@ -150,7 +169,9 @@ class GroupingInputs {
           ),
           rejectedPersonIds: rejected[r.read<int>('id')] ?? const [],
         ),
-    ];
+      );
+    }
+    return out;
   }
 
   Future<List<int>> dismissedFaceIds() async => [
@@ -165,16 +186,29 @@ class GroupingInputs {
       r.read<int>('id'),
   ];
 
+  /// People the user said are different, plus people who appear in the same photo / video frame:
+  /// one person cannot be twice in a frame, so such a pair is never "possibly the same person"
+  /// (and, for the PC, never a pair of twins to fold together).
   Future<List<(int, int)>> distinctPairs() async => [
     for (final r
         in await _db
             .customSelect(
-              'SELECT d.person_a, d.person_b FROM person_distinct d JOIN persons p ON p.id = d.person_a WHERE p.kind = ? ORDER BY d.person_a, d.person_b',
+              '''
+              SELECT d.person_a AS a, d.person_b AS b
+              FROM person_distinct d JOIN persons p ON p.id = d.person_a WHERE p.kind = ?1
+              UNION
+              SELECT MIN(x.person_id, y.person_id), MAX(x.person_id, y.person_id)
+              FROM faces x JOIN faces y
+                ON y.media_id = x.media_id AND y.frame_number IS x.frame_number AND y.id > x.id
+              WHERE x.person_id IS NOT NULL AND y.person_id IS NOT NULL AND x.person_id != y.person_id
+                AND x.kind = ?1 AND y.kind = ?1
+              ORDER BY 1, 2
+              ''',
               variables: [Variable.withString(kind)],
-              readsFrom: {_db.personDistinct, _db.persons},
+              readsFrom: {_db.personDistinct, _db.persons, _db.faces},
             )
             .get())
-      (r.read<int>('person_a'), r.read<int>('person_b')),
+      (r.read<int>('a'), r.read<int>('b')),
   ];
 
   /// Bodies the PC needs to link faceless ones by outfit / weak face. Only photos that hold at
@@ -303,13 +337,14 @@ class GroupingInputs {
           ? await pending()
           : const [],
       dismissedFaceIds: await dismissedFaceIds(),
-      distinctPairs: stages.contains('duplicates')
+      distinctPairs: stages.any((s) => s != 'bodies')
           ? await distinctPairs()
           : const [],
       bodies: stages.contains('bodies')
           ? await bodies(dropDerived: dropDerived)
           : const [],
       maxSuggestionsPerPerson: groupingMaxSuggestionsPerPerson,
+      linkAlikePeople: true,
     );
   }
 }

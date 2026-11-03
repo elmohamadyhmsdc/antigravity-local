@@ -375,6 +375,9 @@ class ScanEngine {
       } on ApiException catch (e) {
         // grouping is repeatable at any time (Review has a "Sort now" button): never fail the scan for it
         _emit(_progress.copyWith(message: e.message));
+      } on Exception catch (e) {
+        // same for anything else (a locked database, a dropped socket): the scan must still finish
+        _emit(_progress.copyWith(message: '$e'));
       } finally {
         _emit(_progress.copyWith(grouping: false));
       }

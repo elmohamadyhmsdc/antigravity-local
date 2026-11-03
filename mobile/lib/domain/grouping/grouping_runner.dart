@@ -67,20 +67,40 @@ class GroupingRunner {
     final running = _running;
     // A final/manual full pass must not silently join a smaller in-scan pass.
     if (running != null) {
+      // a failed small pass must not stop the full one that was asked for after it
       return incremental || !_runningIncremental
           ? running
-          : running.then((_) => run());
+          : running.then((_) => run(), onError: (_) => run());
     }
     _runningIncremental = incremental;
-    return _running = _run(incremental: incremental)
-        .then((result) async {
-          await _then?.run(incremental: incremental);
-          return result;
-        })
-        .whenComplete(() {
-          _running = null;
-          _runningIncremental = false;
-        });
+    return _running = _runBoth(incremental: incremental).whenComplete(() {
+      _running = null;
+      _runningIncremental = false;
+    });
+  }
+
+  /// This kind, then the kind that follows it: the follower runs even if this one failed (the
+  /// first error is still reported).
+  Future<GroupingRun> _runBoth({required bool incremental}) async {
+    GroupingRun? result;
+    Object? error;
+    StackTrace? trace;
+    try {
+      result = await _run(incremental: incremental);
+    } catch (e, s) {
+      error = e;
+      trace = s;
+    }
+    try {
+      await _then?.run(incremental: incremental);
+    } catch (e, s) {
+      if (error == null) {
+        error = e;
+        trace = s;
+      }
+    }
+    if (error != null) Error.throwWithStackTrace(error, trace!);
+    return result!;
   }
 
   Future<int> _count(String sql) async =>

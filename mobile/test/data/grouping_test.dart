@@ -416,6 +416,7 @@ void main() {
           'distinct_pairs',
           'bodies',
           'max_suggestions_per_person',
+          'link_alike_people',
         });
         expect(((json['models'] as List).first as Map).keys.toSet(), {
           'pid',
