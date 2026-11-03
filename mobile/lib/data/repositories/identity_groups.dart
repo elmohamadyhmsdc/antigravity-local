@@ -75,27 +75,28 @@ class IdentityGroupsRepository {
     );
   }
 
-  Future<void> assign(Iterable<int> people, int? groupId) =>
-      db.transaction(() async {
-        if (groupId != null &&
-            await (db.select(
-                  db.identityGroups,
-                )..where((g) => g.id.equals(groupId))).getSingleOrNull() ==
-                null) {
-          throw ArgumentError('This group no longer exists');
-        }
-        final ids = people.toSet().toList();
-        for (var start = 0; start < ids.length; start += 300) {
-          await (db.update(db.persons)
-                ..where((p) => p.id.isIn(ids.skip(start).take(300))))
-              .write(PersonsCompanion(groupId: Value(groupId)));
-        }
-      });
-      if (autoOrganizer != null) {
-        for (final pId in people) {
-          await autoOrganizer!.syncPersonGroup(pId);
-        }
+  Future<void> assign(Iterable<int> people, int? groupId) async {
+    await db.transaction(() async {
+      if (groupId != null &&
+          await (db.select(
+                db.identityGroups,
+              )..where((g) => g.id.equals(groupId))).getSingleOrNull() ==
+              null) {
+        throw ArgumentError('This group no longer exists');
       }
+      final ids = people.toSet().toList();
+      for (var start = 0; start < ids.length; start += 300) {
+        await (db.update(db.persons)
+              ..where((p) => p.id.isIn(ids.skip(start).take(300))))
+            .write(PersonsCompanion(groupId: Value(groupId)));
+      }
+    });
+    if (autoOrganizer != null) {
+      for (final pId in people) {
+        await autoOrganizer!.syncPersonGroup(pId);
+      }
+    }
+  }
 
   /// The group is removed; identities and originals stay in the library.
   Future<void> delete(int id) =>

@@ -680,7 +680,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      l10n?.masterOwner ?? 'Master ⭐',
+                                      l10n.masterOwner,
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
@@ -701,10 +701,9 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                                 Icons.star_outline,
                                 color: Colors.amber,
                               ),
-                              title: Text(l10n?.setAsMasterOwner ?? 'Set as primary file owner'),
+                              title: Text(l10n.setAsMasterOwner),
                               subtitle: Text(
-                                l10n?.setAsMasterOwnerSubtitle ??
-                                    'Physical media file will be stored in this person\'s folder',
+                                l10n.setAsMasterOwnerSubtitle,
                               ),
                               onTap: () async {
                                 setState(() {

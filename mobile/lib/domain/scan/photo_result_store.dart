@@ -67,21 +67,22 @@ class _Existing {
 /// Mirrors LibraryScanner._scan_frame / _FileState.store_face / store_body on the PC.
 class PhotoResultStore {
   PhotoResultStore({
-    required AppDatabase db,
-    required FileStore files,
-    required EmbeddingIndex index,
+    required this.db,
+    required this.files,
+    required this.index,
     this.autoOrganizer,
     DateTime Function()? clock,
-  })  : _db = db,
-        _files = files,
-        _index = index,
-        _clock = clock ?? DateTime.now;
+  }) : _clock = clock ?? DateTime.now;
 
-  final AppDatabase _db;
-  final FileStore _files;
-  final EmbeddingIndex _index;
+  final AppDatabase db;
+  final FileStore files;
+  final EmbeddingIndex index;
   final DynamicAutoOrganizer? autoOrganizer;
   final DateTime Function() _clock;
+
+  AppDatabase get _db => db;
+  FileStore get _files => files;
+  EmbeddingIndex get _index => index;
 
   Future<StoreOutcome> store(
     MediaRow media,

@@ -1,6 +1,92 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Sidecar Metadata Persistence & Dynamic Auto-Organization Completed on main — 2026-11-03
+
+- User Request:
+  - Add sidecar metadata persistence to the existing media organization feature (`DCIM/Your Gallery/<Group>/<Person>/...`).
+  - Zero-Rescan Restoration: When media is organized into folders, write a companion metadata file alongside each item. If the app is uninstalled or database wiped, scanning/reading that folder must ingest all detections, faces, bodies, keypoints, outlines, ArcFace/CCIP embeddings, and person/group linkages directly in milliseconds without network transfer or GPU re-inference.
+  - Dynamic Auto-Organization: When a detection is corrected/reassigned, a person is moved between groups, or new media is assigned to an organized person, files and their sidecar metadata must move automatically in the background to the updated folder location.
+  - Shared Media (Master Person): For photos with multiple people, physically store the original file in the Master Person's folder (auto-selected by prominence/organization with a 1-tap ⭐ override in Media Inspector), while the sidecar preserves metadata for all present individuals.
+- Architecture & Implementation (`mobile/`):
+  1. Sidecar Metadata Model (`mobile/lib/domain/organization/sidecar_metadata.dart`):
+     - `SidecarMetadata`, `SidecarMediaInfo`, `SidecarOwnership`, `SidecarFace`, `SidecarBody`, `SidecarSensitiveRegion`.
+     - High-performance, precision-preserving Little-Endian byte buffer serialization encoded to base64 for ArcFace 512-d and CCIP 768-d embeddings.
+  2. Sidecar Storage Bridge (`mobile/lib/domain/organization/sidecar_storage.dart`):
+     - Atomic 1:1 `.json` read/write companion file management alongside media (`<path>.<ext>.json`).
+  3. Zero-Rescan Ingestion Pipeline (`mobile/lib/domain/organization/sidecar_ingestion_service.dart` & `library_repository.dart`):
+     - `SidecarIngestionService.ingest`: In a single SQLite transaction, restores or links `identity_groups`, `persons`, `media` (with `scanStatus = 'done'`, `scanVersion = 5`), `faces`, `bodies`, `media_detections` with Catmull-Rom outlines, and directly hydrates `EmbeddingIndex` in memory.
+     - `LibraryRepository.syncAssets`: Automatically detects companion sidecar files on disk, restoring items instantly with `SyncResult.restored` without queueing for PC GPU inference.
+  4. Master Person Resolution (`mobile/lib/domain/organization/master_person_resolver.dart`):
+     - Resolves primary file owner prioritizing explicit user choice, organized folder members, and largest facial bounding box area.
+  5. Dynamic Auto-Organization Engine (`mobile/lib/domain/organization/dynamic_auto_organizer.dart`):
+     - Coordinates MediaStore file movements via `PersonMediaOrganizer`, rewrites target sidecar, and removes old sidecar atomically.
+     - Background hooks wired into `CorrectionService.apply()`, `PeopleRepository.setPersonGroup()`, `PeopleRepository.mergePeople()`, `IdentityGroupsRepository.assign()`, and `PhotoResultStore.store()`.
+  6. UI & Settings Integration (`mobile/lib/features/inspector/media_inspector.dart` & `mobile/lib/features/settings/library_settings_screen.dart`):
+     - Media Inspector: Displays `Master ⭐` pill badge on the primary file owner, and provides "Set as primary file owner" (`Key('who-set-master-<id>')`) on non-master detected persons to switch physical ownership on demand.
+     - Settings: Added toggles for "Auto-sync organized folders" (`Key('settings-auto-organize')`) and "Save sidecar metadata (.json)" (`Key('settings-save-sidecar')`) in `LibrarySettingsScreen` backed by `AppSettings`.
+     - Localization: Added English strings (`masterOwner`, `setAsMasterOwner`, `setAsMasterOwnerSubtitle`, `autoSyncOrganizedFolders`, `saveSidecarMetadata`, etc.) with `flutter gen-l10n`.
+- Verification & Quality:
+  - Full End-to-End Test (`mobile/test/features/sidecar_auto_organize_e2e_test.dart`): **passed** (verifying complete cycle: folder organization -> companion JSON writing -> simulated database wipe -> zero-rescan local restore -> dynamic reassignment auto-move -> master person switching).
+  - Test Suites Verified: **12/12 test suites passed**:
+    - `test/domain/organization/sidecar_metadata_test.dart` (passed)
+    - `test/domain/organization/sidecar_storage_test.dart` (passed)
+    - `test/domain/organization/sidecar_ingestion_test.dart` (passed)
+    - `test/domain/scan/zero_rescan_sync_test.dart` (passed)
+    - `test/domain/organization/master_person_resolver_test.dart` (passed)
+    - `test/domain/organization/dynamic_auto_organizer_test.dart` (passed)
+    - `test/domain/organization/auto_organize_hooks_test.dart` (passed)
+    - `test/features/inspector/media_inspector_master_test.dart` (passed)
+    - `test/features/settings/auto_organize_settings_test.dart` (passed)
+    - `test/features/sidecar_auto_organize_e2e_test.dart` (passed)
+    - `test/domain/corrections/correction_service_test.dart` (passed)
+    - `test/domain/photo_result_store_test.dart` (passed)
+  - Static Analysis: `flutter analyze` reports **No issues found!** (0 issues).
+  - Preserved baseline: 12 documented pre-existing baseline failures in `_baseline.md` unchanged.
+
+
+## Smart LoRA Curation Review Screen Polish & Person-Specific Flow Completed — 2026-11-03
+
+- User Requests:
+  1. Path clarification and gallery picker confusion: "هو الباص بتاعها في الموبايل إيه؟ عشان لما دخلت على Character LoRA فدخلت أعمل build dataset فلقيت إني بختار person وبعدين بختار بإيدي الـ training photos بعد ما أختار person، وبيفتح الـ gallery على الصور كلها مش على الـ person نفسه، فهل ده معانا في الـ flow ولا ده حاجة تانية؟"
+  2. Incomplete implementation notice: "في حاجه متنفذتش لسه"
+- Root Causes Identified:
+  1. Placeholder Icons: Candidate grid cards rendered static category icons (`Icons.face_rounded`, `Icons.person_rounded`, `Icons.accessibility_new_rounded`) inside colored containers instead of real photo/video thumbnails.
+  2. Generic Phone Picker on `+ إضافة`: Tapping add opened `MediaPicker.pick(context)` across the entire device storage (10,000+ photos) rather than filtering to the selected person's media.
+  3. Submission Redirection Loop: Submit button `_onSubmit` only called `context.push('${Routes.studioDatasetsNew}?person=${widget.personId}')`, which redirected back to `CurationReviewScreen` in a loop without collecting files, extracting anchor embeddings, or dispatching `build_lora_dataset` to the server.
+  4. Missing Tap Preview: Cards had no `onTap` listener to open full-screen photo zoom/metrics.
+- Implementation & Architecture (`mobile/`):
+  1. Real Thumbnail Rendering (`mobile/lib/features/lora/curation_review_screen.dart`):
+     - Implemented `_CandidateThumbnail`: uses `thumbnailServiceProvider.getSync(c.assetId, size: 256)` for instant frame-0 rendering from memory, with fallback to async `thumbs.get` and elegant placeholder.
+     - Wrapped each card with `InkWell(key: Key('curation-preview-${c.detectionId}'))` navigating to `${Routes.media}/${c.mediaId}?personId=${widget.personId}` for instant full-resolution preview.
+  2. Person-Specific Media Picker Sheet (`_PersonMediaPickerSheet`):
+     - Key `Key('curation-person-picker-sheet')`.
+     - Queries `mediaQueriesProvider.page(MediaFilter(personId: widget.personId))` to show only media associated with this person.
+     - Multi-selection support with `picker-item-${item.id}` keys, "موجودة" indicator for items already in the training set, and confirmation button (`Key('curation-picker-confirm')`).
+     - "كل الاستوديو 📁" action (`Key('curation-picker-all-gallery')`) allowing fallback to browse the full device library via `MediaPicker.pick(context)`.
+  3. Full Training Job Submission (`_onSubmit`):
+     - Validates server connection (`caps != null`), minimum candidate count ($\ge 5$), and trigger word regex format.
+     - Resolves image files via `OriginalMediaLibrary.originalFile` (falling back to `viewerImage` saved via `privatePickedPhoto`).
+     - Extracts anchor embeddings via `studioRepositoryProvider.sourceFaces(personId)` and `datasetIdentityAnchor`.
+     - Invokes `studioRepositoryProvider.enqueueInputs(serverId: caps.serverId, type: 'build_lora_dataset', ...)`.
+     - Starts background job tracker (`jobTrackerProvider.start()`) and navigates to `${Routes.jobs}/$jobId`.
+- Verification & Quality:
+  - Unit & Widget Tests:
+    - `mobile/test/features/curation_review_screen_test.dart`: **4/4 passed** (verifying live status pill, category filter tabs, delete with reversible undo, candidate card preview tap detector, person-specific media picker sheet, and server disconnection guard).
+    - `mobile/test/domain/curation/auto_dataset_curator_test.dart`: **3/3 passed**.
+    - `mobile/test/data/curation_queries_test.dart`: **1/1 passed**.
+    - `mobile/test/features/curation_controller_test.dart`: **3/3 passed**.
+    - Full Curation Suite: **11/11 tests passed**.
+    - Regression Suites: `router_test.dart` & `privacy_and_lora_test.dart` **26/26 passed**.
+    - Inspector Suite: `media_inspector_test.dart` & `media_inspector_master_test.dart` **5/5 passed**.
+  - Static Analysis: `flutter analyze lib` reports **0 errors, 0 warnings** (only 3 pre-existing linter infos in unrelated files).
+- Preserved Baseline:
+  - Documented baseline failures in `_baseline.md` unchanged.
+
+
+# Antigravity handoff — 2026-10-19
+
+
 ## Sidecar Metadata Persistence & Dynamic Auto-Organization Design Approved — 2026-11-03
 
 - User Request:
