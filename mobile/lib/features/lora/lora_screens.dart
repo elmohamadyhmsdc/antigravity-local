@@ -111,7 +111,28 @@ class LoraScreen extends ConsumerWidget {
           ScreenIntro(title: l.studioLoraAction, body: l.studioLoraDescription),
           FilledButton.icon(
             key: const Key('lora-build'),
-            onPressed: () => context.push(Routes.loraBuild),
+            onPressed: () async {
+              final chosen = await pickPerson(
+                context,
+                allowNew: false,
+                kind: 'all',
+              );
+              if (chosen?.personId != null && context.mounted) {
+                final people = [
+                  ...ref.read(peopleProvider).value ?? const [],
+                  ...ref.read(charactersProvider).value ?? const [],
+                ];
+                final name = people
+                    .where((p) => p.id == chosen!.personId)
+                    .firstOrNull
+                    ?.name;
+                context.push(
+                  '${Routes.studioCuration}/${chosen!.personId}?name=${Uri.encodeComponent(name ?? 'person')}',
+                );
+              } else if (context.mounted) {
+                context.push(Routes.loraBuild);
+              }
+            },
             icon: const Icon(Icons.add_photo_alternate_outlined),
             label: Text(l.loraDatasetBuild),
           ),
@@ -536,6 +557,66 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           ScreenIntro(title: l.loraDatasetTitle, body: l.loraPhotoHint),
+          Card(
+            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'التحديد التلقائي الذكي للصور ⚡',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'اختر شخصاً وسيقوم النظام تلقائياً بانتقاء وتصنيف أفضل 20 صورة وفيديو تدريبية بدقة تشريحية عالية.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    key: const Key('dataset-auto-select'),
+                    icon: const Icon(Icons.bolt, size: 18),
+                    label: const Text('اختيار شخص وبدء التحديد التلقائي'),
+                    onPressed: _busy
+                        ? null
+                        : () async {
+                            final chosen = await pickPerson(
+                              context,
+                              allowNew: false,
+                              kind: 'all',
+                            );
+                            if (!mounted) return;
+                            if (chosen?.personId != null) {
+                              final people = [
+                                ...ref.read(peopleProvider).value ?? const [],
+                                ...ref.read(charactersProvider).value ?? const [],
+                              ];
+                              final name = people
+                                  .where((p) => p.id == chosen!.personId)
+                                  .firstOrNull
+                                  ?.name;
+                              context.pushReplacement(
+                                '${Routes.studioCuration}/${chosen!.personId}?name=${Uri.encodeComponent(name ?? 'person')}',
+                              );
+                            }
+                          },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           if (_error != null)
             Text(
               _error!,
@@ -552,19 +633,19 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
                       allowNew: false,
                       kind: 'all',
                     );
-                    if (chosen?.personId != null && mounted) {
+                    if (!mounted) return;
+                    if (chosen?.personId != null) {
                       final people = [
                         ...ref.read(peopleProvider).value ?? const [],
                         ...ref.read(charactersProvider).value ?? const [],
                       ];
-                      setState(() {
-                        _person = chosen!.personId;
-                        _name = people
-                            .where((p) => p.id == _person)
-                            .firstOrNull
-                            ?.name;
-                        _trigger.text = 'sks$_person';
-                      });
+                      final name = people
+                          .where((p) => p.id == chosen!.personId)
+                          .firstOrNull
+                          ?.name;
+                      context.pushReplacement(
+                        '${Routes.studioCuration}/${chosen!.personId}?name=${Uri.encodeComponent(name ?? 'person')}',
+                      );
                     }
                   },
             child: Text(

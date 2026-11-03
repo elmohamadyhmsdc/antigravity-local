@@ -280,12 +280,18 @@ class PersonDetailScreen extends ConsumerWidget {
           Icons.accessibility_new,
           label: l.bodiesTitle,
         ),
-        if (p.kind == 'person')
+        if (p.kind == 'person') ...[
+          PeopleMenuAction(
+            'curateLora',
+            Icons.auto_awesome,
+            label: 'تدريب Character LoRA (تحديد ذكي)',
+          ),
           PeopleMenuAction(
             'exportTraining',
             Icons.model_training,
             label: l.exportTrainingTitle,
           ),
+        ],
         PeopleMenuAction(
           'delete',
           Icons.delete_outline,
@@ -296,6 +302,8 @@ class PersonDetailScreen extends ConsumerWidget {
     );
     if (action == null || !context.mounted) return;
     switch (action) {
+      case 'curateLora':
+        context.push('${Routes.studioCuration}/$personId?name=${Uri.encodeComponent(personName(l, p))}');
       case 'rename':
         await _rename(context, ref, p);
       case 'merge':
@@ -891,9 +899,9 @@ class _PersonModels extends ConsumerWidget {
             ),
         ],
         FilledButton.tonalIcon(
-          onPressed: () => context.push('${Routes.loraBuild}?person=$personId'),
-          icon: const Icon(Icons.add),
-          label: const Text('Prepare training'),
+          onPressed: () => context.push('${Routes.studioCuration}/$personId'),
+          icon: const Icon(Icons.auto_awesome),
+          label: const Text('Prepare training (Auto-Select ⚡)'),
         ),
       ],
     );
