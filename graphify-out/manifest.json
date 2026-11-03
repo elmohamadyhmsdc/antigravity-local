@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "mobile/lib/core/router.dart": {
-    "mtime": 1793640207.692976,
-    "seen": 1793644843.312348,
-    "ast_hash": "be80955f3f9e8f051c7d456ba66a8cae",
+    "mtime": 1793723353.2000792,
+    "seen": 1793724735.9488304,
+    "ast_hash": "7a606b9bcf476c682765965fff9ea705",
     "semantic_hash": ""
   },
   "mobile/lib/core/theme.dart": {
@@ -1860,15 +1860,15 @@
     "semantic_hash": ""
   },
   "the app/lora_dataset.py": {
-    "mtime": 1793560794.7322543,
-    "seen": 1793569451.8540301,
-    "ast_hash": "6889b8e1ac9cb11c9bd2d3929db4e23c",
+    "mtime": 1793723953.5150466,
+    "seen": 1793724735.9493296,
+    "ast_hash": "b31c743ac0127f9882685c1651439817",
     "semantic_hash": ""
   },
   "the app/lora_generate.py": {
-    "mtime": 1793561272.815067,
-    "seen": 1793569451.8540308,
-    "ast_hash": "5e253dfd64c97e8fb840f933ff2386d6",
+    "mtime": 1793724304.3675053,
+    "seen": 1793724735.9493303,
+    "ast_hash": "d3d7328866b062717025363fbc1da0a6",
     "semantic_hash": ""
   },
   "the app/lora_generate_job.py": {
@@ -1926,9 +1926,9 @@
     "semantic_hash": ""
   },
   "the app/mobile_api/artifact_jobs.py": {
-    "mtime": 1793560724.6613588,
-    "seen": 1793569451.8540425,
-    "ast_hash": "516219239b7d48db2a06f40da8d4c37c",
+    "mtime": 1793724432.4216526,
+    "seen": 1793724735.9493408,
+    "ast_hash": "2762ffb676163f8955c3ed0c7b8ab641",
     "semantic_hash": ""
   },
   "the app/mobile_api/auth.py": {
@@ -2292,9 +2292,9 @@
     "semantic_hash": ""
   },
   "the app/mobile_api/studio_jobs.py": {
-    "mtime": 1793561231.9396284,
-    "seen": 1793569451.8541167,
-    "ast_hash": "b4ff4392f2033b6ad695965c3b6a84a2",
+    "mtime": 1793724418.755253,
+    "seen": 1793724735.9494212,
+    "ast_hash": "b7aa52f54ae5a3b0c873da270cc7592e",
     "semantic_hash": ""
   },
   "the app/mobile_api/supervisor.py": {
@@ -2640,9 +2640,9 @@
     "semantic_hash": ""
   },
   "the app/test_mobile_studio.py": {
-    "mtime": 1793344898.50358,
-    "seen": 1793484749.5006378,
-    "ast_hash": "65b7bd63341492351e90422fe67eecb9",
+    "mtime": 1793724390.6601174,
+    "seen": 1793724735.949485,
+    "ast_hash": "13bf1c62269117bdb51d7c45eb524bf0",
     "semantic_hash": ""
   },
   "the app/test_mobile_studio_gpu.py": {
@@ -2772,9 +2772,9 @@
     "semantic_hash": ""
   },
   "docs/ANTIGRAVITY_HANDOFF.md": {
-    "mtime": 1793647763.2685893,
-    "seen": 1793647882.614089,
-    "ast_hash": "d6dc324248c627730dad302795ef1d19",
+    "mtime": 1793724648.7833674,
+    "seen": 1793724735.949507,
+    "ast_hash": "578fe67e49ebefd8b2ba437f63b97238",
     "semantic_hash": ""
   },
   "docs/bulk-scan-1.2.0-2026-10-30.md": {
@@ -3108,9 +3108,9 @@
     "semantic_hash": ""
   },
   "the app/mobile_api/contract/openapi.yaml": {
-    "mtime": 1793563531.7114592,
-    "seen": 1793569451.8542545,
-    "ast_hash": "6cc5917d2ecf5280a26816d9e189dacb",
+    "mtime": 1793724487.4295044,
+    "seen": 1793724735.9495914,
+    "ast_hash": "24036291e1a7da0f599528c4719676c1",
     "semantic_hash": ""
   },
   "the app/requirements.txt": {
@@ -6300,9 +6300,9 @@
     "semantic_hash": ""
   },
   "mobile/test/core/router_test.dart": {
-    "mtime": 1793640334.6667829,
-    "seen": 1793644843.3126073,
-    "ast_hash": "d95d834cdf10827e9f67e9f38787112b",
+    "mtime": 1793723313.209098,
+    "seen": 1793724735.9491048,
+    "ast_hash": "311633f47319be5ea9353a07fb7e10b9",
     "semantic_hash": ""
   },
   "mobile/test/data/api/targeted_api_test.dart": {
@@ -6585,6 +6585,90 @@
     "mtime": 1793646519.8774276,
     "seen": 1793647022.1881564,
     "ast_hash": "13e7909505b5f5a8b45fd854421a9464",
+    "semantic_hash": ""
+  },
+  "mobile/lib/data/repositories/curation_queries.dart": {
+    "mtime": 1793722738.9069548,
+    "seen": 1793724735.9488792,
+    "ast_hash": "cd5962fe15052bf8e76d0bbb45636f6e",
+    "semantic_hash": ""
+  },
+  "mobile/lib/domain/curation/auto_dataset_curator.dart": {
+    "mtime": 1793722579.6202462,
+    "seen": 1793724735.9489083,
+    "ast_hash": "51df4b644159c00cfaa46c77702af734",
+    "semantic_hash": ""
+  },
+  "mobile/lib/features/lora/curation_controller.dart": {
+    "mtime": 1793723053.2679837,
+    "seen": 1793724735.9489806,
+    "ast_hash": "0bb33863f13dc95e537062e896b668d0",
+    "semantic_hash": ""
+  },
+  "mobile/lib/features/lora/curation_review_screen.dart": {
+    "mtime": 1793724581.1135426,
+    "seen": 1793724735.948982,
+    "ast_hash": "7db5c4e1233a1a71c6a50c0f8fc88c8f",
+    "semantic_hash": ""
+  },
+  "mobile/test/data/curation_queries_test.dart": {
+    "mtime": 1793722720.45941,
+    "seen": 1793724735.9491112,
+    "ast_hash": "91a9daa71f69edb7285da38b24067fee",
+    "semantic_hash": ""
+  },
+  "mobile/test/domain/curation/auto_dataset_curator_test.dart": {
+    "mtime": 1793722523.3097801,
+    "seen": 1793724735.949145,
+    "ast_hash": "ded6822716855c10acfc2820d5e647c9",
+    "semantic_hash": ""
+  },
+  "mobile/test/features/curation_controller_test.dart": {
+    "mtime": 1793722797.4623837,
+    "seen": 1793724735.9491944,
+    "ast_hash": "a891819dcba4715860c79ed239a57641",
+    "semantic_hash": ""
+  },
+  "mobile/test/features/curation_review_screen_test.dart": {
+    "mtime": 1793723112.9760258,
+    "seen": 1793724735.9491956,
+    "ast_hash": "f50727322e66a401d3964446187266a2",
+    "semantic_hash": ""
+  },
+  "the app/test_lora_dataset_fullbody.py": {
+    "mtime": 1793723859.566857,
+    "seen": 1793724735.949467,
+    "ast_hash": "e255974513feac8cbd763c0b3d8aee4c",
+    "semantic_hash": ""
+  },
+  "the app/test_lora_face_detailer.py": {
+    "mtime": 1793724242.6040747,
+    "seen": 1793724735.949468,
+    "ast_hash": "7c37b7844df0036c3ffb76706681d08f",
+    "semantic_hash": ""
+  },
+  "the app/test_lora_generate_controlnet.py": {
+    "mtime": 1793724100.8603415,
+    "seen": 1793724735.9494686,
+    "ast_hash": "cdc97d3e9f4eeb04582f4fec49293d0c",
+    "semantic_hash": ""
+  },
+  "the app/test_lora_generate_prompts.py": {
+    "mtime": 1793724025.7852077,
+    "seen": 1793724735.9494693,
+    "ast_hash": "b2d7f459ed2d8a2f774faa1b03f6d8a8",
+    "semantic_hash": ""
+  },
+  "docs/plans/2026-11-03-smart-lora-curation-design.md": {
+    "mtime": 1793722308.5303097,
+    "seen": 1793724735.9495559,
+    "ast_hash": "23ea946a39f033174999e713c8f08416",
+    "semantic_hash": ""
+  },
+  "docs/plans/2026-11-03-smart-lora-curation-plan.md": {
+    "mtime": 1793722487.2607784,
+    "seen": 1793724735.9495566,
+    "ast_hash": "5ddba27f7c72acd2ba72062d82d90b11",
     "semantic_hash": ""
   }
 }
