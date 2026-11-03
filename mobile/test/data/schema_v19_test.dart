@@ -83,7 +83,7 @@ void main() {
 
     // Re-open with AppDatabase to trigger upgrade from 18 to 19
     final upgraded = AppDatabase(NativeDatabase(file));
-    expect(upgraded.schemaVersion, 19);
+    expect(upgraded.schemaVersion, AppDatabase.currentSchemaVersion);
 
     // Verify existing rows are intact
     final preservedFace = await (upgraded.select(

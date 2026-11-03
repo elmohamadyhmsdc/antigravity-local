@@ -96,7 +96,14 @@ def validate_artifact(body, caps):
                 for v in box.values()) or box['w'] <= 0 or box['h'] <= 0):
             raise bad_request('The protected face box is invalid.')
     elif kind == 'build_lora_dataset':
-        allowed_params = {'trigger_word', 'repeats', 'anchor_embedding', 'identity_model_id', 'max_frames_per_video'}
+        allowed_params = {'trigger_word', 'repeats', 'anchor_embedding', 'identity_model_id', 'max_frames_per_video',
+                          'enable_face_detailer', 'resolution_mode'}
+        if 'enable_face_detailer' in params and not isinstance(params['enable_face_detailer'], bool):
+            raise bad_request('enable_face_detailer must be true or false.')
+        # Older phone builds sent the training resolution with the dataset job, and a failed job that is
+        # retried re-sends its stored request: accepted (checked, not used - it is a training setting).
+        if 'resolution_mode' in params and params['resolution_mode'] not in ('512x768', '512x512'):
+            raise bad_request("resolution_mode must be '512x768' or '512x512'.")
         bounded(params, 'repeats', 20, 1, 100, True)
         bounded(params, 'max_frames_per_video', 12, 1, 24, True)
         try:
@@ -251,14 +258,17 @@ def run_artifact(job, directory, report, stopped, ctx):
         try:
             result = _write_dataset_records(records,params['trigger_word'],'mobile',directory/'dataset',
                 params.get('repeats',20),getattr(ctx.engines, '_face_app', None),
-                None if identity_model == CHARACTER_FACE_MODEL_ID else FaceRestorer(model_name='gpen_bfr_512'),
+                # the face detailer pass: GPEN restores each real face crop (drawn faces never go through it)
+                None if identity_model == CHARACTER_FACE_MODEL_ID or params.get('enable_face_detailer', True) is False
+                else FaceRestorer(model_name='gpen_bfr_512'),
                 WD14Tagger(),crop_progress)
         except InterruptedError: return None
         if result['blocked']: raise ValueError(result['warning'])
         folder = Path(result['dataset_dir'])
         with zipfile.ZipFile(directory/'dataset.zip','w',compression=zipfile.ZIP_STORED) as bundle:
             for path in sorted(folder.iterdir()): bundle.write(path,f'{folder.name}/{path.name}')
-        return {'trigger_word':params['trigger_word'],'image_count':result['image_count'], 'identity_model_id':identity_model}
+        return {'trigger_word':params['trigger_word'],'image_count':result['image_count'], 'identity_model_id':identity_model,
+                'face_detailer': identity_model != CHARACTER_FACE_MODEL_ID and params.get('enable_face_detailer', True) is not False}
     if kind == 'train_lora':
         from lora_trainer import build_training_args, latest_resume_state, update_training_state, VENV_LORA_PYTHON, SD_SCRIPTS_TRAIN_SCRIPT, SD_SCRIPTS_DIR
         extracted = directory/'training'

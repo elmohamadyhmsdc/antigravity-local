@@ -531,5 +531,53 @@ void main() {
       },
       session: testSession,
     );
+    appTest(
+      '"Are you sure these are Sara?": tap the wrong ones, one answer settles the batch',
+      (tester, env) async {
+        final sara = await seedPerson(env.db, name: 'Sara');
+        final fine = [
+          for (var i = 0; i < 3; i++)
+            await seedFace(env.db, personId: sara, seed: 1 + i),
+        ];
+        final odd = await seedFace(env.db, personId: sara, seed: 50);
+        for (final id in [...fine, odd]) {
+          await env.db
+              .into(env.db.reviewDoubtful)
+              .insert(
+                ReviewDoubtfulCompanion.insert(
+                  faceId: Value(id),
+                  personId: sara,
+                  score: id == odd ? 0.1 : 0.3,
+                ),
+              );
+        }
+        await _open(tester, env, '/review');
+
+        expect(_question(tester), 'Are you sure these are Sara?');
+        expect(find.byKey(const Key('quick-doubtful-faces')), findsOneWidget);
+
+        await tester.tap(find.byKey(Key('quick-doubtful-$odd')));
+        await _settle(tester);
+        await _tap(tester, 'quick-yes'); // "Remove 1, keep 3"
+
+        final faces = {
+          for (final f in await env.db.select(env.db.faces).get()) f.id: f,
+        };
+        expect(faces[odd]!.personId, isNull);
+        expect(faces[fine.first]!.personId, sara);
+        expect(
+          (await env.db.select(env.db.faceConfirmations).get())
+              .map((c) => c.faceId)
+              .toSet(),
+          fine.toSet(),
+        );
+        expect(
+          (await env.db.select(env.db.faceRejections).get()).single.faceId,
+          odd,
+        );
+        expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
+      },
+      session: testSession,
+    );
   });
 }

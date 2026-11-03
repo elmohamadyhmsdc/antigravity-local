@@ -1,7 +1,7 @@
 import 'review_repository.dart';
 
-/// The four kinds of quick-review question, one per tab of the full Review screen.
-enum ReviewQuestionKind { match, group, duplicate, outfit }
+/// The kinds of quick-review question, one per tab of the full Review screen.
+enum ReviewQuestionKind { match, group, duplicate, outfit, doubtful }
 
 /// What the quick review shows instead of a percentage.
 enum Likelihood { veryLikely, likely, maybe }
@@ -23,6 +23,8 @@ Likelihood likelihoodOf(
     ReviewQuestionKind.outfit when method == 'tattoo' => (0.90, 0.75),
     ReviewQuestionKind.outfit => (0.84, 0.80),
     ReviewQuestionKind.group => (0.55, 0.45),
+    // the average look of the doubted faces: the closer to the person, the likelier they are hers
+    ReviewQuestionKind.doubtful => (0.50, 0.40),
   };
   if (score >= high) return Likelihood.veryLikely;
   if (score >= mid) return Likelihood.likely;
@@ -39,7 +41,8 @@ class ReviewQuestion {
       impact = 1,
       group = null,
       duplicate = null,
-      outfit = null;
+      outfit = null,
+      doubtful = null;
 
   ReviewQuestion.group(ReviewGroupItem this.group)
     : kind = ReviewQuestionKind.group,
@@ -51,7 +54,8 @@ class ReviewQuestion {
       match = null,
       face = null,
       duplicate = null,
-      outfit = null;
+      outfit = null,
+      doubtful = null;
 
   ReviewQuestion.duplicate(ReviewDuplicateItem this.duplicate)
     : kind = ReviewQuestionKind.duplicate,
@@ -65,7 +69,8 @@ class ReviewQuestion {
       match = null,
       face = null,
       group = null,
-      outfit = null;
+      outfit = null,
+      doubtful = null;
 
   ReviewQuestion.outfit(ReviewBodyLinkItem this.outfit)
     : kind = ReviewQuestionKind.outfit,
@@ -76,7 +81,22 @@ class ReviewQuestion {
       match = null,
       face = null,
       group = null,
-      duplicate = null;
+      duplicate = null,
+      doubtful = null;
+
+  ReviewQuestion.doubtful(ReviewDoubtfulItem this.doubtful)
+    : kind = ReviewQuestionKind.doubtful,
+      key = 'x:${doubtful.person.id}:${doubtful.faces.first.faceId}',
+      score = doubtful.averageScore,
+      // "Not sure" reopens when the person has more doubtful faces than when it was parked
+      evidence = doubtful.remaining,
+      // one answer settles the whole batch
+      impact = doubtful.faces.length,
+      match = null,
+      face = null,
+      group = null,
+      duplicate = null,
+      outfit = null;
 
   final ReviewQuestionKind kind;
 
@@ -97,6 +117,7 @@ class ReviewQuestion {
   final ReviewGroupItem? group;
   final ReviewDuplicateItem? duplicate;
   final ReviewBodyLinkItem? outfit;
+  final ReviewDoubtfulItem? doubtful;
 
   Likelihood get likelihood =>
       likelihoodOf(kind, score, method: outfit?.method);
@@ -123,6 +144,7 @@ List<ReviewQuestion> buildQuestions({
   required List<ReviewGroupItem> groups,
   required List<ReviewDuplicateItem> duplicates,
   required List<ReviewBodyLinkItem> outfits,
+  List<ReviewDoubtfulItem> doubtful = const [],
   Map<String, ReviewSnooze> snoozes = const {},
 }) {
   final all = [
@@ -131,6 +153,7 @@ List<ReviewQuestion> buildQuestions({
     for (final m in matches)
       for (final f in m.faces) ReviewQuestion.match(m, f),
     for (final o in outfits) ReviewQuestion.outfit(o),
+    for (final x in doubtful) ReviewQuestion.doubtful(x),
   ];
   final open = [
     for (final q in all)

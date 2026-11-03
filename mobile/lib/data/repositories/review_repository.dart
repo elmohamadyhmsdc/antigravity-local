@@ -89,21 +89,64 @@ class ReviewBodyLinkItem {
   final double confidence;
 }
 
+/// A face already on a person that the audit doubts.
+class ReviewDoubtfulFace {
+  const ReviewDoubtfulFace({
+    required this.faceId,
+    required this.cropPath,
+    required this.score,
+    this.suggested,
+  });
+
+  final int faceId;
+  final String? cropPath;
+
+  /// How much it looks like the person's core (low = most doubtful).
+  final double score;
+
+  /// Another person it fits better, when there is one.
+  final PersonSummary? suggested;
+}
+
+/// "Are you sure these are Sara?" - a batch of her most doubtful faces. A person with more doubtful
+/// faces than [chunkSize] is several questions, worst first.
+class ReviewDoubtfulItem {
+  const ReviewDoubtfulItem({
+    required this.person,
+    required this.faces,
+    required this.remaining,
+  });
+
+  /// Faces per question: a screenful you can scan at once.
+  static const chunkSize = 24;
+
+  final PersonSummary person;
+  final List<ReviewDoubtfulFace> faces;
+
+  /// Doubtful faces of this person in all (this batch included).
+  final int remaining;
+
+  double get averageScore =>
+      faces.fold<double>(0, (s, f) => s + f.score) / faces.length;
+}
+
 class ReviewCounts {
   const ReviewCounts({
     this.matches = 0,
     this.groups = 0,
     this.duplicates = 0,
     this.bodyLinks = 0,
+    this.doubtful = 0,
   });
 
   final int matches; // faces
   final int groups;
   final int duplicates;
   final int bodyLinks;
+  final int doubtful; // faces on a person that the audit doubts
 
   /// "N need a decision".
-  int get total => matches + groups + duplicates + bodyLinks;
+  int get total => matches + groups + duplicates + bodyLinks + doubtful;
 
   @override
   bool operator ==(Object other) =>
@@ -111,10 +154,12 @@ class ReviewCounts {
       other.matches == matches &&
       other.groups == groups &&
       other.duplicates == duplicates &&
-      other.bodyLinks == bodyLinks;
+      other.bodyLinks == bodyLinks &&
+      other.doubtful == doubtful;
 
   @override
-  int get hashCode => Object.hash(matches, groups, duplicates, bodyLinks);
+  int get hashCode =>
+      Object.hash(matches, groups, duplicates, bodyLinks, doubtful);
 }
 
 /// The PC's last review plan (round 3 of the grouping run), kept on the phone.
@@ -134,6 +179,8 @@ class ReviewRepository {
           _db.reviewGroups,
           _db.reviewDuplicates,
           _db.reviewBodyLinks,
+          _db.reviewDoubtful,
+          _db.faceConfirmations,
           _db.faces,
           _db.persons,
           _db.bodies,
@@ -314,11 +361,29 @@ class ReviewRepository {
                 )
                 .getSingle())
             .read<int>('n');
+    final doubtful =
+        (await _db
+                .customSelect(
+                  '''
+          SELECT COUNT(*) AS n FROM review_doubtful d JOIN faces f ON f.id = d.face_id
+          WHERE f.person_id = d.person_id AND f.hidden = 0 AND f.kind = ?
+            AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = f.id AND c.person_id = f.person_id)
+          ''',
+                  variables: [Variable.withString(kind)],
+                  readsFrom: {
+                    _db.reviewDoubtful,
+                    _db.faces,
+                    _db.faceConfirmations,
+                  },
+                )
+                .getSingle())
+            .read<int>('n');
     return ReviewCounts(
       matches: matches,
       groups: groups,
       duplicates: duplicates,
       bodyLinks: links,
+      doubtful: doubtful,
     );
   }
 
@@ -522,6 +587,89 @@ class ReviewRepository {
     yield* _changes().asyncMap((_) => matchesFor(personId));
   }
 
+  // ---- "are you sure?" ------------------------------------------------------------
+
+  Stream<List<ReviewDoubtfulItem>> watchDoubtful() async* {
+    yield await doubtful();
+    yield* _changes().asyncMap((_) => doubtful());
+  }
+
+  /// Faces on a person that the audit doubts, per person, worst first, in batches of
+  /// [ReviewDoubtfulItem.chunkSize]. A face answered since (confirmed, moved, rejected, hidden) is gone.
+  Future<List<ReviewDoubtfulItem>> doubtful() async {
+    final people = {for (final p in await _people.people()) p.id: p};
+    final rows = await _db
+        .customSelect(
+          '''
+          SELECT d.face_id, d.person_id, d.score, d.suggested_person_id, f.crop_path
+          FROM review_doubtful d JOIN faces f ON f.id = d.face_id
+          WHERE f.person_id = d.person_id AND f.hidden = 0 AND f.kind = ?
+            AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = f.id AND c.person_id = f.person_id)
+          ORDER BY d.person_id, d.score ASC, d.face_id
+          ''',
+          variables: [Variable.withString(kind)],
+          readsFrom: {_db.reviewDoubtful, _db.faces, _db.faceConfirmations},
+        )
+        .get();
+    final byPerson = <int, List<ReviewDoubtfulFace>>{};
+    for (final r in rows) {
+      final pid = r.read<int>('person_id');
+      if (people[pid] == null) continue;
+      final suggested = r.readNullable<int>('suggested_person_id');
+      byPerson
+          .putIfAbsent(pid, () => [])
+          .add(
+            ReviewDoubtfulFace(
+              faceId: r.read<int>('face_id'),
+              cropPath: r.readNullable<String>('crop_path'),
+              score: r.read<double>('score'),
+              suggested: suggested == null ? null : people[suggested],
+            ),
+          );
+    }
+    final out = <ReviewDoubtfulItem>[];
+    for (final e in byPerson.entries) {
+      for (var i = 0; i < e.value.length; i += ReviewDoubtfulItem.chunkSize) {
+        out.add(
+          ReviewDoubtfulItem(
+            person: people[e.key]!,
+            faces: e.value.sublist(
+              i,
+              math.min(i + ReviewDoubtfulItem.chunkSize, e.value.length),
+            ),
+            remaining: e.value.length,
+          ),
+        );
+      }
+    }
+    return out;
+  }
+
+  /// "Yes, these are her."
+  Future<void> confirmDoubtful(Iterable<int> faceIds, int personId) =>
+      _people.confirmFaces(faceIds, personId);
+
+  /// "No, these are not her": they leave her, and auto-grouping never puts them back. With
+  /// [moveTo], a face the audit found a better home for goes there instead of waiting unsorted.
+  Future<void> removeDoubtful(
+    Iterable<int> faceIds,
+    int personId, {
+    Map<int, int> moveTo = const {},
+  }) => _db.transaction(() async {
+    final ids = faceIds.toList();
+    await _people.rejectFaces(ids, fromPersonId: personId);
+    final byTarget = <int, List<int>>{};
+    for (final id in ids) {
+      final to = moveTo[id];
+      if (to != null && to != personId) {
+        byTarget.putIfAbsent(to, () => []).add(id);
+      }
+    }
+    for (final e in byTarget.entries) {
+      await _people.assignFaces(e.value, e.key);
+    }
+  });
+
   // ---- quick review ---------------------------------------------------------------
 
   Future<Map<String, ReviewSnooze>> _snoozes() async => {
@@ -536,6 +684,7 @@ class ReviewRepository {
     groups: await groupItems(),
     duplicates: await duplicates(),
     outfits: await bodyLinks(),
+    doubtful: await doubtful(),
     snoozes: await _snoozes(),
   );
 

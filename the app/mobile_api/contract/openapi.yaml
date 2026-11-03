@@ -1727,6 +1727,8 @@ components:
             - { $ref: "#/components/schemas/CharacterEmbedding" }
         repeats: { type: integer, default: 20, minimum: 1, maximum: 100 }
         max_frames_per_video: { type: integer, default: 12, minimum: 1, maximum: 24 }
+        enable_face_detailer: { type: boolean, default: true, description: "Restore each real face crop (GPEN) while building the dataset. Off keeps the crops as photographed. Not applied to drawn characters." }
+        resolution_mode: { type: string, enum: ['512x768', '512x512'], description: "Accepted and ignored: older phone builds sent the training resolution with this job (it is a training setting, max_resolution)." }
 
       allOf:
         - if: { properties: { identity_model_id: { const: ccip-caformer24@1 } }, required: [identity_model_id] }

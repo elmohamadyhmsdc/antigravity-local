@@ -164,12 +164,14 @@ IdentitySelection selectIdentity(
     final median = _median(basis);
     final mad = _median([for (final s in basis) (s - median).abs()]);
     final threshold = math.max(floor, median - math.max(3 * mad, 0.1));
-    bool isTrusted(int i) => trusted != null && trusted.contains(usable[i].$1.id);
+    bool isTrusted(int i) =>
+        trusted != null && trusted.contains(usable[i].$1.id);
     final dropIds = [
       for (var i = 0; i < usable.length; i++)
         if (sims[i] < threshold && !isTrusted(i)) usable[i].$1.id,
     ];
-    if (dropIds.length <= usable.length * maxTrim) {
+    // with vouched-for faces the anchor is the user's word, not a guess at the majority: no cap on the trim
+    if (byTrust || dropIds.length <= usable.length * maxTrim) {
       outliers.addAll(dropIds);
       pool = [
         for (var i = 0; i < usable.length; i++)

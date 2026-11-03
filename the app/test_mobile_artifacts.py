@@ -64,6 +64,18 @@ class ArtifactTests(unittest.TestCase):
             slot={'train_lora':'dataset','generate_lora_images':'lora','undress_image':'image','build_lora_dataset':'images'}[kind]
             with self.assertRaises(ApiError):validate_artifact({'type':kind,'params':params,'inputs':{slot:['a'*64] if slot=='images' else 'a'*64}},caps)
 
+    def test_dataset_build_accepts_the_face_detailer_switch_and_still_refuses_unknown_options(self):
+        caps=self.ctx.probe.snapshot()
+        anchor=encode_embedding(unit(1))
+        def job(**extra):
+            return {'type':'build_lora_dataset','params':{'trigger_word':'sksx','anchor_embedding':anchor,**extra},
+                    'inputs':{'images':['a'*64]}}
+        validate_artifact(job(),caps)
+        validate_artifact(job(enable_face_detailer=False),caps)          # the phone sends it when the user turns it off
+        validate_artifact(job(resolution_mode='512x768',enable_face_detailer=True),caps)   # what older builds (and their retried jobs) send
+        for bad in ({'enable_face_detailer':'no'},{'resolution_mode':'4k'},{'sampler':'euler'}):
+            with self.assertRaises(ApiError):validate_artifact(job(**bad),caps)
+
     def test_dataset_archive_is_bounded_and_cannot_escape_or_load_python_state(self):
         def bundle(names):
             stream=io.BytesIO()

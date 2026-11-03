@@ -53,7 +53,7 @@ class DoubtAudit {
     final flagged = <int, List<_Doubt>>{};
     final cores = <int, Float32List>{};
     final vectors = <int, Float32List>{};
-    var turn = 0;
+    final slice = Stopwatch()..start();
     for (final p in people) {
       final pid = p.read<int>('id');
       final rows = await _db
@@ -104,8 +104,13 @@ class DoubtAudit {
         if (doubts.isNotEmpty) flagged[pid] = doubts;
         cores[pid] = _core(selection.kept);
       }
-      // a big library is minutes of arithmetic: let the screen breathe
-      if (++turn % 8 == 0) await Future<void>.delayed(Duration.zero);
+      // a big library is a lot of arithmetic: never hold the screen (or the Pause button) for long
+      if (slice.elapsedMilliseconds > 12) {
+        await Future<void>.delayed(Duration.zero);
+        slice
+          ..reset()
+          ..start();
+      }
     }
 
     // Where a doubtful face fits better: the other person whose core it is closest to.

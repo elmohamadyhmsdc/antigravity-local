@@ -31,6 +31,13 @@ final reviewGroupsProvider = StreamProvider.autoDispose
           ref.watch(reviewRepositoryByKindProvider(kind)).watchGroups(),
     );
 
+/// Faces already on a person that the audit doubts ("Are you sure these are X?").
+final reviewDoubtfulProvider = StreamProvider.autoDispose
+    .family<List<ReviewDoubtfulItem>, String>(
+      (ref, kind) =>
+          ref.watch(reviewRepositoryByKindProvider(kind)).watchDoubtful(),
+    );
+
 /// S10 - everything the PC wants a decision on, in four tabs: faces that look like a known person,
 /// new groups of faces, people who may be the same, bodies matched by outfit.
 class ReviewScreen extends ConsumerWidget {
@@ -46,7 +53,7 @@ class ReviewScreen extends ConsumerWidget {
         ref.watch(reviewCountsByKindProvider(kind)).value ??
         const ReviewCounts();
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -90,6 +97,10 @@ class ReviewScreen extends ConsumerWidget {
                 key: const Key('review-tab-outfits'),
                 text: l10n.reviewTabOutfits(counts.bodyLinks),
               ),
+              Tab(
+                key: const Key('review-tab-doubtful'),
+                text: 'Sure? (${counts.doubtful})',
+              ),
             ],
           ),
         ),
@@ -110,6 +121,7 @@ class ReviewScreen extends ConsumerWidget {
                   _GroupsTab(kind: kind),
                   _DuplicatesTab(kind: kind),
                   _OutfitsTab(kind: kind),
+                  _DoubtfulTab(kind: kind),
                 ],
               ),
             ),
@@ -775,6 +787,117 @@ class _PersonChip extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------------------------
+
+/// "Are you sure these are Sara?": her faces that do not look like the rest, worst first, in batches.
+/// The quick review answers the same batches one face at a time; here a whole batch is one tap.
+class _DoubtfulTab extends ConsumerWidget {
+  const _DoubtfulTab({required this.kind});
+
+  final String kind;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(reviewDoubtfulProvider(kind));
+    return items.when(
+      loading: () => const LoadingBox(),
+      error: (_, _) => RetryState(
+        onRetry: () => ref.invalidate(reviewDoubtfulProvider(kind)),
+      ),
+      data: (batches) {
+        if (batches.isEmpty) {
+          return const EmptyState(
+            icon: Icons.verified_outlined,
+            title: 'Every face looks like its person',
+            body:
+                'Sort now checks the faces already on people - the ones you named too - and lists the odd ones here.',
+          );
+        }
+        final repo = reviewRepositoryFor(ref, kind);
+        return ListView(
+          key: const Key('review-doubtful'),
+          padding: const EdgeInsets.all(20),
+          children: [
+            for (final b in batches)
+              Card(
+                key: Key('doubtful-${b.person.id}-${b.faces.first.faceId}'),
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          PersonAvatar(
+                            cropPath: b.person.avatarCropPath,
+                            radius: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Are you sure these are ${personName(AppLocalizations.of(context), b.person)}? '
+                              '(${b.faces.length} of ${b.remaining})',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (var i = 0; i < b.faces.length; i++)
+                            InkWell(
+                              onTap: () => openReviewMedia(context, [
+                                for (final f in b.faces)
+                                  ReviewTarget('f', f.faceId),
+                              ], initialTarget: i),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: SizedBox(
+                                  width: 64,
+                                  height: 64,
+                                  child: CropImage(path: b.faces[i].cropPath),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              key: Key('doubtful-remove-${b.person.id}'),
+                              onPressed: () => repo.removeDoubtful([
+                                for (final f in b.faces) f.faceId,
+                              ], b.person.id),
+                              child: const Text('None are her'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton(
+                              key: Key('doubtful-confirm-${b.person.id}'),
+                              onPressed: () => repo.confirmDoubtful([
+                                for (final f in b.faces) f.faceId,
+                              ], b.person.id),
+                              child: const Text('Yes, all are her'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
 
 class _OutfitsTab extends ConsumerWidget {
   const _OutfitsTab({required this.kind});

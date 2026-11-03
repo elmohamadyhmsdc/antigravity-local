@@ -387,7 +387,8 @@ class ScanEngine {
 
     while (true) {
       if (_pauseRequested) {
-        if (sinceGroupingFaces > 0) await groupNow();
+        // Pause stops now. Grouping is repeatable (the end of the scan, Sort now) and used to be awaited
+        // here, so Pause waited for a whole grouping round - network, maths and all.
         await _pause(PauseReason.user);
         return;
       }
@@ -435,7 +436,6 @@ class ScanEngine {
       }
       switch (result) {
         case _Paused():
-          if (sinceGroupingFaces > 0) await groupNow();
           return;
         case _Failed():
           failed++;

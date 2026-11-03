@@ -111,10 +111,15 @@ GroupingModel robustPersonModel(
       return c != 0 ? c : a.compareTo(b);
     });
   final chosen = byQuality.take(cap ~/ 2).toList();
+  // the farthest-first search costs candidates x members x dimensions: a person with thousands of faces
+  // (a long video) is searched among an evenly spaced 600 of them
+  final candidates = clean.length <= 600
+      ? List<int>.generate(clean.length, (i) => i)
+      : [for (var i = 0; i < 600; i++) i * clean.length ~/ 600];
   // farthest-first: the face least like anything chosen so far
   final nearest = List<double>.filled(clean.length, double.negativeInfinity);
   void touch(int added) {
-    for (var i = 0; i < clean.length; i++) {
+    for (final i in candidates) {
       var dot = 0.0;
       for (var d = 0; d < unit[i].length; d++) {
         dot += unit[i][d] * unit[added][d];
@@ -130,7 +135,7 @@ GroupingModel robustPersonModel(
   while (chosen.length < cap) {
     var pick = -1;
     var lowest = double.infinity;
-    for (var i = 0; i < clean.length; i++) {
+    for (final i in candidates) {
       if (taken.contains(i)) continue;
       if (nearest[i] < lowest) {
         lowest = nearest[i];
@@ -199,15 +204,30 @@ class GroupingInputs {
         )
         .get();
     final out = <GroupingModel>[];
+    final slice = Stopwatch()..start();
     for (final p in people) {
       final pid = p.read<int>('person_id');
       final rows = await _db
           .customSelect(
-            'SELECT quality_score, embedding FROM faces WHERE person_id = ? AND face_px >= ?',
+            'SELECT id, quality_score, embedding FROM faces WHERE person_id = ? AND face_px >= ?',
             variables: [Variable.withInt(pid), Variable.withReal(_minPx)],
             readsFrom: {_db.faces},
           )
           .get();
+      // A person whose faces did not change keeps the model of the last round: grouping runs every
+      // 100 new faces, and only a few people change between two runs.
+      var idSum = 0, maxId = 0;
+      for (final r in rows) {
+        final id = r.read<int>('id');
+        idSum += id;
+        if (id > maxId) maxId = id;
+      }
+      final signature = '$cap:${rows.length}:$idSum:$maxId';
+      final cached = _modelCache[pid];
+      if (cached != null && cached.$1 == signature) {
+        out.add(cached.$2);
+        continue;
+      }
       final faces = <FaceVector>[];
       for (final r in rows) {
         final v = _vector(r.read<Uint8List>('embedding'));
@@ -216,10 +236,25 @@ class GroupingInputs {
         }
       }
       if (faces.isEmpty) continue;
-      out.add(robustPersonModel(pid, faces, cap: cap));
+      final model = robustPersonModel(pid, faces, cap: cap);
+      _modelCache[pid] = (signature, model);
+      out.add(model);
+      // never hold the screen for more than a frame or two: the scan, Pause and every other screen
+      // share this thread
+      if (slice.elapsedMilliseconds > 12) {
+        await Future<void>.delayed(Duration.zero);
+        slice
+          ..reset()
+          ..start();
+      }
     }
+    final live = {for (final m in out) m.pid};
+    _modelCache.removeWhere((pid, _) => !live.contains(pid));
     return out;
   }
+
+  /// person id -> (signature of the faces it was built from, the model).
+  final _modelCache = <int, (String, GroupingModel)>{};
 
   /// Faces that belong to nobody, with the people they were told they are NOT.
   Future<List<GroupingFace>> pending() async {
@@ -244,7 +279,14 @@ class GroupingInputs {
         )
         .get();
     final out = <GroupingFace>[];
+    final slice = Stopwatch()..start();
     for (final r in rows) {
+      if (slice.elapsedMilliseconds > 12) {
+        await Future<void>.delayed(Duration.zero);
+        slice
+          ..reset()
+          ..start();
+      }
       final v = _vector(r.read<Uint8List>('embedding'));
       if (v == null) continue;
       out.add(
@@ -286,11 +328,14 @@ class GroupingInputs {
               SELECT d.person_a AS a, d.person_b AS b
               FROM person_distinct d JOIN persons p ON p.id = d.person_a WHERE p.kind = ?1
               UNION
-              SELECT MIN(x.person_id, y.person_id), MAX(x.person_id, y.person_id)
-              FROM faces x JOIN faces y
-                ON y.media_id = x.media_id AND y.frame_number IS x.frame_number AND y.id > x.id
-              WHERE x.person_id IS NOT NULL AND y.person_id IS NOT NULL AND x.person_id != y.person_id
-                AND x.kind = ?1 AND y.kind = ?1
+              SELECT x.pid, y.pid
+              FROM (SELECT media_id AS m, COALESCE(frame_number, -1) AS fr, person_id AS pid
+                    FROM faces WHERE person_id IS NOT NULL AND kind = ?1 AND media_id IS NOT NULL
+                    GROUP BY media_id, COALESCE(frame_number, -1), person_id) x
+              JOIN (SELECT media_id AS m, COALESCE(frame_number, -1) AS fr, person_id AS pid
+                    FROM faces WHERE person_id IS NOT NULL AND kind = ?1 AND media_id IS NOT NULL
+                    GROUP BY media_id, COALESCE(frame_number, -1), person_id) y
+                ON y.m = x.m AND y.fr = x.fr AND y.pid > x.pid
               ORDER BY 1, 2
               ''',
               variables: [Variable.withString(kind)],

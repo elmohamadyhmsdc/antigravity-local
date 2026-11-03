@@ -417,8 +417,56 @@ class PeopleRepository {
         variables: ids,
         updates: {_db.reviewMatches},
       );
+      // assigned by hand (or accepted in the review): the user vouches for it
+      await _vouch(chunk, personId);
     }
   }
+
+  /// Marks faces as confirmed on [personId] and drops them from the "are you sure?" list.
+  Future<void> _vouch(Iterable<int> faceIds, int personId) async {
+    final ids = faceIds.toList();
+    if (ids.isEmpty) return;
+    final marks = _marks(ids.length);
+    await _db.customUpdate(
+      'INSERT OR REPLACE INTO face_confirmations (face_id, person_id, confirmed_at) SELECT id, ?, ? FROM faces WHERE id IN ($marks)',
+      variables: [
+        Variable.withInt(personId),
+        Variable.withInt(_now),
+        for (final i in ids) Variable.withInt(i),
+      ],
+      updates: {_db.faceConfirmations},
+    );
+    await _db.customUpdate(
+      'DELETE FROM review_doubtful WHERE face_id IN ($marks)',
+      variables: [for (final i in ids) Variable.withInt(i)],
+      updates: {_db.reviewDoubtful},
+    );
+  }
+
+  /// "Yes, these really are [personId]": the audit never doubts them again, and they become the trusted
+  /// core the person's other faces are judged against.
+  Future<void> confirmFaces(Iterable<int> faceIds, int personId) =>
+      _db.transaction(() async {
+        for (final chunk in _chunks(faceIds)) {
+          final marks = _marks(chunk.length);
+          // only faces that are still on that person
+          final onPerson = [
+            for (final r
+                in await _db
+                    .customSelect(
+                      'SELECT id FROM faces WHERE person_id = ? AND id IN ($marks)',
+                      variables: [
+                        Variable.withInt(personId),
+                        for (final i in chunk) Variable.withInt(i),
+                      ],
+                      readsFrom: {_db.faces},
+                    )
+                    .get())
+              r.read<int>('id'),
+          ];
+          await _vouch(onPerson, personId);
+        }
+      });
 
   /// Assign (or move) faces to a person. A rejection of that very pair is forgotten.
   Future<void> assignFaces(Iterable<int> faceIds, int personId) =>
@@ -445,6 +493,16 @@ class PeopleRepository {
             'DELETE FROM review_matches WHERE face_id = ? AND person_id = ?',
             variables: [Variable.withInt(face.id), Variable.withInt(pid)],
             updates: {_db.reviewMatches},
+          );
+          await _db.customUpdate(
+            'DELETE FROM face_confirmations WHERE face_id = ?',
+            variables: [Variable.withInt(face.id)],
+            updates: {_db.faceConfirmations},
+          );
+          await _db.customUpdate(
+            'DELETE FROM review_doubtful WHERE face_id = ?',
+            variables: [Variable.withInt(face.id)],
+            updates: {_db.reviewDoubtful},
           );
         }
       });
@@ -732,6 +790,17 @@ class PeopleRepository {
         variables: [t, s],
         updates: {_db.reviewMatches},
       );
+      // what the user vouched for stays vouched for on the merged person; the audit asks again
+      await _db.customUpdate(
+        'UPDATE face_confirmations SET person_id = ? WHERE person_id = ?',
+        variables: [t, s],
+        updates: {_db.faceConfirmations},
+      );
+      await _db.customUpdate(
+        'DELETE FROM review_doubtful WHERE person_id IN (?, ?)',
+        variables: [t, s],
+        updates: {_db.reviewDoubtful},
+      );
       await _db.customUpdate(
         '''DELETE FROM review_matches WHERE
         face_id IN (SELECT id FROM faces WHERE person_id IS NOT NULL)
@@ -928,6 +997,12 @@ class PeopleRepository {
       await (_db.delete(
         _db.reviewMatches,
       )..where((m) => m.faceId.isIn(chunk))).go();
+      await (_db.delete(
+        _db.faceConfirmations,
+      )..where((c) => c.faceId.isIn(chunk))).go();
+      await (_db.delete(
+        _db.reviewDoubtful,
+      )..where((d) => d.faceId.isIn(chunk))).go();
     }
   });
 

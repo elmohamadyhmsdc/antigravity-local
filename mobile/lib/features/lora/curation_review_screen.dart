@@ -203,8 +203,10 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
               'trigger_word': state.triggerWord.trim(),
               'repeats': 20,
               'anchor_embedding': anchor,
-              'resolution_mode': state.resolutionMode,
-              'enable_face_detailer': state.faceDetailerEnabled,
+              // sent only when turned OFF: the default is on everywhere, so a PC that predates the option still
+              // accepts the job (an unknown option is a 400 there). The resolution choice is a training
+              // setting (max_resolution), not a dataset one, so it is not sent here.
+              if (!state.faceDetailerEnabled) 'enable_face_detailer': false,
               if (caps.hasOperationSupport) 'identity_model_id': identityModel,
             },
             inputs: {'images': photos},

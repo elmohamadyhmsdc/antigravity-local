@@ -82,6 +82,9 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
   var _busy = false;
   var _drag = 0.0;
 
+  /// "Are you sure?" questions: the faces the user tapped as NOT that person, per question.
+  final _marked = <String, Set<int>>{};
+
   ReviewRepository get _review => reviewRepositoryFor(ref, widget.kind);
   PeopleRepository get _people => peopleRepositoryFor(ref, widget.kind);
 
@@ -136,6 +139,20 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
         return _merge(q.duplicate!);
       case ReviewQuestionKind.group:
         return false; // answered by _GroupAnswer
+      case ReviewQuestionKind.doubtful:
+        // the faces not tapped are confirmed (and become the trusted core), the tapped ones leave
+        final item = q.doubtful!;
+        final out = _marked[q.key] ?? <int>{};
+        final keep = [
+          for (final x in item.faces)
+            if (!out.contains(x.faceId)) x.faceId,
+        ];
+        if (keep.isNotEmpty) {
+          await _review.confirmDoubtful(keep, item.person.id);
+        }
+        if (out.isNotEmpty) {
+          await _review.removeDoubtful(out, item.person.id);
+        }
     }
     return true;
   });
@@ -150,6 +167,11 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
         await _people.markDistinct(q.duplicate!.a.id, q.duplicate!.b.id);
       case ReviewQuestionKind.group:
         await _review.dismissGroup(q.group!.id);
+      case ReviewQuestionKind.doubtful:
+        // none of these is her
+        await _review.removeDoubtful([
+          for (final x in q.doubtful!.faces) x.faceId,
+        ], q.doubtful!.person.id);
     }
     return true;
   });
@@ -297,7 +319,14 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
             advanced: advanced,
             busy: _busy,
             drag: _drag,
-            onDrag: q.kind == ReviewQuestionKind.group
+            marked: _marked[q.key] ?? const <int>{},
+            onToggle: (faceId) => setState(() {
+              final set = _marked.putIfAbsent(q.key, () => <int>{});
+              if (!set.remove(faceId)) set.add(faceId);
+            }),
+            onDrag:
+                q.kind == ReviewQuestionKind.group ||
+                    q.kind == ReviewQuestionKind.doubtful
                 ? null
                 : (dx) => setState(() => _drag += dx),
             onDragEnd: (velocity) {
@@ -336,7 +365,13 @@ class _QuestionView extends ConsumerWidget {
     required this.onNo,
     required this.onNotSure,
     required this.onGroup,
+    required this.marked,
+    required this.onToggle,
   });
+
+  /// Faces of an "are you sure?" question the user tapped as not that person.
+  final Set<int> marked;
+  final ValueChanged<int> onToggle;
 
   final ReviewQuestion question;
   final String kind;
@@ -383,6 +418,11 @@ class _QuestionView extends ConsumerWidget {
         l.quickGroupFaces(q.group!.faces.length),
         null,
       ),
+      ReviewQuestionKind.doubtful => (
+        'Are you sure these are ${personName(l, q.doubtful!.person)}?',
+        '${q.doubtful!.remaining} of her faces look different from the rest',
+        q.doubtful!.person,
+      ),
     };
 
     final media = switch (q.kind) {
@@ -390,6 +430,11 @@ class _QuestionView extends ConsumerWidget {
       ReviewQuestionKind.outfit => _Photo(kind: 'b', id: q.outfit!.bodyId),
       ReviewQuestionKind.duplicate => _Pair(item: q.duplicate!),
       ReviewQuestionKind.group => _Group(item: q.group!),
+      ReviewQuestionKind.doubtful => _Doubtful(
+        item: q.doubtful!,
+        marked: marked,
+        onToggle: onToggle,
+      ),
     };
 
     return Column(
@@ -487,6 +532,16 @@ class _QuestionView extends ConsumerWidget {
                     kind: kind,
                     busy: busy,
                     onSave: onGroup,
+                    onNo: onNo,
+                    onNotSure: onNotSure,
+                  )
+                : q.kind == ReviewQuestionKind.doubtful
+                ? _DoubtfulBar(
+                    name: personName(l, q.doubtful!.person),
+                    total: q.doubtful!.faces.length,
+                    marked: marked.length,
+                    busy: busy,
+                    onYes: onYes,
                     onNo: onNo,
                     onNotSure: onNotSure,
                   )
@@ -859,6 +914,170 @@ class _Group extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// "Tap the faces that are NOT her": a grid of the person's most doubtful faces (worst first). A
+/// tapped face is marked for removal; long-press opens it in its photo. A caption shows the other
+/// person a face looks more like, when there is one.
+class _Doubtful extends StatelessWidget {
+  const _Doubtful({
+    required this.item,
+    required this.marked,
+    required this.onToggle,
+  });
+
+  final ReviewDoubtfulItem item;
+  final Set<int> marked;
+  final ValueChanged<int> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final name = personName(l, item.person);
+    return Column(
+      children: [
+        Text(
+          'Tap the ones that are NOT $name. Long-press to see the photo.',
+          style: theme.textTheme.bodyMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: GridView.builder(
+            key: const Key('quick-doubtful-faces'),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 6,
+            ),
+            itemCount: item.faces.length,
+            itemBuilder: (context, i) {
+              final face = item.faces[i];
+              final out = marked.contains(face.faceId);
+              return InkWell(
+                key: Key('quick-doubtful-${face.faceId}'),
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => onToggle(face.faceId),
+                onLongPress: () => openReviewMedia(context, [
+                  for (final f in item.faces) ReviewTarget('f', f.faceId),
+                ], initialTarget: i),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CropImage(path: face.cropPath),
+                    ),
+                    if (out)
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: .45),
+                          border: Border.all(color: Colors.red, width: 3),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                        ),
+                      ),
+                    if (face.suggested != null)
+                      Positioned(
+                        left: 2,
+                        right: 2,
+                        bottom: 2,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: .6),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '→ ${personName(l, face.suggested!)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DoubtfulBar extends StatelessWidget {
+  const _DoubtfulBar({
+    required this.name,
+    required this.total,
+    required this.marked,
+    required this.busy,
+    required this.onYes,
+    required this.onNo,
+    required this.onNotSure,
+  });
+
+  final String name;
+  final int total, marked;
+  final bool busy;
+  final VoidCallback onYes, onNo, onNotSure;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    const size = Size.fromHeight(52);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton.icon(
+          key: const Key('quick-yes'),
+          style: FilledButton.styleFrom(minimumSize: size),
+          onPressed: busy ? null : onYes,
+          icon: Icon(marked == 0 ? Icons.check : Icons.rule),
+          label: Text(
+            marked == 0
+                ? 'Yes, all $total are $name'
+                : 'Remove $marked, keep ${total - marked}',
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                key: const Key('quick-no'),
+                style: OutlinedButton.styleFrom(minimumSize: size),
+                onPressed: busy ? null : onNo,
+                child: Text('None are $name', textAlign: TextAlign.center),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextButton(
+                key: const Key('quick-unsure'),
+                style: TextButton.styleFrom(minimumSize: size),
+                onPressed: busy ? null : onNotSure,
+                child: Text(l.quickNotSure, textAlign: TextAlign.center),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

@@ -3,6 +3,7 @@ import '../../data/db/app_database.dart';
 import '../../data/repositories/app_settings.dart';
 import '../../data/repositories/review_repository.dart';
 import 'grouping_config.dart';
+import '../identity/doubt_audit.dart';
 import 'grouping_inputs.dart';
 import 'plan_applier.dart';
 
@@ -30,6 +31,7 @@ class GroupingRun {
 ///   1. apply [match, cluster]  -> confident matches + new people, in one transaction
 ///   2. apply [bodies]          -> outfit / weak-face links against the people that now exist
 ///   3. review [all four]       -> everything that still needs a decision, stored for the Review screen
+///   4. audit (local)           -> faces already on a person that do not look like her, stored the same way
 /// Every round is idempotent, so running it again (or after a crash) is always safe.
 class GroupingRunner {
   GroupingRunner({
@@ -41,9 +43,11 @@ class GroupingRunner {
     this._then,
     PlanApplier? applier,
     GroupingInputs? inputs,
+    DoubtAudit? audit,
     this._memberCap = groupingMemberCap,
   }) : _applier = applier ?? PlanApplier(_db, kind: kind),
-       _inputs = inputs ?? GroupingInputs(_db, kind: kind);
+       _inputs = inputs ?? GroupingInputs(_db, kind: kind),
+       _audit = audit ?? DoubtAudit(_db, kind: kind);
 
   final AppDatabase _db;
   final MobileApi? Function() _api;
@@ -51,6 +55,7 @@ class GroupingRunner {
   final ReviewRepository _review;
   final PlanApplier _applier;
   final GroupingInputs _inputs;
+  final DoubtAudit _audit;
   final int _memberCap;
 
   /// Another kind's runner that follows this one (people, then characters).
@@ -108,7 +113,11 @@ class GroupingRunner {
 
   Future<GroupingRun> _run({required bool incremental}) async {
     final api = _api();
-    if (api == null) return const GroupingRun(skipped: true);
+    if (api == null) {
+      // the PC is the only thing missing: the audit of faces already on people is local
+      if (!incremental) await _audit.run();
+      return const GroupingRun(skipped: true);
+    }
     final strictness = kind == 'character'
         ? characterStrictness
         : (await _settings.load()).strictness;
@@ -163,6 +172,9 @@ class GroupingRunner {
       ),
     );
     await _review.replaceAll(review);
+    // Then everything already sorted, the faces the user named included: which of them do not look like
+    // the rest of their person? They come back as "Are you sure these are X?" questions.
+    await _audit.run();
 
     return GroupingRun(
       assigned: result.assigned,
