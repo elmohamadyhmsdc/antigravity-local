@@ -69,6 +69,22 @@ def sample_video_frames(video_path: str, frames_dir: Path, max_frames: int = FRA
         cap.release()
 
 
+def classify_shot_type(bbox, image_shape) -> str:
+    """Classifies a bounding box [x1, y1, x2, y2] into a shot type based on its
+    vertical height relative to the image height."""
+    if bbox is None or not image_shape or image_shape[0] <= 0:
+        return "close-up portrait"
+    box_height = float(bbox[3] - bbox[1])
+    img_height = float(image_shape[0])
+    ratio = box_height / img_height
+    if ratio >= 0.70:
+        return "full length shot"
+    elif ratio >= 0.35:
+        return "upper body shot"
+    else:
+        return "close-up portrait"
+
+
 def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[FaceRestorer] = None) -> Dict:
     """
     Given one face record (as stored in database.py's faces.json) and an
@@ -78,6 +94,8 @@ def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[F
             "body_crop": np.ndarray (BGR) or None,
             "skipped_body": bool,   # True if no body crop could be produced
             "restored": bool,       # True if CodeFormer restoration ran
+            "face_shot_type": str,  # Shot type description for face crop
+            "body_shot_type": str or None, # Shot type description for body crop
         }
 
     Video-sourced faces (source_path is a video file) always skip the body
@@ -89,7 +107,14 @@ def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[F
     """
     if face_record.get('identity_kind') == 'character':
         image = cv2.imread(face_record.get('source_path', ''))
-        result = {"face_crop": None, "body_crop": None, "skipped_body": True, "restored": False}
+        result = {
+            "face_crop": None,
+            "body_crop": None,
+            "skipped_body": True,
+            "restored": False,
+            "face_shot_type": "close-up portrait",
+            "body_shot_type": None,
+        }
         if image is None:
             return result
         h, w = image.shape[:2]
@@ -103,6 +128,8 @@ def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[F
         result['face_crop'] = crop(face_record.get('portrait_bbox'))
         result['body_crop'] = crop(face_record.get('body_bbox'))
         result['skipped_body'] = result['body_crop'] is None
+        if result['body_crop'] is not None and face_record.get('body_bbox'):
+            result['body_shot_type'] = classify_shot_type(face_record['body_bbox'], (h, w))
         return result
 
     if restorer is None:
@@ -110,7 +137,14 @@ def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[F
 
     source_path = face_record.get("source_path", "")
     quality_score = float(face_record.get("quality_score", 0.0))
-    result = {"face_crop": None, "body_crop": None, "skipped_body": True, "restored": False}
+    result = {
+        "face_crop": None,
+        "body_crop": None,
+        "skipped_body": True,
+        "restored": False,
+        "face_shot_type": "close-up portrait",
+        "body_shot_type": None,
+    }
 
     source_image = None
     if source_path and _is_image_source(source_path) and os.path.exists(source_path):
@@ -148,6 +182,7 @@ def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[F
         if body_crop is not None:
             result["body_crop"] = body_crop
             result["skipped_body"] = False
+            result["body_shot_type"] = classify_shot_type(person_bbox, (h, w))
 
     return result
 
@@ -218,6 +253,7 @@ def build_caption(
     tagger: Optional[WD14Tagger] = None,
     captioner=None,
     description: Optional[str] = None,
+    shot_type: Optional[str] = None,
 ) -> str:
     """
     Builds the caption using the idea.txt trick: trigger word + class first,
@@ -227,7 +263,10 @@ def build_caption(
     then explicit quality-flag tags for low-quality or blurry sources so the
     LoRA learns those are photo defects, not identity.
     """
-    parts = [f"{trigger_word} person"]
+    if shot_type:
+        parts = [f"{shot_type} of {trigger_word} person"]
+    else:
+        parts = [f"{trigger_word} person"]
 
     if description:
         parts.append(description)
@@ -308,7 +347,8 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
             stem = f"{slug}_{i:04d}_{kind}"
             img_path = dataset_dir / f"{stem}.jpg"
             cv2.imwrite(str(img_path), crop)
-            written.append((img_path, float(face.get("quality_score", 0.0))))
+            shot_type = extracted.get(f"{kind}_shot_type") or ("close-up portrait" if kind == "face" else "upper body shot")
+            written.append((img_path, float(face.get("quality_score", 0.0)), shot_type))
 
     descriptions = {}
     if captioner is None and written:
@@ -317,17 +357,18 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
         from florence_captioner import caption_paths
         # Progress callbacks may raise to cancel (mobile jobs); caption_paths kills its worker then.
         descriptions = caption_paths(
-            [p for p, _ in written],
+            [item[0] for item in written],
             progress=(lambda done, total: progress(0.8 + 0.1 * done / total,
                                                    f"Describing {done}/{total} (Florence-2)")) if progress else None)
 
-    for n, (img_path, quality) in enumerate(written):
+    for n, (img_path, quality, shot_type) in enumerate(written):
         if progress:
             progress(0.9 + 0.1 * n / len(written), f"Captioning {n + 1}/{len(written)}")
         crop = cv2.imread(str(img_path))
         caption = build_caption(crop, trigger_word=trigger_word, quality_score=quality,
                                 tagger=tagger, captioner=captioner,
-                                description=descriptions.get(str(img_path)))
+                                description=descriptions.get(str(img_path)),
+                                shot_type=shot_type)
         img_path.with_suffix(".txt").write_text(caption, encoding="utf-8")
         image_count += 1
 
