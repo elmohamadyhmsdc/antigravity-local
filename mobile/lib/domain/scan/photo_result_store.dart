@@ -21,6 +21,7 @@ import 'drawn_faces.dart';
 import 'scan_math.dart';
 import 'video_tracks.dart';
 import '../geometry/outline.dart';
+import '../organization/dynamic_auto_organizer.dart';
 
 class StoreOutcome {
   const StoreOutcome({
@@ -66,15 +67,20 @@ class _Existing {
 /// Mirrors LibraryScanner._scan_frame / _FileState.store_face / store_body on the PC.
 class PhotoResultStore {
   PhotoResultStore({
-    required this._db,
-    required this._files,
-    required this._index,
+    required AppDatabase db,
+    required FileStore files,
+    required EmbeddingIndex index,
+    this.autoOrganizer,
     DateTime Function()? clock,
-  }) : _clock = clock ?? DateTime.now;
+  })  : _db = db,
+        _files = files,
+        _index = index,
+        _clock = clock ?? DateTime.now;
 
   final AppDatabase _db;
   final FileStore _files;
   final EmbeddingIndex _index;
+  final DynamicAutoOrganizer? autoOrganizer;
   final DateTime Function() _clock;
 
   Future<StoreOutcome> store(
@@ -645,6 +651,9 @@ class PhotoResultStore {
       await _index.remove([for (final (id, _) in replaced) id]);
     }
     await _index.addAll([...newVectors, ...replaced]);
+    if (autoOrganizer != null) {
+      await autoOrganizer!.syncMedia(media.id);
+    }
     return StoreOutcome(
       facesSeen: gated.length,
       newFaceIds: newIds,

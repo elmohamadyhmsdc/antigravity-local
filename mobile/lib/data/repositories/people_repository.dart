@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:drift/drift.dart';
 
+import '../../domain/organization/dynamic_auto_organizer.dart';
 import '../db/app_database.dart';
 import '../files/file_store.dart';
 import '../index/embedding_index.dart';
@@ -107,6 +108,7 @@ class PeopleRepository {
     this._db,
     this._files, {
     this._index,
+    this.autoOrganizer,
     this.kind = 'person',
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
@@ -114,6 +116,7 @@ class PeopleRepository {
   final AppDatabase _db;
   final FileStore _files;
   final EmbeddingIndex? _index;
+  final DynamicAutoOrganizer? autoOrganizer;
   final DateTime Function() _clock;
 
   /// 'person' (real faces, buffalo_l) or 'character' (drawn faces, CCIP). Lists, the unsorted
@@ -726,6 +729,18 @@ class PeopleRepository {
       )..where((p) => p.id.equals(targetId))).write(updates);
       await (_db.delete(_db.persons)..where((p) => p.id.equals(sourceId))).go();
     });
+    if (autoOrganizer != null) {
+      await autoOrganizer!.syncPersonGroup(targetId);
+    }
+  }
+
+  Future<void> setPersonGroup(int personId, int? groupId) async {
+    await (_db.update(_db.persons)..where((p) => p.id.equals(personId))).write(
+      PersonsCompanion(groupId: Value(groupId)),
+    );
+    if (autoOrganizer != null) {
+      await autoOrganizer!.syncPersonGroup(personId);
+    }
   }
 
   // ---- bodies ---------------------------------------------------------------------

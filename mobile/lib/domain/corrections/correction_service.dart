@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../data/db/app_database.dart';
 import '../../data/repositories/people_repository.dart';
+import '../organization/dynamic_auto_organizer.dart';
 import 'body_link_guard.dart';
 import 'correction_scope.dart';
 import 'correction_target.dart';
@@ -58,11 +59,13 @@ class CorrectionService {
     required this.db,
     required this.peopleRepo,
     required this.bodyLinkGuard,
+    this.autoOrganizer,
   });
 
   final AppDatabase db;
   final PeopleRepository peopleRepo;
   final BodyLinkGuard bodyLinkGuard;
+  final DynamicAutoOrganizer? autoOrganizer;
 
   final Map<String, _Snapshot> _undoSnapshots = {};
 
@@ -249,6 +252,9 @@ class CorrectionService {
           scope,
           targetPersonId,
         );
+        if (autoOrganizer != null) {
+          await autoOrganizer!.syncMedia(f.mediaId);
+        }
         break;
 
       case BodyLinkTarget b:
@@ -259,6 +265,9 @@ class CorrectionService {
           scope,
           targetPersonId,
         );
+        if (autoOrganizer != null) {
+          await autoOrganizer!.syncMedia(b.mediaId);
+        }
         break;
 
       case BodyPairTarget bp:

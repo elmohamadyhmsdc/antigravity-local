@@ -27,6 +27,7 @@ import 'data/repositories/people_repository.dart';
 import 'data/repositories/identity_groups.dart';
 import 'data/platform/media_organizer.dart';
 import 'domain/organization/person_media_organizer.dart';
+import 'domain/organization/dynamic_auto_organizer.dart';
 import 'data/repositories/character_repository.dart';
 import 'data/repositories/kind_corrections.dart';
 import 'data/repositories/review_questions.dart';
@@ -203,6 +204,7 @@ final peopleRepositoryProvider = Provider<PeopleRepository>(
     ref.watch(databaseProvider),
     ref.watch(fileStoreProvider),
     index: ref.watch(embeddingIndexProvider),
+    autoOrganizer: ref.watch(dynamicAutoOrganizerProvider),
   ),
 );
 
@@ -220,6 +222,7 @@ final characterPeopleRepositoryProvider = Provider<PeopleRepository>(
     ref.watch(fileStoreProvider),
     index: ref.watch(embeddingIndexProvider),
     kind: 'character',
+    autoOrganizer: ref.watch(dynamicAutoOrganizerProvider),
   ),
 );
 
@@ -341,6 +344,7 @@ final photoResultStoreProvider = Provider<PhotoResultStore>(
     db: ref.watch(databaseProvider),
     files: ref.watch(fileStoreProvider),
     index: ref.watch(embeddingIndexProvider),
+    autoOrganizer: ref.watch(dynamicAutoOrganizerProvider),
   ),
 );
 
@@ -549,7 +553,10 @@ final equipmentLibraryProvider = Provider<EquipmentLibrary>(
 );
 
 final identityGroupsRepositoryProvider = Provider<IdentityGroupsRepository>(
-  (ref) => IdentityGroupsRepository(ref.watch(databaseProvider)),
+  (ref) => IdentityGroupsRepository(
+    ref.watch(databaseProvider),
+    autoOrganizer: ref.watch(dynamicAutoOrganizerProvider),
+  ),
 );
 final identityGroupsProvider =
     StreamProvider.autoDispose<List<IdentityGroupSummary>>(
@@ -578,6 +585,13 @@ final personMediaOrganizerProvider = Provider<PersonMediaOrganizer>(
   ),
 );
 
+final dynamicAutoOrganizerProvider = Provider<DynamicAutoOrganizer>((ref) {
+  return DynamicAutoOrganizer(
+    db: ref.watch(databaseProvider),
+    organizer: ref.watch(personMediaOrganizerProvider),
+  );
+});
+
 final bodyLinkGuardProvider = Provider<BodyLinkGuard>((ref) {
   return BodyLinkGuard(ref.watch(databaseProvider));
 });
@@ -587,6 +601,7 @@ final correctionServiceProvider = Provider<CorrectionService>((ref) {
     db: ref.watch(databaseProvider),
     peopleRepo: ref.watch(peopleRepositoryProvider),
     bodyLinkGuard: ref.watch(bodyLinkGuardProvider),
+    autoOrganizer: ref.watch(dynamicAutoOrganizerProvider),
   );
 });
 

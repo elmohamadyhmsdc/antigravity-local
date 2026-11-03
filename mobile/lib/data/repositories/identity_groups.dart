@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import '../../domain/organization/dynamic_auto_organizer.dart';
 import '../db/app_database.dart';
 
 typedef IdentityGroupSummary = ({
@@ -12,8 +13,9 @@ typedef IdentityGroupSummary = ({
 /// One organizing group per identity; both real people and drawn characters use
 /// the same groups, while their visual identity models remain separate.
 class IdentityGroupsRepository {
-  IdentityGroupsRepository(this.db);
+  IdentityGroupsRepository(this.db, {this.autoOrganizer});
   final AppDatabase db;
+  final DynamicAutoOrganizer? autoOrganizer;
 
   Stream<List<IdentityGroupSummary>> watch() => db
       .customSelect(
@@ -89,6 +91,11 @@ class IdentityGroupsRepository {
               .write(PersonsCompanion(groupId: Value(groupId)));
         }
       });
+      if (autoOrganizer != null) {
+        for (final pId in people) {
+          await autoOrganizer!.syncPersonGroup(pId);
+        }
+      }
 
   /// The group is removed; identities and originals stay in the library.
   Future<void> delete(int id) =>
