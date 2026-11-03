@@ -114,6 +114,12 @@ class CompositeConfig:
     temporal_alpha_slow: float = 0.3              # noise sigma and focus radius
     mask_area_floor: float = 0.005                # below this, statistics are unreliable
     track_ttl: int = 30                           # frames before a track is evicted
+    # Size-adaptive work (0 = off: every face gets restore_size and the restorer). Costs are per face and a
+    # small face cannot show the extra work: it is pasted back at its own few pixels.
+    compact_below_px: float = 0.0                 # frame height under which a face is not restored and is
+                                                  # composited on a compact crop
+    compact_size: int = 256
+    light_below_px: float = 0.0                   # under this, a 1024 restorer hands over to the 512 one
 
 
 PRESETS = {
@@ -163,8 +169,9 @@ def alignment_matrix(kps, size: int) -> Optional[np.ndarray]:
 
 
 class FaceCompositor:
-    def __init__(self, restorer, masker, config: CompositeConfig = None):
+    def __init__(self, restorer, masker, config: CompositeConfig = None, light_restorer=None):
         self.restorer = restorer
+        self.light_restorer = light_restorer          # the 512 restorer for mid-size faces when restorer is 1024
         self.masker = masker
         self.config = config or CompositeConfig()
         self._tracks = {}
@@ -203,6 +210,41 @@ class FaceCompositor:
         if msg not in self._logged:
             self._logged.add(msg)
             print(f"[COMPOSITE] {msg}", flush=True)
+
+    def _tier(self, track_id: int, native_px, restore: bool):
+        """(restorer or None, crop size) for a face this many pixels tall in the frame.
+
+        Tier 0 is compact (no restoration), 1 the light restorer, 2 the full pipeline. In a video a track
+        changes tier only once its size is 12% past the threshold, so a face hovering around one does not
+        flip between looks (and mask shapes) from frame to frame.
+        """
+        cfg = self.config
+        main = self.restorer if restore and getattr(self.restorer, "available", False) else None
+        light = self.light_restorer if main is not None and getattr(self.light_restorer, "available", False) else None
+        if not native_px or (cfg.compact_below_px <= 0 and not (light and cfg.light_below_px > 0)):
+            return main, cfg.restore_size
+
+        def tier_at(px):
+            if cfg.compact_below_px > 0 and px < cfg.compact_below_px:
+                return 0
+            if light is not None and cfg.light_below_px > 0 and px < cfg.light_below_px:
+                return 1
+            return 2
+
+        want = tier_at(float(native_px))
+        if cfg.temporal:
+            state = self._tracks.setdefault(track_id, {})
+            prev = state.get("_tier")
+            if prev is not None and want != prev:
+                probe = tier_at(float(native_px) * (1.12 if want < prev else 0.88))
+                if probe != want:
+                    want = prev
+            state["_tier"] = want
+        if want == 0:
+            return None, min(cfg.compact_size, cfg.restore_size)
+        if want == 1:
+            return light, int(getattr(light, "size", 512))
+        return main, cfg.restore_size
 
     def _guard(self, name: str, fn, fallback):
         try:
@@ -422,7 +464,7 @@ class FaceCompositor:
         """Composite one swapped face onto `frame`. Returns the updated frame."""
         self.last_degraded = []
         self.last_status, self.last_reason = "failed", "alignment failed"
-        size = self.config.restore_size
+        restorer, size = self._tier(track_id, native_px, restore)
         m_ffhq = alignment_matrix(kps, size)
         if m_ffhq is None:
             self._log_once("degenerate landmarks; face skipped")
@@ -438,10 +480,10 @@ class FaceCompositor:
             return frame
 
         orig_masks = None
-        if restore and getattr(self.restorer, "available", False):
+        if restorer is not None:
             # The original-crop masks don't depend on the restored face, so
             # they're built on this thread while the restorer runs on the pool.
-            pending = self._executor().submit(self.restorer.enhance, base)
+            pending = self._executor().submit(restorer.enhance, base)
             orig_masks = self._guard("mask", lambda: self._orig_masks(orig_aligned), None)
             base = self._guard("restore", pending.result, base)
             if base.shape[:2] != (size, size):

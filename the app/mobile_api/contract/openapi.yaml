@@ -1763,6 +1763,12 @@ components:
         trigger_word: { type: string }
         prompt: { type: string }
         negative_prompt: { type: string }
+        angles:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items: { type: string, enum: [frontal, three_quarter, profile, up, down] }
+          description: "One head direction per image (then `num_images` must equal the list length): what the phone's Reface check found missing from the person's source faces. Portraits without a reference image only."
         num_images: { type: integer, minimum: 1, maximum: 16 }
         seed: { type: integer, default: -1 }
         steps: { type: integer, default: 30 }

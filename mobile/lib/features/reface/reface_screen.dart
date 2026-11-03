@@ -31,6 +31,9 @@ import 'reface_video_trimmer.dart';
 import 'reface_faces.dart';
 import 'reface_face_choices.dart';
 import 'reface_options.dart';
+import 'reface_preflight_card.dart';
+import '../../domain/reface/angle_generation.dart';
+import '../../domain/reface/reface_preflight.dart';
 import '../../domain/geometry/outline.dart';
 
 class RefaceScreen extends ConsumerStatefulWidget {
@@ -91,8 +94,257 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   int? _importedSource;
   String? _importedModelId;
   int _importedMediaCount = 0;
+
+  /// Generating the head angles the target needs from the person's LoRA (see [_generateAngles]).
+  String? _angleJob;
+  String? _angleStatus;
+  bool _angleRunning = false;
+  StreamSubscription<JobRow?>? _angleSub;
+
+  /// "Before we start": the target's face sizes and poses against the source's, from what the phone already
+  /// measured (no PC). Null when there is nothing to compare (a trained identity, or sources read from media).
+  RefacePreflight? _preflight() {
+    if (_identityMode == 'dfm' || _useImportedSource) return null;
+    final targets = <PreflightTarget>[];
+    if (_video == null) {
+      final faces = _analysis?.faces ?? const <DetectedFace>[];
+      final picked = _replaceAllFaces
+          ? [for (var i = 0; i < faces.length; i++) i]
+          : _targets.toList();
+      for (final i in picked) {
+        if (i < 0 || i >= faces.length) continue;
+        final q = faces[i].quality;
+        targets.add(
+          PreflightTarget(
+            facePx: q.facePx,
+            yaw: q.pose?.yaw,
+            pitch: q.pose?.pitch,
+          ),
+        );
+      }
+    } else {
+      final picked = _replaceAllFaces
+          ? [for (var i = 0; i < _videoFaces.length; i++) i]
+          : _targets.toList();
+      for (final i in picked) {
+        if (i < 0 || i >= _videoFaces.length) continue;
+        // one entry per distinct appearance the scan sampled of this person
+        for (final face in _videoFaces[i].samples) {
+          final q = face.quality;
+          targets.add(
+            PreflightTarget(
+              facePx: q.facePx,
+              yaw: q.pose?.yaw,
+              pitch: q.pose?.pitch,
+            ),
+          );
+        }
+      }
+    }
+    final sources = <PreflightSource>[
+      for (final f in _faces)
+        if (_sources.contains(f.id))
+          PreflightSource(yaw: f.yaw, pitch: f.pitch, facePx: f.facePx),
+    ];
+    if (_loraIdentity) {
+      final models = ref.read(lorasProvider).value ?? const <LoraRow>[];
+      final model = models
+          .where((m) => m.personId == _person && m.identityJson != null)
+          .firstOrNull;
+      if (model != null) {
+        try {
+          final faces =
+              (jsonDecode(model.identityJson!) as Map<String, dynamic>)['faces']
+                  as List;
+          for (final e in faces.take(40)) {
+            final pose = (e as Map)['pose'] as Map?;
+            sources.add(
+              PreflightSource(
+                yaw: (pose?['yaw'] as num?)?.toDouble(),
+                pitch: (pose?['pitch'] as num?)?.toDouble(),
+                generated: true,
+              ),
+            );
+          }
+        } catch (_) {
+          // an unreadable identity is reported when the job is built, not here
+        }
+      }
+    }
+    return RefacePreflight(targets: targets, sources: sources);
+  }
+
+  /// The LoRA the missing angles are generated with: the chosen person's newest one, preferring one whose
+  /// portraits are already built. Null for a trained identity, media sources or a person without a LoRA.
+  LoraRow? _personLora() {
+    if (_person == null || _useImportedSource || _identityMode == 'dfm') {
+      return null;
+    }
+    final models = [
+      for (final m in ref.read(lorasProvider).value ?? const <LoraRow>[])
+        if (m.personId == _person) m,
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return models.where((m) => m.identityJson != null).firstOrNull ??
+        models.firstOrNull;
+  }
+
+  /// Queue portraits of exactly the head directions the target shows and the source lacks, wait for them,
+  /// fold the ones that really are this person into the model's Reface identity and switch it on.
+  Future<void> _generateAngles(LoraRow model, AngleGenerationPlan plan) async {
+    final prompt = AppLocalizations.of(
+      context,
+    ).loraDefaultPrompt(model.triggerWord);
+    final caps = _caps(ref.read(serverStatusProvider).value);
+    if (caps == null || caps.loraBaseCheckpoints.isEmpty) {
+      setState(
+        () => _angleStatus =
+            'The PC reports no base model for generating portraits.',
+      );
+      return;
+    }
+    if (!await ref.read(fileStoreProvider).resolve(model.path).exists()) {
+      if (mounted) setState(() => _angleStatus = 'Model file unavailable');
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _angleRunning = true;
+      _angleStatus = 'Queuing ${plan.count} portraits...';
+    });
+    try {
+      await prepareBackgroundForWork(context, ref);
+      if (!mounted) return;
+      final studio = ref.read(studioRepositoryProvider);
+      final identityModel = await studio.identityModelForLora(model.id);
+      if (identityModel != null && identityModel != 'buffalo_l@1') {
+        throw const FormatException(
+          'Only a model of a real person can fill in head angles.',
+        );
+      }
+      if (identityModel != null &&
+          caps.hasOperationSupport &&
+          !caps.supportsOperation(
+            'lora_generate',
+            'person',
+            identityModelId: identityModel,
+          )) {
+        throw const FormatException(
+          'This PC cannot generate with this identity model.',
+        );
+      }
+      final id = await studio.enqueueInputs(
+        serverId: caps.serverId,
+        type: 'generate_lora_images',
+        context: ArtifactContext(
+          personId: model.personId,
+          modelId: model.id,
+          identityModelId: identityModel,
+        ),
+        params: {
+          'trigger_word': model.triggerWord,
+          'base_checkpoint': caps.loraBaseCheckpoints.first,
+          'prompt': prompt,
+          'num_images': plan.count,
+          'angles': plan.angles,
+          'seed': -1,
+          'steps': 30,
+          if (identityModel != null && caps.hasOperationSupport)
+            'identity_model_id': identityModel,
+        },
+        inputs: {
+          'lora': [ref.read(fileStoreProvider).resolve(model.path)],
+        },
+        personId: model.personId,
+      );
+      ref.read(jobTrackerProvider).start();
+      _watchAngles(id, model);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _angleRunning = false;
+          _angleStatus = '$e';
+        });
+      }
+    }
+  }
+
+  void _watchAngles(String id, LoraRow model) {
+    _angleSub?.cancel();
+    _angleJob = id;
+    _angleSub = ref.read(studioRepositoryProvider).watchJob(id).listen((job) {
+      if (!mounted || job == null || _angleJob != id) return;
+      switch (job.status) {
+        case 'completed':
+          _angleSub?.cancel();
+          _angleSub = null;
+          _finishAngles(model);
+        case 'failed' || 'lost':
+          _angleSub?.cancel();
+          _angleSub = null;
+          setState(() {
+            _angleRunning = false;
+            _angleStatus =
+                'Generating the angles failed: ${job.error ?? job.status}. Reface can still start with what the source has.';
+          });
+        case 'paused':
+          setState(
+            () => _angleStatus =
+                'Paused. Resume it from Jobs; Reface can still start without it.',
+          );
+        default:
+          setState(
+            () => _angleStatus =
+                '${job.message ?? job.status} (${(job.progress * 100).round()}%)',
+          );
+      }
+    });
+  }
+
+  Future<void> _finishAngles(LoraRow model) async {
+    if (mounted) setState(() => _angleStatus = 'Checking the new portraits...');
+    try {
+      final api = ref.read(mobileApiProvider);
+      if (api == null) {
+        throw const FormatException(
+          'Connect to the PC to check the portraits.',
+        );
+      }
+      final kept = await ref
+          .read(loraRepositoryProvider)
+          .buildIdentity(model, api);
+      if (!mounted) return;
+      setState(() {
+        _angleRunning = false;
+        _loraIdentity = true;
+        _angleStatus = '$kept model portraits are part of the identity now.';
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _angleRunning = false;
+          _angleStatus = '$e';
+        });
+      }
+    }
+  }
+
+  AngleGenerationOffer? _angleGeneration(RefacePreflight preflight) {
+    final model = _personLora();
+    final plan = AngleGenerationPlan.of(preflight);
+    if (model == null || (plan == null && !_angleRunning)) return null;
+    return AngleGenerationOffer(
+      plan: plan,
+      running: _angleRunning,
+      status: _angleStatus,
+      onGenerate: _busy || _angleRunning || plan == null
+          ? null
+          : () => _generateAngles(model, plan),
+    );
+  }
+
   @override
   void dispose() {
+    _angleSub?.cancel();
     _targetScanGeneration++;
     _targetScanTimer?.cancel();
     super.dispose();
@@ -1469,6 +1721,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                         ),
                       const SizedBox(height: 12),
                       Text(l10n.refaceReviewHint),
+                      if (_preflight() case final preflight?) ...[
+                        const SizedBox(height: 12),
+                        RefacePreflightCard(
+                          preflight: preflight,
+                          generate: _angleGeneration(preflight),
+                        ),
+                      ],
                       if (_videoTrim case final trim?)
                         Text(
                           '${l10n.refaceTrimStart}: ${trimTime(trim.start)} · ${l10n.refaceTrimEnd}: ${trimTime(trim.end)}',

@@ -253,7 +253,11 @@ class RefaceEngineV3(RefaceEngine):
         except ValueError as e:
             print(f"[V3] {e}; falling back to 'natural'")
             comp_config = config_from_preset("natural", **overrides)
-        self.compositor = FaceCompositor(self.restorer, self.masker, comp_config)
+        light = None
+        if comp_config.light_below_px > 0 and self.restore_size > 512 and self.restorer.available:
+            candidate = FaceRestorer(model_name="gpen_bfr_512", providers=self.providers)
+            light = candidate if candidate.available else None
+        self.compositor = FaceCompositor(self.restorer, self.masker, comp_config, light_restorer=light)
 
         print(
             f"[INFO] RefaceEngineV3 ready "

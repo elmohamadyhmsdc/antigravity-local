@@ -263,6 +263,46 @@ def parse_clothes(image_pil: Image.Image, processor, model) -> np.ndarray:
     return up.argmax(dim=1)[0].cpu().numpy().astype(np.uint8)
 
 
+# fp16 SDXL maps ~7 GB of weights; Windows charges that against the commit limit (RAM + pagefile) up front.
+SDXL_MIN_COMMIT_GB = 8.5
+
+
+def commit_available_gb() -> float | None:
+    """Commit headroom (commit limit - committed) in GB on Windows, None elsewhere / on error."""
+    if os.name != "nt":
+        return None
+    try:
+        import ctypes
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                        ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                        ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+        status = MEMORYSTATUSEX()
+        status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
+        return status.ullAvailPageFile / 2 ** 30
+    except Exception:
+        return None
+
+
+def log_memory(tag: str) -> None:
+    """One stderr line with this process's RSS/private bytes and the system commit charge (diagnoses os error 1455)."""
+    try:
+        import psutil
+        info = psutil.Process().memory_info()
+        vm = psutil.virtual_memory()
+        swap = psutil.swap_memory()
+        print(f"[mem] {tag}: worker rss {info.rss / 2**30:.1f} GB, private {getattr(info, 'private', info.vms) / 2**30:.1f} GB, "
+              f"system RAM free {vm.available / 2**30:.1f} GB, pagefile used {swap.used / 2**30:.1f}/{swap.total / 2**30:.1f} GB",
+              file=sys.stderr)
+    except Exception:
+        pass
+
+
 def get_sd15_pipeline(device: str, dtype, hyper_sd: bool = True):
     inpaint_src = ensure_local_model(INPAINT_MODEL_ID, "model_index.json")
     print(f"Loading SD1.5 Inpaint + ControlNet from {inpaint_src}...", file=sys.stderr)
@@ -348,14 +388,20 @@ def get_sdxl_pipeline(device: str, dtype):
     # No IP-adapter loaded for SDXL in this multi-stage setup because it's only for the refiner step.
     
     if device == "cuda":
-        pipe.to(device)
+        # fp16 SDXL is ~7 GB, more than a 6 GB card holds: keep it offloaded like the SD1.5 stage,
+        # unless the card is large enough to hold the whole pipeline.
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / 1024 ** 3
+        if vram_gb < 11:
+            pipe.enable_model_cpu_offload()
+        else:
+            pipe.to(device)
         try: pipe.enable_xformers_memory_efficient_attention()
         except Exception: pass
         try: pipe.enable_vae_slicing()
         except Exception: pass
     else:
         pipe.to(device)
-        
+
     pipe.set_progress_bar_config(disable=True)
     return pipe
 
@@ -552,6 +598,7 @@ def generate(payload: dict, device: str, dtype, parser_proc, parser) -> dict:
     
     # ---------------- STAGE 1: SD 1.5 + ControlNet ----------------
     print(f"--- STAGE 1: SD 1.5 Structural Generation ---", file=sys.stderr)
+    log_memory("stage 1 start")
     
     # Generate pose control image first to save memory
     from controlnet_aux import OpenposeDetector
@@ -608,14 +655,31 @@ def generate(payload: dict, device: str, dtype, parser_proc, parser) -> dict:
     )
     base_gen = np.array(result_15.images[0].convert("RGB"))
     
-    del pipe_sd15
+    # Stage 2 loads ~7 GB of SDXL weights. On this 16 GB PC the SD1.5 pipeline (accelerate offload hooks, the
+    # ControlNet, IP-Adapter, the result/ip_kwargs tensors) must really be gone first, otherwise Windows runs
+    # out of commit ("paging file is too small", os error 1455 -> MemoryError) while SDXL is being loaded.
+    try:
+        pipe_sd15.maybe_free_model_hooks()
+    except Exception:
+        pass
+    del pipe_sd15, result_15, ip_kwargs
+    gc.collect()
     gc.collect()
     if device == "cuda":
         torch.cuda.empty_cache()
 
-    if str(payload.get("refine", True)).lower() in ("true", "1", "yes"):
+    refine = str(payload.get("refine", True)).lower() in ("true", "1", "yes")
+    headroom = commit_available_gb() if refine else None
+    if refine and headroom is not None and headroom < SDXL_MIN_COMMIT_GB:
+        # Loading SDXL anyway makes torch crash natively (access violation) and takes the worker down.
+        print(f"SDXL refinement skipped: only {headroom:.1f} GB of Windows commit memory is free "
+              f"(needs {SDXL_MIN_COMMIT_GB} GB). Close other programs or enlarge the pagefile.", file=sys.stderr)
+        refine = False
+
+    if refine:
         # ---------------- STAGE 2: SDXL High-Res Refinement ----------------
         print(f"--- STAGE 2: SDXL High-Res Refinement ---", file=sys.stderr)
+        log_memory("stage 2 start (SD1.5 released)")
         pipe_sdxl = get_sdxl_pipeline(device, dtype)
         
         gw_xl, gh_xl = fit_work_size(cw, ch, SDXL_WORK_MAX_DIM)

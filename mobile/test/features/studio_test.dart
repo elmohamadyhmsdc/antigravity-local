@@ -21,6 +21,17 @@ import '../support/seed.dart';
 
 Future<void> open(WidgetTester tester, TestEnv env, String route) =>
     env.pump(tester, extra: [initialLocationProvider.overrideWithValue(route)]);
+
+/// Real I/O (files, SQLite) only moves while the test yields to the real event loop.
+Future<void> settleAsync(WidgetTester tester) async {
+  for (var i = 0; i < 15; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 Future<void> next(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.ensureVisible(find.byKey(const Key('reface-next')));
@@ -292,6 +303,121 @@ void main() {
     await next(tester);
     expect(find.byKey(const Key('reface-preview')), findsOneWidget);
     expect(find.text('Render a preview'), findsOneWidget);
+  }, session: testSession);
+
+  appTest(
+    'review checks the target against the source before anything is queued',
+    (tester, env) async {
+      final person = await seedPerson(env.db, name: 'Sara');
+      await seedFace(
+        env.db,
+        personId: person,
+        seed: 1,
+      ); // one real source face: a thin identity
+      env.picker.photo = tinyPng;
+      await open(tester, env, '/reface?person=$person');
+      await pickRefaceTarget(tester);
+      await tester.tap(find.byKey(const Key('target-face-0')));
+      await tester.pumpAndSettle();
+      await next(tester);
+      await next(tester);
+
+      expect(find.byKey(const Key('reface-preflight')), findsOneWidget);
+      expect(find.textContaining('Target: 1 face'), findsOneWidget);
+      expect(find.textContaining('Only 1 real source face'), findsOneWidget);
+    },
+    session: testSession,
+  );
+
+  appTest(
+    'review offers to draw the missing head angles with the person\'s LoRA and queues exactly those',
+    (tester, env) async {
+      final person = await seedPerson(env.db, name: 'Sara');
+      await seedFace(env.db, personId: person, seed: 1);
+      await env.db
+          .into(env.db.loras)
+          .insert(
+            LorasCompanion.insert(
+              id: 'sara-lora',
+              personId: Value(person),
+              path: 'loras/sara.safetensors',
+              triggerWord: 'sksara',
+              createdAt: 1,
+            ),
+          );
+      await tester.runAsync(
+        () => env.files.write('loras/sara.safetensors', tinyPng),
+      );
+      env.picker.photo = tinyPng;
+      await open(tester, env, '/reface?person=$person');
+      await pickRefaceTarget(tester);
+      await tester.tap(find.byKey(const Key('target-face-0')));
+      await tester.pumpAndSettle();
+      await next(tester);
+      await next(tester);
+
+      // the placeholder photo is not a decodable image once real time passes; that is not under test here
+      final previous = FlutterError.onError;
+      FlutterError.onError = (details) {
+        if (!'${details.exception}'.contains('Codec failed')) {
+          previous?.call(details);
+        }
+      };
+      addTearDown(() => FlutterError.onError = previous);
+      final button = find.byKey(const Key('reface-generate-angles'));
+      await tester.ensureVisible(button);
+      expect(find.textContaining('Generate 3 missing angles'), findsOneWidget);
+      await tester.tap(button);
+      await settleAsync(tester);
+
+      final jobs = await tester.runAsync(
+        () => env.db.select(env.db.jobs).get(),
+      );
+      jobs!;
+      expect(jobs.single.type, 'generate_lora_images');
+      final params =
+          (jsonDecode(jobs.single.requestJson) as Map)['params'] as Map;
+      expect(params['angles'], ['frontal', 'frontal', 'frontal']);
+      expect(params['num_images'], 3);
+      expect(params['trigger_word'], 'sksara');
+      expect(params['prompt'], contains('sksara'));
+      expect(params.containsKey('multi_angle'), isFalse);
+      expect(find.byKey(const Key('reface-angles-progress')), findsOneWidget);
+      expect(find.byKey(const Key('reface-generate-angles')), findsNothing);
+
+      // a failed generation is reported, and Reface is still allowed to start with what the source has
+      await (env.db.update(
+        env.db.jobs,
+      )..where((j) => j.id.equals(jobs.single.id))).write(
+        const JobsCompanion(
+          status: Value('failed'),
+          error: Value('GPU out of memory'),
+        ),
+      );
+      await settleAsync(tester);
+      expect(find.textContaining('GPU out of memory'), findsOneWidget);
+      expect(find.byKey(const Key('reface-generate-angles')), findsOneWidget);
+      expect(find.byKey(const Key('reface-next')), findsOneWidget);
+    },
+    session: testSession,
+  );
+
+  appTest('no LoRA, no offer: the card only names the gap', (
+    tester,
+    env,
+  ) async {
+    final person = await seedPerson(env.db, name: 'Sara');
+    await seedFace(env.db, personId: person, seed: 1);
+    env.picker.photo = tinyPng;
+    await open(tester, env, '/reface?person=$person');
+    await pickRefaceTarget(tester);
+    await tester.tap(find.byKey(const Key('target-face-0')));
+    await tester.pumpAndSettle();
+    await next(tester);
+    await next(tester);
+
+    expect(find.byKey(const Key('reface-preflight')), findsOneWidget);
+    expect(find.byKey(const Key('reface-generate-angles')), findsNothing);
   }, session: testSession);
 
   appTest('Studio preview renders at phone size', (tester, env) async {

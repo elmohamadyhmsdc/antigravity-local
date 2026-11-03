@@ -125,7 +125,17 @@ def validate_artifact(body, caps):
     else:
         allowed_params = {'trigger_word','base_checkpoint','prompt','negative_prompt','seed','steps','guidance_scale',
                           'num_images','lora_scale','multi_angle','reference_mode','reference_strength','reference_scale','identity_model_id',
-                          'generation_mode','aspect_ratio','pose_media_id','enable_face_detailer','pose_strength'}
+                          'generation_mode','aspect_ratio','pose_media_id','enable_face_detailer','pose_strength','angles'}
+        if 'angles' in params:
+            from lora_generate import ANGLE_PROMPTS
+            names = params['angles']
+            if (not isinstance(names, list) or not 1 <= len(names) <= 16
+                    or any(not isinstance(n, str) or n not in ANGLE_PROMPTS for n in names)):
+                raise bad_request('angles must list 1 to 16 of: ' + ', '.join(ANGLE_PROMPTS) + '.')
+            if len(names) != params.get('num_images', 4):
+                raise bad_request('angles must have one entry per image (num_images).')
+            if 'reference' in inputs or params.get('generation_mode', 'portrait') != 'portrait':
+                raise bad_request('Head angles are for portraits without a reference image.')
         bounded(params, 'num_images', 4, 1, 16, True)
         bounded(params, 'lora_scale', .75, 0, 1.5)
         bounded(params, 'reference_strength', .6, .05, 1)
@@ -316,7 +326,7 @@ def run_artifact(job, directory, report, stopped, ctx):
         if not lora.exists(): shutil.copyfile(directory/'input.lora',lora)
         payload = dict(params, base_checkpoint=str(APP_DIR/'models'/f"{params['base_checkpoint']}.safetensors"),
                        lora_path=str(lora),output_dir=str(output),num_images=params.get('num_images',4)-current,
-                       file_prefix=f'image_{current}')
+                       file_prefix=f'image_{current}', angle_offset=current)
         if params.get('seed',-1) >= 0: payload['seed']=params['seed']+current
         if (directory/'input.reference').exists(): payload['reference_image']=str(directory/'input.reference')
         def line(raw):

@@ -76,6 +76,20 @@ class ArtifactTests(unittest.TestCase):
         for bad in ({'enable_face_detailer':'no'},{'resolution_mode':'4k'},{'sampler':'euler'}):
             with self.assertRaises(ApiError):validate_artifact(job(**bad),caps)
 
+    def test_generate_accepts_named_head_angles_one_per_image_and_nothing_else(self):
+        caps=self.ctx.probe.snapshot()
+        base={'trigger_word':'sksx','base_checkpoint':'sd15_realistic_base','num_images':3}
+        def job(inputs=None,**extra):
+            return {'type':'generate_lora_images','params':{**base,**extra},'inputs':inputs or {'lora':'a'*64}}
+        validate_artifact(job(angles=['profile','three_quarter','up']),caps)
+        for bad in ({'angles':['profile']},                                   # not one per image
+                    {'angles':['profile','sideways','up']},                   # unknown direction
+                    {'angles':[]},{'angles':'profile'},
+                    {'angles':['up','up','up'],'generation_mode':'full_body'}):
+            with self.assertRaises(ApiError):validate_artifact(job(**bad),caps)
+        with self.assertRaises(ApiError):                                     # a reference image decides the pose
+            validate_artifact(job({'lora':'a'*64,'reference':'b'*64},angles=['up','up','up']),caps)
+
     def test_dataset_archive_is_bounded_and_cannot_escape_or_load_python_state(self):
         def bundle(names):
             stream=io.BytesIO()

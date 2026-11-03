@@ -56,6 +56,33 @@ PORTRAIT_ANGLES = [
     "close-up frontal portrait, detailed eye reflections and natural skin texture",
 ]
 
+# The head directions the phone's Reface check asks for (see mobile reface_preflight.PoseBucket). Each is
+# one image; the name is the whole contract (`angles` in the generate request), the text is only the prompt.
+ANGLE_PROMPTS = {
+    'frontal': "front view portrait, looking directly at camera, face centered, both eyes visible",
+    'three_quarter': "three-quarter view portrait, head turned about 35 degrees, both eyes visible, natural lighting",
+    'profile': "side profile view, head turned 90 degrees, one eye visible, sharp jawline and silhouette",
+    'up': "portrait looking up, chin raised, low camera angle, face clearly visible",
+    'down': "portrait looking down, head tilted down, high camera angle, face clearly visible",
+}
+
+
+def angle_description(request, default_angles, index, multi_angle):
+    """The angle text appended to image `index`'s prompt, or None for no angle.
+
+    `angles` (names from ANGLE_PROMPTS, one per image) wins: the Reface check asked for exactly those head
+    directions. `angle_offset` is how many images an earlier, interrupted run already made, so a resumed job
+    continues the list instead of starting it over. Without `angles` it is the old behaviour: a rotating list
+    of generic angles when several images are made.
+    """
+    names = request.get('angles')
+    if names:
+        return ANGLE_PROMPTS[names[(int(request.get('angle_offset', 0)) + index) % len(names)]]
+    if multi_angle:
+        return default_angles[index % len(default_angles)]
+    return None
+
+
 CHARACTER_ANGLES = [
     'front view portrait, looking forward, centered composition',
     'three-quarter view turned to the left',
@@ -413,8 +440,8 @@ def main():
             return callback_kwargs
 
         current_prompt = prompt
-        if multi_angle:
-            angle_desc = angles[index % len(angles)]
+        angle_desc = angle_description(request, angles, index, multi_angle)
+        if angle_desc:
             current_prompt = f"{prompt}, {angle_desc}"
 
         image = pipe(
