@@ -68,14 +68,53 @@ CHARACTER_ANGLES = [
 ]
 
 
+FULL_BODY_PROMPT_TEMPLATE = (
+    "full length photo of {trigger} person, full body shot, standing naturally, head to toe visible, "
+    "feet and shoes on the ground, sharp focus, natural lighting, highly detailed clothing, authentic skin texture, "
+    "realistic proportions, 35mm photography, clean background"
+)
+FULL_BODY_NEGATIVE_PROMPT = (
+    "cropped, cut off, bad anatomy, deformed legs, extra limbs, extra feet, missing legs, bad hands, "
+    "blurry, cartoon, 3d render, disfigured, floating limbs, malformed limbs"
+)
+FULL_BODY_ANGLES = [
+    "front view standing, centered full body shot",
+    "three-quarter view standing, looking towards camera",
+    "walking pose, candid full body photo",
+    "side profile standing, natural posture",
+]
+
+
+def resolve_generation_dimensions(preset: str) -> tuple:
+    """Returns (width, height) for a given aspect ratio preset, guaranteed multiples of 8."""
+    preset = (preset or "").strip().lower()
+    if preset in ("portrait_vertical", "full_body"):
+        return (512, 768)
+    elif preset == "full_body_tall":
+        return (512, 896)
+    else:  # "portrait_square" or default
+        return (512, 512)
+
+
 def generation_prompts(request):
     """Use only explicit identity-model provenance; unknown keeps legacy defaults."""
     character = request.get('identity_model_id') == CHARACTER_MODEL_ID
-    template = CHARACTER_PROMPT_TEMPLATE if character else DEFAULT_PROMPT_TEMPLATE
-    negative = CHARACTER_NEGATIVE_PROMPT if character else DEFAULT_NEGATIVE_PROMPT
+    mode = request.get('generation_mode', 'portrait')
+    if mode == 'full_body':
+        template = FULL_BODY_PROMPT_TEMPLATE
+        negative = FULL_BODY_NEGATIVE_PROMPT
+        angles = FULL_BODY_ANGLES
+    elif character:
+        template = CHARACTER_PROMPT_TEMPLATE
+        negative = CHARACTER_NEGATIVE_PROMPT
+        angles = CHARACTER_ANGLES
+    else:
+        template = DEFAULT_PROMPT_TEMPLATE
+        negative = DEFAULT_NEGATIVE_PROMPT
+        angles = PORTRAIT_ANGLES
     return (request.get('prompt') if request.get('prompt') is not None else template.format(trigger=request['trigger_word']),
             request.get('negative_prompt') if request.get('negative_prompt') is not None else negative,
-            CHARACTER_ANGLES if character else PORTRAIT_ANGLES)
+            angles)
 
 REFERENCE_COMPOSITION = "composition"
 REFERENCE_STYLE = "style"
