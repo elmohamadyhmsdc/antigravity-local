@@ -79,6 +79,16 @@ void main() {
           'character',
           mediaType: 'video',
         ),
+        isFalse,
+        reason: 'reference-guided Reface is experimental: hidden unless asked for',
+      );
+      expect(
+        current.supportsOperation(
+          'reface_reference',
+          'character',
+          mediaType: 'video',
+          allowExperimental: true,
+        ),
         isTrue,
       );
     },

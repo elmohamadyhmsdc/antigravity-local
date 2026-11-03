@@ -154,6 +154,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'bestCover': 'Choose best cover automatically',
       'chooseCover': 'Choose cover face…',
       'deletePerson': 'Delete person grouping',
+      'dissolve': 'Dissolve person (faces go back to be sorted)',
       'original': 'Open original',
       'assign': 'Assign / move to person…',
       'create': 'Create new person…',
@@ -181,6 +182,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'exportOriginals': 'Face crops and original media',
       'lockedNote':
           'Automatic matching cannot add faces or change derived body links for a locked person. Manual corrections remain available.',
+      'dissolveNote':
+          'Remove these people and send every face and body back to be sorted again: grouping and Review will consider them as if they were new. Nothing is hidden. Original photos and videos are kept.',
       'deletePersonNote':
           'Remove these person groupings and return their faces to Unsorted. Original photos and videos are kept.',
       'deleteFaceNote':

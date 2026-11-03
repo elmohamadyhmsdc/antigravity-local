@@ -8,6 +8,21 @@
 /// change this one constant if its answer differs. It must stay >= 50.
 const groupingMemberCap = 100;
 
+/// A request carries `people x members x 2.7 KB` of base64 (float32 does not compress): the PC refuses
+/// more than 128 MB on the wire. In a library with hundreds of people the per-person cap is lowered so the
+/// whole request stays near this many member vectors (~36k = ~100 MB of JSON, ~75 MB gzipped).
+const groupingMemberBudget = 36000;
+
+/// ...but never below this: the match score needs a few members per person.
+const groupingMinMemberCap = 30;
+
+/// The per-person member cap for [people] people: [cap], or less when the request would be too big.
+int effectiveMemberCap(int people, [int cap = groupingMemberCap]) {
+  if (people <= 0 || people * cap <= groupingMemberBudget) return cap;
+  final fit = groupingMemberBudget ~/ people;
+  return fit < groupingMinMemberCap ? groupingMinMemberCap : fit;
+}
+
 /// Faces smaller than this (px, as the PC measured them) are not grouped, matched or used to build a
 /// person: too little identity, and in a crowd they are mostly strangers. New scans never store them
 /// (`face_quality.MIN_FACE_PX`); this also keeps the ones stored before that out of the maths.

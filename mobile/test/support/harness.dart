@@ -12,8 +12,9 @@ void appTest(
   Future<void> Function(WidgetTester tester, TestEnv env) body, {
   ServerSession? session,
   FakeMobileApi? api,
+  bool? skip,
 }) {
-  testWidgets(description, (tester) async {
+  testWidgets(description, skip: skip, (tester) async {
     tester.view.physicalSize = const Size(1080, 2200);
     tester.view.devicePixelRatio = 2.75;
     addTearDown(tester.view.reset);

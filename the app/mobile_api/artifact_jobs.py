@@ -212,7 +212,11 @@ def run_artifact(job, directory, report, stopped, ctx):
             result = client.generate(payload, timeout=7200, status_callback=status, stop_requested=stopped)
             if stopped(): return None
             if not result.get('success'):
-                raise ValueError(result.get('error','Clothes restyle failed.'))
+                # The worker's own traceback is the only place the real cause lives; keep it in the PC log.
+                import logging
+                logging.getLogger('mobile_api').error('Restyle worker failed: %s\n%s',
+                    result.get('error') or '(no message)', result.get('traceback') or '(no traceback)')
+                raise ValueError(result.get('error') or 'Clothes restyle failed in the venv_ai worker; see the PC log.')
             (directory/'result.png').write_bytes(base64.b64decode(result['output_image'],validate=True))
             return {'seed':params.get('seed',-1)}
         except InterruptedError:

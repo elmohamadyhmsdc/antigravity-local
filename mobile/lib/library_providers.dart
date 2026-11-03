@@ -443,7 +443,12 @@ final Provider<ScanEngine> scanEngineProvider = Provider<ScanEngine>((ref) {
       });
     },
   );
-  ref.onDispose(engine.dispose);
+  final link = ref.read(scanEngineLinkProvider);
+  link.engine = engine;
+  ref.onDispose(() {
+    if (identical(link.engine, engine)) link.engine = null;
+    engine.dispose();
+  });
   return engine;
 });
 
@@ -566,17 +571,31 @@ final identityGroupsProvider =
 final mediaOrganizerBridgeProvider = Provider<MediaOrganizerBridge>(
   (ref) => const AndroidMediaOrganizer(),
 );
+/// The running [ScanEngine], for callbacks of providers the engine itself depends on.
+class ScanEngineLink {
+  ScanEngine? engine;
+}
+
+final scanEngineLinkProvider = Provider<ScanEngineLink>(
+  (ref) => ScanEngineLink(),
+);
+
 final personMediaOrganizerProvider = Provider<PersonMediaOrganizer>(
   (ref) => PersonMediaOrganizer(
     db: ref.watch(databaseProvider),
     bridge: ref.watch(mediaOrganizerBridgeProvider),
     beforeMove: () async {
-      final engine = ref.read(scanEngineProvider);
-      engine.mediaOrganizationActive = true;
-      await engine.pauseAndWait();
+      // not ref.read(scanEngineProvider): the engine depends on this organizer (through the result store),
+      // and Riverpod refuses that read as a cycle in debug builds - every move then failed with
+      // "CircularDependencyError". No engine yet means no scan is running.
+      final engine = ref.read(scanEngineLinkProvider).engine;
+      if (engine != null) {
+        engine.mediaOrganizationActive = true;
+        await engine.pauseAndWait();
+      }
     },
     afterMove: () {
-      ref.read(scanEngineProvider).mediaOrganizationActive = false;
+      ref.read(scanEngineLinkProvider).engine?.mediaOrganizationActive = false;
       ref.read(thumbnailServiceProvider).clear();
       unawaited(
         ref.read(mediaLibraryProvider).clearCache().catchError((Object _) {}),

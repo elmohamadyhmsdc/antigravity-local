@@ -196,9 +196,11 @@ void main() {
         find.byKey(const Key('people-action-exportTraining')),
         findsOneWidget,
       );
-      for (final id in ['studio', 'marks', 'bodies']) {
+      for (final id in ['marks', 'bodies']) {
         expect(find.byKey(Key('people-action-$id')), findsOneWidget);
       }
+      // Reface is people-only: a character has no Studio entry
+      expect(find.byKey(const Key('people-action-studio')), findsNothing);
       await tester.tap(find.byKey(const Key('people-actions-close')));
       await tester.pumpAndSettle();
       await tester.pageBack();

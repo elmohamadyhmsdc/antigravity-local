@@ -116,7 +116,7 @@ void main() {
           tester,
           extra: [
             initialLocationProvider.overrideWithValue(
-              '/lora/build?person=$person',
+              '/lora/build?person=$person&manual=true',
             ),
             loraPhotosPickerProvider.overrideWithValue(() async => files),
             jobTrackerProvider.overrideWith((ref) {

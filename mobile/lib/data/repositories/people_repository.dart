@@ -396,6 +396,28 @@ class PeopleRepository {
     await (_db.delete(_db.persons)..where((p) => p.id.equals(id))).go();
   });
 
+  /// "Dissolve": the person goes, every face and body goes back to be sorted - unlike [deletePerson], which
+  /// also hides the faces from review and grouping. Rejections about the person go with it.
+  Future<void> dissolvePerson(int id) => _db.transaction(() async {
+    await _db.customUpdate(
+      'UPDATE faces SET person_id = NULL, review_dismissed = 0 WHERE person_id = ?',
+      variables: [Variable.withInt(id)],
+      updates: {_db.faces},
+    );
+    await _db.customUpdate(
+      'UPDATE bodies SET person_id = NULL, link_method = NULL, link_confidence = NULL WHERE person_id = ?',
+      variables: [Variable.withInt(id)],
+      updates: {_db.bodies},
+    );
+    await (_db.delete(_db.persons)..where((p) => p.id.equals(id))).go();
+  });
+
+  Future<void> dissolvePeople(Iterable<int> ids) => _db.transaction(() async {
+    for (final id in ids.toSet()) {
+      await dissolvePerson(id);
+    }
+  });
+
   // ---- faces ----------------------------------------------------------------------
 
   Future<void> _assign(Iterable<int> faceIds, int personId) async {

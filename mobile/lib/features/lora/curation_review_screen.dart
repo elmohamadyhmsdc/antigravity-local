@@ -298,6 +298,22 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
+                  SwitchListTile(
+                    key: const Key('curation-exposed-switch'),
+                    title: const Text('تفضيل الصور المكشوفة'),
+                    subtitle: const Text(
+                      'مفتوح: الأجسام اللي فيها مناطق مكشوفة بتتقدّم في الاختيار (لحد 90% من أماكن الأجسام). '
+                      'مقفول (الافتراضي): اختيار متوازن بالجودة والتنوع بس. تغييره بيعيد اختيار الأجسام.',
+                    ),
+                    value: currentState.preferExposed,
+                    onChanged: (v) {
+                      ref
+                          .read(curationControllerProvider.notifier)
+                          .setPreferExposed(v);
+                      setModalState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 12),
                   ListTile(
                     key: const Key('curation-resolution-dropdown'),
                     title: const Text('وضع الدقة (Resolution)'),

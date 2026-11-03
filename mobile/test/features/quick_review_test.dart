@@ -579,5 +579,144 @@ void main() {
       },
       session: testSession,
     );
+    appTest(
+      '"Ignore": a group nobody cares about never comes back - and Undo brings it back',
+      (tester, env) async {
+        final faces = [
+          for (var i = 0; i < 3; i++) await seedFace(env.db, seed: 70 + i),
+        ];
+        await env.db
+            .into(env.db.reviewGroups)
+            .insert(
+              ReviewGroupsCompanion.insert(
+                faceIds: '[${faces.join(',')}]',
+                cohesion: 0.7,
+                quality: 0.8,
+              ),
+            );
+        await _open(tester, env, '/review');
+        expect(_question(tester), 'Who is this?');
+
+        await _tap(tester, 'quick-ignore');
+
+        final rows = await env.db.select(env.db.faces).get();
+        expect(
+          rows.every((f) => f.reviewDismissed && f.personId == null),
+          isTrue,
+        );
+        expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
+        expect(find.textContaining('Ignored 3 faces'), findsOneWidget);
+
+        await tester.tap(find.text('Undo'));
+        await _settle(tester);
+        final back = await env.db.select(env.db.faces).get();
+        expect(back.every((f) => !f.reviewDismissed), isTrue);
+      },
+      session: testSession,
+    );
+
+    appTest(
+      '"Ignore" on a face the PC thinks is Sara: the face is dismissed, nothing is assigned or rejected',
+      (tester, env) async {
+        final sara = await seedPerson(env.db, name: 'Sara');
+        await seedFace(env.db, personId: sara, seed: 1);
+        final stray = await seedFace(env.db, seed: 3);
+        await _match(env.db, stray, sara, 0.45);
+        await _open(tester, env, '/review');
+        expect(_question(tester), 'Is this Sara?');
+
+        await _tap(tester, 'quick-ignore');
+
+        final row = await (env.db.select(
+          env.db.faces,
+        )..where((f) => f.id.equals(stray))).getSingle();
+        expect(row.reviewDismissed, isTrue);
+        expect(row.personId, isNull);
+        expect(await env.db.select(env.db.faceRejections).get(), isEmpty);
+        expect(await env.db.select(env.db.reviewMatches).get(), isEmpty);
+      },
+      session: testSession,
+    );
+
+    appTest(
+      '"Ignore" on the doubtful faces of a person takes them off her for good',
+      (tester, env) async {
+        final sara = await seedPerson(env.db, name: 'Sara');
+        final odd = [
+          for (var i = 0; i < 2; i++)
+            await seedFace(env.db, personId: sara, seed: 40 + i),
+        ];
+        for (final id in odd) {
+          await env.db
+              .into(env.db.reviewDoubtful)
+              .insert(
+                ReviewDoubtfulCompanion.insert(
+                  faceId: Value(id),
+                  personId: sara,
+                  score: 0.1,
+                ),
+              );
+        }
+        await _open(tester, env, '/review');
+
+        await _tap(tester, 'quick-ignore');
+
+        final rows = await (env.db.select(
+          env.db.faces,
+        )..where((f) => f.id.isIn(odd))).get();
+        expect(
+          rows.every((f) => f.personId == null && f.reviewDismissed),
+          isTrue,
+        );
+        expect((await env.db.select(env.db.faceRejections).get()).length, 2);
+      },
+      session: testSession,
+    );
+    appTest(
+      'a doubtful face that looks like Omar can be sent to Omar with one tick',
+      (tester, env) async {
+        final sara = await seedPerson(env.db, name: 'Sara');
+        final omar = await seedPerson(env.db, name: 'Omar');
+        final strayed = await seedFace(env.db, personId: sara, seed: 60);
+        final other = await seedFace(env.db, personId: sara, seed: 61);
+        await env.db
+            .into(env.db.reviewDoubtful)
+            .insert(
+              ReviewDoubtfulCompanion.insert(
+                faceId: Value(strayed),
+                personId: sara,
+                score: 0.1,
+                suggestedPersonId: Value(omar),
+                suggestedScore: const Value(0.6),
+              ),
+            );
+        await env.db
+            .into(env.db.reviewDoubtful)
+            .insert(
+              ReviewDoubtfulCompanion.insert(
+                faceId: Value(other),
+                personId: sara,
+                score: 0.2,
+              ),
+            );
+        await _open(tester, env, '/review');
+        expect(find.byKey(const Key('quick-doubtful-move')), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('quick-doubtful-move')));
+        await _settle(tester);
+        await _tap(tester, 'quick-no'); // "None are Sara"
+
+        final rows = {
+          for (final f in await env.db.select(env.db.faces).get()) f.id: f,
+        };
+        expect(rows[strayed]!.personId, omar, reason: 'it had a better home');
+        expect(
+          rows[other]!.personId,
+          isNull,
+          reason: 'no suggestion: unsorted',
+        );
+      },
+      session: testSession,
+    );
   });
 }

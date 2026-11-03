@@ -28,7 +28,7 @@ void main() {
         skinRatio: 0.65,
       );
 
-      const curator = AutoDatasetCurator();
+      const curator = AutoDatasetCurator(preferExposed: true);
       final scoreClothed = curator.scoreCandidate(clothedCandidate);
       final scoreExposed = curator.scoreCandidate(exposedCandidate);
 
@@ -77,6 +77,7 @@ void main() {
       }
 
       const curator = AutoDatasetCurator(
+        preferExposed: true,
         targetFaceCount: 7,
         targetUpperCount: 5,
         targetBodyCount: 8,
@@ -212,8 +213,72 @@ void main() {
 
       final bodies = const AutoDatasetCurator(targetBodyCount: 5).curate(candidates).body;
 
-      expect(bodies.where((c) => c.hasExposedRegion).length, lessThanOrEqualTo(3));
+      // switch off (the default): nothing is preferred - the outfits are what spreads the picks
       expect(bodies.length, 5);
+      expect(bodies.where((c) => !c.hasExposedRegion).length, greaterThanOrEqualTo(3));
+    });
+
+    test('the switch ON ranks exposed bodies first, up to 90% of the slots - not every slot', () {
+      List<double> outfit(int hue) =>
+          List.generate(80, (i) => i % 40 == hue ? 1.0 : 0.0);
+      final candidates = [
+        for (var i = 0; i < 12; i++)
+          CurationCandidate(
+            detectionId: i,
+            mediaId: 100 + i,
+            assetId: 'exposed_$i',
+            isVideo: false,
+            category: CurationCategory.body,
+            quality: 0.8,
+            extent: 'full',
+            hasExposedRegion: true,
+            skinRatio: 0.7,
+            appearance: outfit(i),
+          ),
+        for (var i = 0; i < 4; i++)
+          CurationCandidate(
+            detectionId: 50 + i,
+            mediaId: 200 + i,
+            assetId: 'clothed_$i',
+            isVideo: false,
+            category: CurationCategory.body,
+            quality: 0.8,
+            extent: 'full',
+            appearance: outfit(20 + i),
+          ),
+      ];
+
+      final on = const AutoDatasetCurator(targetBodyCount: 10, preferExposed: true)
+          .curate(candidates)
+          .body;
+
+      expect(on.where((c) => c.hasExposedRegion).length, 9, reason: '90% of 10 slots');
+      // and the score itself: off = no bonus at all
+      const same = CurationCandidate(
+        detectionId: 1,
+        mediaId: 1,
+        assetId: 'a',
+        isVideo: false,
+        category: CurationCategory.body,
+        quality: 0.8,
+        extent: 'full',
+        hasExposedRegion: true,
+        skinRatio: 0.7,
+      );
+      expect(
+        const AutoDatasetCurator().scoreCandidate(same),
+        const AutoDatasetCurator().scoreCandidate(
+          const CurationCandidate(
+            detectionId: 2,
+            mediaId: 2,
+            assetId: 'b',
+            isVideo: false,
+            category: CurationCategory.body,
+            quality: 0.8,
+            extent: 'full',
+          ),
+        ),
+      );
     });
 
     test('deduplicates video keyframes closer than minimum time gap', () {

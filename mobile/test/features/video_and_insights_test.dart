@@ -1,6 +1,7 @@
 import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/media/media_library.dart';
+import 'package:antigravity_mobile/features/insights/insights_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,7 +20,12 @@ void main() {
     await seedMedia(env.db, asset: 'photo', status: 'pending');
     await env.pump(
       tester,
-      extra: [initialLocationProvider.overrideWithValue('/insights')],
+      extra: [initialLocationProvider.overrideWithValue('/people')],
+    );
+    // /insights now redirects to Settings > Library (docs/app_screens_v2/07_migration_map.md), so the
+    // screen is opened directly: what is under test is that it reads local data without the PC
+    Navigator.of(tester.element(find.byType(Scaffold).first)).push(
+      MaterialPageRoute<void>(builder: (_) => const InsightsScreen()),
     );
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pumpAndSettle();

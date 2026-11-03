@@ -65,6 +65,7 @@ List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
     ),
     const PeopleMenuAction('export', Icons.ios_share),
     if (single) const PeopleMenuAction('details', Icons.info_outline),
+    const PeopleMenuAction('dissolve', Icons.undo),
     const PeopleMenuAction(
       'deletePerson',
       Icons.delete_outline,
@@ -404,6 +405,17 @@ Future<void> runPersonAction(
           await showPeopleDetails(context, personName(l, p), details);
         }
         return;
+      case 'dissolve':
+        final sure = await confirm(
+          context,
+          title: l.peopleAction('dissolve'),
+          body: l.peopleAction('dissolveNote'),
+          confirmLabel: l.peopleAction('dissolve'),
+          cancelLabel: l.cancel,
+          destructive: true,
+        );
+        if (!sure) return;
+        await repo.dissolvePeople(ids);
       case 'deletePerson':
         final yes = await confirm(
           context,

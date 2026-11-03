@@ -215,6 +215,37 @@ void main() {
     );
 
     test(
+      'dissolving a person sends every face back to be sorted (delete would hide them)',
+      () async {
+        final sara = await seedPerson(db, name: 'Sara');
+        final f = await seedFace(db, personId: sara, seed: 1);
+        final linked = await seedBody(db, personId: sara, linkMethod: 'manual');
+        await repo.confirmFaces([f], sara);
+
+        await repo.dissolvePerson(sara);
+
+        expect(await person(sara), isNull);
+        final row = await face(f);
+        expect(
+          (row.personId, row.reviewDismissed),
+          (null, false),
+          reason: 'back in the pool grouping and Review look at',
+        );
+        expect((await body(linked)).personId, isNull);
+        expect(await db.select(db.faceConfirmations).get(), isEmpty);
+
+        final omar = await seedPerson(db, name: 'Omar');
+        final g = await seedFace(db, personId: omar, seed: 2);
+        await repo.deletePerson(omar);
+        expect(
+          (await face(g)).reviewDismissed,
+          isTrue,
+          reason: 'delete = hide for good',
+        );
+      },
+    );
+
+    test(
       'deleting a person sets their faces free, clears outfit links to them and forgets the pairs',
       () async {
         final sara = await seedPerson(db, name: 'Sara');

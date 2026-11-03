@@ -734,19 +734,43 @@ class ReviewRepository {
         personId,
       );
 
-  /// "Not a person worth keeping": hides the faces from group suggestions and removes the group.
-  Future<void> dismissGroup(int groupId) => _db.transaction(() async {
+  /// "Ignore": not a person worth keeping / not important. Hides the faces from group suggestions and
+  /// from grouping for good, and removes the group. Returns the faces (video tracks included) so the
+  /// answer can be undone.
+  Future<List<int>> dismissGroup(int groupId) => _db.transaction(() async {
     final row = await (_db.select(
       _db.reviewGroups,
     )..where((g) => g.id.equals(groupId))).getSingleOrNull();
-    if (row == null) return;
-    await _people.dismissFaces(
-      await expandTracks(PeopleRepository.decodeFaceIds(row.faceIds)),
-    );
+    if (row == null) return const <int>[];
+    final ids = await expandTracks(PeopleRepository.decodeFaceIds(row.faceIds));
+    await _people.dismissFaces(ids);
     await (_db.delete(
       _db.reviewGroups,
     )..where((g) => g.id.equals(groupId))).go();
+    return ids;
   });
+
+  /// "Ignore" for faces the review asked about: they (and the rest of their video tracks) never come
+  /// back in Review or in grouping. They stay in the library.
+  Future<List<int>> ignoreFaces(Iterable<int> faceIds) async {
+    final ids = await expandTracks(faceIds);
+    await _people.dismissFaces(ids);
+    return ids;
+  }
+
+  /// "Ignore" for faces already on a person ("Are you sure these are X?"): they leave her, are never
+  /// put back, and are not asked about again.
+  Future<List<int>> ignoreDoubtful(Iterable<int> faceIds, int personId) =>
+      _db.transaction(() async {
+        final ids = faceIds.toList();
+        await _people.rejectFaces(ids, fromPersonId: personId);
+        await _people.dismissFaces(ids);
+        return ids;
+      });
+
+  /// Undo of an "Ignore": the faces are unsorted again and Review / grouping consider them.
+  Future<void> restoreIgnored(Iterable<int> faceIds) =>
+      _people.clearAssignments(faceIds);
 
   Future<void> forgetGroup(int groupId) =>
       (_db.delete(_db.reviewGroups)..where((g) => g.id.equals(groupId))).go();

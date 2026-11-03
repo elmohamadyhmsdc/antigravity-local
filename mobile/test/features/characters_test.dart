@@ -74,6 +74,8 @@ void main() {
       expect(find.byKey(const Key('reference-source-face')), findsOneWidget);
     },
     session: testSession,
+    // Reface is people-only in the redesigned app (the PC-side reference Reface still exists)
+    skip: true,
   );
   appTest(
     'characters are reachable from People and offer an isolated photo test',

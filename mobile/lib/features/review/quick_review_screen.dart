@@ -85,6 +85,20 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
   /// "Are you sure?" questions: the faces the user tapped as NOT that person, per question.
   final _marked = <String, Set<int>>{};
 
+  /// Questions where the user chose to send the removed faces to the person they look like.
+  final _moveTo = <String>{};
+
+  /// face -> the person the audit found a better home in (only for the faces that have one).
+  Map<int, int> _suggestions(ReviewQuestion q, Iterable<int> faceIds) {
+    if (!_moveTo.contains(q.key)) return const {};
+    final wanted = faceIds.toSet();
+    return {
+      for (final f in q.doubtful!.faces)
+        if (wanted.contains(f.faceId) && f.suggested != null)
+          f.faceId: f.suggested!.id,
+    };
+  }
+
   ReviewRepository get _review => reviewRepositoryFor(ref, widget.kind);
   PeopleRepository get _people => peopleRepositoryFor(ref, widget.kind);
 
@@ -151,7 +165,11 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
           await _review.confirmDoubtful(keep, item.person.id);
         }
         if (out.isNotEmpty) {
-          await _review.removeDoubtful(out, item.person.id);
+          await _review.removeDoubtful(
+            out,
+            item.person.id,
+            moveTo: _suggestions(q, out),
+          );
         }
     }
     return true;
@@ -169,10 +187,55 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
         await _review.dismissGroup(q.group!.id);
       case ReviewQuestionKind.doubtful:
         // none of these is her
-        await _review.removeDoubtful([
+        final all = [for (final x in q.doubtful!.faces) x.faceId];
+        await _review.removeDoubtful(
+          all,
+          q.doubtful!.person.id,
+          moveTo: _suggestions(q, all),
+        );
+    }
+    return true;
+  });
+
+  /// Questions that offer "Ignore": the ones about faces (not two people, not an outfit).
+  bool _ignorable(ReviewQuestion q) =>
+      q.kind == ReviewQuestionKind.match ||
+      q.kind == ReviewQuestionKind.group ||
+      q.kind == ReviewQuestionKind.doubtful;
+
+  /// "Ignore": not important, never ask about these faces again (in Review or in grouping).
+  Future<void> _ignore(ReviewQuestion q) => _run(q, () async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final List<int> ids;
+    switch (q.kind) {
+      case ReviewQuestionKind.match:
+        ids = await _review.ignoreFaces([q.face!.faceId]);
+      case ReviewQuestionKind.group:
+        ids = await _review.dismissGroup(q.group!.id);
+      case ReviewQuestionKind.doubtful:
+        ids = await _review.ignoreDoubtful([
           for (final x in q.doubtful!.faces) x.faceId,
         ], q.doubtful!.person.id);
+      case ReviewQuestionKind.duplicate || ReviewQuestionKind.outfit:
+        return false;
     }
+    _toast(
+      messenger,
+      'Ignored ${ids.length} face${ids.length == 1 ? '' : 's'}. They will not come back.',
+      action: SnackBarAction(
+        label: l.peopleAction('undo'),
+        onPressed: () async {
+          await _review.restoreIgnored(ids);
+          if (mounted) {
+            setState(() {
+              _answered--;
+              _done.remove(q.key);
+            });
+          }
+        },
+      ),
+    );
     return true;
   });
 
@@ -320,6 +383,10 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
             busy: _busy,
             drag: _drag,
             marked: _marked[q.key] ?? const <int>{},
+            moveToSuggested: _moveTo.contains(q.key),
+            onToggleMove: () => setState(() {
+              if (!_moveTo.remove(q.key)) _moveTo.add(q.key);
+            }),
             onToggle: (faceId) => setState(() {
               final set = _marked.putIfAbsent(q.key, () => <int>{});
               if (!set.remove(faceId)) set.add(faceId);
@@ -341,6 +408,7 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
             onYes: () => _yes(q),
             onNo: () => _no(q),
             onNotSure: () => _notSure(q),
+            onIgnore: _ignorable(q) ? () => _ignore(q) : null,
             onGroup: (name, person) => _group(q, name, person),
           );
         },
@@ -365,9 +433,16 @@ class _QuestionView extends ConsumerWidget {
     required this.onNo,
     required this.onNotSure,
     required this.onGroup,
+    this.onIgnore,
     required this.marked,
     required this.onToggle,
+    required this.moveToSuggested,
+    required this.onToggleMove,
   });
+
+  /// "Move to the person they look like" is on for this question.
+  final bool moveToSuggested;
+  final VoidCallback onToggleMove;
 
   /// Faces of an "are you sure?" question the user tapped as not that person.
   final Set<int> marked;
@@ -381,6 +456,9 @@ class _QuestionView extends ConsumerWidget {
   final ValueChanged<double>? onDrag;
   final ValueChanged<double> onDragEnd;
   final VoidCallback onYes, onNo, onNotSure;
+
+  /// "Ignore" (null where the question does not offer it).
+  final VoidCallback? onIgnore;
   final void Function(String name, PersonSummary? person) onGroup;
 
   @override
@@ -534,22 +612,31 @@ class _QuestionView extends ConsumerWidget {
                     onSave: onGroup,
                     onNo: onNo,
                     onNotSure: onNotSure,
+                    onIgnore: onIgnore,
                   )
                 : q.kind == ReviewQuestionKind.doubtful
                 ? _DoubtfulBar(
                     name: personName(l, q.doubtful!.person),
                     total: q.doubtful!.faces.length,
                     marked: marked.length,
+                    suggestions: [
+                      for (final f in q.doubtful!.faces)
+                        if (f.suggested != null) f,
+                    ].length,
+                    move: moveToSuggested,
+                    onMove: onToggleMove,
                     busy: busy,
                     onYes: onYes,
                     onNo: onNo,
                     onNotSure: onNotSure,
+                    onIgnore: onIgnore,
                   )
                 : _YesNoBar(
                     busy: busy,
                     onYes: onYes,
                     onNo: onNo,
                     onNotSure: onNotSure,
+                    onIgnore: onIgnore,
                   ),
           ),
         ),
@@ -594,10 +681,12 @@ class _YesNoBar extends StatelessWidget {
     required this.onYes,
     required this.onNo,
     required this.onNotSure,
+    this.onIgnore,
   });
 
   final bool busy;
   final VoidCallback onYes, onNo, onNotSure;
+  final VoidCallback? onIgnore;
 
   @override
   Widget build(BuildContext context) {
@@ -644,6 +733,13 @@ class _YesNoBar extends StatelessWidget {
             ),
           ],
         ),
+        if (onIgnore != null)
+          TextButton.icon(
+            key: const Key('quick-ignore'),
+            onPressed: busy ? null : onIgnore,
+            icon: const Icon(Icons.visibility_off_outlined, size: 18),
+            label: const Text('Ignore - not important, never show again'),
+          ),
       ],
     );
   }
@@ -658,12 +754,14 @@ class _GroupAnswer extends ConsumerStatefulWidget {
     required this.onSave,
     required this.onNo,
     required this.onNotSure,
+    this.onIgnore,
   });
 
   final String kind;
   final bool busy;
   final void Function(String name, PersonSummary? person) onSave;
   final VoidCallback onNo, onNotSure;
+  final VoidCallback? onIgnore;
 
   @override
   ConsumerState<_GroupAnswer> createState() => _GroupAnswerState();
@@ -811,6 +909,13 @@ class _GroupAnswerState extends ConsumerState<_GroupAnswer> {
             ),
           ],
         ),
+        if (widget.onIgnore != null)
+          TextButton.icon(
+            key: const Key('quick-ignore'),
+            onPressed: widget.busy ? null : widget.onIgnore,
+            icon: const Icon(Icons.visibility_off_outlined, size: 18),
+            label: const Text('Ignore - not important, never show again'),
+          ),
       ],
     );
   }
@@ -1025,12 +1130,23 @@ class _DoubtfulBar extends StatelessWidget {
     required this.name,
     required this.total,
     required this.marked,
+    required this.suggestions,
+    required this.move,
+    required this.onMove,
     required this.busy,
     required this.onYes,
     required this.onNo,
     required this.onNotSure,
+    this.onIgnore,
   });
 
+  /// Faces of this batch the audit found a better home for, and whether the user chose to send the
+  /// removed ones there.
+  final int suggestions;
+  final bool move;
+  final VoidCallback onMove;
+
+  final VoidCallback? onIgnore;
   final String name;
   final int total, marked;
   final bool busy;
@@ -1044,6 +1160,18 @@ class _DoubtfulBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (suggestions > 0)
+          CheckboxListTile(
+            key: const Key('quick-doubtful-move'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: move,
+            onChanged: busy ? null : (_) => onMove(),
+            title: Text(
+              'Move the removed faces to the person they look like ($suggestions have one)',
+            ),
+          ),
         FilledButton.icon(
           key: const Key('quick-yes'),
           style: FilledButton.styleFrom(minimumSize: size),
@@ -1078,6 +1206,13 @@ class _DoubtfulBar extends StatelessWidget {
             ),
           ],
         ),
+        if (onIgnore != null)
+          TextButton.icon(
+            key: const Key('quick-ignore'),
+            onPressed: busy ? null : onIgnore,
+            icon: const Icon(Icons.visibility_off_outlined, size: 18),
+            label: const Text('Ignore these faces - not important'),
+          ),
       ],
     );
   }

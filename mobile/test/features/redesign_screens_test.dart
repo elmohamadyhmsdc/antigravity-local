@@ -1,6 +1,7 @@
 import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/features/storage/storage_screen.dart';
+import 'package:antigravity_mobile/ui/sheets/confirm_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,7 +23,7 @@ void main() {
       await env.pump(
         tester,
         extra: [
-          initialLocationProvider.overrideWithValue('/storage'),
+          initialLocationProvider.overrideWithValue('/settings/storage'),
           storageSizesProvider.overrideWith(
             (ref) async => {
               'results': 16 * 1048576,
@@ -44,10 +45,11 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('storage-delete-results')));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsOneWidget);
+      // the redesign confirms in a bottom sheet (ConfirmSheet), not a dialog
+      expect(find.byType(ConfirmSheet), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(ConfirmSheet), findsNothing);
       expect(tester.takeException(), isNull);
     },
     session: testSession,

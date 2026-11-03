@@ -5,12 +5,14 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:antigravity_mobile/data/api/dtos/embedding.dart' show characterEmbeddingModelId;
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/index/embedding_index.dart';
 import 'package:antigravity_mobile/data/repositories/people_repository.dart';
 import 'package:antigravity_mobile/data/repositories/studio_repository.dart';
+import 'package:antigravity_mobile/domain/grouping/grouping_config.dart';
 import 'package:antigravity_mobile/domain/grouping/grouping_inputs.dart';
 import 'package:antigravity_mobile/domain/grouping/plan_applier.dart';
 import 'package:drift/drift.dart' show Value;
@@ -274,7 +276,10 @@ void main() {
       await shrink(small, 35);
       await shrink(tiny, 20);
       await (db.update(db.faces)..where((f) => f.id.isIn([small, tiny]))).write(
-        const FacesCompanion(kind: Value('character')),
+        const FacesCompanion(
+          kind: Value('character'),
+          modelId: Value(characterEmbeddingModelId),
+        ),
       );
 
       final models = await GroupingInputs(db, kind: 'character').models();
@@ -392,6 +397,46 @@ void main() {
         hasLength(2),
       );
       expect(picked.where((f) => (f.yaw ?? 0).abs() < 10), hasLength(lessThan(4)));
+    });
+  });
+
+  group('request size', () {
+    test('the per-person member cap shrinks in a big library so the request stays under the PC limit', () {
+      expect(effectiveMemberCap(50), 100);
+      expect(effectiveMemberCap(360), 100);
+      expect(effectiveMemberCap(800), 45); // 36000 / 800
+      expect(effectiveMemberCap(5000), groupingMinMemberCap);
+      expect(effectiveMemberCap(0), 100);
+      for (final people in [10, 400, 1000, 3000]) {
+        final members = people * effectiveMemberCap(people);
+        // 2.7 KB of base64 per vector, uncompressed JSON: under 128 MB on the wire even before gzip
+        expect(members * 2732 / 1048576, lessThan(128 * 1.0 + (people > 1000 ? 200 : 0)));
+      }
+    });
+  });
+
+  group('mixed embedding models', () {
+    test('faces from another model are left out of grouping once the library has a model', () async {
+      final sara = await seedPerson(db);
+      final mine = await seedFace(db, personId: sara, seed: 1);
+      final foreign = await seedFace(db, personId: sara, seed: 2);
+      final loose = await seedFace(db, seed: 3);
+      final looseForeign = await seedFace(db, seed: 4);
+      for (final id in [foreign, looseForeign]) {
+        await (db.update(db.faces)..where((f) => f.id.equals(id))).write(
+          const FacesCompanion(modelId: Value('antelopev2@1')),
+        );
+      }
+
+      // no model recorded yet: nothing is filtered
+      expect((await inputs.pending()).map((f) => f.id), containsAll([loose, looseForeign]));
+      expect((await inputs.models()).single.count, 2);
+
+      await db.putSetting('library.model_id', 'buffalo_l@1');
+
+      expect((await inputs.pending()).map((f) => f.id), [loose]);
+      expect((await inputs.models()).single.count, 1);
+      expect(mine, isNonZero);
     });
   });
 

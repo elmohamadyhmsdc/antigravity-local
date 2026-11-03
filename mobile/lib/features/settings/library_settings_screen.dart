@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router.dart';
 import '../../data/repositories/app_settings.dart';
 import '../../data/repositories/insights_repository.dart';
+import '../../domain/cleanup/background_faces.dart';
 import '../../domain/scan/scan_state.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
@@ -358,6 +359,16 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
             onTap: () => sortNow(context, ref),
           ),
           ListTile(
+            key: const Key('settings-clean-background'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.blur_off),
+            title: const Text('Clean up background faces'),
+            subtitle: const Text(
+              'Hide tiny faces and the small faces in crowd photos. They stay in the library and can be restored.',
+            ),
+            onTap: () => _cleanBackgroundFaces(context, ref),
+          ),
+          ListTile(
             key: const Key('try-detection'),
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.center_focus_strong),
@@ -415,4 +426,40 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
       if (mounted) setState(() => _retryingOutlines = false);
     }
   }
+}
+
+/// "Clean up background faces": finds the tiny faces and the small faces of crowd photos already in the
+/// library (new scans never store them), asks, hides them, and offers Undo.
+Future<void> _cleanBackgroundFaces(BuildContext context, WidgetRef ref) async {
+  final l10n = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  final cleaner = BackgroundFaces(ref.read(databaseProvider));
+  final ids = await cleaner.find();
+  if (!context.mounted) return;
+  if (ids.isEmpty) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('No background faces found.')),
+    );
+    return;
+  }
+  final yes = await confirm(
+    context,
+    title: 'Hide ${ids.length} background face${ids.length == 1 ? '' : 's'}?',
+    body:
+        'Tiny faces and the small faces in crowd photos are hidden from People, Review and grouping. '
+        'Nothing is deleted; faces you confirmed by hand are kept. You can undo this right after.',
+    confirmLabel: 'Hide',
+    cancelLabel: l10n.cancel,
+  );
+  if (!yes) return;
+  await cleaner.hide(ids);
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text('Hid ${ids.length} background faces.'),
+      action: SnackBarAction(
+        label: l10n.peopleAction('undo'),
+        onPressed: () => cleaner.restore(ids),
+      ),
+    ),
+  );
 }

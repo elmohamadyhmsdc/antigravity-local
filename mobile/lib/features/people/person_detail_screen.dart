@@ -280,18 +280,18 @@ class PersonDetailScreen extends ConsumerWidget {
           Icons.accessibility_new,
           label: l.bodiesTitle,
         ),
-        if (p.kind == 'person') ...[
+        if (p.kind == 'person')
           PeopleMenuAction(
             'curateLora',
             Icons.auto_awesome,
             label: 'تدريب Character LoRA (تحديد ذكي)',
           ),
-          PeopleMenuAction(
-            'exportTraining',
-            Icons.model_training,
-            label: l.exportTrainingTitle,
-          ),
-        ],
+        // the export reads the person's own faces and bodies: it works the same for a drawn character
+        PeopleMenuAction(
+          'exportTraining',
+          Icons.model_training,
+          label: l.exportTrainingTitle,
+        ),
         PeopleMenuAction(
           'delete',
           Icons.delete_outline,

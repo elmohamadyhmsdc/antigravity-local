@@ -33,6 +33,10 @@ Future<void> acceptExperimental(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+// ignore: unused_element
+const _noCharacterReface =
+    'Reference-guided Reface for characters has no UI in the redesigned app (Reface is people-only: reface_screen throws "Reface is available for people only"). The PC side (reference_reface.py) still exists. Re-enable if the feature is rebuilt.';
+
 void main() {
   appTest(
     'choosing a character source after replace-all restores explicit target selection',
@@ -81,6 +85,7 @@ void main() {
       expect(find.byKey(const Key('target-face-0')), findsOneWidget);
     },
     session: testSession,
+    skip: true, // see _noCharacterReface
   );
   appTest(
     'character target photo uses its explicitly selected normalized face box',
@@ -200,6 +205,7 @@ void main() {
       expect(box, {'x': .15, 'y': .125, 'w': .1, 'h': .2});
     },
     session: testSession,
+    skip: true, // see _noCharacterReface
   );
   for (final characterTarget in [false, true]) {
     appTest(
@@ -335,6 +341,7 @@ void main() {
         expect(params['end_time'], greaterThan(params['start_time'] as num));
       },
       session: testSession,
+      skip: true, // see _noCharacterReface
     );
   }
   for (final capable in [false, true]) {
@@ -456,6 +463,7 @@ void main() {
         }
       },
       session: testSession,
+      skip: true, // see _noCharacterReface
     );
   }
 }

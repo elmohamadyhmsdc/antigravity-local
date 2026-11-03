@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import '../../data/api/dtos/embedding.dart';
 import '../../data/api/dtos/grouping.dart';
 import '../../data/db/app_database.dart';
+import '../../data/repositories/app_settings.dart' show SettingKeys;
 import '../identity/identity_selection.dart';
 import 'grouping_config.dart';
 
@@ -155,6 +156,16 @@ GroupingModel robustPersonModel(
   );
 }
 
+/// The embedding model the library's [kind] faces must come from, or null when none is recorded yet.
+/// Faces of another model have the same shape but live in another space: comparing them with this
+/// library's faces is meaningless, so grouping and the audit leave them out (the scan itself pauses on a
+/// model change; a backup or a sidecar can still bring such faces in).
+Future<String?> activeEmbeddingModel(AppDatabase db, String kind) async {
+  if (kind == 'character') return characterEmbeddingModelId;
+  final saved = await db.setting(SettingKeys.modelId);
+  return saved == null || saved.isEmpty ? null : saved;
+}
+
 /// "Same photo / frame" key: faces sharing it cannot be one person (person_linking's one-person-
 /// per-frame rule). Null = no constraint.
 String? frameKeyOf(int? mediaId, int? frameNumber) =>
@@ -203,14 +214,20 @@ class GroupingInputs {
           readsFrom: {_db.faces, _db.persons},
         )
         .get();
+    cap = effectiveMemberCap(people.length, cap);
+    final libraryModel = await activeEmbeddingModel(_db, kind);
     final out = <GroupingModel>[];
     final slice = Stopwatch()..start();
     for (final p in people) {
       final pid = p.read<int>('person_id');
       final rows = await _db
           .customSelect(
-            'SELECT id, quality_score, embedding FROM faces WHERE person_id = ? AND face_px >= ?',
-            variables: [Variable.withInt(pid), Variable.withReal(_minPx)],
+            'SELECT id, quality_score, embedding FROM faces WHERE person_id = ? AND face_px >= ? AND hidden = 0 AND (?3 IS NULL OR model_id = ?3)',
+            variables: [
+              Variable.withInt(pid),
+              Variable.withReal(_minPx),
+              Variable<String>(libraryModel),
+            ],
             readsFrom: {_db.faces},
           )
           .get();
@@ -273,8 +290,12 @@ class GroupingInputs {
     }
     final rows = await _db
         .customSelect(
-          "SELECT id, embedding, quality_score, media_id, frame_number FROM faces WHERE person_id IS NULL AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND kind = ? AND face_px >= ? ORDER BY id",
-          variables: [Variable.withString(kind), Variable.withReal(_minPx)],
+          "SELECT id, embedding, quality_score, media_id, frame_number FROM faces WHERE person_id IS NULL AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND kind = ? AND face_px >= ? AND (?3 IS NULL OR model_id = ?3) ORDER BY id",
+          variables: [
+            Variable.withString(kind),
+            Variable.withReal(_minPx),
+            Variable<String>(await activeEmbeddingModel(_db, kind)),
+          ],
           readsFrom: {_db.faces},
         )
         .get();

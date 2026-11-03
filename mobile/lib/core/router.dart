@@ -445,7 +445,10 @@ GoRouter createRouter({
           final personId = int.tryParse(
             state.uri.queryParameters['person'] ?? '',
           );
-          if (personId != null) {
+          // A person alone opens the smart pick (CurationReviewScreen). `manual=true` is the dataset
+          // builder with that person already chosen: the user picks the photos themselves.
+          if (personId != null &&
+              state.uri.queryParameters['manual'] != 'true') {
             return CurationReviewScreen(
               personId: personId,
               personName: state.uri.queryParameters['name'] ?? 'person',

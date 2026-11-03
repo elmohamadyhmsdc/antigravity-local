@@ -85,7 +85,8 @@ class AutoDatasetCurator {
     this.minVideoGapMs = 1500,
     this.minFaceQuality = 0.45,
     this.diversityWeight = 60.0,
-    this.maxExposedShare = 0.6,
+    this.preferExposed = false,
+    this.maxExposedShare = 0.9,
   });
 
   final int targetFaceCount;
@@ -99,7 +100,12 @@ class AutoDatasetCurator {
   /// How much (score points) a candidate identical to a pick loses.
   final double diversityWeight;
 
-  /// At most this share of the body slots goes to exposed bodies, so the set is not only skin.
+  /// A switch, off by default: when on, bodies with exposed regions (and skin) are ranked far above the
+  /// rest. Off, an exposed body is neither preferred nor avoided: it competes on quality and variety.
+  final bool preferExposed;
+
+  /// With [preferExposed], at most this share of the body slots goes to exposed bodies (a little variety
+  /// is kept). Without it there is no cap: nothing is preferred.
   final double maxExposedShare;
 
   double scoreCandidate(CurationCandidate c) {
@@ -117,12 +123,14 @@ class AutoDatasetCurator {
 
       case CurationCategory.body:
         double score = c.quality * 20.0;
-        if (c.hasExposedRegion) {
-          score += 100.0; // Top Tier: sensitive/exposed regions detected
-        } else if (c.skinRatio > 0.4) {
-          score += 50.0 + (c.skinRatio * 30.0); // High Tier: swimwear / light clothes
-        } else if (c.skinRatio > 0.2) {
-          score += 30.0 + (c.skinRatio * 20.0);
+        if (preferExposed) {
+          if (c.hasExposedRegion) {
+            score += 100.0; // Top Tier: sensitive/exposed regions detected
+          } else if (c.skinRatio > 0.4) {
+            score += 50.0 + (c.skinRatio * 30.0); // High Tier: swimwear / light clothes
+          } else if (c.skinRatio > 0.2) {
+            score += 30.0 + (c.skinRatio * 20.0);
+          }
         }
         if (c.extent == 'full') {
           score += 20.0;
@@ -268,7 +276,7 @@ class AutoDatasetCurator {
       body: _pick(
         of(CurationCategory.body),
         targetBodyCount,
-        maxExposed: maxExposedShare,
+        maxExposed: preferExposed ? maxExposedShare : 1.0,
       ),
     );
   }

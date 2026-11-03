@@ -693,7 +693,7 @@ def run_worker() -> None:
         except Exception as e:
             _emit({
                 "success": False,
-                "error": str(e),
+                "error": str(e) or repr(e),
                 "traceback": traceback.format_exc(),
             })
 

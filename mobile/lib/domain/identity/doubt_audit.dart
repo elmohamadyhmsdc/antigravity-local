@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 
 import '../../data/api/dtos/embedding.dart';
 import '../../data/db/app_database.dart';
+import '../grouping/grouping_inputs.dart' show activeEmbeddingModel;
 import 'identity_selection.dart';
 
 class DoubtResult {
@@ -50,6 +51,7 @@ class DoubtAudit {
         )
         .get();
 
+    final model = await activeEmbeddingModel(_db, kind);
     final flagged = <int, List<_Doubt>>{};
     final cores = <int, Float32List>{};
     final vectors = <int, Float32List>{};
@@ -63,9 +65,9 @@ class DoubtAudit {
                    fc.face_id IS NOT NULL AS confirmed
             FROM faces f
             LEFT JOIN face_confirmations fc ON fc.face_id = f.id AND fc.person_id = f.person_id
-            WHERE f.person_id = ? AND f.hidden = 0
+            WHERE f.person_id = ? AND f.hidden = 0 AND (?2 IS NULL OR f.model_id = ?2)
             ''',
-            variables: [Variable.withInt(pid)],
+            variables: [Variable.withInt(pid), Variable<String>(model)],
             readsFrom: {_db.faces, _db.faceConfirmations},
           )
           .get();
