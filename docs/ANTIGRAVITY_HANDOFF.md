@@ -43,6 +43,10 @@
 - Mobile Client Integration (`mobile/`):
   - Wired `MediaPicker` to `+ إضافة` in `CurationReviewScreen` for manual additions.
   - Wired `بدء تدريب الموديل الآن ⚡` submit button to check server readiness and proceed with dataset build.
+  - Seamless Auto-Curation Entry Points:
+    - `LoraScreen`: Tapping `Build dataset` (`Key('lora-build')`) immediately prompts to pick a person and opens `CurationReviewScreen` (`/studio/curation/:id`) directly, bypassing the legacy file picker.
+    - `DatasetBuildScreen`: Prominent Smart Auto-Select card added; choosing a person via `dataset-person` automatically transitions to `CurationReviewScreen` with the auto-selected photos and keyframes.
+    - `PersonDetailScreen`: Added `Train Character LoRA (تحديد ذكي)` in the person overflow menu and updated the `Prepare training` button in the Models tab to navigate directly to `/studio/curation/:id`.
 - Verification & Quality:
   - Backend Tests:
     - `test_lora_dataset_fullbody.py`: **passed** (Task 1).
