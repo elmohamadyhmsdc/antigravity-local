@@ -1,31 +1,44 @@
 # Antigravity handoff — 2026-10-19
 
 
-## Smart LoRA Auto-Curation & Mobile Review Screen Design Approved — 2026-11-03
+## Smart LoRA Auto-Curation & Mobile Review Screen Completed on main — 2026-11-03
 
 - User Request:
-  - Thoroughly review and refine the LoRA training pipeline design before executing code.
+  - Thoroughly review and refine the LoRA training pipeline design, then write a detailed step-by-step TDD implementation plan and execute it.
   - Implement smart automatic selection (Auto-Select) of training images when a person is chosen, eliminating manual photo curation.
   - Prioritize body/skin visibility: prioritize images with minimal clothing / exposed skin so the model accurately learns body geometry and proportions rather than clothing fabric, with unclothed photos receiving top priority.
   - Mobile Review Screen: After auto-selection, provide a streamlined mobile screen allowing users to inspect auto-selected photos and video keyframes, remove unwanted items with instant Undo, and add more items from the person's media or gallery.
-- Design Specifications & Architecture (`docs/plans/2026-11-03-smart-lora-curation-design.md`):
-  1. Auto-Select Ranking Heuristics:
-     - Close-up Portraits (6–8 items): Face quality, identity cosine similarity, multi-angle pose diversity (yaw/pitch).
-     - Upper Body (4–6 items): Head/neck/shoulder continuity and natural skin tone.
-     - Full Body & Minimal Clothes (6–8 items): Hierarchical priority:
-       * Tier 1 (+100.0 base): Sensitive regions with `exposed == true` in `sensitive_regions`.
-       * Tier 2 (+50.0 max): High bare-skin ratio (`skin_mask` / body box area).
-       * Tier 3 (+20.0 base): Full extent head-to-toe (`extent == 'full'`) fallback.
-     - Video Keyframe Extraction: High-clarity keyframes with $\ge 1.5\text{s}$ spacing and video timestamp badges (`🎬 mm:ss`).
-  2. Mobile UX Design (`CurationReviewScreen`):
-     - Live Quality Indicator pill (`"جاهز: 20 صورة مختارة تلقائياً • جودة ممتازة"`).
-     - Segmented Category Filter Tabs (`الكل (20)`, `👤 ملامح (7)`, `👕 نصف جسم (5)`, `🔥 كامل وأقل لبس (8)`).
-     - One-tap removal (`✕`) with 4-second reversible Undo SnackBar.
-     - Expandable settings bottom drawer (`⚙️`) for Trigger Word, Face Detailer Pass, and Resolution mode.
-     - Sticky bottom thumb-zone action bar with `+ إضافة` and `بدء تدريب الموديل الآن ⚡ (~8 دقائق)`.
-  3. Interactive UI Prototype:
-     - HTML/Tailwind interactive mobile simulation created and tested at `C:\Users\elmohamady\.gemini\antigravity\brain\024d118b-8b1c-4272-8619-1af7d01c17ec\mobile_lora_curation_mockup.html`.
-- Status: Design validated and approved by user. Ready for bite-sized implementation planning.
+- Implementation & Architecture (`mobile/`):
+  1. Domain Algorithm (`mobile/lib/domain/curation/auto_dataset_curator.dart`):
+     - `AutoDatasetCurator`: Implemented multi-metric scoring algorithm allocating candidates into 3 balanced quota buckets (7 Close-up portraits, 5 Upper body, 8 Full body & minimal clothes).
+     - Hierarchical Body Scoring: Sensitive regions with `exposed == true` awarded Tier 1 (+100.0 base score); high `skin_mask` ratio (>0.4) awarded Tier 2 (+50.0); full extent head-to-toe awarded Tier 3 (+20.0).
+     - Video Frame De-duplication: Enforces $\ge 1.5\text{s}$ minimum time gap between keyframes from the same video, picking the highest-clarity frame.
+  2. Data Layer (`mobile/lib/data/repositories/curation_queries.dart`):
+     - `CurationQueries`: Queries SQLite across `media`, `media_detections`, `faces`, `bodies`, and `sensitive_regions`, checking for exposed regions and excluding hidden or disowned records.
+     - Registered `curationQueriesProvider`.
+  3. Reactive State Controller (`mobile/lib/features/lora/curation_controller.dart`):
+     - `CurationNotifier`: Manages `CurationState` (faces, upper, body, triggerWord, faceDetailerEnabled, resolutionMode, isLoading, error).
+     - Single-tap removal with reversible `undoLastRemoval()`, de-duplicated manual `addItems()`, and trigger word customization.
+     - Registered `curationControllerProvider`.
+  4. Mobile Review Screen (`mobile/lib/features/lora/curation_review_screen.dart`):
+     - Header with live quality indicator pill (`Key('curation-status-pill')`).
+     - Segmented Category Filter Tabs (`الكل`, `👤 ملامح`, `👕 نصف جسم`, `🔥 كامل وأقل لبس`).
+     - Photo cards with responsive badges (`كشف عالي`, `🎬 mm:ss`, `أمامي`) and quick delete button (`Key('curation-delete-${c.detectionId}')`).
+     - Reversible Undo SnackBar (`Key('curation-undo')`).
+     - Bottom settings sheet (`Key('curation-settings-sheet')`) for Trigger Word, Face Detailer Pass, and Resolution mode.
+     - Sticky bottom thumb-zone action bar with `+ إضافة` (`Key('curation-add')`) and `بدء تدريب الموديل الآن ⚡` (`Key('curation-submit')`).
+  5. Router Integration (`mobile/lib/core/router.dart`):
+     - Registered `Routes.studioCuration` (`/studio/curation/:id`).
+     - Connected `Routes.studioDatasetsNew` (`/studio/datasets/new?person=ID`) to automatically present `CurationReviewScreen` for selected identities.
+- Verification & Quality:
+  - Unit & Widget Tests: **27/27 passed** across all 5 test files:
+    - `mobile/test/domain/curation/auto_dataset_curator_test.dart` (3/3 passed).
+    - `mobile/test/data/curation_queries_test.dart` (1/1 passed).
+    - `mobile/test/features/curation_controller_test.dart` (3/3 passed).
+    - `mobile/test/features/curation_review_screen_test.dart` (1/1 passed).
+    - `mobile/test/core/router_test.dart` (19/19 passed, including new curation route verification).
+  - Static Analysis: `flutter analyze lib test` reports **No issues found!** (0 issues).
+  - Preserved baseline: 12 documented pre-existing baseline failures in `_baseline.md` unchanged.
 
 
 ## Targeted Detection Persistence & Layers Popover Fix Completed on main — 2026-11-02
