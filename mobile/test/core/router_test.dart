@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:antigravity_mobile/core/router.dart';
+import 'package:antigravity_mobile/features/lora/curation_review_screen.dart';
 import 'package:antigravity_mobile/l10n/app_localizations.dart';
 
 import '../support/fakes.dart';
@@ -482,6 +483,27 @@ void main() {
           reason: '$path should remain directly accessible in P3',
         );
       }
+      await env.dispose(tester);
+    });
+
+    testWidgets('curation route /studio/curation/:id opens directly', (
+      tester,
+    ) async {
+      final env = TestEnv(session: testSession);
+      final router = createRouter(
+        isPaired: () => true,
+        initialLocation: '/studio/curation/15?name=Sara',
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(_buildApp(router, env.overrides));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        '/studio/curation/15',
+      );
+      expect(find.byType(CurationReviewScreen), findsOneWidget);
       await env.dispose(tester);
     });
   });

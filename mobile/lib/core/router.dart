@@ -15,6 +15,7 @@ import '../features/explore/explore_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/library/native_gallery.dart';
+import '../features/lora/curation_review_screen.dart';
 import '../features/lora/lora_screens.dart';
 import '../features/marks/person_marks_screen.dart';
 import '../features/media/media_screen.dart';
@@ -76,6 +77,7 @@ abstract final class Routes {
   static const restyle = '/restyle';
   static const studioGenerate = '/studio/generate';
   static const studioDatasetsNew = '/studio/datasets/new';
+  static const studioCuration = '/studio/curation/:id';
   static const studioDatasets = '/studio/datasets'; // /studio/datasets/:id
   static const studioTrain = '/studio/train';
   static const studioResults = '/studio/results'; // /studio/results/:id
@@ -415,11 +417,31 @@ GoRouter createRouter({
         ),
       ),
       GoRoute(
+        path: Routes.studioCuration,
+        builder: (context, state) {
+          final pid = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return CurationReviewScreen(
+            personId: pid,
+            personName: state.uri.queryParameters['name'] ?? 'person',
+          );
+        },
+      ),
+      GoRoute(
         path: Routes.studioDatasetsNew,
-        builder: (context, state) => DatasetBuildScreen(
-          personId: int.tryParse(state.uri.queryParameters['person'] ?? ''),
-          mediaId: int.tryParse(state.uri.queryParameters['media'] ?? ''),
-        ),
+        builder: (context, state) {
+          final personId =
+              int.tryParse(state.uri.queryParameters['person'] ?? '');
+          if (personId != null) {
+            return CurationReviewScreen(
+              personId: personId,
+              personName: state.uri.queryParameters['name'] ?? 'person',
+            );
+          }
+          return DatasetBuildScreen(
+            personId: personId,
+            mediaId: int.tryParse(state.uri.queryParameters['media'] ?? ''),
+          );
+        },
       ),
       GoRoute(
         path: '${Routes.studioDatasets}/:id',
