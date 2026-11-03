@@ -1,6 +1,43 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Full-Body LoRA Training & Generation Pipeline Completed on main — 2026-11-03
+
+- Architecture & Backend (`the app/`):
+  1. Dataset Extraction & Shot-Type Captioning (`the app/lora_dataset.py`):
+     - `classify_shot_type(bbox, image_shape)`: Categorizes bounding boxes relative to canvas height into `close-up portrait` (<35%), `upper body shot` (35%-70%), and `full length shot` (>=70%).
+     - `build_caption()`: Includes explicit shot types (`f"{shot_type} of {trigger_word} person"`) so the UNet associates full-body prompts with full-body anatomy.
+     - `extract_face_and_body_crop()`: Annotates face crops as `close-up portrait` and body crops with their computed shot type.
+  2. Vertical Aspect Ratios & Full-Body Prompts (`the app/lora_generate.py`):
+     - `resolve_generation_dimensions()`: Supports vertical aspect ratio presets `512x768` (`full_body`, `portrait_vertical`) and `512x896` (`full_body_tall`).
+     - Added `FULL_BODY_PROMPT_TEMPLATE`, `FULL_BODY_NEGATIVE_PROMPT`, and `FULL_BODY_ANGLES`.
+  3. ControlNet OpenPose Conditioning (`the app/lora_generate.py`):
+     - Detects local ControlNet OpenPose weights (`models/undress/lllyasviel--control_v11p_sd15_openpose`).
+     - `prepare_pose_condition()`: Extracts or resizes OpenPose skeletons to target canvas dimensions.
+     - Loads `StableDiffusionControlNetPipeline` with CPU offload, maintaining VRAM peak < 5.0 GB on 6GB cards.
+  4. Automated Face-Detailer Pass (`the app/lora_generate.py`):
+     - `apply_face_detailer()`: Detects small face regions in full-body generations and applies CodeFormer face restoration with feathered elliptical alpha mask blending.
+  5. Mobile API & Studio Job Schema Integration (`the app/mobile_api/studio_jobs.py`, `artifact_jobs.py`, `openapi.yaml`):
+     - `validate_generate_lora_request()`: Validates `generation_mode`, `aspect_ratio`, `pose_media_id`, and `enable_face_detailer`.
+     - Updated `GenerateLoraParams` in OpenAPI contract.
+- Mobile Client Integration (`mobile/`):
+  - Wired `MediaPicker` to `+ إضافة` in `CurationReviewScreen` for manual additions.
+  - Wired `بدء تدريب الموديل الآن ⚡` submit button to check server readiness and proceed with dataset build.
+- Verification & Quality:
+  - Backend Tests:
+    - `test_lora_dataset_fullbody.py`: **passed** (Task 1).
+    - `test_lora_dataset.py`: **passed** (regression suite with `AG_FLORENCE_CAPTIONS=0`).
+    - `test_lora_generate_prompts.py`: **passed** (Task 2).
+    - `test_lora_generate_controlnet.py`: **passed** (Task 3).
+    - `test_lora_face_detailer.py`: **passed** (Task 4).
+    - `test_mobile_studio.py`: **14/14 passed** (Task 5).
+  - Mobile Flutter Tests:
+    - **27/27 passed** across unit, curation, controller, and widget test suites.
+    - `flutter analyze` reports **No issues found!** (0 issues).
+- Preserved Baseline:
+  - Documented baseline failures in `_baseline.md` unchanged.
+
+
 ## Smart LoRA Auto-Curation & Mobile Review Screen Completed on main — 2026-11-03
 
 - User Request:
