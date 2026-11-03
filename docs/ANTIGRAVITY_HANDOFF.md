@@ -1,6 +1,33 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Smart LoRA Auto-Curation & Mobile Review Screen Design Approved — 2026-11-03
+
+- User Request:
+  - Thoroughly review and refine the LoRA training pipeline design before executing code.
+  - Implement smart automatic selection (Auto-Select) of training images when a person is chosen, eliminating manual photo curation.
+  - Prioritize body/skin visibility: prioritize images with minimal clothing / exposed skin so the model accurately learns body geometry and proportions rather than clothing fabric, with unclothed photos receiving top priority.
+  - Mobile Review Screen: After auto-selection, provide a streamlined mobile screen allowing users to inspect auto-selected photos and video keyframes, remove unwanted items with instant Undo, and add more items from the person's media or gallery.
+- Design Specifications & Architecture (`docs/plans/2026-11-03-smart-lora-curation-design.md`):
+  1. Auto-Select Ranking Heuristics:
+     - Close-up Portraits (6–8 items): Face quality, identity cosine similarity, multi-angle pose diversity (yaw/pitch).
+     - Upper Body (4–6 items): Head/neck/shoulder continuity and natural skin tone.
+     - Full Body & Minimal Clothes (6–8 items): Hierarchical priority:
+       * Tier 1 (+100.0 base): Sensitive regions with `exposed == true` in `sensitive_regions`.
+       * Tier 2 (+50.0 max): High bare-skin ratio (`skin_mask` / body box area).
+       * Tier 3 (+20.0 base): Full extent head-to-toe (`extent == 'full'`) fallback.
+     - Video Keyframe Extraction: High-clarity keyframes with $\ge 1.5\text{s}$ spacing and video timestamp badges (`🎬 mm:ss`).
+  2. Mobile UX Design (`CurationReviewScreen`):
+     - Live Quality Indicator pill (`"جاهز: 20 صورة مختارة تلقائياً • جودة ممتازة"`).
+     - Segmented Category Filter Tabs (`الكل (20)`, `👤 ملامح (7)`, `👕 نصف جسم (5)`, `🔥 كامل وأقل لبس (8)`).
+     - One-tap removal (`✕`) with 4-second reversible Undo SnackBar.
+     - Expandable settings bottom drawer (`⚙️`) for Trigger Word, Face Detailer Pass, and Resolution mode.
+     - Sticky bottom thumb-zone action bar with `+ إضافة` and `بدء تدريب الموديل الآن ⚡ (~8 دقائق)`.
+  3. Interactive UI Prototype:
+     - HTML/Tailwind interactive mobile simulation created and tested at `C:\Users\elmohamady\.gemini\antigravity\brain\024d118b-8b1c-4272-8619-1af7d01c17ec\mobile_lora_curation_mockup.html`.
+- Status: Design validated and approved by user. Ready for bite-sized implementation planning.
+
+
 ## Targeted Detection Persistence & Layers Popover Fix Completed on main — 2026-11-02
 
 - User Request:
