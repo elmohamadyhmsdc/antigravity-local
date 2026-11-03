@@ -1,6 +1,26 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Sidecar Metadata Persistence & Dynamic Auto-Organization Design Approved — 2026-11-03
+
+- User Request:
+  - Add sidecar metadata persistence to the existing original-file organization option (`DCIM/Your Gallery/<Group>/<Person>/...`).
+  - Zero-Rescan Restoration: When photos and videos are organized into a person/group folder, save full AI metadata alongside them. If the app or database is wiped, re-scanning/re-opening the folder must ingest all face/body detections, embeddings, and identity linkages instantly without requiring re-scanning, re-computation, or server/GPU inference.
+  - Dynamic Auto-Organization: When persons/groups change or media is corrected (e.g. reassigning a photo to another person, moving a person to a new group, or detecting new media for an organized person), files and their sidecar metadata must move automatically in the background to the updated folder location.
+- Design Specifications (`docs/plans/2026-11-03-sidecar-metadata-and-dynamic-auto-organize-design.md`):
+  1. 1:1 Sidecar File Format (`<filename>.<ext>.json`):
+     - Retains media attributes, master person/group ownership, faces (bboxes, ArcFace 512-d / CCIP 768-d base64 embeddings, quality, pose angles, identities), bodies (17 keypoints, 80-d HSV appearance vectors, Catmull-Rom outlines), sensitive regions, and detections.
+  2. Zero-Rescan Ingestion Engine:
+     - Integrated into asset sync (`syncAssets`). Checks for companion `.json`, validates timestamp/size, and performs local in-memory DB ingestion on the phone isolate (~3ms/item).
+     - Directly feeds `EmbeddingIndex` in memory, setting `media.scan_status = 'done'` without sending bytes over the network or touching the PC GPU.
+  3. Dynamic Auto-Sync Engine:
+     - Asynchronous immediate background execution upon correction (`CorrectionService.apply`), reassignment, manual link, or group change (`setPersonGroup`).
+     - Moves both the media file (via MediaStore) and sidecar `.json` atomically.
+     - Master Person Architecture: Multi-person shared media is physically housed in the Master Person's folder (defaulted by organization origin/prominence, with a 1-tap ⭐ override in Media Inspector), while the sidecar preserves metadata for all present individuals.
+     - Resilient journaling via `person_media_moves` and `_m<mediaId>` collision resolution.
+- Status: Design validated and approved by user. Committed to git in `ea0718e`. Ready for implementation planning.
+
+
 ## Full-Body LoRA Training & Generation Pipeline Completed on main — 2026-11-03
 
 - Architecture & Backend (`the app/`):
