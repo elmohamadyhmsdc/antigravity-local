@@ -606,6 +606,7 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
                                   .where((p) => p.id == chosen!.personId)
                                   .firstOrNull
                                   ?.name;
+                              if (!context.mounted) return;
                               context.pushReplacement(
                                 '${Routes.studioCuration}/${chosen!.personId}?name=${Uri.encodeComponent(name ?? 'person')}',
                               );
@@ -633,7 +634,7 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
                       allowNew: false,
                       kind: 'all',
                     );
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     if (chosen?.personId != null) {
                       final people = [
                         ...ref.read(peopleProvider).value ?? const [],
@@ -643,6 +644,7 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
                           .where((p) => p.id == chosen!.personId)
                           .firstOrNull
                           ?.name;
+                      if (!context.mounted) return;
                       context.pushReplacement(
                         '${Routes.studioCuration}/${chosen!.personId}?name=${Uri.encodeComponent(name ?? 'person')}',
                       );

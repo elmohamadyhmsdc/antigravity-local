@@ -107,5 +107,120 @@ void main() {
       expect(find.byKey(const Key('curation-trigger-input')), findsOneWidget);
       expect(find.text('sks_sara'), findsOneWidget);
     });
+
+    testWidgets('candidate card has tap preview detector', (tester) async {
+      const cFace = CurationCandidate(
+        detectionId: 101,
+        mediaId: 1,
+        assetId: 'face_asset',
+        isVideo: false,
+        category: CurationCategory.face,
+        quality: 0.9,
+      );
+
+      final initialState = CurationState(
+        personId: 42,
+        personName: 'Sara',
+        faces: [cFace],
+        upper: [],
+        body: [],
+        triggerWord: 'sks_sara',
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            curationControllerProvider.overrideWith(
+              () => CurationNotifier(initialState: initialState),
+            ),
+          ],
+          child: const MaterialApp(
+            home: CurationReviewScreen(personId: 42, personName: 'Sara'),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      // Ensure candidate card preview key exists
+      expect(find.byKey(const Key('curation-preview-101')), findsOneWidget);
+    });
+
+    testWidgets('tapping add button opens person-specific media picker sheet', (
+      tester,
+    ) async {
+      final initialState = CurationState(
+        personId: 42,
+        personName: 'Sara',
+        faces: [],
+        upper: [],
+        body: [],
+        triggerWord: 'sks_sara',
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            curationControllerProvider.overrideWith(
+              () => CurationNotifier(initialState: initialState),
+            ),
+          ],
+          child: const MaterialApp(
+            home: CurationReviewScreen(personId: 42, personName: 'Sara'),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Tap Add button
+      await tester.tap(find.byKey(const Key('curation-add')));
+      await tester.pumpAndSettle();
+
+      // Should open person-specific media picker sheet, not blind phone gallery
+      expect(find.byKey(const Key('curation-person-picker-sheet')), findsOneWidget);
+      expect(find.byKey(const Key('curation-picker-all-gallery')), findsOneWidget);
+      expect(find.byKey(const Key('curation-picker-confirm')), findsOneWidget);
+    });
+
+    testWidgets('tapping submit with disconnected server shows alert snackbar', (
+      tester,
+    ) async {
+      const c = CurationCandidate(
+        detectionId: 1,
+        mediaId: 1,
+        assetId: 'a1',
+        isVideo: false,
+        category: CurationCategory.face,
+      );
+
+      final initialState = CurationState(
+        personId: 42,
+        personName: 'Sara',
+        faces: [c, c, c, c, c],
+        upper: [],
+        body: [],
+        triggerWord: 'sks_sara',
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            curationControllerProvider.overrideWith(
+              () => CurationNotifier(initialState: initialState),
+            ),
+          ],
+          child: const MaterialApp(
+            home: CurationReviewScreen(personId: 42, personName: 'Sara'),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('curation-submit')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('الرجاء التأكد من الاتصال بالكمبيوتر'), findsOneWidget);
+    });
   });
 }
