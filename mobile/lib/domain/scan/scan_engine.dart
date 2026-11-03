@@ -573,8 +573,9 @@ class ScanEngine {
             facelessCharacters: row.illustrated,
             forceKind: corrections.forceKind,
             kindOverrides: corrections.dtos(),
-            returnSensitive: _canDetectSensitive && !row.illustrated,
-            returnBodyEmbeddings: _canEmbedBodies && !row.illustrated,
+            // drawn figures get the same regions and body vectors people get
+            returnSensitive: _canDetectSensitive,
+            returnBodyEmbeddings: _canEmbedBodies,
           ),
         );
         // Illustrated files only carry face vectors when a real face was found.

@@ -893,3 +893,45 @@ class PersonMediaMoves extends Table {
   @override
   Set<Column> get primaryKey => {mediaId};
 }
+
+// ---- v20: faces the user vouched for, and faces the audit doubts ----------------------------
+
+/// "This face really is that person": the user said so (assigned or accepted it by hand, or answered
+/// the audit "Yes"). A confirmed face is the trusted core the audit judges the others against and is
+/// never flagged again; it only counts while the face is still on that person.
+@DataClassName('FaceConfirmationRow')
+class FaceConfirmations extends Table {
+  IntColumn get faceId =>
+      integer().references(Faces, #id, onDelete: KeyAction.cascade)();
+  IntColumn get personId =>
+      integer().references(Persons, #id, onDelete: KeyAction.cascade)();
+  IntColumn get confirmedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {faceId};
+}
+
+/// Faces already on a person that do not look like the rest of them (the audit run by "Sort now"),
+/// worst first. Replaced by every audit; answered in the quick review ("Are you sure these are X?").
+@DataClassName('ReviewDoubtfulRow')
+class ReviewDoubtful extends Table {
+  IntColumn get faceId =>
+      integer().references(Faces, #id, onDelete: KeyAction.cascade)();
+  IntColumn get personId =>
+      integer().references(Persons, #id, onDelete: KeyAction.cascade)();
+
+  /// Similarity to the person's trusted core (1 = identical look); low = most doubtful.
+  RealColumn get score => real()();
+
+  /// Another person this face looks like, when one clearly fits better.
+  @ReferenceName('reviewDoubtfulSuggested')
+  IntColumn get suggestedPersonId => integer().nullable().references(
+    Persons,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  RealColumn get suggestedScore => real().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {faceId};
+}

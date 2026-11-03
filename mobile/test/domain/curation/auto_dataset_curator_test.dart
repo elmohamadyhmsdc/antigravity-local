@@ -92,6 +92,130 @@ void main() {
       expect(result.body.where((b) => b.hasExposedRegion).length, 4);
     });
 
+    test('spreads the faces over head poses and photos instead of seven copies of the best', () {
+      final candidates = <CurationCandidate>[
+        // five near-identical frontal shots of one sitting (one photo, different crops), very high quality
+        for (var i = 0; i < 5; i++)
+          CurationCandidate(
+            detectionId: i,
+            mediaId: 1,
+            assetId: 'sitting',
+            isVideo: false,
+            category: CurationCategory.face,
+            quality: 0.95,
+            yaw: 2.0 + i,
+            pitch: 1.0,
+          ),
+        // less perfect but different: profile, tilted-up, tilted-down, three-quarter
+        for (final (i, pose) in [(40.0, 0.0), (-35.0, 5.0), (0.0, 25.0), (10.0, -20.0)].indexed)
+          CurationCandidate(
+            detectionId: 100 + i,
+            mediaId: 10 + i,
+            assetId: 'other_$i',
+            isVideo: false,
+            category: CurationCategory.face,
+            quality: 0.7,
+            yaw: pose.$1,
+            pitch: pose.$2,
+          ),
+      ];
+
+      final faces = const AutoDatasetCurator(targetFaceCount: 5).curate(candidates).faces;
+
+      expect(faces.where((c) => c.mediaId == 1).length, 1, reason: 'one pick per sitting');
+      expect(faces.map((c) => c.detectionId).toSet().containsAll([100, 101, 102, 103]), isTrue);
+    });
+
+    test('one face seen again in other photos is a single training picture', () {
+      final candidates = [
+        for (var i = 0; i < 4; i++)
+          CurationCandidate(
+            detectionId: i,
+            mediaId: 1 + i,
+            assetId: 'dup_$i',
+            isVideo: false,
+            category: CurationCategory.face,
+            quality: 0.9,
+            yaw: 0,
+            refId: 7, // the same stored face, linked from four photos
+          ),
+        const CurationCandidate(
+          detectionId: 50,
+          mediaId: 60,
+          assetId: 'another',
+          isVideo: false,
+          category: CurationCategory.face,
+          quality: 0.6,
+          yaw: 30,
+          refId: 8,
+        ),
+      ];
+
+      final faces = const AutoDatasetCurator().curate(candidates).faces;
+
+      expect(faces.where((c) => c.refId == 7), hasLength(1));
+      expect(faces, hasLength(2));
+    });
+
+    test('a low-quality face is not padded in just to reach the target', () {
+      final faces = const AutoDatasetCurator().curate([
+        const CurationCandidate(
+          detectionId: 1,
+          mediaId: 1,
+          assetId: 'a',
+          isVideo: false,
+          category: CurationCategory.face,
+          quality: 0.9,
+        ),
+        const CurationCandidate(
+          detectionId: 2,
+          mediaId: 2,
+          assetId: 'b',
+          isVideo: false,
+          category: CurationCategory.face,
+          quality: 0.3,
+        ),
+      ]).faces;
+
+      expect(faces.map((c) => c.detectionId), [1]);
+    });
+
+    test('bodies are not all one outfit and exposed ones never fill every slot', () {
+      List<double> outfit(int hue) =>
+          List.generate(80, (i) => i % 40 == hue ? 1.0 : 0.0);
+      final candidates = [
+        for (var i = 0; i < 6; i++)
+          CurationCandidate(
+            detectionId: i,
+            mediaId: 100 + i,
+            assetId: 'red_$i',
+            isVideo: false,
+            category: CurationCategory.body,
+            quality: 0.8,
+            extent: 'full',
+            hasExposedRegion: true,
+            skinRatio: 0.7,
+            appearance: outfit(3),
+          ),
+        for (var i = 0; i < 4; i++)
+          CurationCandidate(
+            detectionId: 50 + i,
+            mediaId: 200 + i,
+            assetId: 'clothed_$i',
+            isVideo: false,
+            category: CurationCategory.body,
+            quality: 0.8,
+            extent: 'full',
+            appearance: outfit(10 + i * 7),
+          ),
+      ];
+
+      final bodies = const AutoDatasetCurator(targetBodyCount: 5).curate(candidates).body;
+
+      expect(bodies.where((c) => c.hasExposedRegion).length, lessThanOrEqualTo(3));
+      expect(bodies.length, 5);
+    });
+
     test('deduplicates video keyframes closer than minimum time gap', () {
       final candidates = <CurationCandidate>[
         const CurationCandidate(

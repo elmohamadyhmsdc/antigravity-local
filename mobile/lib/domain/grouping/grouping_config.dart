@@ -8,6 +8,12 @@
 /// change this one constant if its answer differs. It must stay >= 50.
 const groupingMemberCap = 100;
 
+/// Faces smaller than this (px, as the PC measured them) are not grouped, matched or used to build a
+/// person: too little identity, and in a crowd they are mostly strangers. New scans never store them
+/// (`face_quality.MIN_FACE_PX`); this also keeps the ones stored before that out of the maths.
+const groupingMinFacePx = 40.0;
+const groupingMinCharacterFacePx = 32.0;
+
 /// The Review screen shows at most this many suggested faces per person (review_state's default).
 const groupingMaxSuggestionsPerPerson = 60;
 

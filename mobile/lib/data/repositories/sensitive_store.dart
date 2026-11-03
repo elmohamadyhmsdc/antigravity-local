@@ -31,6 +31,7 @@ class SensitiveStore {
     required int imageW,
     required int imageH,
     required Map<int, int> bodyIds,
+    Map<int, int> characterBodyIds = const {},
     required int modelVersion,
     int? frameNumber,
     int? timestampMs,
@@ -61,10 +62,17 @@ class SensitiveStore {
           }
         }
         final bodyIndex = region.bodyIndex;
+        final characterIndex = region.characterIndex;
         inserts.add(
           SensitiveRegionsCompanion.insert(
             mediaId: mediaId,
-            bodyId: Value(bodyIndex == null ? null : bodyIds[bodyIndex]),
+            bodyId: Value(
+              bodyIndex != null
+                  ? bodyIds[bodyIndex]
+                  : (characterIndex == null
+                        ? null
+                        : characterBodyIds[characterIndex]),
+            ),
             label: region.label,
             exposed: region.exposed,
             score: region.score,

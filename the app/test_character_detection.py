@@ -385,16 +385,61 @@ class KindCorrectionTests(unittest.TestCase):
         res = self.run_frame([self.drawn_face()], self.bodies(), faceless_characters=False)
         self.assertEqual(res.characters, [])
         self.assertEqual(res.faces, [])
-        self.anime.append({"bbox": np.array([10, 150, 40, 190], np.float32), "score": .8})
+        self.anime.append({"bbox": np.array([10, 150, 50, 200], np.float32), "score": .8})
         seen = self.run_frame([self.drawn_face()], self.bodies(), faceless_characters=False)
         self.assertEqual(sorted(list(c.face_bbox) for c in seen.characters),
-                         [[10, 150, 40, 190], [40, 10, 88, 72]])
+                         [[10, 150, 50, 200], [40, 10, 88, 72]])
 
     def test_the_anime_detector_fills_in_faces_the_people_detector_missed(self):
-        self.anime.append({"bbox": np.array([10, 150, 40, 190], np.float32), "score": .8})
+        self.anime.append({"bbox": np.array([10, 150, 50, 200], np.float32), "score": .8})
         res = self.run_frame([self.drawn_face()], self.bodies((0, 0, 128, 256)))
         boxes = sorted(list(c.face_bbox) for c in res.characters if c.face_bbox is not None)
-        self.assertEqual(boxes, [[10, 150, 40, 190], [40, 10, 88, 72]])
+        self.assertEqual(boxes, [[10, 150, 50, 200], [40, 10, 88, 72]])
+
+    def test_a_speck_of_a_drawn_face_is_no_character_face(self):
+        self.anime.append({"bbox": np.array([10, 150, 28, 168], np.float32), "score": .9})
+        res = self.run_frame([], self.bodies(), faceless_characters=False)
+        self.assertEqual(res.characters, [])
+
+    def test_in_a_crowd_the_small_drawn_faces_are_background(self):
+        for box in ([0, 0, 150, 150], [160, 0, 310, 150], [320, 0, 470, 150], [0, 300, 50, 350]):
+            self.anime.append({"bbox": np.array(box, np.float32), "score": .9})
+        res = self.run_frame([], self.bodies())
+        sizes = sorted(int(c.face_bbox[2] - c.face_bbox[0]) for c in res.characters if c.face_bbox is not None)
+        self.assertEqual(sizes, [150, 150, 150], "the 50 px face (under 40% of the biggest) is background")
+
+    def test_a_stylised_tiny_real_face_does_not_become_a_character_in_an_ordinary_photo(self):
+        """The anime detector fires on a small real face that is too small to store: it is a person's."""
+        self.anime.append({"bbox": np.array([40, 10, 74, 44], np.float32), "score": .8})
+        tiny = self.face((40, 10, 74, 44), score=.9)   # 34 px: below the store gate, a confident real face
+        res = self.run_frame([tiny], self.bodies(), faceless_characters=False)
+        self.assertEqual(res.characters, [])
+        # ...but in a drawing (the user marked the source) it can be a character
+        drawing_res = self.run_frame([tiny], self.bodies())
+        self.assertEqual(len(drawing_res.characters), 1)
+
+    def test_a_vetoed_false_positive_does_not_make_the_photo_a_drawing(self):
+        """A clear real face (borderline quality) + an anime hit on it: in an ordinary photo it stays a person."""
+        self.anime.append({"bbox": np.array([40, 10, 88, 72], np.float32), "score": .9})
+        res = self.run_frame([self.face()], self.bodies(), quality=.45, faceless_characters=False)
+        self.assertEqual(len(res.faces), 1)
+        self.assertEqual(res.characters, [])
+
+    def test_a_crowd_of_small_real_faces_and_one_poster_keeps_everyone_a_person(self):
+        self.anime.append({"bbox": np.array([2, 2, 50, 50], np.float32), "score": .9})
+        tiny = [self.face((60 + 40 * i, 100, 90 + 40 * i, 130), score=.8) for i in range(3)]   # 30 px real faces
+        bodies = self.bodies((50, 90, 100, 250), (100, 90, 150, 250))
+        res = self.run_frame(tiny, bodies, quality=.3, faceless_characters=False)
+        self.assertEqual(len(res.bodies), 2, "faceless people in a photographed crowd stay people")
+        self.assertEqual([c for c in res.characters if c.face_bbox is None], [])
+
+    def test_crowds_drop_background_people_faces(self):
+        from analysis import drop_background
+        self.assertEqual(drop_background([200, 190, 60, 30]), [True, True, False, False])
+        self.assertEqual(drop_background([200, 60]), [True, True], "a couple is never a crowd")
+        self.assertEqual(drop_background([200, 190, 30], [False, False, True]), [True, True, True],
+                         "the user's own corrections stay")
+        self.assertEqual(drop_background([400, 380, 150]), [True, True, True], "150 px is no background face")
 
     def test_a_clear_real_face_in_a_drawing_still_vetoes_and_stays_a_person(self):
         self.anime.append({"bbox": np.array([40, 10, 88, 72], np.float32), "score": .9})
@@ -446,9 +491,57 @@ class KindCorrectionTests(unittest.TestCase):
         illustrated = self.run_frame([], self.bodies((0, 0, 128, 256)))
         self.assertEqual((illustrated.bodies, len(illustrated.characters)), ([], 1))
         # Next to a drawn face, a faceless figure is a character even in an ordinary photo.
-        self.anime.append({"bbox": np.array([2, 2, 20, 20], np.float32), "score": .9})
+        self.anime.append({"bbox": np.array([2, 2, 42, 42], np.float32), "score": .9})
         drawn = self.run_frame([], self.bodies((40, 60, 128, 256)), faceless_characters=False)
         self.assertEqual(len(drawn.characters), 2)
+
+    def test_characters_get_exposed_regions_and_body_vectors_like_people(self):
+        """One detector pass over people AND drawn bodies; regions/vectors are routed back to their owner."""
+        from analysis import FrameAnalysis
+        from character_detection import Character
+        from mobile_api.engines import InsightEngines
+        from mobile_api.schemas import analysis_to_response, AnalyzeRequestOptions
+        engines = InsightEngines(isolate_scans=False)
+        seen = {}
+
+        def detect(img, bodies):
+            seen["bodies"] = len(bodies)
+            return [dict(label="BELLY_EXPOSED", exposed=True, score=.9, bbox=[1, 1, 5, 5], body_index=0),
+                    dict(label="FEMALE_BREAST_EXPOSED", exposed=True, score=.8, bbox=[2, 2, 6, 6], body_index=2),
+                    dict(label="BUTTOCKS_EXPOSED", exposed=True, score=.7, bbox=[3, 3, 7, 7], body_index=None)]
+
+        def embed(img, bodies, regions):
+            seen.setdefault("embedded", []).append((len(bodies), [r["body_index"] for r in regions]))
+            return [dict(chest_embedding=f"vec{i}", buttocks_embedding=None, morphology=None) for i in range(len(bodies))]
+
+        engines._detect_sensitive, engines._embed_dicts = detect, embed
+        kp = np.zeros((17, 2), np.float32), np.ones(17, np.float32)
+        chars = [Character(np.array([0, 0, 9, 9], np.float32), .9, np.zeros(160, np.float32)),   # no body: skipped
+                 Character(np.array([0, 0, 9, 9], np.float32), .9, np.zeros(160, np.float32),
+                           body_bbox=np.array([0, 0, 9, 9], np.float32), body_score=.8, body_kpts=kp[0],
+                           body_kpt_scores=kp[1]),
+                 Character(np.array([0, 0, 9, 9], np.float32), .9, np.zeros(160, np.float32),
+                           body_bbox=np.array([0, 0, 9, 9], np.float32), body_score=.8, body_kpts=kp[0],
+                           body_kpt_scores=kp[1])]
+        res = FrameAnalysis(faces=[], quality=[], passes_gate=[], bodies=[body((0, 0, 9, 9))], appearances=[None],
+                            pairs=[], characters=chars)
+        engines._sensitive_for(np.zeros((10, 10, 3), np.uint8), res, True)
+        self.assertEqual(seen["bodies"], 3, "1 person + 2 drawn bodies in one pass")
+        by_label = {r["label"]: r for r in res.sensitive}
+        self.assertEqual((by_label["BELLY_EXPOSED"]["body_index"], by_label["BELLY_EXPOSED"].get("character_index")),
+                         (0, None))
+        self.assertEqual((by_label["FEMALE_BREAST_EXPOSED"]["body_index"],
+                          by_label["FEMALE_BREAST_EXPOSED"]["character_index"]), (None, 2))
+        self.assertIsNone(by_label["BUTTOCKS_EXPOSED"]["body_index"])
+        self.assertEqual(seen["embedded"][0], (1, [0]))                   # people: only their own regions
+        self.assertEqual(seen["embedded"][1], (2, [1]))                   # drawn bodies: re-indexed from 0
+        self.assertEqual([e and e["chest_embedding"] for e in res.character_body_embeddings], [None, "vec0", "vec1"])
+        # ...and on the wire
+        out = analysis_to_response(res, np.zeros((10, 10, 3), np.uint8),
+                                   AnalyzeRequestOptions(return_crops=False, return_sensitive=True,
+                                                         return_body_embeddings=True))
+        self.assertEqual([r.get("character_index") for r in out["sensitive_regions"]], [None, 2, None])
+        self.assertEqual([c["body"] and c["body"]["chest_embedding"] for c in out["characters"]], [None, "vec0", "vec1"])
 
     def test_wire_options_corrections_and_forced_faces(self):
         from analysis import FrameAnalysis

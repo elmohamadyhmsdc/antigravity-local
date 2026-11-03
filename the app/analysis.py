@@ -105,6 +105,9 @@ class FrameAnalysis:
     sensitive: Optional[list] = None
     # None = not requested. Else one dict per body: chest_embedding, buttocks_embedding (base64) and morphology.
     body_embeddings: Optional[list] = None
+    # Same two, for the bodies of drawn characters (aligned with `characters`; None entries = no body).
+    # Characters get exactly what people get: exposed / covered regions, chest / lower-body vectors, morphology.
+    character_body_embeddings: Optional[list] = None
 
     @property
     def body_of_face(self) -> Dict[int, int]:
@@ -121,12 +124,41 @@ class FrameAnalysis:
 # (drawn_faces) counts as a real person. Above the 0.40 store gate on purpose: a borderline
 # face stays a character.
 REAL_FACE_MIN_QUALITY = 0.50
+# The drawn-face test (drawn_faces) is only trustworthy on a face with real detail: tiny and blurred
+# real faces drift toward the "drawn" direction (measured up to 0.17 against the 0.20 bar).
+DRAWN_TEST_MIN_PX = 48
+# A detected, confident face this small or bigger that is not drawn is a real person's even when it is too
+# small to store: it stops the anime detector (which fires on stylised / tiny real faces) from turning
+# it into a character - in photos the user did not mark as illustrated.
+TINY_REAL_FACE_PX = 24
+TINY_REAL_FACE_DET = 0.70
+# Drawn faces are cleaner than photographed ones; smaller than this they carry no identity.
+MIN_CHARACTER_FACE_PX = 32
 
 
-def _is_real(i, face_kinds, passes, drawn, quality) -> bool:
-    """In character mode: face i is a person (the user said so, or a clear face that is not drawn)."""
+def _is_real(i, face_kinds, passes, drawn, quality, min_quality=REAL_FACE_MIN_QUALITY) -> bool:
+    """In character mode: face i is a person (the user said so, or a clear face that is not drawn).
+    `min_quality` is the bar a borderline face must clear: high inside a drawing (so a doubtful face stays a
+    character), just the store gate in an ordinary photo (so a doubtful face stays a person)."""
     return face_kinds[i] == "person" or (face_kinds[i] is None and passes[i] and not drawn[i]
-                                         and quality[i]["quality_score"] >= REAL_FACE_MIN_QUALITY)
+                                         and quality[i]["quality_score"] >= min_quality)
+
+
+def _box_px(box) -> float:
+    return float(min(float(box[2]) - float(box[0]), float(box[3]) - float(box[1])))
+
+
+def drop_background(sizes, protected=None):
+    """Which faces to keep in a crowd. With at least `face_quality.CROWD_MIN_FACES` faces in a frame, one
+    markedly smaller than the biggest (under `BACKGROUND_REL` of it, and under `BACKGROUND_MAX_PX`) is
+    background, not a subject: it is never stored, grouped or trained on. `protected` (the user's own
+    corrections) always stay. Fewer faces: everything stays (an ordinary portrait or a couple)."""
+    protected = protected or [False] * len(sizes)
+    if len(sizes) < face_quality.CROWD_MIN_FACES:
+        return [True] * len(sizes)
+    biggest = max(sizes)
+    floor = min(face_quality.BACKGROUND_MAX_PX, face_quality.BACKGROUND_REL * biggest)
+    return [bool(protected[i]) or sizes[i] >= floor for i in range(len(sizes))]
 
 
 def _centre_inside(face_box, box) -> bool:
@@ -229,8 +261,10 @@ def analyze_frame(face_app, body, img, options,
     passes = [face_quality.passes_gate(f, options.min_face_quality, q["quality_score"])
               for f, q in zip(faces, quality)]
     face_kinds = [kind_of(f.bbox, "face") for f in faces]
-    # Drawn faces get good quality scores too; the embedding tells them apart.
-    drawn = [k != "person" and drawn_faces.is_drawn(getattr(f, "embedding", None))
+    # Drawn faces get good quality scores too; the embedding tells them apart - but only on a face with
+    # enough detail (tiny / blurred real faces drift toward the drawn direction).
+    drawn = [k != "person" and _box_px(f.bbox) >= DRAWN_TEST_MIN_PX
+             and drawn_faces.is_drawn(getattr(f, "embedding", None))
              for f, k in zip(faces, face_kinds)]
     for i, f in enumerate(faces):
         # A single face the user called a person is stored even below the gate.
@@ -238,24 +272,43 @@ def analyze_frame(face_app, body, img, options,
                                              for _, p, b in overrides):
             passes[i] = True
     forced = [k == "person" for k in face_kinds]
+    # Crowds: faces far smaller than the biggest one are background, not subjects.
+    sharp_idx = [i for i in range(len(faces)) if passes[i]]
+    keep_flags = drop_background([_box_px(faces[i].bbox) for i in sharp_idx], [forced[i] for i in sharp_idx])
+    for i, keep in zip(sharp_idx, keep_flags):
+        if not keep:
+            passes[i] = False
 
     # Detect anime faces if characters are requested
     anime_faces = []
+    illustrated_source = force == "character" or bool(getattr(options, "faceless_characters", True))
     if want_characters:
         ad = get_anime_detector()
         saw_anime = False
         if ad is not None:
             try:
                 raw_anime = ad.detect(img, score_thresh=0.55)
-                saw_anime = bool(raw_anime)
-                # Real face veto at 0.40 quality/det threshold
+                # Real face veto at 0.40 quality/det threshold. In a photo the user did not mark as
+                # illustrated, a confident tiny face that is not drawn vetoes too: the anime detector
+                # fires on stylised and tiny real faces, which then wrongly became characters.
                 veto_boxes = [f.bbox for i, f in enumerate(faces)
-                              if face_kinds[i] == "person" or (face_kinds[i] is None and passes[i]
-                                                                and not drawn[i]
-                                                                and quality[i]["quality_score"] >= 0.40)]
+                              if face_kinds[i] == "person"
+                              or (face_kinds[i] is None and not drawn[i]
+                                  and ((passes[i] and quality[i]["quality_score"] >= 0.40)
+                                       or (not illustrated_source
+                                           and float(f.det_score) >= TINY_REAL_FACE_DET
+                                           and _box_px(f.bbox) >= TINY_REAL_FACE_PX)))]
                 anime_faces = [a for a in raw_anime
                                if not any(overlaps_real_face(rbox, a["bbox"]) for rbox in veto_boxes)
                                and kind_of(a["bbox"], "face") != "person"]
+                # A drawing seen only as a vetoed false positive on a real face is not a drawn source.
+                saw_anime = bool(anime_faces)
+                # Same rules as for people: no identity in a speck, and background in a crowd.
+                marked = [kind_of(a["bbox"], "face") == "character" for a in anime_faces]
+                sizes = [_box_px(a["bbox"]) for a in anime_faces]
+                crowd = drop_background(sizes, marked)
+                anime_faces = [a for a, m, s, k in zip(anime_faces, marked, sizes, crowd)
+                               if m or (s >= MIN_CHARACTER_FACE_PX and k)]
             except Exception:
                 anime_faces = []
         # In a drawing the people's detector places a face far more precisely than the anime
@@ -265,8 +318,10 @@ def analyze_frame(face_app, body, img, options,
         # not a character; the anime detector's own faces fill in what it missed. Clear real
         # faces stay people.
         drawing = force == "character" or getattr(options, "faceless_characters", True) or saw_anime
+        # A borderline face is a character inside a drawing, a person in an ordinary photo.
+        real_min = REAL_FACE_MIN_QUALITY if drawing else 0.0
         for i, f in enumerate(faces):
-            if face_kinds[i] is not None or _is_real(i, face_kinds, passes, drawn, quality):
+            if face_kinds[i] is not None or _is_real(i, face_kinds, passes, drawn, quality, real_min):
                 continue
             same = [a for a in anime_faces if overlaps_real_face(f.bbox, a["bbox"])]
             if not same and not (drawn[i] and passes[i] and drawing):
@@ -295,10 +350,14 @@ def analyze_frame(face_app, body, img, options,
         candidates = [i for i, k in enumerate(body_kinds) if k != "person"]
         characters = detect_characters(img, [bodies[i] for i in candidates], anime_faces=anime_faces,
                                        keep=lambda b: kind_of(b.bbox, "body") == "character")
-        real = [i for i in range(len(faces)) if _is_real(i, face_kinds, passes, drawn, quality)]
-        # Without real faces, a faceless figure is a character only in a drawn source or
-        # next to drawn faces; a person seen from behind in a photo stays a person.
-        drawn_here = bool(anime_faces) or any(d and k is None for d, k in zip(drawn, face_kinds))
+        real = [i for i in range(len(faces)) if _is_real(i, face_kinds, passes, drawn, quality, real_min)]
+        # Without real faces, a faceless figure is a character only in a drawn source, or next to drawn
+        # faces when the frame shows no photographed face at all (even a tiny one: a crowd of small real
+        # faces plus one poster must not turn every person in it into a character).
+        photographed = any(face_kinds[i] != "character" and not drawn[i] and float(faces[i].det_score) >= 0.5
+                           for i in range(len(faces)))
+        drawn_here = (bool(anime_faces) or any(d and k is None for d, k in zip(drawn, face_kinds))) \
+            and not photographed
         faceless_ok = not real and (getattr(options, "faceless_characters", True) or drawn_here)
 
         def keep(c):

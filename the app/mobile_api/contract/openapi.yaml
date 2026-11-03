@@ -850,6 +850,10 @@ components:
           type: [integer, "null"]
           minimum: 0
           description: "Index into `bodies` of the body this region belongs to; null when no body fits"
+        character_index:
+          type: integer
+          minimum: 0
+          description: "Present when the region belongs to a drawn character's body: index into `characters` (then `body_index` is null). Characters get the same regions as people."
 
     MarkMatch:
       type: object
@@ -1181,6 +1185,19 @@ components:
         crop_jpeg:
           oneOf:
             - { $ref: "#/components/schemas/Base64Jpeg" }
+            - { type: "null" }
+        chest_embedding:
+          description: "Only with `return_body_embeddings`, exactly as on people bodies."
+          oneOf:
+            - { $ref: "#/components/schemas/PatchEmbedding" }
+            - { type: "null" }
+        buttocks_embedding:
+          oneOf:
+            - { $ref: "#/components/schemas/PatchEmbedding" }
+            - { type: "null" }
+        morphology:
+          oneOf:
+            - { $ref: "#/components/schemas/BodyMorphology" }
             - { type: "null" }
 
     AnalyzeImageResponse:

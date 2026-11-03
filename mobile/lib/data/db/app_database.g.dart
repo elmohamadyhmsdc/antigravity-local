@@ -22667,6 +22667,651 @@ class BodyDistinctCompanion extends UpdateCompanion<BodyDistinctRow> {
   }
 }
 
+class $FaceConfirmationsTable extends FaceConfirmations
+    with TableInfo<$FaceConfirmationsTable, FaceConfirmationRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FaceConfirmationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _faceIdMeta = const VerificationMeta('faceId');
+  @override
+  late final GeneratedColumn<int> faceId = GeneratedColumn<int>(
+    'face_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES faces (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _confirmedAtMeta = const VerificationMeta(
+    'confirmedAt',
+  );
+  @override
+  late final GeneratedColumn<int> confirmedAt = GeneratedColumn<int>(
+    'confirmed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [faceId, personId, confirmedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'face_confirmations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FaceConfirmationRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('face_id')) {
+      context.handle(
+        _faceIdMeta,
+        faceId.isAcceptableOrUnknown(data['face_id']!, _faceIdMeta),
+      );
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_personIdMeta);
+    }
+    if (data.containsKey('confirmed_at')) {
+      context.handle(
+        _confirmedAtMeta,
+        confirmedAt.isAcceptableOrUnknown(
+          data['confirmed_at']!,
+          _confirmedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_confirmedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {faceId};
+  @override
+  FaceConfirmationRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FaceConfirmationRow(
+      faceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}face_id'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      )!,
+      confirmedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}confirmed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FaceConfirmationsTable createAlias(String alias) {
+    return $FaceConfirmationsTable(attachedDatabase, alias);
+  }
+}
+
+class FaceConfirmationRow extends DataClass
+    implements Insertable<FaceConfirmationRow> {
+  final int faceId;
+  final int personId;
+  final int confirmedAt;
+  const FaceConfirmationRow({
+    required this.faceId,
+    required this.personId,
+    required this.confirmedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['face_id'] = Variable<int>(faceId);
+    map['person_id'] = Variable<int>(personId);
+    map['confirmed_at'] = Variable<int>(confirmedAt);
+    return map;
+  }
+
+  FaceConfirmationsCompanion toCompanion(bool nullToAbsent) {
+    return FaceConfirmationsCompanion(
+      faceId: Value(faceId),
+      personId: Value(personId),
+      confirmedAt: Value(confirmedAt),
+    );
+  }
+
+  factory FaceConfirmationRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FaceConfirmationRow(
+      faceId: serializer.fromJson<int>(json['faceId']),
+      personId: serializer.fromJson<int>(json['personId']),
+      confirmedAt: serializer.fromJson<int>(json['confirmedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'faceId': serializer.toJson<int>(faceId),
+      'personId': serializer.toJson<int>(personId),
+      'confirmedAt': serializer.toJson<int>(confirmedAt),
+    };
+  }
+
+  FaceConfirmationRow copyWith({
+    int? faceId,
+    int? personId,
+    int? confirmedAt,
+  }) => FaceConfirmationRow(
+    faceId: faceId ?? this.faceId,
+    personId: personId ?? this.personId,
+    confirmedAt: confirmedAt ?? this.confirmedAt,
+  );
+  FaceConfirmationRow copyWithCompanion(FaceConfirmationsCompanion data) {
+    return FaceConfirmationRow(
+      faceId: data.faceId.present ? data.faceId.value : this.faceId,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      confirmedAt: data.confirmedAt.present
+          ? data.confirmedAt.value
+          : this.confirmedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FaceConfirmationRow(')
+          ..write('faceId: $faceId, ')
+          ..write('personId: $personId, ')
+          ..write('confirmedAt: $confirmedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(faceId, personId, confirmedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FaceConfirmationRow &&
+          other.faceId == this.faceId &&
+          other.personId == this.personId &&
+          other.confirmedAt == this.confirmedAt);
+}
+
+class FaceConfirmationsCompanion extends UpdateCompanion<FaceConfirmationRow> {
+  final Value<int> faceId;
+  final Value<int> personId;
+  final Value<int> confirmedAt;
+  const FaceConfirmationsCompanion({
+    this.faceId = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.confirmedAt = const Value.absent(),
+  });
+  FaceConfirmationsCompanion.insert({
+    this.faceId = const Value.absent(),
+    required int personId,
+    required int confirmedAt,
+  }) : personId = Value(personId),
+       confirmedAt = Value(confirmedAt);
+  static Insertable<FaceConfirmationRow> custom({
+    Expression<int>? faceId,
+    Expression<int>? personId,
+    Expression<int>? confirmedAt,
+  }) {
+    return RawValuesInsertable({
+      if (faceId != null) 'face_id': faceId,
+      if (personId != null) 'person_id': personId,
+      if (confirmedAt != null) 'confirmed_at': confirmedAt,
+    });
+  }
+
+  FaceConfirmationsCompanion copyWith({
+    Value<int>? faceId,
+    Value<int>? personId,
+    Value<int>? confirmedAt,
+  }) {
+    return FaceConfirmationsCompanion(
+      faceId: faceId ?? this.faceId,
+      personId: personId ?? this.personId,
+      confirmedAt: confirmedAt ?? this.confirmedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (faceId.present) {
+      map['face_id'] = Variable<int>(faceId.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (confirmedAt.present) {
+      map['confirmed_at'] = Variable<int>(confirmedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FaceConfirmationsCompanion(')
+          ..write('faceId: $faceId, ')
+          ..write('personId: $personId, ')
+          ..write('confirmedAt: $confirmedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ReviewDoubtfulTable extends ReviewDoubtful
+    with TableInfo<$ReviewDoubtfulTable, ReviewDoubtfulRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReviewDoubtfulTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _faceIdMeta = const VerificationMeta('faceId');
+  @override
+  late final GeneratedColumn<int> faceId = GeneratedColumn<int>(
+    'face_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES faces (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _personIdMeta = const VerificationMeta(
+    'personId',
+  );
+  @override
+  late final GeneratedColumn<int> personId = GeneratedColumn<int>(
+    'person_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _scoreMeta = const VerificationMeta('score');
+  @override
+  late final GeneratedColumn<double> score = GeneratedColumn<double>(
+    'score',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _suggestedPersonIdMeta = const VerificationMeta(
+    'suggestedPersonId',
+  );
+  @override
+  late final GeneratedColumn<int> suggestedPersonId = GeneratedColumn<int>(
+    'suggested_person_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES persons (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _suggestedScoreMeta = const VerificationMeta(
+    'suggestedScore',
+  );
+  @override
+  late final GeneratedColumn<double> suggestedScore = GeneratedColumn<double>(
+    'suggested_score',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    faceId,
+    personId,
+    score,
+    suggestedPersonId,
+    suggestedScore,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'review_doubtful';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReviewDoubtfulRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('face_id')) {
+      context.handle(
+        _faceIdMeta,
+        faceId.isAcceptableOrUnknown(data['face_id']!, _faceIdMeta),
+      );
+    }
+    if (data.containsKey('person_id')) {
+      context.handle(
+        _personIdMeta,
+        personId.isAcceptableOrUnknown(data['person_id']!, _personIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_personIdMeta);
+    }
+    if (data.containsKey('score')) {
+      context.handle(
+        _scoreMeta,
+        score.isAcceptableOrUnknown(data['score']!, _scoreMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scoreMeta);
+    }
+    if (data.containsKey('suggested_person_id')) {
+      context.handle(
+        _suggestedPersonIdMeta,
+        suggestedPersonId.isAcceptableOrUnknown(
+          data['suggested_person_id']!,
+          _suggestedPersonIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('suggested_score')) {
+      context.handle(
+        _suggestedScoreMeta,
+        suggestedScore.isAcceptableOrUnknown(
+          data['suggested_score']!,
+          _suggestedScoreMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {faceId};
+  @override
+  ReviewDoubtfulRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReviewDoubtfulRow(
+      faceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}face_id'],
+      )!,
+      personId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}person_id'],
+      )!,
+      score: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}score'],
+      )!,
+      suggestedPersonId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}suggested_person_id'],
+      ),
+      suggestedScore: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}suggested_score'],
+      ),
+    );
+  }
+
+  @override
+  $ReviewDoubtfulTable createAlias(String alias) {
+    return $ReviewDoubtfulTable(attachedDatabase, alias);
+  }
+}
+
+class ReviewDoubtfulRow extends DataClass
+    implements Insertable<ReviewDoubtfulRow> {
+  final int faceId;
+  final int personId;
+
+  /// Similarity to the person's trusted core (1 = identical look); low = most doubtful.
+  final double score;
+
+  /// Another person this face looks like, when one clearly fits better.
+  final int? suggestedPersonId;
+  final double? suggestedScore;
+  const ReviewDoubtfulRow({
+    required this.faceId,
+    required this.personId,
+    required this.score,
+    this.suggestedPersonId,
+    this.suggestedScore,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['face_id'] = Variable<int>(faceId);
+    map['person_id'] = Variable<int>(personId);
+    map['score'] = Variable<double>(score);
+    if (!nullToAbsent || suggestedPersonId != null) {
+      map['suggested_person_id'] = Variable<int>(suggestedPersonId);
+    }
+    if (!nullToAbsent || suggestedScore != null) {
+      map['suggested_score'] = Variable<double>(suggestedScore);
+    }
+    return map;
+  }
+
+  ReviewDoubtfulCompanion toCompanion(bool nullToAbsent) {
+    return ReviewDoubtfulCompanion(
+      faceId: Value(faceId),
+      personId: Value(personId),
+      score: Value(score),
+      suggestedPersonId: suggestedPersonId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(suggestedPersonId),
+      suggestedScore: suggestedScore == null && nullToAbsent
+          ? const Value.absent()
+          : Value(suggestedScore),
+    );
+  }
+
+  factory ReviewDoubtfulRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReviewDoubtfulRow(
+      faceId: serializer.fromJson<int>(json['faceId']),
+      personId: serializer.fromJson<int>(json['personId']),
+      score: serializer.fromJson<double>(json['score']),
+      suggestedPersonId: serializer.fromJson<int?>(json['suggestedPersonId']),
+      suggestedScore: serializer.fromJson<double?>(json['suggestedScore']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'faceId': serializer.toJson<int>(faceId),
+      'personId': serializer.toJson<int>(personId),
+      'score': serializer.toJson<double>(score),
+      'suggestedPersonId': serializer.toJson<int?>(suggestedPersonId),
+      'suggestedScore': serializer.toJson<double?>(suggestedScore),
+    };
+  }
+
+  ReviewDoubtfulRow copyWith({
+    int? faceId,
+    int? personId,
+    double? score,
+    Value<int?> suggestedPersonId = const Value.absent(),
+    Value<double?> suggestedScore = const Value.absent(),
+  }) => ReviewDoubtfulRow(
+    faceId: faceId ?? this.faceId,
+    personId: personId ?? this.personId,
+    score: score ?? this.score,
+    suggestedPersonId: suggestedPersonId.present
+        ? suggestedPersonId.value
+        : this.suggestedPersonId,
+    suggestedScore: suggestedScore.present
+        ? suggestedScore.value
+        : this.suggestedScore,
+  );
+  ReviewDoubtfulRow copyWithCompanion(ReviewDoubtfulCompanion data) {
+    return ReviewDoubtfulRow(
+      faceId: data.faceId.present ? data.faceId.value : this.faceId,
+      personId: data.personId.present ? data.personId.value : this.personId,
+      score: data.score.present ? data.score.value : this.score,
+      suggestedPersonId: data.suggestedPersonId.present
+          ? data.suggestedPersonId.value
+          : this.suggestedPersonId,
+      suggestedScore: data.suggestedScore.present
+          ? data.suggestedScore.value
+          : this.suggestedScore,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReviewDoubtfulRow(')
+          ..write('faceId: $faceId, ')
+          ..write('personId: $personId, ')
+          ..write('score: $score, ')
+          ..write('suggestedPersonId: $suggestedPersonId, ')
+          ..write('suggestedScore: $suggestedScore')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(faceId, personId, score, suggestedPersonId, suggestedScore);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReviewDoubtfulRow &&
+          other.faceId == this.faceId &&
+          other.personId == this.personId &&
+          other.score == this.score &&
+          other.suggestedPersonId == this.suggestedPersonId &&
+          other.suggestedScore == this.suggestedScore);
+}
+
+class ReviewDoubtfulCompanion extends UpdateCompanion<ReviewDoubtfulRow> {
+  final Value<int> faceId;
+  final Value<int> personId;
+  final Value<double> score;
+  final Value<int?> suggestedPersonId;
+  final Value<double?> suggestedScore;
+  const ReviewDoubtfulCompanion({
+    this.faceId = const Value.absent(),
+    this.personId = const Value.absent(),
+    this.score = const Value.absent(),
+    this.suggestedPersonId = const Value.absent(),
+    this.suggestedScore = const Value.absent(),
+  });
+  ReviewDoubtfulCompanion.insert({
+    this.faceId = const Value.absent(),
+    required int personId,
+    required double score,
+    this.suggestedPersonId = const Value.absent(),
+    this.suggestedScore = const Value.absent(),
+  }) : personId = Value(personId),
+       score = Value(score);
+  static Insertable<ReviewDoubtfulRow> custom({
+    Expression<int>? faceId,
+    Expression<int>? personId,
+    Expression<double>? score,
+    Expression<int>? suggestedPersonId,
+    Expression<double>? suggestedScore,
+  }) {
+    return RawValuesInsertable({
+      if (faceId != null) 'face_id': faceId,
+      if (personId != null) 'person_id': personId,
+      if (score != null) 'score': score,
+      if (suggestedPersonId != null) 'suggested_person_id': suggestedPersonId,
+      if (suggestedScore != null) 'suggested_score': suggestedScore,
+    });
+  }
+
+  ReviewDoubtfulCompanion copyWith({
+    Value<int>? faceId,
+    Value<int>? personId,
+    Value<double>? score,
+    Value<int?>? suggestedPersonId,
+    Value<double?>? suggestedScore,
+  }) {
+    return ReviewDoubtfulCompanion(
+      faceId: faceId ?? this.faceId,
+      personId: personId ?? this.personId,
+      score: score ?? this.score,
+      suggestedPersonId: suggestedPersonId ?? this.suggestedPersonId,
+      suggestedScore: suggestedScore ?? this.suggestedScore,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (faceId.present) {
+      map['face_id'] = Variable<int>(faceId.value);
+    }
+    if (personId.present) {
+      map['person_id'] = Variable<int>(personId.value);
+    }
+    if (score.present) {
+      map['score'] = Variable<double>(score.value);
+    }
+    if (suggestedPersonId.present) {
+      map['suggested_person_id'] = Variable<int>(suggestedPersonId.value);
+    }
+    if (suggestedScore.present) {
+      map['suggested_score'] = Variable<double>(suggestedScore.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReviewDoubtfulCompanion(')
+          ..write('faceId: $faceId, ')
+          ..write('personId: $personId, ')
+          ..write('score: $score, ')
+          ..write('suggestedPersonId: $suggestedPersonId, ')
+          ..write('suggestedScore: $suggestedScore')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -22745,6 +23390,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FaceOverridesTable faceOverrides = $FaceOverridesTable(this);
   late final $BodyOverridesTable bodyOverrides = $BodyOverridesTable(this);
   late final $BodyDistinctTable bodyDistinct = $BodyDistinctTable(this);
+  late final $FaceConfirmationsTable faceConfirmations =
+      $FaceConfirmationsTable(this);
+  late final $ReviewDoubtfulTable reviewDoubtful = $ReviewDoubtfulTable(this);
   late final Index mediaScanStatus = Index(
     'media_scan_status',
     'CREATE INDEX media_scan_status ON media (scan_status)',
@@ -22903,6 +23551,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     faceOverrides,
     bodyOverrides,
     bodyDistinct,
+    faceConfirmations,
+    reviewDoubtful,
     mediaScanStatus,
     facesPersonId,
     facesMediaId,
@@ -23310,6 +23960,41 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('body_distinct', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'faces',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('face_confirmations', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('face_confirmations', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'faces',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('review_doubtful', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('review_doubtful', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'persons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('review_doubtful', kind: UpdateKind.update)],
     ),
   ]);
 }
@@ -24016,6 +24701,66 @@ final class $$PersonsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$FaceConfirmationsTable, List<FaceConfirmationRow>>
+  _faceConfirmationsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.faceConfirmations,
+        aliasName: 'persons__id__face_confirmations__person_id',
+      );
+
+  $$FaceConfirmationsTableProcessedTableManager get faceConfirmationsRefs {
+    final manager = $$FaceConfirmationsTableTableManager(
+      $_db,
+      $_db.faceConfirmations,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _faceConfirmationsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ReviewDoubtfulTable, List<ReviewDoubtfulRow>>
+  _reviewDoubtfulRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.reviewDoubtful,
+    aliasName: 'persons__id__review_doubtful__person_id',
+  );
+
+  $$ReviewDoubtfulTableProcessedTableManager get reviewDoubtfulRefs {
+    final manager = $$ReviewDoubtfulTableTableManager(
+      $_db,
+      $_db.reviewDoubtful,
+    ).filter((f) => f.personId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_reviewDoubtfulRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ReviewDoubtfulTable, List<ReviewDoubtfulRow>>
+  _reviewDoubtfulSuggestedTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.reviewDoubtful,
+        aliasName: 'persons__id__review_doubtful__suggested_person_id',
+      );
+
+  $$ReviewDoubtfulTableProcessedTableManager get reviewDoubtfulSuggested {
+    final manager = $$ReviewDoubtfulTableTableManager(
+      $_db,
+      $_db.reviewDoubtful,
+    ).filter((f) => f.suggestedPersonId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _reviewDoubtfulSuggestedTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$PersonsTableFilterComposer
@@ -24586,6 +25331,81 @@ class $$PersonsTableFilterComposer
           }) => $$PersonMediaMovesTableFilterComposer(
             $db: $db,
             $table: $db.personMediaMoves,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> faceConfirmationsRefs(
+    Expression<bool> Function($$FaceConfirmationsTableFilterComposer f) f,
+  ) {
+    final $$FaceConfirmationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.faceConfirmations,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FaceConfirmationsTableFilterComposer(
+            $db: $db,
+            $table: $db.faceConfirmations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> reviewDoubtfulRefs(
+    Expression<bool> Function($$ReviewDoubtfulTableFilterComposer f) f,
+  ) {
+    final $$ReviewDoubtfulTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.reviewDoubtful,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReviewDoubtfulTableFilterComposer(
+            $db: $db,
+            $table: $db.reviewDoubtful,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> reviewDoubtfulSuggested(
+    Expression<bool> Function($$ReviewDoubtfulTableFilterComposer f) f,
+  ) {
+    final $$ReviewDoubtfulTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.reviewDoubtful,
+      getReferencedColumn: (t) => t.suggestedPersonId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReviewDoubtfulTableFilterComposer(
+            $db: $db,
+            $table: $db.reviewDoubtful,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -25236,6 +26056,82 @@ class $$PersonsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> faceConfirmationsRefs<T extends Object>(
+    Expression<T> Function($$FaceConfirmationsTableAnnotationComposer a) f,
+  ) {
+    final $$FaceConfirmationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.faceConfirmations,
+          getReferencedColumn: (t) => t.personId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FaceConfirmationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.faceConfirmations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> reviewDoubtfulRefs<T extends Object>(
+    Expression<T> Function($$ReviewDoubtfulTableAnnotationComposer a) f,
+  ) {
+    final $$ReviewDoubtfulTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.reviewDoubtful,
+      getReferencedColumn: (t) => t.personId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReviewDoubtfulTableAnnotationComposer(
+            $db: $db,
+            $table: $db.reviewDoubtful,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> reviewDoubtfulSuggested<T extends Object>(
+    Expression<T> Function($$ReviewDoubtfulTableAnnotationComposer a) f,
+  ) {
+    final $$ReviewDoubtfulTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.reviewDoubtful,
+      getReferencedColumn: (t) => t.suggestedPersonId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReviewDoubtfulTableAnnotationComposer(
+            $db: $db,
+            $table: $db.reviewDoubtful,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PersonsTableTableManager
@@ -25273,6 +26169,9 @@ class $$PersonsTableTableManager
             bool bodyMarksRefs,
             bool outfitCategoriesRefs,
             bool personMediaMovesRefs,
+            bool faceConfirmationsRefs,
+            bool reviewDoubtfulRefs,
+            bool reviewDoubtfulSuggested,
           })
         > {
   $$PersonsTableTableManager(_$AppDatabase db, $PersonsTable table)
@@ -25365,6 +26264,9 @@ class $$PersonsTableTableManager
                 bodyMarksRefs = false,
                 outfitCategoriesRefs = false,
                 personMediaMovesRefs = false,
+                faceConfirmationsRefs = false,
+                reviewDoubtfulRefs = false,
+                reviewDoubtfulSuggested = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -25389,6 +26291,9 @@ class $$PersonsTableTableManager
                     if (bodyMarksRefs) db.bodyMarks,
                     if (outfitCategoriesRefs) db.outfitCategories,
                     if (personMediaMovesRefs) db.personMediaMoves,
+                    if (faceConfirmationsRefs) db.faceConfirmations,
+                    if (reviewDoubtfulRefs) db.reviewDoubtful,
+                    if (reviewDoubtfulSuggested) db.reviewDoubtful,
                   ],
                   addJoins:
                       <
@@ -25832,6 +26737,69 @@ class $$PersonsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (faceConfirmationsRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          FaceConfirmationRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._faceConfirmationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).faceConfirmationsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (reviewDoubtfulRefs)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          ReviewDoubtfulRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._reviewDoubtfulRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).reviewDoubtfulRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.personId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (reviewDoubtfulSuggested)
+                        await $_getPrefetchedData<
+                          PersonRow,
+                          $PersonsTable,
+                          ReviewDoubtfulRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PersonsTableReferences
+                              ._reviewDoubtfulSuggestedTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PersonsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).reviewDoubtfulSuggested,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.suggestedPersonId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -25874,6 +26842,9 @@ typedef $$PersonsTableProcessedTableManager =
         bool bodyMarksRefs,
         bool outfitCategoriesRefs,
         bool personMediaMovesRefs,
+        bool faceConfirmationsRefs,
+        bool reviewDoubtfulRefs,
+        bool reviewDoubtfulSuggested,
       })
     >;
 typedef $$MediaTableCreateCompanionBuilder =
@@ -27341,6 +28312,45 @@ final class $$FacesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$FaceConfirmationsTable, List<FaceConfirmationRow>>
+  _faceConfirmationsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.faceConfirmations,
+        aliasName: 'faces__id__face_confirmations__face_id',
+      );
+
+  $$FaceConfirmationsTableProcessedTableManager get faceConfirmationsRefs {
+    final manager = $$FaceConfirmationsTableTableManager(
+      $_db,
+      $_db.faceConfirmations,
+    ).filter((f) => f.faceId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _faceConfirmationsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ReviewDoubtfulTable, List<ReviewDoubtfulRow>>
+  _reviewDoubtfulRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.reviewDoubtful,
+    aliasName: 'faces__id__review_doubtful__face_id',
+  );
+
+  $$ReviewDoubtfulTableProcessedTableManager get reviewDoubtfulRefs {
+    final manager = $$ReviewDoubtfulTableTableManager(
+      $_db,
+      $_db.reviewDoubtful,
+    ).filter((f) => f.faceId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_reviewDoubtfulRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$FacesTableFilterComposer extends Composer<_$AppDatabase, $FacesTable> {
@@ -27618,6 +28628,56 @@ class $$FacesTableFilterComposer extends Composer<_$AppDatabase, $FacesTable> {
           }) => $$IdentitySetFacesTableFilterComposer(
             $db: $db,
             $table: $db.identitySetFaces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> faceConfirmationsRefs(
+    Expression<bool> Function($$FaceConfirmationsTableFilterComposer f) f,
+  ) {
+    final $$FaceConfirmationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.faceConfirmations,
+      getReferencedColumn: (t) => t.faceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FaceConfirmationsTableFilterComposer(
+            $db: $db,
+            $table: $db.faceConfirmations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> reviewDoubtfulRefs(
+    Expression<bool> Function($$ReviewDoubtfulTableFilterComposer f) f,
+  ) {
+    final $$ReviewDoubtfulTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.reviewDoubtful,
+      getReferencedColumn: (t) => t.faceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReviewDoubtfulTableFilterComposer(
+            $db: $db,
+            $table: $db.reviewDoubtful,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -28058,6 +29118,57 @@ class $$FacesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> faceConfirmationsRefs<T extends Object>(
+    Expression<T> Function($$FaceConfirmationsTableAnnotationComposer a) f,
+  ) {
+    final $$FaceConfirmationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.faceConfirmations,
+          getReferencedColumn: (t) => t.faceId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$FaceConfirmationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.faceConfirmations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> reviewDoubtfulRefs<T extends Object>(
+    Expression<T> Function($$ReviewDoubtfulTableAnnotationComposer a) f,
+  ) {
+    final $$ReviewDoubtfulTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.reviewDoubtful,
+      getReferencedColumn: (t) => t.faceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReviewDoubtfulTableAnnotationComposer(
+            $db: $db,
+            $table: $db.reviewDoubtful,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$FacesTableTableManager
@@ -28080,6 +29191,8 @@ class $$FacesTableTableManager
             bool faceRejectionsRefs,
             bool reviewMatchesRefs,
             bool identitySetFacesRefs,
+            bool faceConfirmationsRefs,
+            bool reviewDoubtfulRefs,
           })
         > {
   $$FacesTableTableManager(_$AppDatabase db, $FacesTable table)
@@ -28229,6 +29342,8 @@ class $$FacesTableTableManager
                 faceRejectionsRefs = false,
                 reviewMatchesRefs = false,
                 identitySetFacesRefs = false,
+                faceConfirmationsRefs = false,
+                reviewDoubtfulRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -28237,6 +29352,8 @@ class $$FacesTableTableManager
                     if (faceRejectionsRefs) db.faceRejections,
                     if (reviewMatchesRefs) db.reviewMatches,
                     if (identitySetFacesRefs) db.identitySetFaces,
+                    if (faceConfirmationsRefs) db.faceConfirmations,
+                    if (reviewDoubtfulRefs) db.reviewDoubtful,
                   ],
                   addJoins:
                       <
@@ -28365,6 +29482,48 @@ class $$FacesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (faceConfirmationsRefs)
+                        await $_getPrefetchedData<
+                          FaceRow,
+                          $FacesTable,
+                          FaceConfirmationRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FacesTableReferences
+                              ._faceConfirmationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FacesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).faceConfirmationsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.faceId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (reviewDoubtfulRefs)
+                        await $_getPrefetchedData<
+                          FaceRow,
+                          $FacesTable,
+                          ReviewDoubtfulRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FacesTableReferences
+                              ._reviewDoubtfulRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FacesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).reviewDoubtfulRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.faceId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -28392,6 +29551,8 @@ typedef $$FacesTableProcessedTableManager =
         bool faceRejectionsRefs,
         bool reviewMatchesRefs,
         bool identitySetFacesRefs,
+        bool faceConfirmationsRefs,
+        bool reviewDoubtfulRefs,
       })
     >;
 typedef $$FaceSuppressionsTableCreateCompanionBuilder =
@@ -45945,6 +47106,894 @@ typedef $$BodyDistinctTableProcessedTableManager =
       BodyDistinctRow,
       PrefetchHooks Function({bool bodyA, bool bodyB})
     >;
+typedef $$FaceConfirmationsTableCreateCompanionBuilder =
+    FaceConfirmationsCompanion Function({
+      Value<int> faceId,
+      required int personId,
+      required int confirmedAt,
+    });
+typedef $$FaceConfirmationsTableUpdateCompanionBuilder =
+    FaceConfirmationsCompanion Function({
+      Value<int> faceId,
+      Value<int> personId,
+      Value<int> confirmedAt,
+    });
+
+final class $$FaceConfirmationsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $FaceConfirmationsTable,
+          FaceConfirmationRow
+        > {
+  $$FaceConfirmationsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $FacesTable _faceIdTable(_$AppDatabase db) =>
+      db.faces.createAlias('face_confirmations__face_id__faces__id');
+
+  $$FacesTableProcessedTableManager get faceId {
+    final $_column = $_itemColumn<int>('face_id')!;
+
+    final manager = $$FacesTableTableManager(
+      $_db,
+      $_db.faces,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_faceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('face_confirmations__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager get personId {
+    final $_column = $_itemColumn<int>('person_id')!;
+
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$FaceConfirmationsTableFilterComposer
+    extends Composer<_$AppDatabase, $FaceConfirmationsTable> {
+  $$FaceConfirmationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get confirmedAt => $composableBuilder(
+    column: $table.confirmedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$FacesTableFilterComposer get faceId {
+    final $$FacesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.faceId,
+      referencedTable: $db.faces,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FacesTableFilterComposer(
+            $db: $db,
+            $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FaceConfirmationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FaceConfirmationsTable> {
+  $$FaceConfirmationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get confirmedAt => $composableBuilder(
+    column: $table.confirmedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$FacesTableOrderingComposer get faceId {
+    final $$FacesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.faceId,
+      referencedTable: $db.faces,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FacesTableOrderingComposer(
+            $db: $db,
+            $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FaceConfirmationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FaceConfirmationsTable> {
+  $$FaceConfirmationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get confirmedAt => $composableBuilder(
+    column: $table.confirmedAt,
+    builder: (column) => column,
+  );
+
+  $$FacesTableAnnotationComposer get faceId {
+    final $$FacesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.faceId,
+      referencedTable: $db.faces,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FacesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FaceConfirmationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FaceConfirmationsTable,
+          FaceConfirmationRow,
+          $$FaceConfirmationsTableFilterComposer,
+          $$FaceConfirmationsTableOrderingComposer,
+          $$FaceConfirmationsTableAnnotationComposer,
+          $$FaceConfirmationsTableCreateCompanionBuilder,
+          $$FaceConfirmationsTableUpdateCompanionBuilder,
+          (FaceConfirmationRow, $$FaceConfirmationsTableReferences),
+          FaceConfirmationRow,
+          PrefetchHooks Function({bool faceId, bool personId})
+        > {
+  $$FaceConfirmationsTableTableManager(
+    _$AppDatabase db,
+    $FaceConfirmationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FaceConfirmationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FaceConfirmationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FaceConfirmationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> faceId = const Value.absent(),
+                Value<int> personId = const Value.absent(),
+                Value<int> confirmedAt = const Value.absent(),
+              }) => FaceConfirmationsCompanion(
+                faceId: faceId,
+                personId: personId,
+                confirmedAt: confirmedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> faceId = const Value.absent(),
+                required int personId,
+                required int confirmedAt,
+              }) => FaceConfirmationsCompanion.insert(
+                faceId: faceId,
+                personId: personId,
+                confirmedAt: confirmedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FaceConfirmationsTable, FaceConfirmationRow>(
+                    table,
+                  ),
+                  $$FaceConfirmationsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({faceId = false, personId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (faceId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.faceId,
+                                referencedTable:
+                                    $$FaceConfirmationsTableReferences
+                                        ._faceIdTable(db),
+                                referencedColumn:
+                                    $$FaceConfirmationsTableReferences
+                                        ._faceIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (personId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.personId,
+                                referencedTable:
+                                    $$FaceConfirmationsTableReferences
+                                        ._personIdTable(db),
+                                referencedColumn:
+                                    $$FaceConfirmationsTableReferences
+                                        ._personIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$FaceConfirmationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FaceConfirmationsTable,
+      FaceConfirmationRow,
+      $$FaceConfirmationsTableFilterComposer,
+      $$FaceConfirmationsTableOrderingComposer,
+      $$FaceConfirmationsTableAnnotationComposer,
+      $$FaceConfirmationsTableCreateCompanionBuilder,
+      $$FaceConfirmationsTableUpdateCompanionBuilder,
+      (FaceConfirmationRow, $$FaceConfirmationsTableReferences),
+      FaceConfirmationRow,
+      PrefetchHooks Function({bool faceId, bool personId})
+    >;
+typedef $$ReviewDoubtfulTableCreateCompanionBuilder =
+    ReviewDoubtfulCompanion Function({
+      Value<int> faceId,
+      required int personId,
+      required double score,
+      Value<int?> suggestedPersonId,
+      Value<double?> suggestedScore,
+    });
+typedef $$ReviewDoubtfulTableUpdateCompanionBuilder =
+    ReviewDoubtfulCompanion Function({
+      Value<int> faceId,
+      Value<int> personId,
+      Value<double> score,
+      Value<int?> suggestedPersonId,
+      Value<double?> suggestedScore,
+    });
+
+final class $$ReviewDoubtfulTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $ReviewDoubtfulTable, ReviewDoubtfulRow> {
+  $$ReviewDoubtfulTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $FacesTable _faceIdTable(_$AppDatabase db) =>
+      db.faces.createAlias('review_doubtful__face_id__faces__id');
+
+  $$FacesTableProcessedTableManager get faceId {
+    final $_column = $_itemColumn<int>('face_id')!;
+
+    final manager = $$FacesTableTableManager(
+      $_db,
+      $_db.faces,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_faceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PersonsTable _personIdTable(_$AppDatabase db) =>
+      db.persons.createAlias('review_doubtful__person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager get personId {
+    final $_column = $_itemColumn<int>('person_id')!;
+
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_personIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PersonsTable _suggestedPersonIdTable(_$AppDatabase db) => db.persons
+      .createAlias('review_doubtful__suggested_person_id__persons__id');
+
+  $$PersonsTableProcessedTableManager? get suggestedPersonId {
+    final $_column = $_itemColumn<int>('suggested_person_id');
+    if ($_column == null) return null;
+    final manager = $$PersonsTableTableManager(
+      $_db,
+      $_db.persons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_suggestedPersonIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ReviewDoubtfulTableFilterComposer
+    extends Composer<_$AppDatabase, $ReviewDoubtfulTable> {
+  $$ReviewDoubtfulTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get suggestedScore => $composableBuilder(
+    column: $table.suggestedScore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$FacesTableFilterComposer get faceId {
+    final $$FacesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.faceId,
+      referencedTable: $db.faces,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FacesTableFilterComposer(
+            $db: $db,
+            $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableFilterComposer get personId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableFilterComposer get suggestedPersonId {
+    final $$PersonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.suggestedPersonId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableFilterComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ReviewDoubtfulTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReviewDoubtfulTable> {
+  $$ReviewDoubtfulTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<double> get score => $composableBuilder(
+    column: $table.score,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get suggestedScore => $composableBuilder(
+    column: $table.suggestedScore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$FacesTableOrderingComposer get faceId {
+    final $$FacesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.faceId,
+      referencedTable: $db.faces,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FacesTableOrderingComposer(
+            $db: $db,
+            $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableOrderingComposer get personId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableOrderingComposer get suggestedPersonId {
+    final $$PersonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.suggestedPersonId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ReviewDoubtfulTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReviewDoubtfulTable> {
+  $$ReviewDoubtfulTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<double> get score =>
+      $composableBuilder(column: $table.score, builder: (column) => column);
+
+  GeneratedColumn<double> get suggestedScore => $composableBuilder(
+    column: $table.suggestedScore,
+    builder: (column) => column,
+  );
+
+  $$FacesTableAnnotationComposer get faceId {
+    final $$FacesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.faceId,
+      referencedTable: $db.faces,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FacesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.faces,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableAnnotationComposer get personId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.personId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PersonsTableAnnotationComposer get suggestedPersonId {
+    final $$PersonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.suggestedPersonId,
+      referencedTable: $db.persons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PersonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.persons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ReviewDoubtfulTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ReviewDoubtfulTable,
+          ReviewDoubtfulRow,
+          $$ReviewDoubtfulTableFilterComposer,
+          $$ReviewDoubtfulTableOrderingComposer,
+          $$ReviewDoubtfulTableAnnotationComposer,
+          $$ReviewDoubtfulTableCreateCompanionBuilder,
+          $$ReviewDoubtfulTableUpdateCompanionBuilder,
+          (ReviewDoubtfulRow, $$ReviewDoubtfulTableReferences),
+          ReviewDoubtfulRow,
+          PrefetchHooks Function({
+            bool faceId,
+            bool personId,
+            bool suggestedPersonId,
+          })
+        > {
+  $$ReviewDoubtfulTableTableManager(
+    _$AppDatabase db,
+    $ReviewDoubtfulTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReviewDoubtfulTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ReviewDoubtfulTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ReviewDoubtfulTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> faceId = const Value.absent(),
+                Value<int> personId = const Value.absent(),
+                Value<double> score = const Value.absent(),
+                Value<int?> suggestedPersonId = const Value.absent(),
+                Value<double?> suggestedScore = const Value.absent(),
+              }) => ReviewDoubtfulCompanion(
+                faceId: faceId,
+                personId: personId,
+                score: score,
+                suggestedPersonId: suggestedPersonId,
+                suggestedScore: suggestedScore,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> faceId = const Value.absent(),
+                required int personId,
+                required double score,
+                Value<int?> suggestedPersonId = const Value.absent(),
+                Value<double?> suggestedScore = const Value.absent(),
+              }) => ReviewDoubtfulCompanion.insert(
+                faceId: faceId,
+                personId: personId,
+                score: score,
+                suggestedPersonId: suggestedPersonId,
+                suggestedScore: suggestedScore,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ReviewDoubtfulTable, ReviewDoubtfulRow>(table),
+                  $$ReviewDoubtfulTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({faceId = false, personId = false, suggestedPersonId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (faceId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.faceId,
+                                    referencedTable:
+                                        $$ReviewDoubtfulTableReferences
+                                            ._faceIdTable(db),
+                                    referencedColumn:
+                                        $$ReviewDoubtfulTableReferences
+                                            ._faceIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (personId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.personId,
+                                    referencedTable:
+                                        $$ReviewDoubtfulTableReferences
+                                            ._personIdTable(db),
+                                    referencedColumn:
+                                        $$ReviewDoubtfulTableReferences
+                                            ._personIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (suggestedPersonId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.suggestedPersonId,
+                                    referencedTable:
+                                        $$ReviewDoubtfulTableReferences
+                                            ._suggestedPersonIdTable(db),
+                                    referencedColumn:
+                                        $$ReviewDoubtfulTableReferences
+                                            ._suggestedPersonIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$ReviewDoubtfulTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ReviewDoubtfulTable,
+      ReviewDoubtfulRow,
+      $$ReviewDoubtfulTableFilterComposer,
+      $$ReviewDoubtfulTableOrderingComposer,
+      $$ReviewDoubtfulTableAnnotationComposer,
+      $$ReviewDoubtfulTableCreateCompanionBuilder,
+      $$ReviewDoubtfulTableUpdateCompanionBuilder,
+      (ReviewDoubtfulRow, $$ReviewDoubtfulTableReferences),
+      ReviewDoubtfulRow,
+      PrefetchHooks Function({
+        bool faceId,
+        bool personId,
+        bool suggestedPersonId,
+      })
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -46038,4 +48087,8 @@ class $AppDatabaseManager {
       $$BodyOverridesTableTableManager(_db, _db.bodyOverrides);
   $$BodyDistinctTableTableManager get bodyDistinct =>
       $$BodyDistinctTableTableManager(_db, _db.bodyDistinct);
+  $$FaceConfirmationsTableTableManager get faceConfirmations =>
+      $$FaceConfirmationsTableTableManager(_db, _db.faceConfirmations);
+  $$ReviewDoubtfulTableTableManager get reviewDoubtful =>
+      $$ReviewDoubtfulTableTableManager(_db, _db.reviewDoubtful);
 }

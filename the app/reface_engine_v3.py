@@ -275,7 +275,12 @@ class RefaceEngineV3(RefaceEngine):
         """
         from insightface.app.common import Face
 
-        bboxes, kpss = self.app.det_model.detect(img, max_num=0, metric="default")
+        # The scan finds faces at several scales; a single 640 grid misses the small faces of a big photo,
+        # which the user then ticks in the app and the swap cannot find. Same finer grid for large frames.
+        if max(img.shape[:2]) >= 1600:
+            bboxes, kpss = self.app.det_model.detect(img, input_size=[(640, 640), (1280, 1280)], max_num=0)
+        else:
+            bboxes, kpss = self.app.det_model.detect(img, max_num=0, metric="default")
         models = self.app.models
         faces = []
         for i in range(bboxes.shape[0]):

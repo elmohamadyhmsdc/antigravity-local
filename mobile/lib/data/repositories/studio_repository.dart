@@ -4,8 +4,10 @@ import 'dart:math';
 
 import 'package:drift/drift.dart';
 
+import '../api/dtos/embedding.dart' show vectorFromBlob;
 import '../db/app_database.dart';
 import '../files/file_store.dart';
+import '../../domain/identity/identity_selection.dart';
 import '../../domain/scan/video_scan.dart';
 import 'artifact_context.dart';
 
@@ -111,12 +113,51 @@ class StudioRepository {
     db.results,
   )..where((r) => r.id.equals(id))).watchSingleOrNull();
 
+  /// Smaller faces (px as the PC measured them) are not identity sources: the PC's own identity builder
+  /// uses 80 too.
+  static const sourceFaceMinPx = 80.0;
+
+  /// The faces an identity is built from: this person's, best quality first. Faces the user hid, or
+  /// that are marked as nobody's, and faces too small to carry an identity are not sources.
   Future<List<FaceRow>> sourceFaces(int personId) =>
       (db.select(db.faces)
-            ..where((f) => f.personId.equals(personId))
+            ..where(
+              (f) =>
+                  f.personId.equals(personId) &
+                  f.hidden.equals(false) &
+                  f.facePx.isBiggerOrEqualValue(sourceFaceMinPx) &
+                  (f.ownership.isNull() | f.ownership.equals('none').not()),
+            )
             ..orderBy([(f) => OrderingTerm.desc(f.qualityScore)])
             ..limit(100))
           .get();
+
+  /// [count] faces for the default source selection: only faces that really look like the person (a
+  /// stranger grouped in by mistake is left out - the swap would learn their face), no near-identical
+  /// pictures, then the best one first and each time the face that adds the most (quality plus how far
+  /// its head pose is from the ones already picked), so the identity sees profiles and tilted heads, not
+  /// twenty frontal shots of one sitting. See [selectIdentity].
+  static List<FaceRow> diverseSources(List<FaceRow> faces, int count) {
+    final byId = {for (final f in faces) f.id: f};
+    final candidates = <IdentityFace>[];
+    for (final f in faces) {
+      try {
+        candidates.add(
+          IdentityFace(
+            id: f.id,
+            embedding: vectorFromBlob(f.embedding),
+            quality: f.qualityScore,
+            yaw: f.yaw,
+            pitch: f.pitch,
+          ),
+        );
+      } on FormatException {
+        // a damaged vector is no source
+      }
+    }
+    final selection = selectIdentity(candidates, top: count);
+    return [for (final f in selection.kept) byId[f.id]!];
+  }
 
   static List<Map<String, dynamic>> encodeFaces(
     Iterable<FaceRow> faces,

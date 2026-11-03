@@ -432,7 +432,7 @@ class VideoScan {
                 facelessCharacters: media.illustrated,
                 forceKind: corrections.forceKind,
                 kindOverrides: corrections.dtos(timestampMs: timeOf(frame)),
-                returnSensitive: sensitiveScan && !media.illustrated,
+                returnSensitive: sensitiveScan,
               ),
             );
             status(timeOf(frame));

@@ -12,6 +12,7 @@ import '../api/dtos/analyze.dart';
 import '../api/mobile_api.dart';
 import '../db/app_database.dart';
 import '../files/file_store.dart';
+import '../../domain/identity/identity_selection.dart';
 import 'studio_repository.dart';
 
 class LoraRepository {
@@ -91,7 +92,8 @@ class LoraRepository {
       );
     }
     final mean = Float32List(dimension);
-    for (final face in faces.take(40)) {
+    final vectors = <int, Float32List>{};
+    for (final face in faces) {
       if (face.modelId != modelId || !face.qualityScore.isFinite) {
         throw const FormatException(
           'Source faces use incompatible identity models.',
@@ -101,6 +103,25 @@ class LoraRepository {
       if (vector.length != dimension || vector.any((v) => !v.isFinite)) {
         throw const FormatException('A source identity embedding is invalid.');
       }
+      vectors[face.id] = vector;
+    }
+    // The anchor decides which generated portraits count as this person, so it must be them: faces that do
+    // not look like the rest (a wrong grouping) are left out, near-identical ones counted once, and the
+    // sample covers poses instead of being the 40 sharpest.
+    final chosen = selectIdentity([
+      for (final face in faces)
+        IdentityFace(
+          id: face.id,
+          embedding: vectors[face.id]!,
+          quality: face.qualityScore,
+          yaw: face.yaw,
+          pitch: face.pitch,
+        ),
+    ], top: 40).kept;
+    final byId = {for (final face in faces) face.id: face};
+    for (final picked in chosen) {
+      final face = byId[picked.id]!;
+      final vector = vectors[face.id]!;
       for (var index = 0; index < dimension; index++) {
         mean[index] += vector[index] * max(face.qualityScore, .001);
       }

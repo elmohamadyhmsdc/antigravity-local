@@ -292,6 +292,15 @@ def analysis_to_response(result: FrameAnalysis, img: np.ndarray, options: Analyz
     out = {"model_id": model_id, "image_w": int(result.image_w), "image_h": int(result.image_h),
            "faces": faces, "bodies": bodies, "pairs": pairs}
     out["characters"] = [character_json(c, img, options.return_crops, ret_out) for c in result.characters]
+    if getattr(options, "return_body_embeddings", False):
+        extras = getattr(result, "character_body_embeddings", None) or []
+        for i, character in enumerate(out["characters"]):
+            if character.get("body") is None:
+                continue
+            e = (extras[i] if i < len(extras) else None) or {}
+            character["body"]["chest_embedding"] = e.get("chest_embedding")
+            character["body"]["buttocks_embedding"] = e.get("buttocks_embedding")
+            character["body"]["morphology"] = e.get("morphology")
     if getattr(options, "return_sensitive", False):
         out["sensitive_regions"] = [sensitive_region_json(r) for r in (getattr(result, "sensitive", None) or [])]
     if result.timings_ms:
@@ -302,6 +311,9 @@ def analysis_to_response(result: FrameAnalysis, img: np.ndarray, options: Analyz
 def sensitive_region_json(region: Dict) -> Dict:
     """SensitiveRegion: pixel box like every other bbox on the wire; body_index null when unattached."""
     index = region.get("body_index")
-    return {"label": str(region["label"]), "exposed": bool(region["exposed"]),
-            "score": round(float(region["score"]), 4), "bbox": bbox_xywh(region["bbox"]),
-            "body_index": None if index is None else int(index)}
+    out = {"label": str(region["label"]), "exposed": bool(region["exposed"]),
+           "score": round(float(region["score"]), 4), "bbox": bbox_xywh(region["bbox"]),
+           "body_index": None if index is None else int(index)}
+    if region.get("character_index") is not None:
+        out["character_index"] = int(region["character_index"])   # the region is on a drawn character's body
+    return out

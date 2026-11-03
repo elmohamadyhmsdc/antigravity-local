@@ -97,7 +97,9 @@ class PhotoResultStore {
     // servers still send them.
     final drawn = {
       for (var i = 0; i < analysis.faces.length; i++)
+        // the drawn-face test needs a face with detail: tiny / blurred real faces drift toward it
         if (!analysis.faces[i].forced &&
+            analysis.faces[i].quality.facePx >= drawnTestMinPx &&
             isDrawnFace(analysis.faces[i].embedding))
           i,
     };
@@ -567,8 +569,13 @@ class PhotoResultStore {
       }
 
       if (analysis.bodies.any(
-        (b) => b.chestEmbedding != null || b.buttocksEmbedding != null,
-      )) {
+            (b) => b.chestEmbedding != null || b.buttocksEmbedding != null,
+          ) ||
+          analysis.characters.any(
+            (c) =>
+                c.body?.chestEmbedding != null ||
+                c.body?.buttocksEmbedding != null,
+          )) {
         await (_db.update(
           _db.media,
         )..where((m) => m.id.equals(media.id))).write(
@@ -577,7 +584,21 @@ class PhotoResultStore {
           ),
         );
       }
-      // Roadmap section 8: exposed / covered regions, only when the PC was asked for them.
+
+      final actionBodies = {
+        for (final e in bodyDbIds.entries) e.value: analysis.bodies[e.key],
+      };
+      final characterBodyIds = <int, int>{};
+      newCharacters = await CharacterRepository(_db, _files).store(
+        media,
+        analysis,
+        frameNumber: frameNumber,
+        timestampMs: timestampMs,
+        bodyEvidence: actionBodies,
+        bodyIdOf: characterBodyIds,
+      );
+      // Roadmap section 8: exposed / covered regions, only when the PC was asked for them. Written
+      // after the characters so a region on a drawn figure's body can point at its stored body.
       final sensitive = analysis.sensitiveRegions;
       if (sensitive != null) {
         await SensitiveStore(_db, clock: _clock).replaceRegions(
@@ -586,22 +607,12 @@ class PhotoResultStore {
           imageW: w,
           imageH: h,
           bodyIds: bodyDbIds,
+          characterBodyIds: characterBodyIds,
           modelVersion: sensitiveModelVersion,
           frameNumber: frameNumber,
           timestampMs: timestampMs,
         );
       }
-
-      final actionBodies = {
-        for (final e in bodyDbIds.entries) e.value: analysis.bodies[e.key],
-      };
-      newCharacters = await CharacterRepository(_db, _files).store(
-        media,
-        analysis,
-        frameNumber: frameNumber,
-        timestampMs: timestampMs,
-        bodyEvidence: actionBodies,
-      );
       if (video && timestampMs != null) {
         await ActionFrameStore(_db).put(
           media,

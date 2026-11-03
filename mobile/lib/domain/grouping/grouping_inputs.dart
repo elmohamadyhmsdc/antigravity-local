@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import '../../data/api/dtos/embedding.dart';
 import '../../data/api/dtos/grouping.dart';
 import '../../data/db/app_database.dart';
+import '../identity/identity_selection.dart';
 import 'grouping_config.dart';
 
 /// One face as the grouping maths sees it.
@@ -64,6 +65,91 @@ GroupingModel buildPersonModel(
   );
 }
 
+/// The model the phone sends for a person: [buildPersonModel] over the faces that really are them, with
+/// the members chosen to cover how they look instead of being the N sharpest.
+///
+/// - Outliers (a stranger grouped in by mistake, a ruined crop) are left out, so one wrong face cannot
+///   drag the prototype toward someone else and then attract more wrong faces. Gentle on purpose
+///   (`floor` 0.30, at most 40% trimmed, never under 6 faces): a profile of the right person must stay.
+/// - When there are more faces than [cap], half of the members are the best quality and the other half
+///   are picked farthest-first in embedding space, so profiles, tilts and lighting changes stay
+///   represented (the match score uses the most similar members). The best-quality half comes first: the
+///   PC reads only the first 50 for duplicate-person scoring.
+/// With few clean faces this is exactly [buildPersonModel].
+GroupingModel robustPersonModel(
+  int personId,
+  List<FaceVector> faces, {
+  int cap = groupingMemberCap,
+}) {
+  final selection = selectIdentity(
+    [
+      for (var i = 0; i < faces.length; i++)
+        IdentityFace(
+          id: i,
+          embedding: faces[i].embedding,
+          quality: faces[i].quality,
+        ),
+    ],
+    floor: 0.30,
+    minToTrim: 6,
+    dedupe: false,
+    medoidSample: 40, // this runs on every grouping round for every person: keep it cheap
+  );
+  final keptIds = {for (final f in selection.kept) f.id};
+  final clean = [
+    for (var i = 0; i < faces.length; i++)
+      if (keptIds.contains(i)) faces[i],
+  ];
+  if (clean.isEmpty) return buildPersonModel(personId, faces, cap: cap);
+  final base = buildPersonModel(personId, clean, cap: cap);
+  if (clean.length <= cap) return base;
+
+  final unit = [for (final f in clean) _normalized(f.embedding)];
+  final byQuality = List<int>.generate(clean.length, (i) => i)
+    ..sort((a, b) {
+      final c = clean[b].quality.compareTo(clean[a].quality);
+      return c != 0 ? c : a.compareTo(b);
+    });
+  final chosen = byQuality.take(cap ~/ 2).toList();
+  // farthest-first: the face least like anything chosen so far
+  final nearest = List<double>.filled(clean.length, double.negativeInfinity);
+  void touch(int added) {
+    for (var i = 0; i < clean.length; i++) {
+      var dot = 0.0;
+      for (var d = 0; d < unit[i].length; d++) {
+        dot += unit[i][d] * unit[added][d];
+      }
+      if (dot > nearest[i]) nearest[i] = dot;
+    }
+  }
+
+  for (final c in chosen) {
+    touch(c);
+  }
+  final taken = chosen.toSet();
+  while (chosen.length < cap) {
+    var pick = -1;
+    var lowest = double.infinity;
+    for (var i = 0; i < clean.length; i++) {
+      if (taken.contains(i)) continue;
+      if (nearest[i] < lowest) {
+        lowest = nearest[i];
+        pick = i;
+      }
+    }
+    if (pick < 0) break;
+    chosen.add(pick);
+    taken.add(pick);
+    touch(pick);
+  }
+  return GroupingModel(
+    pid: base.pid,
+    proto: base.proto,
+    members: [for (final i in chosen) unit[i]],
+    count: base.count,
+  );
+}
+
 /// "Same photo / frame" key: faces sharing it cannot be one person (person_linking's one-person-
 /// per-frame rule). Null = no constraint.
 String? frameKeyOf(int? mediaId, int? frameNumber) =>
@@ -85,6 +171,9 @@ class GroupingInputs {
   final String kind;
 
   int get _dim => kind == 'character' ? characterEmbeddingDim : embeddingDim;
+
+  double get _minPx =>
+      kind == 'character' ? groupingMinCharacterFacePx : groupingMinFacePx;
 
   /// A stored vector the PC will accept: right length, finite numbers. One damaged row would
   /// otherwise make the PC refuse the whole request (400) on every run, so it is left out instead.
@@ -114,8 +203,8 @@ class GroupingInputs {
       final pid = p.read<int>('person_id');
       final rows = await _db
           .customSelect(
-            'SELECT quality_score, embedding FROM faces WHERE person_id = ?',
-            variables: [Variable.withInt(pid)],
+            'SELECT quality_score, embedding FROM faces WHERE person_id = ? AND face_px >= ?',
+            variables: [Variable.withInt(pid), Variable.withReal(_minPx)],
             readsFrom: {_db.faces},
           )
           .get();
@@ -127,7 +216,7 @@ class GroupingInputs {
         }
       }
       if (faces.isEmpty) continue;
-      out.add(buildPersonModel(pid, faces, cap: cap));
+      out.add(robustPersonModel(pid, faces, cap: cap));
     }
     return out;
   }
@@ -149,8 +238,8 @@ class GroupingInputs {
     }
     final rows = await _db
         .customSelect(
-          "SELECT id, embedding, quality_score, media_id, frame_number FROM faces WHERE person_id IS NULL AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND kind = ? ORDER BY id",
-          variables: [Variable.withString(kind)],
+          "SELECT id, embedding, quality_score, media_id, frame_number FROM faces WHERE person_id IS NULL AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND kind = ? AND face_px >= ? ORDER BY id",
+          variables: [Variable.withString(kind), Variable.withReal(_minPx)],
           readsFrom: {_db.faces},
         )
         .get();

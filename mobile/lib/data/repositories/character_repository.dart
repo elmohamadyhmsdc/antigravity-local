@@ -10,6 +10,7 @@ import '../api/dtos/analyze.dart';
 import '../api/dtos/embedding.dart';
 import '../db/app_database.dart';
 import '../files/file_store.dart';
+import 'kind_corrections.dart' show sameDetectionBox;
 
 typedef _Box = ({double x, double y, double w, double h});
 
@@ -33,6 +34,9 @@ class CharacterRepository {
     int? frameNumber,
     int? timestampMs,
     Map<int, DetectedBody>? bodyEvidence,
+
+    /// Filled with analysis character index -> bodies.id (what the sensitive regions point at).
+    Map<int, int>? bodyIdOf,
   }) async {
     if (analysis.characters.isEmpty) return 0;
     final w = analysis.imageW, h = analysis.imageH;
@@ -50,7 +54,11 @@ class CharacterRepository {
         if (b.track != null) b.track!,
     };
 
-    for (final c in analysis.characters) {
+    final overrides = await (db.select(
+      db.bodyOverrides,
+    )..where((o) => o.assetId.equals(media.assetId))).get();
+    for (var characterIndex = 0; characterIndex < analysis.characters.length; characterIndex++) {
+      final c = analysis.characters[characterIndex];
       int? faceId;
       final face = c.face;
       final vector = face?.embedding;
@@ -178,9 +186,16 @@ class CharacterRepository {
           usedTracks.add(trackId);
         }
         usedBodies.add(same.id);
+        bodyIdOf?[characterIndex] = same.id;
         if (bodyEvidence != null) bodyEvidence[same.id] = body;
+        // the keypoints may have moved: the cached pose descriptor is rebuilt lazily (as for people)
         await db.customUpdate(
-          'UPDATE bodies SET face_id = COALESCE(face_id, ?), kpts = ?, extent = ?, appearance = COALESCE(?, appearance) WHERE id = ?',
+          'DELETE FROM body_pose_features WHERE body_id = ?',
+          variables: [Variable.withInt(same.id)],
+          updates: {db.bodyPoseFeatures},
+        );
+        await db.customUpdate(
+          'UPDATE bodies SET face_id = COALESCE(face_id, ?), kpts = ?, extent = ?, appearance = COALESCE(?, appearance), chest_embedding = COALESCE(?, chest_embedding), buttocks_embedding = COALESCE(?, buttocks_embedding), morphology = COALESCE(?, morphology) WHERE id = ?',
           variables: [
             Variable<int>(faceId),
             Variable<String>(_kpts(body, w, h)),
@@ -190,6 +205,9 @@ class CharacterRepository {
                   ? null
                   : appearanceToBlob(body.appearance!),
             ),
+            Variable<Uint8List>(_blobOf(body.chestEmbedding)),
+            Variable<Uint8List>(_blobOf(body.buttocksEmbedding)),
+            Variable<String>(_morphologyJson(body.morphology)),
             Variable.withInt(same.id),
           ],
           updates: {db.bodies},
@@ -235,6 +253,7 @@ class CharacterRepository {
             diverse: trackDiverseOutfit,
           );
           if (placement case LinkView(:final view)) {
+            bodyIdOf?[characterIndex] = view.id;
             if (bodyEvidence != null) bodyEvidence[view.id] = body;
             await _putDetection(
               media.id,
@@ -269,10 +288,27 @@ class CharacterRepository {
                     ? null
                     : appearanceToBlob(body.appearance!),
               ),
+              chestEmbedding: Value(_blobOf(body.chestEmbedding)),
+              buttocksEmbedding: Value(_blobOf(body.buttocksEmbedding)),
+              morphology: Value(_morphologyJson(body.morphology)),
               kind: const Value('character'),
               createdAt: now,
             ),
           );
+      bodyIdOf?[characterIndex] = id;
+      // what the user already decided about a figure here (hidden, "not a person's") is not asked again
+      for (final o in overrides) {
+        if (sameDetectionBox((x: o.x, y: o.y, w: o.w, h: o.h), box, 'body') ||
+            (video && o.scope == 'track' && track != null)) {
+          await (db.update(db.bodies)..where((b) => b.id.equals(id))).write(
+            BodiesCompanion(
+              ownership: Value(o.ownership),
+              hidden: Value(o.hidden),
+            ),
+          );
+          break;
+        }
+      }
       if (video) {
         await (db.update(db.bodies)..where((b) => b.id.equals(id))).write(
           BodiesCompanion(trackId: Value(track?.id ?? id)),
@@ -363,6 +399,12 @@ class CharacterRepository {
   }
 
   static double _r(double v) => (v * 10000).roundToDouble() / 10000;
+
+  static Uint8List? _blobOf(Float32List? v) =>
+      v == null ? null : embeddingToBlob(v);
+
+  static String? _morphologyJson(Map<String, dynamic>? m) =>
+      m == null ? null : jsonEncode(m);
 
   String _kpts(DetectedBody body, int w, int h) => jsonEncode([
     for (final k in body.kpts ?? const <List<double>>[])

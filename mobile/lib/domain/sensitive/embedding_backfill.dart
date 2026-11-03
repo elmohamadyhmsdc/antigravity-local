@@ -181,9 +181,8 @@ class EmbeddingBackfill {
         await (db.select(db.bodies)
               ..where(
                 (b) =>
-                    b.mediaId.equals(row.id) &
-                    b.frameNumber.isNull() &
-                    b.kind.equals('person'),
+                    // people AND drawn characters: both get the same vectors
+                    b.mediaId.equals(row.id) & b.frameNumber.isNull(),
               )
               ..orderBy([(b) => OrderingTerm.asc(b.id)])
               ..limit(64))

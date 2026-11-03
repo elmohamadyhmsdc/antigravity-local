@@ -579,6 +579,7 @@ class SensitiveRegionDto {
     required this.score,
     required this.bbox,
     this.bodyIndex,
+    this.characterIndex,
   });
 
   final String label; // NudeNet v3 label, e.g. FEMALE_BREAST_EXPOSED
@@ -589,6 +590,10 @@ class SensitiveRegionDto {
   /// Index into `AnalyzeImageResponse.bodies`; null when no body fits.
   final int? bodyIndex;
 
+  /// Index into `AnalyzeImageResponse.characters` when the region is on a drawn character's body
+  /// (then [bodyIndex] is null): characters get the same regions as people.
+  final int? characterIndex;
+
   factory SensitiveRegionDto.fromJson(Map<String, dynamic> json) =>
       SensitiveRegionDto(
         label: field<String>(json, 'label', 'sensitive_regions[]'),
@@ -598,6 +603,9 @@ class SensitiveRegionDto {
         bodyIndex: json['body_index'] == null
             ? null
             : integer(json, 'body_index', 'sensitive_regions[]'),
+        characterIndex: json['character_index'] == null
+            ? null
+            : integer(json, 'character_index', 'sensitive_regions[]'),
       );
 
   Map<String, dynamic> toJson() => {
@@ -606,6 +614,7 @@ class SensitiveRegionDto {
     'score': score,
     'bbox': bbox.toJson(),
     'body_index': bodyIndex,
+    if (characterIndex != null) 'character_index': characterIndex,
   };
 }
 

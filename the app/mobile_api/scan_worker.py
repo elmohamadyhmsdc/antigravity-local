@@ -31,6 +31,8 @@ def encode_result(result):
         payload['sensitive'] = py(result.sensitive)
     if getattr(result, 'body_embeddings', None) is not None:
         payload['body_embeddings'] = py(result.body_embeddings)
+    if getattr(result, 'character_body_embeddings', None) is not None:
+        payload['character_body_embeddings'] = py(result.character_body_embeddings)
     return payload
 
 

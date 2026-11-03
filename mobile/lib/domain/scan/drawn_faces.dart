@@ -11,6 +11,10 @@ import 'dart:typed_data';
 /// (measurements there; `test_drawn_faces.py` checks both files agree).
 const drawnFaceMinScore = 0.20;
 
+/// The test is only trusted on a face at least this big (tiny / blurred real faces drift toward the
+/// drawn direction); same as `analysis.DRAWN_TEST_MIN_PX`.
+const drawnTestMinPx = 48.0;
+
 const _directionB64 =
     'SY/uvUbNqb3ZYmg9H4q2vHVvrD2c1TI9OKUcvaPdpbxFAHS9GIUDPQcBwzz3AD897vD9PEMn'
     'lD3ENUO9pJ/CPFOQALwDanu8UJSivVxV6zwW23A9OLWyuzGxBDyzgcI8IT86vG+Urrhc3NM6'

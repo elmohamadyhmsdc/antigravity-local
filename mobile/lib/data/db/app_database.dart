@@ -89,6 +89,8 @@ class LibraryStats {
     FaceOverrides,
     BodyOverrides,
     BodyDistinct,
+    FaceConfirmations,
+    ReviewDoubtful,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -96,7 +98,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bump together with a new `if (from < N)` step in [migration] and a test in
   /// test/data/app_database_test.dart.
-  static const currentSchemaVersion = 19;
+  static const currentSchemaVersion = 20;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -357,6 +359,23 @@ class AppDatabase extends _$AppDatabase {
         );
         await customStatement(
           'CREATE INDEX IF NOT EXISTS face_overrides_asset ON face_overrides (asset_id)',
+        );
+      }
+      if (from < 20) {
+        final existing = (await customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table'",
+        ).get()).map((r) => r.read<String>('name')).toSet();
+        if (!existing.contains('face_confirmations')) {
+          await m.createTable(faceConfirmations);
+        }
+        if (!existing.contains('review_doubtful')) {
+          await m.createTable(reviewDoubtful);
+        }
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS face_confirmations_person ON face_confirmations (person_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS review_doubtful_person ON review_doubtful (person_id)',
         );
       }
     },

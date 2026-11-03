@@ -414,7 +414,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         _personName = name;
         _faces = faces;
         _sources.clear();
-        _sources.addAll(faces.take(20).map((f) => f.id));
+        _sources.addAll(
+          StudioRepository.diverseSources(faces, 20).map((f) => f.id),
+        );
       });
     } catch (e) {
       if (mounted) setState(() => _error = '$e');

@@ -23,6 +23,17 @@ def _bodies_as_dicts(bodies) -> list:
     return [{"bbox": [float(v) for v in b.bbox[:4]], "kpts": b.kpts, "kpt_scores": b.kpt_scores} for b in bodies]
 
 
+def _character_body_dicts(characters) -> tuple:
+    """(body dicts, owner) for the characters that have a body; owner[i] = index in `characters`."""
+    figures, owner = [], []
+    for index, c in enumerate(characters):
+        if getattr(c, "body_bbox", None) is not None:
+            figures.append({"bbox": [float(v) for v in c.body_bbox[:4]], "kpts": c.body_kpts,
+                            "kpt_scores": c.body_kpt_scores})
+            owner.append(index)
+    return figures, owner
+
+
 class InsightEngines:
     model_id = EMBEDDING_MODEL_ID
 
@@ -77,10 +88,36 @@ class InsightEngines:
                 res.body_outlines = b_out
             wants_embeddings = getattr(options, "body_embeddings", False)
             if getattr(options, "sensitive", False) or wants_embeddings:
-                res.sensitive = self._detect_sensitive(img, _bodies_as_dicts(res.bodies))
-            if wants_embeddings:
-                res.body_embeddings = self._embed_bodies(img, res)
+                self._sensitive_for(img, res, wants_embeddings)
             return res
+
+    def _sensitive_for(self, img, res, wants_embeddings: bool) -> None:
+        """Regions (and, when asked, body vectors) for people AND drawn characters in one detector pass.
+        People keep `body_index`; a region on a character's body gets `character_index` instead, and the
+        character's vectors go to `res.character_body_embeddings` (aligned with `res.characters`)."""
+        people = _bodies_as_dicts(res.bodies)
+        figures, owner = _character_body_dicts(res.characters)
+        regions = self._detect_sensitive(img, people + figures)
+        n = len(people)
+        person_regions, figure_regions, out = [], [], []
+        for region in regions:
+            i = region.get("body_index")
+            if i is not None and i >= n:
+                figure_regions.append(dict(region, body_index=i - n))
+                out.append(dict(region, body_index=None, character_index=owner[i - n]))
+            else:
+                if i is not None:
+                    person_regions.append(region)
+                out.append(region)
+        res.sensitive = out
+        if wants_embeddings:
+            res.body_embeddings = self._embed_dicts(img, people, person_regions)
+            if figures:
+                vectors = self._embed_dicts(img, figures, figure_regions)
+                aligned = [None] * len(res.characters)
+                for position, character_index in enumerate(owner):
+                    aligned[character_index] = vectors[position] if position < len(vectors) else None
+                res.character_body_embeddings = aligned
 
     def _embed_bodies(self, img, res) -> list:
         """Roadmap 7.5: chest / lower-body DINOv2 embeddings and morphology for the bodies with exposed regions."""

@@ -24,7 +24,14 @@ QUALITY_VERSION = 2
 # to a person, see library_scanner). Overridable via FACE_MIN_QUALITY.
 DEFAULT_MIN_QUALITY = 0.40
 MIN_DET_SCORE = 0.50
-MIN_FACE_PX = 24
+# Below this a face carries too little identity to store (the quality score barely notices size: a
+# frontal 30 px face with a mediocre embedding scores 0.43 against the 0.40 gate).
+MIN_FACE_PX = 40
+# Crowds: with at least CROWD_MIN_FACES faces in a frame, one under BACKGROUND_REL of the biggest face
+# (and under BACKGROUND_MAX_PX) is background - never stored, grouped, trained on or swapped.
+CROWD_MIN_FACES = 3
+BACKGROUND_REL = 0.40
+BACKGROUND_MAX_PX = 120
 
 WEIGHTS = {"norm": 0.35, "size": 0.20, "sharp": 0.20, "pose": 0.25}
 
