@@ -1,6 +1,30 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Route Malformation Fix in LoRA Curation Navigation — 2026-11-03
+
+- User Request:
+  - "الـ Lora page بعد ما بختار شخص بتديني page not found وبتكسر الـ routes."
+  - Screenshots showed `GoException: no routes for location: /studio/curation/:id/155?name=Jelly%20Bean%20Brains` followed by `GoException: no routes for location: /` when tapping the 404 "Home" button.
+- Root Cause Identified:
+  1. Route Definition vs Call-Site Discrepancy: `Routes.studioCuration` was defined in `router.dart` as `'/studio/curation/:id'`. When callers in `lora_screens.dart` and `person_detail_screen.dart` used `'${Routes.studioCuration}/${chosen.personId}'`, it interpolated into `'/studio/curation/:id/155'` instead of `'/studio/curation/155'`. GoRouter failed to match this 3-segment URL.
+  2. Missing Root Route: When GoRouter encounters an unhandled route, its default 404 page provides a "Home" button navigating to `'/'`. Because `router.dart` lacked a route definition for `'/'`, tapping "Home" threw `GoException: no routes for location: /`.
+- Implementation & Changes (`mobile/`):
+  1. Route Constant Normalization (`mobile/lib/core/router.dart`):
+     - Changed `Routes.studioCuration` to `'/studio/curation'` (matching standard pattern `studioDatasets`, `studioModels`, etc.).
+     - Registered `GoRoute(path: '${Routes.studioCuration}/:id')` to handle valid 2-segment routes (`/studio/curation/155`).
+     - Added resilient fallback redirect: `GoRoute(path: '${Routes.studioCuration}/:placeholder/:id')` redirecting any legacy or misformed path containing `:id` to `/studio/curation/$id` preserving all query parameters.
+     - Added root redirect: `GoRoute(path: '/', redirect: (context, state) => Routes.library)`.
+- Verification & Quality:
+  - Tests (`mobile/test/core/router_test.dart`):
+    - `curation route /studio/curation/:id opens directly`: **passed**
+    - `curation route /studio/curation/:placeholder/:id redirects safely`: **passed**
+    - `root / redirects to /library`: **passed**
+    - Full router suite: **21/21 passed**.
+  - LoRA Suite: `curation_review_screen_test.dart` & `privacy_and_lora_test.dart` **11/11 passed**.
+  - Static Analysis: `dart analyze lib/core/router.dart test/core/router_test.dart` reports **No issues found!** (0 issues).
+  - Preserved Baseline: Documented failures unchanged.
+
 ## Sidecar Metadata Persistence & Dynamic Auto-Organization Completed on main — 2026-11-03
 
 - User Request:
@@ -82,6 +106,34 @@
   - Static Analysis: `flutter analyze lib` reports **0 errors, 0 warnings** (only 3 pre-existing linter infos in unrelated files).
 - Preserved Baseline:
   - Documented baseline failures in `_baseline.md` unchanged.
+
+
+# Antigravity handoff — 2026-10-19
+
+
+## Route Malformation Fix in LoRA Curation Navigation — 2026-11-03
+
+- User Request:
+  - "الـ Lora page بعد ما بختار شخص بتديني page not found وبتكسر الـ routes."
+  - Screenshots showed `GoException: no routes for location: /studio/curation/:id/155?name=Jelly%20Bean%20Brains` followed by `GoException: no routes for location: /` when tapping the 404 "Home" button.
+- Root Cause Identified:
+  1. Route Definition vs Call-Site Discrepancy: `Routes.studioCuration` was defined in `router.dart` as `'/studio/curation/:id'`. When callers in `lora_screens.dart` and `person_detail_screen.dart` used `'${Routes.studioCuration}/${chosen.personId}'`, it interpolated into `'/studio/curation/:id/155'` instead of `'/studio/curation/155'`. GoRouter failed to match this 3-segment URL.
+  2. Missing Root Route: When GoRouter encounters an unhandled route, its default 404 page provides a "Home" button navigating to `'/'`. Because `router.dart` lacked a route definition for `'/'`, tapping "Home" threw `GoException: no routes for location: /`.
+- Implementation & Changes (`mobile/`):
+  1. Route Constant Normalization (`mobile/lib/core/router.dart`):
+     - Changed `Routes.studioCuration` to `'/studio/curation'` (matching standard pattern `studioDatasets`, `studioModels`, etc.).
+     - Registered `GoRoute(path: '${Routes.studioCuration}/:id')` to handle valid 2-segment routes (`/studio/curation/155`).
+     - Added resilient fallback redirect: `GoRoute(path: '${Routes.studioCuration}/:placeholder/:id')` redirecting any legacy or misformed path containing `:id` to `/studio/curation/$id` preserving all query parameters.
+     - Added root redirect: `GoRoute(path: '/', redirect: (context, state) => Routes.library)`.
+- Verification & Quality:
+  - Tests (`mobile/test/core/router_test.dart`):
+    - `curation route /studio/curation/:id opens directly`: **passed**
+    - `curation route /studio/curation/:placeholder/:id redirects safely`: **passed**
+    - `root / redirects to /library`: **passed**
+    - Full router suite: **21/21 passed**.
+  - LoRA Suite: `curation_review_screen_test.dart` & `privacy_and_lora_test.dart` **11/11 passed**.
+  - Static Analysis: `dart analyze lib/core/router.dart test/core/router_test.dart` reports **No issues found!** (0 issues).
+  - Preserved Baseline: Documented failures unchanged.
 
 
 # Antigravity handoff — 2026-10-19

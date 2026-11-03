@@ -77,7 +77,7 @@ abstract final class Routes {
   static const restyle = '/restyle';
   static const studioGenerate = '/studio/generate';
   static const studioDatasetsNew = '/studio/datasets/new';
-  static const studioCuration = '/studio/curation/:id';
+  static const studioCuration = '/studio/curation'; // /studio/curation/:id
   static const studioDatasets = '/studio/datasets'; // /studio/datasets/:id
   static const studioTrain = '/studio/train';
   static const studioResults = '/studio/results'; // /studio/results/:id
@@ -175,6 +175,10 @@ GoRouter createRouter({
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/',
+        redirect: (context, state) => Routes.library,
+      ),
       // -----------------------------------------------------------------------
       // Onboarding Routes
       // -----------------------------------------------------------------------
@@ -417,13 +421,25 @@ GoRouter createRouter({
         ),
       ),
       GoRoute(
-        path: Routes.studioCuration,
+        path: '${Routes.studioCuration}/:id',
         builder: (context, state) {
           final pid = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
           return CurationReviewScreen(
             personId: pid,
             personName: state.uri.queryParameters['name'] ?? 'person',
           );
+        },
+      ),
+      GoRoute(
+        path: '${Routes.studioCuration}/:placeholder/:id',
+        redirect: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return Uri(
+            path: '${Routes.studioCuration}/$id',
+            queryParameters: state.uri.queryParameters.isEmpty
+                ? null
+                : state.uri.queryParameters,
+          ).toString();
         },
       ),
       GoRoute(
