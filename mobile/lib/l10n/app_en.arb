@@ -2248,5 +2248,12 @@
       }
     }
   },
-  "organizeCancelPending": "Cancel remaining queued moves"
+  "organizeCancelPending": "Cancel remaining queued moves",
+  "masterOwner": "Master",
+  "setAsMasterOwner": "Set as primary file owner",
+  "setAsMasterOwnerSubtitle": "Physical media file will be stored in this person's folder",
+  "autoSyncOrganizedFolders": "Auto-sync organized folders",
+  "autoSyncOrganizedFoldersHint": "Move files and metadata automatically when people change groups or corrections occur",
+  "saveSidecarMetadata": "Save sidecar metadata (.json)",
+  "saveSidecarMetadataHint": "Save portable AI metadata alongside media for zero-rescan restoration"
 }

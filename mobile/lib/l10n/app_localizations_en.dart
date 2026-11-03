@@ -4096,4 +4096,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get organizeCancelPending => 'Cancel remaining queued moves';
+
+  @override
+  String get masterOwner => 'Master';
+
+  @override
+  String get setAsMasterOwner => 'Set as primary file owner';
+
+  @override
+  String get setAsMasterOwnerSubtitle =>
+      'Physical media file will be stored in this person\'s folder';
+
+  @override
+  String get autoSyncOrganizedFolders => 'Auto-sync organized folders';
+
+  @override
+  String get autoSyncOrganizedFoldersHint =>
+      'Move files and metadata automatically when people change groups or corrections occur';
+
+  @override
+  String get saveSidecarMetadata => 'Save sidecar metadata (.json)';
+
+  @override
+  String get saveSidecarMetadataHint =>
+      'Save portable AI metadata alongside media for zero-rescan restoration';
 }

@@ -21,6 +21,9 @@ abstract final class SettingKeys {
   static const modelId = 'library.model_id';
   static const lastBackupAt = 'backup.last_at';
 
+  static const autoOrganizeEnabled = 'organization.auto_organize_enabled';
+  static const saveSidecarEnabled = 'organization.save_sidecar_enabled';
+
   /// Show scores as numbers and open Review on the four tabs (a per-phone display choice).
   static const reviewAdvanced = 'review.advanced';
 
@@ -37,6 +40,8 @@ abstract final class SettingKeys {
     adaptiveVideoSampling,
     maxSide,
     modelId,
+    autoOrganizeEnabled,
+    saveSidecarEnabled,
   ];
 
   static bool isBackedUp(String key) =>
@@ -71,6 +76,8 @@ class SettingsSnapshot {
     this.modelId,
     this.lastBackupAt,
     this.reviewAdvanced = false,
+    this.autoOrganizeEnabled = true,
+    this.saveSidecarEnabled = true,
   });
 
   factory SettingsSnapshot.fromMap(Map<String, String> m) {
@@ -113,6 +120,8 @@ class SettingsSnapshot {
           ? null
           : DateTime.fromMillisecondsSinceEpoch(backup),
       reviewAdvanced: m[SettingKeys.reviewAdvanced] == '1',
+      autoOrganizeEnabled: m[SettingKeys.autoOrganizeEnabled] != '0',
+      saveSidecarEnabled: m[SettingKeys.saveSidecarEnabled] != '0',
     );
   }
 
@@ -136,6 +145,8 @@ class SettingsSnapshot {
 
   /// Percentages, link methods and the four-tab Review instead of words and the quick review.
   final bool reviewAdvanced;
+  final bool autoOrganizeEnabled;
+  final bool saveSidecarEnabled;
 }
 
 /// Typed access to the `settings` table (a key/value store inside the encrypted database).
@@ -227,6 +238,12 @@ class AppSettings {
 
   Future<void> setReviewAdvanced(bool value) =>
       _put(SettingKeys.reviewAdvanced, value ? '1' : '0');
+
+  Future<void> setAutoOrganizeEnabled(bool value) =>
+      _put(SettingKeys.autoOrganizeEnabled, value ? '1' : '0');
+
+  Future<void> setSaveSidecarEnabled(bool value) =>
+      _put(SettingKeys.saveSidecarEnabled, value ? '1' : '0');
 
   Future<void> setLastBackupAt(DateTime value) =>
       _put(SettingKeys.lastBackupAt, '${value.millisecondsSinceEpoch}');

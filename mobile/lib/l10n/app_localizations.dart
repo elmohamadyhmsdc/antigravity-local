@@ -6567,6 +6567,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cancel remaining queued moves'**
   String get organizeCancelPending;
+
+  /// No description provided for @masterOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Master'**
+  String get masterOwner;
+
+  /// No description provided for @setAsMasterOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Set as primary file owner'**
+  String get setAsMasterOwner;
+
+  /// No description provided for @setAsMasterOwnerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Physical media file will be stored in this person\'s folder'**
+  String get setAsMasterOwnerSubtitle;
+
+  /// No description provided for @autoSyncOrganizedFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-sync organized folders'**
+  String get autoSyncOrganizedFolders;
+
+  /// No description provided for @autoSyncOrganizedFoldersHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Move files and metadata automatically when people change groups or corrections occur'**
+  String get autoSyncOrganizedFoldersHint;
+
+  /// No description provided for @saveSidecarMetadata.
+  ///
+  /// In en, this message translates to:
+  /// **'Save sidecar metadata (.json)'**
+  String get saveSidecarMetadata;
+
+  /// No description provided for @saveSidecarMetadataHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Save portable AI metadata alongside media for zero-rescan restoration'**
+  String get saveSidecarMetadataHint;
 }
 
 class _AppLocalizationsDelegate

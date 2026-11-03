@@ -13,6 +13,8 @@ import '../../domain/corrections/correction_scope.dart';
 import '../../domain/corrections/correction_target.dart';
 import '../../domain/corrections/correction_verb.dart';
 import '../../domain/corrections/corrections_queries.dart';
+import '../../domain/organization/master_person_resolver.dart';
+import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../ui/actions/entity_action_sheet.dart';
 import '../../ui/sheets/undo_snackbar.dart';
@@ -192,6 +194,7 @@ class MediaInspectorContent extends ConsumerStatefulWidget {
 class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
   List<MediaLinkItem> _links = [];
   bool _loadingLinks = true;
+  int? _explicitMasterId;
 
   @override
   void initState() {
@@ -605,44 +608,145 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
           )
         else ...[
           // Persons groups
-          for (final entry in groupedByPerson.entries) ...[
-            Builder(
-              builder: (context) {
-                final person = widget.people[entry.key];
-                final name = person?.name ?? 'Person #${entry.key}';
-                final primaryDetection = entry.value.first;
-                return ExpansionTile(
-                  key: Key('inspector-person-${entry.key}'),
-                  initiallyExpanded: true,
-                  leading: CircleAvatar(
-                    radius: 16,
-                    child: Text(name.isNotEmpty ? name[0] : '?'),
-                  ),
-                  title: Text(
-                    name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.person_outline),
-                      title: const Text('Open person'),
-                      trailing: IconButton(
-                        tooltip: 'Select for actions',
-                        icon: const Icon(Icons.more_horiz),
-                        onPressed: () =>
-                            _showDetectionMenu(context, primaryDetection),
-                      ),
-                      onTap: () =>
-                          context.push('${Routes.people}/${entry.key}'),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.build_outlined),
-                      title: const Text('Person tools'),
-                      onTap: () =>
-                          _showDetectionMenu(context, primaryDetection),
-                    ),
-                    for (final d in entry.value)
-                      ListTile(
+          () {
+            final faceBoxes = <int, List<double>>{
+              for (final f in widget.faces)
+                if (f.personId != null) f.personId!: [f.x, f.y, f.w, f.h],
+            };
+            final candidates = <PersonRow>[
+              for (final pId in groupedByPerson.keys)
+                PersonRow(
+                  id: pId,
+                  name: widget.people[pId]?.name,
+                  groupId: widget.people[pId]?.groupId,
+                  kind: widget.people[pId]?.kind ?? 'person',
+                  createdAt: 0,
+                  hidden: false,
+                  favorite: false,
+                  pinned: false,
+                  groupingLocked: false,
+                ),
+            ];
+            final resolvedMaster = const MasterPersonResolver().resolveMasterByBbox(
+              candidates: candidates,
+              faceBoxes: faceBoxes,
+              explicitChoice: _explicitMasterId,
+            );
+            final masterPersonId = resolvedMaster?.id;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final entry in groupedByPerson.entries)
+                  Builder(
+                    builder: (context) {
+                      final person = widget.people[entry.key];
+                      final name = person?.name ?? 'Person #${entry.key}';
+                      final primaryDetection = entry.value.first;
+                      final isMaster = masterPersonId == entry.key;
+                      final l10n = AppLocalizations.of(context);
+                      return ExpansionTile(
+                        key: Key('inspector-person-${entry.key}'),
+                        initiallyExpanded: true,
+                        leading: CircleAvatar(
+                          radius: 16,
+                          child: Text(name.isNotEmpty ? name[0] : '?'),
+                        ),
+                        title: Row(
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            if (isMaster) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                key: Key('master-badge-${entry.key}'),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.star,
+                                      size: 12,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      l10n?.masterOwner ?? 'Master ⭐',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        children: [
+                          if (!isMaster)
+                            ListTile(
+                              key: Key('who-set-master-${entry.key}'),
+                              leading: const Icon(
+                                Icons.star_outline,
+                                color: Colors.amber,
+                              ),
+                              title: Text(l10n?.setAsMasterOwner ?? 'Set as primary file owner'),
+                              subtitle: Text(
+                                l10n?.setAsMasterOwnerSubtitle ??
+                                    'Physical media file will be stored in this person\'s folder',
+                              ),
+                              onTap: () async {
+                                setState(() {
+                                  _explicitMasterId = entry.key;
+                                });
+                                final autoOrganizer = ref.read(
+                                  dynamicAutoOrganizerProvider,
+                                );
+                                await autoOrganizer.setMasterPerson(
+                                  widget.media.id,
+                                  entry.key,
+                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('$name is now the primary file owner'),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ListTile(
+                            leading: const Icon(Icons.person_outline),
+                            title: const Text('Open person'),
+                            trailing: IconButton(
+                              tooltip: 'Select for actions',
+                              icon: const Icon(Icons.more_horiz),
+                              onPressed: () =>
+                                  _showDetectionMenu(context, primaryDetection),
+                            ),
+                            onTap: () =>
+                                context.push('${Routes.people}/${entry.key}'),
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.build_outlined),
+                            title: const Text('Person tools'),
+                            onTap: () =>
+                                _showDetectionMenu(context, primaryDetection),
+                          ),
+                          for (final d in entry.value)
+                            ListTile(
                         key: Key('inspector-detection-${d.id}'),
                         leading: SizedBox(
                           width: 40,
@@ -708,6 +812,8 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
               },
             ),
           ],
+        );
+      }(),
 
           // Unassigned detections
           if (unassigned.isNotEmpty)
