@@ -85,6 +85,37 @@ FULL_BODY_ANGLES = [
 ]
 
 
+OPENPOSE_CONTROLNET_PATH = Path(__file__).parent / "models" / "undress" / "lllyasviel--control_v11p_sd15_openpose"
+
+
+def is_controlnet_available() -> bool:
+    """Returns True if local OpenPose ControlNet model files exist."""
+    return (OPENPOSE_CONTROLNET_PATH / "config.json").is_file() and (
+        (OPENPOSE_CONTROLNET_PATH / "diffusion_pytorch_model.safetensors").is_file()
+        or (OPENPOSE_CONTROLNET_PATH / "diffusion_pytorch_model.bin").is_file()
+    )
+
+
+def prepare_pose_condition(pose_image, target_size: tuple = (512, 768)):
+    """Prepares or detects OpenPose skeleton condition resized to target_size."""
+    from PIL import Image
+    if not isinstance(pose_image, Image.Image):
+        pose_image = Image.fromarray(pose_image)
+    if pose_image.mode != "RGB":
+        pose_image = pose_image.convert("RGB")
+
+    try:
+        from controlnet_aux import OpenposeDetector
+        detector = OpenposeDetector.from_pretrained("lllyasviel/ControlNet")
+        detected = detector(pose_image)
+        if detected is not None:
+            pose_image = detected
+    except Exception:
+        pass
+
+    return pose_image.resize(target_size, Image.Resampling.LANCZOS)
+
+
 def resolve_generation_dimensions(preset: str) -> tuple:
     """Returns (width, height) for a given aspect ratio preset, guaranteed multiples of 8."""
     preset = (preset or "").strip().lower()
@@ -245,8 +276,22 @@ def main():
     emit("device", **device_info)
 
     emit("stage", stage=STAGE_LOADING_CHECKPOINT)
-    pipeline_class = StableDiffusionImg2ImgPipeline if use_img2img else StableDiffusionPipeline
-    pipe = pipeline_class.from_single_file(request["base_checkpoint"], torch_dtype=dtype, safety_checker=None)
+    pose_image_path = request.get("pose_image_path")
+    use_controlnet = bool(pose_image_path and is_controlnet_available())
+
+    target_w, target_h = resolve_generation_dimensions(
+        request.get("aspect_ratio") or request.get("generation_mode", "portrait_square")
+    )
+
+    if use_controlnet:
+        from diffusers import StableDiffusionControlNetPipeline, ControlNetModel
+        controlnet = ControlNetModel.from_pretrained(str(OPENPOSE_CONTROLNET_PATH), torch_dtype=dtype)
+        pipe = StableDiffusionControlNetPipeline.from_single_file(
+            request["base_checkpoint"], controlnet=controlnet, torch_dtype=dtype, safety_checker=None
+        )
+    else:
+        pipeline_class = StableDiffusionImg2ImgPipeline if use_img2img else StableDiffusionPipeline
+        pipe = pipeline_class.from_single_file(request["base_checkpoint"], torch_dtype=dtype, safety_checker=None)
     pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, use_karras_sigmas=True)
     pipe.set_progress_bar_config(disable=True)  # per-step progress is reported as events instead
 
@@ -273,11 +318,21 @@ def main():
                 pass  # torch 2 already uses SDPA attention when xformers isn't installed
 
     reference_kwargs = {}
-    if use_img2img:
+    if use_controlnet:
+        from PIL import Image, ImageOps
+        pose_raw = ImageOps.exif_transpose(Image.open(pose_image_path)).convert("RGB")
+        cond_image = prepare_pose_condition(pose_raw, target_size=(target_w, target_h))
+        reference_kwargs["image"] = cond_image
+        reference_kwargs["controlnet_conditioning_scale"] = float(request.get("pose_strength", 1.0))
+        reference_kwargs["width"] = target_w
+        reference_kwargs["height"] = target_h
+    elif use_img2img:
         reference_kwargs.update(image=reference.resize(size, Image.LANCZOS),
                                 strength=float(request.get("reference_strength", DEFAULT_REFERENCE_STRENGTH)))
     elif reference is not None:
         reference_kwargs.update(width=size[0], height=size[1])  # img2img takes its size from the image
+    else:
+        reference_kwargs.update(width=target_w, height=target_h)
     if use_ip_adapter:
         reference_kwargs["ip_adapter_image"] = reference
 
