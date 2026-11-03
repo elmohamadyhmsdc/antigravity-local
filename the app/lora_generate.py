@@ -116,6 +116,66 @@ def prepare_pose_condition(pose_image, target_size: tuple = (512, 768)):
     return pose_image.resize(target_size, Image.Resampling.LANCZOS)
 
 
+def apply_face_detailer(full_image, face_restorer=None, padding: float = 0.3):
+    """
+    Applies a secondary face restoration pass on the detected face region of a full-body image.
+    Preserves exact full-image dimensions.
+    """
+    import os
+    import cv2
+    import numpy as np
+    from PIL import Image
+
+    if not isinstance(full_image, Image.Image):
+        pil_mode = False
+        img_np = np.array(full_image)
+    else:
+        pil_mode = True
+        img_np = np.array(full_image)
+
+    h, w = img_np.shape[:2]
+    if len(img_np.shape) == 3 and img_np.shape[2] == 3:
+        bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR) if pil_mode else img_np.copy()
+    else:
+        return full_image
+
+    faces = []
+    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    if os.path.exists(cascade_path):
+        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        cascade = cv2.CascadeClassifier(cascade_path)
+        faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
+
+    if len(faces) == 0:
+        fh, fw = int(h * 0.18), int(w * 0.25)
+        fx, fy = (w - fw) // 2, int(h * 0.05)
+        faces = [(fx, fy, fw, fh)]
+
+    fx, fy, fw, fh = faces[0]
+    if (fw * fh) / float(w * h) < 0.35:
+        pad_x = int(fw * padding)
+        pad_y = int(fh * padding)
+        x1 = max(0, fx - pad_x)
+        y1 = max(0, fy - pad_y)
+        x2 = min(w, fx + fw + pad_x)
+        y2 = min(h, fy + fh + pad_y)
+
+        crop = bgr[y1:y2, x1:x2].copy()
+        if crop.size > 0 and face_restorer is not None and getattr(face_restorer, "available", False):
+            enhanced_crop = face_restorer.enhance(crop)
+            if enhanced_crop is not None and enhanced_crop.shape == crop.shape:
+                ch, cw = crop.shape[:2]
+                mask = np.zeros((ch, cw), dtype=np.float32)
+                cv2.ellipse(mask, (cw // 2, ch // 2), (cw // 2, ch // 2), 0, 0, 360, 1.0, -1)
+                mask = cv2.GaussianBlur(mask, (21, 21), 11)
+                mask = np.expand_dims(mask, axis=-1)
+                blended = (enhanced_crop * mask + crop * (1.0 - mask)).astype(np.uint8)
+                bgr[y1:y2, x1:x2] = blended
+
+    result_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(result_rgb) if pil_mode else result_rgb
+
+
 def resolve_generation_dimensions(preset: str) -> tuple:
     """Returns (width, height) for a given aspect ratio preset, guaranteed multiples of 8."""
     preset = (preset or "").strip().lower()
@@ -362,6 +422,14 @@ def main():
             generator=torch.Generator(device).manual_seed(image_seed), callback_on_step_end=on_step_end,
             **reference_kwargs,
         ).images[0]
+
+        if request.get("enable_face_detailer", True) and (request.get("generation_mode") == "full_body" or use_controlnet):
+            try:
+                from face_restore import FaceRestorer
+                restorer = FaceRestorer(model_name="codeformer", weight=0.6)
+                image = apply_face_detailer(image, face_restorer=restorer)
+            except Exception as e:
+                print(f"[FACE_DETAILER] skipped: {e}")
 
         path = output_dir / f"{file_prefix}_{index + 1:02d}_seed{image_seed}.png"
         image.save(path)
