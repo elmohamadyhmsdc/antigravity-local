@@ -76,58 +76,72 @@ void main() {
       expect(layers.areas, isTrue);
     });
 
-    testWidgets('LayersPopover.show updates checkboxes interactively without desync', (
-      tester,
-    ) async {
-      var activeLayers = const ViewerLayers(faces: true, bodies: false, areas: false);
-      const availability = LayerAvailability(
-        hasFaces: true,
-        hasBodies: true,
-        hasAreas: true,
-      );
+    testWidgets(
+      'LayersPopover.show updates checkboxes interactively without desync',
+      (tester) async {
+        var activeLayers = const ViewerLayers(
+          faces: true,
+          bodies: false,
+          areas: false,
+        );
+        const availability = LayerAvailability(
+          hasFaces: true,
+          hasBodies: true,
+          hasAreas: true,
+        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => ElevatedButton(
-                key: const Key('open-sheet'),
-                onPressed: () => LayersPopover.show(
-                  context: context,
-                  layers: activeLayers,
-                  availability: availability,
-                  onChanged: (updated) => activeLayers = updated,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  key: const Key('open-sheet'),
+                  onPressed: () => LayersPopover.show(
+                    context: context,
+                    layers: activeLayers,
+                    availability: availability,
+                    onChanged: (updated) => activeLayers = updated,
+                  ),
+                  child: const Text('Open'),
                 ),
-                child: const Text('Open'),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.tap(find.byKey(const Key('open-sheet')));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('open-sheet')));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Detection Layers'), findsOneWidget);
+        expect(find.text('Detection Layers'), findsOneWidget);
 
-      // Verify areas checkbox is unchecked initially
-      final areasCheckboxFinder = find.byKey(const Key('layer-toggle-areas'));
-      expect(tester.widget<CheckboxListTile>(areasCheckboxFinder).value, isFalse);
+        // Verify areas checkbox is unchecked initially
+        final areasCheckboxFinder = find.byKey(const Key('layer-toggle-areas'));
+        expect(
+          tester.widget<CheckboxListTile>(areasCheckboxFinder).value,
+          isFalse,
+        );
 
-      // Tap areas checkbox in bottom sheet
-      await tester.tap(areasCheckboxFinder);
-      await tester.pumpAndSettle();
+        // Tap areas checkbox in bottom sheet
+        await tester.tap(areasCheckboxFinder);
+        await tester.pumpAndSettle();
 
-      // In the bottom sheet, the checkbox should now immediately be checked!
-      expect(tester.widget<CheckboxListTile>(areasCheckboxFinder).value, isTrue);
-      expect(activeLayers.areas, isTrue);
+        // In the bottom sheet, the checkbox should now immediately be checked!
+        expect(
+          tester.widget<CheckboxListTile>(areasCheckboxFinder).value,
+          isTrue,
+        );
+        expect(activeLayers.areas, isTrue);
 
-      // Tap again to toggle off
-      await tester.tap(areasCheckboxFinder);
-      await tester.pumpAndSettle();
+        // Tap again to toggle off
+        await tester.tap(areasCheckboxFinder);
+        await tester.pumpAndSettle();
 
-      expect(tester.widget<CheckboxListTile>(areasCheckboxFinder).value, isFalse);
-      expect(activeLayers.areas, isFalse);
-    });
+        expect(
+          tester.widget<CheckboxListTile>(areasCheckboxFinder).value,
+          isFalse,
+        );
+        expect(activeLayers.areas, isFalse);
+      },
+    );
   });
 }

@@ -94,7 +94,8 @@ GroupingModel robustPersonModel(
     floor: 0.30,
     minToTrim: 6,
     dedupe: false,
-    medoidSample: 40, // this runs on every grouping round for every person: keep it cheap
+    medoidSample:
+        40, // this runs on every grouping round for every person: keep it cheap
   );
   final keptIds = {for (final f in selection.kept) f.id};
   final clean = [

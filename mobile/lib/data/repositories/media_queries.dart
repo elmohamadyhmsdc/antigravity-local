@@ -109,7 +109,8 @@ class MediaDetection {
 
   /// Whose face or body: 'person', or 'character' for a drawn figure.
   final String figure;
-  final int refId; // faces.id / bodies.id / sensitiveRegions.id / equipmentObjects.id
+  final int
+  refId; // faces.id / bodies.id / sensitiveRegions.id / equipmentObjects.id
   final double x, y, w, h;
   final int? personId;
   final String? cropPath;

@@ -47,7 +47,11 @@ void main() {
   test('a stranger grouped in by mistake is an outlier; the rest stay', () {
     final faces = [
       for (var i = 0; i < 8; i++) face(i, near(her, r), q: 0.8 - i * 0.01),
-      face(100, near(stranger, r), q: 0.9), // the best quality face of all - and not her
+      face(
+        100,
+        near(stranger, r),
+        q: 0.9,
+      ), // the best quality face of all - and not her
       face(101, near(stranger, r), q: 0.5),
     ];
 
@@ -58,22 +62,25 @@ void main() {
     expect(s.consistency, greaterThan(0.6));
   });
 
-  test('a small set is never trimmed, and neither is one that is mostly "foreign"', () {
-    final few = [
-      face(1, near(her, r)),
-      face(2, near(her, r)),
-      face(3, near(stranger, r)),
-      face(4, near(her, r)),
-    ];
-    expect(selectIdentity(few).outliers, isEmpty);
+  test(
+    'a small set is never trimmed, and neither is one that is mostly "foreign"',
+    () {
+      final few = [
+        face(1, near(her, r)),
+        face(2, near(her, r)),
+        face(3, near(stranger, r)),
+        face(4, near(her, r)),
+      ];
+      expect(selectIdentity(few).outliers, isEmpty);
 
-    // half and half: nobody can say which half is the person, so nothing is thrown away
-    final split = [
-      for (var i = 0; i < 4; i++) face(i, near(her, r)),
-      for (var i = 0; i < 4; i++) face(10 + i, near(stranger, r)),
-    ];
-    expect(selectIdentity(split, dedupe: false).outliers, isEmpty);
-  });
+      // half and half: nobody can say which half is the person, so nothing is thrown away
+      final split = [
+        for (var i = 0; i < 4; i++) face(i, near(her, r)),
+        for (var i = 0; i < 4; i++) face(10 + i, near(stranger, r)),
+      ];
+      expect(selectIdentity(split, dedupe: false).outliers, isEmpty);
+    },
+  );
 
   test('near-identical pictures count once, the best one is kept', () {
     final e = near(her, r);

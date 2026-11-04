@@ -21,143 +21,211 @@ void main() {
     await db.close();
   });
 
-  test('loadCandidatesForPerson loads categorized faces, upper bodies, and full bodies with exposed regions', () async {
-    // 1. Photo with Face
-    final m1 = await seedMedia(db, asset: 'photo_face');
-    await seedFace(db, mediaId: m1, personId: personId, quality: 0.85);
+  test(
+    'loadCandidatesForPerson loads categorized faces, upper bodies, and full bodies with exposed regions',
+    () async {
+      // 1. Photo with Face
+      final m1 = await seedMedia(db, asset: 'photo_face');
+      await seedFace(db, mediaId: m1, personId: personId, quality: 0.85);
 
-    // 2. Photo with Upper Body
-    final m2 = await seedMedia(db, asset: 'photo_upper');
-    final b2 = await seedBody(db, mediaId: m2, personId: personId, score: 0.9);
-    await (db.update(db.bodies)..where((t) => t.id.equals(b2))).write(
-      const BodiesCompanion(extent: Value('upper')),
-    );
-
-    // 3. Photo with Full Body and an Exposed Region
-    final m3 = await seedMedia(db, asset: 'photo_body_exposed');
-    final b3 = await seedBody(db, mediaId: m3, personId: personId, score: 0.95);
-    await (db.update(db.bodies)..where((t) => t.id.equals(b3))).write(
-      const BodiesCompanion(extent: Value('full')),
-    );
-    await db.into(db.sensitiveRegions).insert(
-      SensitiveRegionsCompanion.insert(
-        mediaId: m3,
-        bodyId: Value(b3),
-        label: 'chest',
-        exposed: true,
-        score: 0.99,
-        x: 0.3,
-        y: 0.4,
-        w: 0.2,
-        h: 0.2,
-        modelVersion: 1,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-      ),
-    );
-
-    // 4. Hidden face (should be excluded)
-    final m4 = await seedMedia(db, asset: 'photo_hidden');
-    final f4 = await seedFace(db, mediaId: m4, personId: personId);
-    await (db.update(db.faces)..where((tbl) => tbl.id.equals(f4))).write(
-      const FacesCompanion(hidden: Value(true)),
-    );
-
-    final queries = CurationQueries(db);
-    final candidates = await queries.loadCandidatesForPerson(personId);
-
-    expect(candidates.length, 3);
-
-    final faceCandidate = candidates.firstWhere((c) => c.category == CurationCategory.face);
-    expect(faceCandidate.assetId, 'photo_face');
-    expect(faceCandidate.quality, closeTo(0.85, 0.01));
-
-    final upperCandidate = candidates.firstWhere((c) => c.category == CurationCategory.upper);
-    expect(upperCandidate.assetId, 'photo_upper');
-    expect(upperCandidate.extent, 'upper');
-
-    final bodyCandidate = candidates.firstWhere((c) => c.category == CurationCategory.body);
-    expect(bodyCandidate.assetId, 'photo_body_exposed');
-    expect(bodyCandidate.extent, 'full');
-    expect(bodyCandidate.hasExposedRegion, isTrue);
-  });
-
-  test('tiny faces, outfit-guessed bodies and head crops are never training candidates', () async {
-    final m1 = await seedMedia(db, asset: 'p1');
-    await seedFace(db, mediaId: m1, personId: personId, quality: 0.9); // fine
-    final m2 = await seedMedia(db, asset: 'p2');
-    final tiny = await seedFace(db, mediaId: m2, personId: personId, quality: 0.9);
-    await (db.update(db.faces)..where((f) => f.id.equals(tiny)))
-        .write(const FacesCompanion(facePx: Value(40)));
-
-    final m3 = await seedMedia(db, asset: 'p3');
-    await seedBody(db, mediaId: m3, personId: personId, linkMethod: 'appearance'); // a guess
-    final m4 = await seedMedia(db, asset: 'p4');
-    await seedBody(db, mediaId: m4, personId: personId, linkMethod: 'manual'); // the user's
-    final m5 = await seedMedia(db, asset: 'p5');
-    final head = await seedBody(db, mediaId: m5, personId: personId);
-    await (db.update(db.bodies)..where((b) => b.id.equals(head)))
-        .write(const BodiesCompanion(extent: Value('head')));
-
-    final candidates = await CurationQueries(db).loadCandidatesForPerson(personId);
-
-    expect(candidates.map((c) => c.assetId).toSet(), {'p1', 'p4'});
-  });
-
-  test('an exposed region counts for the body it is on, not for everyone in the photo', () async {
-    final other = await seedPerson(db, name: 'Other');
-    final m = await seedMedia(db, asset: 'group');
-    final mine = await seedBody(db, mediaId: m, personId: personId);
-    final theirs = await seedBody(db, mediaId: m, personId: other);
-    await db.into(db.sensitiveRegions).insert(
-      SensitiveRegionsCompanion.insert(
-        mediaId: m,
-        bodyId: Value(theirs),
-        label: 'BELLY_EXPOSED',
-        exposed: true,
+      // 2. Photo with Upper Body
+      final m2 = await seedMedia(db, asset: 'photo_upper');
+      final b2 = await seedBody(
+        db,
+        mediaId: m2,
+        personId: personId,
         score: 0.9,
-        x: 0.3,
-        y: 0.4,
-        w: 0.2,
-        h: 0.2,
-        modelVersion: 1,
-        createdAt: 1,
-      ),
-    );
+      );
+      await (db.update(db.bodies)..where((t) => t.id.equals(b2))).write(
+        const BodiesCompanion(extent: Value('upper')),
+      );
 
-    final candidates = await CurationQueries(db).loadCandidatesForPerson(personId);
+      // 3. Photo with Full Body and an Exposed Region
+      final m3 = await seedMedia(db, asset: 'photo_body_exposed');
+      final b3 = await seedBody(
+        db,
+        mediaId: m3,
+        personId: personId,
+        score: 0.95,
+      );
+      await (db.update(db.bodies)..where((t) => t.id.equals(b3))).write(
+        const BodiesCompanion(extent: Value('full')),
+      );
+      await db
+          .into(db.sensitiveRegions)
+          .insert(
+            SensitiveRegionsCompanion.insert(
+              mediaId: m3,
+              bodyId: Value(b3),
+              label: 'chest',
+              exposed: true,
+              score: 0.99,
+              x: 0.3,
+              y: 0.4,
+              w: 0.2,
+              h: 0.2,
+              modelVersion: 1,
+              createdAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
 
-    expect(candidates, hasLength(1));
-    expect(candidates.single.refId, mine);
-    expect(candidates.single.hasExposedRegion, isFalse);
-  });
+      // 4. Hidden face (should be excluded)
+      final m4 = await seedMedia(db, asset: 'photo_hidden');
+      final f4 = await seedFace(db, mediaId: m4, personId: personId);
+      await (db.update(db.faces)..where((tbl) => tbl.id.equals(f4))).write(
+        const FacesCompanion(hidden: Value(true)),
+      );
 
-  test('a face that is not them (a wrong grouping) trains nobody - nor does its body', () async {
-    final r = math.Random(3);
-    Float32List unit() {
-      final v = [for (var i = 0; i < 512; i++) r.nextDouble() * 2 - 1];
-      final n = math.sqrt(v.fold<double>(0, (s, x) => s + x * x));
-      return Float32List.fromList([for (final x in v) x / n]);
-    }
+      final queries = CurationQueries(db);
+      final candidates = await queries.loadCandidatesForPerson(personId);
 
-    Float32List around(Float32List c) {
-      final n = unit();
-      final v = [for (var i = 0; i < 512; i++) c[i] + 0.5 * n[i]];
-      final len = math.sqrt(v.fold<double>(0, (s, x) => s + x * x));
-      return Float32List.fromList([for (final x in v) x / len]);
-    }
+      expect(candidates.length, 3);
 
-    final her = unit(), someone = unit();
-    for (var i = 0; i < 7; i++) {
-      final m = await seedMedia(db, asset: 'her_$i');
-      await seedFace(db, mediaId: m, personId: personId, embedding: around(her));
-    }
-    final wrong = await seedMedia(db, asset: 'wrong');
-    final wrongFace = await seedFace(db, mediaId: wrong, personId: personId, embedding: around(someone));
-    await seedBody(db, mediaId: wrong, faceId: wrongFace);
+      final faceCandidate = candidates.firstWhere(
+        (c) => c.category == CurationCategory.face,
+      );
+      expect(faceCandidate.assetId, 'photo_face');
+      expect(faceCandidate.quality, closeTo(0.85, 0.01));
 
-    final candidates = await CurationQueries(db).loadCandidatesForPerson(personId);
+      final upperCandidate = candidates.firstWhere(
+        (c) => c.category == CurationCategory.upper,
+      );
+      expect(upperCandidate.assetId, 'photo_upper');
+      expect(upperCandidate.extent, 'upper');
 
-    expect(candidates.where((c) => c.assetId == 'wrong'), isEmpty);
-    expect(candidates.where((c) => c.category == CurationCategory.face), hasLength(7));
-  });
+      final bodyCandidate = candidates.firstWhere(
+        (c) => c.category == CurationCategory.body,
+      );
+      expect(bodyCandidate.assetId, 'photo_body_exposed');
+      expect(bodyCandidate.extent, 'full');
+      expect(bodyCandidate.hasExposedRegion, isTrue);
+    },
+  );
+
+  test(
+    'tiny faces, outfit-guessed bodies and head crops are never training candidates',
+    () async {
+      final m1 = await seedMedia(db, asset: 'p1');
+      await seedFace(db, mediaId: m1, personId: personId, quality: 0.9); // fine
+      final m2 = await seedMedia(db, asset: 'p2');
+      final tiny = await seedFace(
+        db,
+        mediaId: m2,
+        personId: personId,
+        quality: 0.9,
+      );
+      await (db.update(db.faces)..where((f) => f.id.equals(tiny))).write(
+        const FacesCompanion(facePx: Value(40)),
+      );
+
+      final m3 = await seedMedia(db, asset: 'p3');
+      await seedBody(
+        db,
+        mediaId: m3,
+        personId: personId,
+        linkMethod: 'appearance',
+      ); // a guess
+      final m4 = await seedMedia(db, asset: 'p4');
+      await seedBody(
+        db,
+        mediaId: m4,
+        personId: personId,
+        linkMethod: 'manual',
+      ); // the user's
+      final m5 = await seedMedia(db, asset: 'p5');
+      final head = await seedBody(db, mediaId: m5, personId: personId);
+      await (db.update(db.bodies)..where((b) => b.id.equals(head))).write(
+        const BodiesCompanion(extent: Value('head')),
+      );
+
+      final candidates = await CurationQueries(
+        db,
+      ).loadCandidatesForPerson(personId);
+
+      expect(candidates.map((c) => c.assetId).toSet(), {'p1', 'p4'});
+    },
+  );
+
+  test(
+    'an exposed region counts for the body it is on, not for everyone in the photo',
+    () async {
+      final other = await seedPerson(db, name: 'Other');
+      final m = await seedMedia(db, asset: 'group');
+      final mine = await seedBody(db, mediaId: m, personId: personId);
+      final theirs = await seedBody(db, mediaId: m, personId: other);
+      await db
+          .into(db.sensitiveRegions)
+          .insert(
+            SensitiveRegionsCompanion.insert(
+              mediaId: m,
+              bodyId: Value(theirs),
+              label: 'BELLY_EXPOSED',
+              exposed: true,
+              score: 0.9,
+              x: 0.3,
+              y: 0.4,
+              w: 0.2,
+              h: 0.2,
+              modelVersion: 1,
+              createdAt: 1,
+            ),
+          );
+
+      final candidates = await CurationQueries(
+        db,
+      ).loadCandidatesForPerson(personId);
+
+      expect(candidates, hasLength(1));
+      expect(candidates.single.refId, mine);
+      expect(candidates.single.hasExposedRegion, isFalse);
+    },
+  );
+
+  test(
+    'a face that is not them (a wrong grouping) trains nobody - nor does its body',
+    () async {
+      final r = math.Random(3);
+      Float32List unit() {
+        final v = [for (var i = 0; i < 512; i++) r.nextDouble() * 2 - 1];
+        final n = math.sqrt(v.fold<double>(0, (s, x) => s + x * x));
+        return Float32List.fromList([for (final x in v) x / n]);
+      }
+
+      Float32List around(Float32List c) {
+        final n = unit();
+        final v = [for (var i = 0; i < 512; i++) c[i] + 0.5 * n[i]];
+        final len = math.sqrt(v.fold<double>(0, (s, x) => s + x * x));
+        return Float32List.fromList([for (final x in v) x / len]);
+      }
+
+      final her = unit(), someone = unit();
+      for (var i = 0; i < 7; i++) {
+        final m = await seedMedia(db, asset: 'her_$i');
+        await seedFace(
+          db,
+          mediaId: m,
+          personId: personId,
+          embedding: around(her),
+        );
+      }
+      final wrong = await seedMedia(db, asset: 'wrong');
+      final wrongFace = await seedFace(
+        db,
+        mediaId: wrong,
+        personId: personId,
+        embedding: around(someone),
+      );
+      await seedBody(db, mediaId: wrong, faceId: wrongFace);
+
+      final candidates = await CurationQueries(
+        db,
+      ).loadCandidatesForPerson(personId);
+
+      expect(candidates.where((c) => c.assetId == 'wrong'), isEmpty);
+      expect(
+        candidates.where((c) => c.category == CurationCategory.face),
+        hasLength(7),
+      );
+    },
+  );
 }

@@ -627,11 +627,12 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                   groupingLocked: false,
                 ),
             ];
-            final resolvedMaster = const MasterPersonResolver().resolveMasterByBbox(
-              candidates: candidates,
-              faceBoxes: faceBoxes,
-              explicitChoice: _explicitMasterId,
-            );
+            final resolvedMaster = const MasterPersonResolver()
+                .resolveMasterByBbox(
+                  candidates: candidates,
+                  faceBoxes: faceBoxes,
+                  explicitChoice: _explicitMasterId,
+                );
             final masterPersonId = resolvedMaster?.id;
 
             return Column(
@@ -656,7 +657,9 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                           children: [
                             Text(
                               name,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             if (isMaster) ...[
                               const SizedBox(width: 8),
@@ -702,9 +705,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                                 color: Colors.amber,
                               ),
                               title: Text(l10n.setAsMasterOwner),
-                              subtitle: Text(
-                                l10n.setAsMasterOwnerSubtitle,
-                              ),
+                              subtitle: Text(l10n.setAsMasterOwnerSubtitle),
                               onTap: () async {
                                 setState(() {
                                   _explicitMasterId = entry.key;
@@ -719,7 +720,9 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('$name is now the primary file owner'),
+                                      content: Text(
+                                        '$name is now the primary file owner',
+                                      ),
                                       duration: const Duration(seconds: 2),
                                     ),
                                   );
@@ -746,73 +749,74 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                           ),
                           for (final d in entry.value)
                             ListTile(
-                        key: Key('inspector-detection-${d.id}'),
-                        leading: SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: CropImage(
-                              path: d.cropPath,
-                              placeholderIcon: d.isFace
-                                  ? Icons.face_outlined
-                                  : d.isArea
-                                  ? Icons.crop_square_outlined
-                                  : d.isEquipment
-                                  ? Icons.sports_tennis_outlined
-                                  : Icons.accessibility_new,
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          d.isFace
-                              ? 'Face'
-                              : d.isArea
-                              ? (d.label ?? 'Area')
-                              : d.isEquipment
-                              ? (d.label ?? 'Equipment')
-                              : 'Body',
-                        ),
-                        subtitle: Text(
-                          d.linkMethod != null
-                              ? 'Via ${d.linkMethod}'
-                              : (d.isFace ? 'Direct match' : 'Auto'),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              key: Key(
-                                d.isFace
-                                    ? 'who-edit-${d.refId}'
-                                    : 'inspect-correct-${d.id}',
+                              key: Key('inspector-detection-${d.id}'),
+                              leading: SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: CropImage(
+                                    path: d.cropPath,
+                                    placeholderIcon: d.isFace
+                                        ? Icons.face_outlined
+                                        : d.isArea
+                                        ? Icons.crop_square_outlined
+                                        : d.isEquipment
+                                        ? Icons.sports_tennis_outlined
+                                        : Icons.accessibility_new,
+                                  ),
+                                ),
                               ),
-                              icon: const Icon(Icons.edit_note, size: 20),
-                              tooltip: 'Correct',
-                              onPressed: () {
-                                if (d.isFace) {
-                                  _reassignFaceDirect(context, d);
-                                } else {
-                                  _openCorrectionSheet(context, d);
-                                }
-                              },
+                              title: Text(
+                                d.isFace
+                                    ? 'Face'
+                                    : d.isArea
+                                    ? (d.label ?? 'Area')
+                                    : d.isEquipment
+                                    ? (d.label ?? 'Equipment')
+                                    : 'Body',
+                              ),
+                              subtitle: Text(
+                                d.linkMethod != null
+                                    ? 'Via ${d.linkMethod}'
+                                    : (d.isFace ? 'Direct match' : 'Auto'),
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    key: Key(
+                                      d.isFace
+                                          ? 'who-edit-${d.refId}'
+                                          : 'inspect-correct-${d.id}',
+                                    ),
+                                    icon: const Icon(Icons.edit_note, size: 20),
+                                    tooltip: 'Correct',
+                                    onPressed: () {
+                                      if (d.isFace) {
+                                        _reassignFaceDirect(context, d);
+                                      } else {
+                                        _openCorrectionSheet(context, d);
+                                      }
+                                    },
+                                  ),
+                                  IconButton(
+                                    key: Key('inspect-more-${d.id}'),
+                                    icon: const Icon(Icons.more_vert, size: 20),
+                                    onPressed: () =>
+                                        _showDetectionMenu(context, d),
+                                  ),
+                                ],
+                              ),
+                              onTap: () => widget.onSelectDetection?.call(d),
                             ),
-                            IconButton(
-                              key: Key('inspect-more-${d.id}'),
-                              icon: const Icon(Icons.more_vert, size: 20),
-                              onPressed: () => _showDetectionMenu(context, d),
-                            ),
-                          ],
-                        ),
-                        onTap: () => widget.onSelectDetection?.call(d),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ],
-        );
-      }(),
+                        ],
+                      );
+                    },
+                  ),
+              ],
+            );
+          }(),
 
           // Unassigned detections
           if (unassigned.isNotEmpty)

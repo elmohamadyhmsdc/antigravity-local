@@ -5,7 +5,8 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:antigravity_mobile/data/api/dtos/embedding.dart' show characterEmbeddingModelId;
+import 'package:antigravity_mobile/data/api/dtos/embedding.dart'
+    show characterEmbeddingModelId;
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
@@ -44,10 +45,9 @@ void main() {
     tmp.deleteSync(recursive: true);
   });
 
-  Future<int?> personOf(int faceId) async =>
-      (await (db.select(
-        db.faces,
-      )..where((f) => f.id.equals(faceId))).getSingle()).personId;
+  Future<int?> personOf(int faceId) async => (await (db.select(
+    db.faces,
+  )..where((f) => f.id.equals(faceId))).getSingle()).personId;
 
   GroupingPlanResponse assign(int faceId, int personId) => GroupingPlanResponse(
     mode: 'apply',
@@ -88,7 +88,12 @@ void main() {
         personId: sara,
         seed: 1,
       );
-      final later = await seedFace(db, mediaId: video, frameNumber: 40, seed: 2);
+      final later = await seedFace(
+        db,
+        mediaId: video,
+        frameNumber: 40,
+        seed: 2,
+      );
 
       await applier.applyFacePlan(assign(later, sara));
 
@@ -151,7 +156,10 @@ void main() {
       final c = await db
           .into(db.persons)
           .insert(
-            PersonsCompanion.insert(kind: const Value('character'), createdAt: 1),
+            PersonsCompanion.insert(
+              kind: const Value('character'),
+              createdAt: 1,
+            ),
           );
 
       await expectLater(
@@ -169,19 +177,13 @@ void main() {
       ],
     );
 
-    Future<int> people() async =>
-        (await db.select(db.persons).get()).length;
+    Future<int> people() async => (await db.select(db.persons).get()).length;
 
     test('a group from one video alone does not become a person', () async {
       final video = await seedMedia(db, kind: 'video');
       final ids = [
         for (var i = 0; i < 3; i++)
-          await seedFace(
-            db,
-            mediaId: video,
-            frameNumber: i * 30,
-            seed: i + 1,
-          ),
+          await seedFace(db, mediaId: video, frameNumber: i * 30, seed: i + 1),
       ];
 
       final result = await applier.applyFacePlan(group(ids));
@@ -210,36 +212,42 @@ void main() {
     });
 
     test('faces with no file are not judged by it', () async {
-      final ids = [
-        for (var i = 0; i < 3; i++) await seedFace(db, seed: i + 1),
-      ];
+      final ids = [for (var i = 0; i < 3; i++) await seedFace(db, seed: i + 1)];
 
       expect((await applier.applyFacePlan(group(ids))).newPeople, 1);
     });
 
-    test('a duplicate of a face also seen elsewhere counts as another file', () async {
-      final video = await seedMedia(db, kind: 'video');
-      final photo = await seedMedia(db, asset: 'asset-2');
-      final ids = [
-        for (var i = 0; i < 3; i++)
-          await seedFace(db, mediaId: video, frameNumber: i * 30, seed: i + 1),
-      ];
-      await db
-          .into(db.mediaDetections)
-          .insert(
-            MediaDetectionsCompanion.insert(
-              mediaId: photo,
-              kind: 'f',
-              refId: ids.first,
-              x: 0.1,
-              y: 0.1,
-              w: 0.2,
-              h: 0.2,
+    test(
+      'a duplicate of a face also seen elsewhere counts as another file',
+      () async {
+        final video = await seedMedia(db, kind: 'video');
+        final photo = await seedMedia(db, asset: 'asset-2');
+        final ids = [
+          for (var i = 0; i < 3; i++)
+            await seedFace(
+              db,
+              mediaId: video,
+              frameNumber: i * 30,
+              seed: i + 1,
             ),
-          );
+        ];
+        await db
+            .into(db.mediaDetections)
+            .insert(
+              MediaDetectionsCompanion.insert(
+                mediaId: photo,
+                kind: 'f',
+                refId: ids.first,
+                x: 0.1,
+                y: 0.1,
+                w: 0.2,
+                h: 0.2,
+              ),
+            );
 
-      expect((await applier.applyFacePlan(group(ids))).newPeople, 1);
-    });
+        expect((await applier.applyFacePlan(group(ids))).newPeople, 1);
+      },
+    );
   });
 
   group('tiny faces', () {
@@ -248,44 +256,59 @@ void main() {
           FacesCompanion(facePx: Value(px)),
         );
 
-    test('are not grouped, matched against or used to build a person', () async {
-      final sara = await seedPerson(db);
-      final good = await seedFace(db, personId: sara, seed: 1);
-      final speck = await seedFace(db, personId: sara, seed: 2);
-      final lonely = await seedFace(db, seed: 3);
-      final stranger = await seedFace(db, seed: 4);
-      await shrink(speck, 30);
-      await shrink(stranger, 30);
+    test(
+      'are not grouped, matched against or used to build a person',
+      () async {
+        final sara = await seedPerson(db);
+        final good = await seedFace(db, personId: sara, seed: 1);
+        final speck = await seedFace(db, personId: sara, seed: 2);
+        final lonely = await seedFace(db, seed: 3);
+        final stranger = await seedFace(db, seed: 4);
+        await shrink(speck, 30);
+        await shrink(stranger, 30);
 
-      expect((await inputs.pending()).map((f) => f.id), [lonely]);
-      final models = await inputs.models();
-      expect(models, hasLength(1));
-      expect(models.single.count, 1, reason: 'only the face big enough counts');
-      expect(good, isNonZero);
-    });
+        expect((await inputs.pending()).map((f) => f.id), [lonely]);
+        final models = await inputs.models();
+        expect(models, hasLength(1));
+        expect(
+          models.single.count,
+          1,
+          reason: 'only the face big enough counts',
+        );
+        expect(good, isNonZero);
+      },
+    );
 
-    test('a drawn character face is judged by the lower character bar', () async {
-      final c = await db
-          .into(db.persons)
-          .insert(
-            PersonsCompanion.insert(kind: const Value('character'), createdAt: 1),
-          );
-      final vector = Float32List(768)..[0] = 1; // CCIP size
-      final small = await seedFace(db, personId: c, embedding: vector);
-      final tiny = await seedFace(db, personId: c, embedding: vector);
-      await shrink(small, 35);
-      await shrink(tiny, 20);
-      await (db.update(db.faces)..where((f) => f.id.isIn([small, tiny]))).write(
-        const FacesCompanion(
-          kind: Value('character'),
-          modelId: Value(characterEmbeddingModelId),
-        ),
-      );
+    test(
+      'a drawn character face is judged by the lower character bar',
+      () async {
+        final c = await db
+            .into(db.persons)
+            .insert(
+              PersonsCompanion.insert(
+                kind: const Value('character'),
+                createdAt: 1,
+              ),
+            );
+        final vector = Float32List(768)..[0] = 1; // CCIP size
+        final small = await seedFace(db, personId: c, embedding: vector);
+        final tiny = await seedFace(db, personId: c, embedding: vector);
+        await shrink(small, 35);
+        await shrink(tiny, 20);
+        await (db.update(
+          db.faces,
+        )..where((f) => f.id.isIn([small, tiny]))).write(
+          const FacesCompanion(
+            kind: Value('character'),
+            modelId: Value(characterEmbeddingModelId),
+          ),
+        );
 
-      final models = await GroupingInputs(db, kind: 'character').models();
+        final models = await GroupingInputs(db, kind: 'character').models();
 
-      expect(models.single.count, 1);
-    });
+        expect(models.single.count, 1);
+      },
+    );
   });
 
   group('person models', () {
@@ -298,9 +321,19 @@ void main() {
 
       final sara = await seedPerson(db);
       for (var i = 0; i < 8; i++) {
-        await seedFace(db, personId: sara, embedding: dir(0, 10 + i, 0.2), quality: 0.7);
+        await seedFace(
+          db,
+          personId: sara,
+          embedding: dir(0, 10 + i, 0.2),
+          quality: 0.7,
+        );
       }
-      await seedFace(db, personId: sara, embedding: dir(300), quality: 0.95); // not her
+      await seedFace(
+        db,
+        personId: sara,
+        embedding: dir(300),
+        quality: 0.95,
+      ); // not her
 
       final model = (await inputs.models()).single;
 
@@ -314,33 +347,53 @@ void main() {
       expect(model.members.every((m) => m[300].abs() < 0.01), isTrue);
     });
 
-    test('a person with many faces keeps profiles among the members, not only the sharpest', () async {
-      final sara = await seedPerson(db);
-      Float32List mix(int main, int other, double w) {
-        final v = Float32List(512)
-          ..[main] = 1
-          ..[other] = w;
-        var s = 0.0;
-        for (final x in v) {
-          s += x * x;
+    test(
+      'a person with many faces keeps profiles among the members, not only the sharpest',
+      () async {
+        final sara = await seedPerson(db);
+        Float32List mix(int main, int other, double w) {
+          final v = Float32List(512)
+            ..[main] = 1
+            ..[other] = w;
+          var s = 0.0;
+          for (final x in v) {
+            s += x * x;
+          }
+          final n = math.sqrt(s);
+          return Float32List.fromList([for (final x in v) x / n]);
         }
-        final n = math.sqrt(s);
-        return Float32List.fromList([for (final x in v) x / n]);
-      }
 
-      for (var i = 0; i < 40; i++) {
-        await seedFace(db, personId: sara, embedding: mix(0, 1 + (i % 3), 0.9), quality: 0.9);
-      }
-      for (var i = 0; i < 12; i++) {
-        await seedFace(db, personId: sara, embedding: mix(0, 100 + i, 0.9), quality: 0.3); // other looks, each its own
-      }
+        for (var i = 0; i < 40; i++) {
+          await seedFace(
+            db,
+            personId: sara,
+            embedding: mix(0, 1 + (i % 3), 0.9),
+            quality: 0.9,
+          );
+        }
+        for (var i = 0; i < 12; i++) {
+          await seedFace(
+            db,
+            personId: sara,
+            embedding: mix(0, 100 + i, 0.9),
+            quality: 0.3,
+          ); // other looks, each its own
+        }
 
-      final model = (await inputs.models(cap: 20)).single;
+        final model = (await inputs.models(cap: 20)).single;
 
-      expect(model.members, hasLength(20));
-      final unusual = model.members.where((m) => m.sublist(100, 112).any((x) => x.abs() > 0.1));
-      expect(unusual, isNotEmpty, reason: 'the unusual looks are represented, not only the sharpest faces');
-    });
+        expect(model.members, hasLength(20));
+        final unusual = model.members.where(
+          (m) => m.sublist(100, 112).any((x) => x.abs() > 0.1),
+        );
+        expect(
+          unusual,
+          isNotEmpty,
+          reason:
+              'the unusual looks are represented, not only the sharpest faces',
+        );
+      },
+    );
   });
 
   group('reface sources', () {
@@ -379,7 +432,12 @@ void main() {
       }
       final profiles = <int>[];
       for (final (i, yaw) in [50.0, -50.0, 30.0].indexed) {
-        final f = await seedFace(db, personId: sara, seed: 20 + i, quality: 0.6);
+        final f = await seedFace(
+          db,
+          personId: sara,
+          seed: 20 + i,
+          quality: 0.6,
+        );
         await (db.update(db.faces)..where((x) => x.id.equals(f))).write(
           FacesCompanion(yaw: Value(yaw), pitch: const Value(0)),
         );
@@ -396,67 +454,85 @@ void main() {
         picked.map((f) => f.id).toSet().intersection(profiles.take(2).toSet()),
         hasLength(2),
       );
-      expect(picked.where((f) => (f.yaw ?? 0).abs() < 10), hasLength(lessThan(4)));
+      expect(
+        picked.where((f) => (f.yaw ?? 0).abs() < 10),
+        hasLength(lessThan(4)),
+      );
     });
   });
 
   group('request size', () {
-    test('the per-person member cap shrinks in a big library so the request stays under the PC limit', () {
-      expect(effectiveMemberCap(50), 100);
-      expect(effectiveMemberCap(360), 100);
-      expect(effectiveMemberCap(800), 45); // 36000 / 800
-      expect(effectiveMemberCap(5000), groupingMinMemberCap);
-      expect(effectiveMemberCap(0), 100);
-      for (final people in [10, 400, 1000, 3000]) {
-        final members = people * effectiveMemberCap(people);
-        // 2.7 KB of base64 per vector, uncompressed JSON: under 128 MB on the wire even before gzip
-        expect(members * 2732 / 1048576, lessThan(128 * 1.0 + (people > 1000 ? 200 : 0)));
-      }
-    });
+    test(
+      'the per-person member cap shrinks in a big library so the request stays under the PC limit',
+      () {
+        expect(effectiveMemberCap(50), 100);
+        expect(effectiveMemberCap(360), 100);
+        expect(effectiveMemberCap(800), 45); // 36000 / 800
+        expect(effectiveMemberCap(5000), groupingMinMemberCap);
+        expect(effectiveMemberCap(0), 100);
+        for (final people in [10, 400, 1000, 3000]) {
+          final members = people * effectiveMemberCap(people);
+          // 2.7 KB of base64 per vector, uncompressed JSON: under 128 MB on the wire even before gzip
+          expect(
+            members * 2732 / 1048576,
+            lessThan(128 * 1.0 + (people > 1000 ? 200 : 0)),
+          );
+        }
+      },
+    );
   });
 
   group('mixed embedding models', () {
-    test('faces from another model are left out of grouping once the library has a model', () async {
-      final sara = await seedPerson(db);
-      final mine = await seedFace(db, personId: sara, seed: 1);
-      final foreign = await seedFace(db, personId: sara, seed: 2);
-      final loose = await seedFace(db, seed: 3);
-      final looseForeign = await seedFace(db, seed: 4);
-      for (final id in [foreign, looseForeign]) {
-        await (db.update(db.faces)..where((f) => f.id.equals(id))).write(
-          const FacesCompanion(modelId: Value('antelopev2@1')),
+    test(
+      'faces from another model are left out of grouping once the library has a model',
+      () async {
+        final sara = await seedPerson(db);
+        final mine = await seedFace(db, personId: sara, seed: 1);
+        final foreign = await seedFace(db, personId: sara, seed: 2);
+        final loose = await seedFace(db, seed: 3);
+        final looseForeign = await seedFace(db, seed: 4);
+        for (final id in [foreign, looseForeign]) {
+          await (db.update(db.faces)..where((f) => f.id.equals(id))).write(
+            const FacesCompanion(modelId: Value('antelopev2@1')),
+          );
+        }
+
+        // no model recorded yet: nothing is filtered
+        expect(
+          (await inputs.pending()).map((f) => f.id),
+          containsAll([loose, looseForeign]),
         );
-      }
+        expect((await inputs.models()).single.count, 2);
 
-      // no model recorded yet: nothing is filtered
-      expect((await inputs.pending()).map((f) => f.id), containsAll([loose, looseForeign]));
-      expect((await inputs.models()).single.count, 2);
+        await db.putSetting('library.model_id', 'buffalo_l@1');
 
-      await db.putSetting('library.model_id', 'buffalo_l@1');
-
-      expect((await inputs.pending()).map((f) => f.id), [loose]);
-      expect((await inputs.models()).single.count, 1);
-      expect(mine, isNonZero);
-    });
+        expect((await inputs.pending()).map((f) => f.id), [loose]);
+        expect((await inputs.models()).single.count, 1);
+        expect(mine, isNonZero);
+      },
+    );
   });
 
   group('damaged data cannot stop grouping', () {
-    test('a face with a wrong-sized or non-finite vector is left out', () async {
-      final sara = await seedPerson(db);
-      await seedFace(db, personId: sara, seed: 1);
-      final broken = await seedFace(db, seed: 2);
-      final nan = await seedFace(db, seed: 3);
-      final fine = await seedFace(db, seed: 4);
-      await (db.update(db.faces)..where((f) => f.id.equals(broken))).write(
-        FacesCompanion(embedding: Value(Uint8List(12))),
-      );
-      final bad = Float32List(512)..[0] = double.nan;
-      await (db.update(db.faces)..where((f) => f.id.equals(nan))).write(
-        FacesCompanion(embedding: Value(bad.buffer.asUint8List())),
-      );
+    test(
+      'a face with a wrong-sized or non-finite vector is left out',
+      () async {
+        final sara = await seedPerson(db);
+        await seedFace(db, personId: sara, seed: 1);
+        final broken = await seedFace(db, seed: 2);
+        final nan = await seedFace(db, seed: 3);
+        final fine = await seedFace(db, seed: 4);
+        await (db.update(db.faces)..where((f) => f.id.equals(broken))).write(
+          FacesCompanion(embedding: Value(Uint8List(12))),
+        );
+        final bad = Float32List(512)..[0] = double.nan;
+        await (db.update(db.faces)..where((f) => f.id.equals(nan))).write(
+          FacesCompanion(embedding: Value(bad.buffer.asUint8List())),
+        );
 
-      expect((await inputs.pending()).map((f) => f.id), [fine]);
-      expect(await inputs.models(), hasLength(1));
-    });
+        expect((await inputs.pending()).map((f) => f.id), [fine]);
+        expect(await inputs.models(), hasLength(1));
+      },
+    );
   });
 }

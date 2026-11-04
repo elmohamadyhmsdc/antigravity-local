@@ -66,10 +66,7 @@ void main() {
         ),
       ],
       equipmentObjects: const [
-        SidecarEquipmentObject(
-          label: 'backpack',
-          bbox: [0.1, 0.2, 0.3, 0.4],
-        ),
+        SidecarEquipmentObject(label: 'backpack', bbox: [0.1, 0.2, 0.3, 0.4]),
       ],
     );
 

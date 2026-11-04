@@ -141,7 +141,9 @@ class SidecarFace {
     faceId: (json['face_id'] as num?)?.toInt(),
     personId: (json['person_id'] as num?)?.toInt(),
     personName: json['person_name'] as String?,
-    bbox: [for (final n in (json['bbox'] as List? ?? [])) (n as num).toDouble()],
+    bbox: [
+      for (final n in (json['bbox'] as List? ?? [])) (n as num).toDouble(),
+    ],
     quality: (json['quality'] as num?)?.toDouble() ?? 1.0,
     yaw: (json['yaw'] as num?)?.toDouble() ?? 0.0,
     pitch: (json['pitch'] as num?)?.toDouble() ?? 0.0,
@@ -188,7 +190,9 @@ class SidecarBody {
     bodyId: (json['body_id'] as num?)?.toInt(),
     personId: (json['person_id'] as num?)?.toInt(),
     personName: json['person_name'] as String?,
-    bbox: [for (final n in (json['bbox'] as List? ?? [])) (n as num).toDouble()],
+    bbox: [
+      for (final n in (json['bbox'] as List? ?? [])) (n as num).toDouble(),
+    ],
     keypoints: [
       for (final pt in (json['keypoints'] as List? ?? []))
         [for (final v in (pt as List)) (v as num).toDouble()],
@@ -239,18 +243,12 @@ class SidecarSensitiveRegion {
 }
 
 class SidecarEquipmentObject {
-  const SidecarEquipmentObject({
-    required this.label,
-    required this.bbox,
-  });
+  const SidecarEquipmentObject({required this.label, required this.bbox});
 
   final String label;
   final List<double> bbox;
 
-  Map<String, dynamic> toJson() => {
-    'label': label,
-    'bbox': bbox,
-  };
+  Map<String, dynamic> toJson() => {'label': label, 'bbox': bbox};
 
   factory SidecarEquipmentObject.fromJson(Map<String, dynamic> json) =>
       SidecarEquipmentObject(

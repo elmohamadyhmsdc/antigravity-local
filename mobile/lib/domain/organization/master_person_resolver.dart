@@ -14,11 +14,15 @@ class MasterPersonResolver {
   }) {
     if (candidates.isEmpty) return null;
     if (explicitChoice != null) {
-      final chosen = candidates.where((p) => p.id == explicitChoice).firstOrNull;
+      final chosen = candidates
+          .where((p) => p.id == explicitChoice)
+          .firstOrNull;
       if (chosen != null) return chosen;
     }
 
-    final organized = candidates.where((p) => organizedPersonIds.contains(p.id)).toList();
+    final organized = candidates
+        .where((p) => organizedPersonIds.contains(p.id))
+        .toList();
     if (organized.isNotEmpty) {
       return organized.first;
     }
@@ -34,7 +38,9 @@ class MasterPersonResolver {
   }) {
     if (candidates.isEmpty) return null;
     if (explicitChoice != null) {
-      final chosen = candidates.where((p) => p.id == explicitChoice).firstOrNull;
+      final chosen = candidates
+          .where((p) => p.id == explicitChoice)
+          .firstOrNull;
       if (chosen != null) return chosen;
     }
 

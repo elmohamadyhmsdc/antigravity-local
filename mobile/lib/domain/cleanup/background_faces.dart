@@ -77,13 +77,17 @@ class BackgroundFaces {
   /// Undo: the faces are visible (and counted) again.
   Future<void> restore(Iterable<int> ids) => _set(ids, false);
 
-  Future<void> _set(Iterable<int> ids, bool hidden) => _db.transaction(() async {
-    final all = ids.toList();
-    for (var i = 0; i < all.length; i += 500) {
-      final chunk = all.sublist(i, i + 500 > all.length ? all.length : i + 500);
-      await (_db.update(_db.faces)..where((f) => f.id.isIn(chunk))).write(
-        FacesCompanion(hidden: Value(hidden)),
-      );
-    }
-  });
+  Future<void> _set(Iterable<int> ids, bool hidden) =>
+      _db.transaction(() async {
+        final all = ids.toList();
+        for (var i = 0; i < all.length; i += 500) {
+          final chunk = all.sublist(
+            i,
+            i + 500 > all.length ? all.length : i + 500,
+          );
+          await (_db.update(_db.faces)..where((f) => f.id.isIn(chunk))).write(
+            FacesCompanion(hidden: Value(hidden)),
+          );
+        }
+      });
 }

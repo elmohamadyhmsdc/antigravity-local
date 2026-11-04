@@ -303,7 +303,9 @@ class PersonDetailScreen extends ConsumerWidget {
     if (action == null || !context.mounted) return;
     switch (action) {
       case 'curateLora':
-        context.push('${Routes.studioCuration}/$personId?name=${Uri.encodeComponent(personName(l, p))}');
+        context.push(
+          '${Routes.studioCuration}/$personId?name=${Uri.encodeComponent(personName(l, p))}',
+        );
       case 'rename':
         await _rename(context, ref, p);
       case 'merge':

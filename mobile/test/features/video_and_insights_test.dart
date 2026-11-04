@@ -24,9 +24,9 @@ void main() {
     );
     // /insights now redirects to Settings > Library (docs/app_screens_v2/07_migration_map.md), so the
     // screen is opened directly: what is under test is that it reads local data without the PC
-    Navigator.of(tester.element(find.byType(Scaffold).first)).push(
-      MaterialPageRoute<void>(builder: (_) => const InsightsScreen()),
-    );
+    Navigator.of(
+      tester.element(find.byType(Scaffold).first),
+    ).push(MaterialPageRoute<void>(builder: (_) => const InsightsScreen()));
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
     expect(find.text('Library insights'), findsOneWidget);

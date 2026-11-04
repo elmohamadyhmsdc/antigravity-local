@@ -57,7 +57,11 @@ class CharacterRepository {
     final overrides = await (db.select(
       db.bodyOverrides,
     )..where((o) => o.assetId.equals(media.assetId))).get();
-    for (var characterIndex = 0; characterIndex < analysis.characters.length; characterIndex++) {
+    for (
+      var characterIndex = 0;
+      characterIndex < analysis.characters.length;
+      characterIndex++
+    ) {
       final c = analysis.characters[characterIndex];
       int? faceId;
       final face = c.face;

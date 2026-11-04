@@ -19,13 +19,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 class FakeOrganizerBridge implements MediaOrganizerBridge {
   @override
-  Future<List<OriginalMediaInfo>> inspect(List<OrganizeAsset> assets) async => [];
+  Future<List<OriginalMediaInfo>> inspect(List<OrganizeAsset> assets) async =>
+      [];
 
   @override
-  Future<List<OriginalMoveResult>> preflight(List<OriginalMediaMove> moves) async => [];
+  Future<List<OriginalMoveResult>> preflight(
+    List<OriginalMediaMove> moves,
+  ) async => [];
 
   @override
-  Future<List<OriginalMoveResult>> move(List<OriginalMediaMove> moves) async => [];
+  Future<List<OriginalMoveResult>> move(List<OriginalMediaMove> moves) async =>
+      [];
 }
 
 class SpyAutoOrganizer extends DynamicAutoOrganizer {
@@ -78,118 +82,151 @@ void main() {
     tmp.deleteSync(recursive: true);
   });
 
-  test('CorrectionService.apply triggers DynamicAutoOrganizer on reassignment', () async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final peopleRepo = PeopleRepository(db, files);
-    final bodyLinkGuard = BodyLinkGuard(db);
-    final service = CorrectionService(
-      db: db,
-      peopleRepo: peopleRepo,
-      bodyLinkGuard: bodyLinkGuard,
-      autoOrganizer: spyAutoOrganizer,
-    );
+  test(
+    'CorrectionService.apply triggers DynamicAutoOrganizer on reassignment',
+    () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final peopleRepo = PeopleRepository(db, files);
+      final bodyLinkGuard = BodyLinkGuard(db);
+      final service = CorrectionService(
+        db: db,
+        peopleRepo: peopleRepo,
+        bodyLinkGuard: bodyLinkGuard,
+        autoOrganizer: spyAutoOrganizer,
+      );
 
-    final pA = await db.into(db.persons).insert(
-      PersonsCompanion.insert(name: const Value('Person A'), createdAt: now),
-    );
-    final pB = await db.into(db.persons).insert(
-      PersonsCompanion.insert(name: const Value('Person B'), createdAt: now),
-    );
+      final pA = await db
+          .into(db.persons)
+          .insert(
+            PersonsCompanion.insert(
+              name: const Value('Person A'),
+              createdAt: now,
+            ),
+          );
+      final pB = await db
+          .into(db.persons)
+          .insert(
+            PersonsCompanion.insert(
+              name: const Value('Person B'),
+              createdAt: now,
+            ),
+          );
 
-    final mediaId = await db.into(db.media).insert(
-      MediaCompanion.insert(
-        assetId: 'asset_hook_1',
-        kind: 'photo',
-        scanStatus: const Value('done'),
-        scanVersion: const Value(5),
-      ),
-    );
+      final mediaId = await db
+          .into(db.media)
+          .insert(
+            MediaCompanion.insert(
+              assetId: 'asset_hook_1',
+              kind: 'photo',
+              scanStatus: const Value('done'),
+              scanVersion: const Value(5),
+            ),
+          );
 
-    final faceId = await db.into(db.faces).insert(
-      FacesCompanion.insert(
-        mediaId: Value(mediaId),
-        personId: Value(pA),
+      final faceId = await db
+          .into(db.faces)
+          .insert(
+            FacesCompanion.insert(
+              mediaId: Value(mediaId),
+              personId: Value(pA),
+              modelId: 'buffalo_l',
+              embedding: Uint8List(512 * 4),
+              qualityScore: 0.9,
+              qualityVersion: 1,
+              detScore: 0.95,
+              facePx: 120.0,
+              sharpness: 50.0,
+              bboxX: 0.1,
+              bboxY: 0.1,
+              bboxW: 0.3,
+              bboxH: 0.3,
+              createdAt: now,
+            ),
+          );
+
+      await service.apply(
+        FaceLinkTarget(faceId: faceId, mediaId: mediaId, personId: pA),
+        CorrectionVerb.reassign,
+        targetPersonId: pB,
+      );
+
+      expect(spyAutoOrganizer.syncedMediaIds, contains(mediaId));
+    },
+  );
+
+  test(
+    'PeopleRepository.setPersonGroup and mergePeople trigger DynamicAutoOrganizer',
+    () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final peopleRepo = PeopleRepository(
+        db,
+        files,
+        autoOrganizer: spyAutoOrganizer,
+      );
+
+      final groupId = await db
+          .into(db.identityGroups)
+          .insert(
+            IdentityGroupsCompanion.insert(
+              name: 'Family',
+              nameKey: 'family',
+              createdAt: now,
+            ),
+          );
+
+      final p1 = await db
+          .into(db.persons)
+          .insert(
+            PersonsCompanion.insert(name: const Value('Luffy'), createdAt: now),
+          );
+      final p2 = await db
+          .into(db.persons)
+          .insert(
+            PersonsCompanion.insert(name: const Value('Zoro'), createdAt: now),
+          );
+
+      await peopleRepo.setPersonGroup(p1, groupId);
+      expect(spyAutoOrganizer.syncedPersonGroupIds, contains(p1));
+
+      await peopleRepo.mergePeople(sourceId: p2, targetId: p1);
+      expect(spyAutoOrganizer.syncedPersonGroupIds, contains(p1));
+    },
+  );
+
+  test(
+    'PhotoResultStore.store triggers auto-move if autoOrganizer is provided',
+    () async {
+      final store = PhotoResultStore(
+        db: db,
+        files: files,
+        index: index,
+        autoOrganizer: spyAutoOrganizer,
+      );
+
+      final mediaId = await db
+          .into(db.media)
+          .insert(
+            MediaCompanion.insert(
+              assetId: 'asset_scan_1',
+              kind: 'photo',
+              scanStatus: const Value('pending'),
+            ),
+          );
+      final media = await (db.select(
+        db.media,
+      )..where((m) => m.id.equals(mediaId))).getSingle();
+
+      final analysis = AnalyzeImageResponse(
+        imageW: 1000,
+        imageH: 1000,
         modelId: 'buffalo_l',
-        embedding: Uint8List(512 * 4),
-        qualityScore: 0.9,
-        qualityVersion: 1,
-        detScore: 0.95,
-        facePx: 120.0,
-        sharpness: 50.0,
-        bboxX: 0.1,
-        bboxY: 0.1,
-        bboxW: 0.3,
-        bboxH: 0.3,
-        createdAt: now,
-      ),
-    );
+        faces: const [],
+        bodies: const [],
+        pairs: const [],
+      );
 
-    await service.apply(
-      FaceLinkTarget(faceId: faceId, mediaId: mediaId, personId: pA),
-      CorrectionVerb.reassign,
-      targetPersonId: pB,
-    );
-
-    expect(spyAutoOrganizer.syncedMediaIds, contains(mediaId));
-  });
-
-  test('PeopleRepository.setPersonGroup and mergePeople trigger DynamicAutoOrganizer', () async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final peopleRepo = PeopleRepository(
-      db,
-      files,
-      autoOrganizer: spyAutoOrganizer,
-    );
-
-    final groupId = await db.into(db.identityGroups).insert(
-      IdentityGroupsCompanion.insert(
-        name: 'Family',
-        nameKey: 'family',
-        createdAt: now,
-      ),
-    );
-
-    final p1 = await db.into(db.persons).insert(
-      PersonsCompanion.insert(name: const Value('Luffy'), createdAt: now),
-    );
-    final p2 = await db.into(db.persons).insert(
-      PersonsCompanion.insert(name: const Value('Zoro'), createdAt: now),
-    );
-
-    await peopleRepo.setPersonGroup(p1, groupId);
-    expect(spyAutoOrganizer.syncedPersonGroupIds, contains(p1));
-
-    await peopleRepo.mergePeople(sourceId: p2, targetId: p1);
-    expect(spyAutoOrganizer.syncedPersonGroupIds, contains(p1));
-  });
-
-  test('PhotoResultStore.store triggers auto-move if autoOrganizer is provided', () async {
-    final store = PhotoResultStore(
-      db: db,
-      files: files,
-      index: index,
-      autoOrganizer: spyAutoOrganizer,
-    );
-
-    final mediaId = await db.into(db.media).insert(
-      MediaCompanion.insert(
-        assetId: 'asset_scan_1',
-        kind: 'photo',
-        scanStatus: const Value('pending'),
-      ),
-    );
-    final media = await (db.select(db.media)..where((m) => m.id.equals(mediaId))).getSingle();
-
-    final analysis = AnalyzeImageResponse(
-      imageW: 1000,
-      imageH: 1000,
-      modelId: 'buffalo_l',
-      faces: const [],
-      bodies: const [],
-      pairs: const [],
-    );
-
-    await store.store(media, analysis);
-    expect(spyAutoOrganizer.syncedMediaIds, contains(mediaId));
-  });
+      await store.store(media, analysis);
+      expect(spyAutoOrganizer.syncedMediaIds, contains(mediaId));
+    },
+  );
 }

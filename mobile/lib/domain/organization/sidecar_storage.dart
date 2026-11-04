@@ -15,7 +15,9 @@ class SidecarStorage {
     if (!await parent.exists()) {
       await parent.create(recursive: true);
     }
-    final content = const JsonEncoder.withIndent('  ').convert(metadata.toJson());
+    final content = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(metadata.toJson());
     return file.writeAsString(content, flush: true);
   }
 

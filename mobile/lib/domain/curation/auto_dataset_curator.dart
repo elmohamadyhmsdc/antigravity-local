@@ -111,7 +111,9 @@ class AutoDatasetCurator {
   double scoreCandidate(CurationCandidate c) {
     switch (c.category) {
       case CurationCategory.face:
-        final angleWeight = c.yaw != null ? (1.0 - (c.yaw!.abs() / 180.0)) : 0.8;
+        final angleWeight = c.yaw != null
+            ? (1.0 - (c.yaw!.abs() / 180.0))
+            : 0.8;
         // size: 80 px (the least we train on) .. 256 px and up; the box share only when the size is unknown
         final size = c.facePx == null
             ? c.boxArea
@@ -127,7 +129,9 @@ class AutoDatasetCurator {
           if (c.hasExposedRegion) {
             score += 100.0; // Top Tier: sensitive/exposed regions detected
           } else if (c.skinRatio > 0.4) {
-            score += 50.0 + (c.skinRatio * 30.0); // High Tier: swimwear / light clothes
+            score +=
+                50.0 +
+                (c.skinRatio * 30.0); // High Tier: swimwear / light clothes
           } else if (c.skinRatio > 0.2) {
             score += 30.0 + (c.skinRatio * 20.0);
           }
@@ -141,7 +145,9 @@ class AutoDatasetCurator {
     }
   }
 
-  List<CurationCandidate> deduplicateVideoFrames(List<CurationCandidate> candidates) {
+  List<CurationCandidate> deduplicateVideoFrames(
+    List<CurationCandidate> candidates,
+  ) {
     final nonVideo = candidates.where((c) => !c.isVideo).toList();
     final videoByMedia = <int, List<CurationCandidate>>{};
     for (final c in candidates.where((c) => c.isVideo)) {
@@ -211,7 +217,11 @@ class AutoDatasetCurator {
         }
         final cos = na > 0 && nb > 0 ? dot / math.sqrt(na * nb) : 0.0;
         // near-identical vectors (same expression, same light): the same picture, whoever the photo is
-        if (cos >= 0.85) sim = math.max(sim, ((cos - 0.85) / 0.15).clamp(0.0, 1.0) * 0.5 + 0.5);
+        if (cos >= 0.85)
+          sim = math.max(
+            sim,
+            ((cos - 0.85) / 0.15).clamp(0.0, 1.0) * 0.5 + 0.5,
+          );
       }
       if (a.yaw == null || b.yaw == null) return math.max(sim, 0.5);
       final dy = (a.yaw! - b.yaw!).abs() / 90;
@@ -269,7 +279,9 @@ class AutoDatasetCurator {
 
     return CurationResult(
       faces: _pick(
-        of(CurationCategory.face).where((c) => c.quality >= minFaceQuality).toList(),
+        of(
+          CurationCategory.face,
+        ).where((c) => c.quality >= minFaceQuality).toList(),
         targetFaceCount,
       ),
       upper: _pick(of(CurationCategory.upper), targetUpperCount),

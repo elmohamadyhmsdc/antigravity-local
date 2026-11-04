@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Talks to the user's own PC over the LAN (HTTPS with a pinned certificate). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Optional "Media management apps" access (Android 12+): lets the app move photos into person folders
+         without a system confirmation sheet each time. The user grants it once in system settings. -->
+    <uses-permission android:name="android.permission.MANAGE_MEDIA"/>
     <!-- S02 asks for these with an explanation first; every one is optional. -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>

@@ -38,65 +38,70 @@ void main() {
     }
   });
 
-  test('syncAssets automatically ingests sidecars and marks media done without pending scan', () async {
-    final mediaFile = File('${tempDir.path}/Luffy_0001.jpg');
-    await mediaFile.writeAsBytes([1, 2, 3]);
+  test(
+    'syncAssets automatically ingests sidecars and marks media done without pending scan',
+    () async {
+      final mediaFile = File('${tempDir.path}/Luffy_0001.jpg');
+      await mediaFile.writeAsBytes([1, 2, 3]);
 
-    final metadata = SidecarMetadata(
-      version: 1,
-      assetId: 'asset_sidecar_1',
-      mediaInfo: const SidecarMediaInfo(
+      final metadata = SidecarMetadata(
+        version: 1,
+        assetId: 'asset_sidecar_1',
+        mediaInfo: const SidecarMediaInfo(
+          kind: 'photo',
+          width: 1200,
+          height: 1600,
+          modifiedAt: 1700000000000,
+          takenAt: 1700000000000,
+        ),
+        ownership: const SidecarOwnership(
+          groupName: 'StrawHats',
+          masterPersonName: 'Luffy',
+        ),
+        faces: [
+          SidecarFace(
+            personName: 'Luffy',
+            bbox: const [0.2, 0.2, 0.4, 0.4],
+            quality: 0.98,
+            embeddingModel: 'buffalo_l',
+            embedding: Float32List.fromList(List.filled(512, 0.1)),
+          ),
+        ],
+        bodies: const [],
+      );
+
+      // Write sidecar JSON on disk
+      await sidecarStorage.writeSidecar(mediaFile.path, metadata);
+
+      const asset = AssetInfo(
+        id: 'asset_sidecar_1',
         kind: 'photo',
-        width: 1200,
-        height: 1600,
         modifiedAt: 1700000000000,
         takenAt: 1700000000000,
-      ),
-      ownership: const SidecarOwnership(
-        groupName: 'StrawHats',
-        masterPersonName: 'Luffy',
-      ),
-      faces: [
-        SidecarFace(
-          personName: 'Luffy',
-          bbox: const [0.2, 0.2, 0.4, 0.4],
-          quality: 0.98,
-          embeddingModel: 'buffalo_l',
-          embedding: Float32List.fromList(List.filled(512, 0.1)),
-        ),
-      ],
-      bodies: const [],
-    );
+        width: 1200,
+        height: 1600,
+      );
 
-    // Write sidecar JSON on disk
-    await sidecarStorage.writeSidecar(mediaFile.path, metadata);
+      // Call syncAssets passing the known media file path
+      final result = await repo.syncAssets(
+        [asset],
+        assetPaths: {'asset_sidecar_1': mediaFile.path},
+      );
 
-    const asset = AssetInfo(
-      id: 'asset_sidecar_1',
-      kind: 'photo',
-      modifiedAt: 1700000000000,
-      takenAt: 1700000000000,
-      width: 1200,
-      height: 1600,
-    );
+      expect(result.restored, 1);
 
-    // Call syncAssets passing the known media file path
-    final result = await repo.syncAssets(
-      [asset],
-      assetPaths: {'asset_sidecar_1': mediaFile.path},
-    );
+      // Verify DB media row
+      final row = await repo.mediaByAssetId('asset_sidecar_1');
+      expect(row, isNotNull);
+      expect(row!.scanStatus, 'done');
+      expect(row.width, 1200);
 
-    expect(result.restored, 1);
-
-    // Verify DB media row
-    final row = await repo.mediaByAssetId('asset_sidecar_1');
-    expect(row, isNotNull);
-    expect(row!.scanStatus, 'done');
-    expect(row.width, 1200);
-
-    // Verify Person created and Index fed
-    final person = await (db.select(db.persons)..where((p) => p.name.equals('Luffy'))).getSingle();
-    expect(person.name, 'Luffy');
-    expect(await index.size(), 1);
-  });
+      // Verify Person created and Index fed
+      final person = await (db.select(
+        db.persons,
+      )..where((p) => p.name.equals('Luffy'))).getSingle();
+      expect(person.name, 'Luffy');
+      expect(await index.size(), 1);
+    },
+  );
 }

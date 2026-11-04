@@ -616,41 +616,59 @@ void main() {
         );
       },
     );
-    test('v19 -> v20 adds the face confirmations and the "are you sure?" list, keeping every row', () async {
-      final file = File(p.join(dir.path, 'v19.db'));
-      final before = AppDatabase(NativeDatabase(file));
-      await before
-          .into(before.persons)
-          .insert(PersonsCompanion.insert(name: const Value('Keep'), createdAt: 1));
-      await _addFace(before);
-      await before.close();
-      final legacy = raw.sqlite3.open(file.path);
-      legacy.execute(
-        'DROP TABLE review_doubtful; DROP TABLE face_confirmations; PRAGMA user_version = 19;',
-      );
-      legacy.close();
+    test(
+      'v19 -> v20 adds the face confirmations and the "are you sure?" list, keeping every row',
+      () async {
+        final file = File(p.join(dir.path, 'v19.db'));
+        final before = AppDatabase(NativeDatabase(file));
+        await before
+            .into(before.persons)
+            .insert(
+              PersonsCompanion.insert(name: const Value('Keep'), createdAt: 1),
+            );
+        await _addFace(before);
+        await before.close();
+        final legacy = raw.sqlite3.open(file.path);
+        legacy.execute(
+          'DROP TABLE review_doubtful; DROP TABLE face_confirmations; PRAGMA user_version = 19;',
+        );
+        legacy.close();
 
-      final after = AppDatabase(NativeDatabase(file));
-      addTearDown(after.close);
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
 
-      expect((await after.select(after.persons).getSingle()).name, 'Keep');
-      final face = (await after.select(after.faces).getSingle()).id;
-      await after
-          .into(after.faceConfirmations)
-          .insert(FaceConfirmationsCompanion.insert(faceId: Value(face), personId: 1, confirmedAt: 5));
-      await after
-          .into(after.reviewDoubtful)
-          .insert(ReviewDoubtfulCompanion.insert(faceId: Value(face), personId: 1, score: 0.2));
-      expect(await after.select(after.faceConfirmations).get(), hasLength(1));
-      // both follow the face when it goes
-      await (after.delete(after.faces)..where((f) => f.id.equals(face))).go();
-      expect(await after.select(after.faceConfirmations).get(), isEmpty);
-      expect(await after.select(after.reviewDoubtful).get(), isEmpty);
-      expect(
-        (await after.customSelect('PRAGMA user_version').getSingle()).read<int>('user_version'),
-        AppDatabase.currentSchemaVersion,
-      );
-    });
+        expect((await after.select(after.persons).getSingle()).name, 'Keep');
+        final face = (await after.select(after.faces).getSingle()).id;
+        await after
+            .into(after.faceConfirmations)
+            .insert(
+              FaceConfirmationsCompanion.insert(
+                faceId: Value(face),
+                personId: 1,
+                confirmedAt: 5,
+              ),
+            );
+        await after
+            .into(after.reviewDoubtful)
+            .insert(
+              ReviewDoubtfulCompanion.insert(
+                faceId: Value(face),
+                personId: 1,
+                score: 0.2,
+              ),
+            );
+        expect(await after.select(after.faceConfirmations).get(), hasLength(1));
+        // both follow the face when it goes
+        await (after.delete(after.faces)..where((f) => f.id.equals(face))).go();
+        expect(await after.select(after.faceConfirmations).get(), isEmpty);
+        expect(await after.select(after.reviewDoubtful).get(), isEmpty);
+        expect(
+          (await after.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          AppDatabase.currentSchemaVersion,
+        );
+      },
+    );
     test(
       'v8 upgrade preserves people and faces with visible unlocked defaults',
       () async {

@@ -9,10 +9,7 @@ import '../../data/repositories/library_repository.dart' show scanVersion;
 import 'sidecar_metadata.dart';
 
 class SidecarIngestionService {
-  const SidecarIngestionService({
-    required this.db,
-    required this.index,
-  });
+  const SidecarIngestionService({required this.db, required this.index});
 
   final AppDatabase db;
   final EmbeddingIndex index;
@@ -25,13 +22,15 @@ class SidecarIngestionService {
       int? localGroupId;
       final groupName = meta.ownership.groupName?.trim();
       if (groupName != null && groupName.isNotEmpty) {
-        final existingGroup = await (db.select(db.identityGroups)
-              ..where((g) => g.name.equals(groupName)))
-            .getSingleOrNull();
+        final existingGroup = await (db.select(
+          db.identityGroups,
+        )..where((g) => g.name.equals(groupName))).getSingleOrNull();
         if (existingGroup != null) {
           localGroupId = existingGroup.id;
         } else {
-          localGroupId = await db.into(db.identityGroups).insert(
+          localGroupId = await db
+              .into(db.identityGroups)
+              .insert(
                 IdentityGroupsCompanion.insert(
                   name: groupName,
                   nameKey: groupName.toLowerCase().trim(),
@@ -56,19 +55,22 @@ class SidecarIngestionService {
       };
 
       for (final pName in personNames) {
-        final existing = await (db.select(db.persons)
-              ..where((p) => p.name.equals(pName)))
-            .getSingleOrNull();
+        final existing = await (db.select(
+          db.persons,
+        )..where((p) => p.name.equals(pName))).getSingleOrNull();
         if (existing != null) {
           personNameToId[pName] = existing.id;
           if (localGroupId != null && existing.groupId == null) {
-            await (db.update(db.persons)..where((p) => p.id.equals(existing.id)))
+            await (db.update(db.persons)
+                  ..where((p) => p.id.equals(existing.id)))
                 .write(PersonsCompanion(groupId: Value(localGroupId)));
           }
         } else {
           final isMaster = pName == meta.ownership.masterPersonName?.trim();
           final kind = isMaster ? meta.ownership.masterPersonKind : 'person';
-          final newId = await db.into(db.persons).insert(
+          final newId = await db
+              .into(db.persons)
+              .insert(
                 PersonsCompanion.insert(
                   name: Value(pName),
                   groupId: Value(localGroupId),
@@ -82,9 +84,9 @@ class SidecarIngestionService {
 
       // 3. Upsert Media row
       int mediaId;
-      final existingMedia = await (db.select(db.media)
-            ..where((m) => m.assetId.equals(meta.assetId)))
-          .getSingleOrNull();
+      final existingMedia = await (db.select(
+        db.media,
+      )..where((m) => m.assetId.equals(meta.assetId))).getSingleOrNull();
 
       if (existingMedia != null) {
         mediaId = existingMedia.id;
@@ -100,16 +102,22 @@ class SidecarIngestionService {
           ),
         );
         // Clear old detections for clean in-place replacement
-        await (db.delete(db.mediaDetections)
-              ..where((d) => d.mediaId.equals(mediaId)))
-            .go();
-        await (db.delete(db.faces)..where((f) => f.mediaId.equals(mediaId))).go();
-        await (db.delete(db.bodies)..where((b) => b.mediaId.equals(mediaId))).go();
-        await (db.delete(db.sensitiveRegions)
-              ..where((s) => s.mediaId.equals(mediaId)))
-            .go();
+        await (db.delete(
+          db.mediaDetections,
+        )..where((d) => d.mediaId.equals(mediaId))).go();
+        await (db.delete(
+          db.faces,
+        )..where((f) => f.mediaId.equals(mediaId))).go();
+        await (db.delete(
+          db.bodies,
+        )..where((b) => b.mediaId.equals(mediaId))).go();
+        await (db.delete(
+          db.sensitiveRegions,
+        )..where((s) => s.mediaId.equals(mediaId))).go();
       } else {
-        mediaId = await db.into(db.media).insert(
+        mediaId = await db
+            .into(db.media)
+            .insert(
               MediaCompanion.insert(
                 assetId: meta.assetId,
                 kind: meta.mediaInfo.kind,
@@ -129,7 +137,8 @@ class SidecarIngestionService {
       // 4. Insert Faces and feed EmbeddingIndex
       final indexVectors = <(int, Float32List)>[];
       for (final f in meta.faces) {
-        final pName = f.personName?.trim() ??
+        final pName =
+            f.personName?.trim() ??
             (f.personId == meta.ownership.masterPersonId
                 ? meta.ownership.masterPersonName?.trim()
                 : null);
@@ -140,7 +149,9 @@ class SidecarIngestionService {
           f.embedding.lengthInBytes,
         );
 
-        final faceId = await db.into(db.faces).insert(
+        final faceId = await db
+            .into(db.faces)
+            .insert(
               FacesCompanion.insert(
                 mediaId: Value(mediaId),
                 personId: Value(pId),
@@ -164,7 +175,9 @@ class SidecarIngestionService {
             );
 
         // Record detection
-        await db.into(db.mediaDetections).insert(
+        await db
+            .into(db.mediaDetections)
+            .insert(
               MediaDetectionsCompanion.insert(
                 mediaId: mediaId,
                 kind: 'f',
@@ -185,7 +198,8 @@ class SidecarIngestionService {
 
       // 5. Insert Bodies
       for (final b in meta.bodies) {
-        final pName = b.personName?.trim() ??
+        final pName =
+            b.personName?.trim() ??
             (b.personId == meta.ownership.masterPersonId
                 ? meta.ownership.masterPersonName?.trim()
                 : null);
@@ -200,7 +214,9 @@ class SidecarIngestionService {
         final kptsStr = b.keypoints.isNotEmpty ? jsonEncode(b.keypoints) : null;
         final outlineStr = b.outline.isNotEmpty ? jsonEncode(b.outline) : null;
 
-        final bodyId = await db.into(db.bodies).insert(
+        final bodyId = await db
+            .into(db.bodies)
+            .insert(
               BodiesCompanion.insert(
                 mediaId: Value(mediaId),
                 personId: Value(pId),
@@ -217,7 +233,9 @@ class SidecarIngestionService {
             );
 
         // Record detection
-        await db.into(db.mediaDetections).insert(
+        await db
+            .into(db.mediaDetections)
+            .insert(
               MediaDetectionsCompanion.insert(
                 mediaId: mediaId,
                 kind: 'b',
@@ -233,7 +251,9 @@ class SidecarIngestionService {
 
       // 6. Insert Sensitive Regions
       for (final s in meta.sensitiveRegions) {
-        await db.into(db.sensitiveRegions).insert(
+        await db
+            .into(db.sensitiveRegions)
+            .insert(
               SensitiveRegionsCompanion.insert(
                 mediaId: mediaId,
                 label: s.label,

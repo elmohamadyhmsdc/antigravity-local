@@ -4139,6 +4139,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Move files and metadata automatically when people change groups or corrections occur';
 
   @override
+  String get moveWithoutAskingTitle => 'Move photos without asking';
+
+  @override
+  String get moveWithoutAskingOn =>
+      'Allowed. After a scan, thousands of photos move into their people\'s folders on their own, with no prompts.';
+
+  @override
+  String get moveWithoutAskingOff =>
+      'Not allowed yet. Without it Android would ask for confirmation again and again, so photos are not moved automatically. Tap, then switch on “Media management” for this app, once.';
+
+  @override
   String get saveSidecarMetadata => 'Save sidecar metadata (.json)';
 
   @override

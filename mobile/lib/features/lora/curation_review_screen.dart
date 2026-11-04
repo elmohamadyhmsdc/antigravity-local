@@ -89,7 +89,8 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
           ),
         );
 
-    if (pickedCandidates == null || pickedCandidates.isEmpty || !mounted) return;
+    if (pickedCandidates == null || pickedCandidates.isEmpty || !mounted)
+      return;
 
     final currentCat = switch (_activeCategory) {
       'face' => CurationCategory.face,
@@ -97,10 +98,9 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
       _ => CurationCategory.body,
     };
 
-    ref.read(curationControllerProvider.notifier).addItems(
-      pickedCandidates,
-      currentCat,
-    );
+    ref
+        .read(curationControllerProvider.notifier)
+        .addItems(pickedCandidates, currentCat);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -150,7 +150,9 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
       for (final c in state.all) {
         File? file;
         if (mediaLib is OriginalMediaLibrary) {
-          file = await (mediaLib as OriginalMediaLibrary).originalFile(c.assetId);
+          file = await (mediaLib as OriginalMediaLibrary).originalFile(
+            c.assetId,
+          );
         }
         if (file == null || !await file.exists()) {
           final bytes = await mediaLib.viewerImage(c.assetId);
@@ -177,7 +179,9 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
         db.persons,
       )..where((r) => r.id.equals(widget.personId))).getSingleOrNull();
       if (person == null) {
-        throw const FormatException('الشخص المختار لم يعد موجوداً في قاعدة البيانات');
+        throw const FormatException(
+          'الشخص المختار لم يعد موجوداً في قاعدة البيانات',
+        );
       }
 
       final isCharacter = person.kind == 'character';
@@ -219,9 +223,9 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل بدء التدريب: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('فشل بدء التدريب: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -229,8 +233,7 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
   }
 
   void _openSettings(BuildContext context, CurationState state) {
-    final triggerController =
-        TextEditingController(text: state.triggerWord);
+    final triggerController = TextEditingController(text: state.triggerWord);
 
     showModalBottomSheet<void>(
       context: context,
@@ -416,8 +419,9 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                         ? 'جاري إعداد التدريب...'
                         : 'بدء تدريب الموديل الآن ⚡',
                   ),
-                  onPressed:
-                      (state.canSubmit && !_isSubmitting) ? _onSubmit : null,
+                  onPressed: (state.canSubmit && !_isSubmitting)
+                      ? _onSubmit
+                      : null,
                 ),
               ),
             ],
@@ -534,18 +538,16 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                 // 3. Candidates Grid
                 Expanded(
                   child: items.isEmpty
-                      ? const Center(
-                          child: Text('لا توجد صور في هذا القسم'),
-                        )
+                      ? const Center(child: Text('لا توجد صور في هذا القسم'))
                       : GridView.builder(
                           padding: const EdgeInsets.all(16),
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                            childAspectRatio: 0.8,
-                          ),
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                childAspectRatio: 0.8,
+                              ),
                           itemCount: items.length,
                           itemBuilder: (ctx, idx) {
                             final c = items[idx];
@@ -557,7 +559,9 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        color: theme.colorScheme.surfaceContainerHighest,
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHighest,
                                         borderRadius: BorderRadius.circular(16),
                                         border: Border.all(
                                           color: theme.dividerColor,
@@ -587,13 +591,17 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                                   top: 4,
                                   left: 4,
                                   child: GestureDetector(
-                                    key: Key('curation-delete-${c.detectionId}'),
+                                    key: Key(
+                                      'curation-delete-${c.detectionId}',
+                                    ),
                                     onTap: () => _deleteItem(c),
                                     child: Container(
                                       width: 24,
                                       height: 24,
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.7),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.7,
+                                        ),
                                         shape: BoxShape.circle,
                                       ),
                                       child: const Icon(
@@ -613,16 +621,21 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                                     children: [
                                       if (c.hasExposedRegion)
                                         Container(
-                                          key: Key('badge-exposed-${c.detectionId}'),
+                                          key: Key(
+                                            'badge-exposed-${c.detectionId}',
+                                          ),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 4,
                                             vertical: 2,
                                           ),
-                                          margin: const EdgeInsets.only(bottom: 2),
+                                          margin: const EdgeInsets.only(
+                                            bottom: 2,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: Colors.red.shade700,
-                                            borderRadius:
-                                                BorderRadius.circular(6),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
                                           ),
                                           child: const Text(
                                             'كشف عالي',
@@ -635,15 +648,20 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                                         ),
                                       if (c.isVideo)
                                         Container(
-                                          key: Key('badge-video-${c.detectionId}'),
+                                          key: Key(
+                                            'badge-video-${c.detectionId}',
+                                          ),
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 4,
                                             vertical: 2,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: Colors.black.withValues(alpha: 0.8),
-                                            borderRadius:
-                                                BorderRadius.circular(6),
+                                            color: Colors.black.withValues(
+                                              alpha: 0.8,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
                                           ),
                                           child: Text(
                                             '🎬 ${_formatTime(c.timestampMs)}',
@@ -707,8 +725,8 @@ class _CandidateThumbnail extends ConsumerWidget {
               candidate.category == CurationCategory.face
                   ? Icons.face_rounded
                   : candidate.category == CurationCategory.upper
-                      ? Icons.person_rounded
-                      : Icons.accessibility_new_rounded,
+                  ? Icons.person_rounded
+                  : Icons.accessibility_new_rounded,
               size: 36,
               color: theme.colorScheme.primary.withValues(alpha: 0.5),
             ),
@@ -859,112 +877,113 @@ class _PersonMediaPickerSheetState
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _items.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('لم يتم العثور على صور إضافية لهذا الشخص'),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.photo_library_outlined),
-                        label: const Text('تصفح كل ألبوم الهاتف 📁'),
-                        onPressed: _pickFromAllGallery,
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('لم يتم العثور على صور إضافية لهذا الشخص'),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('تصفح كل ألبوم الهاتف 📁'),
+                    onPressed: _pickFromAllGallery,
                   ),
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.all(12),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 6,
-                    mainAxisSpacing: 6,
-                  ),
-                  itemCount: _items.length,
-                  itemBuilder: (ctx, idx) {
-                    final item = _items[idx];
-                    final isAlreadyAdded =
-                        widget.existingAssetIds.contains(item.assetId);
-                    final isSelected = _selectedMediaIds.contains(item.id);
+                ],
+              ),
+            )
+          : GridView.builder(
+              padding: const EdgeInsets.all(12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 6,
+                mainAxisSpacing: 6,
+              ),
+              itemCount: _items.length,
+              itemBuilder: (ctx, idx) {
+                final item = _items[idx];
+                final isAlreadyAdded = widget.existingAssetIds.contains(
+                  item.assetId,
+                );
+                final isSelected = _selectedMediaIds.contains(item.id);
 
-                    return GestureDetector(
-                      key: Key('picker-item-${item.id}'),
-                      onTap: isAlreadyAdded
-                          ? null
-                          : () {
-                              setState(() {
-                                if (isSelected) {
-                                  _selectedMediaIds.remove(item.id);
-                                } else {
-                                  _selectedMediaIds.add(item.id);
-                                }
-                              });
-                            },
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ClipRRect(
+                return GestureDetector(
+                  key: Key('picker-item-${item.id}'),
+                  onTap: isAlreadyAdded
+                      ? null
+                      : () {
+                          setState(() {
+                            if (isSelected) {
+                              _selectedMediaIds.remove(item.id);
+                            } else {
+                              _selectedMediaIds.add(item.id);
+                            }
+                          });
+                        },
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: _CandidateThumbnail(
+                          candidate: CurationCandidate(
+                            detectionId: item.id,
+                            mediaId: item.id,
+                            assetId: item.assetId,
+                            isVideo: item.kind == 'video',
+                            category: CurationCategory.face,
+                          ),
+                        ),
+                      ),
+                      if (isAlreadyAdded)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
                             borderRadius: BorderRadius.circular(8),
-                            child: _CandidateThumbnail(
-                              candidate: CurationCandidate(
-                                detectionId: item.id,
-                                mediaId: item.id,
-                                assetId: item.assetId,
-                                isVideo: item.kind == 'video',
-                                category: CurationCategory.face,
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'موجودة',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
-                          if (isAlreadyAdded)
-                            Container(
+                        ),
+                      if (isSelected)
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: theme.colorScheme.primary,
+                              width: 3,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.25,
+                            ),
+                          ),
+                          child: Align(
+                            alignment: Alignment.topRight,
+                            child: Container(
+                              margin: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.circular(8),
+                                color: theme.colorScheme.primary,
+                                shape: BoxShape.circle,
                               ),
-                              child: const Center(
-                                child: Text(
-                                  'موجودة',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                              child: const Icon(
+                                Icons.check,
+                                size: 16,
+                                color: Colors.white,
                               ),
                             ),
-                          if (isSelected)
-                            Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: theme.colorScheme.primary,
-                                  width: 3,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                color: theme.colorScheme.primary.withValues(
-                                  alpha: 0.25,
-                                ),
-                              ),
-                              child: Align(
-                                alignment: Alignment.topRight,
-                                child: Container(
-                                  margin: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.check,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }

@@ -24,12 +24,72 @@ class DynamicAutoOrganizer {
   final SidecarStorage sidecarStorage;
   final MasterPersonResolver masterResolver;
 
-  /// Syncs an individual media item and its sidecar to its target folder.
+  /// Syncs one media item and its sidecar to its target folder.
   Future<OriginalMoveResult?> syncMedia(
     int mediaId, {
     String? rootDirectory,
     int? explicitMasterId,
   }) async {
+    final results = await syncBatch(
+      [mediaId],
+      rootDirectory: rootDirectory,
+      explicitMasters: {
+        if (explicitMasterId != null) mediaId: explicitMasterId,
+      },
+    );
+    return results[mediaId];
+  }
+
+  /// Whether photos can be moved with no confirmation sheet at all (the user granted Android's "Media
+  /// management" access once). A library of thousands of photos cannot wait for a human between batches, so
+  /// unattended moves run only when this is true.
+  Future<bool> canMoveSilently() async {
+    final bridge = organizer.bridge;
+    return bridge is AndroidMediaOrganizer
+        ? await bridge.canMoveWithoutPrompt()
+        : true;
+  }
+
+  /// Moves many photos in ONE request, so Android asks for permission once per batch of up to 1000 files
+  /// (and not at all when the user has granted "Media management"), instead of once per photo.
+  Future<Map<int, OriginalMoveResult>> syncBatch(
+    Iterable<int> mediaIds, {
+    String? rootDirectory,
+    Map<int, int> explicitMasters = const {},
+  }) async {
+    final staged = <_Staged>[];
+    for (final id in mediaIds.toSet()) {
+      final one = await _stage(id, explicitMasters[id]);
+      if (one != null) staged.add(one);
+    }
+    if (staged.isEmpty) return {};
+    final plan = await organizer.plan(
+      {for (final s in staged) s.master.id},
+      choices: {for (final s in staged) s.media.id: s.master.id},
+    );
+    final items = <int, PersonOrganizeItem>{};
+    for (final item in plan) {
+      if (item.canApply && staged.any((s) => s.media.id == item.media.id)) {
+        items[item.media.id] = item;
+      }
+    }
+    if (items.isEmpty) return {};
+    final results = await organizer.apply(items.values.toList());
+    final out = <int, OriginalMoveResult>{};
+    for (final s in staged) {
+      final item = items[s.media.id];
+      final result = results
+          .where((r) => r.assetId == s.media.assetId)
+          .firstOrNull;
+      if (item == null || result == null) continue;
+      out[s.media.id] = result;
+      await _finish(s, item, result, rootDirectory);
+    }
+    return out;
+  }
+
+  /// Who owns this media and what the app knows about it; null when nobody does.
+  Future<_Staged?> _stage(int mediaId, int? explicitMasterId) async {
     final media = await (db.select(
       db.media,
     )..where((m) => m.id.equals(mediaId))).getSingleOrNull();
@@ -72,19 +132,21 @@ class DynamicAutoOrganizer {
 
     if (masterPerson == null) return null;
 
-    // Plan move for master person
-    final plan = await organizer.plan(
-      {masterPerson.id},
-      choices: {mediaId: masterPerson.id},
-    );
+    return _Staged(media, faces, bodies, masterPerson);
+  }
 
-    final item = plan.where((i) => i.media.id == mediaId).firstOrNull;
-    if (item == null || !item.canApply) return null;
-
-    final results = await organizer.apply([item]);
-    final result = results.where((r) => r.assetId == media.assetId).firstOrNull;
-
-    if (result != null && result.moved && result.actual != null) {
+  Future<void> _finish(
+    _Staged staged,
+    PersonOrganizeItem item,
+    OriginalMoveResult result,
+    String? rootDirectory,
+  ) async {
+    final media = staged.media;
+    final faces = staged.faces;
+    final bodies = staged.bodies;
+    final masterPerson = staged.master;
+    final mediaId = media.id;
+    if (result.moved && result.actual != null) {
       // Find Group if present
       String? groupName;
       if (masterPerson.groupId != null) {
@@ -216,8 +278,6 @@ class DynamicAutoOrganizer {
         // keep the result: the photo is organized, only its sidecar is missing
       }
     }
-
-    return result;
   }
 
   /// Sets an explicit master person for a media and triggers auto-sync.
@@ -250,11 +310,15 @@ class DynamicAutoOrganizer {
         if (b.mediaId != null) b.mediaId!,
     };
 
-    final results = <OriginalMoveResult>[];
-    for (final mId in mediaIds) {
-      final res = await syncMedia(mId, rootDirectory: rootDirectory);
-      if (res != null) results.add(res);
-    }
-    return results;
+    final results = await syncBatch(mediaIds, rootDirectory: rootDirectory);
+    return results.values.toList();
   }
+}
+
+class _Staged {
+  const _Staged(this.media, this.faces, this.bodies, this.master);
+  final MediaRow media;
+  final List<FaceRow> faces;
+  final List<BodyRow> bodies;
+  final PersonRow master;
 }

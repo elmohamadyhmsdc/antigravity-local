@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import android.provider.Settings
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.Executors
@@ -34,6 +35,18 @@ class MediaOrganizerBridge(private val activity: Activity) {
         var retriedIndex: Int = -1)
 
     fun handle(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "canManageMedia" -> { result.success(canManage()); return }
+            "requestManageMedia" -> {
+                // The system page where the user switches "Media management" on for this app, once.
+                try {
+                    activity.startActivity(Intent(Settings.ACTION_REQUEST_MANAGE_MEDIA,
+                        Uri.parse("package:" + activity.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    result.success(true)
+                } catch (_: Exception) { result.success(false) }
+                return
+            }
+        }
         if (call.method !in setOf("inspect", "preflight", "move")) { result.notImplemented(); return }
         val items = call.argument<List<Map<*, *>>>("items")
         if (items == null || items.size > 1000) {
@@ -67,6 +80,9 @@ class MediaOrganizerBridge(private val activity: Activity) {
                     if (writable.isEmpty()) {
                         request.results.addAll(checks)
                         finish(request)
+                    } else if (canManage()) {
+                        // Granted "Media management": the system lets us move photos without a sheet.
+                        process(request)
                     } else if (Build.VERSION.SDK_INT >= 30) {
                         try {
                             val grant = MediaStore.createWriteRequest(resolver, writable)
@@ -82,6 +98,9 @@ class MediaOrganizerBridge(private val activity: Activity) {
             }
         }
     }
+
+    private fun canManage(): Boolean = Build.VERSION.SDK_INT >= 31 &&
+        try { MediaStore.canManageMedia(activity.applicationContext) } catch (_: Exception) { false }
 
     private fun uri(item: Map<*, *>): Uri {
         val id = (item["assetId"] as? String)?.toLongOrNull() ?: error("Unsupported asset id")

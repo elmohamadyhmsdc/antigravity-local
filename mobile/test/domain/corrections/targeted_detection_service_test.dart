@@ -124,46 +124,49 @@ void main() {
       },
     );
 
-    test('applies targeted face and persists in faces and media_detections', () async {
-      final mediaId = await seedMedia(db, asset: 'asset_face_1');
-      final personId = await seedPerson(db, name: 'Bob');
+    test(
+      'applies targeted face and persists in faces and media_detections',
+      () async {
+        final mediaId = await seedMedia(db, asset: 'asset_face_1');
+        final personId = await seedPerson(db, name: 'Bob');
 
-      final entry = TargetedEntry(
-        mediaId: mediaId,
-        kind: 'face',
-        bbox: const BBox(x: 0.1, y: 0.1, w: 0.2, h: 0.2),
-        label: 'Bob Face',
-        personId: personId,
-      );
+        final entry = TargetedEntry(
+          mediaId: mediaId,
+          kind: 'face',
+          bbox: const BBox(x: 0.1, y: 0.1, w: 0.2, h: 0.2),
+          label: 'Bob Face',
+          personId: personId,
+        );
 
-      final result = await service.apply(entry);
-      expect(result.insertedId, isNonZero);
+        final result = await service.apply(entry);
+        expect(result.insertedId, isNonZero);
 
-      // Verify face in db
-      final faces = await (db.select(
-        db.faces,
-      )..where((f) => f.id.equals(result.insertedId))).get();
-      expect(faces.length, 1);
-      expect(faces.first.personId, personId);
+        // Verify face in db
+        final faces = await (db.select(
+          db.faces,
+        )..where((f) => f.id.equals(result.insertedId))).get();
+        expect(faces.length, 1);
+        expect(faces.first.personId, personId);
 
-      // Verify media_detections
-      final dets = await (db.select(
-        db.mediaDetections,
-      )..where((d) => d.mediaId.equals(mediaId) & d.kind.equals('f'))).get();
-      expect(dets.length, 1);
-      expect(dets.first.refId, result.insertedId);
+        // Verify media_detections
+        final dets = await (db.select(
+          db.mediaDetections,
+        )..where((d) => d.mediaId.equals(mediaId) & d.kind.equals('f'))).get();
+        expect(dets.length, 1);
+        expect(dets.first.refId, result.insertedId);
 
-      // Undo
-      await service.undo(result.undoToken);
-      final facesAfterUndo = await (db.select(
-        db.faces,
-      )..where((f) => f.id.equals(result.insertedId))).get();
-      expect(facesAfterUndo, isEmpty);
-      final detsAfterUndo = await (db.select(
-        db.mediaDetections,
-      )..where((d) => d.mediaId.equals(mediaId))).get();
-      expect(detsAfterUndo, isEmpty);
-    });
+        // Undo
+        await service.undo(result.undoToken);
+        final facesAfterUndo = await (db.select(
+          db.faces,
+        )..where((f) => f.id.equals(result.insertedId))).get();
+        expect(facesAfterUndo, isEmpty);
+        final detsAfterUndo = await (db.select(
+          db.mediaDetections,
+        )..where((d) => d.mediaId.equals(mediaId))).get();
+        expect(detsAfterUndo, isEmpty);
+      },
+    );
 
     test('applies targeted object and persists in equipment_objects', () async {
       final mediaId = await seedMedia(db, asset: 'asset_obj_1');

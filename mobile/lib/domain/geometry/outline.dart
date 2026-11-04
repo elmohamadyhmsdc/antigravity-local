@@ -12,8 +12,9 @@ String? encodeOutline(List<Offset>? px, BBox box) {
     return null;
   }
   final flat = <double>[];
-  final bool isImageRelative =
-      px.any((p) => p.dx > box.w + 0.05 && box.x > 0.05);
+  final bool isImageRelative = px.any(
+    (p) => p.dx > box.w + 0.05 && box.x > 0.05,
+  );
   for (final p in px) {
     var relX = isImageRelative ? (p.dx - box.x) / box.w : p.dx;
     var relY = isImageRelative ? (p.dy - box.y) / box.h : p.dy;

@@ -80,7 +80,8 @@ void main() {
           mediaType: 'video',
         ),
         isFalse,
-        reason: 'reference-guided Reface is experimental: hidden unless asked for',
+        reason:
+            'reference-guided Reface is experimental: hidden unless asked for',
       );
       expect(
         current.supportsOperation(

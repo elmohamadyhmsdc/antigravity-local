@@ -467,28 +467,30 @@ class PeopleRepository {
 
   /// "Yes, these really are [personId]": the audit never doubts them again, and they become the trusted
   /// core the person's other faces are judged against.
-  Future<void> confirmFaces(Iterable<int> faceIds, int personId) =>
-      _db.transaction(() async {
-        for (final chunk in _chunks(faceIds)) {
-          final marks = _marks(chunk.length);
-          // only faces that are still on that person
-          final onPerson = [
-            for (final r
-                in await _db
-                    .customSelect(
-                      'SELECT id FROM faces WHERE person_id = ? AND id IN ($marks)',
-                      variables: [
-                        Variable.withInt(personId),
-                        for (final i in chunk) Variable.withInt(i),
-                      ],
-                      readsFrom: {_db.faces},
-                    )
-                    .get())
-              r.read<int>('id'),
-          ];
-          await _vouch(onPerson, personId);
-        }
-      });
+  Future<void> confirmFaces(
+    Iterable<int> faceIds,
+    int personId,
+  ) => _db.transaction(() async {
+    for (final chunk in _chunks(faceIds)) {
+      final marks = _marks(chunk.length);
+      // only faces that are still on that person
+      final onPerson = [
+        for (final r
+            in await _db
+                .customSelect(
+                  'SELECT id FROM faces WHERE person_id = ? AND id IN ($marks)',
+                  variables: [
+                    Variable.withInt(personId),
+                    for (final i in chunk) Variable.withInt(i),
+                  ],
+                  readsFrom: {_db.faces},
+                )
+                .get())
+          r.read<int>('id'),
+      ];
+      await _vouch(onPerson, personId);
+    }
+  });
 
   /// Assign (or move) faces to a person. A rejection of that very pair is forgotten.
   Future<void> assignFaces(Iterable<int> faceIds, int personId) =>

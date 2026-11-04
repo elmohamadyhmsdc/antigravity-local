@@ -23,55 +23,62 @@ void main() {
 
   tearDown(() async => db.close());
 
-  testWidgets('LibrarySettingsScreen toggles auto-organize and save-sidecar settings', (tester) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'LibrarySettingsScreen toggles auto-organize and save-sidecar settings',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          fileStoreProvider.overrideWithValue(FileStore(Directory.systemTemp)),
-          appSettingsProvider.overrideWithValue(appSettings),
-          albumsProvider.overrideWith((ref) => Future.value([])),
-        ],
-        child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: LibrarySettingsScreen(),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            fileStoreProvider.overrideWithValue(
+              FileStore(Directory.systemTemp),
+            ),
+            appSettingsProvider.overrideWithValue(appSettings),
+            albumsProvider.overrideWith((ref) => Future.value([])),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: LibrarySettingsScreen(),
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    final autoOrganizeFinder = find.byKey(const Key('settings-auto-organize'));
-    final saveSidecarFinder = find.byKey(const Key('settings-save-sidecar'));
+      final autoOrganizeFinder = find.byKey(
+        const Key('settings-auto-organize'),
+      );
+      final saveSidecarFinder = find.byKey(const Key('settings-save-sidecar'));
 
-    expect(autoOrganizeFinder, findsOneWidget);
-    expect(saveSidecarFinder, findsOneWidget);
+      expect(autoOrganizeFinder, findsOneWidget);
+      expect(saveSidecarFinder, findsOneWidget);
 
-    // Initial state: true by default
-    SwitchListTile autoTile = tester.widget(autoOrganizeFinder);
-    expect(autoTile.value, isTrue);
+      // Initial state: true by default
+      SwitchListTile autoTile = tester.widget(autoOrganizeFinder);
+      expect(autoTile.value, isTrue);
 
-    // Toggle off
-    await tester.tap(autoOrganizeFinder);
-    await tester.pump();
+      // Toggle off
+      await tester.tap(autoOrganizeFinder);
+      await tester.pump();
 
-    final snapshot1 = await appSettings.load();
-    expect(snapshot1.autoOrganizeEnabled, isFalse);
+      final snapshot1 = await appSettings.load();
+      expect(snapshot1.autoOrganizeEnabled, isFalse);
 
-    // Toggle save sidecar off
-    await tester.tap(saveSidecarFinder);
-    await tester.pump();
+      // Toggle save sidecar off
+      await tester.tap(saveSidecarFinder);
+      await tester.pump();
 
-    final snapshot2 = await appSettings.load();
-    expect(snapshot2.saveSidecarEnabled, isFalse);
+      final snapshot2 = await appSettings.load();
+      expect(snapshot2.saveSidecarEnabled, isFalse);
 
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump(Duration.zero);
-  });
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(Duration.zero);
+    },
+  );
 }

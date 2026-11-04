@@ -77,57 +77,69 @@ void main() {
     return json;
   }
 
-  test('a character body keeps its exposed regions, vectors and keypoints', () async {
-    final m = await media('anime-1');
-    await store.store(m, AnalyzeImageResponse.fromJson(withExtras()));
+  test(
+    'a character body keeps its exposed regions, vectors and keypoints',
+    () async {
+      final m = await media('anime-1');
+      await store.store(m, AnalyzeImageResponse.fromJson(withExtras()));
 
-    final bodies = await (db.select(
-      db.bodies,
-    )..where((b) => b.mediaId.equals(m.id))).get();
-    expect(bodies, hasLength(1));
-    final body = bodies.single;
-    expect(body.kind, 'character');
-    expect(body.chestEmbedding, isNotNull);
-    expect(body.morphology, contains('shoulder_ratio'));
-    expect(body.kpts, isNotNull);
+      final bodies = await (db.select(
+        db.bodies,
+      )..where((b) => b.mediaId.equals(m.id))).get();
+      expect(bodies, hasLength(1));
+      final body = bodies.single;
+      expect(body.kind, 'character');
+      expect(body.chestEmbedding, isNotNull);
+      expect(body.morphology, contains('shoulder_ratio'));
+      expect(body.kpts, isNotNull);
 
-    final regions = await db.select(db.sensitiveRegions).get();
-    expect(regions, hasLength(2));
-    final onBody = regions.firstWhere((r) => r.label == 'FEMALE_BREAST_EXPOSED');
-    expect(onBody.bodyId, body.id, reason: 'attached to the character\'s body');
-    final loose = regions.firstWhere((r) => r.label == 'BELLY_EXPOSED');
-    expect(loose.bodyId, isNull);
+      final regions = await db.select(db.sensitiveRegions).get();
+      expect(regions, hasLength(2));
+      final onBody = regions.firstWhere(
+        (r) => r.label == 'FEMALE_BREAST_EXPOSED',
+      );
+      expect(
+        onBody.bodyId,
+        body.id,
+        reason: 'attached to the character\'s body',
+      );
+      final loose = regions.firstWhere((r) => r.label == 'BELLY_EXPOSED');
+      expect(loose.bodyId, isNull);
 
-    final stored = await (db.select(
-      db.media,
-    )..where((x) => x.id.equals(m.id))).getSingle();
-    expect(stored.bodyEmbeddingVersion, isNonZero);
-  });
+      final stored = await (db.select(
+        db.media,
+      )..where((x) => x.id.equals(m.id))).getSingle();
+      expect(stored.bodyEmbeddingVersion, isNonZero);
+    },
+  );
 
-  test('rescanning keeps one body and refreshes its vectors; poses are rebuilt', () async {
-    final m = await media('anime-2');
-    final first = fixture();
-    await store.store(m, AnalyzeImageResponse.fromJson(first));
-    final id = (await db.select(db.bodies).getSingle()).id;
-    await db
-        .into(db.bodyPoseFeatures)
-        .insert(
-          BodyPoseFeaturesCompanion.insert(
-            bodyId: Value(id),
-            version: 1,
-            feature: Uint8List(136),
-            visibleMask: 0,
-            scaleSource: 'torso',
-          ),
-        );
+  test(
+    'rescanning keeps one body and refreshes its vectors; poses are rebuilt',
+    () async {
+      final m = await media('anime-2');
+      final first = fixture();
+      await store.store(m, AnalyzeImageResponse.fromJson(first));
+      final id = (await db.select(db.bodies).getSingle()).id;
+      await db
+          .into(db.bodyPoseFeatures)
+          .insert(
+            BodyPoseFeaturesCompanion.insert(
+              bodyId: Value(id),
+              version: 1,
+              feature: Uint8List(136),
+              visibleMask: 0,
+              scaleSource: 'torso',
+            ),
+          );
 
-    await store.store(m, AnalyzeImageResponse.fromJson(withExtras()));
+      await store.store(m, AnalyzeImageResponse.fromJson(withExtras()));
 
-    final bodies = await db.select(db.bodies).get();
-    expect(bodies, hasLength(1));
-    expect(bodies.single.chestEmbedding, isNotNull);
-    expect(await db.select(db.bodyPoseFeatures).get(), isEmpty);
-  });
+      final bodies = await db.select(db.bodies).get();
+      expect(bodies, hasLength(1));
+      expect(bodies.single.chestEmbedding, isNotNull);
+      expect(await db.select(db.bodyPoseFeatures).get(), isEmpty);
+    },
+  );
 
   test('a figure the user hid stays hidden when it is scanned again', () async {
     final m = await media('anime-3');

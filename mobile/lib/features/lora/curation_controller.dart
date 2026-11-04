@@ -83,8 +83,8 @@ class CurationNotifier extends Notifier<CurationState> {
     CurationQueries? queries,
     AutoDatasetCurator? curator,
     this.initialState,
-  })  : _queriesOverride = queries,
-        _curatorOverride = curator;
+  }) : _queriesOverride = queries,
+       _curatorOverride = curator;
 
   final CurationQueries? _queriesOverride;
   final AutoDatasetCurator? _curatorOverride;
@@ -168,8 +168,9 @@ class CurationNotifier extends Notifier<CurationState> {
   void removeItem(CurationCandidate item) {
     switch (item.category) {
       case CurationCategory.face:
-        final next =
-            state.faces.where((c) => c.detectionId != item.detectionId).toList();
+        final next = state.faces
+            .where((c) => c.detectionId != item.detectionId)
+            .toList();
         state = state.copyWith(
           faces: next,
           lastRemoved: item,
@@ -177,8 +178,9 @@ class CurationNotifier extends Notifier<CurationState> {
         );
         break;
       case CurationCategory.upper:
-        final next =
-            state.upper.where((c) => c.detectionId != item.detectionId).toList();
+        final next = state.upper
+            .where((c) => c.detectionId != item.detectionId)
+            .toList();
         state = state.copyWith(
           upper: next,
           lastRemoved: item,
@@ -186,8 +188,9 @@ class CurationNotifier extends Notifier<CurationState> {
         );
         break;
       case CurationCategory.body:
-        final next =
-            state.body.where((c) => c.detectionId != item.detectionId).toList();
+        final next = state.body
+            .where((c) => c.detectionId != item.detectionId)
+            .toList();
         state = state.copyWith(
           body: next,
           lastRemoved: item,
@@ -204,22 +207,13 @@ class CurationNotifier extends Notifier<CurationState> {
 
     switch (cat) {
       case CurationCategory.face:
-        state = state.copyWith(
-          faces: [...state.faces, item],
-          clearUndo: true,
-        );
+        state = state.copyWith(faces: [...state.faces, item], clearUndo: true);
         break;
       case CurationCategory.upper:
-        state = state.copyWith(
-          upper: [...state.upper, item],
-          clearUndo: true,
-        );
+        state = state.copyWith(upper: [...state.upper, item], clearUndo: true);
         break;
       case CurationCategory.body:
-        state = state.copyWith(
-          body: [...state.body, item],
-          clearUndo: true,
-        );
+        state = state.copyWith(body: [...state.body, item], clearUndo: true);
         break;
     }
     return true;
@@ -278,5 +272,5 @@ class CurationNotifier extends Notifier<CurationState> {
 
 final curationControllerProvider =
     NotifierProvider.autoDispose<CurationNotifier, CurationState>(
-  CurationNotifier.new,
-);
+      CurationNotifier.new,
+    );

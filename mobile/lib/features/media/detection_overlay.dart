@@ -147,17 +147,17 @@ class DetectionOverlay extends StatelessWidget {
                             ? Colors.amber.withValues(alpha: 0.10)
                             : scheme.primary.withValues(alpha: 0.12))
                       : d.isBody
-                          ? Colors.lightBlueAccent.withValues(alpha: 0.18)
-                          : d.isArea
-                              ? Colors.deepOrangeAccent.withValues(alpha: 0.18)
-                              : Colors.tealAccent.withValues(alpha: 0.18),
+                      ? Colors.lightBlueAccent.withValues(alpha: 0.18)
+                      : d.isArea
+                      ? Colors.deepOrangeAccent.withValues(alpha: 0.18)
+                      : Colors.tealAccent.withValues(alpha: 0.18),
                   borderColor: d.isFace
                       ? (d.personId == null ? Colors.amber : scheme.primary)
                       : d.isBody
-                          ? Colors.lightBlueAccent
-                          : d.isArea
-                              ? Colors.deepOrangeAccent
-                              : Colors.tealAccent,
+                      ? Colors.lightBlueAccent
+                      : d.isArea
+                      ? Colors.deepOrangeAccent
+                      : Colors.tealAccent,
                   borderWidth: d.isFace ? 2.5 : 2.0,
                 ),
                 child: _buildBadge(d, scheme, l10n),

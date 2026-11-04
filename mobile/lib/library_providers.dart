@@ -571,6 +571,7 @@ final identityGroupsProvider =
 final mediaOrganizerBridgeProvider = Provider<MediaOrganizerBridge>(
   (ref) => const AndroidMediaOrganizer(),
 );
+
 /// The running [ScanEngine], for callbacks of providers the engine itself depends on.
 class ScanEngineLink {
   ScanEngine? engine;

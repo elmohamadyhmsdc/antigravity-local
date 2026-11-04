@@ -8,6 +8,7 @@ import '../../data/repositories/insights_repository.dart';
 import '../../domain/cleanup/background_faces.dart';
 import '../../domain/scan/scan_state.dart';
 import '../../l10n/app_localizations.dart';
+import 'move_without_asking_tile.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
 import '../review/review_screen.dart';
@@ -394,6 +395,7 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
             subtitle: Text(l10n.autoSyncOrganizedFoldersHint),
             onChanged: settingsStore.setAutoOrganizeEnabled,
           ),
+          const MoveWithoutAskingTile(),
           SwitchListTile(
             key: const Key('settings-save-sidecar'),
             contentPadding: EdgeInsets.zero,

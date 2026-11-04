@@ -6646,6 +6646,24 @@ abstract class AppLocalizations {
   /// **'Move files and metadata automatically when people change groups or corrections occur'**
   String get autoSyncOrganizedFoldersHint;
 
+  /// No description provided for @moveWithoutAskingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move photos without asking'**
+  String get moveWithoutAskingTitle;
+
+  /// No description provided for @moveWithoutAskingOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed. After a scan, thousands of photos move into their people\'s folders on their own, with no prompts.'**
+  String get moveWithoutAskingOn;
+
+  /// No description provided for @moveWithoutAskingOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Not allowed yet. Without it Android would ask for confirmation again and again, so photos are not moved automatically. Tap, then switch on “Media management” for this app, once.'**
+  String get moveWithoutAskingOff;
+
   /// No description provided for @saveSidecarMetadata.
   ///
   /// In en, this message translates to:

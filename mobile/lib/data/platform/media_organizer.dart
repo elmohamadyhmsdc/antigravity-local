@@ -110,4 +110,22 @@ class AndroidMediaOrganizer implements MediaOrganizerBridge {
   @override
   Future<List<OriginalMoveResult>> move(List<OriginalMediaMove> moves) =>
       _call('move', moves);
+
+  /// Whether Android lets this app move photos without a confirmation sheet ("Media management" access).
+  Future<bool> canMoveWithoutPrompt() async {
+    try {
+      return await channel.invokeMethod<bool>('canManageMedia') ?? false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// Opens the system page where the user grants that access once. False when it cannot be opened.
+  Future<bool> requestMoveWithoutPrompt() async {
+    try {
+      return await channel.invokeMethod<bool>('requestManageMedia') ?? false;
+    } on PlatformException {
+      return false;
+    }
+  }
 }

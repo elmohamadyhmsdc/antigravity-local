@@ -522,6 +522,7 @@ class ScanEngine {
       return;
     }
     await _media.clearCache();
+    await _store.flushOrganization(shouldStop: () => _pauseRequested);
     try {
       await _afterRun?.call();
     } catch (_) {

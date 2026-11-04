@@ -78,6 +78,35 @@ class PhotoResultStore {
   final FileStore files;
   final EmbeddingIndex index;
   final DynamicAutoOrganizer? autoOrganizer;
+
+  /// Photos scanned since the last [flushOrganization]; they wait for the end of the scan.
+  final Set<int> pendingOrganize = {};
+
+  /// Moves the scanned photos into their people's folders, [chunk] at a time. Needs no human: it runs only
+  /// when Android lets the app move photos silently, otherwise it leaves them pending and asks nothing
+  /// (the Organize screen, or a later scan once the access is granted, handles them). Never throws.
+  Future<void> flushOrganization({
+    int chunk = 200,
+    bool Function()? shouldStop,
+  }) async {
+    final organizer = autoOrganizer;
+    if (organizer == null || pendingOrganize.isEmpty) return;
+    try {
+      if (!await organizer.canMoveSilently()) return;
+      while (pendingOrganize.isNotEmpty && !(shouldStop?.call() ?? false)) {
+        final ids = pendingOrganize.take(chunk).toList();
+        try {
+          await organizer.syncBatch(ids);
+        } catch (_) {
+          // one bad chunk (a file removed meanwhile, a provider error) must not block the rest
+        }
+        pendingOrganize.removeAll(ids);
+      }
+    } catch (_) {
+      // organizing is a courtesy after the scan; the scan itself already succeeded
+    }
+  }
+
   final DateTime Function() _clock;
 
   AppDatabase get _db => db;
@@ -663,14 +692,9 @@ class PhotoResultStore {
       await _index.remove([for (final (id, _) in replaced) id]);
     }
     await _index.addAll([...newVectors, ...replaced]);
-    if (autoOrganizer != null) {
-      try {
-        await autoOrganizer!.syncMedia(media.id);
-      } catch (_) {
-        // The photo is already scanned and saved; organizing it is retried on the next sync and must not
-        // turn into "The scan stopped".
-      }
-    }
+    // Not moved now: a photo moved right after its scan has usually no person yet (grouping runs later), and a
+    // move per photo means a system sheet per photo. The scan moves them all, in chunks, once it has grouped.
+    if (autoOrganizer != null) pendingOrganize.add(media.id);
     return StoreOutcome(
       facesSeen: gated.length,
       newFaceIds: newIds,

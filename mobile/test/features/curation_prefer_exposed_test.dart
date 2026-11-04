@@ -44,24 +44,32 @@ void main() {
   });
   tearDown(() => db.close());
 
-  test('off by default; turning it on re-picks the bodies, exposed first but not all of them', () async {
-    final notifier = CurationNotifier(queries: CurationQueries(db));
-    await notifier.load(person, 'Sara');
-    expect(notifier.state.preferExposed, isFalse);
+  test(
+    'off by default; turning it on re-picks the bodies, exposed first but not all of them',
+    () async {
+      final notifier = CurationNotifier(queries: CurationQueries(db));
+      await notifier.load(person, 'Sara');
+      expect(notifier.state.preferExposed, isFalse);
 
-    notifier.setPreferExposed(true);
+      notifier.setPreferExposed(true);
 
-    expect(notifier.state.preferExposed, isTrue);
-    final exposed = notifier.state.body.where((c) => c.hasExposedRegion).length;
-    expect(notifier.state.body, hasLength(8));
-    expect(exposed, 7, reason: '90% of 8 slots, rounded down');
-    expect(notifier.state.body.where((c) => !c.hasExposedRegion), hasLength(1));
+      expect(notifier.state.preferExposed, isTrue);
+      final exposed = notifier.state.body
+          .where((c) => c.hasExposedRegion)
+          .length;
+      expect(notifier.state.body, hasLength(8));
+      expect(exposed, 7, reason: '90% of 8 slots, rounded down');
+      expect(
+        notifier.state.body.where((c) => !c.hasExposedRegion),
+        hasLength(1),
+      );
 
-    notifier.setPreferExposed(false);
+      notifier.setPreferExposed(false);
 
-    expect(notifier.state.preferExposed, isFalse);
-    expect(notifier.state.body, hasLength(8));
-  });
+      expect(notifier.state.preferExposed, isFalse);
+      expect(notifier.state.body, hasLength(8));
+    },
+  );
 
   test('the faces are not touched by the switch', () async {
     final notifier = CurationNotifier(queries: CurationQueries(db));
