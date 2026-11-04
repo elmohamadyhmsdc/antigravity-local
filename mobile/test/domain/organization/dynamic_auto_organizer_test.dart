@@ -25,7 +25,9 @@ class FakeOrganizerBridge implements MediaOrganizerBridge {
   ];
 
   @override
-  Future<List<OriginalMoveResult>> preflight(List<OriginalMediaMove> moves) async => [
+  Future<List<OriginalMoveResult>> preflight(
+    List<OriginalMediaMove> moves,
+  ) async => [
     for (final m in moves)
       OriginalMoveResult(
         assetId: m.asset.assetId,
@@ -60,6 +62,19 @@ class FakeOrganizerBridge implements MediaOrganizerBridge {
   }
 }
 
+/// The phone's failure: the sidecar path was relative to the read-only system root.
+class ReadOnlySidecarStorage extends SidecarStorage {
+  const ReadOnlySidecarStorage();
+
+  @override
+  Future<File> writeSidecar(String mediaPath, metadata) =>
+      throw const FileSystemException(
+        'Creation failed',
+        'DCIM',
+        OSError('Read-only file system', 30),
+      );
+}
+
 void main() {
   late Directory tempDir;
   late AppDatabase db;
@@ -88,61 +103,144 @@ void main() {
     }
   });
 
-  test('DynamicAutoOrganizer moves media and generates sidecar when reassigning person', () async {
-    final now = DateTime.now().millisecondsSinceEpoch;
+  test(
+    'DynamicAutoOrganizer moves media and generates sidecar when reassigning person',
+    () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
 
-    // Create Group and Person
-    final groupId = await db.into(db.identityGroups).insert(
-      IdentityGroupsCompanion.insert(name: 'StrawHats', nameKey: 'strawhats', createdAt: now),
-    );
-    final luffyId = await db.into(db.persons).insert(
-      PersonsCompanion.insert(name: const Value('Luffy'), groupId: Value(groupId), createdAt: now),
-    );
+      // Create Group and Person
+      final groupId = await db
+          .into(db.identityGroups)
+          .insert(
+            IdentityGroupsCompanion.insert(
+              name: 'StrawHats',
+              nameKey: 'strawhats',
+              createdAt: now,
+            ),
+          );
+      final luffyId = await db
+          .into(db.persons)
+          .insert(
+            PersonsCompanion.insert(
+              name: const Value('Luffy'),
+              groupId: Value(groupId),
+              createdAt: now,
+            ),
+          );
 
-    // Create Media
-    final mediaId = await db.into(db.media).insert(
-      MediaCompanion.insert(
-        assetId: 'asset_auto_1',
-        kind: 'photo',
-        scanStatus: const Value('done'),
-        modifiedAt: const Value(1700000000000),
-      ),
-    );
+      // Create Media
+      final mediaId = await db
+          .into(db.media)
+          .insert(
+            MediaCompanion.insert(
+              assetId: 'asset_auto_1',
+              kind: 'photo',
+              scanStatus: const Value('done'),
+              modifiedAt: const Value(1700000000000),
+            ),
+          );
 
-    // Create Face assigned to Luffy
-    await db.into(db.faces).insert(
-      FacesCompanion.insert(
-        mediaId: Value(mediaId),
-        personId: Value(luffyId),
-        modelId: 'buffalo_l',
-        embedding: Uint8List(2048),
-        qualityScore: 0.95,
-        qualityVersion: 1,
-        detScore: 0.95,
-        facePx: 120.0,
-        sharpness: 90.0,
-        bboxX: 0.2,
-        bboxY: 0.2,
-        bboxW: 0.3,
-        bboxH: 0.3,
-        createdAt: now,
-      ),
-    );
+      // Create Face assigned to Luffy
+      await db
+          .into(db.faces)
+          .insert(
+            FacesCompanion.insert(
+              mediaId: Value(mediaId),
+              personId: Value(luffyId),
+              modelId: 'buffalo_l',
+              embedding: Uint8List(2048),
+              qualityScore: 0.95,
+              qualityVersion: 1,
+              detScore: 0.95,
+              facePx: 120.0,
+              sharpness: 90.0,
+              bboxX: 0.2,
+              bboxY: 0.2,
+              bboxW: 0.3,
+              bboxH: 0.3,
+              createdAt: now,
+            ),
+          );
 
-    // Trigger auto-sync for media
-    final result = await autoOrganizer.syncMedia(mediaId, rootDirectory: tempDir.path);
-    expect(result, isNotNull);
-    expect(result!.moved, isTrue);
-    expect(bridge.moved.length, 1);
-    expect(bridge.moved.first.targetPath, contains('StrawHats/Luffy/'));
+      // Trigger auto-sync for media
+      final result = await autoOrganizer.syncMedia(
+        mediaId,
+        rootDirectory: tempDir.path,
+      );
+      expect(result, isNotNull);
+      expect(result!.moved, isTrue);
+      expect(bridge.moved.length, 1);
+      expect(bridge.moved.first.targetPath, contains('StrawHats/Luffy/'));
 
-    // Verify sidecar was created on disk in target folder
-    final sidecarFile = File('${tempDir.path}/${bridge.moved.first.targetPath}${bridge.moved.first.targetName}.json');
-    expect(await sidecarFile.exists(), isTrue);
+      // Verify sidecar was created on disk in target folder
+      final sidecarFile = File(
+        '${tempDir.path}/${bridge.moved.first.targetPath}${bridge.moved.first.targetName}.json',
+      );
+      expect(await sidecarFile.exists(), isTrue);
 
-    final readMeta = await sidecarStorage.readSidecar('${tempDir.path}/${bridge.moved.first.targetPath}${bridge.moved.first.targetName}');
-    expect(readMeta, isNotNull);
-    expect(readMeta!.ownership.masterPersonName, 'Luffy');
-    expect(readMeta.faces.length, 1);
-  });
+      final readMeta = await sidecarStorage.readSidecar(
+        '${tempDir.path}/${bridge.moved.first.targetPath}${bridge.moved.first.targetName}',
+      );
+      expect(readMeta, isNotNull);
+      expect(readMeta!.ownership.masterPersonName, 'Luffy');
+      expect(readMeta.faces.length, 1);
+    },
+  );
+
+  test(
+    'a sidecar that cannot be written never fails the move or stops a scan',
+    () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final personId = await db
+          .into(db.persons)
+          .insert(
+            PersonsCompanion.insert(name: const Value('Luffy'), createdAt: now),
+          );
+      final mediaId = await db
+          .into(db.media)
+          .insert(
+            MediaCompanion.insert(
+              assetId: 'asset_ro_1',
+              kind: 'photo',
+              scanStatus: const Value('done'),
+              modifiedAt: const Value(1700000000000),
+            ),
+          );
+      await db
+          .into(db.faces)
+          .insert(
+            FacesCompanion.insert(
+              mediaId: Value(mediaId),
+              personId: Value(personId),
+              modelId: 'buffalo_l',
+              embedding: Uint8List(2048),
+              qualityScore: 0.95,
+              qualityVersion: 1,
+              detScore: 0.95,
+              facePx: 120.0,
+              sharpness: 90.0,
+              bboxX: 0.2,
+              bboxY: 0.2,
+              bboxW: 0.3,
+              bboxH: 0.3,
+              createdAt: now,
+            ),
+          );
+      final readOnly = DynamicAutoOrganizer(
+        db: db,
+        organizer: organizer,
+        sidecarStorage: const ReadOnlySidecarStorage(),
+      );
+
+      final result = await readOnly.syncMedia(mediaId);
+
+      expect(result, isNotNull);
+      expect(
+        result!.moved,
+        isTrue,
+        reason: 'the photo is organized even without its sidecar',
+      );
+      expect(bridge.moved, hasLength(1));
+    },
+  );
 }

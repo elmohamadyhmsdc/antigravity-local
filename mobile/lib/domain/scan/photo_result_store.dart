@@ -664,7 +664,12 @@ class PhotoResultStore {
     }
     await _index.addAll([...newVectors, ...replaced]);
     if (autoOrganizer != null) {
-      await autoOrganizer!.syncMedia(media.id);
+      try {
+        await autoOrganizer!.syncMedia(media.id);
+      } catch (_) {
+        // The photo is already scanned and saved; organizing it is retried on the next sync and must not
+        // turn into "The scan stopped".
+      }
     }
     return StoreOutcome(
       facesSeen: gated.length,
