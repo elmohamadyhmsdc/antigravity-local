@@ -91,6 +91,9 @@ void main() {
       );
       await tester.tap(find.byKey(Key('body-$body')));
       await tester.pumpAndSettle();
+      await expandActionSections(tester);
+      await tester.ensureVisible(find.byKey(const Key('action-mark-tattoo')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('action-mark-tattoo')));
       await tester.pumpAndSettle();
       expect(find.text('Mark a tattoo'), findsWidgets);
@@ -146,6 +149,9 @@ void main() {
       extra: [initialLocationProvider.overrideWithValue('/bodies')],
     );
     await tester.tap(find.byKey(Key('body-$body')));
+    await tester.pumpAndSettle();
+    await expandActionSections(tester);
+    await tester.ensureVisible(find.byKey(const Key('action-mark-tattoo')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('action-mark-tattoo')));
     await tester.pumpAndSettle();

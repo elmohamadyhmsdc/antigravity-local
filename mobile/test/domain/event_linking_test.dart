@@ -1,6 +1,6 @@
 // Roadmap Phase 5 on the phone: the grouping request carries each photo's time, sends the identified
 // bodies a faceless body could be explained by (within the window, in another photo) and no others, and
-// the plan applier treats `event_outfit` as a derived link.
+// the plan applier rejects clothing-only identity links.
 
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
@@ -120,7 +120,7 @@ void main() {
   );
 
   test(
-    'the applier stores event_outfit and clears it before re-deriving, keeping manual links',
+    'the applier discards event_outfit identity links and clears stale links, keeping manual links',
     () async {
       final person = await seedPerson(db);
       final a = await photo('a', t0);
@@ -163,12 +163,9 @@ void main() {
           ],
         ),
       );
-      expect(linked, 1);
+      expect(linked, 0);
       final rows = {for (final r in await db.select(db.bodies).get()) r.id: r};
-      expect(
-        (rows[loose]!.personId, rows[loose]!.linkMethod),
-        (person, 'event_outfit'),
-      );
+      expect((rows[loose]!.personId, rows[loose]!.linkMethod), (null, null));
       expect(
         rows[stale]!.personId,
         isNull,

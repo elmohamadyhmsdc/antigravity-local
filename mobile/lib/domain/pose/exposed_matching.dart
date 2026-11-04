@@ -32,17 +32,26 @@ enum ExposedKind {
 typedef _Vec = ({int id, Uint8List blob});
 
 Float32List _floats(Uint8List blob) {
+  if (blob.lengthInBytes != patchEmbeddingDim * 4) return Float32List(0);
   final copy = Uint8List.fromList(blob);
-  return copy.buffer.asFloat32List();
+  final values = copy.buffer.asFloat32List();
+  if (values.any((v) => !v.isFinite)) return Float32List(0);
+  final norm = math.sqrt(values.fold<double>(0, (s, v) => s + v * v));
+  if (norm < 1e-12 || !norm.isFinite) return Float32List(0);
+  for (var i = 0; i < values.length; i++) {
+    values[i] /= norm;
+  }
+  return values;
 }
 
 double _dot(Float32List a, Float32List b) {
   var s = 0.0;
-  final n = math.min(a.length, b.length);
+  if (a.isEmpty || a.length != b.length) return double.nan;
+  final n = a.length;
   for (var i = 0; i < n; i++) {
     s += a[i] * b[i];
   }
-  return s;
+  return s.clamp(-1.0, 1.0);
 }
 
 List<({int id, double similarity})> _rank(
@@ -108,13 +117,38 @@ Future<List<int>> _dbscanIsolated(
   List<Uint8List> blobs,
   double eps,
   int minPoints,
-) => Isolate.run(
-  () => dbscan(
-    [for (final b in blobs) _floats(b)],
-    eps: eps,
-    minPoints: minPoints,
-  ),
-);
+) => Isolate.run(() {
+  final vectors = [for (final b in blobs) _floats(b)];
+  final density = dbscan(vectors, eps: eps, minPoints: minPoints);
+  final groups = <List<int>>[];
+  // Density chains can connect A to C through B even when A and C differ.
+  // Every member of an area group must agree with every other member.
+  for (var i = 0; i < vectors.length; i++) {
+    if (density[i] < 0) continue;
+    final group = groups
+        .where(
+          (g) =>
+              density[g.first] == density[i] &&
+              g.every((j) => 1 - _dot(vectors[i], vectors[j]) <= eps),
+        )
+        .firstOrNull;
+    if (group == null) {
+      groups.add([i]);
+    } else {
+      group.add(i);
+    }
+  }
+  final labels = List<int>.filled(blobs.length, -1);
+  var next = 0;
+  for (final group in groups) {
+    if (group.length < minPoints) continue;
+    for (final i in group) {
+      labels[i] = next;
+    }
+    next++;
+  }
+  return labels;
+});
 
 class ExposedMatcher {
   ExposedMatcher(this._db);
@@ -124,7 +158,7 @@ class ExposedMatcher {
   Future<Uint8List?> _embeddingOf(int bodyId, ExposedKind kind) async {
     final row = await _db
         .customSelect(
-          'SELECT ${kind.column} AS e FROM bodies WHERE id = ?',
+          'SELECT ${kind.column} AS e FROM bodies WHERE hidden = 0 AND id = ?',
           variables: [Variable.withInt(bodyId)],
           readsFrom: {_db.bodies},
         )
@@ -132,13 +166,22 @@ class ExposedMatcher {
     return row?.readNullable<Uint8List>('e');
   }
 
-  Future<List<_Vec>> _all(ExposedKind kind, {int? excluding}) async {
+  Future<List<_Vec>> _all(
+    ExposedKind kind, {
+    int? excluding,
+    int? personId,
+  }) async {
     final rows = await _db
         .customSelect(
-          'SELECT id, ${kind.column} AS e FROM bodies WHERE ${kind.column} IS NOT NULL AND kind = \'person\''
-          '${excluding == null ? '' : ' AND id != ?'}',
-          variables: [if (excluding != null) Variable.withInt(excluding)],
-          readsFrom: {_db.bodies},
+          'SELECT b.id, b.${kind.column} AS e FROM bodies b LEFT JOIN faces f ON f.id = b.face_id '
+          'WHERE b.hidden = 0 AND b.${kind.column} IS NOT NULL AND b.kind = \'person\''
+          '${excluding == null ? '' : ' AND b.id != ?'}'
+          '${personId == null ? '' : ' AND COALESCE(f.person_id, b.person_id) = ?'}',
+          variables: [
+            if (excluding != null) Variable.withInt(excluding),
+            if (personId != null) Variable.withInt(personId),
+          ],
+          readsFrom: {_db.bodies, _db.faces},
         )
         .get();
     return [
@@ -150,21 +193,33 @@ class ExposedMatcher {
   /// Which halves of a body have an embedding (the actions only make sense then).
   Future<Set<ExposedKind>> kindsOf(int bodyId) async => {
     for (final k in ExposedKind.values)
-      if (await _embeddingOf(bodyId, k) != null) k,
+      if (_floats(await _embeddingOf(bodyId, k) ?? Uint8List(0)).isNotEmpty) k,
   };
+
+  Future<double?> similarityBetween(
+    int reference,
+    int candidate,
+    ExposedKind kind,
+  ) async {
+    final left = _floats(await _embeddingOf(reference, kind) ?? Uint8List(0));
+    final right = _floats(await _embeddingOf(candidate, kind) ?? Uint8List(0));
+    final score = _dot(left, right);
+    return score.isFinite ? score : null;
+  }
 
   /// The bodies whose exposed region looks most like [bodyId]'s, best first (cosine of unit vectors).
   Future<List<({int bodyId, double similarity})>> findSimilar(
     int bodyId,
     ExposedKind kind, {
     int limit = 200,
-    double minimum = -1.0,
+    double minimum = 0.85,
+    int? personId,
   }) async {
     final query = await _embeddingOf(bodyId, kind);
     if (query == null) return const [];
     final ranked = await _rankIsolated(
       query,
-      await _all(kind, excluding: bodyId),
+      await _all(kind, excluding: bodyId, personId: personId),
       limit,
       minimum,
     );
@@ -181,7 +236,7 @@ class ExposedClusters {
   static const enabledKey = 'body_clusters_enabled';
 
   /// Starting values; the Phase 8 gate sets the real ones.
-  static const defaultEps = 0.25;
+  static const defaultEps = 0.15;
   static const defaultMinPoints = 2;
 
   Future<bool> get enabled async => await _db.setting(enabledKey) == 'true';
@@ -199,11 +254,11 @@ class ExposedClusters {
     if (!await enabled) return null;
     final rows = await _db
         .customSelect(
-          'SELECT id, ${kind.column} AS e FROM bodies WHERE ${kind.column} IS NOT NULL AND kind = \'person\' ORDER BY id',
+          'SELECT id, ${kind.column} AS e FROM bodies WHERE hidden = 0 AND ${kind.column} IS NOT NULL AND kind = \'person\' '
+          "AND NOT EXISTS (SELECT 1 FROM settings s WHERE s.key = 'area.rejected.${kind.name}.' || bodies.id AND s.value = 'true') ORDER BY id",
           readsFrom: {_db.bodies},
         )
         .get();
-    if (rows.isEmpty) return 0;
     final ids = [for (final r in rows) r.read<int>('id')];
     final blobs = [for (final r in rows) r.read<Uint8List>('e')];
     final labels = await _dbscanIsolated(blobs, eps, minPoints);
@@ -211,6 +266,10 @@ class ExposedClusters {
     for (var i = 0; i < ids.length; i++) {
       if (labels[i] >= 0) members.putIfAbsent(labels[i], () => []).add(i);
     }
+    final previous = (await clusters())
+        .where((entry) => entry.cluster.clusterType == kind.name)
+        .toList();
+    final reused = <int>{};
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.transaction(() async {
       await _db.customUpdate(
@@ -223,6 +282,21 @@ class ExposedClusters {
         updates: {_db.bodyClusters},
       );
       for (final group in members.values) {
+        final bodyIds = {for (final i in group) ids[i]};
+        BodyClusterRow? retained;
+        var bestOverlap = 0.5;
+        for (final entry in previous) {
+          if (reused.contains(entry.cluster.id)) continue;
+          final oldIds = entry.bodyIds.toSet();
+          final overlap =
+              oldIds.intersection(bodyIds).length /
+              oldIds.union(bodyIds).length;
+          if (overlap >= bestOverlap) {
+            retained = entry.cluster;
+            bestOverlap = overlap;
+          }
+        }
+        if (retained != null) reused.add(retained.id);
         final centroid = Float32List(patchEmbeddingDim);
         for (final i in group) {
           final v = _floats(blobs[i]);
@@ -234,10 +308,14 @@ class ExposedClusters {
             .into(_db.bodyClusters)
             .insert(
               BodyClustersCompanion.insert(
+                id: retained == null
+                    ? const Value.absent()
+                    : Value(retained.id),
                 clusterType: kind.name,
                 centroidEmbedding: packFloat32(centroid),
                 bodyCount: Value(group.length),
-                createdAt: now,
+                personId: Value(retained?.personId),
+                createdAt: retained?.createdAt ?? now,
               ),
             );
         await _db.customUpdate(
@@ -254,7 +332,7 @@ class ExposedClusters {
               readsFrom: {_db.bodies, _db.faces},
             )
             .get();
-        if (owners.isNotEmpty) {
+        if (owners.isNotEmpty && retained?.personId == null) {
           await (_db.update(
             _db.bodyClusters,
           )..where((c) => c.id.equals(clusterId))).write(
@@ -295,6 +373,17 @@ class ExposedClusters {
   });
 
   /// The clusters with their member bodies, biggest first.
+  Future<void> rejectMember(int bodyId, ExposedKind kind) =>
+      _db.transaction(() async {
+        await _db.putSetting('area.rejected.${kind.name}.$bodyId', 'true');
+        await _db.customUpdate(
+          'UPDATE bodies SET ${kind.clusterColumn} = NULL WHERE id = ?',
+          variables: [Variable.withInt(bodyId)],
+          updates: {_db.bodies},
+        );
+        await rebuild(kind);
+      });
+
   Future<List<({BodyClusterRow cluster, List<int> bodyIds})>> clusters() async {
     final out = <({BodyClusterRow cluster, List<int> bodyIds})>[];
     for (final c in await (_db.select(
@@ -305,12 +394,17 @@ class ExposedClusters {
           : 'chest_cluster_id';
       final rows = await _db
           .customSelect(
-            'SELECT id FROM bodies WHERE $column = ? ORDER BY id',
+            'SELECT id FROM bodies WHERE hidden = 0 AND $column = ? ORDER BY id',
             variables: [Variable.withInt(c.id)],
             readsFrom: {_db.bodies},
           )
           .get();
-      out.add((cluster: c, bodyIds: [for (final r in rows) r.read<int>('id')]));
+      if (rows.isNotEmpty) {
+        out.add((
+          cluster: c,
+          bodyIds: [for (final r in rows) r.read<int>('id')],
+        ));
+      }
     }
     return out;
   }
@@ -337,9 +431,9 @@ class ExposedClusters {
   bridgeSuggestions({int minBridges = 2}) async {
     final rows = await _db
         .customSelect(
-          '''SELECT chest_cluster_id AS a, buttocks_cluster_id AS b, COUNT(*) AS n FROM bodies
-             WHERE chest_cluster_id IS NOT NULL AND buttocks_cluster_id IS NOT NULL
-             GROUP BY chest_cluster_id, buttocks_cluster_id HAVING COUNT(*) >= ?''',
+          '''SELECT chest_cluster_id AS a, buttocks_cluster_id AS b, COUNT(DISTINCT media_id) AS n FROM bodies
+             WHERE hidden = 0 AND chest_cluster_id IS NOT NULL AND buttocks_cluster_id IS NOT NULL AND frame_number IS NULL
+             GROUP BY chest_cluster_id, buttocks_cluster_id HAVING COUNT(DISTINCT media_id) >= ?''',
           variables: [Variable.withInt(minBridges)],
           readsFrom: {_db.bodies},
         )

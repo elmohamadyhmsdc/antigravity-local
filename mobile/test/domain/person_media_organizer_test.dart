@@ -3,6 +3,7 @@ import 'package:antigravity_mobile/data/repositories/identity_groups.dart';
 import 'package:antigravity_mobile/data/repositories/library_repository.dart';
 import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:antigravity_mobile/data/platform/media_organizer.dart';
 import 'package:antigravity_mobile/domain/organization/person_media_organizer.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,6 +77,44 @@ void main() {
       expect(await db.select(db.personMediaMoves).get(), isEmpty);
     },
   );
+  test(
+    'with All files access the person folders go in the top-level Your Gallery, outside DCIM',
+    () async {
+      final top = PersonMediaOrganizer(
+        db: db,
+        bridge: bridge,
+        rootFolder: () async => PersonMediaOrganizer.topRoot,
+      );
+      final id = await media('1');
+      await top.apply(await top.plan({luffy}));
+      expect(bridge.originals['1']!.path, 'Your Gallery/One Piece/Luffy/');
+      final journal = (await db.select(db.personMediaMoves).get()).single;
+      expect(journal.state, 'moved');
+      expect(journal.targetPath, 'Your Gallery/One Piece/Luffy/');
+      expect((await db.select(db.media).get()).single.id, id);
+    },
+  );
+
+  test(
+    'a rename that made Android re-create the row moves the library record to the new asset id',
+    () async {
+      final renumbering = _RenumberingOrganizer();
+      final organizer = PersonMediaOrganizer(db: db, bridge: renumbering);
+      final id = await seedMedia(db, asset: '1');
+      await seedFace(db, mediaId: id, personId: luffy);
+      renumbering.seed('1', name: 'photo.jpg');
+      final results = await organizer.apply(await organizer.plan({luffy}));
+      expect(results.single.status, 'moved');
+      final row = (await db.select(db.media).get()).single;
+      expect(row.id, id);
+      expect(row.assetId, '901');
+      final journal = (await db.select(db.personMediaMoves).get()).single;
+      expect(journal.assetId, '901');
+      expect(journal.state, 'moved');
+      expect(await db.select(db.faces).get(), hasLength(1));
+    },
+  );
+
   test('each shared file gets exactly one owner and one native move', () async {
     final zoro = await seedPerson(db, name: 'Zoro');
     final id = await media('1');
@@ -203,4 +242,29 @@ void main() {
       expect(organizationSegment('..'), isNot('..'));
     },
   );
+}
+
+/// Reports what the native bridge reports when a file rename made MediaStore drop and re-insert the row.
+class _RenumberingOrganizer extends FakeMediaOrganizer {
+  @override
+  Future<List<OriginalMoveResult>> move(List<OriginalMediaMove> items) async {
+    final moved = await super.move(items);
+    return [
+      for (final r in moved)
+        r.status != 'moved'
+            ? r
+            : OriginalMoveResult(
+                assetId: r.assetId,
+                status: 'moved',
+                detail: 'new_asset_id',
+                actual: OriginalMediaInfo(
+                  assetId: '901',
+                  name: r.actual!.name,
+                  path: r.actual!.path,
+                  modifiedAt: r.actual!.modifiedAt,
+                  size: r.actual!.size,
+                ),
+              ),
+    ];
+  }
 }

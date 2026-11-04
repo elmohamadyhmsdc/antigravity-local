@@ -16,7 +16,7 @@ Future<Map<int, BodyTile>> fetchBodyTiles(WidgetRef ref, List<int> ids) async {
   final db = ref.read(databaseProvider);
   final rows = await db
       .customSelect(
-        'SELECT id, crop_path, media_id FROM bodies WHERE id IN (${List.filled(ids.length, '?').join(',')})',
+        'SELECT id, crop_path, media_id FROM bodies WHERE hidden = 0 AND id IN (${List.filled(ids.length, '?').join(',')})',
         variables: [for (final id in ids) Variable.withInt(id)],
         readsFrom: {db.bodies},
       )

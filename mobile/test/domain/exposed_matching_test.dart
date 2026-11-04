@@ -96,8 +96,13 @@ void main() {
       await body(null, buttocks: unit384(13));
       final matcher = ExposedMatcher(db);
       final r = await matcher.findSimilar(q, ExposedKind.chest);
-      expect(r.map((x) => x.bodyId), [close, far]);
-      expect(r.first.similarity, greaterThan(r.last.similarity));
+      expect(r.map((x) => x.bodyId), [close]);
+      final exploratory = await matcher.findSimilar(
+        q,
+        ExposedKind.chest,
+        minimum: -1,
+      );
+      expect(exploratory.map((x) => x.bodyId), [close, far]);
       expect(
         await matcher.findSimilar(q, ExposedKind.buttocks),
         isEmpty,
@@ -209,7 +214,10 @@ void main() {
         );
         final lina = await seedPerson(db);
         await bridge(42);
-        await bridge(43);
+        final secondBridge = await bridge(43);
+        final secondMedia = await seedMedia(db, asset: 'independent-bridge');
+        await (db.update(db.bodies)..where((b) => b.id.equals(secondBridge)))
+            .write(BodiesCompanion(mediaId: Value(secondMedia)));
         await body(unit384(44, near: chestBase, noise: 0.1));
         await body(null, buttocks: unit384(45, near: lowerBase, noise: 0.1));
         final clusters = ExposedClusters(db);

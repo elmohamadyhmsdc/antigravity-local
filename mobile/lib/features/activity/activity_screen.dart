@@ -123,10 +123,12 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         'running',
         'queued',
         'downloading',
+        'paused',
       ].contains(j.status);
     }).toList();
 
-    final isScanActive = scan != null && scan.phase != ScanPhase.idle;
+    final isScanActive =
+        scan != null && (scan.isActive || scan.phase == ScanPhase.paused);
 
     if (!isScanActive && activeJobs.isEmpty) {
       return const Center(
@@ -251,7 +253,18 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                 title: jobTypeLabel(l10n, job.type),
                 subtitle: jobStatusLabel(l10n, job.status),
                 progress: job.progress,
-                isPaused: false,
+                isPaused: job.status == 'paused',
+                onResume: job.status == 'paused'
+                    ? () => ref.read(jobTrackerProvider).resume(job)
+                    : null,
+                onPause:
+                    const [
+                      'uploading',
+                      'running',
+                      'downloading',
+                    ].contains(job.status)
+                    ? () => ref.read(jobTrackerProvider).pause(job)
+                    : null,
                 onTap: () => context.push('${Routes.activity}/${job.id}'),
                 onCancel: () async {
                   final confirmed = await ConfirmSheet.show(

@@ -1,6 +1,7 @@
 import 'package:antigravity_mobile/data/api/mobile_api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:antigravity_mobile/ui/actions/action_section.dart';
 
 import 'fakes.dart';
 
@@ -32,6 +33,22 @@ Finder textContaining(String part) => find.byWidgetPredicate(
       w is Text && (w.data ?? w.textSpan?.toPlainText() ?? '').contains(part),
   description: 'Text containing "$part"',
 );
+
+/// Walks the visible category headers in a newly opened contextual menu.
+Future<void> expandActionSections(WidgetTester tester) async {
+  final sections = find.byType(ActionSection);
+  final count = sections.evaluate().length;
+  for (var i = 0; i < count; i++) {
+    final header = find
+        .descendant(of: sections.at(i), matching: find.byType(ExpansionTile))
+        .first;
+    await tester.ensureVisible(header);
+    await tester.pumpAndSettle();
+    // The disclosure header is at the top; the expanded content may be taller than the viewport.
+    await tester.tapAt(tester.getTopLeft(header) + const Offset(120, 28));
+    await tester.pumpAndSettle();
+  }
+}
 
 /// Build lazily laid-out content, then wait for scrolling/layout before tapping.
 Future<void> revealForTap(

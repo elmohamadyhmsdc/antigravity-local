@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:drift/drift.dart';
 
 import '../api/dtos/grouping.dart';
+import '../../domain/grouping/identity_evidence.dart';
 import '../db/app_database.dart';
 import 'people_repository.dart';
 import 'review_questions.dart';
@@ -306,6 +307,7 @@ class ReviewRepository {
       b.insertAll(_db.reviewBodyLinks, [
         for (final l in review.bodyLinks)
           if (!l.isAuto &&
+              !isClothingOnlyLink(l.method) &&
               persons.contains(l.personId) &&
               bodies.contains(l.bodyId) &&
               !rejectedBodies.contains('${l.bodyId}:${l.personId}'))
@@ -354,6 +356,8 @@ class ReviewRepository {
           FROM review_body_links l JOIN bodies b ON b.id = l.body_id
           LEFT JOIN faces f ON f.id = b.face_id
           WHERE f.person_id IS NULL AND b.person_id IS NULL AND b.kind = ?
+            AND l.method NOT IN ('appearance', 'event_outfit')
+            AND b.hidden = 0 AND (b.ownership IS NULL OR b.ownership != 'none')
             AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = l.person_id)
           ''',
                   variables: [Variable.withString(kind)],
@@ -547,6 +551,8 @@ class ReviewRepository {
           FROM review_body_links l JOIN bodies b ON b.id = l.body_id
           LEFT JOIN faces f ON f.id = b.face_id
           WHERE f.person_id IS NULL AND b.person_id IS NULL AND b.kind = ?
+            AND l.method NOT IN ('appearance', 'event_outfit')
+            AND b.hidden = 0 AND (b.ownership IS NULL OR b.ownership != 'none')
             AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = l.person_id)
           ORDER BY l.confidence DESC
           ''',

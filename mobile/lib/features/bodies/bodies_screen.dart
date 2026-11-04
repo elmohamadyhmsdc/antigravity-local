@@ -17,10 +17,12 @@ import '../shared/crop_image.dart';
 import 'body_areas.dart';
 import 'body_inspection_sheet.dart';
 import 'pose_visuals.dart';
+import 'discovery_widgets.dart';
+import 'body_comparison_sheet.dart';
 import 'group_pose_screens.dart';
 import 'equipment_screens.dart';
 import '../../domain/pose/group_pose_matcher.dart';
-import '../../domain/pose/pose_index.dart' show decodeTags;
+import '../../domain/pose/pose_index.dart' show decodeTags, poseRulesVersion;
 import 'body_naming.dart';
 import '../shared/empty_state.dart';
 import '../shared/person_picker.dart';
@@ -68,6 +70,8 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
   int _areasVersion = 0;
   int _categoryVersion = 0;
   bool _loading = true;
+  bool _failed = false;
+  Map<int, ({double similarity, double? coverage})> _matches = const {};
   int _generation =
       0; // a slower, older reload must never overwrite a newer one
 
@@ -81,76 +85,115 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
 
   /// Descriptors are built lazily the first time the screen opens (and after scans).
   Future<void> _prepare() async {
-    final poses = ref.read(poseIndexProvider);
-    await poses.rebuild();
-    final clustersOn = await ref.read(exposedClustersProvider).enabled;
-    if (!mounted) return;
-    setState(() {
-      _preparing = false;
-      _clustersOn = clustersOn;
-    });
-    await _reload();
+    try {
+      final poses = ref.read(poseIndexProvider);
+      await poses.rebuild();
+      final db = ref.read(databaseProvider);
+      if (await db.setting('pose.matches.version') != '$poseRulesVersion') {
+        await ref.read(bodyCategoriesProvider).rescoreAllPoses();
+        await db.putSetting('pose.matches.version', '$poseRulesVersion');
+        if (mounted) setState(() => _categoryVersion++);
+      }
+      final clusters = ref.read(exposedClustersProvider);
+      final clustersOn = await clusters.enabled;
+      if (clustersOn && await db.setting('areas.matches.version') != '2') {
+        await clusters.rebuild(ExposedKind.chest);
+        await clusters.rebuild(ExposedKind.buttocks);
+        await db.putSetting('areas.matches.version', '2');
+        if (mounted) setState(() => _areasVersion++);
+      }
+      if (!mounted) return;
+      setState(() {
+        _preparing = false;
+        _clustersOn = clustersOn;
+      });
+      await _reload();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _failed = true;
+          _preparing = false;
+          _loading = false;
+        });
+      }
+    }
   }
 
   Future<void> _reload() async {
-    final generation = ++_generation;
-    setState(() => _loading = true);
-    final poses = ref.read(poseIndexProvider);
-    final counts = await poses.tagCounts(personId: widget.personId);
-    final List<int> ids;
-    var groupCounts = _groupCounts;
-    if (widget.personId == null) {
-      groupCounts = await GroupPhotos(ref.read(databaseProvider)).counts();
-    }
-    if (_groupTag != null) {
-      ids = await _photoRepresentatives(_groupTag!);
-    } else if (_colourTwinOf != null) {
-      final draft = await ref
-          .read(bodyCategoriesProvider)
-          .draftOutfit(
-            _colourTwinOf!,
-            threshold: 0.75,
-            personId: widget.personId,
-          );
-      ids = [
-        for (final m in draft?.matches ?? const <CategoryMatch>[])
-          if (m.bodyId != _colourTwinOf) m.bodyId,
-      ];
-    } else if (_similarTo != null && _exposedKind != null) {
-      ids = [
-        for (final r
-            in await ref
-                .read(exposedMatcherProvider)
-                .findSimilar(_similarTo!, _exposedKind!))
-          r.bodyId,
-      ];
-    } else if (_similarTo != null) {
-      ids = [
-        for (final r in await poses.findSimilar(
+    try {
+      final generation = ++_generation;
+      setState(() => _loading = true);
+      final poses = ref.read(poseIndexProvider);
+      final counts = await poses.tagCounts(personId: widget.personId);
+      final List<int> ids;
+      final matches = <int, ({double similarity, double? coverage})>{};
+      var groupCounts = _groupCounts;
+      if (widget.personId == null) {
+        groupCounts = await GroupPhotos(ref.read(databaseProvider)).counts();
+      }
+      if (_groupTag != null) {
+        ids = await _photoRepresentatives(_groupTag!);
+      } else if (_colourTwinOf != null) {
+        final draft = await ref
+            .read(bodyCategoriesProvider)
+            .draftOutfit(
+              _colourTwinOf!,
+              threshold: 0.75,
+              personId: widget.personId,
+            );
+        for (final m in draft?.matches ?? const <CategoryMatch>[]) {
+          matches[m.bodyId] = (similarity: m.similarity, coverage: null);
+        }
+        ids = [
+          for (final m in draft?.matches ?? const <CategoryMatch>[])
+            if (m.bodyId != _colourTwinOf) m.bodyId,
+        ];
+      } else if (_similarTo != null && _exposedKind != null) {
+        final ranked = await ref
+            .read(exposedMatcherProvider)
+            .findSimilar(_similarTo!, _exposedKind!, personId: widget.personId);
+        for (final r in ranked) {
+          matches[r.bodyId] = (similarity: r.similarity, coverage: null);
+        }
+        ids = [for (final r in ranked) r.bodyId];
+      } else if (_similarTo != null) {
+        final ranked = await poses.findSimilar(
           _similarTo!,
           personId: widget.personId,
-          strict: true,
-        ))
-          r.bodyId,
-      ];
-    } else if (_tag != null) {
-      ids = await poses.bodiesWithTag(_tag!, personId: widget.personId);
-    } else if (_color != null) {
-      ids = await poses.bodiesWithColor(_color!, personId: widget.personId);
-    } else {
-      ids = await _allBodies();
+        );
+        for (final r in ranked) {
+          matches[r.bodyId] = (similarity: r.similarity, coverage: r.coverage);
+        }
+        ids = [for (final r in ranked) r.bodyId];
+      } else if (_tag != null) {
+        ids = await poses.bodiesWithTag(_tag!, personId: widget.personId);
+      } else if (_color != null) {
+        ids = await poses.bodiesWithColor(_color!, personId: widget.personId);
+      } else {
+        ids = await _allBodies();
+      }
+      final rows = await _fetch(
+        {...ids.take(400), ?_similarTo, ?_colourTwinOf}.toList(),
+      );
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _matches = matches;
+        _failed = false;
+        _counts = counts;
+        _groupCounts = groupCounts;
+        _ids = ids.where(rows.containsKey).take(400).toList();
+        _rows = rows;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _failed = true;
+          _preparing = false;
+          _loading = false;
+        });
+      }
     }
-    final rows = await _fetch(
-      {...ids.take(400), ?_similarTo, ?_colourTwinOf}.toList(),
-    );
-    if (!mounted || generation != _generation) return;
-    setState(() {
-      _counts = counts;
-      _groupCounts = groupCounts;
-      _ids = ids.where(rows.containsKey).take(400).toList();
-      _rows = rows;
-      _loading = false;
-    });
   }
 
   Future<List<int>> _allBodies() async {
@@ -159,7 +202,7 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
     final rows = await db
         .customSelect(
           '''SELECT b.id FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
-             WHERE b.kind = 'person' ${person == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}
+             WHERE b.kind = 'person' AND b.hidden = 0 ${person == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}
              ORDER BY b.id DESC LIMIT 400''',
           variables: [if (person != null) Variable.withInt(person)],
           readsFrom: {db.bodies, db.faces},
@@ -179,7 +222,7 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
     final db = ref.read(databaseProvider);
     final rows = await db
         .customSelect(
-          "SELECT MIN(id) AS id FROM bodies WHERE kind = 'person' AND frame_number IS NULL AND media_id IN (${photos.take(400).join(',')}) GROUP BY media_id ORDER BY media_id DESC",
+          "SELECT MIN(id) AS id FROM bodies WHERE kind = 'person' AND hidden = 0 AND frame_number IS NULL AND media_id IN (${photos.take(400).join(',')}) GROUP BY media_id ORDER BY media_id DESC",
           readsFrom: {db.bodies},
         )
         .get();
@@ -209,6 +252,7 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
     PoseTag.lying => l.poseTagLying,
     PoseTag.standing => l.poseTagStanding,
     PoseTag.sitting => l.poseTagSitting,
+    PoseTag.bent => l.discoveryBent,
     PoseTag.armsUp => l.poseTagArmsUp,
     PoseTag.oneArmUp => l.poseTagOneArmUp,
     PoseTag.armsSpread => l.poseTagArmsSpread,
@@ -244,8 +288,8 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    // the Areas tab exists only while the (experimental) grouping switch is on
-    final areas = _clustersOn && widget.personId == null;
+    // Keep destination tabs stable while their data prepares.
+    final areas = widget.personId == null;
     return DefaultTabController(
       length: areas ? 6 : 5,
       initialIndex: widget.initialTab.clamp(0, areas ? 5 : 4),
@@ -314,6 +358,10 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
               _CategoryList(
                 key: ValueKey('poses-$_categoryVersion'),
                 pose: true,
+                onChooseExample: () {
+                  _filter();
+                  DefaultTabController.of(tabContext).animateTo(0);
+                },
                 personId: widget.personId,
                 counts: _counts,
                 onTag: (tag) {
@@ -324,18 +372,31 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
               _CategoryList(
                 key: ValueKey('outfits-$_categoryVersion'),
                 pose: false,
+                onChooseExample: () {
+                  _filter();
+                  DefaultTabController.of(tabContext).animateTo(0);
+                },
                 personId: widget.personId,
               ),
               GroupPosesTab(personId: widget.personId),
               EquipmentTab(personId: widget.personId),
               if (areas)
-                BodyAreasTab(
-                  key: ValueKey('areas-$_areasVersion'),
-                  onSimilar: (id, kind) {
-                    _filter(similar: id, exposed: kind);
-                    DefaultTabController.of(tabContext).animateTo(0);
-                  },
-                ),
+                if (!_clustersOn)
+                  EmptyState(
+                    icon: Icons.highlight_alt,
+                    title: l.bodiesTabAreas,
+                    body: l.discoveryAreaPrecision,
+                    actionLabel: l.clustersToggle,
+                    onAction: _preparing || _loading ? null : _toggleClusters,
+                  )
+                else
+                  BodyAreasTab(
+                    key: ValueKey('areas-$_areasVersion'),
+                    onSimilar: (id, kind) {
+                      _filter(similar: id, exposed: kind);
+                      DefaultTabController.of(tabContext).animateTo(0);
+                    },
+                  ),
             ],
           ),
         ),
@@ -363,173 +424,267 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
   }
 
   Widget _allTab(AppLocalizations l) {
-    return Column(
-      children: [
-        if (_preparing || _loading) const LinearProgressIndicator(),
-        SizedBox(
-          // not a lazy ListView: the chip count is small and every chip must exist (and be testable)
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
+    if (_failed) {
+      return EmptyState(
+        icon: Icons.refresh,
+        title: l.bodiesLoadFailed,
+        actionLabel: l.bodiesRetry,
+        onAction: _prepare,
+      );
+    }
+    final reference = _similarTo ?? _colourTwinOf;
+    final filtered =
+        reference != null ||
+        _tag != null ||
+        _color != null ||
+        _groupTag != null;
+    return RefreshIndicator(
+      onRefresh: _prepare,
+      child: CustomScrollView(
+        key: const PageStorageKey('body-results'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_similarTo != null ||
-                    _colourTwinOf != null ||
-                    _groupTag != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: InputChip(
-                      key: const Key('bodies-similar-chip'),
-                      label: Text(
-                        _groupTag != null
-                            ? _groupLabel(l, _groupTag!)
-                            : _colourTwinOf != null
-                            ? l.bodiesSimilarColoursTitle
-                            : _exposedKind == null
-                            ? l.bodiesSimilarTitle
-                            : _exposedKind == ExposedKind.chest
-                            ? l.equipmentAreaChestSimilar
-                            : l.equipmentAreaLowerSimilar,
-                      ),
-                      onDeleted: () => _filter(),
-                      deleteButtonTooltipMessage: l.bodiesClearFilter,
-                    ),
-                  ),
-                if (widget.personId == null)
-                  for (final tag in GroupTag.all)
-                    if ((_groupCounts[tag] ?? 0) > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          key: Key('group-chip-$tag'),
-                          label: Text(
-                            '${_groupLabel(l, tag)} · ${_groupCounts[tag]}',
-                          ),
-                          selected: _groupTag == tag,
-                          onSelected: (on) => _filter(group: on ? tag : null),
-                        ),
-                      ),
-                for (final tag in PoseTag.all)
-                  if ((_counts[tag] ?? 0) > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        key: Key('pose-chip-$tag'),
-                        label: Text('${_tagLabel(l, tag)} · ${_counts[tag]}'),
-                        selected: _tag == tag,
-                        onSelected: (on) => _filter(tag: on ? tag : null),
-                      ),
-                    ),
-                for (final color in OutfitColor.values)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      key: Key('color-chip-${color.name}'),
-                      label: Text(_colorLabel(l, color)),
-                      selected: _color == color,
-                      onSelected: (on) => _filter(color: on ? color : null),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        if (_similarTo != null || _colourTwinOf != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 60,
-                  height: 84,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: CropImage(
-                      path: _rows[_similarTo ?? _colourTwinOf]?.cropPath,
-                      fit: BoxFit.contain,
-                      placeholderIcon: Icons.accessibility_new,
-                    ),
+                if (_preparing || _loading) const LinearProgressIndicator(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: DiscoveryIntro(
+                    title: reference == null
+                        ? l.bodiesTabAll
+                        : l.discoveryCompare,
+                    description: reference == null
+                        ? l.discoveryAllIntro
+                        : _exposedKind != null
+                        ? l.discoveryAreaPrecision
+                        : _colourTwinOf != null
+                        ? l.discoveryOutfitIntro
+                        : l.discoveryPosePrecision,
+                    icon: reference == null
+                        ? Icons.photo_library_outlined
+                        : Icons.compare_outlined,
+                    count: _loading ? null : _ids.length,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l.groupPoseReference,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      Text(
-                        _colourTwinOf != null
-                            ? l.bodyActionSimilarColours
-                            : _exposedKind == null
-                            ? l.bodyActionSimilarPose
-                            : _exposedKind == ExposedKind.chest
-                            ? l.equipmentAreaChest
-                            : l.equipmentAreaLower,
-                      ),
-                    ],
-                  ),
-                ),
-                if (_exposedKind != null)
-                  SizedBox(
-                    width: 48,
-                    height: 72,
-                    child: PoseDiagram(
-                      area: _exposedKind == ExposedKind.chest
-                          ? 'chest'
-                          : 'lower',
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        Expanded(
-          child: _ids.isEmpty && !_loading && !_preparing
-              ? EmptyState(
-                  icon: Icons.accessibility_new,
-                  title:
-                      _tag != null ||
-                          _color != null ||
-                          _similarTo != null ||
-                          _colourTwinOf != null ||
+                if (reference != null || _groupTag != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: InputChip(
+                        key: const Key('bodies-similar-chip'),
+                        label: Text(
                           _groupTag != null
-                      ? l.bodiesNothingMatches
-                      : l.bodiesEmpty,
-                )
-              : _grid(_ids, (id) => _openActions(id)),
-        ),
-      ],
+                              ? _groupLabel(l, _groupTag!)
+                              : _colourTwinOf != null
+                              ? l.bodiesSimilarColoursTitle
+                              : _exposedKind == null
+                              ? l.bodiesSimilarTitle
+                              : _exposedKind == ExposedKind.chest
+                              ? l.equipmentAreaChestSimilar
+                              : l.equipmentAreaLowerSimilar,
+                        ),
+                        onDeleted: () => _filter(),
+                        deleteButtonTooltipMessage: l.bodiesClearFilter,
+                      ),
+                    ),
+                  ),
+                if (reference != null)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 64,
+                          height: 88,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: CropImage(
+                              path: _rows[reference]?.cropPath,
+                              fit: BoxFit.contain,
+                              placeholderIcon: Icons.accessibility_new,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l.groupPoseReference,
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              Text(
+                                l.discoveryCompareHint,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ExpansionTile(
+                  key: const Key('bodies-filters'),
+                  initiallyExpanded: reference == null,
+                  title: Text(l.discoveryBrowse),
+                  leading: const Icon(Icons.tune),
+                  children: [
+                    _filterRow([
+                      if (widget.personId == null)
+                        for (final tag in GroupTag.all)
+                          if ((_groupCounts[tag] ?? 0) > 0)
+                            FilterChip(
+                              key: Key('group-chip-$tag'),
+                              label: Text(
+                                '${_groupLabel(l, tag)} · ${_groupCounts[tag]}',
+                              ),
+                              selected: _groupTag == tag,
+                              onSelected: (on) =>
+                                  _filter(group: on ? tag : null),
+                            ),
+                      for (final tag in PoseTag.all)
+                        if ((_counts[tag] ?? 0) > 0)
+                          FilterChip(
+                            key: Key('pose-chip-$tag'),
+                            label: Text(
+                              '${_tagLabel(l, tag)} · ${_counts[tag]}',
+                            ),
+                            selected: _tag == tag,
+                            onSelected: (on) => _filter(tag: on ? tag : null),
+                          ),
+                    ]),
+                    _filterRow([
+                      for (final color in OutfitColor.values)
+                        FilterChip(
+                          key: Key('color-chip-${color.name}'),
+                          label: Text(_colorLabel(l, color)),
+                          selected: _color == color,
+                          onSelected: (on) => _filter(color: on ? color : null),
+                        ),
+                    ]),
+                  ],
+                ),
+                if (filtered && reference == null)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      onPressed: () => _filter(),
+                      icon: const Icon(Icons.close),
+                      label: Text(l.bodiesClearFilter),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (_ids.isEmpty && !_loading && !_preparing)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyState(
+                icon: Icons.accessibility_new,
+                title: filtered ? l.bodiesNothingMatches : l.bodiesEmpty,
+              ),
+            )
+          else
+            _grid(
+              _ids,
+              (id) => reference == null ? _openActions(id) : _compare(id),
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _grid(List<int> ids, void Function(int id) onTap) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 120,
-        mainAxisSpacing: 6,
-        crossAxisSpacing: 6,
-        childAspectRatio: 0.62,
+  Widget _filterRow(List<Widget> children) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+    child: Row(
+      children: [
+        for (final child in children)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(end: 8),
+            child: child,
+          ),
+      ],
+    ),
+  );
+
+  Widget _grid(List<int> ids, void Function(int id) onTap) => SliverPadding(
+    padding: const EdgeInsets.all(12),
+    sliver: SliverGrid.builder(
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 200,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: _matches.isEmpty ? .68 : .58,
       ),
       itemCount: ids.length,
       itemBuilder: (context, i) {
-        final row = _rows[ids[i]];
-        return InkWell(
-          key: Key('body-${ids[i]}'),
-          onTap: () => onTap(ids[i]),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: CropImage(
-              path: row?.cropPath,
-              placeholderIcon: Icons.accessibility_new,
-              cacheWidth: 240,
+        final id = ids[i];
+        final score = _matches[id];
+        return Material(
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            key: Key('body-$id'),
+            onTap: () => onTap(id),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: CropImage(
+                    path: _rows[id]?.cropPath,
+                    fit: BoxFit.contain,
+                    expandable: false,
+                    placeholderIcon: Icons.accessibility_new,
+                    cacheWidth: 384,
+                  ),
+                ),
+                if (score != null)
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Text(
+                      AppLocalizations.of(
+                        context,
+                      ).discoverySimilarity((score.similarity * 100).round()),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                  ),
+              ],
             ),
           ),
         );
       },
+    ),
+  );
+
+  Future<void> _compare(int id) async {
+    final l = AppLocalizations.of(context);
+    final score = _matches[id];
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => BodyComparisonSheet(
+        referenceId: (_similarTo ?? _colourTwinOf)!,
+        candidateId: id,
+        showPose: _colourTwinOf == null,
+        title: _colourTwinOf != null
+            ? l.bodiesSimilarColoursTitle
+            : _exposedKind != null
+            ? l.bodiesTabAreas
+            : l.bodiesSimilarTitle,
+        similarity: score?.similarity,
+        coverage: score?.coverage,
+        area: _exposedKind?.name,
+      ),
     );
+    if (action == 'inspect' && mounted) await _openActions(id);
   }
 
   Future<void> _openActions(int bodyId) async {
@@ -542,6 +697,9 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
     final poseRow = await (db.select(
       db.bodyPoseFeatures,
     )..where((x) => x.bodyId.equals(bodyId))).getSingleOrNull();
+    final mediaRow = await (db.select(
+      db.media,
+    )..where((m) => m.id.equals(mediaId ?? -1))).getSingleOrNull();
     final tags = poseRow == null ? const <String>[] : decodeTags(poseRow.tags);
     final bbox = bodyRow == null
         ? null
@@ -562,6 +720,9 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
         cropPath: _rows[bodyId]?.cropPath,
         kpts: bodyRow?.kpts,
         bbox: bbox,
+        imageSize: mediaRow?.width == null || mediaRow?.height == null
+            ? null
+            : Size(mediaRow!.width!.toDouble(), mediaRow.height!.toDouble()),
         tags: tags,
         exposedAreas: [for (final k in exposedKinds) k.name],
       ),
@@ -618,9 +779,11 @@ class _CategoryList extends ConsumerStatefulWidget {
     this.personId,
     this.counts = const {},
     this.onTag,
+    this.onChooseExample,
   });
   final Map<String, int> counts;
   final void Function(String)? onTag;
+  final VoidCallback? onChooseExample;
 
   final bool pose;
   final int? personId;
@@ -629,7 +792,11 @@ class _CategoryList extends ConsumerStatefulWidget {
   ConsumerState<_CategoryList> createState() => _CategoryListState();
 }
 
-class _CategoryListState extends ConsumerState<_CategoryList> {
+class _CategoryListState extends ConsumerState<_CategoryList>
+    with AutomaticKeepAliveClientMixin {
+  String _search = '';
+  @override
+  bool get wantKeepAlive => true;
   List<({int id, String name, int count, String? cropPath})> _items = const [];
   bool _loaded = false;
 
@@ -687,11 +854,33 @@ class _CategoryListState extends ConsumerState<_CategoryList> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l = AppLocalizations.of(context);
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     return ListView(
+      key: PageStorageKey(widget.pose ? 'saved-poses' : 'saved-outfits'),
       padding: const EdgeInsets.all(16),
       children: [
+        DiscoveryIntro(
+          title: widget.pose ? l.bodiesTabPoses : l.bodiesTabOutfits,
+          description: widget.pose
+              ? l.discoveryPoseIntro
+              : l.discoveryOutfitIntro,
+          icon: widget.pose
+              ? Icons.accessibility_new
+              : Icons.checkroom_outlined,
+          count: _items.isEmpty ? null : _items.length,
+        ),
+        if (_items.isNotEmpty)
+          DiscoverySearch(
+            key: ValueKey('saved-search-${widget.pose}'),
+            hint: l.discoverySearchSaved,
+            onChanged: (value) => setState(() => _search = value),
+          ),
+        if (_search.isNotEmpty &&
+            !_items.any((item) => item.name.toLowerCase().contains(_search)))
+          Text(l.discoveryNoSearch),
+
         if (_items.isNotEmpty && widget.pose)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -700,7 +889,9 @@ class _CategoryListState extends ConsumerState<_CategoryList> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
-        for (final item in _items)
+        for (final item in _items.where(
+          (item) => item.name.toLowerCase().contains(_search),
+        ))
           ListTile(
             key: Key('category-${widget.pose ? 'pose' : 'outfit'}-${item.id}'),
             leading: SizedBox(
@@ -754,7 +945,6 @@ class _CategoryListState extends ConsumerState<_CategoryList> {
           ),
 
         if (widget.pose) ...[
-          Text(l.poseBrowseHint),
           for (final section in [
             (l.posePostureTitle, PoseTag.posture),
             (l.poseArmsTitle, PoseTag.arms),
@@ -810,6 +1000,16 @@ class _CategoryListState extends ConsumerState<_CategoryList> {
             ),
           ],
         ],
+        if (widget.onChooseExample != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: FilledButton.tonalIcon(
+              key: Key('choose-${widget.pose ? 'pose' : 'outfit'}-example'),
+              onPressed: widget.onChooseExample,
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: Text(l.groupPoseChooseExample),
+            ),
+          ),
         if (_items.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -925,12 +1125,43 @@ class _CategoryBodiesState extends ConsumerState<_CategoryBodies> {
               }
               await _load();
             },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CropImage(
-                path: _rows[id]?.cropPath,
-                placeholderIcon: Icons.accessibility_new,
-              ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CropImage(
+                    path: _rows[id]?.cropPath,
+                    expandable: false,
+                    placeholderIcon: Icons.accessibility_new,
+                  ),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: IconButton.filledTonal(
+                    key: Key('category-remove-$id'),
+                    tooltip: l.discoveryRemoveMatch,
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: () async {
+                      if (widget.pose) {
+                        await categories.setPoseState(
+                          widget.id,
+                          id,
+                          'rejected',
+                        );
+                      } else {
+                        await categories.setOutfitState(
+                          widget.id,
+                          id,
+                          'rejected',
+                        );
+                      }
+                      await _load();
+                    },
+                  ),
+                ),
+              ],
             ),
           );
         },

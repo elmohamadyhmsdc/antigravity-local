@@ -602,8 +602,22 @@ final personMediaOrganizerProvider = Provider<PersonMediaOrganizer>(
         ref.read(mediaLibraryProvider).clearCache().catchError((Object _) {}),
       );
     },
+    rootFolder: () async {
+      final bridge = ref.read(mediaOrganizerBridgeProvider);
+      return bridge is AndroidMediaOrganizer && await bridge.hasAllFilesAccess()
+          ? PersonMediaOrganizer.topRoot
+          : PersonMediaOrganizer.dcimRoot;
+    },
   ),
 );
+
+/// Where organized photos go now (shown on the Organize screen).
+final organizeRootProvider = FutureProvider.autoDispose<String>((ref) async {
+  final bridge = ref.watch(mediaOrganizerBridgeProvider);
+  return bridge is AndroidMediaOrganizer && await bridge.hasAllFilesAccess()
+      ? PersonMediaOrganizer.topRoot
+      : PersonMediaOrganizer.dcimRoot;
+});
 
 final dynamicAutoOrganizerProvider = Provider<DynamicAutoOrganizer>((ref) {
   return DynamicAutoOrganizer(

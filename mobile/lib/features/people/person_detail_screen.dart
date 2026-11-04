@@ -127,15 +127,6 @@ class PersonDetailScreen extends ConsumerWidget {
                 ),
               ),
               actions: [
-                IconButton(
-                  tooltip: 'Actions in media',
-                  icon: const Icon(Icons.motion_photos_on_outlined),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => VideoActionsScreen(personId: personId),
-                    ),
-                  ),
-                ),
                 IconButton.filledTonal(
                   key: const Key('person-use-studio'),
                   tooltip: l10n.useInStudio,
@@ -274,6 +265,11 @@ class PersonDetailScreen extends ConsumerWidget {
             'deletePerson',
           }.contains(a.id))
             a,
+        const PeopleMenuAction(
+          'activities',
+          Icons.motion_photos_on_outlined,
+          label: 'Activities in media',
+        ),
         PeopleMenuAction('marks', Icons.draw_outlined, label: l.marksTitle),
         PeopleMenuAction(
           'bodies',
@@ -284,7 +280,7 @@ class PersonDetailScreen extends ConsumerWidget {
           PeopleMenuAction(
             'curateLora',
             Icons.auto_awesome,
-            label: 'تدريب Character LoRA (تحديد ذكي)',
+            label: 'Prepare model training',
           ),
         // the export reads the person's own faces and bodies: it works the same for a drawn character
         PeopleMenuAction(
@@ -302,6 +298,12 @@ class PersonDetailScreen extends ConsumerWidget {
     );
     if (action == null || !context.mounted) return;
     switch (action) {
+      case 'activities':
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => VideoActionsScreen(personId: personId),
+          ),
+        );
       case 'curateLora':
         context.push(
           '${Routes.studioCuration}/$personId?name=${Uri.encodeComponent(personName(l, p))}',

@@ -180,6 +180,23 @@ def test_unexpected_exceptions_become_a_500_envelope_without_leaking_details():
         check("secret" not in r.text and "boom" not in r.text, f"the envelope must not leak internals: {r.text}")
 
 
+@test
+def test_pc_out_of_memory_during_analyze_is_a_retryable_503_not_a_failed_photo():
+    # 2026-11-04: a MemoryError while base64-encoding the upload for the decoder (PC page file full) came back
+    # as 500 internal, and the phone marked a perfectly good photo failed after two quick retries.
+    with Env() as e:
+        e.ctx.engines.fail_with = MemoryError()
+        r = e.client.post("/v1/analyze/image", files={"image": ("a.jpg", jpeg_bytes(), "image/jpeg")}, headers=e.auth)
+        check(r.status_code == 503, f"{r.status_code} {r.text}")
+        check_schema("Error", r.json(), "503 out of memory")
+        error = r.json()["error"]
+        check(error["code"] == "resource_pressure" and error["retryable"] is True, r.text)
+        check(int(r.headers["retry-after"]) > 0, "Retry-After")
+        e.ctx.engines.fail_with = None
+        r = e.client.post("/v1/analyze/image", files={"image": ("a.jpg", jpeg_bytes(), "image/jpeg")}, headers=e.auth)
+        check(r.status_code == 200, f"the next request works once memory is back: {r.status_code}")
+
+
 # --------------------------------------------------------------------------- pairing
 
 @test

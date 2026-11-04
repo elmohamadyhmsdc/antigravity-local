@@ -52,9 +52,16 @@ class PersonMediaOrganizer {
     required this.bridge,
     this.beforeMove,
     this.afterMove,
+    this.rootFolder,
   });
   final AppDatabase db;
   final MediaOrganizerBridge bridge;
+
+  /// Where the person folders go, ending in '/': the top-level 'Your Gallery/' when the app has
+  /// "All files access", else [dcimRoot] (Android only lets MediaStore put photos under DCIM/Pictures).
+  final Future<String> Function()? rootFolder;
+  static const dcimRoot = 'DCIM/Your Gallery/';
+  static const topRoot = 'Your Gallery/';
   final Future<void> Function()? beforeMove;
   final void Function()? afterMove;
   bool _busy = false;
@@ -117,6 +124,7 @@ class PersonMediaOrganizer {
         originals[original.assetId] = original;
       }
     }
+    final root = await (rootFolder?.call() ?? Future.value(dcimRoot));
     final groups = await db.select(db.identityGroups).get();
     final allPeople = await db.select(db.persons).get();
     final journal = await db.select(db.personMediaMoves).get();
@@ -210,8 +218,7 @@ class PersonMediaOrganizer {
         final category = selected.groupId == null
             ? ''
             : groupFolder(selected.groupId!);
-        final path =
-            'DCIM/Your Gallery/${category.isEmpty ? '' : '$category/'}$folder/';
+        final path = '$root${category.isEmpty ? '' : '$category/'}$folder/';
         final base = organizationSegment(
           identityName(selected),
         ).replaceAll(' ', '_');
@@ -438,24 +445,45 @@ class PersonMediaOrganizer {
           if (item == null) continue;
           await db.transaction(() async {
             final actual = result.actual;
+            // A file rename (All files access) normally keeps the MediaStore row. If Android re-created it,
+            // the bridge reports the new id: the library record follows it, unless another record owns it.
+            final renumbered =
+                result.moved &&
+                actual != null &&
+                result.detail == 'new_asset_id' &&
+                actual.assetId != item.media.assetId &&
+                await (db.select(db.media)
+                          ..where((m) => m.assetId.equals(actual.assetId)))
+                        .getSingleOrNull() ==
+                    null;
             if (result.moved &&
                 actual != null &&
-                actual.assetId == item.media.assetId) {
+                (renumbered || actual.assetId == item.media.assetId)) {
               await (db.update(db.media)..where(
                     (m) =>
                         m.id.equals(item.media.id) &
                         m.assetId.equals(item.media.assetId),
                   ))
-                  .write(MediaCompanion(modifiedAt: Value(actual.modifiedAt)));
+                  .write(
+                    MediaCompanion(
+                      modifiedAt: Value(actual.modifiedAt),
+                      assetId: renumbered
+                          ? Value(actual.assetId)
+                          : const Value.absent(),
+                    ),
+                  );
             }
             final complete =
                 result.moved &&
                 actual != null &&
-                actual.assetId == item.media.assetId;
+                (renumbered || actual.assetId == item.media.assetId);
             await (db.update(
               db.personMediaMoves,
             )..where((j) => j.mediaId.equals(item.media.id))).write(
               PersonMediaMovesCompanion(
+                assetId: renumbered
+                    ? Value(actual.assetId)
+                    : const Value.absent(),
                 state: Value(
                   complete
                       ? 'moved'

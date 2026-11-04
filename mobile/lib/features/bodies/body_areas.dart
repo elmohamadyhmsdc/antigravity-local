@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/router.dart';
+import '../marks/mark_tattoo.dart';
+import 'equipment_screens.dart';
+import 'group_pose_screens.dart';
+import 'discovery_widgets.dart';
+import 'body_comparison_sheet.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/db/app_database.dart';
@@ -25,7 +32,14 @@ class BodyAreasTab extends ConsumerStatefulWidget {
   ConsumerState<BodyAreasTab> createState() => _BodyAreasTabState();
 }
 
-class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
+class _BodyAreasTabState extends ConsumerState<BodyAreasTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+  String _search = '';
+  ExposedKind? _kind;
+  final _expanded = <int>{};
+  bool _failed = false;
   List<({BodyClusterRow cluster, List<int> bodyIds})> _clusters = const [];
   List<({int fromCluster, int toCluster, int bridges})> _bridges = const [];
   Map<int, BodyTile> _tiles = const {};
@@ -40,32 +54,45 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
   }
 
   Future<void> _load() async {
-    final service = ref.read(exposedClustersProvider);
-    final clusters = await service.clusters();
-    final bridges = await service.bridgeSuggestions();
-    final preview = <int>[for (final c in clusters) ...c.bodyIds.take(6)];
-    final tiles = await fetchBodyTiles(ref, preview);
-    final db = ref.read(databaseProvider);
-    final people = <int, String>{
-      for (final p in await db.select(db.persons).get())
-        p.id: p.name ?? '#${p.id}',
-    };
-    final customNames = <int, String>{};
-    for (final c in clusters) {
-      final name = await db.setting('cluster.name.${c.cluster.id}');
-      if (name != null && name.trim().isNotEmpty) {
-        customNames[c.cluster.id] = name.trim();
+    try {
+      final service = ref.read(exposedClustersProvider);
+      final clusters = await service.clusters();
+      final bridges = await service.bridgeSuggestions();
+      final preview = <int>[
+        for (final c in clusters)
+          ...(_expanded.contains(c.cluster.id) ? c.bodyIds : c.bodyIds.take(6)),
+      ];
+      final tiles = await fetchBodyTiles(ref, preview);
+      final db = ref.read(databaseProvider);
+      final people = <int, String>{
+        for (final p in await db.select(db.persons).get())
+          p.id: p.name ?? '#${p.id}',
+      };
+      final customNames = <int, String>{};
+      for (final c in clusters) {
+        final name = await db.setting('cluster.name.${c.cluster.id}');
+        if (name != null && name.trim().isNotEmpty) {
+          customNames[c.cluster.id] = name.trim();
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _clusters = clusters;
+        _bridges = bridges;
+        _tiles = tiles;
+        _people = people;
+        _customNames = customNames;
+        _loaded = true;
+        _failed = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loaded = true;
+          _failed = true;
+        });
       }
     }
-    if (!mounted) return;
-    setState(() {
-      _clusters = clusters;
-      _bridges = bridges;
-      _tiles = tiles;
-      _people = people;
-      _customNames = customNames;
-      _loaded = true;
-    });
   }
 
   Future<void> _rename(int clusterId, String currentName) async {
@@ -109,10 +136,12 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
             w: bodyRow.bboxW,
             h: bodyRow.bboxH,
           );
-    final areaKind = clusterType == 'buttocks' ? 'lower' : 'chest';
+    final media = await (db.select(
+      db.media,
+    )..where((m) => m.id.equals(bodyRow?.mediaId ?? -1))).getSingleOrNull();
 
     if (!mounted) return;
-    await showModalBottomSheet<String>(
+    final action = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       builder: (context) => BodyInspectionSheet(
@@ -120,16 +149,52 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
         cropPath: _tiles[bodyId]?.cropPath,
         kpts: bodyRow?.kpts,
         bbox: bbox,
+        imageSize: media?.width == null || media?.height == null
+            ? null
+            : Size(media!.width!.toDouble(), media.height!.toDouble()),
         tags: tags,
-        exposedAreas: [areaKind],
+        exposedAreas: [clusterType],
         mediaId: bodyRow?.mediaId,
       ),
     );
+    if (!mounted || action == null) return;
+    if (action.startsWith('exposed-')) {
+      widget.onSimilar?.call(bodyId, ExposedKind.values.byName(clusterType));
+    } else if (action == 'photo' && bodyRow?.mediaId != null) {
+      context.push('${Routes.media}/${bodyRow!.mediaId}');
+    } else if (action == 'pose') {
+      await nameBodyPose(context, ref, bodyId);
+    } else if (action == 'outfit') {
+      await nameBodyOutfit(context, ref, bodyId);
+    } else if (action == 'similar') {
+      context.push('${Routes.bodies}?similar=$bodyId');
+    } else if (action == 'colours') {
+      context.push('${Routes.bodies}?colours=$bodyId');
+    } else if (action == 'mark') {
+      await showMarkTattoo(context, ref, bodyId);
+    } else if (action == 'group-pose' && bodyRow?.mediaId != null) {
+      await nameGroupPose(context, ref, bodyRow!.mediaId!);
+    } else if (action == 'equipment' && bodyRow?.mediaId != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => EquipmentPhotoScreen(mediaId: bodyRow!.mediaId!),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l = AppLocalizations.of(context);
+    if (_failed) {
+      return EmptyState(
+        icon: Icons.refresh,
+        title: l.bodiesLoadFailed,
+        actionLabel: l.bodiesRetry,
+        onAction: _load,
+      );
+    }
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     if (_clusters.isEmpty) {
       return EmptyState(icon: Icons.workspaces_outline, title: l.clustersEmpty);
@@ -138,8 +203,45 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
       for (final c in _clusters) c.cluster.id: c.cluster.personId,
     };
     return ListView(
-      padding: const EdgeInsets.all(12),
+      key: const PageStorageKey('area-groups'),
+      padding: const EdgeInsets.all(16),
       children: [
+        DiscoveryIntro(
+          title: l.bodiesTabAreas,
+          description: l.discoveryAreaIntro,
+          icon: Icons.highlight_alt,
+          count: _clusters.length,
+        ),
+        Text(
+          l.discoveryAreaPrecision,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        DiscoverySearch(
+          hint: l.discoverySearchAreas,
+          onChanged: (value) => setState(() => _search = value),
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: Text(l.discoveryAreaAll),
+              selected: _kind == null,
+              onSelected: (_) => setState(() => _kind = null),
+            ),
+            for (final kind in ExposedKind.values)
+              ChoiceChip(
+                label: Text(
+                  kind == ExposedKind.chest
+                      ? l.equipmentAreaChest
+                      : l.equipmentAreaLower,
+                ),
+                selected: _kind == kind,
+                onSelected: (_) => setState(() => _kind = kind),
+              ),
+          ],
+        ),
         if (_bridges.isNotEmpty)
           Card(
             child: Column(
@@ -163,7 +265,13 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
               ],
             ),
           ),
-        for (final entry in _clusters)
+        for (final entry in _clusters.where(
+          (entry) =>
+              (_kind == null || entry.cluster.clusterType == _kind!.name) &&
+              ('${_customNames[entry.cluster.id] ?? ''} ${_people[entry.cluster.personId] ?? ''} ${entry.cluster.clusterType}')
+                  .toLowerCase()
+                  .contains(_search),
+        ))
           Card(
             key: Key('cluster-${entry.cluster.id}'),
             child: Padding(
@@ -172,8 +280,8 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
-                    height: 96,
-                    width: 72,
+                    height: 64,
+                    width: 48,
                     child: PoseDiagram(
                       area: entry.cluster.clusterType == 'buttocks'
                           ? 'lower'
@@ -226,6 +334,7 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(6),
                                   child: CropImage(
+                                    expandable: false,
                                     path: _tiles[id]?.cropPath,
                                     placeholderIcon: Icons.accessibility_new,
                                   ),
@@ -237,6 +346,70 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  TextButton.icon(
+                    key: Key('cluster-review-${entry.cluster.id}'),
+                    onPressed: () async {
+                      setState(() {
+                        if (!_expanded.add(entry.cluster.id)) {
+                          _expanded.remove(entry.cluster.id);
+                        }
+                      });
+                      await _load();
+                    },
+                    icon: Icon(
+                      _expanded.contains(entry.cluster.id)
+                          ? Icons.expand_less
+                          : Icons.expand_more,
+                    ),
+                    label: Text(l.discoveryAreaMembers),
+                  ),
+                  if (_expanded.contains(entry.cluster.id))
+                    for (final id in entry.bodyIds)
+                      ListTile(
+                        key: Key('area-member-$id'),
+                        contentPadding: EdgeInsets.zero,
+                        leading: SizedBox(
+                          width: 48,
+                          height: 64,
+                          child: CropImage(
+                            path: _tiles[id]?.cropPath,
+                            expandable: false,
+                            placeholderIcon: Icons.accessibility_new,
+                          ),
+                        ),
+                        title: Text(l.discoveryCompare),
+                        onTap: () async {
+                          final action = await showModalBottomSheet<String>(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (_) => BodyComparisonSheet(
+                              referenceId: entry.bodyIds.first,
+                              candidateId: id,
+                              title: l.bodiesTabAreas,
+                              area: entry.cluster.clusterType,
+                            ),
+                          );
+                          if (action == 'inspect' && mounted) {
+                            await _inspectBody(id, entry.cluster.clusterType);
+                          }
+                        },
+                        trailing: IconButton(
+                          key: Key('area-reject-$id'),
+                          tooltip: l.discoveryRemoveMatch,
+                          icon: const Icon(Icons.remove_circle_outline),
+                          onPressed: () async {
+                            await ref
+                                .read(exposedClustersProvider)
+                                .rejectMember(
+                                  id,
+                                  ExposedKind.values.byName(
+                                    entry.cluster.clusterType,
+                                  ),
+                                );
+                            await _load();
+                          },
+                        ),
+                      ),
                   if (entry.bodyIds.isNotEmpty)
                     TextButton.icon(
                       key: Key('cluster-similar-${entry.cluster.id}'),
@@ -256,10 +429,12 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab> {
                   if (entry.cluster.personId != null)
                     Row(
                       children: [
-                        Text(
-                          l.clusterBelongsTo(
-                            _people[entry.cluster.personId] ??
-                                '#${entry.cluster.personId}',
+                        Expanded(
+                          child: Text(
+                            l.clusterBelongsTo(
+                              _people[entry.cluster.personId] ??
+                                  '#${entry.cluster.personId}',
+                            ),
                           ),
                         ),
                         IconButton(

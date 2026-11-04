@@ -329,10 +329,7 @@ void main() {
       Future<BodyRow> body(int id) =>
           (db.select(db.bodies)..where((b) => b.id.equals(id))).getSingle();
       final l = await body(loose);
-      expect(
-        (l.personId, l.linkMethod, l.linkConfidence),
-        (sara, 'appearance', 0.95),
-      );
+      expect((l.personId, l.linkMethod, l.linkConfidence), (null, null, null));
       final s = await body(stale);
       expect(
         (s.personId, s.linkMethod),
@@ -345,7 +342,7 @@ void main() {
         (sara, 'manual'),
         reason: 'a link made by hand is never overwritten',
       );
-      expect(run.bodiesLinked, 1);
+      expect(run.bodiesLinked, 0);
 
       final request = api.groupingCalls.firstWhere(
         (c) => c.stages.contains('bodies') && c.mode == 'apply',
@@ -393,14 +390,14 @@ void main() {
                 BodyLinkPlan(
                   bodyId: body,
                   personId: sara,
-                  method: 'appearance',
+                  method: 'weak_face',
                   confidence: 0.8,
                   decision: 'suggest',
                 ),
                 BodyLinkPlan(
                   bodyId: body,
                   personId: sara,
-                  method: 'appearance',
+                  method: 'weak_face',
                   confidence: 0.99,
                   decision: 'auto',
                 ),

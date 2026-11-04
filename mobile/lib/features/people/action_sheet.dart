@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../shared/crop_image.dart';
+import '../../ui/actions/action_section.dart';
+import '../../ui/scaffolds/sheet_scaffold.dart';
 
 class PeopleMenuAction {
   const PeopleMenuAction(
@@ -25,7 +27,7 @@ Future<String?> showPeopleActionSheet(
   context: context,
   useSafeArea: true,
   isScrollControlled: true,
-  showDragHandle: true,
+  showDragHandle: false,
   builder: (context) {
     final l = AppLocalizations.of(context);
     Widget tile(PeopleMenuAction a) => ListTile(
@@ -48,7 +50,21 @@ Future<String?> showPeopleActionSheet(
       onTap: () => Navigator.pop(context, a.id),
     );
     final regular = actions.where((a) => !a.destructive).toList();
-    final secondary = regular.skip(5).toList();
+    const quickOrder = [
+      'open',
+      'select',
+      'rename',
+      'suggestions',
+      'assign',
+      'similar',
+    ];
+    final quick = <PeopleMenuAction>[];
+    if (actions.length <= 5) quick.addAll(regular);
+    for (final id in actions.length <= 5 ? const <String>[] : quickOrder) {
+      final action = regular.where((a) => a.id == id).firstOrNull;
+      if (action != null && quick.length < 3) quick.add(action);
+    }
+    final secondary = regular.where((a) => !quick.contains(a)).toList();
     const organize = {
       'setGroup',
       'organizeMedia',
@@ -73,78 +89,75 @@ Future<String?> showPeopleActionSheet(
       'reject',
       'unassign',
       'similar',
+      'merge',
+      'dissolve',
     };
-    final groups = <String, List<PeopleMenuAction>>{
-      l.peopleOrganize: secondary
-          .where((a) => organize.contains(a.id))
-          .toList(),
-      l.peopleMatching: secondary
-          .where((a) => matching.contains(a.id))
-          .toList(),
-      l.peopleTools: secondary
-          .where((a) => !organize.contains(a.id) && !matching.contains(a.id))
-          .toList(),
-    };
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * .85,
+    const create = {'studio', 'curateLora', 'exportTraining'};
+    final groups = [
+      (
+        'organize',
+        l.peopleOrganize,
+        Icons.folder_outlined,
+        secondary.where((a) => organize.contains(a.id)).toList(),
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: PersonAvatar(cropPath: cropPath, radius: 24),
-              title: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium,
+      (
+        'matching',
+        l.peopleMatching,
+        Icons.person_search_outlined,
+        secondary.where((a) => matching.contains(a.id)).toList(),
+      ),
+      (
+        'create',
+        'Create & training',
+        Icons.auto_awesome_outlined,
+        secondary.where((a) => create.contains(a.id)).toList(),
+      ),
+      (
+        'tools',
+        l.peopleTools,
+        Icons.tune,
+        secondary
+            .where(
+              (a) =>
+                  !organize.contains(a.id) &&
+                  !matching.contains(a.id) &&
+                  !create.contains(a.id),
+            )
+            .toList(),
+      ),
+    ];
+    return SheetScaffold(
+      title: title,
+      subtitle: subtitle,
+      leading: PersonAvatar(cropPath: cropPath, radius: 24),
+      trailing: IconButton(
+        key: const Key('people-actions-close'),
+        tooltip: l.cancel,
+        onPressed: () => Navigator.pop(context),
+        icon: const Icon(Icons.close),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...quick.map(tile),
+          for (final group in groups)
+            if (group.$4.isNotEmpty)
+              ActionSection(
+                key: Key('people-actions-${group.$1}'),
+                title: group.$2,
+                icon: group.$3,
+                children: group.$4.map(tile).toList(),
               ),
-              subtitle: subtitle == null ? null : Text(subtitle),
-              trailing: IconButton(
-                key: const Key('people-actions-close'),
-                tooltip: l.cancel,
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-              ),
+          if (actions.any((a) => a.destructive))
+            ActionSection(
+              key: const Key('people-actions-remove'),
+              title: 'Remove',
+              icon: Icons.delete_outline,
+              danger: true,
+              children: actions.where((a) => a.destructive).map(tile).toList(),
             ),
-            const Divider(),
-            ...regular.take(5).map(tile),
-            if (regular.length > 5)
-              ExpansionTile(
-                key: const Key('people-more-actions'),
-                title: Text(l.peopleAction('more')),
-                children: [
-                  for (final group in groups.entries)
-                    if (group.value.isNotEmpty) ...[
-                      Padding(
-                        padding: const EdgeInsetsDirectional.fromSTEB(
-                          16,
-                          16,
-                          16,
-                          4,
-                        ),
-                        child: Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: Text(
-                            group.key,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                          ),
-                        ),
-                      ),
-                      ...group.value.map(tile),
-                    ],
-                ],
-              ),
-            if (actions.any((a) => a.destructive)) ...[
-              const Divider(),
-              ...actions.where((a) => a.destructive).map(tile),
-            ],
-            const SizedBox(height: 12),
-          ],
-        ),
+          const SizedBox(height: 12),
+        ],
       ),
     );
   },

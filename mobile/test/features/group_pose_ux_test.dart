@@ -8,8 +8,10 @@ import 'package:antigravity_mobile/data/api/equipment_api.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/domain/pose/equipment_library.dart';
 import 'package:antigravity_mobile/domain/pose/pose_index.dart';
+import 'package:antigravity_mobile/features/bodies/body_comparison_sheet.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -42,6 +44,10 @@ Future<int> _photo(AppDatabase db, String asset) async {
     final id = await seedBody(db, mediaId: media);
     await (db.update(db.bodies)..where((b) => b.id.equals(id))).write(
       BodiesCompanion(
+        bboxX: Value((10 + offset) / 600),
+        bboxY: const Value(0),
+        bboxW: const Value(80 / 600),
+        bboxH: const Value(100 / 400),
         kpts: Value(
           jsonEncode([
             for (final p in points) [(p[0] + offset) / 600, p[1] / 400, .9],
@@ -107,6 +113,49 @@ void main() {
         ))
         .load();
   });
+  appTest(
+    'pose results open a zoomable comparison and preserve the reference',
+    (tester, env) async {
+      final source = await _photo(env.db, 'comparison-source');
+      final match = await _photo(env.db, 'comparison-result');
+      final bodies = await env.db.select(env.db.bodies).get();
+      final query = bodies.firstWhere((b) => b.mediaId == source).id;
+      final candidate = bodies.firstWhere((b) => b.mediaId == match).id;
+      await tester.runAsync(() => PoseIndex(env.db).rebuild());
+      await env.pump(
+        tester,
+        settle: false,
+        extra: [
+          initialLocationProvider.overrideWithValue('/bodies?similar=$query'),
+        ],
+      );
+      await _settle(tester);
+      final tile = find.byKey(Key('body-$candidate'));
+      await tester.ensureVisible(tile);
+      await tester.tap(tile);
+      await _settle(tester);
+      expect(find.byType(BodyComparisonSheet), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BodyComparisonSheet),
+          matching: find.text('100% visual similarity'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(InteractiveViewer), findsNWidgets(2));
+      await _preview(tester, 'pose-side-by-side-comparison');
+      await tester.ensureVisible(find.byKey(const Key('compare-overlay')));
+      await tester.tap(find.byKey(const Key('compare-overlay')));
+      await tester.pumpAndSettle();
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.8;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+    session: testSession,
+  );
   appTest(
     'a group action can be named, found and corrected without naming either person',
     (tester, env) async {
@@ -257,6 +306,16 @@ void main() {
       await _tab(tester, 'poses');
       await _preview(tester, 'visual-pose-browser');
       final standing = find.byKey(const Key('pose-visual-standing'));
+      await tester.scrollUntilVisible(
+        standing,
+        180,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const PageStorageKey('saved-poses')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.ensureVisible(standing);
       await tester.pumpAndSettle();
       await tester.tap(standing);

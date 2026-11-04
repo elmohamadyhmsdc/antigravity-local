@@ -67,6 +67,8 @@ def cases():
     no_hips = {i: v for i, v in s.items() if i < 11}
     return {
         "standing": (pose(s), {"standing", "frontal"}),
+        "bent": (pose({i: (x + 250 if i <= 10 else x, y) for i, (x, y) in s.items()}),
+                 {"bent", "frontal"}),
         "standing_upper_extent": (pose(s, extent="upper"), {"frontal"}),
         "lying": (pose(rotated(s)), {"lying"}),
         "lying_relaxed": (pose(relaxed), {"lying"}),
@@ -131,6 +133,16 @@ def test_scale_source_and_comparability():
     check(abs(sim - 1) < 1e-6 and abs(coverage - 13 / 17) < 1e-9 and shared == 13, (sim, coverage, shared))
     few = {i: s[i] for i in (5, 6, 11, 12)}
     check(pf.build_feature(pose(few)) is None, "fewer than 8 visible points")
+
+
+@test
+def test_limb_differences_and_invalid_values_are_not_hidden():
+    base = pf.build_feature(pose(standing()))
+    for change in ({9: (680, 250)}, {15: (900, 950)}):
+        other = pf.build_feature(pose(moved(standing(), change)))
+        check(pf.compare(base, other)[0] < 0.65, "one different limb must reduce similarity")
+    broken = pf.Feature(np.full(34, np.nan, dtype=np.float32), base.mask, "torso")
+    check(pf.compare(base, broken) is None, "invalid feature")
 
 
 def golden():

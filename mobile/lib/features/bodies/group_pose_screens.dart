@@ -9,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../shared/empty_state.dart';
 import 'pose_visuals.dart';
+import 'discovery_widgets.dart';
 
 Future<bool> nameGroupPose(
   BuildContext context,
@@ -119,7 +120,11 @@ class GroupPosesTab extends ConsumerStatefulWidget {
   ConsumerState<GroupPosesTab> createState() => _GroupPosesTabState();
 }
 
-class _GroupPosesTabState extends ConsumerState<GroupPosesTab> {
+class _GroupPosesTabState extends ConsumerState<GroupPosesTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+  String search = '';
   List<GroupPosePhoto> photos = [];
   List<PoseCategoryRow> saved = [];
   bool loaded = false, failed = false;
@@ -169,6 +174,7 @@ class _GroupPosesTabState extends ConsumerState<GroupPosesTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l = AppLocalizations.of(context);
     if (!loaded) return const Center(child: CircularProgressIndicator());
     if (failed) {
@@ -182,14 +188,26 @@ class _GroupPosesTabState extends ConsumerState<GroupPosesTab> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(l.groupPoseIntro, style: Theme.of(context).textTheme.bodyMedium),
+        DiscoveryIntro(
+          title: l.groupPoseTab,
+          description: l.groupPoseIntro,
+          icon: Icons.groups_outlined,
+          count: photos.length,
+        ),
+        if (saved.isNotEmpty)
+          DiscoverySearch(
+            hint: l.discoverySearchSaved,
+            onChanged: (value) => setState(() => search = value),
+          ),
         const SizedBox(height: 16),
         if (saved.isNotEmpty) ...[
           Text(
             l.groupPoseSaved,
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          for (final category in saved)
+          for (final category in saved.where(
+            (c) => c.name.toLowerCase().contains(search),
+          ))
             ListTile(
               key: Key('group-category-${category.id}'),
               contentPadding: EdgeInsets.zero,

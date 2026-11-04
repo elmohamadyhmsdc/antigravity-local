@@ -29,12 +29,7 @@ Future<void> _preview(WidgetTester tester, String name) async {
   });
 }
 
-Future<void> _moreActions(WidgetTester tester) async {
-  final more = find.byKey(const Key('people-more-actions'));
-  await tester.ensureVisible(more);
-  await tester.tap(more);
-  await tester.pumpAndSettle();
-}
+Future<void> _moreActions(WidgetTester tester) => expandActionSections(tester);
 
 void main() {
   setUpAll(() async {

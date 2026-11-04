@@ -11,11 +11,13 @@ import 'dart:typed_data';
 
 import 'pose_geometry.dart';
 
-const poseFeatureVersion = 1;
+const poseFeatureVersion = 2;
 const minSharedPoints = 8;
 
 /// Starting value of the Gaussian width in torso units; Phase 0 (`eval_pose_filters.py`) calibrates it.
-const defaultPoseSigma = 0.35;
+const defaultPoseSigma = 0.22;
+const minimumPoseSimilarity = 0.65;
+const minimumPoseCoverage = 0.70;
 
 class PoseFeature {
   const PoseFeature(this.data, this.mask, this.scaleSource);
@@ -31,10 +33,20 @@ class PoseFeature {
 
   int get visibleCount => _bits(mask);
 
+  bool get isValid =>
+      data.length == 34 &&
+      data.every((v) => v.isFinite) &&
+      mask > 0 &&
+      mask < (1 << 17) &&
+      visibleCount >= minSharedPoints;
+
   Uint8List toBlob() =>
       data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
 
   static PoseFeature fromBlob(Uint8List blob, int mask, String scaleSource) {
+    if (blob.lengthInBytes != 34 * 4) {
+      return PoseFeature(Float32List(0), 0, scaleSource);
+    }
     final copy = Uint8List.fromList(blob);
     return PoseFeature(copy.buffer.asFloat32List(), mask, scaleSource);
   }
@@ -53,6 +65,11 @@ int _bits(int v) {
 /// * `shoulder`: hips missing, FRONTAL only (eyes and ears seen, shoulders wide), scale = 1.35 x the
 ///   shoulder width. Off-frontal the shoulders are foreshortened and the scale would blow up.
 PoseFeature? buildPoseFeature(Pose pose) {
+  if (pose.points.any(
+    (p) => !p.x.isFinite || !p.y.isFinite || !p.score.isFinite,
+  )) {
+    return null;
+  }
   late final Pt origin;
   late final double scale;
   late final String source;
@@ -105,7 +122,7 @@ class PoseMatch {
     required this.shared,
   });
 
-  /// exp(-d^2 / 2 s^2) of the mean distance over the shared points, best of straight / mirrored.
+  /// Gaussian similarity using global and worst limb squared error.
   final double similarity;
 
   /// shared / max(visible_a, visible_b): an upper-body pose never ties a full-body one.
@@ -121,13 +138,21 @@ PoseMatch? comparePoses(
   PoseFeature a,
   PoseFeature b, {
   double sigma = defaultPoseSigma,
+  bool allowMirror = true,
 }) {
-  if (a.scaleSource != b.scaleSource) return null;
+  if (a.scaleSource != b.scaleSource ||
+      !a.isValid ||
+      !b.isValid ||
+      !sigma.isFinite ||
+      sigma <= 0) {
+    return null;
+  }
   final straight = _compare(a, b, sigma);
+  if (!allowMirror) return straight;
   final flipped = _compare(a, mirrorFeature(b), sigma);
   if (straight == null) return flipped;
   if (flipped == null) return straight;
-  return flipped.similarity > straight.similarity ? flipped : straight;
+  return flipped.score > straight.score ? flipped : straight;
 }
 
 PoseMatch? _compare(PoseFeature a, PoseFeature b, double sigma) {
@@ -135,16 +160,39 @@ PoseMatch? _compare(PoseFeature a, PoseFeature b, double sigma) {
   final shared = _bits(both);
   if (shared < minSharedPoints) return null;
   var total = 0.0;
+  var weight = 0.0;
+  final errors = List<double>.filled(17, 0);
   for (var i = 0; i < 17; i++) {
     if (both & (1 << i) == 0) continue;
     final dx = a.data[2 * i] - b.data[2 * i],
         dy = a.data[2 * i + 1] - b.data[2 * i + 1];
-    total += math.sqrt(dx * dx + dy * dy);
+    final w = i < Kp.lShoulder ? 0.25 : 1.0;
+    errors[i] = dx * dx + dy * dy;
+    total += errors[i] * w;
+    weight += w;
   }
-  final d = total / shared;
+  // Five almost identical face points must not hide a changed arm or leg.
+  var worstRegion = 0.0;
+  for (final region in const [
+    [5, 7, 9],
+    [6, 8, 10],
+    [11, 13, 15],
+    [12, 14, 16],
+    [5, 6, 11, 12],
+  ]) {
+    var count = 0;
+    var sum = 0.0;
+    for (final i in region) {
+      if (both & (1 << i) == 0) continue;
+      sum += errors[i];
+      count++;
+    }
+    if (count >= 2) worstRegion = math.max(worstRegion, sum / count);
+  }
+  final squaredError = 0.45 * total / weight + 0.55 * worstRegion;
   return PoseMatch(
-    similarity: math.exp(-d * d / (2 * sigma * sigma)),
-    coverage: shared / math.max(a.visibleCount, b.visibleCount),
+    similarity: math.exp(-squaredError / (2 * sigma * sigma)),
+    coverage: shared / _bits(a.mask | b.mask),
     shared: shared,
   );
 }

@@ -48,7 +48,7 @@
       }
     }
   },
-  "reviewOutfitHelp": "This is a suggestion based on clothing or a weak face match. Check the highlighted body in the original before deciding.",
+  "reviewOutfitHelp": "Check the highlighted body in the original and compare the identity evidence before deciding. Similar clothing alone is not an identity match.",
   "reviewYesPerson": "Yes, {name}",
   "@reviewYesPerson": {
     "placeholders": {
@@ -913,7 +913,7 @@
   "reviewDuplicatesEmpty": "No people look like duplicates",
   "reviewGroupsEmpty": "No new groups to review",
   "reviewMatchesEmpty": "No faces waiting to be matched",
-  "reviewOutfitsEmpty": "No outfit matches to review",
+  "reviewOutfitsEmpty": "No body identity matches to review",
   "reviewTabDuplicates": "Same person? ({count})",
   "@reviewTabDuplicates": {
     "placeholders": {
@@ -2270,8 +2270,56 @@
   "autoSyncOrganizedFolders": "Auto-sync organized folders",
   "autoSyncOrganizedFoldersHint": "Move files and metadata automatically when people change groups or corrections occur",
   "moveWithoutAskingTitle": "Move photos without asking",
-  "moveWithoutAskingOn": "Allowed. After a scan, thousands of photos move into their people's folders on their own, with no prompts.",
-  "moveWithoutAskingOff": "Not allowed yet. Without it Android would ask for confirmation again and again, so photos are not moved automatically. Tap, then switch on “Media management” for this app, once.",
+  "moveWithoutAskingOn": "Allowed. People's folders are in “Your Gallery” on the phone's storage (outside DCIM), each photo keeps its .json file beside it, and photos move after a scan with no prompts, also in the background.",
+  "moveWithoutAskingOff": "Not allowed yet. Without it Android asks before every batch of moves, the .json files cannot be saved and photos are not moved automatically. Tap, then switch on “Allow access to manage all files” for this app, once.",
   "saveSidecarMetadata": "Save sidecar metadata (.json)",
-  "saveSidecarMetadataHint": "Save portable AI metadata alongside media for zero-rescan restoration"
+  "saveSidecarMetadataHint": "Save portable AI metadata alongside media for zero-rescan restoration",
+  "discoveryCompareHint": "Compare the reference and result. Pinch either image to inspect the details.",
+  "discoveryCandidate": "Result",
+  "discoverySkeleton": "Skeleton",
+  "discoveryAreaGuide": "Area guide",
+  "discoverySimilarity": "{percent}% visual similarity",
+  "@discoverySimilarity": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "discoveryCoverage": "{percent}% shared keypoint coverage",
+  "@discoveryCoverage": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "discoveryPosePrecision": "Matches compare visible joints and individual limbs. A similarity score is not an identity confidence.",
+  "discoveryAreaPrecision": "These are visual area matches, not proof of identity. The highlight is an approximate guide.",
+  "discoveryInspect": "Inspect result",
+  "discoveryPoseIntro": "Compare postures, arms and direction.",
+  "discoveryOutfitIntro": "Find similar clothing from your saved examples. Colours do not identify a person.",
+  "discoverySearchSaved": "Search saved examples",
+  "discoverySearchEquipment": "Search equipment",
+  "discoverySearchAreas": "Search areas or people",
+  "discoveryAreaIntro": "Review similar visible regions, compare examples and organise them by person.",
+  "discoveryMatches": "{count} results",
+  "@discoveryMatches": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "discoveryAllIntro": "Choose a body to inspect its pose, find similar examples or save an outfit.",
+  "discoveryNoSearch": "No saved examples match your search.",
+  "discoveryAreaAll": "All regions",
+  "discoveryBrowse": "Browse",
+  "discoveryColours": "Colours",
+  "discoveryCompare": "Compare",
+  "discoveryAreaMembers": "Review all examples",
+  "discoveryRemoveMatch": "Remove from this group",
+  "discoveryAreaRemoveHint": "This example will stay out of area groups after rebuilding.",
+  "discoveryAreaRebuild": "Refresh area groups",
+  "discoveryBent": "Bent"
 }

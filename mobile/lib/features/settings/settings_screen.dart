@@ -45,7 +45,8 @@ class SettingsScreen extends ConsumerWidget {
             SettingTile.nav(
               key: const Key('settings-activity'),
               leading: const Icon(Icons.show_chart),
-              title: l10n.homeActivity,
+              title: 'Activity',
+              subtitle: 'Scans and background tasks',
               trailing: activeCount > 0
                   ? Badge.count(
                       count: activeCount,
@@ -82,13 +83,6 @@ class SettingsScreen extends ConsumerWidget {
               leading: const Icon(Icons.photo_library_outlined),
               title: l10n.settingsLibrarySection,
               subtitle: l10n.sourcesTitle,
-              onTap: () => context.push(Routes.settingsLibrary),
-            ),
-            // Legacy key support for tests expecting settings-sources
-            SettingTile.nav(
-              key: const Key('settings-sources'),
-              leading: const Icon(Icons.folder_special_outlined),
-              title: l10n.sourcesTitle,
               onTap: () => context.push(Routes.settingsLibrary),
             ),
           ],
@@ -141,7 +135,6 @@ class SettingsScreen extends ConsumerWidget {
             SettingTile.nav(
               leading: const Icon(Icons.info_outline),
               title: l10n.appTitle,
-              subtitle: 'v2.0.0',
               trailing: const SizedBox.shrink(),
             ),
             SettingTile.action(
@@ -150,7 +143,6 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => showLicensePage(
                 context: context,
                 applicationName: l10n.appTitle,
-                applicationVersion: 'v2.0.0',
               ),
             ),
           ],

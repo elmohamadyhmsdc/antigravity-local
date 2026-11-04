@@ -9,7 +9,6 @@ import '../bodies/pose_visuals.dart';
 import '../library/scan_invite_strip.dart';
 import '../shared/crop_image.dart';
 import '../shared/person_picker.dart';
-import '../video_actions/video_actions_screen.dart';
 
 final _exploreCropsProvider = StreamProvider.autoDispose<List<String>>((ref) {
   final db = ref.watch(databaseProvider);
@@ -22,42 +21,26 @@ final _exploreCropsProvider = StreamProvider.autoDispose<List<String>>((ref) {
       .map((rows) => [for (final row in rows) row.read<String>('crop_path')]);
 });
 
-final _exploreCountsProvider = FutureProvider.autoDispose<Map<String, int>>((
+final _exploreCountsProvider = StreamProvider.autoDispose<Map<String, int>>((
   ref,
-) async {
+) {
   final db = ref.watch(databaseProvider);
-  final bodyCount =
-      (await db
-              .customSelect(
-                "SELECT COUNT(*) AS c FROM bodies WHERE (ownership IS NULL OR ownership != 'none') AND (hidden IS NULL OR hidden = 0)",
-                readsFrom: {db.bodies},
-              )
-              .getSingle())
-          .read<int>('c');
-
-  final marksCount =
-      (await db
-              .customSelect(
-                'SELECT COUNT(*) AS c FROM body_marks',
-                readsFrom: {db.bodyMarks},
-              )
-              .getSingle())
-          .read<int>('c');
-
-  final equipmentCount =
-      (await db
-              .customSelect(
-                'SELECT COUNT(*) AS c FROM equipment_objects',
-                readsFrom: {db.equipmentObjects},
-              )
-              .getSingle())
-          .read<int>('c');
-
-  return {
-    'bodies': bodyCount,
-    'marks': marksCount,
-    'equipment': equipmentCount,
-  };
+  return db
+      .customSelect(
+        """SELECT
+    (SELECT COUNT(*) FROM bodies WHERE kind = 'person' AND hidden = 0) AS bodies,
+    (SELECT COUNT(*) FROM body_marks) AS marks,
+    (SELECT COUNT(*) FROM equipment_objects WHERE state != 'rejected') AS equipment""",
+        readsFrom: {db.bodies, db.bodyMarks, db.equipmentObjects},
+      )
+      .watchSingle()
+      .map(
+        (row) => {
+          'bodies': row.read<int>('bodies'),
+          'marks': row.read<int>('marks'),
+          'equipment': row.read<int>('equipment'),
+        },
+      );
 });
 
 /// E1 / P7 — ExploreScreen: Hub for visual feature browsing
@@ -72,6 +55,39 @@ class ExploreScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
+    final compact =
+        MediaQuery.sizeOf(context).width < 360 ||
+        MediaQuery.textScalerOf(context).scale(14) > 19;
+    final bodyItems = [
+      (
+        'All bodies',
+        'Browse analyzed body crops',
+        Icons.photo_library_outlined,
+        Routes.bodies,
+        counts['bodies'],
+      ),
+      (
+        'Poses',
+        'Browse body positions',
+        Icons.accessibility_new,
+        '${Routes.explore}/poses',
+        null,
+      ),
+      (
+        'Outfits & colours',
+        'Find similar clothing',
+        Icons.checkroom_outlined,
+        '${Routes.explore}/outfits',
+        null,
+      ),
+      (
+        'Group poses',
+        'Explore people together',
+        Icons.groups_outlined,
+        '${Routes.explore}/groupPoses',
+        null,
+      ),
+    ];
     return TabRootScaffold(
       title: const Text('Explore'),
       body: CustomScrollView(
@@ -83,63 +99,66 @@ class ExploreScreen extends ConsumerWidget {
                 child: ScanInviteStrip(),
               ),
             ),
-
-          // Section 1: Bodies
-          _buildSectionHeader('Bodies', Icons.accessibility_new, scheme),
+          _buildSectionHeader(
+            'Bodies & clothing',
+            Icons.accessibility_new,
+            scheme,
+          ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            sliver: SliverGrid.count(
-              crossAxisCount: MediaQuery.textScalerOf(context).scale(14) > 22
-                  ? 1
-                  : 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: MediaQuery.textScalerOf(context).scale(14) > 22
-                  ? 1.35
-                  : 1.12,
+            sliver: compact
+                ? SliverList.list(
+                    children: [
+                      for (final item in bodyItems)
+                        _ExploreRow(
+                          title: item.$1,
+                          subtitle: item.$2,
+                          icon: item.$3,
+                          count: item.$5,
+                          onTap: () => context.push(item.$4),
+                        ),
+                    ],
+                  )
+                : SliverGrid.count(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1.12,
+                    children: [
+                      for (var i = 0; i < bodyItems.length; i++)
+                        _ExploreCard(
+                          title: bodyItems[i].$1,
+                          subtitle: bodyItems[i].$2,
+                          icon: bodyItems[i].$3,
+                          count: bodyItems[i].$5,
+                          cropPath: i == 0 && crops.isNotEmpty
+                              ? crops.first
+                              : null,
+                          onTap: () => context.push(bodyItems[i].$4),
+                        ),
+                    ],
+                  ),
+          ),
+          _buildSectionHeader(
+            'Regions, objects & activities',
+            Icons.search,
+            scheme,
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverList.list(
               children: [
-                _ExploreCard(
-                  title: 'All bodies',
-                  subtitle: 'Browse analyzed body crops',
-                  count: counts['bodies'],
-                  icon: Icons.photo_library_outlined,
-                  cropPath: crops.isNotEmpty ? crops.first : null,
-                  onTap: () => context.push(Routes.bodies),
-                ),
-                _ExploreCard(
-                  title: 'Poses',
-                  subtitle: 'Browse body positions',
-                  icon: Icons.accessibility_new,
-                  cropPath: crops.length > 1 ? crops[1] : null,
-                  onTap: () => context.push('${Routes.explore}/poses'),
-                ),
-                _ExploreCard(
-                  title: 'Outfits & colours',
-                  subtitle: 'Find similar clothing',
-                  icon: Icons.checkroom_outlined,
-                  cropPath: crops.length > 2 ? crops[2] : null,
-                  onTap: () => context.push('${Routes.explore}/outfits'),
-                ),
-                _ExploreCard(
-                  title: 'Group poses',
-                  subtitle: 'Explore people together',
-                  icon: Icons.groups_outlined,
-                  cropPath: crops.length > 3 ? crops[3] : null,
-                  onTap: () => context.push('${Routes.explore}/groupPoses'),
-                ),
-                _ExploreCard(
+                _ExploreRow(
                   title: 'Areas',
-                  subtitle: 'Exposed region clusters',
-                  icon: Icons.bubble_chart_outlined,
-                  cropPath: crops.length > 4 ? crops[4] : null,
+                  subtitle: 'Compare visible body regions',
+                  icon: Icons.highlight_alt,
                   onTap: () => context.push('${Routes.explore}/areas'),
                 ),
-                _ExploreCard(
+                _ExploreRow(
                   title: 'Marks',
                   subtitle: 'Browse saved marks by person',
                   count: counts['marks'],
                   icon: Icons.draw_outlined,
-                  cropPath: crops.length > 5 ? crops[5] : null,
                   onTap: () async {
                     final person = await pickPerson(
                       context,
@@ -153,67 +172,23 @@ class ExploreScreen extends ConsumerWidget {
                     }
                   },
                 ),
-              ],
-            ),
-          ),
-
-          // Section 2: Objects
-          _buildSectionHeader('Objects', Icons.sports_tennis_outlined, scheme),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            sliver: SliverGrid.count(
-              crossAxisCount: MediaQuery.textScalerOf(context).scale(14) > 22
-                  ? 1
-                  : 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: MediaQuery.textScalerOf(context).scale(14) > 22
-                  ? 1.35
-                  : 1.12,
-              children: [
-                _ExploreCard(
+                _ExploreRow(
                   title: 'Equipment',
                   subtitle: 'Browse detected objects',
                   count: counts['equipment'],
                   icon: Icons.sports_tennis_outlined,
                   onTap: () => context.push('${Routes.explore}/equipment'),
                 ),
-              ],
-            ),
-          ),
-
-          // Section 3: Motion
-          _buildSectionHeader(
-            'Motion',
-            Icons.motion_photos_on_outlined,
-            scheme,
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            sliver: SliverGrid.count(
-              crossAxisCount: MediaQuery.textScalerOf(context).scale(14) > 22
-                  ? 1
-                  : 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: MediaQuery.textScalerOf(context).scale(14) > 22
-                  ? 1.35
-                  : 1.12,
-              children: [
-                _ExploreCard(
+                _ExploreRow(
                   title: 'Actions',
                   subtitle: 'Find activities from your examples',
                   icon: Icons.motion_photos_on_outlined,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const VideoActionsScreen(),
-                    ),
-                  ),
+                  onTap: () => context.push('${Routes.explore}/actions'),
                 ),
               ],
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
       ),
     );
@@ -227,12 +202,14 @@ class ExploreScreen extends ConsumerWidget {
           children: [
             Icon(icon, size: 20, color: scheme.primary),
             const SizedBox(width: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: scheme.primary,
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: scheme.primary,
+                ),
               ),
             ),
           ],
@@ -281,7 +258,11 @@ class _ExploreCard extends StatelessWidget {
                   child: cropPath != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                          child: CropImage(path: cropPath, fit: BoxFit.cover),
+                          child: CropImage(
+                            path: cropPath,
+                            fit: BoxFit.cover,
+                            expandable: false,
+                          ),
                         )
                       : title == 'Group poses'
                       ? const SizedBox(
@@ -350,4 +331,33 @@ class _ExploreCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ExploreRow extends StatelessWidget {
+  const _ExploreRow({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+    this.count,
+  });
+  final String title, subtitle;
+  final IconData icon;
+  final int? count;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+    leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+    title: Text(title),
+    subtitle: Text(subtitle),
+    onTap: onTap,
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (count != null && count! > 0) Text('$count'),
+        const Icon(Icons.chevron_right),
+      ],
+    ),
+  );
 }

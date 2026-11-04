@@ -51,6 +51,11 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
+      await tester.ensureVisible(
+        find.byKey(const Key('library-organization-section')),
+      );
+      await tester.tap(find.byKey(const Key('library-organization-section')));
+      await tester.pumpAndSettle();
       final autoOrganizeFinder = find.byKey(
         const Key('settings-auto-organize'),
       );

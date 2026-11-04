@@ -15,6 +15,15 @@ from .media_decode import ImageTooLarge, MediaDecodeError
 
 log = logging.getLogger("mobile_api")
 
+OUT_OF_MEMORY_RETRY_SECONDS = 15
+
+
+def _out_of_memory() -> ApiError:
+    log.warning("analyze: the PC is out of memory; the phone will retry this photo")
+    return ApiError(503, "resource_pressure",
+                    "The PC is out of memory. Close other programs or restart the server; the scan will retry.",
+                    retryable=True, headers={"Retry-After": str(OUT_OF_MEMORY_RETRY_SECONDS)})
+
 
 def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
     router = APIRouter()
@@ -54,10 +63,17 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
             raise bad_request(str(error), code='bad_image') from error
         except ApiError:
             raise
+        except MemoryError as error:
+            # The PC ran out of RAM/page file (often big Studio models still loaded). The photo is fine:
+            # answer like a busy PC so the phone waits and retries it, instead of marking it failed.
+            raise _out_of_memory() from error
         except Exception:  # noqa: BLE001
             log.exception("analyze failed")
             raise ApiError(500, "internal", "Image analysis failed on the server.", retryable=True)
-        body = await run_in_threadpool(analysis_to_response, result, img, opts, ctx.engines.model_id)
+        try:
+            body = await run_in_threadpool(analysis_to_response, result, img, opts, ctx.engines.model_id)
+        except MemoryError as error:
+            raise _out_of_memory() from error
         return JSONResponse(body)
 
     @router.post("/v1/analyze/outlines")

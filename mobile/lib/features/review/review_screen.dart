@@ -41,7 +41,8 @@ final reviewDoubtfulProvider = StreamProvider.autoDispose
 /// S10 - everything the PC wants a decision on, in four tabs: faces that look like a known person,
 /// new groups of faces, people who may be the same, bodies matched by outfit.
 class ReviewScreen extends ConsumerWidget {
-  const ReviewScreen({super.key, this.kind = 'person'});
+  const ReviewScreen({super.key, this.kind = 'person', this.initialTab = 0});
+  final int initialTab;
 
   /// 'person' or 'character': characters are reviewed with exactly the same four tabs.
   final String kind;
@@ -54,6 +55,7 @@ class ReviewScreen extends ConsumerWidget {
         const ReviewCounts();
     return DefaultTabController(
       length: 5,
+      initialIndex: initialTab.clamp(0, 4),
       child: Scaffold(
         appBar: AppBar(
           title: Text(

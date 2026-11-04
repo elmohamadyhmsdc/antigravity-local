@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router.dart';
-import '../../l10n/app_localizations.dart';
 import '../bodies/bodies_screen.dart';
 import '../marks/person_marks_screen.dart';
 import '../shared/person_picker.dart';
@@ -67,8 +66,6 @@ class ExploreCollectionView extends ConsumerStatefulWidget {
 }
 
 class _ExploreCollectionViewState extends ConsumerState<ExploreCollectionView> {
-  bool _noOwnerOnly = false;
-
   int _kindToTab(String kind) {
     return switch (kind) {
       'poses' => 1,
@@ -80,25 +77,8 @@ class _ExploreCollectionViewState extends ConsumerState<ExploreCollectionView> {
     };
   }
 
-  String _titleForKind(String kind, AppLocalizations l10n) {
-    return switch (kind) {
-      'all' => 'All Bodies',
-      'poses' => l10n.bodiesTabPoses,
-      'outfits' => l10n.bodiesTabOutfits,
-      'groupPoses' => 'Group Poses',
-      'equipment' => l10n.bodiesTabEquipment,
-      'areas' => l10n.bodiesTabAreas,
-      'marks' => 'Marks & Tattoos',
-      'actions' => 'Actions',
-      _ => kind,
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final title = _titleForKind(widget.kind, l10n);
-
     // Kinds that have specialized screens:
     if (widget.kind == 'actions') {
       return const VideoActionsScreen();
@@ -140,66 +120,11 @@ class _ExploreCollectionViewState extends ConsumerState<ExploreCollectionView> {
 
     final tabIndex = widget.initialTab ?? _kindToTab(widget.kind);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          IconButton(
-            key: const Key('explore-filter-action'),
-            icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              setState(() => _noOwnerOnly = !_noOwnerOnly);
-            },
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: Row(
-              children: [
-                FilterChip(
-                  key: const Key('filter-no-owner'),
-                  label: const Text('No owner'),
-                  selected: _noOwnerOnly,
-                  onSelected: (val) {
-                    setState(() => _noOwnerOnly = val);
-                  },
-                ),
-                if (widget.similar != null) ...[
-                  const SizedBox(width: 8),
-                  InputChip(
-                    key: const Key('filter-similar'),
-                    label: Text('Similar to #${widget.similar}'),
-                    selected: true,
-                    onDeleted: () {
-                      context.pushReplacement('/explore/${widget.kind}');
-                    },
-                  ),
-                ],
-                if (widget.colours != null) ...[
-                  const SizedBox(width: 8),
-                  InputChip(
-                    key: const Key('filter-colours'),
-                    label: Text('Colours of #${widget.colours}'),
-                    selected: true,
-                    onDeleted: () {
-                      context.pushReplacement('/explore/${widget.kind}');
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-      body: BodiesScreen(
-        personId: widget.personId,
-        initialTab: tabIndex,
-        initialSimilar: widget.similar,
-        initialSimilarColours: widget.colours,
-      ),
+    return BodiesScreen(
+      personId: widget.personId,
+      initialTab: tabIndex,
+      initialSimilar: widget.similar,
+      initialSimilarColours: widget.colours,
     );
   }
 }

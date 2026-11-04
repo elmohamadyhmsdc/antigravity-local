@@ -101,49 +101,25 @@ rankCandidates(
   final scored =
       <({int id, double score, double similarity, double coverage})>[];
   final qTags = decodeTags(query.tags);
-  final qHasFrontal = qTags.contains(PoseTag.frontal);
-  final qHasBack = qTags.contains(PoseTag.back);
-  final qHasProfile = qTags.contains(PoseTag.profile);
-  final qHasStanding = qTags.contains(PoseTag.standing);
-  final qHasSitting = qTags.contains(PoseTag.sitting);
-  final qHasLying = qTags.contains(PoseTag.lying);
-  final qHasBent = qTags.contains(PoseTag.bent);
-
   for (final c in candidates) {
     if (strict && query.tags.isNotEmpty && c.tags.isNotEmpty) {
       final cTags = decodeTags(c.tags);
-      // 1. Orientation gating:
-      if (qHasBack &&
-          (cTags.contains(PoseTag.frontal) ||
-              cTags.contains(PoseTag.profile))) {
-        continue;
+      var conflict = false;
+      for (final dimension in [
+        PoseTag.orientation,
+        PoseTag.posture,
+        PoseTag.arms,
+      ]) {
+        final left = qTags.where(dimension.contains).toSet();
+        final right = cTags.where(dimension.contains).toSet();
+        if (left.isNotEmpty &&
+            right.isNotEmpty &&
+            left.intersection(right).isEmpty) {
+          conflict = true;
+          break;
+        }
       }
-      if (qHasFrontal &&
-          (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.profile))) {
-        continue;
-      }
-      if (qHasProfile &&
-          (cTags.contains(PoseTag.back) || cTags.contains(PoseTag.frontal))) {
-        continue;
-      }
-
-      // 2. Posture & Bending gating:
-      if (qHasStanding &&
-          (cTags.contains(PoseTag.sitting) ||
-              cTags.contains(PoseTag.lying) ||
-              cTags.contains(PoseTag.bent))) {
-        continue;
-      }
-      if (qHasBent && cTags.contains(PoseTag.standing)) continue;
-      if (qHasSitting &&
-          (cTags.contains(PoseTag.standing) || cTags.contains(PoseTag.lying))) {
-        continue;
-      }
-      if (qHasLying &&
-          (cTags.contains(PoseTag.standing) ||
-              cTags.contains(PoseTag.sitting))) {
-        continue;
-      }
+      if (conflict) continue;
     }
 
     final m = comparePoses(
@@ -152,7 +128,9 @@ rankCandidates(
       sigma: sigma,
     );
     if (m != null) {
-      if (strict && (m.similarity < 0.55 || m.score < 0.45)) {
+      if (strict &&
+          (m.similarity < minimumPoseSimilarity ||
+              m.coverage < minimumPoseCoverage)) {
         continue;
       }
       scored.add((
@@ -194,7 +172,7 @@ class PoseIndex {
       (await _db
               .customSelect(
                 '''SELECT COUNT(*) AS n FROM bodies b JOIN media m ON m.id = b.media_id
-               WHERE b.kpts IS NOT NULL
+               WHERE b.hidden = 0 AND b.kind = 'person' AND b.kpts IS NOT NULL
                  AND NOT EXISTS (SELECT 1 FROM body_pose_features x WHERE x.body_id = b.id AND x.version = ?)''',
                 variables: [Variable.withInt(poseRulesVersion)],
                 readsFrom: {_db.bodies, _db.media, _db.bodyPoseFeatures},
@@ -214,7 +192,7 @@ class PoseIndex {
           .customSelect(
             '''SELECT b.id, b.kpts, b.extent, m.width, m.height, f.yaw
                FROM bodies b JOIN media m ON m.id = b.media_id LEFT JOIN faces f ON f.id = b.face_id
-               WHERE b.kpts IS NOT NULL
+               WHERE b.hidden = 0 AND b.kind = 'person' AND b.kpts IS NOT NULL
                  AND NOT EXISTS (SELECT 1 FROM body_pose_features x WHERE x.body_id = b.id AND x.version = ?)
                ORDER BY b.id LIMIT ?''',
             variables: [
@@ -273,7 +251,7 @@ class PoseIndex {
         .customSelect(
           '''SELECT x.body_id FROM body_pose_features x JOIN bodies b ON b.id = x.body_id
              LEFT JOIN faces f ON f.id = b.face_id
-             WHERE x.tags LIKE ? ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}
+             WHERE b.hidden = 0 AND b.kind = 'person' AND x.tags LIKE ? ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}
              ORDER BY x.body_id DESC LIMIT ?''',
           variables: [
             Variable.withString('%,$tag,%'),
@@ -292,7 +270,7 @@ class PoseIndex {
         .customSelect(
           '''SELECT x.tags FROM body_pose_features x JOIN bodies b ON b.id = x.body_id
              LEFT JOIN faces f ON f.id = b.face_id
-             WHERE x.tags != '' ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}''',
+             WHERE b.hidden = 0 AND b.kind = 'person' AND x.tags != '' ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}''',
           variables: [if (personId != null) Variable.withInt(personId)],
           readsFrom: {_db.bodyPoseFeatures, _db.bodies, _db.faces},
         )
@@ -314,7 +292,7 @@ class PoseIndex {
     int limit = _maxResults,
     double sigma = defaultPoseSigma,
     int? personId,
-    bool strict = false,
+    bool strict = true,
   }) async {
     final query =
         await (_db.select(_db.bodyPoseFeatures)..where(
@@ -356,7 +334,7 @@ class PoseIndex {
     double sigma = defaultPoseSigma,
     int? personId,
     String tags = '',
-    bool strict = false,
+    bool strict = true,
   }) async {
     final candidates = await _candidates(personId: personId);
     final q = (
@@ -392,7 +370,7 @@ class PoseIndex {
           '''SELECT x.body_id, x.feature, x.visible_mask, x.scale_source, x.tags
              FROM body_pose_features x JOIN bodies b ON b.id = x.body_id
              LEFT JOIN faces f ON f.id = b.face_id
-             WHERE x.visible_mask > 0 ${excluding == null ? '' : 'AND x.body_id != ?'}
+             WHERE b.hidden = 0 AND b.kind = 'person' AND x.visible_mask > 0 ${excluding == null ? '' : 'AND x.body_id != ?'}
              ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}''',
           variables: [
             if (excluding != null) Variable.withInt(excluding),
@@ -422,7 +400,7 @@ class PoseIndex {
     final rows = await _db
         .customSelect(
           '''SELECT b.id, b.appearance FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
-             WHERE b.appearance IS NOT NULL
+             WHERE b.hidden = 0 AND b.kind = 'person' AND b.appearance IS NOT NULL
              ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}
              ORDER BY b.id DESC''',
           variables: [if (personId != null) Variable.withInt(personId)],
@@ -448,7 +426,7 @@ _rankIsolated(
   List<CandidatePose> candidates,
   int limit,
   double sigma, {
-  bool strict = false,
+  bool strict = true,
 }) => Isolate.run(
   () => rankCandidates(
     query,

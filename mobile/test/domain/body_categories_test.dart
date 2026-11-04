@@ -68,6 +68,37 @@ void main() {
 
   group('poses', () {
     test(
+      'rescoring removes obsolete automatic matches and preserves manual decisions',
+      () async {
+        final source = await body(standing);
+        final wrong = await body(withWrist(100));
+        final manual = await body(rotated(standing));
+        final rejected = await body(standing);
+        await poses.rebuild();
+        final category = await categories.savePose(
+          (await categories.draftPose(source))!,
+          'Standing',
+        );
+        await categories.setPoseState(category, wrong, 'auto', similarity: .99);
+        await categories.setPoseState(category, manual, 'manual');
+        await categories.setPoseState(category, rejected, 'rejected');
+        await categories.rescorePose(category);
+        expect(
+          await categories.bodiesInPose(category),
+          unorderedEquals([source, manual]),
+        );
+        final decisions = await (db.select(
+          db.bodyPoseMatches,
+        )..where((m) => m.categoryId.equals(category))).get();
+        expect(
+          decisions.firstWhere((m) => m.bodyId == rejected).state,
+          'rejected',
+        );
+        expect(decisions.map((m) => m.bodyId), isNot(contains(wrong)));
+      },
+    );
+
+    test(
       'preview lists what looks alike; saving keeps them, rejects the removed, and the exemplar is manual',
       () async {
         final exemplar = await body(withWrist(250));

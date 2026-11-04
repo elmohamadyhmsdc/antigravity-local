@@ -35,7 +35,7 @@ class ReviewHubScreen extends ConsumerStatefulWidget {
 
 class _ReviewHubScreenState extends ConsumerState<ReviewHubScreen> {
   late String _kind = widget.kind;
-  late String? _activeQueue = widget.queue;
+  late final String? _activeQueue = widget.queue;
   bool? _all;
 
   @override
@@ -44,7 +44,7 @@ class _ReviewHubScreenState extends ConsumerState<ReviewHubScreen> {
     final theme = Theme.of(context);
 
     // If a specific view or queue is selected, render it directly
-    if (widget.view == 'quick' || _activeQueue == 'suggestions') {
+    if (widget.view == 'quick') {
       return QuickReviewScreen(kind: _kind);
     }
     if (widget.view == 'all') {
@@ -53,11 +53,15 @@ class _ReviewHubScreenState extends ConsumerState<ReviewHubScreen> {
     if (_activeQueue == 'unsorted') {
       return UnsortedScreen(kind: _kind);
     }
+    if (_activeQueue == 'suggestions') return ReviewScreen(kind: _kind);
+    if (_activeQueue == 'groups') {
+      return ReviewScreen(kind: _kind, initialTab: 1);
+    }
     if (_activeQueue == 'duplicates') {
-      return ReviewScreen(kind: _kind);
+      return ReviewScreen(kind: _kind, initialTab: 2);
     }
     if (_activeQueue == 'bodyLinks') {
-      return ReviewScreen(kind: _kind);
+      return ReviewScreen(kind: _kind, initialTab: 3);
     }
     if (_activeQueue == 'excluded') {
       return _ExcludedQueueScreen(kind: _kind);
@@ -104,7 +108,8 @@ class _ReviewHubScreenState extends ConsumerState<ReviewHubScreen> {
             key: const Key('review-quick-mode'),
             tooltip: 'Quick Review',
             icon: const Icon(Icons.bolt_outlined),
-            onPressed: () => setState(() => _activeQueue = 'suggestions'),
+            onPressed: () =>
+                context.push('${Routes.review}?view=quick&kind=$_kind'),
           ),
           IconButton(
             key: const Key('review-tabs-mode'),
@@ -136,8 +141,9 @@ class _ReviewHubScreenState extends ConsumerState<ReviewHubScreen> {
             title: 'Unsorted Faces',
             count: unsortedCount,
             subtitle: 'Faces waiting to be assigned to an identity',
-            color: Colors.amber,
-            onTap: () => setState(() => _activeQueue = 'unsorted'),
+            color: theme.colorScheme.primary,
+            onTap: () =>
+                context.push('${Routes.review}?queue=unsorted&kind=$_kind'),
           ),
           const SizedBox(height: 12),
 
@@ -146,32 +152,46 @@ class _ReviewHubScreenState extends ConsumerState<ReviewHubScreen> {
             icon: Icons.auto_awesome_outlined,
             title: 'Suggestions',
             count: suggestionsCount,
-            subtitle: 'High confidence matches predicted by AI',
+            subtitle: 'Compare suggested face matches',
             color: theme.colorScheme.primary,
             badge: suggestionsCount > 0 ? 'Ready' : null,
-            onTap: () => setState(() => _activeQueue = 'suggestions'),
+            onTap: () =>
+                context.push('${Routes.review}?queue=suggestions&kind=$_kind'),
           ),
           const SizedBox(height: 12),
 
+          _QueueCard(
+            key: const Key('queue-groups'),
+            icon: Icons.groups_outlined,
+            title: 'New people',
+            count: counts?.groups ?? 0,
+            subtitle: 'Review groups of unassigned faces',
+            color: theme.colorScheme.primary,
+            onTap: () =>
+                context.push('${Routes.review}?queue=groups&kind=$_kind'),
+          ),
+          const SizedBox(height: 12),
           _QueueCard(
             key: const Key('queue-duplicates'),
             icon: Icons.people_outline,
             title: 'Possible Duplicates',
             count: duplicatesCount,
             subtitle: 'Identities that may be the same person',
-            color: Colors.indigo,
-            onTap: () => setState(() => _activeQueue = 'duplicates'),
+            color: theme.colorScheme.primary,
+            onTap: () =>
+                context.push('${Routes.review}?queue=duplicates&kind=$_kind'),
           ),
           const SizedBox(height: 12),
 
           _QueueCard(
             key: const Key('queue-body-links'),
             icon: Icons.accessibility_new,
-            title: 'Body & Outfit Links',
+            title: 'Body identity',
             count: bodyLinksCount,
-            subtitle: 'Bodies and clothing matched to people',
-            color: Colors.teal,
-            onTap: () => setState(() => _activeQueue = 'bodyLinks'),
+            subtitle: 'Review identity evidence for body detections',
+            color: theme.colorScheme.primary,
+            onTap: () =>
+                context.push('${Routes.review}?queue=bodyLinks&kind=$_kind'),
           ),
           const SizedBox(height: 12),
 
@@ -181,8 +201,9 @@ class _ReviewHubScreenState extends ConsumerState<ReviewHubScreen> {
             title: 'Excluded & Corrected',
             count: excludedCount,
             subtitle: 'Elements marked as no owner, false, or dismissed',
-            color: Colors.blueGrey,
-            onTap: () => setState(() => _activeQueue = 'excluded'),
+            color: theme.colorScheme.onSurfaceVariant,
+            onTap: () =>
+                context.push('${Routes.review}?queue=excluded&kind=$_kind'),
           ),
         ],
       ),

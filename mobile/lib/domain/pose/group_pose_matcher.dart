@@ -12,18 +12,21 @@ import 'package:drift/drift.dart';
 import '../../data/db/app_database.dart';
 import 'pose_descriptor.dart';
 import 'pose_geometry.dart';
+import 'pose_rules.dart';
 
 const groupPoseKind = 'group_pose';
 const maxGroupPosePeople = 6;
 
 class GroupPoseFeature {
-  const GroupPoseFeature(this.members);
+  const GroupPoseFeature(this.members, {this.tags = const []});
   final List<PoseFeature> members;
+  final List<List<String>> tags;
 
   Uint8List encode() => Uint8List.fromList(
     utf8.encode(
       jsonEncode({
         'version': 1,
+        'tags': tags,
         'members': [
           for (final m in members) {'points': m.data.toList(), 'mask': m.mask},
         ],
@@ -53,7 +56,11 @@ class GroupPoseFeature {
         )) {
       throw const FormatException('Invalid group pose');
     }
-    return GroupPoseFeature(members);
+    final rawTags = json['tags'];
+    final tags = rawTags is List && rawTags.length == members.length
+        ? [for (final value in rawTags) (value as List).cast<String>()]
+        : [for (final member in members) _memberTags(member)];
+    return GroupPoseFeature(members, tags: tags);
   }
 }
 
@@ -89,8 +96,22 @@ GroupPoseFeature? buildGroupPose(List<Pose> poses) {
     }
     members.add(PoseFeature(data, mask, 'group'));
   }
-  return GroupPoseFeature(members);
+  return GroupPoseFeature(
+    members,
+    tags: [for (final pose in poses) tierATags(pose).toList()],
+  );
 }
+
+List<String> _memberTags(PoseFeature member) => tierATags(
+  Pose([
+    for (var i = 0; i < 17; i++)
+      Pt(
+        member.data[2 * i],
+        member.data[2 * i + 1],
+        member.mask & (1 << i) == 0 ? 0 : 1,
+      ),
+  ], extent: 'full'),
+).toList();
 
 /// Find a one-to-one assignment, invariant to detection order. Only a reflection
 /// of the ENTIRE group is allowed: independently flipping people changes an action.
@@ -102,41 +123,45 @@ double? compareGroupPoses(GroupPoseFeature a, GroupPoseFeature b) {
       n,
       (i) => List.generate(n, (j) {
         final left = a.members[i], right = candidates[j];
-        var shared = 0, visible = 0;
-        var distance = 0.0;
-        for (var k = 0; k < 17; k++) {
-          final flag = 1 << k;
-          if ((left.mask | right.mask) & flag != 0) visible++;
-          if ((left.mask & right.mask) & flag == 0) continue;
-          shared++;
-          final dx = left.data[2 * k] - right.data[2 * k];
-          final dy = left.data[2 * k + 1] - right.data[2 * k + 1];
-          distance += math.sqrt(dx * dx + dy * dy);
+        final leftTags = a.tags.length == n ? a.tags[i] : _memberTags(left);
+        final rightTags = b.tags.length == n ? b.tags[j] : _memberTags(right);
+        for (final dimension in [
+          PoseTag.orientation,
+          PoseTag.posture,
+          PoseTag.arms,
+        ]) {
+          final x = leftTags.where(dimension.contains).toSet();
+          final y = rightTags.where(dimension.contains).toSet();
+          if (x.isNotEmpty && y.isNotEmpty && x.intersection(y).isEmpty) {
+            return 0.0;
+          }
         }
-        if (shared < minSharedPoints || shared / visible < 0.7) {
-          return double.infinity;
-        }
-        // Missing joints reduce ranking even when the visible part agrees.
-        return distance / shared + (1 - shared / visible) * 0.5;
+        final match = comparePoses(
+          left,
+          right,
+          sigma: 0.30,
+          allowMirror: false,
+        );
+        if (match == null || match.coverage < minimumPoseCoverage) return 0.0;
+        return match.score;
       }),
     );
-    final dp = List.filled(1 << n, double.infinity)..[0] = 0;
+    // Maximise the weakest member, so one different pose cannot be hidden
+    // by five matching people. Reflection is applied to the whole group below.
+    final dp = List.filled(1 << n, -1.0)..[0] = 1.0;
     for (var mask = 0; mask < dp.length; mask++) {
       var person = 0;
       for (var bits = mask; bits != 0; bits &= bits - 1) {
         person++;
       }
-      if (person == n || !dp[mask].isFinite) continue;
+      if (person == n || dp[mask] < 0) continue;
       for (var j = 0; j < n; j++) {
         if (mask & (1 << j) != 0) continue;
         final next = mask | (1 << j);
-        dp[next] = math.min(dp[next], dp[mask] + costs[person][j]);
+        dp[next] = math.max(dp[next], math.min(dp[mask], costs[person][j]));
       }
     }
-    final distance = dp.last / n;
-    return distance.isFinite
-        ? math.exp(-distance * distance / (2 * 0.45 * 0.45))
-        : null;
+    return dp.last < 0 ? null : dp.last;
   }
 
   final straight = assignment(b.members);
@@ -192,10 +217,10 @@ class GroupPoseMatcher {
         .customSelect(
           '''SELECT m.id FROM media m
       WHERE m.kind = 'photo' AND EXISTS (SELECT 1 FROM bodies b
-      LEFT JOIN faces f ON f.id = b.face_id WHERE b.media_id = m.id
+      LEFT JOIN faces f ON f.id = b.face_id WHERE b.media_id = m.id AND b.hidden = 0 AND b.kind = 'person'
       ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'})
-      AND (SELECT COUNT(*) FROM bodies b WHERE b.media_id = m.id
-      AND b.frame_number IS NULL) BETWEEN 2 AND $maxGroupPosePeople ORDER BY m.id DESC''',
+      AND (SELECT COUNT(*) FROM bodies b WHERE b.media_id = m.id AND b.hidden = 0
+      AND b.kind = 'person' AND b.frame_number IS NULL) BETWEEN 2 AND $maxGroupPosePeople ORDER BY m.id DESC''',
           variables: [if (personId != null) Variable.withInt(personId)],
           readsFrom: {db.media, db.bodies, db.faces},
         )
@@ -213,7 +238,13 @@ class GroupPoseMatcher {
       )..where((m) => m.id.isIn(ids))).get();
       final bodies =
           await (db.select(db.bodies)
-                ..where((b) => b.mediaId.isIn(ids) & b.frameNumber.isNull())
+                ..where(
+                  (b) =>
+                      b.mediaId.isIn(ids) &
+                      b.frameNumber.isNull() &
+                      b.hidden.equals(false) &
+                      b.kind.equals('person'),
+                )
                 ..orderBy([(b) => OrderingTerm.asc(b.id)]))
               .get();
       final byMedia = <int, List<BodyRow>>{};

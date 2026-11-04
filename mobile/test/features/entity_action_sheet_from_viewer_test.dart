@@ -3,6 +3,7 @@ import 'package:antigravity_mobile/domain/actions/entity_ref.dart';
 import 'package:antigravity_mobile/ui/actions/entity_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../support/harness.dart';
 
 void main() {
   group('EntityActionSheet from Viewer', () {
@@ -27,6 +28,7 @@ void main() {
         ),
       );
 
+      await expandActionSections(tester);
       expect(find.byKey(const Key('action-sheet-open')), findsOneWidget);
       expect(
         find.byKey(const Key('action-sheet-assignPerson')),
@@ -62,6 +64,7 @@ void main() {
         ),
       );
 
+      await expandActionSections(tester);
       expect(
         find.byKey(const Key('action-sheet-assignPerson')),
         findsOneWidget,

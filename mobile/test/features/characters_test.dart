@@ -35,9 +35,7 @@ void main() {
     await tester.tap(find.byKey(const Key('people-selection-actions')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('people-action-merge')), findsNothing);
-    await tester.ensureVisible(find.byKey(const Key('people-more-actions')));
-    await tester.tap(find.byKey(const Key('people-more-actions')));
-    await tester.pumpAndSettle();
+    await expandActionSections(tester);
     expect(find.byKey(const Key('people-action-pin')), findsOneWidget);
     expect(find.byKey(const Key('people-action-export')), findsOneWidget);
   }, session: testSession);
@@ -184,7 +182,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('person-title')), findsOneWidget);
       expect(find.byKey(const Key('person-use-studio')), findsOneWidget);
-      expect(find.byTooltip('Actions in media'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('person-menu')));
+      await tester.pumpAndSettle();
+      await expandActionSections(tester);
+      expect(find.byKey(const Key('people-action-activities')), findsOneWidget);
     },
     session: testSession,
   );

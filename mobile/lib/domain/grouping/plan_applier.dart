@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../data/api/dtos/grouping.dart';
 import '../../data/db/app_database.dart';
+import 'identity_evidence.dart';
 
 class FacePlanResult {
   const FacePlanResult({
@@ -142,7 +143,11 @@ class PlanApplier {
     final people = await _personIds();
     var linked = 0;
     for (final l in plan.bodyLinks) {
-      if (!l.isAuto || !people.contains(l.personId)) continue;
+      if (!l.isAuto ||
+          !people.contains(l.personId) ||
+          isClothingOnlyLink(l.method)) {
+        continue;
+      }
       linked += await _db.customUpdate(
         "UPDATE bodies SET person_id = ?, link_method = ?, link_confidence = ? WHERE id = ? AND person_id IS NULL AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = bodies.id AND r.person_id = ?) AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.id = bodies.face_id AND f.person_id IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM body_distinct d JOIN bodies o ON (o.id = CASE WHEN d.body_a = bodies.id THEN d.body_b ELSE d.body_a END) WHERE (d.body_a = bodies.id OR d.body_b = bodies.id) AND o.person_id = ?)",
         variables: [

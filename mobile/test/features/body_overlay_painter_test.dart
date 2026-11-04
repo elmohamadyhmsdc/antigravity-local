@@ -4,6 +4,45 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:antigravity_mobile/features/bodies/pose_visuals.dart';
 
 void main() {
+  test(
+    'overlay follows the padded crop and BoxFit without clamping joints',
+    () {
+      const box = (x: .2, y: .1, w: .4, h: .8);
+      const source = Size(1000, 1000);
+      const viewport = Size(300, 400);
+      // Body crops add 6% horizontally and 4% vertically.
+      final corner = bodyCropOverlayPoint(
+        const Offset(.176, .068),
+        box,
+        source,
+        viewport,
+        BoxFit.contain,
+      );
+      expect(corner.dx, inInclusiveRange(40, 50));
+      expect(corner.dy, closeTo(0, 1e-6));
+      for (final fit in [BoxFit.contain, BoxFit.cover]) {
+        final center = bodyCropOverlayPoint(
+          const Offset(.4, .5),
+          box,
+          source,
+          viewport,
+          fit,
+        );
+        expect(center.dx, closeTo(150, 1e-6));
+        expect(center.dy, closeTo(200, 1e-6));
+      }
+      expect(
+        bodyCropOverlayPoint(
+          const Offset(-1, -1),
+          box,
+          source,
+          viewport,
+          BoxFit.contain,
+        ).dy,
+        lessThan(0),
+      );
+    },
+  );
   testWidgets(
     'BodyCropAnnotatedView renders crop and handles skeleton and area toggles',
     (tester) async {

@@ -111,10 +111,33 @@ class AndroidMediaOrganizer implements MediaOrganizerBridge {
   Future<List<OriginalMoveResult>> move(List<OriginalMediaMove> moves) =>
       _call('move', moves);
 
-  /// Whether Android lets this app move photos without a confirmation sheet ("Media management" access).
+  /// Whether Android lets this app move photos without a confirmation sheet ("All files access" or
+  /// "Media management").
   Future<bool> canMoveWithoutPrompt() async {
     try {
       return await channel.invokeMethod<bool>('canManageMedia') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// "All files access": person folders go in the top-level Your Gallery folder, with their .json files.
+  Future<bool> hasAllFilesAccess() async {
+    try {
+      return await channel.invokeMethod<bool>('hasAllFilesAccess') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// Opens Android's "All files access" page for this app. False when it cannot be opened.
+  Future<bool> requestAllFilesAccess() async {
+    try {
+      return await channel.invokeMethod<bool>('requestAllFilesAccess') ?? false;
     } on PlatformException {
       return false;
     }

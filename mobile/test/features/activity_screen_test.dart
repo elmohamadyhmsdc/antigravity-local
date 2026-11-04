@@ -13,6 +13,34 @@ import '../support/seed.dart';
 
 void main() {
   group('A1 ActivityScreen', () {
+    appTest('paused jobs remain visible with a resume action', (
+      tester,
+      env,
+    ) async {
+      await env.db
+          .into(env.db.jobs)
+          .insert(
+            JobsCompanion.insert(
+              id: 'paused-job',
+              serverId: testSession.serverId,
+              type: 'reface_image',
+              requestJson: '{}',
+              targetPath: 'target.jpg',
+              targetSha: 'a' * 64,
+              targetSize: 1,
+              status: 'paused',
+              createdAt: 1,
+              updatedAt: 1,
+            ),
+          );
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/activity')],
+      );
+      expect(find.text('Paused'), findsWidgets);
+      expect(find.text('Resume'), findsOneWidget);
+      expect(find.text('No active activity'), findsNothing);
+    }, session: testSession);
     appTest(
       'renders empty state when there are no running tasks or scans',
       (tester, env) async {

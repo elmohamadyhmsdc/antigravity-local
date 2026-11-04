@@ -49,7 +49,8 @@ const keypointVisible = 0.3;
 class Pt {
   const Pt(this.x, this.y, this.score);
   final double x, y, score;
-  bool get visible => score >= keypointVisible;
+  bool get visible =>
+      x.isFinite && y.isFinite && score.isFinite && score >= keypointVisible;
 }
 
 double dist(Pt a, Pt b) =>

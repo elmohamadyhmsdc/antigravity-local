@@ -128,13 +128,21 @@ void main() {
       await tester.tap(find.byKey(const Key('color-chip-blue')));
       await _settleReal(tester);
 
+      await tester.ensureVisible(find.byKey(Key('body-$b')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key('body-$b')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('action-similar')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('action-similar')));
       await _settleReal(tester);
       expect(find.byKey(const Key('bodies-similar-chip')), findsOneWidget);
       expect(find.byKey(Key('body-$b')), findsNothing, reason: 'never itself');
-      expect(find.byKey(Key('body-$a')), findsOneWidget);
+      expect(
+        find.byKey(Key('body-$a')),
+        findsNothing,
+        reason: 'a lowered arm is a different pose',
+      );
       tester
           .widget<InputChip>(find.byKey(const Key('bodies-similar-chip')))
           .onDeleted!();
@@ -162,7 +170,12 @@ void main() {
         extra: [initialLocationProvider.overrideWithValue('/bodies')],
       );
 
+      await tester.ensureVisible(find.byKey(Key('body-$ex')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key('body-$ex')));
+      await tester.pumpAndSettle();
+      await expandActionSections(tester);
+      await tester.ensureVisible(find.byKey(const Key('action-name-pose')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('action-name-pose')));
       await _settleReal(tester);
@@ -225,7 +238,12 @@ void main() {
         extra: [initialLocationProvider.overrideWithValue('/bodies')],
       );
       expect(find.byKey(Key('body-$id')), findsOneWidget);
+      await tester.ensureVisible(find.byKey(Key('body-$id')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key('body-$id')));
+      await tester.pumpAndSettle();
+      await expandActionSections(tester);
+      await tester.ensureVisible(find.byKey(const Key('action-name-pose')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('action-name-pose')));
       await tester.pumpAndSettle();
@@ -313,6 +331,8 @@ void main() {
         tester,
         extra: [initialLocationProvider.overrideWithValue('/bodies')],
       );
+      await tester.ensureVisible(find.byKey(Key('body-$none')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key('body-$none')));
       await tester.pumpAndSettle();
       expect(
@@ -323,14 +343,23 @@ void main() {
       await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(find.byKey(Key('body-$query')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key('body-$query')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('action-similar-buttocks')), findsNothing);
+      await expandActionSections(tester);
+      await tester.ensureVisible(find.byKey(const Key('action-similar-chest')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('action-similar-chest')));
       await _settleReal(tester);
       expect(find.byKey(const Key('bodies-similar-chip')), findsOneWidget);
       expect(find.byKey(Key('body-$close')), findsOneWidget);
-      expect(find.byKey(Key('body-$far')), findsOneWidget);
+      expect(
+        find.byKey(Key('body-$far')),
+        findsNothing,
+        reason: 'unrelated area embeddings are pruned',
+      );
       expect(
         find.byKey(Key('body-$query')),
         findsNothing,
@@ -373,6 +402,7 @@ void main() {
       await tester.tap(find.byKey(Key('box-b-$b')), warnIfMissed: false);
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
+      await expandActionSections(tester);
       for (final key in [
         'box-similar-pose',
         'box-similar-colours',
@@ -397,7 +427,11 @@ void main() {
         findsOneWidget,
         reason: 'opened on the similar-pose search',
       );
-      expect(find.byKey(Key('body-$a')), findsOneWidget);
+      expect(
+        find.byKey(Key('body-$a')),
+        findsNothing,
+        reason: 'different arm positions are excluded',
+      );
       expect(find.byKey(Key('body-$b')), findsNothing, reason: 'never itself');
     },
     session: testSession,

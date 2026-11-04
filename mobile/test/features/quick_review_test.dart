@@ -280,7 +280,7 @@ void main() {
     );
 
     appTest(
-      '"Same person?" merges; "Is this Sara? Recognised by clothes" links the body',
+      '"Same person?" merges; "Is this Sara? Recognised by a face" links the body',
       (tester, env) async {
         final sara = await seedPerson(env.db, name: 'Sara');
         final unnamed = await seedPerson(env.db);
@@ -303,8 +303,8 @@ void main() {
               ReviewBodyLinksCompanion.insert(
                 bodyId: Value(body),
                 personId: sara,
-                method: 'appearance',
-                confidence: 0.81,
+                method: 'weak_face',
+                confidence: 0.35,
               ),
             );
         await _open(tester, env, '/review');
@@ -322,7 +322,10 @@ void main() {
         );
 
         expect(_question(tester), 'Is this Sara?');
-        expect(_likelihood(tester), 'Recognised by clothes · Likely');
+        expect(
+          _likelihood(tester),
+          'Recognised by a small or blurry face · Likely',
+        );
         await _tap(tester, 'quick-yes');
         final row = await (env.db.select(
           env.db.bodies,
@@ -406,7 +409,7 @@ void main() {
               ReviewBodyLinksCompanion.insert(
                 bodyId: Value(body),
                 personId: m.sara,
-                method: 'appearance',
+                method: 'weak_face',
                 confidence: 0.8,
               ),
             );
@@ -456,6 +459,10 @@ void main() {
         await _settle(tester);
         await tester.tap(find.byKey(Key('face-menu-$face')));
         await _settle(tester);
+        await expandActionSections(tester);
+        await tester.ensureVisible(
+          find.byKey(const Key('people-action-remove')),
+        );
         await tester.tap(find.byKey(const Key('people-action-remove')));
         await _settle(tester);
         expect(find.byKey(const Key('people-action-notAFace')), findsOneWidget);
@@ -483,6 +490,8 @@ void main() {
       await _settle(tester);
       await tester.tap(find.byKey(Key('face-menu-$face')));
       await _settle(tester);
+      await expandActionSections(tester);
+      await tester.ensureVisible(find.byKey(const Key('people-action-remove')));
       await tester.tap(find.byKey(const Key('people-action-remove')));
       await _settle(tester);
       await tester.tap(find.byKey(const Key('people-action-notAFace')));

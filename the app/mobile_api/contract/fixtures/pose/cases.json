@@ -137,6 +137,141 @@
     ]
    }
   },
+  "bent": {
+   "extent": "full",
+   "face_yaw": null,
+   "points": [
+    [
+     750.0,
+     300.0,
+     0.9
+    ],
+    [
+     780.0,
+     280.0,
+     0.9
+    ],
+    [
+     720.0,
+     280.0,
+     0.9
+    ],
+    [
+     810.0,
+     290.0,
+     0.9
+    ],
+    [
+     690.0,
+     290.0,
+     0.9
+    ],
+    [
+     900.0,
+     400.0,
+     0.9
+    ],
+    [
+     600.0,
+     400.0,
+     0.9
+    ],
+    [
+     920.0,
+     550.0,
+     0.9
+    ],
+    [
+     580.0,
+     550.0,
+     0.9
+    ],
+    [
+     930.0,
+     700.0,
+     0.9
+    ],
+    [
+     570.0,
+     700.0,
+     0.9
+    ],
+    [
+     560.0,
+     800.0,
+     0.9
+    ],
+    [
+     440.0,
+     800.0,
+     0.9
+    ],
+    [
+     560.0,
+     1050.0,
+     0.9
+    ],
+    [
+     440.0,
+     1050.0,
+     0.9
+    ],
+    [
+     560.0,
+     1300.0,
+     0.9
+    ],
+    [
+     440.0,
+     1300.0,
+     0.9
+    ]
+   ],
+   "tags": [
+    "bent",
+    "frontal"
+   ],
+   "feature": {
+    "scale_source": "torso",
+    "mask": 131071,
+    "data": [
+     0.53,
+     -1.06,
+     0.5936,
+     -1.1024,
+     0.4664,
+     -1.1024,
+     0.6572,
+     -1.0812,
+     0.4028,
+     -1.0812,
+     0.848,
+     -0.848,
+     0.212,
+     -0.848,
+     0.8904,
+     -0.53,
+     0.1696,
+     -0.53,
+     0.9116,
+     -0.212,
+     0.1484,
+     -0.212,
+     0.1272,
+     0.0,
+     -0.1272,
+     0.0,
+     0.1272,
+     0.53,
+     -0.1272,
+     0.53,
+     0.1272,
+     1.06,
+     -0.1272,
+     1.06
+    ]
+   }
+  },
   "standing_upper_extent": {
    "extent": "upper",
    "face_yaw": null,
@@ -1759,6 +1894,15 @@
  "similarities": [
   {
    "a": "standing",
+   "b": "bent",
+   "result": {
+    "similarity": 0.05727,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing",
    "b": "standing_upper_extent",
    "result": {
     "similarity": 1.0,
@@ -1770,7 +1914,7 @@
    "a": "standing",
    "b": "lying",
    "result": {
-    "similarity": 0.00146,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -1779,7 +1923,7 @@
    "a": "standing",
    "b": "lying_relaxed",
    "result": {
-    "similarity": 0.00189,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -1788,7 +1932,7 @@
    "a": "standing",
    "b": "sitting_side",
    "result": {
-    "similarity": 0.85227,
+    "similarity": 0.02253,
     "coverage": 1.0,
     "shared": 17
    }
@@ -1797,7 +1941,7 @@
    "a": "standing",
    "b": "sitting_frontal",
    "result": {
-    "similarity": 0.98455,
+    "similarity": 0.6339,
     "coverage": 1.0,
     "shared": 17
    }
@@ -1806,7 +1950,7 @@
    "a": "standing",
    "b": "arms_up",
    "result": {
-    "similarity": 0.931,
+    "similarity": 0.03744,
     "coverage": 1.0,
     "shared": 17
    }
@@ -1815,7 +1959,7 @@
    "a": "standing",
    "b": "one_arm_up",
    "result": {
-    "similarity": 0.98228,
+    "similarity": 0.05836,
     "coverage": 1.0,
     "shared": 17
    }
@@ -1824,7 +1968,7 @@
    "a": "standing",
    "b": "arms_spread",
    "result": {
-    "similarity": 0.87985,
+    "similarity": 0.03756,
     "coverage": 1.0,
     "shared": 17
    }
@@ -1833,7 +1977,7 @@
    "a": "standing",
    "b": "hands_on_hips",
    "result": {
-    "similarity": 0.97399,
+    "similarity": 0.54138,
     "coverage": 1.0,
     "shared": 17
    }
@@ -1862,157 +2006,53 @@
    "result": null
   },
   {
-   "a": "standing_upper_extent",
+   "a": "bent",
+   "b": "standing_upper_extent",
+   "result": {
+    "similarity": 0.05727,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "bent",
    "b": "lying",
    "result": {
-    "similarity": 0.00146,
+    "similarity": 1e-05,
     "coverage": 1.0,
     "shared": 17
    }
   },
   {
-   "a": "standing_upper_extent",
+   "a": "bent",
    "b": "lying_relaxed",
    "result": {
-    "similarity": 0.00189,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
   },
   {
-   "a": "standing_upper_extent",
+   "a": "bent",
    "b": "sitting_side",
    "result": {
-    "similarity": 0.85227,
+    "similarity": 0.02382,
     "coverage": 1.0,
     "shared": 17
    }
   },
   {
-   "a": "standing_upper_extent",
+   "a": "bent",
    "b": "sitting_frontal",
    "result": {
-    "similarity": 0.98455,
+    "similarity": 0.05521,
     "coverage": 1.0,
     "shared": 17
    }
   },
   {
-   "a": "standing_upper_extent",
+   "a": "bent",
    "b": "arms_up",
-   "result": {
-    "similarity": 0.931,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "standing_upper_extent",
-   "b": "one_arm_up",
-   "result": {
-    "similarity": 0.98228,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "standing_upper_extent",
-   "b": "arms_spread",
-   "result": {
-    "similarity": 0.87985,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "standing_upper_extent",
-   "b": "hands_on_hips",
-   "result": {
-    "similarity": 0.97399,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "standing_upper_extent",
-   "b": "profile_face",
-   "result": {
-    "similarity": 1.0,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "standing_upper_extent",
-   "b": "back_view",
-   "result": {
-    "similarity": 1.0,
-    "coverage": 0.82353,
-    "shared": 14
-   }
-  },
-  {
-   "a": "standing_upper_extent",
-   "b": "no_hips",
-   "result": null
-  },
-  {
-   "a": "lying",
-   "b": "lying_relaxed",
-   "result": {
-    "similarity": 0.92846,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "lying",
-   "b": "sitting_side",
-   "result": {
-    "similarity": 0.00824,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "lying",
-   "b": "sitting_frontal",
-   "result": {
-    "similarity": 0.0021,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "lying",
-   "b": "arms_up",
-   "result": {
-    "similarity": 0.00055,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "lying",
-   "b": "one_arm_up",
-   "result": {
-    "similarity": 0.00112,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "lying",
-   "b": "arms_spread",
-   "result": {
-    "similarity": 0.00029,
-    "coverage": 1.0,
-    "shared": 17
-   }
-  },
-  {
-   "a": "lying",
-   "b": "hands_on_hips",
    "result": {
     "similarity": 0.00172,
     "coverage": 1.0,
@@ -2020,10 +2060,218 @@
    }
   },
   {
+   "a": "bent",
+   "b": "one_arm_up",
+   "result": {
+    "similarity": 0.00592,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "bent",
+   "b": "arms_spread",
+   "result": {
+    "similarity": 0.00015,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "bent",
+   "b": "hands_on_hips",
+   "result": {
+    "similarity": 0.03588,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "bent",
+   "b": "profile_face",
+   "result": {
+    "similarity": 0.05727,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "bent",
+   "b": "back_view",
+   "result": {
+    "similarity": 0.05968,
+    "coverage": 0.82353,
+    "shared": 14
+   }
+  },
+  {
+   "a": "bent",
+   "b": "no_hips",
+   "result": null
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "lying",
+   "result": {
+    "similarity": 0.0,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "lying_relaxed",
+   "result": {
+    "similarity": 0.0,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "sitting_side",
+   "result": {
+    "similarity": 0.02253,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "sitting_frontal",
+   "result": {
+    "similarity": 0.6339,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "arms_up",
+   "result": {
+    "similarity": 0.03744,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "one_arm_up",
+   "result": {
+    "similarity": 0.05836,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "arms_spread",
+   "result": {
+    "similarity": 0.03756,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "hands_on_hips",
+   "result": {
+    "similarity": 0.54138,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "profile_face",
+   "result": {
+    "similarity": 1.0,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "back_view",
+   "result": {
+    "similarity": 1.0,
+    "coverage": 0.82353,
+    "shared": 14
+   }
+  },
+  {
+   "a": "standing_upper_extent",
+   "b": "no_hips",
+   "result": null
+  },
+  {
+   "a": "lying",
+   "b": "lying_relaxed",
+   "result": {
+    "similarity": 0.07496,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "lying",
+   "b": "sitting_side",
+   "result": {
+    "similarity": 0.0,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "lying",
+   "b": "sitting_frontal",
+   "result": {
+    "similarity": 0.0,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "lying",
+   "b": "arms_up",
+   "result": {
+    "similarity": 0.0,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "lying",
+   "b": "one_arm_up",
+   "result": {
+    "similarity": 0.0,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "lying",
+   "b": "arms_spread",
+   "result": {
+    "similarity": 0.0,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
+   "a": "lying",
+   "b": "hands_on_hips",
+   "result": {
+    "similarity": 0.0,
+    "coverage": 1.0,
+    "shared": 17
+   }
+  },
+  {
    "a": "lying",
    "b": "profile_face",
    "result": {
-    "similarity": 0.00146,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2032,7 +2280,7 @@
    "a": "lying",
    "b": "back_view",
    "result": {
-    "similarity": 0.00468,
+    "similarity": 0.0,
     "coverage": 0.82353,
     "shared": 14
    }
@@ -2046,7 +2294,7 @@
    "a": "lying_relaxed",
    "b": "sitting_side",
    "result": {
-    "similarity": 0.00679,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2055,7 +2303,7 @@
    "a": "lying_relaxed",
    "b": "sitting_frontal",
    "result": {
-    "similarity": 0.00268,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2064,7 +2312,7 @@
    "a": "lying_relaxed",
    "b": "arms_up",
    "result": {
-    "similarity": 0.00073,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2073,7 +2321,7 @@
    "a": "lying_relaxed",
    "b": "one_arm_up",
    "result": {
-    "similarity": 0.00145,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2082,7 +2330,7 @@
    "a": "lying_relaxed",
    "b": "arms_spread",
    "result": {
-    "similarity": 0.00039,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2091,7 +2339,7 @@
    "a": "lying_relaxed",
    "b": "hands_on_hips",
    "result": {
-    "similarity": 0.00221,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2100,7 +2348,7 @@
    "a": "lying_relaxed",
    "b": "profile_face",
    "result": {
-    "similarity": 0.00189,
+    "similarity": 0.0,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2109,7 +2357,7 @@
    "a": "lying_relaxed",
    "b": "back_view",
    "result": {
-    "similarity": 0.00619,
+    "similarity": 0.0,
     "coverage": 0.82353,
     "shared": 14
    }
@@ -2123,7 +2371,7 @@
    "a": "sitting_side",
    "b": "sitting_frontal",
    "result": {
-    "similarity": 0.89447,
+    "similarity": 0.06735,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2132,7 +2380,7 @@
    "a": "sitting_side",
    "b": "arms_up",
    "result": {
-    "similarity": 0.64072,
+    "similarity": 0.00927,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2141,7 +2389,7 @@
    "a": "sitting_side",
    "b": "one_arm_up",
    "result": {
-    "similarity": 0.75229,
+    "similarity": 0.01445,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2150,7 +2398,7 @@
    "a": "sitting_side",
    "b": "arms_spread",
    "result": {
-    "similarity": 0.5633,
+    "similarity": 0.00928,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2159,7 +2407,7 @@
    "a": "sitting_side",
    "b": "hands_on_hips",
    "result": {
-    "similarity": 0.72903,
+    "similarity": 0.01909,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2168,7 +2416,7 @@
    "a": "sitting_side",
    "b": "profile_face",
    "result": {
-    "similarity": 0.85227,
+    "similarity": 0.02253,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2177,7 +2425,7 @@
    "a": "sitting_side",
    "b": "back_view",
    "result": {
-    "similarity": 0.79002,
+    "similarity": 0.02123,
     "coverage": 0.82353,
     "shared": 14
    }
@@ -2191,7 +2439,7 @@
    "a": "sitting_frontal",
    "b": "arms_up",
    "result": {
-    "similarity": 0.85744,
+    "similarity": 0.0331,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2200,7 +2448,7 @@
    "a": "sitting_frontal",
    "b": "one_arm_up",
    "result": {
-    "similarity": 0.93537,
+    "similarity": 0.0516,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2209,7 +2457,7 @@
    "a": "sitting_frontal",
    "b": "arms_spread",
    "result": {
-    "similarity": 0.79226,
+    "similarity": 0.0332,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2218,7 +2466,7 @@
    "a": "sitting_frontal",
    "b": "hands_on_hips",
    "result": {
-    "similarity": 0.92086,
+    "similarity": 0.47861,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2227,7 +2475,7 @@
    "a": "sitting_frontal",
    "b": "profile_face",
    "result": {
-    "similarity": 0.98455,
+    "similarity": 0.6339,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2236,7 +2484,7 @@
    "a": "sitting_frontal",
    "b": "back_view",
    "result": {
-    "similarity": 0.9773,
+    "similarity": 0.62923,
     "coverage": 0.82353,
     "shared": 14
    }
@@ -2250,7 +2498,7 @@
    "a": "arms_up",
    "b": "one_arm_up",
    "result": {
-    "similarity": 0.98228,
+    "similarity": 0.05836,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2259,7 +2507,7 @@
    "a": "arms_up",
    "b": "arms_spread",
    "result": {
-    "similarity": 0.91312,
+    "similarity": 0.11227,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2268,7 +2516,7 @@
    "a": "arms_up",
    "b": "hands_on_hips",
    "result": {
-    "similarity": 0.84825,
+    "similarity": 0.00471,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2277,7 +2525,7 @@
    "a": "arms_up",
    "b": "profile_face",
    "result": {
-    "similarity": 0.931,
+    "similarity": 0.03744,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2286,7 +2534,7 @@
    "a": "arms_up",
    "b": "back_view",
    "result": {
-    "similarity": 0.89994,
+    "similarity": 0.03549,
     "coverage": 0.82353,
     "shared": 14
    }
@@ -2300,7 +2548,7 @@
    "a": "one_arm_up",
    "b": "arms_spread",
    "result": {
-    "similarity": 0.89704,
+    "similarity": 0.04355,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2309,7 +2557,7 @@
    "a": "one_arm_up",
    "b": "hands_on_hips",
    "result": {
-    "similarity": 0.9225,
+    "similarity": 0.00894,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2318,7 +2566,7 @@
    "a": "one_arm_up",
    "b": "profile_face",
    "result": {
-    "similarity": 0.98228,
+    "similarity": 0.05836,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2327,7 +2575,7 @@
    "a": "one_arm_up",
    "b": "back_view",
    "result": {
-    "similarity": 0.97399,
+    "similarity": 0.05683,
     "coverage": 0.82353,
     "shared": 14
    }
@@ -2341,7 +2589,7 @@
    "a": "arms_spread",
    "b": "hands_on_hips",
    "result": {
-    "similarity": 0.81718,
+    "similarity": 0.0035,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2350,7 +2598,7 @@
    "a": "arms_spread",
    "b": "profile_face",
    "result": {
-    "similarity": 0.87985,
+    "similarity": 0.03756,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2359,7 +2607,7 @@
    "a": "arms_spread",
    "b": "back_view",
    "result": {
-    "similarity": 0.828,
+    "similarity": 0.03561,
     "coverage": 0.82353,
     "shared": 14
    }
@@ -2373,7 +2621,7 @@
    "a": "hands_on_hips",
    "b": "profile_face",
    "result": {
-    "similarity": 0.97399,
+    "similarity": 0.54138,
     "coverage": 1.0,
     "shared": 17
    }
@@ -2382,7 +2630,7 @@
    "a": "hands_on_hips",
    "b": "back_view",
    "result": {
-    "similarity": 0.96188,
+    "similarity": 0.53602,
     "coverage": 0.82353,
     "shared": 14
    }

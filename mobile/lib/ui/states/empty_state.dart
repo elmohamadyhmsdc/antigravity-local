@@ -60,10 +60,10 @@ class EmptyState extends StatelessWidget {
     }
 
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(effectiveIcon, size: 64, color: theme.colorScheme.outline),
             const SizedBox(height: 16),

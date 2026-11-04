@@ -20,11 +20,7 @@ Future<void> action(WidgetTester tester, String id) async {
     }
     target = find.byKey(Key('people-action-$id'));
     if (target.evaluate().isEmpty) {
-      final more = find.byKey(const Key('people-more-actions'));
-      if (more.evaluate().isNotEmpty) {
-        await tester.tap(more.first, warnIfMissed: false);
-        await tester.pumpAndSettle();
-      }
+      await expandActionSections(tester);
     }
   }
   target = find.byKey(Key('people-action-$id'));

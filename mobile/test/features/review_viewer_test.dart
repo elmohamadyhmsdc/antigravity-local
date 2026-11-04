@@ -198,7 +198,7 @@ void main() {
             ReviewBodyLinksCompanion.insert(
               bodyId: Value(body),
               personId: person,
-              method: 'appearance',
+              method: 'weak_face',
               confidence: .7,
             ),
           );

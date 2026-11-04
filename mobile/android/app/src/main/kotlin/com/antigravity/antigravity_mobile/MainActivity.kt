@@ -15,14 +15,24 @@ import android.os.Build
 import android.content.Intent
 
 class MainActivity : FlutterActivity() {
-    companion object { private const val ENGINE_ID = "antigravity_work_engine" }
+    companion object {
+        private const val ENGINE_ID = "antigravity_work_engine"
+        // Lives with the retained engine: a scan finishing in the background still moves files.
+        private var organizer: MediaOrganizerBridge? = null
+        // Same for the scan's wake/Wi-Fi locks: Dart releases them when the work ends, the process
+        // dying releases them too. Releasing them with the Activity let the CPU sleep mid-scan.
+        private var wakeLocks: WakeLockBridge? = null
+    }
     private val security by lazy { SecurityBridge(this) }
     private var securityChannel: MethodChannel? = null
-    private val mediaOrganizer by lazy { MediaOrganizerBridge(this) }
-    private var mediaOrganizerChannel: MethodChannel? = null
+    private val mediaOrganizer by lazy {
+        (organizer ?: MediaOrganizerBridge(applicationContext).also { organizer = it }).also { it.activity = this }
+    }
     private val mediaPicker by lazy { MediaPickerBridge(this) }
     private var mediaPickerChannel: MethodChannel? = null
-    private val wakeLockBridge by lazy { WakeLockBridge(applicationContext) }
+    private val wakeLockBridge by lazy {
+        wakeLocks ?: WakeLockBridge(applicationContext).also { wakeLocks = it }
+    }
     // The foreground service protects the process; retain the actual Dart work
     // as well when Android removes the Activity (for example, a task swipe).
     override fun provideFlutterEngine(context: Context): FlutterEngine? =
@@ -36,9 +46,9 @@ class MainActivity : FlutterActivity() {
         securityChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/security").also {
             it.setMethodCallHandler(security::handle)
         }
-        mediaOrganizerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/media_organizer").also {
-            it.setMethodCallHandler(mediaOrganizer::handle)
-        }
+        // Not removed in onDestroy: the engine (and its scan) outlives this Activity.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/media_organizer")
+            .setMethodCallHandler(mediaOrganizer::handle)
         val appContext = applicationContext
         mediaPickerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/media_picker").also {
             it.setMethodCallHandler(mediaPicker::handle)
@@ -177,17 +187,26 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    override fun onResume() {
+        super.onResume()
+        mediaOrganizer.activity = this
+        mediaOrganizer.onScreen = true
+    }
+
+    override fun onPause() {
+        // Before super: a move that asks for permission from now on is cancelled instead of hanging.
+        mediaOrganizer.onScreen = false
+        super.onPause()
+    }
+
     override fun onDestroy() {
         security.cancelPending()
         securityChannel?.setMethodCallHandler(null)
         securityChannel = null
-        mediaOrganizer.close()
-        mediaOrganizerChannel?.setMethodCallHandler(null)
-        mediaOrganizerChannel = null
+        mediaOrganizer.detach(this)
         mediaPicker.close()
         mediaPickerChannel?.setMethodCallHandler(null)
         mediaPickerChannel = null
-        wakeLockBridge.releaseAll()
         super.onDestroy()
     }
 

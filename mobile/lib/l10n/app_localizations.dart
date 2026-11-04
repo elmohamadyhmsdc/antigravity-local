@@ -265,7 +265,7 @@ abstract class AppLocalizations {
   /// No description provided for @reviewOutfitHelp.
   ///
   /// In en, this message translates to:
-  /// **'This is a suggestion based on clothing or a weak face match. Check the highlighted body in the original before deciding.'**
+  /// **'Check the highlighted body in the original and compare the identity evidence before deciding. Similar clothing alone is not an identity match.'**
   String get reviewOutfitHelp;
 
   /// No description provided for @reviewYesPerson.
@@ -2155,7 +2155,7 @@ abstract class AppLocalizations {
   /// No description provided for @reviewOutfitsEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No outfit matches to review'**
+  /// **'No body identity matches to review'**
   String get reviewOutfitsEmpty;
 
   /// No description provided for @reviewTabDuplicates.
@@ -6655,13 +6655,13 @@ abstract class AppLocalizations {
   /// No description provided for @moveWithoutAskingOn.
   ///
   /// In en, this message translates to:
-  /// **'Allowed. After a scan, thousands of photos move into their people\'s folders on their own, with no prompts.'**
+  /// **'Allowed. People\'s folders are in “Your Gallery” on the phone\'s storage (outside DCIM), each photo keeps its .json file beside it, and photos move after a scan with no prompts, also in the background.'**
   String get moveWithoutAskingOn;
 
   /// No description provided for @moveWithoutAskingOff.
   ///
   /// In en, this message translates to:
-  /// **'Not allowed yet. Without it Android would ask for confirmation again and again, so photos are not moved automatically. Tap, then switch on “Media management” for this app, once.'**
+  /// **'Not allowed yet. Without it Android asks before every batch of moves, the .json files cannot be saved and photos are not moved automatically. Tap, then switch on “Allow access to manage all files” for this app, once.'**
   String get moveWithoutAskingOff;
 
   /// No description provided for @saveSidecarMetadata.
@@ -6675,6 +6675,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save portable AI metadata alongside media for zero-rescan restoration'**
   String get saveSidecarMetadataHint;
+
+  /// No description provided for @discoveryCompareHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare the reference and result. Pinch either image to inspect the details.'**
+  String get discoveryCompareHint;
+
+  /// No description provided for @discoveryCandidate.
+  ///
+  /// In en, this message translates to:
+  /// **'Result'**
+  String get discoveryCandidate;
+
+  /// No description provided for @discoverySkeleton.
+  ///
+  /// In en, this message translates to:
+  /// **'Skeleton'**
+  String get discoverySkeleton;
+
+  /// No description provided for @discoveryAreaGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Area guide'**
+  String get discoveryAreaGuide;
+
+  /// No description provided for @discoverySimilarity.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% visual similarity'**
+  String discoverySimilarity(int percent);
+
+  /// No description provided for @discoveryCoverage.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% shared keypoint coverage'**
+  String discoveryCoverage(int percent);
+
+  /// No description provided for @discoveryPosePrecision.
+  ///
+  /// In en, this message translates to:
+  /// **'Matches compare visible joints and individual limbs. A similarity score is not an identity confidence.'**
+  String get discoveryPosePrecision;
+
+  /// No description provided for @discoveryAreaPrecision.
+  ///
+  /// In en, this message translates to:
+  /// **'These are visual area matches, not proof of identity. The highlight is an approximate guide.'**
+  String get discoveryAreaPrecision;
+
+  /// No description provided for @discoveryInspect.
+  ///
+  /// In en, this message translates to:
+  /// **'Inspect result'**
+  String get discoveryInspect;
+
+  /// No description provided for @discoveryPoseIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare postures, arms and direction.'**
+  String get discoveryPoseIntro;
+
+  /// No description provided for @discoveryOutfitIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Find similar clothing from your saved examples. Colours do not identify a person.'**
+  String get discoveryOutfitIntro;
+
+  /// No description provided for @discoverySearchSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Search saved examples'**
+  String get discoverySearchSaved;
+
+  /// No description provided for @discoverySearchEquipment.
+  ///
+  /// In en, this message translates to:
+  /// **'Search equipment'**
+  String get discoverySearchEquipment;
+
+  /// No description provided for @discoverySearchAreas.
+  ///
+  /// In en, this message translates to:
+  /// **'Search areas or people'**
+  String get discoverySearchAreas;
+
+  /// No description provided for @discoveryAreaIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Review similar visible regions, compare examples and organise them by person.'**
+  String get discoveryAreaIntro;
+
+  /// No description provided for @discoveryMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} results'**
+  String discoveryMatches(int count);
+
+  /// No description provided for @discoveryAllIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a body to inspect its pose, find similar examples or save an outfit.'**
+  String get discoveryAllIntro;
+
+  /// No description provided for @discoveryNoSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved examples match your search.'**
+  String get discoveryNoSearch;
+
+  /// No description provided for @discoveryAreaAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All regions'**
+  String get discoveryAreaAll;
+
+  /// No description provided for @discoveryBrowse.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse'**
+  String get discoveryBrowse;
+
+  /// No description provided for @discoveryColours.
+  ///
+  /// In en, this message translates to:
+  /// **'Colours'**
+  String get discoveryColours;
+
+  /// No description provided for @discoveryCompare.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare'**
+  String get discoveryCompare;
+
+  /// No description provided for @discoveryAreaMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Review all examples'**
+  String get discoveryAreaMembers;
+
+  /// No description provided for @discoveryRemoveMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from this group'**
+  String get discoveryRemoveMatch;
+
+  /// No description provided for @discoveryAreaRemoveHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This example will stay out of area groups after rebuilding.'**
+  String get discoveryAreaRemoveHint;
+
+  /// No description provided for @discoveryAreaRebuild.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh area groups'**
+  String get discoveryAreaRebuild;
+
+  /// No description provided for @discoveryBent.
+  ///
+  /// In en, this message translates to:
+  /// **'Bent'**
+  String get discoveryBent;
 }
 
 class _AppLocalizationsDelegate

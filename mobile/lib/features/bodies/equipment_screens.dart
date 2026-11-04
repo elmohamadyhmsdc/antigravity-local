@@ -12,6 +12,7 @@ import '../../providers.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import 'pose_visuals.dart';
+import 'discovery_widgets.dart';
 
 class EquipmentTab extends ConsumerStatefulWidget {
   const EquipmentTab({super.key, this.personId});
@@ -20,7 +21,11 @@ class EquipmentTab extends ConsumerStatefulWidget {
   ConsumerState<EquipmentTab> createState() => _EquipmentTabState();
 }
 
-class _EquipmentTabState extends ConsumerState<EquipmentTab> {
+class _EquipmentTabState extends ConsumerState<EquipmentTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+  String search = '';
   List<EquipmentObjectRow> objects = [];
   Map<int, MediaRow> photos = {};
   String? label;
@@ -58,6 +63,9 @@ class _EquipmentTabState extends ConsumerState<EquipmentTab> {
               if (widget.personId == null || peopleBodies.contains(o.bodyId)) o,
           ];
           photos = {for (final p in photoRows) p.id: p};
+          if (label != null && !objects.any((o) => o.label == label)) {
+            label = null;
+          }
           loaded = true;
           failed = false;
         });
@@ -92,6 +100,7 @@ class _EquipmentTabState extends ConsumerState<EquipmentTab> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    super.build(context);
     final ready = ref.watch(serverStatusProvider).value;
     final canDetect =
         ready is ServerReady &&
@@ -107,12 +116,25 @@ class _EquipmentTabState extends ConsumerState<EquipmentTab> {
       );
     }
     final shown = objects
-        .where((o) => label == null || o.label == label)
+        .where(
+          (o) =>
+              (label == null || o.label == label) &&
+              o.label.toLowerCase().contains(search),
+        )
         .toList();
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(l.equipmentIntro),
+        DiscoveryIntro(
+          title: l.bodiesTabEquipment,
+          description: l.equipmentIntro,
+          icon: Icons.sports_tennis_outlined,
+          count: objects.length,
+        ),
+        DiscoverySearch(
+          hint: l.discoverySearchEquipment,
+          onChanged: (value) => setState(() => search = value),
+        ),
         const SizedBox(height: 8),
         Align(
           alignment: AlignmentDirectional.centerStart,

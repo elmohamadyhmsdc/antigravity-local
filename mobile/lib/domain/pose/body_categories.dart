@@ -16,6 +16,8 @@ import '../../data/db/app_database.dart';
 import '../scan/scan_math.dart';
 import 'pose_descriptor.dart';
 import 'pose_index.dart';
+import 'pose_geometry.dart';
+import 'pose_rules.dart';
 
 /// Starting values; Phase 0 (`eval_pose_filters.py`) replaces them with measured ones.
 const defaultPoseThreshold = 0.80;
@@ -38,7 +40,9 @@ class PoseDraft {
     required this.exemplar,
     required this.threshold,
     required this.matches,
+    this.tags = '',
   });
+  final String tags;
   final int exemplarBodyId;
   final PoseFeature exemplar;
   final double threshold;
@@ -95,19 +99,22 @@ class BodyCategories {
       exemplarBodyId: exemplarBodyId,
       exemplar: exemplar,
       threshold: threshold,
-      matches: await _poseMatches(exemplar, threshold, sigma),
+      tags: row.tags,
+      matches: await _poseMatches(exemplar, threshold, sigma, tags: row.tags),
     );
   }
 
   Future<List<CategoryMatch>> _poseMatches(
     PoseFeature exemplar,
     double threshold,
-    double sigma,
-  ) async {
+    double sigma, {
+    String tags = '',
+  }) async {
     final ranked = await _poses.findSimilarToFeature(
       exemplar,
       limit: 100000,
       sigma: sigma,
+      tags: tags,
       strict: true,
     );
     return [
@@ -139,6 +146,7 @@ class BodyCategories {
             createdAt: DateTime.now().millisecondsSinceEpoch,
           ),
         );
+    await _db.putSetting('pose.category.tags.$id', draft.tags);
     for (final m in draft.matches) {
       await _setPoseMatch(
         id,
@@ -180,23 +188,74 @@ class BodyCategories {
       c.exemplarMask,
       c.exemplarScaleSource,
     );
-    final known = {
-      for (final m in await (_db.select(
-        _db.bodyPoseMatches,
-      )..where((x) => x.categoryId.equals(categoryId))).get())
-        m.bodyId,
-    };
-    var added = 0;
-    for (final m in await _poseMatches(
+    final matches = await _poseMatches(
       exemplar,
       c.threshold,
       defaultPoseSigma,
-    )) {
-      if (known.contains(m.bodyId)) continue;
-      await _setPoseMatch(categoryId, m.bodyId, m.similarity, 'auto');
-      added++;
-    }
+      tags: await _poseTags(c),
+    );
+    final valid = {for (final m in matches) m.bodyId};
+    var added = 0;
+    await _db.transaction(() async {
+      final known = {
+        for (final m in await (_db.select(
+          _db.bodyPoseMatches,
+        )..where((x) => x.categoryId.equals(categoryId))).get())
+          m.bodyId: m.state,
+      };
+
+      for (final entry in known.entries) {
+        if (entry.value == 'auto' && !valid.contains(entry.key)) {
+          await (_db.delete(_db.bodyPoseMatches)..where(
+                (x) =>
+                    x.categoryId.equals(categoryId) &
+                    x.bodyId.equals(entry.key) &
+                    x.state.equals('auto'),
+              ))
+              .go();
+        }
+      }
+      for (final m in matches) {
+        if (known[m.bodyId] == 'manual' || known[m.bodyId] == 'rejected') {
+          continue;
+        }
+        await _setPoseMatch(categoryId, m.bodyId, m.similarity, 'auto');
+        if (!known.containsKey(m.bodyId)) added++;
+      }
+    });
     return added;
+  }
+
+  Future<String> _poseTags(PoseCategoryRow category) async {
+    final saved = await _db.setting('pose.category.tags.${category.id}');
+    if (saved != null) return saved;
+    final source =
+        await (_db.select(_db.bodyPoseFeatures)
+              ..where((x) => x.bodyId.equals(category.exemplarBodyId ?? -1)))
+            .getSingleOrNull();
+    final feature = PoseFeature.fromBlob(
+      category.exemplarFeature,
+      category.exemplarMask,
+      category.exemplarScaleSource,
+    );
+    final tags =
+        source?.tags ??
+        (feature.isValid
+            ? encodeTags(
+                tierATags(
+                  Pose([
+                    for (var i = 0; i < 17; i++)
+                      Pt(
+                        feature.data[2 * i] * 1000,
+                        feature.data[2 * i + 1] * 1000,
+                        feature.mask & (1 << i) == 0 ? 0 : 1,
+                      ),
+                  ], extent: 'full'),
+                ),
+              )
+            : '');
+    await _db.putSetting('pose.category.tags.${category.id}', tags);
+    return tags;
   }
 
   Future<int> rescoreAllPoses() async {
@@ -271,7 +330,7 @@ class BodyCategories {
     final rows = await _db
         .customSelect(
           '''SELECT b.id, b.appearance FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
-             WHERE b.kind = 'person' AND b.appearance IS NOT NULL
+             WHERE b.kind = 'person' AND b.hidden = 0 AND b.appearance IS NOT NULL
              ${personId == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}''',
           variables: [if (personId != null) Variable.withInt(personId)],
           readsFrom: {_db.bodies, _db.faces},

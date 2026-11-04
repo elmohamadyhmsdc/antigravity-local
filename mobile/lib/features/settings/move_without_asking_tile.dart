@@ -5,8 +5,10 @@ import '../../data/platform/media_organizer.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 
-/// One switch in Android's settings decides whether organizing a big library needs a human: with "Media
-/// management" granted, photos move with no sheet at all. This shows its state and opens that page.
+/// One switch in Android's settings decides whether organizing a big library needs a human: with "All files
+/// access" granted, person folders live in the top-level "Your Gallery" folder (outside DCIM), each photo's
+/// .json is written beside it and photos move with no sheet at all, also in the background. This shows its
+/// state and opens that page.
 class MoveWithoutAskingTile extends ConsumerStatefulWidget {
   const MoveWithoutAskingTile({super.key});
 
@@ -42,7 +44,7 @@ class _MoveWithoutAskingTileState extends ConsumerState<MoveWithoutAskingTile>
   Future<void> _refresh() async {
     final bridge = ref.read(mediaOrganizerBridgeProvider);
     final granted = bridge is AndroidMediaOrganizer
-        ? await bridge.canMoveWithoutPrompt()
+        ? await bridge.hasAllFilesAccess()
         : true;
     if (mounted) setState(() => _granted = granted);
   }
@@ -66,7 +68,7 @@ class _MoveWithoutAskingTileState extends ConsumerState<MoveWithoutAskingTile>
           : () async {
               final bridge = ref.read(mediaOrganizerBridgeProvider);
               if (bridge is AndroidMediaOrganizer) {
-                await bridge.requestMoveWithoutPrompt();
+                await bridge.requestAllFilesAccess();
               }
             },
     );

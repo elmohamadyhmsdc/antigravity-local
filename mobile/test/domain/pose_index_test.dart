@@ -90,6 +90,30 @@ void main() {
   });
 
   test(
+    'excluded detections leave pose searches and tag counts immediately',
+    () async {
+      final query = await body(standing);
+      final match = await body(standing);
+      await index.rebuild();
+      final counts = await index.tagCounts();
+      expect((await index.findSimilar(query)).map((r) => r.bodyId), [match]);
+      await (db.update(db.bodies)..where((b) => b.id.equals(match))).write(
+        const BodiesCompanion(hidden: Value(true)),
+      );
+      expect(await index.findSimilar(query), isEmpty);
+      final remaining = await index.tagCounts();
+      for (final tag in counts.keys) {
+        expect(remaining[tag], counts[tag]! - 1);
+        expect(await index.bodiesWithTag(tag), isNot(contains(match)));
+      }
+      await (db.update(db.bodies)..where((b) => b.id.equals(match))).write(
+        const BodiesCompanion(hidden: Value(false)),
+      );
+      expect((await index.findSimilar(query)).map((r) => r.bodyId), [match]);
+    },
+  );
+
+  test(
     'rebuild writes one row per body once, with tags and a descriptor',
     () async {
       final a = await body(standing);
@@ -156,7 +180,7 @@ void main() {
   });
 
   test(
-    'find similar: the same pose first (a mirror counts), a lying body last, never itself',
+    'find similar defaults to precise matches, with an explicit exploratory opt-out',
     () async {
       final query = await body(withWrist(250));
       final mirror = await body(mirrorOf(withWrist(250)));
@@ -168,13 +192,10 @@ void main() {
       expect(result.map((r) => r.bodyId), isNot(contains(query)));
       expect(result.first.bodyId, mirror);
       expect(result.first.similarity, closeTo(1, 1e-3));
-      final order = result.map((r) => r.bodyId).toList();
-      expect(order.indexOf(plain), lessThan(order.indexOf(lying)));
-      expect(
-        result.firstWhere((r) => r.bodyId == lying).similarity,
-        lessThan(0.1),
-      );
-      expect(await index.findSimilar(query, limit: 2), hasLength(2));
+      expect(result.map((r) => r.bodyId), [mirror]);
+      final exploratory = await index.findSimilar(query, strict: false);
+      expect(exploratory.map((r) => r.bodyId), containsAll([plain, lying]));
+      expect(await index.findSimilar(query, limit: 2), hasLength(1));
     },
   );
 

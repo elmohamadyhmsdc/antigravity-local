@@ -14,6 +14,8 @@ import '../../data/repositories/people_repository.dart';
 import '../../domain/actions/action_context.dart';
 import '../../domain/actions/action_id.dart';
 import '../../domain/actions/entity_ref.dart';
+import '../../domain/corrections/correction_target.dart';
+import '../../domain/corrections/correction_verb.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
@@ -37,6 +39,7 @@ import 'layers_popover.dart';
 import 'media_chrome.dart';
 import 'media_page_item.dart';
 import 'roi_selection_overlay.dart';
+import 'detection_actions.dart';
 
 class MediaCollectionContext {
   const MediaCollectionContext({
@@ -424,6 +427,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     EntityActionSheet.show(
       context: context,
       entity: entity,
+      supportedActions: detectionActionsFor(d),
       title: title,
       actionContext: actionContext,
       onActionSelected: (id) =>
@@ -506,6 +510,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
           ),
         );
       case ActionId.delete:
+        if (!d.isFace) return;
         final ok = await confirm(
           context,
           title: l10n.deleteFacesTitle(1),
@@ -515,6 +520,45 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
           destructive: true,
         );
         if (ok) await repo.deleteFaces([d.refId]);
+      case ActionId.notARealThing:
+        final service = ref.read(correctionServiceProvider);
+        final CorrectionTarget target = d.isFace
+            ? FaceLinkTarget(
+                faceId: d.refId,
+                mediaId: activeId,
+                personId: d.personId,
+              )
+            : d.isBody
+            ? BodyLinkTarget(
+                bodyId: d.refId,
+                mediaId: activeId,
+                personId: d.personId,
+              )
+            : d.isArea
+            ? SensitiveRegionTarget(regionId: d.refId, mediaId: activeId)
+            : EquipmentOwnerTarget(objectId: d.refId, mediaId: activeId);
+        try {
+          final result = await service.apply(
+            target,
+            CorrectionVerb.notARealThing,
+          );
+          if (!mounted) return;
+          UndoSnackbar.show(
+            context: this.context,
+            message: 'Detection excluded',
+            onUndo: () async {
+              await service.undo(result.undoToken);
+            },
+          );
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(this.context).showSnackBar(
+              const SnackBar(
+                content: Text("Couldn't update this detection. Try again."),
+              ),
+            );
+          }
+        }
       default:
         break;
     }

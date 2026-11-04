@@ -26,6 +26,7 @@ import '../shared/crop_image.dart';
 import '../shared/person_picker.dart';
 import 'correction_sheet.dart';
 import 'video_track_strip.dart';
+import '../media/detection_actions.dart';
 
 /// L3a / P5c — MediaInspector: All-in-one panel for a photo or video
 /// containing Peek bar, Detections, Links, Activities/Marks, Studio actions, and File info.
@@ -387,6 +388,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
     EntityActionSheet.show(
       context: context,
       entity: entityRef,
+      supportedActions: detectionActionsFor(d),
       onActionSelected: (action) {
         widget.onAction?.call(d, action);
       },

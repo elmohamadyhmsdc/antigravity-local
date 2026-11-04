@@ -97,8 +97,8 @@ class GroupPhotos {
           '''SELECT b.media_id, b.kpts, b.extent, b.bbox_x, b.bbox_y, b.bbox_w, b.bbox_h,
                     m.width, m.height, f.yaw
              FROM bodies b JOIN media m ON m.id = b.media_id LEFT JOIN faces f ON f.id = b.face_id
-             WHERE b.kind = 'person' AND b.frame_number IS NULL AND m.kind = 'photo'
-               AND b.media_id IN (SELECT media_id FROM bodies WHERE kind = 'person' AND frame_number IS NULL
+             WHERE b.kind = 'person' AND b.hidden = 0 AND b.frame_number IS NULL AND m.kind = 'photo'
+               AND b.media_id IN (SELECT media_id FROM bodies WHERE kind = 'person' AND hidden = 0 AND frame_number IS NULL
                                   GROUP BY media_id HAVING COUNT(*) >= 2)
              ORDER BY b.media_id, b.id''',
           readsFrom: {_db.bodies, _db.media, _db.faces},

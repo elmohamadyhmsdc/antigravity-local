@@ -19,42 +19,56 @@ import '../shared/empty_state.dart';
 import '../shared/screen_layout.dart';
 import '../privacy/app_lock.dart';
 
-class ResultsScreen extends ConsumerStatefulWidget {
+class ResultsScreen extends StatelessWidget {
   const ResultsScreen({super.key});
   @override
-  ConsumerState<ResultsScreen> createState() => _ResultsScreenState();
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(AppLocalizations.of(context).privateResults)),
+    body: const ResultsCollection(),
+  );
 }
 
-class _ResultsScreenState extends ConsumerState<ResultsScreen> {
+/// The same result browser can live inside Studio without a second app bar.
+class ResultsCollection extends ConsumerStatefulWidget {
+  const ResultsCollection({super.key, this.onCreate});
+  final VoidCallback? onCreate;
+  @override
+  ConsumerState<ResultsCollection> createState() => _ResultsCollectionState();
+}
+
+class _ResultsCollectionState extends ConsumerState<ResultsCollection> {
   bool _favourites = false;
   String? _kind;
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.privateResults)),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+    return CustomScrollView(
+      key: const PageStorageKey('results-collection'),
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text(l10n.resultsBrowseHint),
           ),
-          Padding(
+        ),
+        SliverToBoxAdapter(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.all(16),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            child: Row(
               children: [
                 FilterChip(
                   label: Text(l10n.favouriteResults),
                   selected: _favourites,
                   onSelected: (v) => setState(() => _favourites = v),
                 ),
+                const SizedBox(width: 8),
                 FilterChip(
                   label: Text(l10n.resultPhoto),
                   selected: _kind == 'image',
                   onSelected: (v) => setState(() => _kind = v ? 'image' : null),
                 ),
+                const SizedBox(width: 8),
                 FilterChip(
                   label: Text(l10n.resultVideo),
                   selected: _kind == 'video',
@@ -63,77 +77,81 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: ref
-                .watch(resultsProvider)
-                .when(
-                  loading: () => const LoadingBox(),
-                  error: (_, _) => RetryState(
-                    onRetry: () => ref.invalidate(resultsProvider),
-                  ),
-                  data: (results) {
-                    final shown = results
-                        .where(
-                          (r) =>
-                              (!_favourites || r.favourite) &&
-                              (_kind == null || r.mime.startsWith('$_kind/')),
-                        )
-                        .toList();
-                    if (shown.isEmpty) {
-                      return EmptyState(
-                        icon: Icons.photo_library_outlined,
-                        title: results.isEmpty
-                            ? l10n.resultEmpty
-                            : l10n.resultsNoMatches,
-                        body: results.isEmpty ? l10n.resultEmptyHint : null,
-                        actionLabel: results.isEmpty
-                            ? l10n.navStudio
-                            : l10n.clearFilters,
-                        onAction: results.isEmpty
-                            ? () => context.go(Routes.studio)
-                            : () => setState(() {
-                                _kind = null;
-                                _favourites = false;
-                              }),
-                      );
-                    }
-                    return GridView.builder(
-                      padding: const EdgeInsets.all(16),
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 240,
-                            childAspectRatio: .8,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                      itemCount: shown.length,
-                      itemBuilder: (context, index) {
-                        final r = shown[index];
-                        final filePath = ref
-                            .read(fileStoreProvider)
-                            .resolve(r.path)
-                            .path;
-                        final visual = r.mime == 'video/mp4'
-                            ? ThumbVisual(filePath: filePath, isVideo: true)
-                            : !r.mime.startsWith('image/')
-                            ? const IconVisual(Icons.inventory_2_outlined)
-                            : ThumbVisual(filePath: filePath);
-
-                        return EntityCard(
-                          key: Key('result-${r.id}'),
-                          visual: visual,
-                          title:
-                              '${jobTypeLabel(l10n, r.type)}${r.favourite ? ' ★' : ''}',
-                          onTap: () =>
-                              context.push('${Routes.results}/${r.id}'),
-                        );
-                      },
-                    );
-                  },
+        ),
+        ref
+            .watch(resultsProvider)
+            .when(
+              loading: () => const SliverFillRemaining(child: LoadingBox()),
+              error: (_, _) => SliverFillRemaining(
+                child: RetryState(
+                  onRetry: () => ref.invalidate(resultsProvider),
                 ),
-          ),
-        ],
-      ),
+              ),
+              data: (results) {
+                final shown = results
+                    .where(
+                      (r) =>
+                          (!_favourites || r.favourite) &&
+                          (_kind == null || r.mime.startsWith('$_kind/')),
+                    )
+                    .toList();
+                if (shown.isEmpty) {
+                  return SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      icon: Icons.photo_library_outlined,
+                      title: results.isEmpty
+                          ? l10n.resultEmpty
+                          : l10n.resultsNoMatches,
+                      body: results.isEmpty ? l10n.resultEmptyHint : null,
+                      actionLabel: results.isEmpty
+                          ? l10n.navStudio
+                          : l10n.clearFilters,
+                      onAction: results.isEmpty
+                          ? widget.onCreate ?? () => context.go(Routes.studio)
+                          : () => setState(() {
+                              _kind = null;
+                              _favourites = false;
+                            }),
+                    ),
+                  );
+                }
+                return SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverGrid.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 240,
+                          childAspectRatio: .8,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                    itemCount: shown.length,
+                    itemBuilder: (context, index) {
+                      final r = shown[index];
+                      final filePath = ref
+                          .read(fileStoreProvider)
+                          .resolve(r.path)
+                          .path;
+                      final visual = r.mime == 'video/mp4'
+                          ? ThumbVisual(filePath: filePath, isVideo: true)
+                          : !r.mime.startsWith('image/')
+                          ? const IconVisual(Icons.inventory_2_outlined)
+                          : ThumbVisual(filePath: filePath);
+
+                      return EntityCard(
+                        key: Key('result-${r.id}'),
+                        visual: visual,
+                        title:
+                            '${jobTypeLabel(l10n, r.type)}${r.favourite ? ' ★' : ''}',
+                        onTap: () => context.push('${Routes.results}/${r.id}'),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+      ],
     );
   }
 }

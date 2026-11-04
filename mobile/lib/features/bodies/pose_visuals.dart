@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/pose/group_pose_matcher.dart';
 import '../../domain/pose/pose_geometry.dart';
 import '../../domain/pose/pose_rules.dart';
+import '../../data/files/crop_cache.dart' show cropPixels, CropKind;
 import '../../library_providers.dart';
 import '../../l10n/app_localizations.dart';
 import '../shared/crop_image.dart';
@@ -17,6 +18,7 @@ String poseLabel(AppLocalizations l, String tag) => switch (tag) {
   PoseTag.lying => l.poseTagLying,
   PoseTag.standing => l.poseTagStanding,
   PoseTag.sitting => l.poseTagSitting,
+  PoseTag.bent => l.discoveryBent,
   PoseTag.armsUp => l.poseTagArmsUp,
   PoseTag.oneArmUp => l.poseTagOneArmUp,
   PoseTag.armsSpread => l.poseTagArmsSpread,
@@ -121,6 +123,11 @@ class _PosePainter extends CustomPainter {
         p[15] = const Offset(.86, .9);
         p[14] = const Offset(.26, .6);
         p[16] = const Offset(.23, .9);
+      }
+      if (tag == PoseTag.bent) {
+        for (var i = 0; i < 11; i++) {
+          p[i] = p[i] + const Offset(.23, .12);
+        }
       }
       if (tag == PoseTag.profile) {
         for (var i = 0; i < p.length; i++) {
@@ -237,6 +244,7 @@ class BodyCropAnnotatedView extends StatelessWidget {
     this.cropPath,
     this.kpts,
     this.bbox,
+    this.imageSize,
     this.showSkeleton = false,
     this.showArea = false,
     this.area,
@@ -246,6 +254,7 @@ class BodyCropAnnotatedView extends StatelessWidget {
   final String? cropPath;
   final String? kpts;
   final ({double x, double y, double w, double h})? bbox;
+  final Size? imageSize;
   final bool showSkeleton;
   final bool showArea;
   final String? area;
@@ -261,6 +270,8 @@ class BodyCropAnnotatedView extends StatelessWidget {
           path: cropPath,
           fit: fit,
           placeholderIcon: Icons.accessibility_new,
+          expandable: false,
+          cacheWidth: 768,
         ),
         if ((showSkeleton || showArea) && kpts != null && bbox != null)
           CustomPaint(
@@ -269,6 +280,8 @@ class BodyCropAnnotatedView extends StatelessWidget {
               scheme: scheme,
               kpts: kpts!,
               bbox: bbox!,
+              imageSize: imageSize,
+              fit: fit,
               showSkeleton: showSkeleton,
               showArea: showArea,
               area: area,
@@ -286,6 +299,8 @@ class _BodyCropOverlayPainter extends CustomPainter {
     required this.bbox,
     required this.showSkeleton,
     required this.showArea,
+    required this.fit,
+    this.imageSize,
     this.area,
   });
 
@@ -295,10 +310,25 @@ class _BodyCropOverlayPainter extends CustomPainter {
   final bool showSkeleton;
   final bool showArea;
   final String? area;
+  final Size? imageSize;
+  final BoxFit fit;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final raw = jsonDecode(kpts) as List<dynamic>;
+    final List<dynamic> raw;
+    try {
+      raw = jsonDecode(kpts) as List<dynamic>;
+      if (raw.any(
+        (p) =>
+            p is! List ||
+            p.length != 3 ||
+            p.any((v) => v is! num || !v.isFinite),
+      )) {
+        return;
+      }
+    } catch (_) {
+      return;
+    }
     if (raw.length != 17 || bbox.w <= 0 || bbox.h <= 0) return;
 
     final points = <Offset>[];
@@ -310,11 +340,14 @@ class _BodyCropOverlayPainter extends CustomPainter {
       final y = (list[1] as num).toDouble();
       final score = (list[2] as num).toDouble();
 
-      final cropX = ((x - bbox.x) / bbox.w).clamp(0.0, 1.0) * size.width;
-      final cropY = ((y - bbox.y) / bbox.h).clamp(0.0, 1.0) * size.height;
-      points.add(Offset(cropX, cropY));
-      visible.add(score >= 0.25);
+      points.add(
+        bodyCropOverlayPoint(Offset(x, y), bbox, imageSize, size, fit),
+      );
+      visible.add(score >= keypointVisible);
     }
+
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
 
     if (showArea && area != null && points.length == 17) {
       final areaPaint = Paint()
@@ -403,6 +436,7 @@ class _BodyCropOverlayPainter extends CustomPainter {
         }
       }
     }
+    canvas.restore();
   }
 
   @override
@@ -411,5 +445,46 @@ class _BodyCropOverlayPainter extends CustomPainter {
       old.bbox != bbox ||
       old.showSkeleton != showSkeleton ||
       old.showArea != showArea ||
-      old.area != area;
+      old.area != area ||
+      old.imageSize != imageSize ||
+      old.fit != fit ||
+      old.scheme != scheme;
+}
+
+/// Uses the exact padded crop framing and the same BoxFit as the image. Do not
+/// clamp points to the crop edge: that would invent joints along its border.
+Offset bodyCropOverlayPoint(
+  Offset point,
+  ({double x, double y, double w, double h}) box,
+  Size? imageSize,
+  Size viewport,
+  BoxFit fit,
+) {
+  if (imageSize == null || imageSize.width <= 0 || imageSize.height <= 0) {
+    return Offset(
+      (point.dx - box.x) / box.w * viewport.width,
+      (point.dy - box.y) / box.h * viewport.height,
+    );
+  }
+  final crop = cropPixels(
+    CropKind.body,
+    box,
+    imageSize.width.round(),
+    imageSize.height.round(),
+  );
+  final source = Size(crop.outWidth.toDouble(), crop.outHeight.toDouble());
+  final fitted = applyBoxFit(fit, source, viewport);
+  final src = Alignment.center.inscribe(fitted.source, Offset.zero & source);
+  final dst = Alignment.center.inscribe(
+    fitted.destination,
+    Offset.zero & viewport,
+  );
+  final x =
+      (point.dx * imageSize.width - crop.left) / crop.width * source.width;
+  final y =
+      (point.dy * imageSize.height - crop.top) / crop.height * source.height;
+  return Offset(
+    dst.left + (x - src.left) / src.width * dst.width,
+    dst.top + (y - src.top) / src.height * dst.height,
+  );
 }

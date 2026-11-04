@@ -186,7 +186,8 @@ class _OrganizePersonMediaState
                   Text(l.organizeIntro),
                   const SizedBox(height: 8),
                   SelectableText(
-                    'DCIM/Your Gallery/',
+                    ref.watch(organizeRootProvider).value ??
+                        PersonMediaOrganizer.dcimRoot,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   Text(l.organizeNaming),

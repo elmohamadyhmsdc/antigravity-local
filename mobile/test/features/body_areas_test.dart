@@ -63,22 +63,23 @@ Future<void> _settleReal(WidgetTester tester) async {
 }
 
 void main() {
-  appTest('the Areas tab is hidden while the switch is OFF', (
-    tester,
-    env,
-  ) async {
-    final media = await seedMedia(env.db, asset: 'm');
-    final base = _vec(1);
-    await _body(env.db, media, chest: base);
-    await _body(env.db, media, chest: _vec(2, near: base));
-    await env.pump(
-      tester,
-      extra: [initialLocationProvider.overrideWithValue('/bodies')],
-    );
-    await _settleReal(tester);
-    expect(find.byKey(const Key('bodies-tab-areas')), findsNothing);
-    expect(await env.db.select(env.db.bodyClusters).get(), isEmpty);
-  }, session: testSession);
+  appTest(
+    'the Areas destination stays visible while grouping is OFF',
+    (tester, env) async {
+      final media = await seedMedia(env.db, asset: 'm');
+      final base = _vec(1);
+      await _body(env.db, media, chest: base);
+      await _body(env.db, media, chest: _vec(2, near: base));
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/bodies')],
+      );
+      await _settleReal(tester);
+      expect(find.byKey(const Key('bodies-tab-areas')), findsOneWidget);
+      expect(await env.db.select(env.db.bodyClusters).get(), isEmpty);
+    },
+    session: testSession,
+  );
 
   appTest(
     'switching it on builds the groups; one tap gives a group to a person; a bridge only offers the other group',
@@ -93,9 +94,10 @@ void main() {
         chest: _vec(12, near: chestBase),
         lower: _vec(13, near: lowerBase),
       );
+      final secondMedia = await seedMedia(env.db, asset: 'independent-bridge');
       final b2 = await _body(
         env.db,
-        media,
+        secondMedia,
         chest: _vec(14, near: chestBase),
         lower: _vec(15, near: lowerBase),
       );
@@ -114,7 +116,7 @@ void main() {
         extra: [initialLocationProvider.overrideWithValue('/bodies')],
       );
       await _settleReal(tester);
-      expect(find.byKey(const Key('bodies-tab-areas')), findsNothing);
+      expect(find.byKey(const Key('bodies-tab-areas')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('bodies-menu')));
       await tester.pumpAndSettle();
@@ -143,6 +145,7 @@ void main() {
       expect(find.text('Chest area · group ${chest.id}'), findsOneWidget);
 
       await tester.ensureVisible(find.byKey(Key('cluster-assign-${chest.id}')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key('cluster-assign-${chest.id}')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key('person-picker-$lina')));
@@ -161,6 +164,17 @@ void main() {
       expect(find.text('Belongs to Lina'), findsOneWidget);
 
       final bridge = find.byKey(Key('bridge-${chest.id}-${lower.id}'));
+      await tester.scrollUntilVisible(
+        bridge,
+        -180,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const PageStorageKey('area-groups')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
       expect(bridge, findsOneWidget);
       expect(
         (await env.db.select(env.db.bodyClusters).get())

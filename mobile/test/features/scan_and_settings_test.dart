@@ -19,6 +19,19 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _openSection(WidgetTester tester, String id) async {
+  final section = find.byKey(Key(id));
+  await tester.scrollUntilVisible(
+    section,
+    160,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.ensureVisible(section);
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tapAt(tester.getTopLeft(section) + const Offset(120, 28));
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
 Future<void> _open(
   WidgetTester tester,
   TestEnv env,
@@ -327,6 +340,7 @@ void main() {
         syntheticAssets(3),
       );
       await _open(tester, env, '/sources');
+      await _openSection(tester, 'library-scan-section');
       await revealForTap(tester, find.byKey(const Key('scan-bodies')));
       await tester.tap(find.byKey(const Key('scan-bodies')));
       await _settle(tester);
@@ -339,6 +353,7 @@ void main() {
         await _open(tester, env, '/sources');
         expect((await env.settingsSnapshot()).adaptiveVideoSampling, isTrue);
         expect(find.byKey(const Key('video-frame-interval')), findsNothing);
+        await _openSection(tester, 'library-scan-section');
         final automatic = find.byKey(const Key('adaptive-video-sampling'));
         await revealForTap(tester, automatic);
         await tester.tap(automatic);
@@ -377,6 +392,7 @@ void main() {
               phase: scanning ? ScanPhase.running : ScanPhase.idle,
             ),
           );
+          await _openSection(tester, 'library-matching-section');
           final tile = find.byKey(const Key('settings-retry-outlines'));
           if (scanning) {
             await tester.scrollUntilVisible(
@@ -403,9 +419,12 @@ void main() {
       env,
     ) async {
       await _open(tester, env, '/settings/library');
+      await _openSection(tester, 'library-matching-section');
       expect(find.text('Balanced'), findsOneWidget);
       expect(find.textContaining('Recommended'), findsOneWidget);
 
+      await tester.ensureVisible(find.text('Strict'));
+      await _settle(tester);
       await tester.tap(find.text('Strict'));
       await _settle(tester);
       expect((await env.settingsSnapshot()).strictness, 'strict');

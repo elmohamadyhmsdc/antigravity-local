@@ -76,7 +76,7 @@ Future<_Library> _seed(TestEnv env) async {
         ReviewBodyLinksCompanion.insert(
           bodyId: Value(l.body),
           personId: l.sara,
-          method: 'appearance',
+          method: 'weak_face',
           confidence: 0.8,
         ),
       );
@@ -130,7 +130,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('review-tab-outfits')));
       await _settle(tester);
-      expect(find.text('No outfit matches to review'), findsOneWidget);
+      expect(find.text('No body identity matches to review'), findsOneWidget);
     }, session: testSession);
 
     group('Matches', () {
@@ -447,7 +447,7 @@ void main() {
         await _settle(tester);
         final b = (await env.db.select(env.db.bodies).get()).single;
         expect((b.personId, b.linkMethod), (l.sara, 'manual'));
-        expect(find.text('No outfit matches to review'), findsOneWidget);
+        expect(find.text('No body identity matches to review'), findsOneWidget);
       }, session: testSession);
 
       appTest('rejecting remembers it', (tester, env) async {

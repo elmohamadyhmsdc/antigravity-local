@@ -111,7 +111,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reviewOutfitHelp =>
-      'This is a suggestion based on clothing or a weak face match. Check the highlighted body in the original before deciding.';
+      'Check the highlighted body in the original and compare the identity evidence before deciding. Similar clothing alone is not an identity match.';
 
   @override
   String reviewYesPerson(String name) {
@@ -1442,7 +1442,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reviewMatchesEmpty => 'No faces waiting to be matched';
 
   @override
-  String get reviewOutfitsEmpty => 'No outfit matches to review';
+  String get reviewOutfitsEmpty => 'No body identity matches to review';
 
   @override
   String reviewTabDuplicates(int count) {
@@ -4143,11 +4143,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get moveWithoutAskingOn =>
-      'Allowed. After a scan, thousands of photos move into their people\'s folders on their own, with no prompts.';
+      'Allowed. People\'s folders are in “Your Gallery” on the phone\'s storage (outside DCIM), each photo keeps its .json file beside it, and photos move after a scan with no prompts, also in the background.';
 
   @override
   String get moveWithoutAskingOff =>
-      'Not allowed yet. Without it Android would ask for confirmation again and again, so photos are not moved automatically. Tap, then switch on “Media management” for this app, once.';
+      'Not allowed yet. Without it Android asks before every batch of moves, the .json files cannot be saved and photos are not moved automatically. Tap, then switch on “Allow access to manage all files” for this app, once.';
 
   @override
   String get saveSidecarMetadata => 'Save sidecar metadata (.json)';
@@ -4155,4 +4155,98 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get saveSidecarMetadataHint =>
       'Save portable AI metadata alongside media for zero-rescan restoration';
+
+  @override
+  String get discoveryCompareHint =>
+      'Compare the reference and result. Pinch either image to inspect the details.';
+
+  @override
+  String get discoveryCandidate => 'Result';
+
+  @override
+  String get discoverySkeleton => 'Skeleton';
+
+  @override
+  String get discoveryAreaGuide => 'Area guide';
+
+  @override
+  String discoverySimilarity(int percent) {
+    return '$percent% visual similarity';
+  }
+
+  @override
+  String discoveryCoverage(int percent) {
+    return '$percent% shared keypoint coverage';
+  }
+
+  @override
+  String get discoveryPosePrecision =>
+      'Matches compare visible joints and individual limbs. A similarity score is not an identity confidence.';
+
+  @override
+  String get discoveryAreaPrecision =>
+      'These are visual area matches, not proof of identity. The highlight is an approximate guide.';
+
+  @override
+  String get discoveryInspect => 'Inspect result';
+
+  @override
+  String get discoveryPoseIntro => 'Compare postures, arms and direction.';
+
+  @override
+  String get discoveryOutfitIntro =>
+      'Find similar clothing from your saved examples. Colours do not identify a person.';
+
+  @override
+  String get discoverySearchSaved => 'Search saved examples';
+
+  @override
+  String get discoverySearchEquipment => 'Search equipment';
+
+  @override
+  String get discoverySearchAreas => 'Search areas or people';
+
+  @override
+  String get discoveryAreaIntro =>
+      'Review similar visible regions, compare examples and organise them by person.';
+
+  @override
+  String discoveryMatches(int count) {
+    return '$count results';
+  }
+
+  @override
+  String get discoveryAllIntro =>
+      'Choose a body to inspect its pose, find similar examples or save an outfit.';
+
+  @override
+  String get discoveryNoSearch => 'No saved examples match your search.';
+
+  @override
+  String get discoveryAreaAll => 'All regions';
+
+  @override
+  String get discoveryBrowse => 'Browse';
+
+  @override
+  String get discoveryColours => 'Colours';
+
+  @override
+  String get discoveryCompare => 'Compare';
+
+  @override
+  String get discoveryAreaMembers => 'Review all examples';
+
+  @override
+  String get discoveryRemoveMatch => 'Remove from this group';
+
+  @override
+  String get discoveryAreaRemoveHint =>
+      'This example will stay out of area groups after rebuilding.';
+
+  @override
+  String get discoveryAreaRebuild => 'Refresh area groups';
+
+  @override
+  String get discoveryBent => 'Bent';
 }

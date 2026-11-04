@@ -298,7 +298,10 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(categoryLabel(entry.key)),
+                                      Expanded(
+                                        child: Text(categoryLabel(entry.key)),
+                                      ),
+                                      const SizedBox(width: 12),
                                       Text(sizeLabel(entry.value)),
                                     ],
                                   ),
@@ -337,7 +340,11 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [Text(row.$1), Text(sizeLabel(row.$2))],
+                              children: [
+                                Expanded(child: Text(row.$1)),
+                                const SizedBox(width: 12),
+                                Text(sizeLabel(row.$2)),
+                              ],
                             ),
                           ),
                         const SizedBox(height: 8),

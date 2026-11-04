@@ -157,6 +157,9 @@ void main() {
 
       await tester.tap(find.byKey(const Key('person-menu')));
       await _settle(tester);
+      await expandActionSections(tester);
+      await tester.ensureVisible(find.text('Delete person'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Delete person'));
       await _settle(tester);
       expect(find.text('Delete Lina?'), findsOneWidget);

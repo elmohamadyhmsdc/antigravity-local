@@ -16,7 +16,7 @@ import numpy as np
 KPT_VISIBLE = 0.3
 MIRROR = [0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15]
 MIN_SHARED = 8
-DEFAULT_SIGMA = 0.35
+DEFAULT_SIGMA = 0.22
 L_EYE, R_EYE, L_EAR, R_EAR = 1, 2, 3, 4
 L_SH, R_SH, L_EL, R_EL, L_WR, R_WR = 5, 6, 7, 8, 9, 10
 L_HIP, R_HIP, L_KN, R_KN, L_AN, R_AN = 11, 12, 13, 14, 15, 16
@@ -46,7 +46,7 @@ class Pose:
         return cls(raw, extent, face_yaw)
 
     def has(self, ids) -> bool:
-        return all(self.p[i, 2] >= KPT_VISIBLE for i in ids)
+        return all(np.isfinite(self.p[i]).all() and self.p[i, 2] >= KPT_VISIBLE for i in ids)
 
     def xy(self, i):
         return self.p[i, :2]
@@ -223,6 +223,8 @@ def tier_a_tags(p: Pose, guard_rotated_standing: bool = False) -> Set[str]:
         tags.add("standing")
     if is_sitting(p):
         tags.add("sitting")
+    if p.spine_tilt is not None and 25 <= p.spine_tilt <= 60:
+        tags.add("bent")
     torso = p.torso
     if torso is not None:
         left, right = _raised(p, torso)
@@ -258,6 +260,8 @@ class Feature:
 
 
 def build_feature(p: Pose) -> Optional[Feature]:
+    if not np.isfinite(p.p).all():
+        return None
     torso = p.torso
     if torso is not None and torso > 1:
         origin, scale, source = p.mid(L_HIP, R_HIP), torso, "torso"
@@ -294,19 +298,38 @@ def _compare(a: Feature, b: Feature, sigma: float):
     shared = bin(both).count("1")
     if shared < MIN_SHARED:
         return None
-    total = sum(math.hypot(a.data[2 * i] - b.data[2 * i], a.data[2 * i + 1] - b.data[2 * i + 1])
-                for i in range(17) if both & (1 << i))
-    d = total / shared
-    return math.exp(-d * d / (2 * sigma * sigma)), shared / max(a.count, b.count), shared
+    errors = {}
+    total = weight = 0.0
+    for i in range(17):
+        if not both & (1 << i):
+            continue
+        dx = float(a.data[2 * i]) - float(b.data[2 * i])
+        dy = float(a.data[2 * i + 1]) - float(b.data[2 * i + 1])
+        errors[i] = dx * dx + dy * dy
+        w = 0.25 if i < L_SH else 1.0
+        total += errors[i] * w
+        weight += w
+    worst = 0.0
+    for region in ((5, 7, 9), (6, 8, 10), (11, 13, 15), (12, 14, 16), (5, 6, 11, 12)):
+        visible = [errors[i] for i in region if i in errors]
+        if len(visible) >= 2:
+            worst = max(worst, sum(visible) / len(visible))
+    squared_error = 0.45 * total / weight + 0.55 * worst
+    return math.exp(-squared_error / (2 * sigma * sigma)), shared / (a.mask | b.mask).bit_count(), shared
+
 
 
 def compare(a: Feature, b: Feature, sigma: float = DEFAULT_SIGMA):
     """(similarity, coverage, shared) or None when not comparable; the best of straight / mirrored."""
-    if a.scale_source != b.scale_source:
+    def valid(f):
+        return (f.data.shape == (34,) and np.isfinite(f.data).all()
+                and 0 < f.mask < (1 << 17) and f.count >= MIN_SHARED)
+    if (a.scale_source != b.scale_source or not valid(a) or not valid(b)
+            or not math.isfinite(sigma) or sigma <= 0):
         return None
     straight, flipped = _compare(a, b, sigma), _compare(a, mirror_feature(b), sigma)
     if straight is None:
         return flipped
     if flipped is None:
         return straight
-    return flipped if flipped[0] > straight[0] else straight
+    return flipped if flipped[0] * flipped[1] > straight[0] * straight[1] else straight
