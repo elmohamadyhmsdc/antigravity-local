@@ -341,6 +341,11 @@ def analyze_frame(face_app, body, img, options,
     if (options.detect_bodies or want_characters) and body is not None and body.available:
         t = time.perf_counter()
         bodies = body.analyze(img, score_thr=options.body_score)
+        if hasattr(body, "recover_for_faces"):
+            # A face with no body is a person the whole-picture pass missed (small, partly hidden): look closer
+            # at it. Faces the gate drops as crowd background are not worth a second look; drawn faces are.
+            wanted = [f.bbox for i, f in enumerate(faces) if passes[i] or forced[i]] +                      [a["bbox"] for a in anime_faces]
+            bodies = body.recover_for_faces(img, wanted, bodies, score_thr=options.body_score)
         timings["body"] = (time.perf_counter() - t) * 1000.0
     body_kinds = [kind_of(b.bbox, "body") for b in bodies]
     characters = []

@@ -2580,3 +2580,22 @@ Tests: `identity_selection_test`, `grouping_guards_test` (person models), `curat
 - **Dissolve person** (menu action next to Delete): faces and bodies go back to be sorted and are not hidden (Delete dismisses the faces for good); `PeopleRepository.dissolvePerson`.
 - **Clean up background faces** (Settings > Library): finds faces stored before the new gate (< 40 px, or far smaller than the biggest in a crowd frame), asks, hides them (never deletes), Undo. `BackgroundFaces`.
 - Not done: moving the new inline-English strings into the ARB (the app has only `app_en.arb`, so it would only relocate English text), Ignore in the full 5-tab Review screen, an "ignored faces" list to review what was ignored.
+
+## Reface speed + choices, LoRA angle generation, body detection - 2026-11-04
+
+All measured on the RTX 4050 Laptop (6 GB). Nothing was run on the phone; restart the PC server and rebuild the APK.
+
+**Reface speed (PC, `face_compositor.py` / `reface_engine_v3.py`).** Baseline 720p, one face: fast 134 / balanced 292-310 / detail 650 ms per frame.
+Per-model cost: GPEN 512 120 ms, GPEN 1024 224, CodeFormer 170, RestoreFormer++ 176, GFPGAN 1.4 74, hyperswap 18, XSeg 20.
+- Done: the compositor is split into `prepare()` (swap, restore, every model-made mask) and `finish()` (blend, relight, grain, paste); `composite()` = both. The video loop keeps one frame in flight: the next frame's models run while the previous frame's CPU half runs on one ordered worker (`_stage_frame` / `_complete_frame`). Output is bit-identical for fast and balanced (40/40 frames); detail differs by 1 grey level on a few frames, but two plain sequential detail runs differ the same way (GPU non-determinism). Speed-up: fast x1.8-2.0, balanced x1.34, detail x1.6. Photos are unchanged. `last_status/last_reason/last_degraded` are now per-thread.
+- Rejected after measuring (do not retry without new evidence): FP16 restorer (x1.35 only, PSNR 28.6 dB); ORT `prefer_nhwc` (3x slower), TF32/HEURISTIC (no change); TensorRT (needs a package install); skipping or lightening restoration for small faces (60 px face, balanced: identity 0.520 -> 0.480, leak 0.303 -> 0.354, sharpness 0.99 -> 0.82) and 512 instead of 1024 for mid-size faces (sharpness 1.09 -> 0.99 at 357 px).
+- Tests: test_compositor 55/55 (3 new for prepare/finish and overlap), test_reface_quality fake compositor updated.
+- Open: `balanced` is GPU-bound by GPEN 512; further gains need a different restorer or hardware.
+
+**Reface choices (phone).** Quality profile, finishing step ("Sharpening") and skin finish are described by what they do; model names are footnotes. `reface_profiles[p].photo_ms_per_face` / `video_ms_per_face` (typical, `reface_config.TYPICAL_MS_PER_FACE`) are in the contract; the phone turns them into "Takes about X on your PC" for the chosen photo/clip (video assumes 30 fps). LoRA base pickers show "Realistic photos" instead of `sd15_realistic_base`.
+
+**LoRA angle generation before Reface.** Review step: preflight card compares the target's head directions with the source; "Generate N missing angles" queues `generate_lora_images` with `angles` (server: `lora_generate.ANGLE_PROMPTS`), then `buildIdentity` and turns the model identity on. Not tested with a real generation.
+
+**Body detection (PC, `body_detector.py`, `analysis.py`).** Synthetic 2560x1920 scenes, known boxes. The old one-look detector found 0% of 130 px people, 10% at 200 px, 70% at 320 px. Added `detect_multiscale` (overlapping 1024 px windows on photos > 1180 px, NMS + containment merge) and `BodyAnalyzer.recover_for_faces` (a window around every face that has no body). Face -> right body: separate people 29% -> 100%; overlapping people 42% -> 98% (wrong-body rate stays 1%). Cost: about 30 ms -> 340 ms per large photo with windows; recovery alone is 88% at about 110 ms. `BodyAnalyzer(multiscale=False)` restores the old speed. Benchmarks (scratchpad, not in repo): body_scale_bench.py, body_link_bench.py. Tests: test_body_multiscale.py. Caveat: crops pasted on synthetic backgrounds, not your real library; faces under about 15 px are still missed by the face detector. Not done: anime character linking (no anime samples on the PC; it shares the same body path and now benefits from recovery), OSNet re-id.
+
+**Queued by the user, not started:** media viewer slowness (opening a photo, swiping), the explore/areas/partitions display, and a UI/UX redesign.

@@ -232,8 +232,14 @@ class QualityTests(unittest.TestCase):
             out=result.copy()
             out[65:150,65:135]=120
             return out
+        # the engine now prepares a face (models) and finishes it (CPU) separately; the fake keeps one body for both
+        def prepare(original,crop,matrix,kps,**kwargs):
+            return SimpleNamespace(args=(crop,matrix,kps),kwargs=kwargs)
+        def finish(pre,result):
+            return composite(result,*pre.args,**pre.kwargs)
         engine.compositor = SimpleNamespace(reset=lambda:None,begin_frame=lambda:None,config=SimpleNamespace(temporal=False),
-                                            composite=composite,last_status='swapped',last_reason='',_log_once=lambda *a:None)
+                                            composite=composite,prepare=prepare,finish=finish,
+                                            last_status='swapped',last_reason='',_log_once=lambda *a:None)
         engine._detect=lambda image:[face(100),face(300,2)]
         faceset=Faceset('test')
         faceset.add_face(FaceData('',unit(3),(0,0,0),[],.8))

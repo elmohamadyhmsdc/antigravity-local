@@ -388,6 +388,18 @@ class ModelDetailScreen extends ConsumerWidget {
   }
 }
 
+/// What a base model looks like, instead of its file name: nobody picks "sd15_realistic_base" by understanding it.
+String loraBaseLabel(String name, AppLocalizations l) {
+  final lower = name.toLowerCase();
+  if (lower.contains('anime') || lower.contains('illust')) {
+    return l.loraBaseAnime;
+  }
+  if (lower.contains('realistic') || lower.contains('photo')) {
+    return l.loraBaseRealistic;
+  }
+  return name;
+}
+
 class DatasetBuildScreen extends ConsumerStatefulWidget {
   const DatasetBuildScreen({super.key, this.personId, this.mediaId});
   final int? personId;
@@ -558,7 +570,9 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
         children: [
           ScreenIntro(title: l.loraDatasetTitle, body: l.loraPhotoHint),
           Card(
-            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+            color: Theme.of(
+              context,
+            ).colorScheme.primaryContainer.withValues(alpha: 0.25),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -566,14 +580,16 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary),
+                      Icon(
+                        Icons.auto_awesome,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'التحديد التلقائي الذكي للصور ⚡',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
@@ -600,7 +616,8 @@ class _DatasetBuildScreenState extends ConsumerState<DatasetBuildScreen> {
                             if (chosen?.personId != null) {
                               final people = [
                                 ...ref.read(peopleProvider).value ?? const [],
-                                ...ref.read(charactersProvider).value ?? const [],
+                                ...ref.read(charactersProvider).value ??
+                                    const [],
                               ];
                               final name = people
                                   .where((p) => p.id == chosen!.personId)
@@ -1102,7 +1119,7 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
               decoration: InputDecoration(labelText: l.loraBase),
               items: [
                 for (final b in bases)
-                  DropdownMenuItem(value: b, child: Text(b)),
+                  DropdownMenuItem(value: b, child: Text(loraBaseLabel(b, l))),
               ],
               onChanged: (v) => setState(() => _base = v),
             ),
@@ -1445,7 +1462,7 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
               decoration: InputDecoration(labelText: l.loraBase),
               items: [
                 for (final b in bases)
-                  DropdownMenuItem(value: b, child: Text(b)),
+                  DropdownMenuItem(value: b, child: Text(loraBaseLabel(b, l))),
               ],
               onChanged: (v) => setState(() => _base = v),
             ),

@@ -3559,8 +3559,20 @@ abstract class AppLocalizations {
   /// No description provided for @loraBase.
   ///
   /// In en, this message translates to:
-  /// **'Base checkpoint'**
+  /// **'Look of the pictures'**
   String get loraBase;
+
+  /// No description provided for @loraBaseRealistic.
+  ///
+  /// In en, this message translates to:
+  /// **'Realistic photos'**
+  String get loraBaseRealistic;
+
+  /// No description provided for @loraBaseAnime.
+  ///
+  /// In en, this message translates to:
+  /// **'Anime and drawings'**
+  String get loraBaseAnime;
 
   /// No description provided for @loraModel.
   ///

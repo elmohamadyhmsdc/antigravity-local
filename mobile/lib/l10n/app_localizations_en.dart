@@ -2263,7 +2263,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loraResolution => 'Resolution';
 
   @override
-  String get loraBase => 'Base checkpoint';
+  String get loraBase => 'Look of the pictures';
+
+  @override
+  String get loraBaseRealistic => 'Realistic photos';
+
+  @override
+  String get loraBaseAnime => 'Anime and drawings';
 
   @override
   String get loraModel => 'Trained LoRA';
