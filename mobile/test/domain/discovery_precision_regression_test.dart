@@ -186,6 +186,21 @@ void main() {
     });
 
     test(
+      'excluding every member hides an existing area group immediately',
+      () async {
+        final a = await area(0);
+        final b = await area(0);
+        final clusters = ExposedClusters(db);
+        await clusters.setEnabled(true);
+        await clusters.rebuild(ExposedKind.chest);
+        expect((await clusters.clusters()).single.bodyIds, [a, b]);
+        await (db.update(db.bodies)..where((body) => body.id.isIn([a, b])))
+            .write(const BodiesCompanion(hidden: Value(true)));
+        expect(await clusters.clusters(), isEmpty);
+      },
+    );
+
+    test(
       'clothing-only plans never auto-link people or enter review, including stale rows',
       () async {
         final person = await seedPerson(db);

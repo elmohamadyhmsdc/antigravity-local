@@ -84,6 +84,15 @@ void main() {
           ),
         );
 
+    // A saved group is visible only while it has visible member detections.
+    final mediaId = await seedMedia(db, asset: 'named-group');
+    for (var i = 0; i < 3; i++) {
+      final bodyId = await seedBody(db, mediaId: mediaId);
+      await (db.update(db.bodies)..where((b) => b.id.equals(bodyId))).write(
+        const BodiesCompanion(chestClusterId: Value(1)),
+      );
+    }
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [databaseProvider.overrideWithValue(db)],
