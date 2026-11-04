@@ -135,6 +135,8 @@ class ScanEngine {
     }
   }
 
+  static const _inScanKey = #agScanEngineRun;
+
   Completer<void> _pauseSignal = Completer<void>();
 
   /// A photo the phone cannot decode in this long is marked failed instead of hanging the queue.
@@ -151,6 +153,10 @@ class ScanEngine {
   /// Waits until all current database/file writes and grouping have settled.
   /// Backup and restore must not race the photo currently being analysed.
   Future<void> pauseAndWait() async {
+    // Called from the scan's own work (the auto-organizer runs inside the photo store): the scan is
+    // already serial and cannot settle until this returns, so pausing + waiting would deadlock it
+    // (and flip the card to "Pausing..." by itself).
+    if (Zone.current[_inScanKey] == true) return;
     pause();
     await _settled?.future;
   }
@@ -197,7 +203,10 @@ class ScanEngine {
     _pauseRequested = false;
     _pauseSignal = Completer<void>();
     try {
-      await _run(enumerate, albumIds: albumIds);
+      await runZoned(
+        () => _run(enumerate, albumIds: albumIds),
+        zoneValues: {_inScanKey: true},
+      );
     } catch (e) {
       await _pause(PauseReason.error, '$e');
     } finally {
