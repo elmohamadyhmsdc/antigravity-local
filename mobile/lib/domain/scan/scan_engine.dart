@@ -128,6 +128,21 @@ class ScanEngine {
   void pause() {
     _allowReconnectResume = false;
     _pauseRequested = true;
+    if (!_pauseSignal.isCompleted) _pauseSignal.complete();
+    // Immediate feedback: the button must not look dead while a request is in flight.
+    if (_active && _progress.isActive && !_progress.pausing) {
+      _emit(_progress.copyWith(pausing: true));
+    }
+  }
+
+  Completer<void> _pauseSignal = Completer<void>();
+
+  /// Awaits [work] but gives up (null) the moment the user pauses, so a slow or hung request
+  /// cannot keep the scan "running" after Pause. The abandoned call finishes (or fails) unobserved.
+  Future<T?> _orPause<T>(Future<T> work) {
+    final guarded = work.then<T?>((v) => v);
+    guarded.ignore();
+    return Future.any<T?>([guarded, _pauseSignal.future.then<T?>((_) => null)]);
   }
 
   /// Waits until all current database/file writes and grouping have settled.
@@ -177,17 +192,24 @@ class ScanEngine {
     _active = true;
     final settled = _settled = Completer<void>();
     _pauseRequested = false;
+    _pauseSignal = Completer<void>();
     try {
       await _run(enumerate, albumIds: albumIds);
     } catch (e) {
       await _pause(PauseReason.error, '$e');
     } finally {
       try {
-        await _preparedPhoto;
+        await _preparedPhoto?.timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => null,
+        );
         _preparedPhoto = null;
         if (_keepAliveOn) {
           _keepAliveOn = false;
-          await _keepAlive.stop();
+          await _keepAlive.stop().timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {},
+          );
         }
       } finally {
         _active = false;
@@ -218,6 +240,10 @@ class ScanEngine {
       return;
     }
     final prefs = await _settings.load();
+    if (_pauseRequested) {
+      await _pause(PauseReason.user);
+      return;
+    }
     final selectedAlbums = albumIds ?? prefs.albumIds.toSet();
     if (enumerate) await _settings.setScanScopeAlbumIds(selectedAlbums);
     _emit(const ScanProgress(phase: ScanPhase.preparing));
@@ -329,6 +355,7 @@ class ScanEngine {
         );
       }
       return ScanProgress(
+        pausing: _pauseRequested,
         phase: phase,
         message:
             message ??
@@ -371,7 +398,7 @@ class ScanEngine {
       if (_api() == null) return;
       _emit(_progress.copyWith(grouping: true));
       try {
-        await _grouping.run(incremental: incremental);
+        await _orPause(_grouping.run(incremental: incremental));
       } on ApiException catch (e) {
         // grouping is repeatable at any time (Review has a "Sort now" button): never fail the scan for it
         _emit(_progress.copyWith(message: e.message));
@@ -470,6 +497,10 @@ class ScanEngine {
     }
 
     await groupNow();
+    if (_pauseRequested) {
+      await _pause(PauseReason.user);
+      return;
+    }
     await _media.clearCache();
     try {
       await _afterRun?.call();
@@ -563,21 +594,24 @@ class ScanEngine {
           );
         }
         final isCharScan = row.illustrated || _canDetectCharacters;
-        final response = await api.analyzeImage(
-          bytes!,
-          options: AnalyzeOptions(
-            detectBodies: prefs.scanBodies,
-            detectCharacters: isCharScan,
-            minQuality: prefs.qualityGate,
-            modelId: modelId,
-            facelessCharacters: row.illustrated,
-            forceKind: corrections.forceKind,
-            kindOverrides: corrections.dtos(),
-            // drawn figures get the same regions and body vectors people get
-            returnSensitive: _canDetectSensitive,
-            returnBodyEmbeddings: _canEmbedBodies,
+        final response = await _orPause(
+          api.analyzeImage(
+            bytes!,
+            options: AnalyzeOptions(
+              detectBodies: prefs.scanBodies,
+              detectCharacters: isCharScan,
+              minQuality: prefs.qualityGate,
+              modelId: modelId,
+              facelessCharacters: row.illustrated,
+              forceKind: corrections.forceKind,
+              kindOverrides: corrections.dtos(),
+              // drawn figures get the same regions and body vectors people get
+              returnSensitive: _canDetectSensitive,
+              returnBodyEmbeddings: _canEmbedBodies,
+            ),
           ),
         );
+        if (response == null) return _stop(row.id, PauseReason.user);
         // Illustrated files only carry face vectors when a real face was found.
         final faceModel = !isCharScan || response.faces.isNotEmpty;
         if (faceModel && modelId != null && response.modelId != modelId) {

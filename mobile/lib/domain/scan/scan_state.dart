@@ -45,8 +45,11 @@ class ScanProgress {
     this.previewBytes,
     this.previewTimestampMs,
     this.video,
+    this.pausing = false,
   });
 
+  /// Pause was requested and the engine is still winding down.
+  final bool pausing;
   final ScanPhase phase;
   final PauseReason? pauseReason;
   final String? message; // detail for errors / waiting
@@ -100,7 +103,9 @@ class ScanProgress {
     bool clearPreview = false,
     VideoScanProgress? video,
     bool clearVideo = false,
+    bool? pausing,
   }) => ScanProgress(
+    pausing: pausing ?? (phase == null ? this.pausing : false),
     phase: phase ?? this.phase,
     pauseReason: clearPauseReason ? null : (pauseReason ?? this.pauseReason),
     message: clearMessage ? null : (message ?? this.message),

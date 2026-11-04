@@ -82,8 +82,8 @@ class ScanProgressCard extends ConsumerWidget {
         value = null;
         action = TextButton(
           key: const Key('scan-pause'),
-          onPressed: engine.pause,
-          child: Text(l10n.pause),
+          onPressed: progress.pausing ? null : engine.pause,
+          child: Text(progress.pausing ? 'Pausing…' : l10n.pause),
         );
       case ScanPhase.running:
         headline = progress.grouping
@@ -107,8 +107,8 @@ class ScanProgressCard extends ConsumerWidget {
         }
         action = TextButton(
           key: const Key('scan-pause'),
-          onPressed: engine.pause,
-          child: Text(l10n.pause),
+          onPressed: progress.pausing ? null : engine.pause,
+          child: Text(progress.pausing ? 'Pausing…' : l10n.pause),
         );
       case ScanPhase.waiting:
         headline = l10n.scanWaiting;
@@ -116,8 +116,8 @@ class ScanProgressCard extends ConsumerWidget {
         lines.add(itemsText);
         action = TextButton(
           key: const Key('scan-pause'),
-          onPressed: engine.pause,
-          child: Text(l10n.pause),
+          onPressed: progress.pausing ? null : engine.pause,
+          child: Text(progress.pausing ? 'Pausing…' : l10n.pause),
         );
       case ScanPhase.paused:
         headline = l10n.scanPaused;
