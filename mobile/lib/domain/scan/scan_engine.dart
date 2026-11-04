@@ -137,6 +137,9 @@ class ScanEngine {
 
   Completer<void> _pauseSignal = Completer<void>();
 
+  /// A photo the phone cannot decode in this long is marked failed instead of hanging the queue.
+  static const _readTimeout = Duration(seconds: 30);
+
   /// Awaits [work] but gives up (null) the moment the user pauses, so a slow or hung request
   /// cannot keep the scan "running" after Pause. The abandoned call finishes (or fails) unobserved.
   Future<T?> _orPause<T>(Future<T> work) {
@@ -329,12 +332,14 @@ class ScanEngine {
           if (next == null || next.kind != 'photo' || _pauseRequested) {
             return null;
           }
-          final bytes = await _media.downscaledJpeg(
-            next.assetId,
-            width: next.width ?? 0,
-            height: next.height ?? 0,
-            maxSide: prefs.maxSide,
-          );
+          final bytes = await _media
+              .downscaledJpeg(
+                next.assetId,
+                width: next.width ?? 0,
+                height: next.height ?? 0,
+                maxSide: prefs.maxSide,
+              )
+              .timeout(_readTimeout);
           return (next.assetId, bytes);
         } catch (_) {
           return null;
@@ -419,8 +424,14 @@ class ScanEngine {
         await _pause(PauseReason.user);
         return;
       }
-      final prepared = await _preparedPhoto;
+      final prepared = await _orPause<(String, Uint8List?)?>(
+        _preparedPhoto ?? Future<(String, Uint8List?)?>.value(),
+      );
       _preparedPhoto = null;
+      if (_pauseRequested) {
+        await _pause(PauseReason.user);
+        return;
+      }
       final row = await _repo.claimNext();
       if (row == null) break;
       current = row;
@@ -539,17 +550,22 @@ class ScanEngine {
       } else {
         bytes =
             preparedPhoto ??
-            await _media.downscaledJpeg(
-              row.assetId,
-              width: row.width ?? 0,
-              height: row.height ?? 0,
-              maxSide: prefs.maxSide,
+            await _orPause<Uint8List?>(
+              _media
+                  .downscaledJpeg(
+                    row.assetId,
+                    width: row.width ?? 0,
+                    height: row.height ?? 0,
+                    maxSide: prefs.maxSide,
+                  )
+                  .timeout(_readTimeout),
             );
         if (bytes != null) preview(bytes, null);
       }
     } catch (_) {
-      // A missing/corrupt file must not pause every remaining item in the queue.
+      // A missing/corrupt/hanging file must not pause every remaining item in the queue.
     }
+    if (_pauseRequested) return _stop(row.id, PauseReason.user);
     if (bytes == null && row.kind != 'video') {
       await _repo.markFailed(
         row.id,
