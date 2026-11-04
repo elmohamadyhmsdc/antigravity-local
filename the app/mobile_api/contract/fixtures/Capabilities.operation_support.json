@@ -34,17 +34,23 @@
     "fast": {
       "restorer": "none",
       "restore_size": 512,
-      "use_parser": false
+      "use_parser": false,
+      "photo_ms_per_face": 140,
+      "video_ms_per_face": 90
     },
     "balanced": {
       "restorer": "codeformer",
       "restore_size": 512,
-      "use_parser": true
+      "use_parser": true,
+      "photo_ms_per_face": 300,
+      "video_ms_per_face": 255
     },
     "detail": {
       "restorer": "codeformer",
       "restore_size": 512,
-      "use_parser": true
+      "use_parser": true,
+      "photo_ms_per_face": 660,
+      "video_ms_per_face": 415
     }
   },
   "lora_base_checkpoints": [
@@ -69,8 +75,8 @@
       "identity_models": [
         "buffalo_l@1"
       ],
-      "reason": null,
-      "experimental": false
+      "experimental": false,
+      "reason": null
     },
     {
       "operation": "reface_reference",
@@ -82,8 +88,8 @@
       "available": true,
       "engine": "reference_guided_diffusion",
       "identity_models": [],
-      "reason": null,
-      "experimental": true
+      "experimental": true,
+      "reason": null
     },
     {
       "operation": "action_match",
@@ -95,8 +101,8 @@
       "available": true,
       "engine": "pose_geometry_temporal_v1",
       "identity_models": [],
-      "reason": null,
-      "experimental": false
+      "experimental": false,
+      "reason": null
     },
     {
       "operation": "dataset_build",
@@ -110,8 +116,8 @@
       "identity_models": [
         "ccip-caformer24@1"
       ],
-      "reason": null,
-      "experimental": false
+      "experimental": false,
+      "reason": null
     },
     {
       "operation": "reface_reference",
@@ -123,8 +129,8 @@
       "available": true,
       "engine": "reference_guided_diffusion",
       "identity_models": [],
-      "reason": null,
-      "experimental": true
+      "experimental": true,
+      "reason": null
     },
     {
       "operation": "action_match",
@@ -136,8 +142,8 @@
       "available": true,
       "engine": "pose_geometry_temporal_v1",
       "identity_models": [],
-      "reason": null,
-      "experimental": false
+      "experimental": false,
+      "reason": null
     }
   ]
 }

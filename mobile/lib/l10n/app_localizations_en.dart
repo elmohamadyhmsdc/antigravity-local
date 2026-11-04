@@ -1948,25 +1948,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dfmModel => 'DFM model';
 
   @override
-  String get refaceRestorer => 'Face restoration';
+  String get refaceRestorer => 'Sharpening';
 
   @override
   String get restorerAuto => 'Automatic';
 
   @override
-  String get restorerNone => 'Off';
+  String get restorerNatural => 'Sharp and natural';
 
   @override
-  String get refacePreset => 'Realism preset';
+  String get restorerExtraSharp => 'Extra sharp for big faces';
 
   @override
-  String get presetNatural => 'Natural';
+  String get restorerRebuild => 'Rebuilds blurry faces';
 
   @override
-  String get presetDetail => 'Maximum detail';
+  String get restorerSmooth => 'Smooth and clean';
 
   @override
-  String get presetClean => 'Clean';
+  String get restorerAlternative => 'Alternative finish';
+
+  @override
+  String get restorerNone => 'No sharpening';
+
+  @override
+  String get refacePreset => 'Skin finish';
+
+  @override
+  String get presetNatural => 'Natural (recommended)';
+
+  @override
+  String get presetDetail => 'Extra skin texture';
+
+  @override
+  String get presetClean => 'Smooth and clean';
 
   @override
   String get protectOcclusions => 'Protect glasses and occlusions';
@@ -2630,113 +2645,113 @@ class AppLocalizationsEn extends AppLocalizations {
   String get refaceAllFaces => 'Replace all faces';
 
   @override
-  String get refaceQualityProfile => 'Quality & processing time';
+  String refaceTakes(String time) {
+    return 'Takes $time on your PC';
+  }
+
+  @override
+  String get refaceQualityProfile => 'Quality or speed';
 
   @override
   String get refaceFast => 'Fast';
 
   @override
-  String get refaceFastSummary =>
-      'Less extra processing · no restoration by default';
+  String get refaceFastSummary => 'Quickest · skin a little soft';
 
   @override
   String get refaceFastDescription =>
-      'Uses the same Reface pipeline with restoration and face parsing off by default. A good starting point for long videos; fine face detail can be softer. Occlusion protection stays on.';
+      'The face is swapped and blended in, but not sharpened afterwards, so it can look slightly softer than the rest of the picture. You get the result soonest. Good for long videos and for trying things out.';
 
   @override
   String get refaceBalanced => 'Balanced';
 
   @override
-  String get refaceBalancedSummary =>
-      'Detail and processing cost · recommended starting point';
+  String get refaceBalancedSummary => 'Sharp and natural · recommended';
 
   @override
   String get refaceBalancedDescription =>
-      'Adds face restoration and face-region blending. Automatic prefers GPEN 512 when installed, then an available alternative. More processing than Fast, with more restored detail.';
+      'Sharpens the swapped face to match the rest of the picture and blends its edges carefully around hair, glasses and hands. The best everyday choice: clearly sharper than Fast for a modest wait.';
 
   @override
-  String get refaceDetail => 'More detail';
+  String get refaceDetail => 'Most detail';
 
   @override
-  String get refaceDetailSummary =>
-      'Larger face crops when available · more processing';
+  String get refaceDetailSummary => 'Sharpest on big faces · slowest';
 
   @override
   String get refaceDetailDescription =>
-      'Automatic prefers GPEN 1024 when installed, otherwise an available alternative. Useful for large close-up faces; higher resolution costs more processing and does not guarantee a closer likeness.';
+      'Sharpens at double the resolution. You only see the difference on large close-up faces (roughly a quarter of the picture or more); on smaller faces it looks like Balanced but takes much longer.';
 
   @override
-  String get refaceAutoSummary => 'Uses the chosen quality profile';
+  String get refaceAutoSummary =>
+      'The PC picks what fits the quality you chose';
 
   @override
   String refaceAutoStartsWith(String model) {
-    return 'Starts with $model on this PC';
+    return 'Right now: $model';
   }
 
   @override
   String get refaceAutoDescription =>
-      'Uses the available default for the selected quality profile. Fast skips restoration; Balanced prefers GPEN 512; More detail prefers GPEN 1024. If needed, the PC uses another installed model.';
+      'Fast uses no sharpening, Balanced uses the natural sharpening and Most detail uses the extra-sharp one. If a model is missing on the PC, it uses the closest one that is installed.';
 
   @override
-  String get refaceOffSummary => 'Least restoration work · raw swap detail';
+  String get refaceOffSummary => 'Fastest · face a little soft';
 
   @override
   String get refaceOffDescription =>
-      'Skips the restoration stage while still swapping faces. Reduces processing and keeps the raw swapped face; fine details can be softer.';
+      'The swapped face is blended in as it comes out, without a sharpening step. It finishes sooner, and the face can look slightly softer than the rest of the picture.';
 
   @override
-  String get refaceGpen512Summary => 'Balanced face detail · 512 px crop';
+  String get refaceGpen512Summary => 'Sharp and natural · recommended';
 
   @override
   String get refaceGpen512Description =>
-      'A balanced starting point for restored face detail and processing cost in this app. Works on a 512 px face crop and generally needs less processing than GPEN 1024.';
+      'Sharpens the face to match the picture and keeps the person recognisable. It was the sharpest and most faithful choice in our tests, for a small amount of extra time per face. (GPEN 512)';
 
   @override
-  String get refaceGpen1024Summary =>
-      'Higher face resolution · heavier processing';
+  String get refaceGpen1024Summary => 'Extra sharp for big faces · slowest';
 
   @override
   String get refaceGpen1024Description =>
-      'Restores a 1024 px face crop. Can help large close-up faces, with more processing and memory than the 512 model. Higher resolution does not guarantee a better likeness.';
+      'The same look at double the detail resolution. Only worth it for large close-up faces; for each face it takes about twice as long as the natural sharpening. (GPEN 1024)';
 
   @override
   String get refaceCodeformerSummary =>
-      'Rebuild degraded detail · extra AI processing';
+      'Rebuilds blurry faces · can change the look';
 
   @override
   String get refaceCodeformerDescription =>
-      'Repairs degraded facial detail with a tradeoff between reconstructed detail and fidelity. It can change fine facial features, so compare a preview when likeness matters.';
+      'Re-draws faces that are blurry or low quality. Because it rebuilds features it can make the person look less like themselves, so compare a preview first. A little slower than the natural sharpening. (CodeFormer, with a fidelity balance between rebuilt detail and the original)';
 
   @override
-  String get refaceGfpganSummary =>
-      'General face restoration · extra AI processing';
+  String get refaceGfpganSummary => 'Smooth and clean · a little faster';
 
   @override
   String get refaceGfpganDescription =>
-      'Restores blurry or degraded facial detail using learned face patterns. Useful as an alternative look; compare a preview for both texture and likeness.';
+      'Cleans and smooths the face and is quicker than the natural sharpening, with slightly less likeness in our tests. Try it when speed matters more than the last bit of resemblance. (GFPGAN 1.4)';
 
   @override
-  String get refaceRestoreformerSummary =>
-      'Alternative face restoration · extra AI processing';
+  String get refaceRestoreformerSummary => 'Alternative finish · slower';
 
   @override
   String get refaceRestoreformerDescription =>
-      'Reconstructs degraded facial detail using learned face information. Try it when other restorers do not suit the face; processing time and likeness depend on the input and PC.';
+      'Another way of sharpening. It takes longer than the natural sharpening; try it when the other finishes do not suit a particular face. (RestoreFormer++)';
 
   @override
-  String get refaceOtherModelSummary => 'PC-provided restoration model';
+  String get refaceOtherModelSummary => 'Provided by your PC';
 
   @override
   String get refaceOtherModelDescription =>
-      'This model is available on the PC. No speed or likeness comparison is defined here; use a short preview to compare it.';
+      'This option is installed on the PC. Its speed and look are not known here, so render a short preview to see what it does.';
 
   @override
   String get refaceRestorationIntro =>
-      'Restoration improves face detail after swapping. Model sizes describe face crops, not the output photo or video resolution.';
+      'After the swap, the face can be sharpened so it matches the rest of the picture. Pick by the look and the waiting time; the model name in brackets is only for reference.';
 
   @override
   String get refaceSpeedNote =>
-      'Processing time depends on the PC, frame size and number of faces. Compare a short preview for both detail and likeness.';
+      'Times are typical for your PC. Bigger photos, more faces or a busy PC take longer. A short preview shows the look before you commit to the full render.';
 
   @override
   String get refacePhotosIdentity => 'Source photos & videos';
@@ -2771,7 +2786,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'The trained model supplies face detail; restoration is not applied.';
 
   @override
-  String get refaceIdentityBoost => 'Identity strength';
+  String get refaceIdentityBoost => 'Likeness strength';
 
   @override
   String get refaceSwapped => 'Successful face swaps';

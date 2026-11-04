@@ -41,6 +41,8 @@ void main() {
       expect(c.engines.reface, isTrue);
       expect(c.refaceProfiles['fast'], 'none');
       expect(c.refaceProfiles['balanced'], 'codeformer');
+      expect(c.refacePhotoMs, {'fast': 140, 'balanced': 300, 'detail': 660});
+      expect(c.refaceVideoMs['balanced'], 255);
       expect(c.engines.dfmModels, ['RTM_WF_224']);
       expect(c.restorers, ['codeformer']);
       expect(c.loraBaseCheckpoints, ['sd15_realistic_base']);
@@ -64,6 +66,7 @@ void main() {
       final caps = Capabilities.fromJson(json);
       expect(caps.engines.reface, isFalse);
       expect(caps.refaceProfiles, isEmpty);
+      expect(caps.refacePhotoMs, isEmpty, reason: 'no estimate without costs');
       expect(caps.engines.refaceV3, isTrue);
     });
 

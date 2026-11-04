@@ -34,17 +34,23 @@
     "fast": {
       "restorer": "none",
       "restore_size": 512,
-      "use_parser": false
+      "use_parser": false,
+      "photo_ms_per_face": 140,
+      "video_ms_per_face": 90
     },
     "balanced": {
       "restorer": "codeformer",
       "restore_size": 512,
-      "use_parser": true
+      "use_parser": true,
+      "photo_ms_per_face": 300,
+      "video_ms_per_face": 255
     },
     "detail": {
       "restorer": "codeformer",
       "restore_size": 512,
-      "use_parser": true
+      "use_parser": true,
+      "photo_ms_per_face": 660,
+      "video_ms_per_face": 415
     }
   },
   "lora_base_checkpoints": [

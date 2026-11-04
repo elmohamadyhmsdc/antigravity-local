@@ -9,8 +9,9 @@ models and any future higher-resolution swapper all share one realism core
 instead of each carrying a copy of it.
 """
 
+import threading
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 import cv2
@@ -114,12 +115,6 @@ class CompositeConfig:
     temporal_alpha_slow: float = 0.3              # noise sigma and focus radius
     mask_area_floor: float = 0.005                # below this, statistics are unreliable
     track_ttl: int = 30                           # frames before a track is evicted
-    # Size-adaptive work (0 = off: every face gets restore_size and the restorer). Costs are per face and a
-    # small face cannot show the extra work: it is pasted back at its own few pixels.
-    compact_below_px: float = 0.0                 # frame height under which a face is not restored and is
-                                                  # composited on a compact crop
-    compact_size: int = 256
-    light_below_px: float = 0.0                   # under this, a 1024 restorer hands over to the 512 one
 
 
 PRESETS = {
@@ -168,13 +163,39 @@ def alignment_matrix(kps, size: int) -> Optional[np.ndarray]:
     return m
 
 
+_UNSET = object()
+
+
+class _Last(threading.local):
+    """last_status / last_reason / last_degraded of the thread that composited: with the GPU half and the CPU
+    half of a face on different threads, a shared attribute would mix up two frames."""
+
+    def __init__(self):
+        self.status, self.reason, self.degraded = "failed", "", []
+
+
+@dataclass
+class Prepared:
+    """Everything the GPU half of a face leaves for its CPU half (finish)."""
+    track_id: int = 0
+    native_px: Optional[float] = None
+    m_ffhq: Optional[np.ndarray] = None
+    orig_aligned: Optional[np.ndarray] = None
+    base: Optional[np.ndarray] = None            # the swapped (and restored) crop
+    orig_masks: Optional[tuple] = None           # (parser map, occlusion matte) of the original crop
+    seg_res: object = _UNSET                     # parser map of the restored crop
+    mask_error: Optional[Exception] = None
+    abort: Optional[tuple] = None                # (status, reason) when the face cannot be composited
+    degraded: List[str] = field(default_factory=list)
+
+
 class FaceCompositor:
-    def __init__(self, restorer, masker, config: CompositeConfig = None, light_restorer=None):
+    def __init__(self, restorer, masker, config: CompositeConfig = None):
         self.restorer = restorer
-        self.light_restorer = light_restorer          # the 512 restorer for mid-size faces when restorer is 1024
         self.masker = masker
         self.config = config or CompositeConfig()
         self._tracks = {}
+        self._last = _Last()
         self._frame_no = 0
         self._rng = np.random.default_rng()
         self._logged = set()
@@ -184,6 +205,30 @@ class FaceCompositor:
         if self._pool is None:
             self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="restore")
         return self._pool
+
+    @property
+    def last_status(self):
+        return self._last.status
+
+    @last_status.setter
+    def last_status(self, value):
+        self._last.status = value
+
+    @property
+    def last_reason(self):
+        return self._last.reason
+
+    @last_reason.setter
+    def last_reason(self, value):
+        self._last.reason = value
+
+    @property
+    def last_degraded(self):
+        return self._last.degraded
+
+    @last_degraded.setter
+    def last_degraded(self, value):
+        self._last.degraded = value
 
     # -------------------------------------------------------------- lifecycle
 
@@ -205,46 +250,10 @@ class FaceCompositor:
     def _log_once(self, msg: str):
         """Log a degradation once per run. Per-frame logging buries the output
         on a 10,000-frame video."""
-        if hasattr(self, "last_degraded"):
-            self.last_degraded.append(msg)
+        self._last.degraded.append(msg)
         if msg not in self._logged:
             self._logged.add(msg)
             print(f"[COMPOSITE] {msg}", flush=True)
-
-    def _tier(self, track_id: int, native_px, restore: bool):
-        """(restorer or None, crop size) for a face this many pixels tall in the frame.
-
-        Tier 0 is compact (no restoration), 1 the light restorer, 2 the full pipeline. In a video a track
-        changes tier only once its size is 12% past the threshold, so a face hovering around one does not
-        flip between looks (and mask shapes) from frame to frame.
-        """
-        cfg = self.config
-        main = self.restorer if restore and getattr(self.restorer, "available", False) else None
-        light = self.light_restorer if main is not None and getattr(self.light_restorer, "available", False) else None
-        if not native_px or (cfg.compact_below_px <= 0 and not (light and cfg.light_below_px > 0)):
-            return main, cfg.restore_size
-
-        def tier_at(px):
-            if cfg.compact_below_px > 0 and px < cfg.compact_below_px:
-                return 0
-            if light is not None and cfg.light_below_px > 0 and px < cfg.light_below_px:
-                return 1
-            return 2
-
-        want = tier_at(float(native_px))
-        if cfg.temporal:
-            state = self._tracks.setdefault(track_id, {})
-            prev = state.get("_tier")
-            if prev is not None and want != prev:
-                probe = tier_at(float(native_px) * (1.12 if want < prev else 0.88))
-                if probe != want:
-                    want = prev
-            state["_tier"] = want
-        if want == 0:
-            return None, min(cfg.compact_size, cfg.restore_size)
-        if want == 1:
-            return light, int(getattr(light, "size", 512))
-        return main, cfg.restore_size
 
     def _guard(self, name: str, fn, fallback):
         try:
@@ -340,17 +349,19 @@ class FaceCompositor:
             occ = self.masker.occlusion_mask(orig_aligned)
         return seg, occ
 
-    def _build_mask(self, restored, orig_aligned, orig_masks=None):
+    def _build_mask(self, restored, orig_aligned, orig_masks=None, seg_res=_UNSET):
         """Return (paste_mask, region_orig, skin_orig), all float32 [0,1].
 
-        `orig_masks` is _orig_masks(orig_aligned) when the caller already has it.
+        `orig_masks` is _orig_masks(orig_aligned) and `seg_res` the parser map of `restored` when the caller
+        already has them (prepare() computes both, so this CPU half never touches a model).
         """
         h, w = restored.shape[:2]
         regions = self._regions()
         floor = self.config.mask_area_floor
 
         seg_orig, occ = orig_masks if orig_masks is not None else self._orig_masks(orig_aligned)
-        seg_res = self.masker.segment(restored) if self.config.use_parser else None
+        if seg_res is _UNSET:
+            seg_res = self.masker.segment(restored) if self.config.use_parser else None
 
         if seg_orig is None or seg_res is None:
             region = box_mask(h, w)
@@ -462,22 +473,36 @@ class FaceCompositor:
                   track_id: int = 0, native_px: float = None,
                   restore: bool = True, original_frame=None) -> np.ndarray:
         """Composite one swapped face onto `frame`. Returns the updated frame."""
+        pre = self.prepare(frame, aligned_swap, m_swap, kps, track_id=track_id, native_px=native_px,
+                           restore=restore, original_frame=original_frame)
+        return self.finish(pre, frame)
+
+    def prepare(self, frame, aligned_swap, m_swap, kps,
+                track_id: int = 0, native_px: float = None,
+                restore: bool = True, original_frame=None) -> Prepared:
+        """The GPU half of a face: align, place the swap, restore, and build every model-made mask.
+
+        Reads only `original_frame` (or `frame`), never the result being painted, so the next frame's
+        prepare() can run while finish() still composites this one.
+        """
         self.last_degraded = []
-        self.last_status, self.last_reason = "failed", "alignment failed"
-        restorer, size = self._tier(track_id, native_px, restore)
+        restorer = self.restorer if restore and getattr(self.restorer, "available", False) else None
+        size = self.config.restore_size
+        pre = Prepared(track_id=track_id, native_px=native_px)
         m_ffhq = alignment_matrix(kps, size)
         if m_ffhq is None:
             self._log_once("degenerate landmarks; face skipped")
-            return frame
+            pre.abort, pre.degraded = ("failed", "alignment failed"), self.last_degraded
+            return pre
 
         try:
-            orig_aligned = cv2.warpAffine(frame if original_frame is None else original_frame, m_ffhq, (size, size),
-                                          borderMode=cv2.BORDER_REPLICATE)
-            base = self._place_swap(aligned_swap, m_swap, m_ffhq, orig_aligned,
-                                    size, frame=frame if original_frame is None else original_frame)
+            source_frame = frame if original_frame is None else original_frame
+            orig_aligned = cv2.warpAffine(source_frame, m_ffhq, (size, size), borderMode=cv2.BORDER_REPLICATE)
+            base = self._place_swap(aligned_swap, m_swap, m_ffhq, orig_aligned, size, frame=source_frame)
         except Exception as e:
             self._log_once(f"alignment failed ({e}); face skipped")
-            return frame
+            pre.abort, pre.degraded = ("failed", "alignment failed"), self.last_degraded
+            return pre
 
         orig_masks = None
         if restorer is not None:
@@ -490,7 +515,28 @@ class FaceCompositor:
                 base = cv2.resize(base, (size, size), interpolation=cv2.INTER_LINEAR)
 
         try:
-            mask, region_orig, skin = self._build_mask(base, orig_aligned, orig_masks)
+            if orig_masks is None:
+                orig_masks = self._orig_masks(orig_aligned)
+            seg_res = self.masker.segment(base) if self.config.use_parser else None
+        except Exception as exc:
+            pre.mask_error, seg_res = exc, _UNSET
+        pre.m_ffhq, pre.orig_aligned, pre.base = m_ffhq, orig_aligned, base
+        pre.orig_masks, pre.seg_res, pre.degraded = orig_masks, seg_res, self.last_degraded
+        return pre
+
+    def finish(self, pre: Prepared, frame) -> np.ndarray:
+        """The CPU half: region masks, relight/focus/detail/grain, temporal smoothing and the paste."""
+        self.last_degraded = list(pre.degraded)
+        self.last_status, self.last_reason = "failed", "alignment failed"
+        if pre.abort is not None:
+            self.last_status, self.last_reason = pre.abort
+            return frame
+        track_id, native_px = pre.track_id, pre.native_px
+
+        try:
+            if pre.mask_error is not None:
+                raise pre.mask_error
+            mask, region_orig, skin = self._build_mask(pre.base, pre.orig_aligned, pre.orig_masks, pre.seg_res)
         except Exception as exc:
             self.last_reason = f"mask failed: {exc}"
             self._log_once(self.last_reason)
@@ -499,7 +545,7 @@ class FaceCompositor:
             self.last_status, self.last_reason = "skipped", "face is occluded"
             return frame
 
-        out = self._harmonize(base, orig_aligned, mask, region_orig, skin,
+        out = self._harmonize(pre.base, pre.orig_aligned, mask, region_orig, skin,
                               track_id, native_px)
         current_mask = mask
         mask = np.minimum(self._ema(track_id, "mask", mask, self.config.temporal_alpha), current_mask)
@@ -508,7 +554,7 @@ class FaceCompositor:
             self._tracks[track_id]["mask"] = mask
         self._touch(track_id)
 
-        result = self._paste(frame, out, mask, m_ffhq, native_px)
+        result = self._paste(frame, out, mask, pre.m_ffhq, native_px)
         self.last_status, self.last_reason = "swapped", ""
         return result
 

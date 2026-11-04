@@ -2965,7 +2965,7 @@ abstract class AppLocalizations {
   /// No description provided for @refaceRestorer.
   ///
   /// In en, this message translates to:
-  /// **'Face restoration'**
+  /// **'Sharpening'**
   String get refaceRestorer;
 
   /// No description provided for @restorerAuto.
@@ -2974,34 +2974,64 @@ abstract class AppLocalizations {
   /// **'Automatic'**
   String get restorerAuto;
 
+  /// No description provided for @restorerNatural.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharp and natural'**
+  String get restorerNatural;
+
+  /// No description provided for @restorerExtraSharp.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra sharp for big faces'**
+  String get restorerExtraSharp;
+
+  /// No description provided for @restorerRebuild.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuilds blurry faces'**
+  String get restorerRebuild;
+
+  /// No description provided for @restorerSmooth.
+  ///
+  /// In en, this message translates to:
+  /// **'Smooth and clean'**
+  String get restorerSmooth;
+
+  /// No description provided for @restorerAlternative.
+  ///
+  /// In en, this message translates to:
+  /// **'Alternative finish'**
+  String get restorerAlternative;
+
   /// No description provided for @restorerNone.
   ///
   /// In en, this message translates to:
-  /// **'Off'**
+  /// **'No sharpening'**
   String get restorerNone;
 
   /// No description provided for @refacePreset.
   ///
   /// In en, this message translates to:
-  /// **'Realism preset'**
+  /// **'Skin finish'**
   String get refacePreset;
 
   /// No description provided for @presetNatural.
   ///
   /// In en, this message translates to:
-  /// **'Natural'**
+  /// **'Natural (recommended)'**
   String get presetNatural;
 
   /// No description provided for @presetDetail.
   ///
   /// In en, this message translates to:
-  /// **'Maximum detail'**
+  /// **'Extra skin texture'**
   String get presetDetail;
 
   /// No description provided for @presetClean.
   ///
   /// In en, this message translates to:
-  /// **'Clean'**
+  /// **'Smooth and clean'**
   String get presetClean;
 
   /// No description provided for @protectOcclusions.
@@ -4210,10 +4240,16 @@ abstract class AppLocalizations {
   /// **'Replace all faces'**
   String get refaceAllFaces;
 
+  /// No description provided for @refaceTakes.
+  ///
+  /// In en, this message translates to:
+  /// **'Takes {time} on your PC'**
+  String refaceTakes(String time);
+
   /// No description provided for @refaceQualityProfile.
   ///
   /// In en, this message translates to:
-  /// **'Quality & processing time'**
+  /// **'Quality or speed'**
   String get refaceQualityProfile;
 
   /// No description provided for @refaceFast.
@@ -4225,13 +4261,13 @@ abstract class AppLocalizations {
   /// No description provided for @refaceFastSummary.
   ///
   /// In en, this message translates to:
-  /// **'Less extra processing · no restoration by default'**
+  /// **'Quickest · skin a little soft'**
   String get refaceFastSummary;
 
   /// No description provided for @refaceFastDescription.
   ///
   /// In en, this message translates to:
-  /// **'Uses the same Reface pipeline with restoration and face parsing off by default. A good starting point for long videos; fine face detail can be softer. Occlusion protection stays on.'**
+  /// **'The face is swapped and blended in, but not sharpened afterwards, so it can look slightly softer than the rest of the picture. You get the result soonest. Good for long videos and for trying things out.'**
   String get refaceFastDescription;
 
   /// No description provided for @refaceBalanced.
@@ -4243,145 +4279,145 @@ abstract class AppLocalizations {
   /// No description provided for @refaceBalancedSummary.
   ///
   /// In en, this message translates to:
-  /// **'Detail and processing cost · recommended starting point'**
+  /// **'Sharp and natural · recommended'**
   String get refaceBalancedSummary;
 
   /// No description provided for @refaceBalancedDescription.
   ///
   /// In en, this message translates to:
-  /// **'Adds face restoration and face-region blending. Automatic prefers GPEN 512 when installed, then an available alternative. More processing than Fast, with more restored detail.'**
+  /// **'Sharpens the swapped face to match the rest of the picture and blends its edges carefully around hair, glasses and hands. The best everyday choice: clearly sharper than Fast for a modest wait.'**
   String get refaceBalancedDescription;
 
   /// No description provided for @refaceDetail.
   ///
   /// In en, this message translates to:
-  /// **'More detail'**
+  /// **'Most detail'**
   String get refaceDetail;
 
   /// No description provided for @refaceDetailSummary.
   ///
   /// In en, this message translates to:
-  /// **'Larger face crops when available · more processing'**
+  /// **'Sharpest on big faces · slowest'**
   String get refaceDetailSummary;
 
   /// No description provided for @refaceDetailDescription.
   ///
   /// In en, this message translates to:
-  /// **'Automatic prefers GPEN 1024 when installed, otherwise an available alternative. Useful for large close-up faces; higher resolution costs more processing and does not guarantee a closer likeness.'**
+  /// **'Sharpens at double the resolution. You only see the difference on large close-up faces (roughly a quarter of the picture or more); on smaller faces it looks like Balanced but takes much longer.'**
   String get refaceDetailDescription;
 
   /// No description provided for @refaceAutoSummary.
   ///
   /// In en, this message translates to:
-  /// **'Uses the chosen quality profile'**
+  /// **'The PC picks what fits the quality you chose'**
   String get refaceAutoSummary;
 
   /// No description provided for @refaceAutoStartsWith.
   ///
   /// In en, this message translates to:
-  /// **'Starts with {model} on this PC'**
+  /// **'Right now: {model}'**
   String refaceAutoStartsWith(String model);
 
   /// No description provided for @refaceAutoDescription.
   ///
   /// In en, this message translates to:
-  /// **'Uses the available default for the selected quality profile. Fast skips restoration; Balanced prefers GPEN 512; More detail prefers GPEN 1024. If needed, the PC uses another installed model.'**
+  /// **'Fast uses no sharpening, Balanced uses the natural sharpening and Most detail uses the extra-sharp one. If a model is missing on the PC, it uses the closest one that is installed.'**
   String get refaceAutoDescription;
 
   /// No description provided for @refaceOffSummary.
   ///
   /// In en, this message translates to:
-  /// **'Least restoration work · raw swap detail'**
+  /// **'Fastest · face a little soft'**
   String get refaceOffSummary;
 
   /// No description provided for @refaceOffDescription.
   ///
   /// In en, this message translates to:
-  /// **'Skips the restoration stage while still swapping faces. Reduces processing and keeps the raw swapped face; fine details can be softer.'**
+  /// **'The swapped face is blended in as it comes out, without a sharpening step. It finishes sooner, and the face can look slightly softer than the rest of the picture.'**
   String get refaceOffDescription;
 
   /// No description provided for @refaceGpen512Summary.
   ///
   /// In en, this message translates to:
-  /// **'Balanced face detail · 512 px crop'**
+  /// **'Sharp and natural · recommended'**
   String get refaceGpen512Summary;
 
   /// No description provided for @refaceGpen512Description.
   ///
   /// In en, this message translates to:
-  /// **'A balanced starting point for restored face detail and processing cost in this app. Works on a 512 px face crop and generally needs less processing than GPEN 1024.'**
+  /// **'Sharpens the face to match the picture and keeps the person recognisable. It was the sharpest and most faithful choice in our tests, for a small amount of extra time per face. (GPEN 512)'**
   String get refaceGpen512Description;
 
   /// No description provided for @refaceGpen1024Summary.
   ///
   /// In en, this message translates to:
-  /// **'Higher face resolution · heavier processing'**
+  /// **'Extra sharp for big faces · slowest'**
   String get refaceGpen1024Summary;
 
   /// No description provided for @refaceGpen1024Description.
   ///
   /// In en, this message translates to:
-  /// **'Restores a 1024 px face crop. Can help large close-up faces, with more processing and memory than the 512 model. Higher resolution does not guarantee a better likeness.'**
+  /// **'The same look at double the detail resolution. Only worth it for large close-up faces; for each face it takes about twice as long as the natural sharpening. (GPEN 1024)'**
   String get refaceGpen1024Description;
 
   /// No description provided for @refaceCodeformerSummary.
   ///
   /// In en, this message translates to:
-  /// **'Rebuild degraded detail · extra AI processing'**
+  /// **'Rebuilds blurry faces · can change the look'**
   String get refaceCodeformerSummary;
 
   /// No description provided for @refaceCodeformerDescription.
   ///
   /// In en, this message translates to:
-  /// **'Repairs degraded facial detail with a tradeoff between reconstructed detail and fidelity. It can change fine facial features, so compare a preview when likeness matters.'**
+  /// **'Re-draws faces that are blurry or low quality. Because it rebuilds features it can make the person look less like themselves, so compare a preview first. A little slower than the natural sharpening. (CodeFormer, with a fidelity balance between rebuilt detail and the original)'**
   String get refaceCodeformerDescription;
 
   /// No description provided for @refaceGfpganSummary.
   ///
   /// In en, this message translates to:
-  /// **'General face restoration · extra AI processing'**
+  /// **'Smooth and clean · a little faster'**
   String get refaceGfpganSummary;
 
   /// No description provided for @refaceGfpganDescription.
   ///
   /// In en, this message translates to:
-  /// **'Restores blurry or degraded facial detail using learned face patterns. Useful as an alternative look; compare a preview for both texture and likeness.'**
+  /// **'Cleans and smooths the face and is quicker than the natural sharpening, with slightly less likeness in our tests. Try it when speed matters more than the last bit of resemblance. (GFPGAN 1.4)'**
   String get refaceGfpganDescription;
 
   /// No description provided for @refaceRestoreformerSummary.
   ///
   /// In en, this message translates to:
-  /// **'Alternative face restoration · extra AI processing'**
+  /// **'Alternative finish · slower'**
   String get refaceRestoreformerSummary;
 
   /// No description provided for @refaceRestoreformerDescription.
   ///
   /// In en, this message translates to:
-  /// **'Reconstructs degraded facial detail using learned face information. Try it when other restorers do not suit the face; processing time and likeness depend on the input and PC.'**
+  /// **'Another way of sharpening. It takes longer than the natural sharpening; try it when the other finishes do not suit a particular face. (RestoreFormer++)'**
   String get refaceRestoreformerDescription;
 
   /// No description provided for @refaceOtherModelSummary.
   ///
   /// In en, this message translates to:
-  /// **'PC-provided restoration model'**
+  /// **'Provided by your PC'**
   String get refaceOtherModelSummary;
 
   /// No description provided for @refaceOtherModelDescription.
   ///
   /// In en, this message translates to:
-  /// **'This model is available on the PC. No speed or likeness comparison is defined here; use a short preview to compare it.'**
+  /// **'This option is installed on the PC. Its speed and look are not known here, so render a short preview to see what it does.'**
   String get refaceOtherModelDescription;
 
   /// No description provided for @refaceRestorationIntro.
   ///
   /// In en, this message translates to:
-  /// **'Restoration improves face detail after swapping. Model sizes describe face crops, not the output photo or video resolution.'**
+  /// **'After the swap, the face can be sharpened so it matches the rest of the picture. Pick by the look and the waiting time; the model name in brackets is only for reference.'**
   String get refaceRestorationIntro;
 
   /// No description provided for @refaceSpeedNote.
   ///
   /// In en, this message translates to:
-  /// **'Processing time depends on the PC, frame size and number of faces. Compare a short preview for both detail and likeness.'**
+  /// **'Times are typical for your PC. Bigger photos, more faces or a busy PC take longer. A short preview shows the look before you commit to the full render.'**
   String get refaceSpeedNote;
 
   /// No description provided for @refacePhotosIdentity.
@@ -4441,7 +4477,7 @@ abstract class AppLocalizations {
   /// No description provided for @refaceIdentityBoost.
   ///
   /// In en, this message translates to:
-  /// **'Identity strength'**
+  /// **'Likeness strength'**
   String get refaceIdentityBoost;
 
   /// No description provided for @refaceSwapped.

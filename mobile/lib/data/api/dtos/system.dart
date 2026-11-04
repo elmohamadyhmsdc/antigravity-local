@@ -173,9 +173,20 @@ class OperationSupport {
       );
 }
 
+Map<String, double> _profileCosts(Map<String, dynamic> json, String key) => {
+  for (final entry
+      in (json['reface_profiles'] as Map<String, dynamic>? ?? {}).entries)
+    if (entry.value is Map &&
+        (entry.value as Map)[key] is num &&
+        ((entry.value as Map)[key] as num) > 0)
+      entry.key: ((entry.value as Map)[key] as num).toDouble(),
+};
+
 class Capabilities {
   const Capabilities({
     this.refaceProfiles = const {},
+    this.refacePhotoMs = const {},
+    this.refaceVideoMs = const {},
     this.operations = const [],
     this.hasOperationSupport = false,
     required this.apiVersion,
@@ -213,6 +224,10 @@ class Capabilities {
   );
 
   final Map<String, String> refaceProfiles;
+
+  /// Typical milliseconds this PC needs per swapped face for each quality profile, in a photo and in one frame
+  /// of a video (a normal-size face; small faces are cheaper). Empty on older servers: no time estimate then.
+  final Map<String, double> refacePhotoMs, refaceVideoMs;
   final String apiVersion;
   final String serverId;
   final String name;
@@ -243,6 +258,8 @@ class Capabilities {
             'restorer',
           ),
       },
+      refacePhotoMs: _profileCosts(json, 'photo_ms_per_face'),
+      refaceVideoMs: _profileCosts(json, 'video_ms_per_face'),
       apiVersion: field<String>(json, 'api_version'),
       serverId: field<String>(json, 'server_id'),
       name: field<String>(json, 'name'),

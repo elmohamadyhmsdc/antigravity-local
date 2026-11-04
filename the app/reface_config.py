@@ -14,5 +14,20 @@ def profile_defaults(profile, available):
                 use_parser=profile != "fast")
 
 
+# Typical cost of swapping ONE normal-size face (about 240 px tall in a 720p frame), in milliseconds, so the
+# phone can say "about 4 min" before anything is queued. Measured 2026-11-04 on the RTX 4050 Laptop (6 GB) with
+# the default hyperswap + GPEN models: a photo is one frame run alone; a video overlaps each frame's GPU work with
+# the previous frame's compositing (reface_engine_v3._stage_frame), which is why it is cheaper per face.
+# Faces much smaller or larger, other GPUs and extra faces in a frame move these; treat them as typical, not exact.
+TYPICAL_MS_PER_FACE = {
+    "photo": {"fast": 140, "balanced": 300, "detail": 660},
+    "video": {"fast": 90, "balanced": 255, "detail": 415},
+}
+
+
 def profile_catalog(available):
-    return {name: profile_defaults(name, available) for name in QUALITY_PROFILES}
+    """Automatic settings per quality profile plus the typical cost of one face for it (photo and video)."""
+    return {name: {**profile_defaults(name, available),
+                   "photo_ms_per_face": TYPICAL_MS_PER_FACE["photo"][name],
+                   "video_ms_per_face": TYPICAL_MS_PER_FACE["video"][name]}
+            for name in QUALITY_PROFILES}

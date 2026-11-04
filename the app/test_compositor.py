@@ -1033,6 +1033,99 @@ def test_finish_v3_video_joins_parts_and_adds_audio():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+class _TweakRestorer:
+    """An available restorer that visibly changes the crop, so a skipped restore shows up in the output."""
+    available = True
+    size = 512
+
+    def enhance(self, crop):
+        import numpy as np
+        return np.clip(crop.astype(np.float32) * 0.9 + 12, 0, 255).astype(np.uint8)
+
+
+def _overlap_compositor(temporal):
+    import numpy as np
+    from face_compositor import CompositeConfig, FaceCompositor
+
+    seg = np.zeros((512, 512), np.uint8)
+    seg[128:384, 128:384] = 1
+    comp = FaceCompositor(_TweakRestorer(), _SegMasker(seg), CompositeConfig(temporal=temporal))
+    comp._rng = np.random.default_rng(7)      # grain is random: the same stream makes the outputs comparable
+    return comp
+
+
+@test
+def test_a_face_prepared_here_and_finished_on_another_thread_matches_composite():
+    import numpy as np
+    from concurrent.futures import ThreadPoolExecutor
+
+    frame, swap, kps, m_swap = _swap_inputs()
+    whole = _overlap_compositor(False).composite(frame, swap, m_swap, kps, native_px=160.0)
+
+    comp = _overlap_compositor(False)
+    pre = comp.prepare(frame, swap, m_swap, kps, native_px=160.0)
+    with ThreadPoolExecutor(1) as pool:
+        out, status = pool.submit(lambda: (comp.finish(pre, frame), comp.last_status)).result()
+    check(np.array_equal(out, whole), "splitting the work across threads must not change a pixel")
+    check(status == "swapped", f"the worker thread reports its own result, got {status}")
+    check(comp.last_status == "failed", "the worker's result must not leak into this thread's last_status")
+
+
+@test
+def test_overlapped_frames_composite_in_order_exactly_like_sequential_ones():
+    """Frame N+1 is prepared while frame N is still being finished on the worker; temporal smoothing makes
+    every frame depend on the one before, so the worker must finish them strictly in order."""
+    import numpy as np
+    from concurrent.futures import ThreadPoolExecutor
+
+    frames = []
+    for i in range(4):
+        frame, swap, kps, m_swap = _swap_inputs((40 * i, 120, 255 - 40 * i))
+        frames.append((np.roll(frame, i * 3, axis=1), swap, kps + np.array([i * 2.0, 0.0], np.float32), m_swap))
+
+    sequential = _overlap_compositor(True)
+    expected = []
+    for frame, swap, kps, m_swap in frames:
+        sequential.begin_frame()
+        expected.append(sequential.composite(frame, swap, m_swap, kps, native_px=160.0))
+
+    overlapped = _overlap_compositor(True)
+    with ThreadPoolExecutor(1) as worker:
+        futures = []
+        for frame, swap, kps, m_swap in frames:
+            worker.submit(overlapped.begin_frame)
+            pre = overlapped.prepare(frame, swap, m_swap, kps, native_px=160.0)
+            futures.append(worker.submit(overlapped.finish, pre, frame))
+        got = [future.result() for future in futures]
+    for i, (a, b) in enumerate(zip(expected, got)):
+        check(np.array_equal(a, b), f"frame {i} differs when frames overlap")
+
+
+@test
+def test_the_engine_stages_a_frame_and_completes_it_like_render_frame():
+    """_stage_frame + _complete_frame with a worker returns what the plain render_frame returns."""
+    import numpy as np
+    from concurrent.futures import ThreadPoolExecutor
+    from reface_engine_v3 import RefaceEngineV3, _FrameJob
+
+    job = _FrameJob("frame")
+    check((job.result, job.faces, job.outcomes, job.futures) == ("frame", [], [], []), "a fresh job holds the frame")
+    job.outcomes.append(dict(track_id=1, status="swapped", reason="", degraded=False))
+    job.outcomes.append(dict(track_id=2, status="skipped", reason="x", degraded=False))
+    frame, swaps, faces = RefaceEngineV3._complete_frame(job)
+    check((frame, swaps, faces) == ("frame", 1, []), f"swaps count only swapped faces, got {swaps}")
+
+    with ThreadPoolExecutor(1) as pool:
+        order = []
+        a = RefaceEngineV3._submit(pool, order.append, 1)
+        b = RefaceEngineV3._submit(None, order.append, 2)          # no worker: runs right away
+        c = RefaceEngineV3._submit(pool, order.append, 3)
+        for future in (a, b, c):
+            future.result()
+    check(sorted(order) == [1, 2, 3], f"every call runs exactly once, got {order}")
+    check(order.index(1) < order.index(3), "queued work runs in submission order")
+
+
 def main(argv):
     pattern = argv[0] if argv else ""
     selected = [t for t in _TESTS if pattern in t.__name__]

@@ -7,36 +7,59 @@ class RefaceOption {
   final String value, title, summary, description;
 }
 
+/// What a finishing step does to the picture. The model's own name is only a footnote in its description.
 String restorerName(String value, AppLocalizations l10n) => switch (value) {
   'none' => l10n.restorerNone,
-  'codeformer' => 'CodeFormer',
-  'gfpgan_1.4' => 'GFPGAN 1.4',
-  'gpen_bfr_512' => 'GPEN 512',
-  'gpen_bfr_1024' => 'GPEN 1024',
-  'restoreformer_plus_plus' => 'RestoreFormer++',
+  'gpen_bfr_512' => l10n.restorerNatural,
+  'gpen_bfr_1024' => l10n.restorerExtraSharp,
+  'codeformer' => l10n.restorerRebuild,
+  'gfpgan_1.4' => l10n.restorerSmooth,
+  'restoreformer_plus_plus' => l10n.restorerAlternative,
   _ => value,
 };
 
-List<RefaceOption> qualityOptions(AppLocalizations l10n) => [
-  RefaceOption(
-    'fast',
-    l10n.refaceFast,
-    l10n.refaceFastSummary,
-    l10n.refaceFastDescription,
-  ),
-  RefaceOption(
-    'balanced',
-    l10n.refaceBalanced,
-    l10n.refaceBalancedSummary,
-    l10n.refaceBalancedDescription,
-  ),
-  RefaceOption(
-    'detail',
-    l10n.refaceDetail,
-    l10n.refaceDetailSummary,
-    l10n.refaceDetailDescription,
-  ),
-];
+/// The quality choices. [takes] maps a profile to how long it would take for this request ("about 40 s"),
+/// shown right in the choice so nobody has to guess what Fast or Most detail costs.
+List<RefaceOption> qualityOptions(
+  AppLocalizations l10n, {
+  Map<String, String> takes = const {},
+}) {
+  RefaceOption option(
+    String value,
+    String title,
+    String summary,
+    String description,
+  ) {
+    final time = takes[value];
+    return RefaceOption(
+      value,
+      title,
+      time == null ? summary : '$summary · ${l10n.refaceTakes(time)}',
+      time == null ? description : '$description\n${l10n.refaceTakes(time)}.',
+    );
+  }
+
+  return [
+    option(
+      'fast',
+      l10n.refaceFast,
+      l10n.refaceFastSummary,
+      l10n.refaceFastDescription,
+    ),
+    option(
+      'balanced',
+      l10n.refaceBalanced,
+      l10n.refaceBalancedSummary,
+      l10n.refaceBalancedDescription,
+    ),
+    option(
+      'detail',
+      l10n.refaceDetail,
+      l10n.refaceDetailSummary,
+      l10n.refaceDetailDescription,
+    ),
+  ];
+}
 
 List<RefaceOption> restorationOptions(
   AppLocalizations l10n,

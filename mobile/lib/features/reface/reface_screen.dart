@@ -34,6 +34,7 @@ import 'reface_options.dart';
 import 'reface_preflight_card.dart';
 import '../../domain/reface/angle_generation.dart';
 import '../../domain/reface/reface_preflight.dart';
+import '../../domain/reface/reface_time.dart';
 import '../../domain/geometry/outline.dart';
 
 class RefaceScreen extends ConsumerStatefulWidget {
@@ -326,6 +327,31 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         });
       }
     }
+  }
+
+  /// How long each quality choice would take for this photo or clip ("about 40 s"), from what the PC reports
+  /// it typically needs per face. Empty when the PC does not say or the request is not sized yet.
+  Map<String, String> _takes(Capabilities? caps) {
+    if (caps == null || _identityMode == 'dfm') return const {};
+    final video = _video != null;
+    final trim = _videoTrim;
+    final frames = video
+        ? (trim == null ? 0 : RefaceTime.framesOf(trim.end - trim.start))
+        : 1;
+    final picked = _replaceAllFaces
+        ? (video ? _videoFaces.length : _analysis?.faces.length ?? 0)
+        : _targets.length;
+    return {
+      for (final entry
+          in (video ? caps.refaceVideoMs : caps.refacePhotoMs).entries)
+        if (RefaceTime.processing(
+              msPerFace: entry.value,
+              frames: frames,
+              faces: picked,
+            )
+            case final cost?)
+          entry.key: RefaceTime.words(cost),
+    };
   }
 
   AngleGenerationOffer? _angleGeneration(RefacePreflight preflight) {
@@ -1613,7 +1639,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                           ),
                           label: l10n.refaceQualityProfile,
                           value: _qualityProfile,
-                          options: qualityOptions(l10n),
+                          options: qualityOptions(l10n, takes: _takes(caps)),
                           onChanged: _chooseQualityProfile,
                         ),
                       ExpansionTile(

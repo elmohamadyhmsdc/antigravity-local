@@ -105,7 +105,7 @@ void main() {
       await tester.ensureVisible(find.text('Advanced options'));
       await tester.tap(find.text('Advanced options'));
       await tester.pumpAndSettle();
-      expect(find.text('Face restoration'), findsOneWidget);
+      expect(find.text('Sharpening'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
     session: testSession,
@@ -229,7 +229,7 @@ void main() {
       await tester.tap(profile);
       await tester.pumpAndSettle();
       expect(
-        find.text('Less extra processing · no restoration by default'),
+        find.textContaining('Quickest · skin a little soft'),
         findsOneWidget,
       );
       await tester.tap(find.text('Fast').last);
@@ -242,12 +242,12 @@ void main() {
       await tester.ensureVisible(restorer);
       await tester.tap(restorer);
       await tester.pumpAndSettle();
-      expect(find.text('Starts with Off on this PC'), findsOneWidget);
+      expect(find.text('Right now: No sharpening'), findsOneWidget);
       expect(
-        find.text('Rebuild degraded detail · extra AI processing'),
+        find.text('Rebuilds blurry faces · can change the look'),
         findsOneWidget,
       );
-      await tester.tap(find.text('CodeFormer').last);
+      await tester.tap(find.text('Rebuilds blurry faces').last);
       await tester.pumpAndSettle();
       expect(
         tester
@@ -323,6 +323,11 @@ void main() {
       await next(tester);
 
       expect(find.byKey(const Key('reface-preflight')), findsOneWidget);
+      expect(
+        find.textContaining('Takes a few seconds on your PC'),
+        findsOneWidget,
+        reason: 'the chosen quality says how long it takes for this photo',
+      );
       expect(find.textContaining('Target: 1 face'), findsOneWidget);
       expect(find.textContaining('Only 1 real source face'), findsOneWidget);
     },

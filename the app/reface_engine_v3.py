@@ -22,7 +22,8 @@ import os
 import sys
 import subprocess
 import tempfile
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from collections import deque
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeout
 from fractions import Fraction
 from pathlib import Path
 from typing import List, Optional
@@ -156,6 +157,14 @@ def rate_arg(fps: float) -> str:
 
 # --- picking the faces the user ticked, by identity ----------------------------
 
+class _FrameJob:
+    """One staged frame: the picture being painted, what was found in it and how each face went."""
+    __slots__ = ("result", "faces", "outcomes", "futures")
+
+    def __init__(self, frame):
+        self.result, self.faces, self.outcomes, self.futures = frame, [], [], []
+
+
 class RefaceEngineV3(RefaceEngine):
     VERSION = "3.0"
 
@@ -253,11 +262,7 @@ class RefaceEngineV3(RefaceEngine):
         except ValueError as e:
             print(f"[V3] {e}; falling back to 'natural'")
             comp_config = config_from_preset("natural", **overrides)
-        light = None
-        if comp_config.light_below_px > 0 and self.restore_size > 512 and self.restorer.available:
-            candidate = FaceRestorer(model_name="gpen_bfr_512", providers=self.providers)
-            light = candidate if candidate.available else None
-        self.compositor = FaceCompositor(self.restorer, self.masker, comp_config, light_restorer=light)
+        self.compositor = FaceCompositor(self.restorer, self.masker, comp_config)
 
         print(
             f"[INFO] RefaceEngineV3 ready "
@@ -321,13 +326,17 @@ class RefaceEngineV3(RefaceEngine):
         return AveragedSource(np.asarray(source.normed_embedding, np.float32) * (1.0 + c)
                               - np.asarray(target, np.float32) * c)
 
-    def _record_face(self, track_id, status, reason="", degraded=False):
-        if not hasattr(self, "_frame_outcomes"):
-            self._frame_outcomes = []
-        self._frame_outcomes.append(dict(track_id=int(track_id), status=status, reason=reason, degraded=degraded))
+    def _record_face(self, track_id, status, reason="", degraded=False, sink=None):
+        if sink is None:
+            if not hasattr(self, "_frame_outcomes"):
+                self._frame_outcomes = []
+            sink = self._frame_outcomes
+        sink.append(dict(track_id=int(track_id), status=status, reason=reason, degraded=degraded))
 
-    def _process_face(self, result, original, target_face, source, track_id=0):
-        """Generate from original pixels; merge only through the protected compositor."""
+    def _prepare_face(self, original, target_face, source, track_id=0):
+        """The GPU half of one face: the swap and every model-made mask. Generates from original pixels only,
+        so it can run for the next frame while the CPU half of this one is still painting.
+        Returns (Prepared, None), or (None, the exception that stopped it)."""
         try:
             restore = self.dfm is None
             if not restore:
@@ -350,20 +359,36 @@ class RefaceEngineV3(RefaceEngine):
                     if matrix is None:
                         raise ValueError("invalid face landmarks")
                     crop = cv2.warpAffine(crop, matrix, (size, size), borderMode=cv2.BORDER_REPLICATE)
-            updated = self.compositor.composite(result, crop, matrix, target_face.kps,
-                                                track_id=track_id, native_px=_face_height(target_face),
-                                                restore=restore, original_frame=original)
+            return self.compositor.prepare(original, crop, matrix, target_face.kps,
+                                           track_id=track_id, native_px=_face_height(target_face),
+                                           restore=restore, original_frame=original), None
+        except Exception as exc:
+            return None, exc
+
+    def _finish_face(self, result, target_face, pre, error, track_id=0, sink=None):
+        """The CPU half: merge only through the protected compositor, then judge whether the swap landed."""
+        if error is not None:
+            self._record_face(track_id, "failed", str(error), sink=sink)
+            self.compositor._log_once(f"face swap failed: {error}")
+            return result
+        try:
+            updated = self.compositor.finish(pre, result)
             status = getattr(self.compositor, "last_status", "swapped")
             reason = getattr(self.compositor, "last_reason", "")
             if status == "swapped" and not face_changed(updated, result, target_face):
                 status, reason = "skipped", "no visible change"
             degradations = getattr(self.compositor, "last_degraded", [])
-            self._record_face(track_id, status, reason or "; ".join(degradations), bool(degradations))
+            self._record_face(track_id, status, reason or "; ".join(degradations), bool(degradations), sink=sink)
             return updated
         except Exception as exc:
-            self._record_face(track_id, "failed", str(exc))
+            self._record_face(track_id, "failed", str(exc), sink=sink)
             self.compositor._log_once(f"face swap failed: {exc}")
             return result
+
+    def _process_face(self, result, original, target_face, source, track_id=0):
+        """Generate from original pixels; merge only through the protected compositor."""
+        pre, error = self._prepare_face(original, target_face, source, track_id)
+        return self._finish_face(result, target_face, pre, error, track_id)
 
     def _process_face_dfm(self, result, original, target_face, track_id=0):
         return self._process_face(result, original, target_face, None, track_id)
@@ -410,13 +435,14 @@ class RefaceEngineV3(RefaceEngine):
         self._track_ids = ids
         return faces, ids
 
-    def _check_scene(self, frame, selector=None):
+    def _check_scene(self, frame, selector=None, composer=None):
         small = cv2.resize(frame, (32, 18), interpolation=cv2.INTER_AREA).astype(np.float32)
         previous = self._previous_scene
         self._previous_scene = small
         if previous is not None and float(np.mean(np.abs(previous - small))) > 65:
             self._tracker.clear()
-            self.compositor.reset()
+            # queued behind the CPU halves of the frames before the cut
+            self._submit(composer, self.compositor.reset)
             if selector is not None:
                 selector.reset()
 
@@ -440,27 +466,57 @@ class RefaceEngineV3(RefaceEngine):
         self.compositor.reset()
         self.compositor.config.temporal = True
 
+    @staticmethod
+    def _submit(composer, fn, *args):
+        """Queue fn on the compositing worker, or run it now when there is none (same order either way)."""
+        if composer is not None:
+            return composer.submit(fn, *args)
+        done = Future()
+        try:
+            done.set_result(fn(*args))
+        except BaseException as exc:  # noqa: BLE001 - re-raised by .result()
+            done.set_exception(exc)
+        return done
+
     def render_frame(self, frame, source, frame_no: int = 0, target_face_indices=None, selector=None):
         """One video frame through the whole pipeline: detect, track, pick,
         swap and composite. Returns (frame, swaps, faces). Call begin_video()
         before the first frame. eval_reface.py drives this same method."""
+        return self._complete_frame(self._stage_frame(frame, source, frame_no, target_face_indices, selector))
+
+    def _stage_frame(self, frame, source, frame_no, target_face_indices=None, selector=None, composer=None):
+        """Everything of a frame that needs the models: detection, tracking, and each picked face's GPU half.
+
+        With a `composer` (one worker thread) the CPU half of every face is queued on it and this returns
+        at once, so the next frame's models run while this frame is still being painted. The worker is
+        single, so faces and frames are composited strictly in order and the output is the same as without.
+        """
         original = frame
-        self._check_scene(frame, selector)
+        job = _FrameJob(frame)
+        self._check_scene(frame, selector, composer)
         detector = lambda image: detect_video_faces(self.app, image)
         accepts = (lambda face: selector.wants(0, frame_no, lambda: face.normed_embedding)) if selector else (lambda face: True)
         faces = self._video_recovery.detect(frame, detector, accepts)
         faces, track_ids = self._smooth(faces)
-        self.compositor.begin_frame()
-        self._frame_outcomes = []
-        swaps = 0
+        job.faces = faces
+        self._submit(composer, self.compositor.begin_frame)
+        self._frame_outcomes = job.outcomes
         if faces:
-            result = frame
-            for tf, tid in self._pick_faces(frame, faces, track_ids, frame_no,
-                                            target_face_indices, selector):
-                result = self._process_face(result, original, tf, source, track_id=tid)
-            swaps = sum(item["status"] == "swapped" for item in self._frame_outcomes)
-            frame = result
-        return frame, swaps, faces
+            for tf, tid in self._pick_faces(frame, faces, track_ids, frame_no, target_face_indices, selector):
+                pre, error = self._prepare_face(original, tf, source, tid)
+                job.futures.append(self._submit(composer, self._finish_face_into, job, tf, pre, error, tid))
+        return job
+
+    def _finish_face_into(self, job, target_face, pre, error, track_id):
+        job.result = self._finish_face(job.result, target_face, pre, error, track_id, sink=job.outcomes)
+
+    @staticmethod
+    def _complete_frame(job):
+        """Wait for a staged frame's CPU halves. Returns (frame, swaps, faces)."""
+        for future in job.futures:
+            future.result()
+        swaps = sum(item["status"] == "swapped" for item in job.outcomes)
+        return job.result, swaps, job.faces
 
     @staticmethod
     def _make_selector(target_face_indices, target_face_embeddings):
@@ -591,30 +647,41 @@ class RefaceEngineV3(RefaceEngine):
             processed, swaps, cur = 0, 0, first
             outcomes = dict(faces_swapped=0, faces_skipped=0, faces_failed=0, faces_degraded=0, warnings=set())
             stopped = False
-            while cur < end_frame:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                if writer is None and proc is None:
-                    # Prefer piping raw frames to x264 (no intermediate MJPG re-compression)
-                    writer, proc = self._open_writer(out_path, fps, frame.shape[1], frame.shape[0])
-                frame, n, _ = self.render_frame(frame, source, cur, target_face_indices, selector)
-                swaps += n
-                for outcome in self._frame_outcomes:
-                    outcomes["faces_" + outcome["status"]] += 1
-                    outcomes["faces_degraded"] += bool(outcome.get("degraded"))
-                    if outcome["reason"] and len(outcomes["warnings"]) < 16:
-                        outcomes["warnings"].add(outcome["reason"])
-
-                self._write(writer, proc, frame)
-                processed += 1
-                cur += 1
-
-                if progress_callback and processed % 3 == 0:
-                    cont = progress_callback(processed, n_target)
-                    if cont is False:
-                        stopped = True
-                        break
+            # The next frame's models run while this frame's CPU half (blend, relight, grain, paste) and the
+            # encoder still work: one ordered compositing worker, one frame in flight. Same pixels, less waiting.
+            composer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="composite")
+            pending, reading = deque(), True
+            try:
+                while reading or pending:
+                    if reading and not stopped and cur < end_frame:
+                        ret, frame = cap.read()
+                        if ret:
+                            if writer is None and proc is None:
+                                # Prefer piping raw frames to x264 (no intermediate MJPG re-compression)
+                                writer, proc = self._open_writer(out_path, fps, frame.shape[1], frame.shape[0])
+                            pending.append(self._stage_frame(frame, source, cur, target_face_indices,
+                                                             selector, composer))
+                            cur += 1
+                        else:
+                            reading = False
+                    else:
+                        reading = False
+                    # keep one frame staged ahead; finish the rest once nothing more will be read
+                    while pending and (len(pending) > 1 or not reading):
+                        job = pending.popleft()
+                        frame, n, _ = self._complete_frame(job)
+                        swaps += n
+                        for outcome in job.outcomes:
+                            outcomes["faces_" + outcome["status"]] += 1
+                            outcomes["faces_degraded"] += bool(outcome.get("degraded"))
+                            if outcome["reason"] and len(outcomes["warnings"]) < 16:
+                                outcomes["warnings"].add(outcome["reason"])
+                        self._write(writer, proc, frame)
+                        processed += 1
+                        if progress_callback and processed % 3 == 0 and progress_callback(processed, n_target) is False:
+                            stopped = True
+            finally:
+                composer.shutdown(wait=True)
 
             cap.release()
             self._close_writer(writer, proc)

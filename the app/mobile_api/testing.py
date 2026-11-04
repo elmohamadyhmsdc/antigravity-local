@@ -184,9 +184,12 @@ class FakeProbe:
                         "lora_train": True, "lora_generate": True, "body_detection": True, "character_detection": True,
                         "sensitive_detection": True, "body_embeddings": True, "garment_tags": True},
             "restorers": ["codeformer"],
-            "reface_profiles": {"fast": {"restorer": "none", "restore_size": 512, "use_parser": False},
-                                "balanced": {"restorer": "codeformer", "restore_size": 512, "use_parser": True},
-                                "detail": {"restorer": "codeformer", "restore_size": 512, "use_parser": True}},
+            "reface_profiles": {"fast": {"restorer": "none", "restore_size": 512, "use_parser": False,
+                                     "photo_ms_per_face": 140, "video_ms_per_face": 90},
+                                "balanced": {"restorer": "codeformer", "restore_size": 512, "use_parser": True,
+                                         "photo_ms_per_face": 300, "video_ms_per_face": 255},
+                                "detail": {"restorer": "codeformer", "restore_size": 512, "use_parser": True,
+                                       "photo_ms_per_face": 660, "video_ms_per_face": 415}},
             "lora_base_checkpoints": ["sd15_realistic_base"],
         }
 

@@ -706,6 +706,12 @@ components:
               restorer: { type: string }
               restore_size: { type: integer, enum: [512, 1024] }
               use_parser: { type: boolean }
+              photo_ms_per_face:
+                type: number
+                description: Typical milliseconds this PC needs to swap one normal-size face in a photo with this profile. Optional; older servers omit it.
+              video_ms_per_face:
+                type: number
+                description: The same for one face in one video frame (frames overlap, so it is cheaper than in a photo).
         lora_base_checkpoints:
           type: array
           items: { type: string }

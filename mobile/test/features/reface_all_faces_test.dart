@@ -86,7 +86,7 @@ void main() {
             await tester.tap(picker);
             await tester.pumpAndSettle();
             await tester.tap(
-              find.text(profile == 'fast' ? 'Fast' : 'More detail').last,
+              find.text(profile == 'fast' ? 'Fast' : 'Most detail').last,
             );
             await tester.pumpAndSettle();
           }
