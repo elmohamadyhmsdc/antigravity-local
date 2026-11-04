@@ -34,8 +34,9 @@ class _MoveWithoutAskingTileState extends ConsumerState<MoveWithoutAskingTile>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed)
+    if (state == AppLifecycleState.resumed) {
       _refresh(); // back from the system page
+    }
   }
 
   Future<void> _refresh() async {

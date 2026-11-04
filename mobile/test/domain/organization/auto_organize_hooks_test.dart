@@ -48,6 +48,22 @@ class SpyAutoOrganizer extends DynamicAutoOrganizer {
     return null;
   }
 
+  final List<List<int>> batches = [];
+  bool silent = true;
+
+  @override
+  Future<bool> canMoveSilently() async => silent;
+
+  @override
+  Future<Map<int, OriginalMoveResult>> syncBatch(
+    Iterable<int> mediaIds, {
+    String? rootDirectory,
+    Map<int, int> explicitMasters = const {},
+  }) async {
+    batches.add(mediaIds.toList());
+    return {};
+  }
+
   @override
   Future<List<OriginalMoveResult>> syncPersonGroup(
     int personId, {
@@ -226,7 +242,65 @@ void main() {
       );
 
       await store.store(media, analysis);
-      expect(spyAutoOrganizer.syncedMediaIds, contains(mediaId));
+      expect(
+        spyAutoOrganizer.syncedMediaIds,
+        isEmpty,
+        reason: 'no move per photo: that is one system sheet per photo',
+      );
+      expect(store.pendingOrganize, {mediaId});
+
+      await store.flushOrganization();
+      expect(spyAutoOrganizer.batches, [
+        [mediaId],
+      ]);
+      expect(store.pendingOrganize, isEmpty);
+    },
+  );
+
+  test(
+    'nothing is moved, and nobody is asked, unless moving is silent',
+    () async {
+      final store = PhotoResultStore(
+        db: db,
+        files: files,
+        index: index,
+        autoOrganizer: spyAutoOrganizer,
+      );
+      spyAutoOrganizer.silent = false;
+      store.pendingOrganize.addAll([1, 2, 3]);
+
+      await store.flushOrganization();
+
+      expect(spyAutoOrganizer.batches, isEmpty);
+      expect(store.pendingOrganize, {
+        1,
+        2,
+        3,
+      }, reason: 'kept for when access is granted');
+    },
+  );
+
+  test(
+    'a big library is moved in chunks, and stops when the scan is paused',
+    () async {
+      final store = PhotoResultStore(
+        db: db,
+        files: files,
+        index: index,
+        autoOrganizer: spyAutoOrganizer,
+      );
+      store.pendingOrganize.addAll(List.generate(450, (i) => i + 1));
+
+      await store.flushOrganization();
+      expect(spyAutoOrganizer.batches.map((b) => b.length), [200, 200, 50]);
+      expect(store.pendingOrganize, isEmpty);
+
+      spyAutoOrganizer.batches.clear();
+      store.pendingOrganize.addAll(List.generate(450, (i) => i + 1));
+      var chunks = 0;
+      await store.flushOrganization(shouldStop: () => ++chunks > 1);
+      expect(spyAutoOrganizer.batches, hasLength(1));
+      expect(store.pendingOrganize, hasLength(250));
     },
   );
 }

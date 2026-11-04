@@ -33,9 +33,7 @@ class DynamicAutoOrganizer {
     final results = await syncBatch(
       [mediaId],
       rootDirectory: rootDirectory,
-      explicitMasters: {
-        if (explicitMasterId != null) mediaId: explicitMasterId,
-      },
+      explicitMasters: {mediaId: ?explicitMasterId},
     );
     return results[mediaId];
   }
