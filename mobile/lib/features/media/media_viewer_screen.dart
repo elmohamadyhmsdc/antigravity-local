@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,6 +39,7 @@ import '../../ui/sheets/undo_snackbar.dart';
 import 'layers_popover.dart';
 import 'media_chrome.dart';
 import 'media_page_item.dart';
+import 'viewer_image_cache.dart';
 import 'roi_selection_overlay.dart';
 import 'detection_actions.dart';
 
@@ -99,6 +101,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     }
     _pageController = PageController(initialPage: _currentIndex);
     if (widget.collection == null) _loadIds();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_warmNeighbours());
+    });
     if (_currentIndex >= _mediaIds.length - 3) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _loadMore();
@@ -119,7 +124,34 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
         _pageController?.dispose();
         _pageController = PageController(initialPage: _currentIndex);
       });
+      unawaited(_warmNeighbours());
     } catch (_) {}
+  }
+
+  Future<void> _warmNeighbours() async {
+    final index = _currentIndex;
+    final cache = ref.read(viewerImageCacheProvider);
+    final thumbs = ref.read(thumbnailServiceProvider);
+    final repo = ref.read(libraryRepositoryProvider);
+    for (final i in [index, index + 1, index - 1]) {
+      if (!mounted || index != _currentIndex) return;
+      if (i < 0 || i >= _mediaIds.length) continue;
+      final row = await repo.mediaById(_mediaIds[i]);
+      if (!mounted || index != _currentIndex) return;
+      if (row == null) continue;
+      await thumbs.get(row.assetId);
+      if (row.kind == 'photo') {
+        final image = await cache.get(row.assetId);
+        if (!mounted || index != _currentIndex) return;
+        if (image != null) {
+          await precacheImage(
+            MemoryImage(image.bytes),
+            context,
+            onError: (_, _) {},
+          );
+        }
+      }
+    }
   }
 
   Future<void> _loadMore() async {
@@ -847,6 +879,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                                 _currentIndex = i;
                                 _selectedDetectionId = null;
                               });
+                              unawaited(_warmNeighbours());
                               if (i >= _mediaIds.length - 3) _loadMore();
                             },
                             itemBuilder: (context, i) {

@@ -37,6 +37,7 @@ class VideoMediaView extends StatefulWidget {
     this.focusRefId,
     this.isActive = true,
     this.onOpenNativePlayer,
+    this.loadingPreview,
   });
   final String assetId;
   final int? initialTimestampMs;
@@ -50,6 +51,7 @@ class VideoMediaView extends StatefulWidget {
   final ValueChanged<MediaDetection> onTapBox;
   final bool isActive;
   final VoidCallback? onOpenNativePlayer;
+  final Widget? loadingPreview;
 
   @override
   State<VideoMediaView> createState() => _VideoMediaViewState();
@@ -144,7 +146,7 @@ class _VideoMediaViewState extends State<VideoMediaView> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (_loading) return const LoadingBox();
+    if (_loading) return widget.loadingPreview ?? const LoadingBox();
     final player = _player;
     if (_error || player == null || player.value.hasError) {
       return EmptyState(

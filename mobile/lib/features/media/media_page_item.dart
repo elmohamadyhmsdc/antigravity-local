@@ -1,6 +1,4 @@
 import 'dart:typed_data';
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,19 +11,7 @@ import '../shared/empty_state.dart';
 import 'detection_overlay.dart';
 import 'layers_popover.dart';
 import 'video_media_view.dart';
-
-class LoadedImage {
-  const LoadedImage(
-    this.bytes,
-    this.width,
-    this.height, {
-    this.fallback = false,
-  });
-  final Uint8List bytes;
-  final int width;
-  final int height;
-  final bool fallback;
-}
+import 'viewer_image_cache.dart';
 
 final mediaRowProvider = StreamProvider.autoDispose.family<MediaRow?, int>(
   (ref, id) => ref.watch(libraryRepositoryProvider).watchMedia(id),
@@ -89,27 +75,6 @@ class _MediaPageViewItemState extends ConsumerState<MediaPageViewItem> {
     widget.onZoomChanged(zoomed);
   }
 
-  Future<LoadedImage?> _load(String assetId, int width, int height) async {
-    final library = ref.read(mediaLibraryProvider);
-    var bytes = await library.viewerImage(assetId);
-    final fallback = bytes == null;
-    bytes ??= await ref
-        .read(thumbnailServiceProvider)
-        .get(assetId, width: width, height: height);
-    if (bytes == null || bytes.isEmpty) return null;
-    final decoded = await ui.instantiateImageCodec(bytes);
-    final frame = await decoded.getNextFrame();
-    final loaded = LoadedImage(
-      bytes,
-      frame.image.width,
-      frame.image.height,
-      fallback: fallback,
-    );
-    frame.image.dispose();
-    decoded.dispose();
-    return loaded;
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -138,18 +103,41 @@ class _MediaPageViewItemState extends ConsumerState<MediaPageViewItem> {
             showFaces: widget.layers.faces,
             onTapBox: widget.onTapBox,
             isActive: widget.isActive,
+            loadingPreview: FutureBuilder<Uint8List?>(
+              future: ref.read(thumbnailServiceProvider).get(media.assetId),
+              initialData: ref
+                  .read(thumbnailServiceProvider)
+                  .getSync(media.assetId),
+              builder: (context, preview) => preview.data == null
+                  ? const LoadingBox()
+                  : Center(
+                      child: Image.memory(preview.data!, fit: BoxFit.contain),
+                    ),
+            ),
             onOpenNativePlayer: widget.onOpenNativePlayer,
           );
         }
         if (_assetId != media.assetId) {
           _assetId = media.assetId;
-          _image = _load(media.assetId, media.width ?? 1, media.height ?? 1);
+          _image = ref.read(viewerImageCacheProvider).get(media.assetId);
         }
         return FutureBuilder<LoadedImage?>(
           future: _image,
+          initialData: ref.read(viewerImageCacheProvider).peek(media.assetId),
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return const LoadingBox();
+              final preview = ref
+                  .read(thumbnailServiceProvider)
+                  .getSync(media.assetId);
+              return preview == null
+                  ? const LoadingBox()
+                  : Center(
+                      child: Image.memory(
+                        preview,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                      ),
+                    );
             }
             final image = snapshot.data;
             if (image == null) {

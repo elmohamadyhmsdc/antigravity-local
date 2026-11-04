@@ -57,6 +57,7 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
                     img = ctx.image_decoder.image(data, ctx.max_image_px)
                     return img, ctx.engines.analyze(img, engine_options)
             img, result = await run_in_threadpool(compute)
+            del data  # Release the encoded upload before allocating response crops.
         except ImageTooLarge as error:
             raise ApiError(413, 'too_large', str(error)) from error
         except MediaDecodeError as error:

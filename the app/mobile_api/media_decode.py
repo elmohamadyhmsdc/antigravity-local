@@ -1,7 +1,8 @@
 """Disposable media decoder. Native codec failures must never take down the API.
 
 OpenCV handles the fast video path; Pillow and local FFmpeg provide additional codecs.
-Only bounded BGR pixels cross the pipe. No decoded originals are retained on disk.
+Video frames use bounded pipe messages. Images use private temporary binary files
+to avoid large Base64/JSON allocations; all image scratch files are removed per call.
 """
 import base64
 import io
@@ -13,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import tempfile
 from pathlib import Path
 
 import cv2
@@ -81,6 +83,8 @@ class DecoderProcess:
                 if raw is None:
                     raise MediaDecodeError('The media decoder stopped while reading this file.')
                 response = json.loads(raw)
+                if response.get('out_of_memory'):
+                    raise MemoryError('The media decoder is out of memory.')
                 if response.get('error'):
                     error = ImageTooLarge if response.get('too_large') else MediaDecodeError
                     raise error(response['error'])
@@ -92,8 +96,20 @@ class DecoderProcess:
                 raise MediaDecodeError('The media decoder could not read this file in time.') from error
 
     def image(self, data, max_side):
-        result = self.request({'op': 'image', 'encoded_image': base64.b64encode(data).decode(), 'max_side': max_side})
-        return unpack_image(result)
+        # Keep large payloads out of JSON and the API process's pipe buffers.
+        # The private directory is removed on success, codec failure and timeout.
+        with tempfile.TemporaryDirectory(prefix='ag-image-') as directory:
+            source = Path(directory) / 'encoded'
+            pixels = Path(directory) / 'pixels'
+            source.write_bytes(data)
+            result = self.request({'op': 'image_file', 'path': str(source),
+                                   'pixels_path': str(pixels), 'max_side': max_side})
+            shape = result['shape']
+            if len(shape) != 3 or shape[2] != 3 or not 0 < min(shape) <= max(shape) <= 4096:
+                raise MediaDecodeError('Invalid decoded image dimensions.')
+            if pixels.stat().st_size != math.prod(shape):
+                raise MediaDecodeError('Invalid decoded image size.')
+            return np.fromfile(pixels, dtype=np.uint8).reshape(shape)
 
     def close(self):
         with self.lock:
@@ -269,7 +285,9 @@ def main():
                         fps, count = metadata
                     response = {'fps': fps, 'total': int(count)}
                 else:
-                    if op == 'image':
+                    if op == 'image_file':
+                        image = decode_image(Path(request['path']).read_bytes(), request['max_side'])
+                    elif op == 'image':
                         image = decode_image(base64.b64decode(request['encoded_image'], validate=True), request['max_side'])
                     elif op == 'frame':
                         frame = request['frame']
@@ -286,8 +304,15 @@ def main():
                             image = cv2.resize(image, (max(1, round(image.shape[1] * scale)), max(1, round(image.shape[0] * scale))))
                     else:
                         raise MediaDecodeError('Unknown media operation.')
-                    response = {} if image is None else {'shape': list(image.shape),
+                    if op == 'image_file':
+                        np.ascontiguousarray(image).tofile(request['pixels_path'])
+                        response = {'shape': list(image.shape)}
+                        image = None  # Do not retain the previous photo between requests.
+                    else:
+                        response = {} if image is None else {'shape': list(image.shape),
                         'pixels': base64.b64encode(np.ascontiguousarray(image)).decode()}
+            except MemoryError:
+                response = {'out_of_memory': True}
             except Exception as error:
                 response = {'error': str(error), 'too_large': isinstance(error, ImageTooLarge)}
             sys.stdout.write(PREFIX + json.dumps(response, separators=(',', ':')) + '\n')

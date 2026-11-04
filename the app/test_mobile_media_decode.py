@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import cv2
@@ -16,6 +17,30 @@ from mobile_api.media_decode import (DecoderProcess, ImageTooLarge, IsolatedCapt
 
 
 class MediaDecodeTests(unittest.TestCase):
+    def test_image_transfer_avoids_base64_and_cleans_scratch_files(self):
+        data = io.BytesIO()
+        Image.new('RGB', (1024, 768), (210, 40, 20)).save(data, 'PNG')
+        decoder = DecoderProcess()
+        try:
+            with patch('mobile_api.media_decode.base64.b64encode', side_effect=AssertionError('large base64 copy')), patch.object(decoder, 'request', wraps=decoder.request) as request:
+                frame = decoder.image(data.getvalue(), 4096)
+            self.assertEqual(frame.shape, (768, 1024, 3))
+            payload = request.call_args.args[0]
+            self.assertNotIn('encoded_image', payload)
+            self.assertFalse(Path(payload['path']).exists())
+            self.assertFalse(Path(payload['pixels_path']).exists())
+        finally:
+            decoder.close()
+
+    def test_worker_memory_pressure_is_not_misreported_as_bad_image(self):
+        script = "import sys; sys.stdin.buffer.readline(); print('AG_MEDIA_RESULT {\"out_of_memory\":true}', flush=True)"
+        decoder = DecoderProcess(command=[sys.executable, '-u', '-c', script])
+        try:
+            with self.assertRaises(MemoryError):
+                decoder.image(b'test', 4096)
+        finally:
+            decoder.close()
+
     def test_phone_and_animated_image_formats(self):
         try:
             import pillow_heif
