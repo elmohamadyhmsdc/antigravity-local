@@ -1,6 +1,56 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P08 (Explore, Poses, Outfits, Areas, Marks & Actions) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P08 of the Mobile Parity Plan.
+  - Implement Pose domain (geometry, descriptor with scaleSource and mirror-invariance, Tier-A rules, categories and matching), Outfits domain (palette, dominant colors, monochrome/contrasting, categories with lowerOnly, garment tags), Group Pose domain (analyzer, lineup, multi-person matcher), Equipment domain (CRUD, confirm, reject, manual additions), Marks domain (segment anchors, opposite limb reflection, patch storage with FileStore), Actions domain (ActionPoseFrame, ActionMatcher), and Bodies domain (inspection service, sensitive user overrides, backfill detection, ExposedMatcher with DBSCAN).
+  - Add native Compose Explore screen and ViewModel preserving Face Gallery UI/UX and Iris/Amber theme.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Pose Domain (`com.facegallery.domain.pose`):
+     - `PoseGeometry.kt`: COCO-17 keypoint indices (`Kp`), mirror pairs, visible threshold (0.3), Euclidean distance, angles, midpoints, `Pose` with torso, shoulder width, and spine tilt calculations.
+     - `PoseDescriptor.kt`: 34-float normalized pose descriptor, visibility bitmask, `torso` vs `shoulder` scale sources, mirror invariance (`mirrorFeature`), Gaussian weighted limb error comparison (`comparePoses`).
+     - `PoseRules.kt`: Calibrated Tier-A single person rules (`lying`, `standing`, `sitting`, `bent`, `arms_up`, `one_arm_up`, `arms_spread`, `hands_on_hips`, `frontal`, `profile`, `back`).
+     - `PoseCategoryManager.kt`: CRUD and nearest neighbor evaluation for `body_pose_features`, `pose_categories`, and `body_pose_matches`.
+  2. Outfits Domain (`com.facegallery.domain.outfits`):
+     - `OutfitPalette.kt`: 12 hue bins + 4 value bins color shares, dominant color extraction, monochrome / contrasting outfit detection, colorfulness filter.
+     - `OutfitCategoryManager.kt`: Category management with full-body vs `lower_only` appearance matching and state tracking (`suggested`, `confirmed`, `rejected`).
+     - `GarmentTagManager.kt`: Storage and querying of `body_garment_tags` (tag, category, score).
+  3. Group Pose & Actions Domains (`com.facegallery.domain.group_pose`, `com.facegallery.domain.actions`):
+     - `GroupPose.kt`: Multi-person tags (`group`, `lineup`, `all_facing`) with horizontal level shoulder checks and bounding box IoU separation.
+     - `GroupPoseMatcher.kt`: Group pose coordinate normalization and multi-person arrangement comparison.
+     - `ActionMatcher.kt`: Action pose frame representation and greedy member assignment distance calculation.
+  4. Equipment, Marks & Bodies (`com.facegallery.domain.equipment`, `com.facegallery.domain.marks`, `com.facegallery.domain.bodies`):
+     - `EquipmentManager.kt`: Object detection state machine (`detected`, `confirmed`, `rejected`) and manual object additions.
+     - `MarkGeometry.kt`: Segment anchor calculation across 14 body segments and opposite limb mapping for mirror selfies.
+     - `BodyMarkStore.kt`: SQLite `body_marks` persistence and synchronous atomic PNG patch writing in `FileStore` (`marks/<id>.png`).
+     - `BodyInspectionService.kt`: Body details extraction, `body_distinct`, `body_rejections`, user sensitive overrides, and version-based backfill detection.
+     - `ExposedMatcher.kt`: Unit vector normalization, cosine ranking, and DBSCAN clustering over cosine distance.
+  5. UI & Navigation (`com.facegallery.ui.screens.explore`, `com.facegallery.ui.navigation`):
+     - `ExploreScreen.kt`: Material 3 Compose screen with 6 tabs (Poses, Outfits, Body Areas, Marks, Equipment, Actions), minimum 48dp touch targets, Iris/Amber styling.
+     - `ExploreViewModel.kt`: Asynchronous data loading and reactive state flow.
+     - Wired `ROUTE_EXPLORE` into `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - 12 unit test suites executed:
+    - `PoseGeometryTest`: Angle calculations, COCO keypoint parsing, torso and spine tilt passed (2/2).
+    - `PoseDescriptorTest`: Pose feature building, blob serialization, comparison and mirror invariance passed (2/2).
+    - `PoseRulesTest`: Standing, arms up, and lying rules passed (3/3).
+    - `PoseCategoryManagerTest`: Category creation, match evaluation, and state update passed (1/1).
+    - `OutfitPaletteTest`: Color shares, monochrome, contrasting, and colorful checks passed (2/2).
+    - `OutfitCategoryManagerTest`: Outfit matching with lower_only filter and garment tagging passed (2/2).
+    - `GroupPoseTest`: Multi-person lineup and group pose matching passed (2/2).
+    - `EquipmentManagerTest`: Lifecycle (add, confirm, reject) passed (1/1).
+    - `BodyMarkStoreTest`: Anchor calculation, opposite segment, patch write/delete passed (2/2).
+    - `ActionMatcherTest`: Action frame distance and confidence matching passed (1/1).
+    - `BodyInspectionServiceTest`: Body inspection, distinct, rejection, and sensitive backfill passed (2/2).
+    - `ExposedMatcherTest`: Vector normalization, cosine similarity, and DBSCAN clustering passed (2/2).
+  - Total Phase P08 suite: 22 unit tests executed, 22 passed (0 failures).
+  - Cumulative P01-P08 suite: 108 unit tests executed and passed (346 total unit tests passing in target project with 0 regressions).
+- Target committed: `6181982`. Phase P08 closed; ready for Phase P09 (Studio: Reface, Restyle & Results).
+
+
 ## Phase P07 (Physical Organization & Sidecar Metadata) Completed — 2026-11-08
 
 - User Request:
@@ -395,6 +445,56 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P08 (Explore, Poses, Outfits, Areas, Marks & Actions) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P08 of the Mobile Parity Plan.
+  - Implement Pose domain (geometry, descriptor with scaleSource and mirror-invariance, Tier-A rules, categories and matching), Outfits domain (palette, dominant colors, monochrome/contrasting, categories with lowerOnly, garment tags), Group Pose domain (analyzer, lineup, multi-person matcher), Equipment domain (CRUD, confirm, reject, manual additions), Marks domain (segment anchors, opposite limb reflection, patch storage with FileStore), Actions domain (ActionPoseFrame, ActionMatcher), and Bodies domain (inspection service, sensitive user overrides, backfill detection, ExposedMatcher with DBSCAN).
+  - Add native Compose Explore screen and ViewModel preserving Face Gallery UI/UX and Iris/Amber theme.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Pose Domain (`com.facegallery.domain.pose`):
+     - `PoseGeometry.kt`: COCO-17 keypoint indices (`Kp`), mirror pairs, visible threshold (0.3), Euclidean distance, angles, midpoints, `Pose` with torso, shoulder width, and spine tilt calculations.
+     - `PoseDescriptor.kt`: 34-float normalized pose descriptor, visibility bitmask, `torso` vs `shoulder` scale sources, mirror invariance (`mirrorFeature`), Gaussian weighted limb error comparison (`comparePoses`).
+     - `PoseRules.kt`: Calibrated Tier-A single person rules (`lying`, `standing`, `sitting`, `bent`, `arms_up`, `one_arm_up`, `arms_spread`, `hands_on_hips`, `frontal`, `profile`, `back`).
+     - `PoseCategoryManager.kt`: CRUD and nearest neighbor evaluation for `body_pose_features`, `pose_categories`, and `body_pose_matches`.
+  2. Outfits Domain (`com.facegallery.domain.outfits`):
+     - `OutfitPalette.kt`: 12 hue bins + 4 value bins color shares, dominant color extraction, monochrome / contrasting outfit detection, colorfulness filter.
+     - `OutfitCategoryManager.kt`: Category management with full-body vs `lower_only` appearance matching and state tracking (`suggested`, `confirmed`, `rejected`).
+     - `GarmentTagManager.kt`: Storage and querying of `body_garment_tags` (tag, category, score).
+  3. Group Pose & Actions Domains (`com.facegallery.domain.group_pose`, `com.facegallery.domain.actions`):
+     - `GroupPose.kt`: Multi-person tags (`group`, `lineup`, `all_facing`) with horizontal level shoulder checks and bounding box IoU separation.
+     - `GroupPoseMatcher.kt`: Group pose coordinate normalization and multi-person arrangement comparison.
+     - `ActionMatcher.kt`: Action pose frame representation and greedy member assignment distance calculation.
+  4. Equipment, Marks & Bodies (`com.facegallery.domain.equipment`, `com.facegallery.domain.marks`, `com.facegallery.domain.bodies`):
+     - `EquipmentManager.kt`: Object detection state machine (`detected`, `confirmed`, `rejected`) and manual object additions.
+     - `MarkGeometry.kt`: Segment anchor calculation across 14 body segments and opposite limb mapping for mirror selfies.
+     - `BodyMarkStore.kt`: SQLite `body_marks` persistence and synchronous atomic PNG patch writing in `FileStore` (`marks/<id>.png`).
+     - `BodyInspectionService.kt`: Body details extraction, `body_distinct`, `body_rejections`, user sensitive overrides, and version-based backfill detection.
+     - `ExposedMatcher.kt`: Unit vector normalization, cosine ranking, and DBSCAN clustering over cosine distance.
+  5. UI & Navigation (`com.facegallery.ui.screens.explore`, `com.facegallery.ui.navigation`):
+     - `ExploreScreen.kt`: Material 3 Compose screen with 6 tabs (Poses, Outfits, Body Areas, Marks, Equipment, Actions), minimum 48dp touch targets, Iris/Amber styling.
+     - `ExploreViewModel.kt`: Asynchronous data loading and reactive state flow.
+     - Wired `ROUTE_EXPLORE` into `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - 12 unit test suites executed:
+    - `PoseGeometryTest`: Angle calculations, COCO keypoint parsing, torso and spine tilt passed (2/2).
+    - `PoseDescriptorTest`: Pose feature building, blob serialization, comparison and mirror invariance passed (2/2).
+    - `PoseRulesTest`: Standing, arms up, and lying rules passed (3/3).
+    - `PoseCategoryManagerTest`: Category creation, match evaluation, and state update passed (1/1).
+    - `OutfitPaletteTest`: Color shares, monochrome, contrasting, and colorful checks passed (2/2).
+    - `OutfitCategoryManagerTest`: Outfit matching with lower_only filter and garment tagging passed (2/2).
+    - `GroupPoseTest`: Multi-person lineup and group pose matching passed (2/2).
+    - `EquipmentManagerTest`: Lifecycle (add, confirm, reject) passed (1/1).
+    - `BodyMarkStoreTest`: Anchor calculation, opposite segment, patch write/delete passed (2/2).
+    - `ActionMatcherTest`: Action frame distance and confidence matching passed (1/1).
+    - `BodyInspectionServiceTest`: Body inspection, distinct, rejection, and sensitive backfill passed (2/2).
+    - `ExposedMatcherTest`: Vector normalization, cosine similarity, and DBSCAN clustering passed (2/2).
+  - Total Phase P08 suite: 22 unit tests executed, 22 passed (0 failures).
+  - Cumulative P01-P08 suite: 108 unit tests executed and passed (346 total unit tests passing in target project with 0 regressions).
+- Target committed: `6181982`. Phase P08 closed; ready for Phase P09 (Studio: Reface, Restyle & Results).
+
+
 ## Phase P07 (Physical Organization & Sidecar Metadata) Completed — 2026-11-08
 
 - User Request:
@@ -705,6 +805,56 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P08 (Explore, Poses, Outfits, Areas, Marks & Actions) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P08 of the Mobile Parity Plan.
+  - Implement Pose domain (geometry, descriptor with scaleSource and mirror-invariance, Tier-A rules, categories and matching), Outfits domain (palette, dominant colors, monochrome/contrasting, categories with lowerOnly, garment tags), Group Pose domain (analyzer, lineup, multi-person matcher), Equipment domain (CRUD, confirm, reject, manual additions), Marks domain (segment anchors, opposite limb reflection, patch storage with FileStore), Actions domain (ActionPoseFrame, ActionMatcher), and Bodies domain (inspection service, sensitive user overrides, backfill detection, ExposedMatcher with DBSCAN).
+  - Add native Compose Explore screen and ViewModel preserving Face Gallery UI/UX and Iris/Amber theme.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Pose Domain (`com.facegallery.domain.pose`):
+     - `PoseGeometry.kt`: COCO-17 keypoint indices (`Kp`), mirror pairs, visible threshold (0.3), Euclidean distance, angles, midpoints, `Pose` with torso, shoulder width, and spine tilt calculations.
+     - `PoseDescriptor.kt`: 34-float normalized pose descriptor, visibility bitmask, `torso` vs `shoulder` scale sources, mirror invariance (`mirrorFeature`), Gaussian weighted limb error comparison (`comparePoses`).
+     - `PoseRules.kt`: Calibrated Tier-A single person rules (`lying`, `standing`, `sitting`, `bent`, `arms_up`, `one_arm_up`, `arms_spread`, `hands_on_hips`, `frontal`, `profile`, `back`).
+     - `PoseCategoryManager.kt`: CRUD and nearest neighbor evaluation for `body_pose_features`, `pose_categories`, and `body_pose_matches`.
+  2. Outfits Domain (`com.facegallery.domain.outfits`):
+     - `OutfitPalette.kt`: 12 hue bins + 4 value bins color shares, dominant color extraction, monochrome / contrasting outfit detection, colorfulness filter.
+     - `OutfitCategoryManager.kt`: Category management with full-body vs `lower_only` appearance matching and state tracking (`suggested`, `confirmed`, `rejected`).
+     - `GarmentTagManager.kt`: Storage and querying of `body_garment_tags` (tag, category, score).
+  3. Group Pose & Actions Domains (`com.facegallery.domain.group_pose`, `com.facegallery.domain.actions`):
+     - `GroupPose.kt`: Multi-person tags (`group`, `lineup`, `all_facing`) with horizontal level shoulder checks and bounding box IoU separation.
+     - `GroupPoseMatcher.kt`: Group pose coordinate normalization and multi-person arrangement comparison.
+     - `ActionMatcher.kt`: Action pose frame representation and greedy member assignment distance calculation.
+  4. Equipment, Marks & Bodies (`com.facegallery.domain.equipment`, `com.facegallery.domain.marks`, `com.facegallery.domain.bodies`):
+     - `EquipmentManager.kt`: Object detection state machine (`detected`, `confirmed`, `rejected`) and manual object additions.
+     - `MarkGeometry.kt`: Segment anchor calculation across 14 body segments and opposite limb mapping for mirror selfies.
+     - `BodyMarkStore.kt`: SQLite `body_marks` persistence and synchronous atomic PNG patch writing in `FileStore` (`marks/<id>.png`).
+     - `BodyInspectionService.kt`: Body details extraction, `body_distinct`, `body_rejections`, user sensitive overrides, and version-based backfill detection.
+     - `ExposedMatcher.kt`: Unit vector normalization, cosine ranking, and DBSCAN clustering over cosine distance.
+  5. UI & Navigation (`com.facegallery.ui.screens.explore`, `com.facegallery.ui.navigation`):
+     - `ExploreScreen.kt`: Material 3 Compose screen with 6 tabs (Poses, Outfits, Body Areas, Marks, Equipment, Actions), minimum 48dp touch targets, Iris/Amber styling.
+     - `ExploreViewModel.kt`: Asynchronous data loading and reactive state flow.
+     - Wired `ROUTE_EXPLORE` into `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - 12 unit test suites executed:
+    - `PoseGeometryTest`: Angle calculations, COCO keypoint parsing, torso and spine tilt passed (2/2).
+    - `PoseDescriptorTest`: Pose feature building, blob serialization, comparison and mirror invariance passed (2/2).
+    - `PoseRulesTest`: Standing, arms up, and lying rules passed (3/3).
+    - `PoseCategoryManagerTest`: Category creation, match evaluation, and state update passed (1/1).
+    - `OutfitPaletteTest`: Color shares, monochrome, contrasting, and colorful checks passed (2/2).
+    - `OutfitCategoryManagerTest`: Outfit matching with lower_only filter and garment tagging passed (2/2).
+    - `GroupPoseTest`: Multi-person lineup and group pose matching passed (2/2).
+    - `EquipmentManagerTest`: Lifecycle (add, confirm, reject) passed (1/1).
+    - `BodyMarkStoreTest`: Anchor calculation, opposite segment, patch write/delete passed (2/2).
+    - `ActionMatcherTest`: Action frame distance and confidence matching passed (1/1).
+    - `BodyInspectionServiceTest`: Body inspection, distinct, rejection, and sensitive backfill passed (2/2).
+    - `ExposedMatcherTest`: Vector normalization, cosine similarity, and DBSCAN clustering passed (2/2).
+  - Total Phase P08 suite: 22 unit tests executed, 22 passed (0 failures).
+  - Cumulative P01-P08 suite: 108 unit tests executed and passed (346 total unit tests passing in target project with 0 regressions).
+- Target committed: `6181982`. Phase P08 closed; ready for Phase P09 (Studio: Reface, Restyle & Results).
 
 
 ## Phase P07 (Physical Organization & Sidecar Metadata) Completed — 2026-11-08
