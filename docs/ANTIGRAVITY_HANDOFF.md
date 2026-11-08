@@ -1,6 +1,39 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P10 (LoRA Character Training & Generation) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P10 of the Mobile Parity Plan.
+  - Implement CropMath (face crop with 1.6x square margin and upscale bounds, body crop keeping aspect ratio and long side limit), AutoDatasetCurator (diversified candidate curation for faces, upper, and body with video proximity and pose similarity penalties), LoraDatasetManager (dataset and item records, caption editing, standard ZIP export with <repeats>_<triggerWord> person/<basename>.jpg and .txt caption pairs), LoraModelManager (safe safetensors header parser avoiding pickle code execution, FileStore lorasDir storage, DB loras table), and LoraPayloadBuilder (training and generation Mobile API payloads).
+  - Add native Compose LoRA screen and ViewModel preserving Face Gallery UI/UX and Iris/Amber theme.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Training Curation & Crop Math (`com.facegallery.domain.curation`):
+     - `CropMath.kt`: `PxRect`, `faceCrop` (square crop with margin, center alignment, upscale limit enforcement), `bodyCrop` (proportional crop with margin and maximum long-side clamping).
+     - `AutoDatasetCurator.kt`: Curates balanced sets (target 7 faces, 5 upper, 8 bodies) applying penalty against temporal proximity in video (minVideoGapMs) and angular redundancy in head pose (yaw/pitch).
+  2. Dataset Management & ZIP Export (`com.facegallery.domain.lora`):
+     - `LoraDatasetManager.kt`: Manages `datasets` and `dataset_items` in SQLite schema v20. Exports standard Kohya/Diffusers-compatible ZIP bundles containing paired `.jpg` and `.txt` caption files.
+  3. Safe Safetensors Importer (`com.facegallery.domain.lora`):
+     - `LoraModelManager.kt`: Verifies 8-byte uint64 little-endian JSON header length, enforces 10MB header cap, parses JSON metadata safely, copies `.safetensors` to `FileStore.lorasDir`, and records model in `loras` table.
+  4. Training & Generation Payloads (`com.facegallery.domain.lora`):
+     - `LoraTrainingAndGeneration.kt`: Validates parameters (baseCheckpoint, epochs [1..100], dim [4..128], alpha, learningRate, resolution, resumeEpoch) and formats training and generation requests.
+  5. UI & Navigation (`com.facegallery.ui.screens.lora`, `com.facegallery.ui.navigation`):
+     - `LoraScreen.kt`: Material 3 Compose screen with Datasets, Models, and Generate tabs, 48dp touch targets, Iris/Amber styling.
+     - `LoraViewModel.kt`: Asynchronous dataset and model loading.
+     - Wired `ROUTE_LORA` into `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - 5 unit test suites executed:
+    - `CropMathTest`: Square face margin, upscale limit rejection, and aspect-ratio preserved body crop passed (3/3).
+    - `AutoDatasetCuratorTest`: Multi-candidate curation, temporal video proximity penalty, and head pose diversification passed (1/1).
+    - `LoraDatasetManagerTest`: Dataset creation, item caption retrieval, and export to standard ZIP archive with text captions passed (1/1).
+    - `LoraModelManagerTest`: Safetensors header validation, atomic FileStore storage, and invalid header rejection passed (2/2).
+    - `LoraTrainingAndGenerationTest`: Training and generation JSON payloads validation passed (1/1).
+  - Total Phase P10 suite: 8 unit tests executed, 8 passed (0 failures).
+  - Cumulative P01-P10 suite: 122 unit tests executed and passed (360 total unit tests passing in target project with 0 regressions).
+- Target committed: `ce14336`. Phase P10 closed; ready for Phase P11 (Unified Viewer, Privacy, Security & Storage).
+
+
 ## Phase P09 (Studio: Reface, Restyle & Results) Completed — 2026-11-08
 
 - User Request:
@@ -478,6 +511,39 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P10 (LoRA Character Training & Generation) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P10 of the Mobile Parity Plan.
+  - Implement CropMath (face crop with 1.6x square margin and upscale bounds, body crop keeping aspect ratio and long side limit), AutoDatasetCurator (diversified candidate curation for faces, upper, and body with video proximity and pose similarity penalties), LoraDatasetManager (dataset and item records, caption editing, standard ZIP export with <repeats>_<triggerWord> person/<basename>.jpg and .txt caption pairs), LoraModelManager (safe safetensors header parser avoiding pickle code execution, FileStore lorasDir storage, DB loras table), and LoraPayloadBuilder (training and generation Mobile API payloads).
+  - Add native Compose LoRA screen and ViewModel preserving Face Gallery UI/UX and Iris/Amber theme.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Training Curation & Crop Math (`com.facegallery.domain.curation`):
+     - `CropMath.kt`: `PxRect`, `faceCrop` (square crop with margin, center alignment, upscale limit enforcement), `bodyCrop` (proportional crop with margin and maximum long-side clamping).
+     - `AutoDatasetCurator.kt`: Curates balanced sets (target 7 faces, 5 upper, 8 bodies) applying penalty against temporal proximity in video (minVideoGapMs) and angular redundancy in head pose (yaw/pitch).
+  2. Dataset Management & ZIP Export (`com.facegallery.domain.lora`):
+     - `LoraDatasetManager.kt`: Manages `datasets` and `dataset_items` in SQLite schema v20. Exports standard Kohya/Diffusers-compatible ZIP bundles containing paired `.jpg` and `.txt` caption files.
+  3. Safe Safetensors Importer (`com.facegallery.domain.lora`):
+     - `LoraModelManager.kt`: Verifies 8-byte uint64 little-endian JSON header length, enforces 10MB header cap, parses JSON metadata safely, copies `.safetensors` to `FileStore.lorasDir`, and records model in `loras` table.
+  4. Training & Generation Payloads (`com.facegallery.domain.lora`):
+     - `LoraTrainingAndGeneration.kt`: Validates parameters (baseCheckpoint, epochs [1..100], dim [4..128], alpha, learningRate, resolution, resumeEpoch) and formats training and generation requests.
+  5. UI & Navigation (`com.facegallery.ui.screens.lora`, `com.facegallery.ui.navigation`):
+     - `LoraScreen.kt`: Material 3 Compose screen with Datasets, Models, and Generate tabs, 48dp touch targets, Iris/Amber styling.
+     - `LoraViewModel.kt`: Asynchronous dataset and model loading.
+     - Wired `ROUTE_LORA` into `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - 5 unit test suites executed:
+    - `CropMathTest`: Square face margin, upscale limit rejection, and aspect-ratio preserved body crop passed (3/3).
+    - `AutoDatasetCuratorTest`: Multi-candidate curation, temporal video proximity penalty, and head pose diversification passed (1/1).
+    - `LoraDatasetManagerTest`: Dataset creation, item caption retrieval, and export to standard ZIP archive with text captions passed (1/1).
+    - `LoraModelManagerTest`: Safetensors header validation, atomic FileStore storage, and invalid header rejection passed (2/2).
+    - `LoraTrainingAndGenerationTest`: Training and generation JSON payloads validation passed (1/1).
+  - Total Phase P10 suite: 8 unit tests executed, 8 passed (0 failures).
+  - Cumulative P01-P10 suite: 122 unit tests executed and passed (360 total unit tests passing in target project with 0 regressions).
+- Target committed: `ce14336`. Phase P10 closed; ready for Phase P11 (Unified Viewer, Privacy, Security & Storage).
+
+
 ## Phase P09 (Studio: Reface, Restyle & Results) Completed — 2026-11-08
 
 - User Request:
@@ -871,6 +937,39 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P10 (LoRA Character Training & Generation) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P10 of the Mobile Parity Plan.
+  - Implement CropMath (face crop with 1.6x square margin and upscale bounds, body crop keeping aspect ratio and long side limit), AutoDatasetCurator (diversified candidate curation for faces, upper, and body with video proximity and pose similarity penalties), LoraDatasetManager (dataset and item records, caption editing, standard ZIP export with <repeats>_<triggerWord> person/<basename>.jpg and .txt caption pairs), LoraModelManager (safe safetensors header parser avoiding pickle code execution, FileStore lorasDir storage, DB loras table), and LoraPayloadBuilder (training and generation Mobile API payloads).
+  - Add native Compose LoRA screen and ViewModel preserving Face Gallery UI/UX and Iris/Amber theme.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Training Curation & Crop Math (`com.facegallery.domain.curation`):
+     - `CropMath.kt`: `PxRect`, `faceCrop` (square crop with margin, center alignment, upscale limit enforcement), `bodyCrop` (proportional crop with margin and maximum long-side clamping).
+     - `AutoDatasetCurator.kt`: Curates balanced sets (target 7 faces, 5 upper, 8 bodies) applying penalty against temporal proximity in video (minVideoGapMs) and angular redundancy in head pose (yaw/pitch).
+  2. Dataset Management & ZIP Export (`com.facegallery.domain.lora`):
+     - `LoraDatasetManager.kt`: Manages `datasets` and `dataset_items` in SQLite schema v20. Exports standard Kohya/Diffusers-compatible ZIP bundles containing paired `.jpg` and `.txt` caption files.
+  3. Safe Safetensors Importer (`com.facegallery.domain.lora`):
+     - `LoraModelManager.kt`: Verifies 8-byte uint64 little-endian JSON header length, enforces 10MB header cap, parses JSON metadata safely, copies `.safetensors` to `FileStore.lorasDir`, and records model in `loras` table.
+  4. Training & Generation Payloads (`com.facegallery.domain.lora`):
+     - `LoraTrainingAndGeneration.kt`: Validates parameters (baseCheckpoint, epochs [1..100], dim [4..128], alpha, learningRate, resolution, resumeEpoch) and formats training and generation requests.
+  5. UI & Navigation (`com.facegallery.ui.screens.lora`, `com.facegallery.ui.navigation`):
+     - `LoraScreen.kt`: Material 3 Compose screen with Datasets, Models, and Generate tabs, 48dp touch targets, Iris/Amber styling.
+     - `LoraViewModel.kt`: Asynchronous dataset and model loading.
+     - Wired `ROUTE_LORA` into `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - 5 unit test suites executed:
+    - `CropMathTest`: Square face margin, upscale limit rejection, and aspect-ratio preserved body crop passed (3/3).
+    - `AutoDatasetCuratorTest`: Multi-candidate curation, temporal video proximity penalty, and head pose diversification passed (1/1).
+    - `LoraDatasetManagerTest`: Dataset creation, item caption retrieval, and export to standard ZIP archive with text captions passed (1/1).
+    - `LoraModelManagerTest`: Safetensors header validation, atomic FileStore storage, and invalid header rejection passed (2/2).
+    - `LoraTrainingAndGenerationTest`: Training and generation JSON payloads validation passed (1/1).
+  - Total Phase P10 suite: 8 unit tests executed, 8 passed (0 failures).
+  - Cumulative P01-P10 suite: 122 unit tests executed and passed (360 total unit tests passing in target project with 0 regressions).
+- Target committed: `ce14336`. Phase P10 closed; ready for Phase P11 (Unified Viewer, Privacy, Security & Storage).
 
 
 ## Phase P09 (Studio: Reface, Restyle & Results) Completed — 2026-11-08
