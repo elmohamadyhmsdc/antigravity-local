@@ -1,6 +1,41 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P04 (Media Library, Photo Result Store, Video Sampling & Tracking) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P04 of the Mobile Parity Plan.
+  - Implement MediaStore delta synchronization (`SqliteLibrarySync`), atomic detection storage (`PhotoResultStore`), video keyframe sampling grid and IoU tracking (`VideoScanEngine`), and scan progress reporting.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Media Library Delta Synchronization (`com.facegallery.domain.scan.SqliteLibrarySync`):
+     - Synchronizes images and videos from MediaStore into the SQLite `media` table.
+     - Supports album filtering (`bucket_id`), delta scans by modification timestamp, and pagination.
+     - Handles insertions, skips unchanged assets, and resets `scan_status = 'pending'` on modified assets.
+     - Provides `getScanStats()` for live scanning status breakdown.
+  2. Atomic Photo Result Store (`com.facegallery.domain.scan.PhotoResultStore`):
+     - Atomically commits face detections, bounding boxes, quality metrics, and crops into `faces` and `FileStore`.
+     - In-memory `EmbeddingIndex` synchronized with new embeddings per model space (`buffalo_l@1`).
+     - Inserts body detections into `bodies` with face-linking and garment tags into `body_garment_tags`.
+     - Records detection outlines into `media_detections` (`kind`, `ref_id`, coordinates).
+     - Persists sensitive body regions into `sensitive_regions` and updates `media.scan_status = 'done'`.
+  3. Video Sampling & Movement Tracking (`com.facegallery.domain.scan.VideoScanEngine`):
+     - `calculateSampleGrid`: Pinned interval keyframe extraction based on video duration.
+     - `calculateIoU`: Normalized bounding box intersection-over-union metric with 0.35 threshold.
+     - `associateTracks`: Frame-to-frame detection linking to maintain identity continuity across keyframes.
+     - `compactTracks`: Compresses detection sequences into track summaries, selecting the highest-quality exemplar.
+     - Checkpoint management (`updateCheckpoint`, `getLastScannedFrame`) to allow resumable video scans.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `PhotoResultStoreTest`: Atomic detection storage, sensitive regions, bodies, garments, and status updates passed (2/2).
+    - `VideoScanEngineTest`: Sample grid calculation, IoU calculation, sequential track association, track compaction with exemplar selection, and checkpoint updates passed (5/5).
+    - `SqliteLibrarySyncTest`: MediaStore delta synchronization, insertion, skip, update, and status stats passed (1/1).
+  - Total Phase P04 suite: 8 unit tests executed, 8 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 suite: 56 unit tests executed and passed (294 total unit tests passing in target project with 0 regressions).
+- Phase P04 closed (commit `30f6d14`); ready for Phase P05 (Identities, Grouping, Corrections & Review).
+
+
+
 ## Phase P03 (Jobs, Resumable Transfers & Activity Center) Completed — 2026-11-08
 
 - User Request:
@@ -260,6 +295,41 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P04 (Media Library, Photo Result Store, Video Sampling & Tracking) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P04 of the Mobile Parity Plan.
+  - Implement MediaStore delta synchronization (`SqliteLibrarySync`), atomic detection storage (`PhotoResultStore`), video keyframe sampling grid and IoU tracking (`VideoScanEngine`), and scan progress reporting.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Media Library Delta Synchronization (`com.facegallery.domain.scan.SqliteLibrarySync`):
+     - Synchronizes images and videos from MediaStore into the SQLite `media` table.
+     - Supports album filtering (`bucket_id`), delta scans by modification timestamp, and pagination.
+     - Handles insertions, skips unchanged assets, and resets `scan_status = 'pending'` on modified assets.
+     - Provides `getScanStats()` for live scanning status breakdown.
+  2. Atomic Photo Result Store (`com.facegallery.domain.scan.PhotoResultStore`):
+     - Atomically commits face detections, bounding boxes, quality metrics, and crops into `faces` and `FileStore`.
+     - In-memory `EmbeddingIndex` synchronized with new embeddings per model space (`buffalo_l@1`).
+     - Inserts body detections into `bodies` with face-linking and garment tags into `body_garment_tags`.
+     - Records detection outlines into `media_detections` (`kind`, `ref_id`, coordinates).
+     - Persists sensitive body regions into `sensitive_regions` and updates `media.scan_status = 'done'`.
+  3. Video Sampling & Movement Tracking (`com.facegallery.domain.scan.VideoScanEngine`):
+     - `calculateSampleGrid`: Pinned interval keyframe extraction based on video duration.
+     - `calculateIoU`: Normalized bounding box intersection-over-union metric with 0.35 threshold.
+     - `associateTracks`: Frame-to-frame detection linking to maintain identity continuity across keyframes.
+     - `compactTracks`: Compresses detection sequences into track summaries, selecting the highest-quality exemplar.
+     - Checkpoint management (`updateCheckpoint`, `getLastScannedFrame`) to allow resumable video scans.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `PhotoResultStoreTest`: Atomic detection storage, sensitive regions, bodies, garments, and status updates passed (2/2).
+    - `VideoScanEngineTest`: Sample grid calculation, IoU calculation, sequential track association, track compaction with exemplar selection, and checkpoint updates passed (5/5).
+    - `SqliteLibrarySyncTest`: MediaStore delta synchronization, insertion, skip, update, and status stats passed (1/1).
+  - Total Phase P04 suite: 8 unit tests executed, 8 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 suite: 56 unit tests executed and passed (294 total unit tests passing in target project with 0 regressions).
+- Phase P04 closed (commit `30f6d14`); ready for Phase P05 (Identities, Grouping, Corrections & Review).
+
+
+
 ## Phase P03 (Jobs, Resumable Transfers & Activity Center) Completed — 2026-11-08
 
 - User Request:
@@ -435,6 +505,41 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P04 (Media Library, Photo Result Store, Video Sampling & Tracking) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P04 of the Mobile Parity Plan.
+  - Implement MediaStore delta synchronization (`SqliteLibrarySync`), atomic detection storage (`PhotoResultStore`), video keyframe sampling grid and IoU tracking (`VideoScanEngine`), and scan progress reporting.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Media Library Delta Synchronization (`com.facegallery.domain.scan.SqliteLibrarySync`):
+     - Synchronizes images and videos from MediaStore into the SQLite `media` table.
+     - Supports album filtering (`bucket_id`), delta scans by modification timestamp, and pagination.
+     - Handles insertions, skips unchanged assets, and resets `scan_status = 'pending'` on modified assets.
+     - Provides `getScanStats()` for live scanning status breakdown.
+  2. Atomic Photo Result Store (`com.facegallery.domain.scan.PhotoResultStore`):
+     - Atomically commits face detections, bounding boxes, quality metrics, and crops into `faces` and `FileStore`.
+     - In-memory `EmbeddingIndex` synchronized with new embeddings per model space (`buffalo_l@1`).
+     - Inserts body detections into `bodies` with face-linking and garment tags into `body_garment_tags`.
+     - Records detection outlines into `media_detections` (`kind`, `ref_id`, coordinates).
+     - Persists sensitive body regions into `sensitive_regions` and updates `media.scan_status = 'done'`.
+  3. Video Sampling & Movement Tracking (`com.facegallery.domain.scan.VideoScanEngine`):
+     - `calculateSampleGrid`: Pinned interval keyframe extraction based on video duration.
+     - `calculateIoU`: Normalized bounding box intersection-over-union metric with 0.35 threshold.
+     - `associateTracks`: Frame-to-frame detection linking to maintain identity continuity across keyframes.
+     - `compactTracks`: Compresses detection sequences into track summaries, selecting the highest-quality exemplar.
+     - Checkpoint management (`updateCheckpoint`, `getLastScannedFrame`) to allow resumable video scans.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `PhotoResultStoreTest`: Atomic detection storage, sensitive regions, bodies, garments, and status updates passed (2/2).
+    - `VideoScanEngineTest`: Sample grid calculation, IoU calculation, sequential track association, track compaction with exemplar selection, and checkpoint updates passed (5/5).
+    - `SqliteLibrarySyncTest`: MediaStore delta synchronization, insertion, skip, update, and status stats passed (1/1).
+  - Total Phase P04 suite: 8 unit tests executed, 8 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 suite: 56 unit tests executed and passed (294 total unit tests passing in target project with 0 regressions).
+- Phase P04 closed (commit `30f6d14`); ready for Phase P05 (Identities, Grouping, Corrections & Review).
+
 
 
 ## Sidecar Metadata Persistence & Dynamic Auto-Organization Design Approved — 2026-11-03
