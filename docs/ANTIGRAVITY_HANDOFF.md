@@ -1,6 +1,41 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P01 (Encrypted Database Layer, FileStore & Core Repositories) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P01 of the Mobile Parity Plan.
+  - Set up SQLite schema matching Schema v20 (47 tables, 27 indexes), encrypted master key management, scoped FileStore, vector index, and core repositories.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Full Schema v20 Architecture (`com.facegallery.core.database.DatabaseSchema` & `AppDbOpenHelper`):
+     - Created `DatabaseSchema.kt` declaring all 47 tables and 27 indexes matching Schema v20.
+     - Implemented `AppDbOpenHelper.kt` supporting both disk databases and in-memory test databases (`AppDbOpenHelper.inMemory(context)`), with `PRAGMA foreign_keys = ON` in `onConfigure()`.
+  2. Master Key Management & Security (`com.facegallery.core.security.DatabaseKeyManager`):
+     - Implemented 256-bit AES hex key generation, persistence in `EncryptedSharedPreferences`, key validation, and plaintext key rejection.
+  3. Scoped Storage FileStore (`com.facegallery.core.files.FileStore`):
+     - Implemented standard subdirectory layout (`crops/`, `blobs/`, `backups/`, `exports/`, `models/`, `staging/`).
+     - Added atomic file write pattern (`.part` write then atomic replace).
+     - Strict directory traversal protection rejecting any relative path containing `..`.
+  4. In-Memory Vector Index (`com.facegallery.domain.index.EmbeddingIndex`):
+     - Implemented vector index isolating model spaces (`buffalo_l@1` 512-d, `ccip-caformer24@1` 768-d).
+     - Provides cosine similarity calculation, L2 normalization, and nearest neighbors search.
+  5. Core SQLite Repositories (`com.facegallery.data.repository`):
+     - `SqlitePeopleRepository.kt`: Person CRUD, favorites, renaming, merging (faces & bodies transfer), and PersonCard generation conforming to `UiModels.kt`.
+     - `SqliteMediaRepository.kt`: Media scanning status tracking, pending/scanned counters, atomic updates.
+     - `SqliteIdentityGroupsRepository.kt`: Group CRUD, renaming, and member association.
+     - `SqliteReviewRepository.kt`: Pending review matches calculation, snoozing (`review_snoozes`), confirmation (`face_confirmations`), and rejection (`face_rejections`).
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed for:
+    - `DatabaseSchemaTest`: 47 tables match, 27 indexes match, foreign_keys PRAGMA verified.
+    - `DatabaseKeyManagerTest`: Key generation, persistence, validation, and plaintext rejection verified.
+    - `FileStoreTest`: Atomic writes, subdirectories, and traversal rejection verified.
+    - `EmbeddingIndexTest`: Dimension isolation and vector nearest-neighbor retrieval verified.
+    - `SqliteRepositoriesTest`: People, media, identity groups, and review repository operations verified.
+  - Total: 18 unit tests executed, 18 passed (0 failures).
+- Phase P01 closed; ready for Phase P02 (Mobile API Client, Pairing & Networking).
+
+
 ## Phase P00 (Baseline, Architectural Alignment & Contract Closure) Completed — 2026-11-08
 
 - User Request:
@@ -149,6 +184,41 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P01 (Encrypted Database Layer, FileStore & Core Repositories) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P01 of the Mobile Parity Plan.
+  - Set up SQLite schema matching Schema v20 (47 tables, 27 indexes), encrypted master key management, scoped FileStore, vector index, and core repositories.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Full Schema v20 Architecture (`com.facegallery.core.database.DatabaseSchema` & `AppDbOpenHelper`):
+     - Created `DatabaseSchema.kt` declaring all 47 tables and 27 indexes matching Schema v20.
+     - Implemented `AppDbOpenHelper.kt` supporting both disk databases and in-memory test databases (`AppDbOpenHelper.inMemory(context)`), with `PRAGMA foreign_keys = ON` in `onConfigure()`.
+  2. Master Key Management & Security (`com.facegallery.core.security.DatabaseKeyManager`):
+     - Implemented 256-bit AES hex key generation, persistence in `EncryptedSharedPreferences`, key validation, and plaintext key rejection.
+  3. Scoped Storage FileStore (`com.facegallery.core.files.FileStore`):
+     - Implemented standard subdirectory layout (`crops/`, `blobs/`, `backups/`, `exports/`, `models/`, `staging/`).
+     - Added atomic file write pattern (`.part` write then atomic replace).
+     - Strict directory traversal protection rejecting any relative path containing `..`.
+  4. In-Memory Vector Index (`com.facegallery.domain.index.EmbeddingIndex`):
+     - Implemented vector index isolating model spaces (`buffalo_l@1` 512-d, `ccip-caformer24@1` 768-d).
+     - Provides cosine similarity calculation, L2 normalization, and nearest neighbors search.
+  5. Core SQLite Repositories (`com.facegallery.data.repository`):
+     - `SqlitePeopleRepository.kt`: Person CRUD, favorites, renaming, merging (faces & bodies transfer), and PersonCard generation conforming to `UiModels.kt`.
+     - `SqliteMediaRepository.kt`: Media scanning status tracking, pending/scanned counters, atomic updates.
+     - `SqliteIdentityGroupsRepository.kt`: Group CRUD, renaming, and member association.
+     - `SqliteReviewRepository.kt`: Pending review matches calculation, snoozing (`review_snoozes`), confirmation (`face_confirmations`), and rejection (`face_rejections`).
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed for:
+    - `DatabaseSchemaTest`: 47 tables match, 27 indexes match, foreign_keys PRAGMA verified.
+    - `DatabaseKeyManagerTest`: Key generation, persistence, validation, and plaintext rejection verified.
+    - `FileStoreTest`: Atomic writes, subdirectories, and traversal rejection verified.
+    - `EmbeddingIndexTest`: Dimension isolation and vector nearest-neighbor retrieval verified.
+    - `SqliteRepositoriesTest`: People, media, identity groups, and review repository operations verified.
+  - Total: 18 unit tests executed, 18 passed (0 failures).
+- Phase P01 closed; ready for Phase P02 (Mobile API Client, Pairing & Networking).
 
 
 ## Phase P00 (Baseline, Architectural Alignment & Contract Closure) Completed — 2026-11-08
