@@ -1,6 +1,36 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P07 (Physical Organization & Sidecar Metadata) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P07 of the Mobile Parity Plan.
+  - Implement MediaOrganizer (preview, journal `person_media_moves`, collision-safe filenames, sidecar moving), SidecarMetadata & SidecarSerializer (schema v1, float32 vectors Base64 little-endian, all detections/ownership), SidecarIngestionService (zero-rescan cycle restoring detections and vector index without GPU), and MasterPersonResolver (primary subject assignment by quality and frequency).
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Sidecar Metadata & Serialization (`com.facegallery.domain.organization.SidecarMetadata`, `SidecarSerializer`):
+     - `SidecarDocument`, `SidecarMediaInfo`, `SidecarOwnership`, `SidecarFace`, `SidecarBody`, `SidecarSensitiveRegion`, `SidecarEquipmentObject`.
+     - `SidecarSerializer`: High-precision float32 little-endian Base64 encoding/decoding via `VectorCodec`, comprehensive JSON serialization and validation, disk read/write alongside media files (`<media_path>.agsidecar`).
+  2. Zero-Rescan Ingestion (`com.facegallery.domain.organization.SidecarIngestionService`):
+     - `ingestSidecar`: Reads `.agsidecar`, creates or reuses person/group, inserts `media` record with scan_status `done`, inserts `faces`, `bodies`, `sensitive_regions`, `equipment_objects` directly into SQLite schema v20, and loads embeddings into in-memory `EmbeddingIndex` without invoking neural network models or GPU.
+  3. Physical Media Organizer (`com.facegallery.domain.organization.MediaOrganizer`):
+     - Directory structuring: `targetRoot/<groupName>/<personName>/<filename>`.
+     - Collision handling: appends `_1`, `_2` before extension if destination file exists.
+     - Journaling: records all file movements in `person_media_moves` (`source_uri`, `destination_uri`, `status`).
+     - Synchronous companion file movement: automatically relocates companion `.agsidecar` files with matching base names.
+  4. Master Person Resolver (`com.facegallery.domain.organization.MasterPersonResolver`):
+     - Computes candidate primary person based on face count, max face quality, and bounding box area, breaking ties deterministically.
+- Verification & Test Results:
+  - Unit tests executed:
+    - `MasterPersonResolverTest`: Single face, multiple persons with quality/area weighting, and no faces passed (3/3).
+    - `MediaOrganizerTest`: Plan generation, destination collisions, execution with journal recording, and moving companion sidecars passed (4/4).
+    - `SidecarSerializerTest`: Round-trip serialization/deserialization to disk with float32 vectors passed (1/1).
+    - `SidecarIngestionServiceTest`: Zero-rescan ingestion restoring media, faces, sensitive regions, and in-memory `EmbeddingIndex` nearest-neighbor lookup passed (1/1).
+  - Total Phase P07 suite: 9 unit tests executed, 9 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 + P05 + P06 + P07 suite: 86 unit tests executed and passed (324 total unit tests passing in target project with 0 regressions).
+- Target committed: `b2456b4`. Phase P07 closed; ready for Phase P08 (Explore, Poses, Outfits, Areas, Marks, Actions).
+
+
 ## Phase P06 (Mobile Data Migration via .agbackup & Transfer Supplement) Completed — 2026-11-08
 
 - User Request:
@@ -365,6 +395,36 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P07 (Physical Organization & Sidecar Metadata) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P07 of the Mobile Parity Plan.
+  - Implement MediaOrganizer (preview, journal `person_media_moves`, collision-safe filenames, sidecar moving), SidecarMetadata & SidecarSerializer (schema v1, float32 vectors Base64 little-endian, all detections/ownership), SidecarIngestionService (zero-rescan cycle restoring detections and vector index without GPU), and MasterPersonResolver (primary subject assignment by quality and frequency).
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Sidecar Metadata & Serialization (`com.facegallery.domain.organization.SidecarMetadata`, `SidecarSerializer`):
+     - `SidecarDocument`, `SidecarMediaInfo`, `SidecarOwnership`, `SidecarFace`, `SidecarBody`, `SidecarSensitiveRegion`, `SidecarEquipmentObject`.
+     - `SidecarSerializer`: High-precision float32 little-endian Base64 encoding/decoding via `VectorCodec`, comprehensive JSON serialization and validation, disk read/write alongside media files (`<media_path>.agsidecar`).
+  2. Zero-Rescan Ingestion (`com.facegallery.domain.organization.SidecarIngestionService`):
+     - `ingestSidecar`: Reads `.agsidecar`, creates or reuses person/group, inserts `media` record with scan_status `done`, inserts `faces`, `bodies`, `sensitive_regions`, `equipment_objects` directly into SQLite schema v20, and loads embeddings into in-memory `EmbeddingIndex` without invoking neural network models or GPU.
+  3. Physical Media Organizer (`com.facegallery.domain.organization.MediaOrganizer`):
+     - Directory structuring: `targetRoot/<groupName>/<personName>/<filename>`.
+     - Collision handling: appends `_1`, `_2` before extension if destination file exists.
+     - Journaling: records all file movements in `person_media_moves` (`source_uri`, `destination_uri`, `status`).
+     - Synchronous companion file movement: automatically relocates companion `.agsidecar` files with matching base names.
+  4. Master Person Resolver (`com.facegallery.domain.organization.MasterPersonResolver`):
+     - Computes candidate primary person based on face count, max face quality, and bounding box area, breaking ties deterministically.
+- Verification & Test Results:
+  - Unit tests executed:
+    - `MasterPersonResolverTest`: Single face, multiple persons with quality/area weighting, and no faces passed (3/3).
+    - `MediaOrganizerTest`: Plan generation, destination collisions, execution with journal recording, and moving companion sidecars passed (4/4).
+    - `SidecarSerializerTest`: Round-trip serialization/deserialization to disk with float32 vectors passed (1/1).
+    - `SidecarIngestionServiceTest`: Zero-rescan ingestion restoring media, faces, sensitive regions, and in-memory `EmbeddingIndex` nearest-neighbor lookup passed (1/1).
+  - Total Phase P07 suite: 9 unit tests executed, 9 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 + P05 + P06 + P07 suite: 86 unit tests executed and passed (324 total unit tests passing in target project with 0 regressions).
+- Target committed: `b2456b4`. Phase P07 closed; ready for Phase P08 (Explore, Poses, Outfits, Areas, Marks, Actions).
+
+
 ## Phase P06 (Mobile Data Migration via .agbackup & Transfer Supplement) Completed — 2026-11-08
 
 - User Request:
@@ -645,6 +705,36 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P07 (Physical Organization & Sidecar Metadata) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P07 of the Mobile Parity Plan.
+  - Implement MediaOrganizer (preview, journal `person_media_moves`, collision-safe filenames, sidecar moving), SidecarMetadata & SidecarSerializer (schema v1, float32 vectors Base64 little-endian, all detections/ownership), SidecarIngestionService (zero-rescan cycle restoring detections and vector index without GPU), and MasterPersonResolver (primary subject assignment by quality and frequency).
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Sidecar Metadata & Serialization (`com.facegallery.domain.organization.SidecarMetadata`, `SidecarSerializer`):
+     - `SidecarDocument`, `SidecarMediaInfo`, `SidecarOwnership`, `SidecarFace`, `SidecarBody`, `SidecarSensitiveRegion`, `SidecarEquipmentObject`.
+     - `SidecarSerializer`: High-precision float32 little-endian Base64 encoding/decoding via `VectorCodec`, comprehensive JSON serialization and validation, disk read/write alongside media files (`<media_path>.agsidecar`).
+  2. Zero-Rescan Ingestion (`com.facegallery.domain.organization.SidecarIngestionService`):
+     - `ingestSidecar`: Reads `.agsidecar`, creates or reuses person/group, inserts `media` record with scan_status `done`, inserts `faces`, `bodies`, `sensitive_regions`, `equipment_objects` directly into SQLite schema v20, and loads embeddings into in-memory `EmbeddingIndex` without invoking neural network models or GPU.
+  3. Physical Media Organizer (`com.facegallery.domain.organization.MediaOrganizer`):
+     - Directory structuring: `targetRoot/<groupName>/<personName>/<filename>`.
+     - Collision handling: appends `_1`, `_2` before extension if destination file exists.
+     - Journaling: records all file movements in `person_media_moves` (`source_uri`, `destination_uri`, `status`).
+     - Synchronous companion file movement: automatically relocates companion `.agsidecar` files with matching base names.
+  4. Master Person Resolver (`com.facegallery.domain.organization.MasterPersonResolver`):
+     - Computes candidate primary person based on face count, max face quality, and bounding box area, breaking ties deterministically.
+- Verification & Test Results:
+  - Unit tests executed:
+    - `MasterPersonResolverTest`: Single face, multiple persons with quality/area weighting, and no faces passed (3/3).
+    - `MediaOrganizerTest`: Plan generation, destination collisions, execution with journal recording, and moving companion sidecars passed (4/4).
+    - `SidecarSerializerTest`: Round-trip serialization/deserialization to disk with float32 vectors passed (1/1).
+    - `SidecarIngestionServiceTest`: Zero-rescan ingestion restoring media, faces, sensitive regions, and in-memory `EmbeddingIndex` nearest-neighbor lookup passed (1/1).
+  - Total Phase P07 suite: 9 unit tests executed, 9 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 + P05 + P06 + P07 suite: 86 unit tests executed and passed (324 total unit tests passing in target project with 0 regressions).
+- Target committed: `b2456b4`. Phase P07 closed; ready for Phase P08 (Explore, Poses, Outfits, Areas, Marks, Actions).
 
 
 ## Phase P06 (Mobile Data Migration via .agbackup & Transfer Supplement) Completed — 2026-11-08
