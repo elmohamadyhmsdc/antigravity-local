@@ -1,6 +1,46 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P00 (Baseline, Architectural Alignment & Contract Closure) Completed — 2026-11-08
+
+- User Request:
+  - Start execution of the Mobile Parity Plan (13 phases, 72 tasks, 206 features), beginning with Phase P00 and P00-T06.
+  - Strictly preserve and enhance Face Gallery's native Kotlin/Compose UI/UX (AppBottomBar: Gallery, People, Characters conditional, Review, Settings; Iris/Amber theme, 48dp touch targets) while porting all mobile features and logic. Target is confirmed empty of user data.
+- Architecture & Alignments (`the app/` & `face gallary`):
+  1. PC-Assisted LAN Architecture & UI/UX Preservation Recorded (P00-T02):
+     - Updated `D:\test\face gallary\CLAUDE.md`: removed outdated "fully offline / no INTERNET" constraints, documented local PC-assisted LAN architecture via Mobile API (`the app/mobile_api`), offline-first browsing, and confirmed target contains no user data.
+     - Appended Decision `D-133` in `D:\test\face gallary\docs\DECISIONS.md`: formalizing PC-assisted AI over pinned DER TLS, transition from ObjectBox to SQLCipher (Schema v20, 47 tables), and strict preservation of Face Gallery's 5 top destinations, theme tokens, and 48dp touch targets.
+  2. OpenAPI Targeted Route & Contract Fixtures Completed (P00-T03):
+     - Added `POST /v1/analyze/targeted` endpoint to `the app/mobile_api/contract/openapi.yaml`.
+     - Added `TargetedDetectionItem` and `TargetedAnalysisResponse` schemas and fixtures (`TargetedAnalysisResponse.body.json`, `TargetedAnalysisResponse.area.json`).
+     - Updated `the app/mobile_api/contract/validate_contract.py`: passes all checks with 73 refs, 71 schemas, 22 paths, 60 fixtures, and negative checks.
+     - Updated `inventory/api-endpoints.csv` confirming 25/25 operations in checked-in OpenAPI.
+  3. Original Baseline Testing & Evidence (P00-T04):
+     - `test_mobile_api_contract.py`: 32/32 tests passed.
+     - `test_targeted_analysis.py`: 4/4 tests passed.
+     - `test/core/router_test.dart`: 21/21 tests passed.
+     - Documented known legacy test failures: 7 Restyle CPU failures in `the app/` (requiring GPU) and 12 legacy failures in `mobile/` (`_baseline.md`) in `docs/validation/baseline/BASELINE_TEST_REPORT.md`.
+  4. SQLCipher, Pinned TLS & Streaming Backup Spike (P00-T05):
+     - Validated `net.zetetic:sqlcipher-android` for encrypted SQLite matching Schema v20.
+     - Validated OkHttp 4.12.0 DER certificate pinning and redirect rejection.
+     - Verified `BackupCipher.java` AGBAK02 streaming compatibility (PBKDF2WithHmacSHA256, 1 MiB AES-GCM chunks) in `docs/validation/baseline/SPIKE_FINDINGS.md`.
+  5. UI/UX Baseline & Feature Placement Map (P00-T06):
+     - Created `docs/validation/ui-baseline/UI_BASELINE_AND_INTEGRATION_MAP.md` mapping:
+       - Explore Hub -> Internal sub-screen via Gallery tools icon + contextual viewer actions.
+       - Studio Hub -> Internal sub-screen via Gallery tools icon + contextual Reface/Restyle viewer actions.
+       - LoRA Curation -> Directly from Person Detail overflow menu ("Train Character LoRA (تحديد ذكي)") to auto-curation review.
+       - Activity Center -> Discrete top app bar status indicator navigating to full Activity Center.
+       - PC Connection -> Settings "Computer & AI Pairing" section.
+       - Mobile Data Import -> Settings Backup "Import from Antigravity Mobile (`.agbackup`)".
+       - Disclosed absence of physical/virtual devices on `adb devices` during baseline measurement.
+- Verification & Quality:
+  - Backend validation: `the app/mobile_api/contract/validate_contract.py` PASS (all 73 refs, 71 schemas, 22 paths, 60 fixtures).
+  - Backend contract suite: `the app/test_mobile_api_contract.py` (32/32 PASS), `the app/test_targeted_analysis.py` (4/4 PASS).
+  - Mobile Flutter router suite: `mobile/test/core/router_test.dart` (21/21 PASS).
+  - Target Face Gallery: `./gradlew.bat testDebugUnitTest --tests "com.facegallery.data.media.FolderNameSanitizerTest"` verified.
+  - Phase P00 closed; ready for Phase P01 (Encrypted Database & FileStore).
+
+
 ## Route Malformation Fix in LoRA Curation Navigation — 2026-11-03
 
 - User Request:
@@ -109,6 +149,46 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P00 (Baseline, Architectural Alignment & Contract Closure) Completed — 2026-11-08
+
+- User Request:
+  - Start execution of the Mobile Parity Plan (13 phases, 72 tasks, 206 features), beginning with Phase P00 and P00-T06.
+  - Strictly preserve and enhance Face Gallery's native Kotlin/Compose UI/UX (AppBottomBar: Gallery, People, Characters conditional, Review, Settings; Iris/Amber theme, 48dp touch targets) while porting all mobile features and logic. Target is confirmed empty of user data.
+- Architecture & Alignments (`the app/` & `face gallary`):
+  1. PC-Assisted LAN Architecture & UI/UX Preservation Recorded (P00-T02):
+     - Updated `D:\test\face gallary\CLAUDE.md`: removed outdated "fully offline / no INTERNET" constraints, documented local PC-assisted LAN architecture via Mobile API (`the app/mobile_api`), offline-first browsing, and confirmed target contains no user data.
+     - Appended Decision `D-133` in `D:\test\face gallary\docs\DECISIONS.md`: formalizing PC-assisted AI over pinned DER TLS, transition from ObjectBox to SQLCipher (Schema v20, 47 tables), and strict preservation of Face Gallery's 5 top destinations, theme tokens, and 48dp touch targets.
+  2. OpenAPI Targeted Route & Contract Fixtures Completed (P00-T03):
+     - Added `POST /v1/analyze/targeted` endpoint to `the app/mobile_api/contract/openapi.yaml`.
+     - Added `TargetedDetectionItem` and `TargetedAnalysisResponse` schemas and fixtures (`TargetedAnalysisResponse.body.json`, `TargetedAnalysisResponse.area.json`).
+     - Updated `the app/mobile_api/contract/validate_contract.py`: passes all checks with 73 refs, 71 schemas, 22 paths, 60 fixtures, and negative checks.
+     - Updated `inventory/api-endpoints.csv` confirming 25/25 operations in checked-in OpenAPI.
+  3. Original Baseline Testing & Evidence (P00-T04):
+     - `test_mobile_api_contract.py`: 32/32 tests passed.
+     - `test_targeted_analysis.py`: 4/4 tests passed.
+     - `test/core/router_test.dart`: 21/21 tests passed.
+     - Documented known legacy test failures: 7 Restyle CPU failures in `the app/` (requiring GPU) and 12 legacy failures in `mobile/` (`_baseline.md`) in `docs/validation/baseline/BASELINE_TEST_REPORT.md`.
+  4. SQLCipher, Pinned TLS & Streaming Backup Spike (P00-T05):
+     - Validated `net.zetetic:sqlcipher-android` for encrypted SQLite matching Schema v20.
+     - Validated OkHttp 4.12.0 DER certificate pinning and redirect rejection.
+     - Verified `BackupCipher.java` AGBAK02 streaming compatibility (PBKDF2WithHmacSHA256, 1 MiB AES-GCM chunks) in `docs/validation/baseline/SPIKE_FINDINGS.md`.
+  5. UI/UX Baseline & Feature Placement Map (P00-T06):
+     - Created `docs/validation/ui-baseline/UI_BASELINE_AND_INTEGRATION_MAP.md` mapping:
+       - Explore Hub -> Internal sub-screen via Gallery tools icon + contextual viewer actions.
+       - Studio Hub -> Internal sub-screen via Gallery tools icon + contextual Reface/Restyle viewer actions.
+       - LoRA Curation -> Directly from Person Detail overflow menu ("Train Character LoRA (تحديد ذكي)") to auto-curation review.
+       - Activity Center -> Discrete top app bar status indicator navigating to full Activity Center.
+       - PC Connection -> Settings "Computer & AI Pairing" section.
+       - Mobile Data Import -> Settings Backup "Import from Antigravity Mobile (`.agbackup`)".
+       - Disclosed absence of physical/virtual devices on `adb devices` during baseline measurement.
+- Verification & Quality:
+  - Backend validation: `the app/mobile_api/contract/validate_contract.py` PASS (all 73 refs, 71 schemas, 22 paths, 60 fixtures).
+  - Backend contract suite: `the app/test_mobile_api_contract.py` (32/32 PASS), `the app/test_targeted_analysis.py` (4/4 PASS).
+  - Mobile Flutter router suite: `mobile/test/core/router_test.dart` (21/21 PASS).
+  - Target Face Gallery: `./gradlew.bat testDebugUnitTest --tests "com.facegallery.data.media.FolderNameSanitizerTest"` verified.
+  - Phase P00 closed; ready for Phase P01 (Encrypted Database & FileStore).
 
 
 ## Route Malformation Fix in LoRA Curation Navigation — 2026-11-03

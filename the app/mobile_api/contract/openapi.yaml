@@ -335,6 +335,44 @@ paths:
         '413': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
 
+  /v1/analyze/targeted:
+    post:
+      summary: On-demand targeted detection for bodies, areas, faces, and objects
+      description: |
+        High-accuracy / native-resolution detection for a specific target kind.
+        Returns precise bboxes and optional outlines or keypoints.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image, target_kind]
+              properties:
+                image: { type: string, format: binary }
+                target_kind:
+                  type: string
+                  enum: [area, body, face, object]
+                roi:
+                  type: string
+                  description: Optional JSON-encoded ROI {x, y, w, h}
+                prompt:
+                  type: string
+                  description: Optional prompt for text-grounded objects
+                high_res:
+                  type: boolean
+                  default: true
+      responses:
+        "200":
+          description: Targeted detections
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TargetedAnalysisResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
   /v1/actions/match:
     post:
       summary: Stateless CPU ranking of sampled photo configurations or video pose sequences
@@ -964,6 +1002,41 @@ components:
                   y: { type: number, minimum: 0, maximum: 1 }
                   w: { type: number, exclusiveMinimum: 0, maximum: 1 }
                   h: { type: number, exclusiveMinimum: 0, maximum: 1 }
+
+    TargetedDetectionItem:
+      type: object
+      required: [bbox, score, label]
+      properties:
+        bbox: { $ref: "#/components/schemas/BBox" }
+        score: { type: number, minimum: 0, maximum: 1 }
+        label: { type: string }
+        outline:
+          description: Contour coordinates as list of [x, y] points
+          type: [array, "null"]
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items: { type: number }
+        keypoints:
+          description: Keypoints as list of [x, y, score] triples
+          type: [array, "null"]
+          items:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items: { type: number }
+
+    TargetedAnalysisResponse:
+      type: object
+      required: [target_kind, detections]
+      properties:
+        target_kind:
+          type: string
+          enum: [area, body, face, object]
+        detections:
+          type: array
+          items: { $ref: "#/components/schemas/TargetedDetectionItem" }
 
     KindOverride:
       type: object

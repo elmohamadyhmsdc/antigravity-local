@@ -84,7 +84,7 @@ check(not bad_schemas, f"all {len(SCHEMAS)} component schemas are valid JSON Sch
 
 paths = SPEC["paths"]
 for needed in ("/v1/health", "/v1/capabilities", "/v1/pair/complete", "/v1/blobs/{sha256}", "/v1/analyze/image",
-               "/v1/analyze/outlines",
+               "/v1/analyze/outlines", "/v1/analyze/targeted",
                "/v1/grouping/plan", "/v1/jobs", "/v1/jobs/{job_id}", "/v1/jobs/{job_id}/events",
                "/v1/jobs/{job_id}/stop", "/v1/jobs/{job_id}/resume", "/v1/jobs/{job_id}/result",
                "/v1/jobs/{job_id}/result/{name}"):
@@ -173,6 +173,7 @@ must_fail("AnalyzeImageResponse", "character_no_face", lambda d: d["characters"]
           "a human embedding model in a character detection")
 must_fail("AnalyzeOutlinesResponse", "two_targets", lambda d: d["outlines"].append([[1.0, 2.0]]),
           "an outline with only 1 point")
+must_fail("TargetedAnalysisResponse", "body", lambda d: d.__setitem__("target_kind", "invalid"), "an unknown targeted kind")
 must_fail("OutlineTarget", "face", lambda d: d.__setitem__("kind", "z"), "an unknown target kind")
 must_fail("SensitiveRegion", "chest", lambda d: d.__setitem__("score", 1.5), "a sensitive region score above 1")
 must_fail("SensitiveRegion", "chest", lambda d: d.pop("body_index"), "a sensitive region without body_index")
