@@ -83,7 +83,11 @@ void main() {
         reason: 'worst first',
       );
       expect((await review.counts()).doubtful, 2);
-      expect((await review.counts()).total, 2);
+      expect(
+        (await review.counts()).total,
+        1,
+        reason: 'one repair batch, not two per-face decisions',
+      );
     },
   );
 
@@ -299,4 +303,34 @@ void main() {
 
     await expectLater(DoubtAudit(db).run(), completes);
   });
+  test(
+    'a confirmed profile rescues that view from a frontal majority',
+    () async {
+      final p = await named('Sara');
+      final fronts = await faces(p, sara, 8);
+      final profile = await seedFace(db, personId: p, embedding: stranger);
+      final sameProfile = await seedFace(
+        db,
+        personId: p,
+        embedding: around(stranger, 0.15),
+      );
+      await people.confirmFaces([fronts[0], fronts[1], profile], p);
+      await DoubtAudit(db).run();
+      final flagged = (await review.doubtful())
+          .expand((q) => q.faces)
+          .map((f) => f.faceId);
+      expect(flagged, isNot(contains(sameProfile)));
+    },
+  );
+
+  test(
+    'blur and invalid vectors are unknown evidence, not wrong-identity tasks',
+    () async {
+      final p = await named('Sara');
+      await faces(p, sara, 8);
+      await seedFace(db, personId: p, quality: 0.2, embedding: stranger);
+      await seedFace(db, personId: p, embedding: Float32List(512));
+      expect((await DoubtAudit(db).run()).faces, 0);
+    },
+  );
 }

@@ -50,6 +50,7 @@ class ReviewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final sorting = ref.watch(manualSortRunningProvider);
     final counts =
         ref.watch(reviewCountsByKindProvider(kind)).value ??
         const ReviewCounts();
@@ -74,9 +75,14 @@ class ReviewScreen extends ConsumerWidget {
             ),
             IconButton(
               key: const Key('review-sort-now'),
-              tooltip: l10n.sortNow,
-              icon: const Icon(Icons.auto_fix_high),
-              onPressed: () => sortNow(context, ref),
+              tooltip: sorting ? l10n.sorting : l10n.sortNow,
+              icon: sorting
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_fix_high),
+              onPressed: sorting ? null : () => sortNow(context, ref),
             ),
           ],
           bottom: TabBar(
@@ -225,32 +231,46 @@ class _CompactVideosBannerState extends ConsumerState<_CompactVideosBanner> {
   }
 }
 
-/// Runs the three grouping rounds now (also behind "Sort now" in Settings).
+class ManualSortRunning extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  bool begin() {
+    if (state) return false;
+    state = true;
+    return true;
+  }
+
+  void finish() => state = false;
+}
+
+final manualSortRunningProvider = NotifierProvider<ManualSortRunning, bool>(
+  ManualSortRunning.new,
+);
+
+/// Runs grouping now (also behind "Sort now" in Settings).
 Future<void> sortNow(BuildContext context, WidgetRef ref) async {
   final l10n = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
-  messenger.showSnackBar(
-    SnackBar(content: Text(l10n.sorting), duration: const Duration(seconds: 2)),
-  );
+  final status = ref.read(manualSortRunningProvider.notifier);
+  if (!status.begin()) return;
+  var message = l10n.sortFailed;
   try {
     final run = await ref.read(groupingRunnerProvider).run();
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            run.skipped
-                ? l10n.sortNeedsPc
-                : l10n.sortDone(run.assigned, run.newPeople, run.review.total),
-          ),
-        ),
-      );
+    message = run.skipped
+        ? l10n.sortNeedsPc
+        : l10n.sortDone(run.assigned, run.newPeople, run.review.total);
   } on ApiException catch (e) {
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(e.isGpuBusy ? l10n.gpuBusyMessage : e.message)),
-      );
+    message = e.isGpuBusy ? l10n.gpuBusyMessage : e.message;
+  } catch (e) {
+    debugPrint('Sort now failed (${e.runtimeType}).');
+  } finally {
+    status.finish();
+    if (messenger.mounted) {
+      messenger
+        ..removeCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 }
 

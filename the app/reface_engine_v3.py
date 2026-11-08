@@ -187,21 +187,24 @@ class RefaceEngineV3(RefaceEngine):
         swapper: str = "auto",                    # "auto" | a face_swappers.SWAPPERS name
         occluders: Optional[List[str]] = None,    # None -> face_masking.DEFAULT_OCCLUDERS
     ):
-        super().__init__(output_dir=output_dir, enable_enhancement=False, upscale=1)
-
-        # The base class always loads insightface's inswapper_128. A different
-        # swapper replaces it (and frees it); both answer the same .get() call.
-        self.swapper_name = "inswapper_128"
         wanted = resolve_swapper_name(swapper)
+        super().__init__(output_dir=output_dir, enable_enhancement=False, upscale=1,
+                         load_inswapper=wanted == "inswapper_128")
+
+        # Load only the selected swapper. INSwapper remains the fallback when
+        # an alternative is unavailable or fails to initialize.
+        self.swapper_name = "inswapper_128"
         if wanted != "inswapper_128":
             try:
                 alt = load_swapper(wanted, self.providers)
             except Exception as e:
-                print(f"[V3] swapper '{wanted}' failed to load ({e}); keeping inswapper_128")
+                print(f"[V3] swapper '{wanted}' failed to load ({e}); falling back to inswapper_128")
                 alt = None
             if alt is not None:
                 self.swapper = alt
                 self.swapper_name = wanted
+            else:
+                self.swapper = self._load_inswapper()
 
         self.restore_size = int(restore_size)
         self.use_parser = use_parser

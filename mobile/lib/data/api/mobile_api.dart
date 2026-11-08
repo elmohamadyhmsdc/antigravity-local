@@ -712,7 +712,7 @@ class HttpMobileApi
   @override
   Future<GroupingPlanResponse> groupingPlan(GroupingPlanRequest request) async {
     // base64 + JSON + gzip of a few thousand embeddings is real work: keep it off the UI isolate
-    final body = await Isolate.run(request.encodeGzip);
+    final body = await _guard(() => Isolate.run(request.encodeGzip));
     return _guard(() async {
       final response = await _dio.post(
         '/v1/grouping/plan',

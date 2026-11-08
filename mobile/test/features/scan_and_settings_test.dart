@@ -1,7 +1,11 @@
 // S05 Sources & scan (progress card, album picker), S24 Settings (library part), S26 Backup and the
 // new Home tiles.
 
+import 'dart:async';
+
 import 'package:antigravity_mobile/app.dart';
+import 'package:antigravity_mobile/data/api/api_exception.dart';
+import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:antigravity_mobile/domain/scan/scan_state.dart';
@@ -366,6 +370,57 @@ void main() {
   });
 
   group('S24 Settings', () {
+    appTest(
+      'Sort now stays visible while the PC works and can retry after a failed request',
+      (tester, env) async {
+        final person = await seedPerson(env.db);
+        final face = await seedFace(env.db);
+        final pending = Completer<GroupingPlanResponse>();
+        env.api.groupingHandler = (_) => pending.future;
+        await _open(tester, env, '/settings/library');
+        await _openSection(tester, 'library-maintenance-section');
+        final button = find.byKey(const Key('settings-sort-now'));
+        await revealForTap(tester, button);
+        await tester.tap(button);
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 3));
+        expect(tester.widget<ListTile>(button).onTap, isNull);
+        expect(
+          find.descendant(of: button, matching: find.text('Sorting faces…')),
+          findsOneWidget,
+        );
+        expect(env.api.groupingCalls, isNotEmpty);
+
+        env.api.groupingHandler = (request) => GroupingPlanResponse(
+          mode: request.mode,
+          assignments: [
+            if (request.mode == 'apply' &&
+                request.pending.any((f) => f.id == face))
+              FaceAssignment(
+                faceId: face,
+                personId: person,
+                score: 0.9,
+                margin: 0.5,
+                decision: 'auto',
+              ),
+          ],
+        );
+        pending.completeError(ApiException.timeout());
+        await _settle(tester);
+        expect(find.text('The PC did not answer in time.'), findsOneWidget);
+        expect(tester.widget<ListTile>(button).onTap, isNotNull);
+
+        await tester.tap(button);
+        await _settle(tester);
+        expect(find.textContaining('Added 1 faces'), findsOneWidget);
+        expect(
+          (await env.db.select(env.db.faces).get()).single.personId,
+          person,
+        );
+      },
+      session: testSession,
+    );
+
     for (final scanning in [false, true]) {
       appTest(
         'missing outlines are counted and retry respects an active scan ($scanning)',

@@ -88,6 +88,38 @@ void main() {
   Future<List<FaceRow>> faces() => db.select(db.faces).get();
   Future<List<BodyRow>> bodies() => db.select(db.bodies).get();
 
+  test('rescans cannot restore a body rejected from a face owner', () async {
+    final m = await photo('rejected-body');
+    final owner = await person('Owner');
+    final face = (await faces()).single;
+    final body = (await bodies()).single;
+    await (db.update(db.faces)..where((f) => f.id.equals(face.id))).write(
+      FacesCompanion(personId: Value(owner)),
+    );
+    await (db.update(db.bodies)..where((b) => b.id.equals(body.id))).write(
+      const BodiesCompanion(faceId: Value(null)),
+    );
+    await db
+        .into(db.bodyRejections)
+        .insert(
+          BodyRejectionsCompanion.insert(bodyId: body.id, personId: owner),
+        );
+
+    final result = AnalyzeImageResponse.fromJson(response());
+    await store.store(m, result);
+    expect((await bodies()).single.faceId, isNull);
+
+    api.analyzeResult = result;
+    await redetector.photo(m.id, RedetectPart.both);
+    final replaced = (await bodies()).single;
+    expect(replaced.faceId, isNull);
+    expect((await faces()).single.personId, owner);
+    expect(
+      (await db.select(db.bodyRejections).get()).single.bodyId,
+      replaced.id,
+    );
+  });
+
   test(
     'faces and bodies are replaced; names and decisions follow the new box',
     () async {

@@ -51,6 +51,7 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
     final illustrated = settings.characterAlbumIds.toSet();
     final gate = _gateDraft ?? settings.qualityGate;
     final insightsAsync = ref.watch(insightsProvider);
+    final sorting = ref.watch(manualSortRunningProvider);
 
     String strictnessHint(String s) => switch (s) {
       'strict' => l10n.strictnessStrictHint,
@@ -383,10 +384,15 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
               ListTile(
                 key: const Key('settings-sort-now'),
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.auto_fix_high),
+                leading: sorting
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_fix_high),
                 title: Text(l10n.sortNow),
-                subtitle: Text(l10n.sortNowHint),
-                onTap: () => sortNow(context, ref),
+                subtitle: Text(sorting ? l10n.sorting : l10n.sortNowHint),
+                onTap: sorting ? null : () => sortNow(context, ref),
               ),
               ListTile(
                 key: const Key('settings-clean-background'),

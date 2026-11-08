@@ -1664,7 +1664,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sortName => 'Name';
 
   @override
-  String get sortNeedsPc => 'Pair with your PC to sort faces.';
+  String get sortNeedsPc =>
+      'Existing people were checked on this phone. Pair with your PC to sort new faces.';
 
   @override
   String get sortNewest => 'Newest';
@@ -1675,6 +1676,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sortNowHint =>
       'Ask the PC to sort unsorted faces into people again';
+
+  @override
+  String get sortFailed => 'Could not sort the library. Try Sort now again.';
 
   @override
   String get sorting => 'Sorting faces…';
@@ -4249,4 +4253,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get discoveryBent => 'Bent';
+
+  @override
+  String reviewDeferred(int count) {
+    return '$count suggestions remain in detailed review, including uncertain or postponed items.';
+  }
+
+  @override
+  String get reviewSessionDone => 'Review session complete';
+
+  @override
+  String reviewSessionRemaining(int count) {
+    return '$count grouped decisions remain. You can continue whenever you like.';
+  }
+
+  @override
+  String get reviewNextSession => 'Review next 20';
+
+  @override
+  String reviewBatchQuestion(String name, int count) {
+    return 'Do these $count appearances belong to $name?';
+  }
 }

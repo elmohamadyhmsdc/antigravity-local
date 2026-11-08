@@ -425,7 +425,16 @@ class PhotoResultStore {
             updates: {_db.bodyPoseFeatures},
           );
           await _db.customUpdate(
-            'UPDATE bodies SET score = ?, extent = ?, kpts = ?, appearance = ?, face_id = COALESCE(face_id, ?), chest_embedding = COALESCE(?, chest_embedding), buttocks_embedding = COALESCE(?, buttocks_embedding), morphology = COALESCE(?, morphology) WHERE id = ?',
+            '''
+            UPDATE bodies SET score = ?, extent = ?, kpts = ?, appearance = ?,
+              face_id = COALESCE(face_id, CASE WHEN link_method = 'manual' OR EXISTS (
+                SELECT 1 FROM body_rejections r JOIN faces f ON f.person_id = r.person_id
+                WHERE r.body_id = bodies.id AND f.id = ?5
+              ) THEN NULL ELSE ?5 END),
+              chest_embedding = COALESCE(?, chest_embedding),
+              buttocks_embedding = COALESCE(?, buttocks_embedding),
+              morphology = COALESCE(?, morphology) WHERE id = ?
+            ''',
             variables: [
               Variable.withReal(body.score),
               Variable<String>(body.extent),

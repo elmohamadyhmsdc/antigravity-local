@@ -15,12 +15,16 @@ class ReviewMatchFace {
     required this.cropPath,
     required this.score,
     required this.decision,
+    this.margin = 0.1,
+    this.quality = 1,
   });
 
   final int faceId;
   final String? cropPath;
   final double score;
   final String decision; // auto | suggest
+  final double margin;
+  final double quality;
 }
 
 /// "These faces look like Sara" - the Matches tab.
@@ -138,6 +142,7 @@ class ReviewCounts {
     this.duplicates = 0,
     this.bodyLinks = 0,
     this.doubtful = 0,
+    this.decisions,
   });
 
   final int matches; // faces
@@ -145,9 +150,11 @@ class ReviewCounts {
   final int duplicates;
   final int bodyLinks;
   final int doubtful; // faces on a person that the audit doubts
+  final int? decisions;
 
   /// "N need a decision".
-  int get total => matches + groups + duplicates + bodyLinks + doubtful;
+  int get total => decisions ?? rawTotal;
+  int get rawTotal => matches + groups + duplicates + bodyLinks + doubtful;
 
   @override
   bool operator ==(Object other) =>
@@ -156,11 +163,12 @@ class ReviewCounts {
       other.groups == groups &&
       other.duplicates == duplicates &&
       other.bodyLinks == bodyLinks &&
-      other.doubtful == doubtful;
+      other.doubtful == doubtful &&
+      other.decisions == decisions;
 
   @override
   int get hashCode =>
-      Object.hash(matches, groups, duplicates, bodyLinks, doubtful);
+      Object.hash(matches, groups, duplicates, bodyLinks, doubtful, decisions);
 }
 
 /// The PC's last review plan (round 3 of the grouping run), kept on the phone.
@@ -323,71 +331,17 @@ class ReviewRepository {
 
   // ---- reading --------------------------------------------------------------------
 
-  /// A video track is one question: counts, cards and decisions all treat it as a single face.
+  /// Counts describe the same grouped, actionable questions shown by quick
+  /// review. Raw tab counts remain available for inspecting deferred evidence.
   Future<ReviewCounts> counts() async {
-    final matches =
-        (await _db
-                .customSelect(
-                  "SELECT COUNT(DISTINCT m.person_id || ':' || COALESCE(f.track_id, -f.id)) AS n FROM review_matches m JOIN faces f ON f.id = m.face_id WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND f.kind = ? AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)",
-                  variables: [Variable.withString(kind)],
-                  readsFrom: {_db.reviewMatches, _db.faces, _db.faceRejections},
-                )
-                .getSingle())
-            .read<int>('n');
-    final groups = (await groupItems()).length;
-    final duplicates =
-        (await _db
-                .customSelect(
-                  'SELECT COUNT(*) AS n FROM review_duplicates d JOIN persons pa ON pa.id = d.person_a WHERE pa.kind = ? AND NOT EXISTS (SELECT 1 FROM person_distinct p WHERE p.person_a = d.person_a AND p.person_b = d.person_b)',
-                  variables: [Variable.withString(kind)],
-                  readsFrom: {
-                    _db.reviewDuplicates,
-                    _db.personDistinct,
-                    _db.persons,
-                  },
-                )
-                .getSingle())
-            .read<int>('n');
-    final links =
-        (await _db
-                .customSelect(
-                  '''
-          SELECT COUNT(DISTINCT l.person_id || ':' || COALESCE(b.track_id, -b.id)) AS n
-          FROM review_body_links l JOIN bodies b ON b.id = l.body_id
-          LEFT JOIN faces f ON f.id = b.face_id
-          WHERE f.person_id IS NULL AND b.person_id IS NULL AND b.kind = ?
-            AND l.method NOT IN ('appearance', 'event_outfit')
-            AND b.hidden = 0 AND (b.ownership IS NULL OR b.ownership != 'none')
-            AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = l.person_id)
-          ''',
-                  variables: [Variable.withString(kind)],
-                  readsFrom: {_db.reviewBodyLinks, _db.bodies, _db.faces},
-                )
-                .getSingle())
-            .read<int>('n');
-    final doubtful =
-        (await _db
-                .customSelect(
-                  '''
-          SELECT COUNT(*) AS n FROM review_doubtful d JOIN faces f ON f.id = d.face_id
-          WHERE f.person_id = d.person_id AND f.hidden = 0 AND f.kind = ?
-            AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = f.id AND c.person_id = f.person_id)
-          ''',
-                  variables: [Variable.withString(kind)],
-                  readsFrom: {
-                    _db.reviewDoubtful,
-                    _db.faces,
-                    _db.faceConfirmations,
-                  },
-                )
-                .getSingle())
-            .read<int>('n');
+    final lists = await _readLists();
     return ReviewCounts(
-      matches: matches,
-      groups: groups,
-      duplicates: duplicates,
-      bodyLinks: links,
-      doubtful: doubtful,
+      matches: lists.matches.fold(0, (n, g) => n + g.faces.length),
+      groups: lists.groups.length,
+      duplicates: lists.duplicates.length,
+      bodyLinks: lists.outfits.length,
+      doubtful: lists.doubtful.fold(0, (n, g) => n + g.faces.length),
+      decisions: _questionsFrom(lists).length,
     );
   }
 
@@ -406,9 +360,11 @@ class ReviewRepository {
     final rows = await _db
         .customSelect(
           '''
-          SELECT m.face_id, m.person_id, m.score, m.decision, f.crop_path, f.track_id
+          SELECT m.face_id, m.person_id, m.score, m.margin, m.decision, f.quality_score, f.crop_path, f.track_id
           FROM review_matches m JOIN faces f ON f.id = m.face_id
           WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND f.kind = ?
+            AND f.hidden = 0 AND (f.ownership IS NULL OR f.ownership != 'none')
+            AND EXISTS (SELECT 1 FROM persons p WHERE p.id = m.person_id AND p.hidden = 0 AND p.grouping_locked = 0)
             AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)
           ORDER BY m.person_id, m.score DESC
           ''',
@@ -432,6 +388,8 @@ class ReviewRepository {
               cropPath: r.readNullable<String>('crop_path'),
               score: r.read<double>('score'),
               decision: r.read<String>('decision'),
+              margin: r.read<double>('margin'),
+              quality: r.read<double>('quality_score'),
             ),
           );
     }
@@ -459,7 +417,7 @@ class ReviewRepository {
         .expand((r) => PeopleRepository.decodeFaceIds(r.faceIds))
         .toSet();
     for (final f in await _people.facesByIds(all)) {
-      if (f.personId == null && !f.dismissed) {
+      if (f.personId == null && !f.dismissed && !f.hidden) {
         faces[f.id] = ReviewGroupFace(
           faceId: f.id,
           cropPath: f.cropPath,
@@ -662,7 +620,11 @@ class ReviewRepository {
     int personId, {
     Map<int, int> moveTo = const {},
   }) => _db.transaction(() async {
-    final ids = faceIds.toList();
+    final requested = faceIds.toSet();
+    final ids = [
+      for (final f in await _people.facesByIds(requested))
+        if (f.personId == personId) f.id,
+    ];
     await _people.rejectFaces(ids, fromPersonId: personId);
     final byTarget = <int, List<int>>{};
     for (final id in ids) {
@@ -672,7 +634,10 @@ class ReviewRepository {
       }
     }
     for (final e in byTarget.entries) {
-      await _people.assignFaces(e.value, e.key);
+      final target = await _people.person(e.key);
+      if (target != null && target.kind == kind) {
+        await _people.assignFaces(e.value, e.key);
+      }
     }
   });
 
@@ -685,7 +650,14 @@ class ReviewRepository {
 
   /// One question at a time for the quick review: everything the tabs show, minus "Not sure"
   /// answers that no new evidence has reopened.
-  Future<List<ReviewQuestion>> questions() async => buildQuestions(
+  Future<_ReviewLists>? _reading;
+
+  // Counts and cards often subscribe together. Share in-flight reads rather
+  // than loading an 18000-item backlog twice. Never retain a stale snapshot.
+  Future<_ReviewLists> _readLists() =>
+      _reading ??= _loadLists().whenComplete(() => _reading = null);
+
+  Future<_ReviewLists> _loadLists() async => (
     matches: await matches(),
     groups: await groupItems(),
     duplicates: await duplicates(),
@@ -694,28 +666,104 @@ class ReviewRepository {
     snoozes: await _snoozes(),
   );
 
+  List<ReviewQuestion> _questionsFrom(
+    _ReviewLists lists, {
+    bool includeDeferred = false,
+  }) => buildQuestions(
+    matches: lists.matches,
+    groups: lists.groups,
+    duplicates: lists.duplicates,
+    outfits: lists.outfits,
+    doubtful: lists.doubtful,
+    snoozes: lists.snoozes,
+    includeDeferred: includeDeferred,
+  );
+
+  Future<List<ReviewQuestion>> questions({
+    bool includeDeferred = false,
+  }) async =>
+      _questionsFrom(await _readLists(), includeDeferred: includeDeferred);
+
   Stream<List<ReviewQuestion>> watchQuestions() async* {
     yield await questions();
     yield* _changes().asyncMap((_) => questions());
   }
 
-  /// "Not sure": park the question on this phone until its score or its faces grow.
-  Future<void> snooze(ReviewQuestion q) => _db
-      .into(_db.reviewSnoozes)
-      .insertOnConflictUpdate(
-        ReviewSnoozesCompanion.insert(
-          questionKey: q.key,
-          score: q.score,
-          evidence: q.evidence,
-          snoozedAt: DateTime.now().millisecondsSinceEpoch,
-        ),
-      );
+  // Park the actual members, so regrouping cannot bring the same unresolved
+  // matches back under a different batch key. Undo uses the same members.
+  List<ReviewQuestion> _snoozeEntries(ReviewQuestion q) => q.isMatchBatch
+      ? [for (final f in q.matchFaces) ReviewQuestion.match(q.match!, f)]
+      : [q];
 
-  Future<void> unsnooze(String key) => (_db.delete(
-    _db.reviewSnoozes,
-  )..where((s) => s.questionKey.equals(key))).go();
+  /// "Not sure": park the question on this phone until its score or its faces grow.
+  Future<void> snooze(ReviewQuestion q) => _db.transaction(() async {
+    for (final entry in _snoozeEntries(q)) {
+      await _db
+          .into(_db.reviewSnoozes)
+          .insertOnConflictUpdate(
+            ReviewSnoozesCompanion.insert(
+              questionKey: entry.key,
+              score: entry.score,
+              evidence: entry.evidence,
+              snoozedAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+    }
+  });
+
+  Future<void> unsnooze(ReviewQuestion q) =>
+      (_db.delete(_db.reviewSnoozes)..where(
+            (s) =>
+                s.questionKey.isIn(_snoozeEntries(q).map((entry) => entry.key)),
+          ))
+          .go();
 
   // ---- decisions ------------------------------------------------------------------
+
+  /// Applies only the visible batch. A stale card never moves a face the user
+  /// has assigned elsewhere in the meantime. Selected exceptions are rejected.
+  Future<void> answerMatchBatch(
+    List<int> faceIds,
+    int personId, {
+    Set<int> excluded = const {},
+  }) => _db.transaction(() async {
+    final target = await _people.person(personId);
+    if (target == null ||
+        target.kind != kind ||
+        target.hidden ||
+        target.groupingLocked) {
+      return;
+    }
+    final rejected = {
+      for (final r
+          in await (_db.select(_db.faceRejections)..where(
+                (r) => r.faceId.isIn(faceIds) & r.personId.equals(personId),
+              ))
+              .get())
+        r.faceId,
+    };
+    final current =
+        await (_db.select(_db.faces)..where(
+              (f) =>
+                  f.id.isIn(faceIds) &
+                  f.personId.isNull() &
+                  f.hidden.not() &
+                  f.reviewDismissed.not() &
+                  f.kind.equals(kind),
+            ))
+            .get();
+    final eligible = current
+        .where((f) => f.ownership != 'none' && !rejected.contains(f.id))
+        .map((f) => f.id)
+        .toSet();
+    // Never expand across a selected exception sharing a track with a kept face.
+    final keep = eligible.difference(excluded);
+    final reject = eligible.intersection(excluded);
+    if (reject.isNotEmpty) {
+      await _people.rejectFaces(reject, fromPersonId: personId);
+    }
+    if (keep.isNotEmpty) await _people.assignFaces(keep, personId);
+  });
 
   /// "Add these faces to the person" for a whole Matches card.
   Future<void> acceptMatches(Iterable<int> faceIds, int personId) async =>
@@ -868,3 +916,12 @@ class ReviewRepository {
       r.read<int>('id'),
   ];
 }
+
+typedef _ReviewLists = ({
+  List<ReviewMatchGroup> matches,
+  List<ReviewGroupItem> groups,
+  List<ReviewDuplicateItem> duplicates,
+  List<ReviewBodyLinkItem> outfits,
+  List<ReviewDoubtfulItem> doubtful,
+  Map<String, ReviewSnooze> snoozes,
+});

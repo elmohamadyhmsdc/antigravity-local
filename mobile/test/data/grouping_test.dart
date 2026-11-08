@@ -177,6 +177,37 @@ void main() {
       db = AppDatabase(NativeDatabase.memory());
       inputs = GroupingInputs(db);
     });
+
+    test(
+      'invalid stored body features do not break grouping for the library',
+      () async {
+        await seedBody(db, appearance: [1, 2], weakFace: Float32List(1));
+        final valid = await seedBody(db, appearance: outfit(1));
+        final wrongWeak = await seedBody(
+          db,
+          appearance: outfit(2),
+          weakFace: Float32List(768),
+        );
+        final wrongOutfit = await seedBody(
+          db,
+          appearance: List.filled(80, double.nan),
+          weakFace: unitVec(4),
+        );
+        final request = await inputs.request(
+          mode: 'review',
+          stages: ['bodies'],
+          strictness: 'balanced',
+        );
+        final bodies = {for (final body in request.bodies) body.id: body};
+        expect(bodies.keys, unorderedEquals([valid, wrongWeak, wrongOutfit]));
+        expect(bodies[wrongWeak]!.weakFaceEmbedding, isNull);
+        expect(bodies[wrongOutfit]!.appearance, isNull);
+        expect(
+          jsonDecode(utf8.decode(gzip.decode(request.encodeGzip()))),
+          request.toJson(),
+        );
+      },
+    );
     tearDown(() => db.close());
 
     test(

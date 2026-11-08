@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -131,7 +132,8 @@ class FakeMobileApi implements MobileApi {
 
   final groupingCalls = <GroupingPlanRequest>[];
   ApiException? groupingError;
-  GroupingPlanResponse Function(GroupingPlanRequest request)? groupingHandler;
+  FutureOr<GroupingPlanResponse> Function(GroupingPlanRequest request)?
+  groupingHandler;
 
   @override
   Future<Capabilities> capabilities() async {

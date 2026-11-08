@@ -18,6 +18,7 @@ from typing import Callable
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
+from starlette.requests import ClientDisconnect
 
 import grouping_core
 
@@ -28,33 +29,31 @@ log = logging.getLogger("mobile_api")
 GZIP_RESPONSE_MIN_BYTES = 1024
 
 
-async def read_limited_body(request: Request, max_wire_bytes: int, max_json_bytes: int) -> bytes:
+async def read_limited_body(request: Request, max_wire_bytes: int, max_json_bytes: int) -> bytearray:
     """The request body, inflated if it is gzip, never holding more than the limits allow."""
     declared = request.headers.get("content-length")
     if declared is not None and declared.isdigit() and int(declared) > max_wire_bytes:
         raise ApiError(413, "too_large", "The grouping request is larger than the server accepts.")
-    wire = bytearray()
-    async for chunk in request.stream():
-        wire.extend(chunk)
-        if len(wire) > max_wire_bytes:
-            raise ApiError(413, "too_large", "The grouping request is larger than the server accepts.")
     encoding = request.headers.get("content-encoding", "identity").strip().lower()
-    if encoding in ("", "identity"):
-        if len(wire) > max_json_bytes:
-            raise ApiError(413, "too_large", "The grouping request is larger than the server accepts.")
-        return bytes(wire)
-    if encoding != "gzip":
+    if encoding not in ("", "identity", "gzip"):
         raise bad_request(f"Content-Encoding {encoding!r} is not supported (use gzip or none).")
-    inflater = zlib.decompressobj(wbits=31)  # gzip container
+    inflater = zlib.decompressobj(wbits=31) if encoding == "gzip" else None
+    wire_size = 0
+    data = bytearray()
     try:
-        data = inflater.decompress(bytes(wire), max_json_bytes + 1)
-        if inflater.unconsumed_tail:  # more output than the limit
-            raise ApiError(413, "too_large", "The grouping request is larger than the server accepts.")
-        data += inflater.flush()
+        async for chunk in request.stream():
+            wire_size += len(chunk)
+            if wire_size > max_wire_bytes:
+                raise ApiError(413, "too_large", "The grouping request is larger than the server accepts.")
+            remaining = max_json_bytes - len(data)
+            decoded = chunk if inflater is None else inflater.decompress(chunk, remaining + 1)
+            if len(decoded) > remaining:
+                raise ApiError(413, "too_large", "The grouping request is larger than the server accepts.")
+            data.extend(decoded)
     except zlib.error:
         raise bad_request("The request body is not valid gzip.")
-    if len(data) > max_json_bytes:
-        raise ApiError(413, "too_large", "The grouping request is larger than the server accepts.")
+    if inflater is not None and (not inflater.eof or inflater.unused_data):
+        raise bad_request("The request body is not valid gzip.")
     return data
 
 
@@ -64,15 +63,24 @@ def build_grouping_router(ctx, require_device: Callable) -> APIRouter:
 
     @router.post("/v1/grouping/plan")
     async def grouping_plan(request: Request, _: dict = Depends(require_device)):
-        raw = await read_limited_body(request, ctx.max_plan_wire_bytes, ctx.max_plan_json_bytes)
         try:
-            req = json.loads(raw)
-        except ValueError:
-            raise bad_request("The request body is not valid JSON.")
-        del raw
+            raw = await read_limited_body(request, ctx.max_plan_wire_bytes, ctx.max_plan_json_bytes)
+        except ClientDisconnect:
+            log.info("Phone disconnected during grouping upload.")
+            return Response(status_code=499)
+
+        def compute():
+            try:
+                req = json.loads(raw)
+            except ValueError:
+                raise bad_request("The request body is not valid JSON.")
+            finally:
+                raw.clear()
+            return grouping_core.plan_request(req)
+
         try:
             async with one_plan_at_a_time:
-                response = await run_in_threadpool(grouping_core.plan_request, req)
+                response = await run_in_threadpool(compute)
         except grouping_core.GroupingRequestError as e:
             raise bad_request(str(e))
         except ApiError:

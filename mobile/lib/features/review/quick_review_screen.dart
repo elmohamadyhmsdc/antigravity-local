@@ -75,6 +75,7 @@ class QuickReviewScreen extends ConsumerStatefulWidget {
 
 class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
   var _answered = 0;
+  var _sessionStart = 0;
 
   /// Answered here, with the evidence it was answered on: hidden until the stored plan catches
   /// up, but shown again when a parked question comes back with new evidence.
@@ -139,14 +140,24 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
         content: Text(text),
         action: action,
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 160),
+        margin: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          _answered - _sessionStart + 1 >= reviewSessionSize ? 16 : 160,
+        ),
       ),
     );
 
   Future<void> _yes(ReviewQuestion q) => _run(q, () async {
     switch (q.kind) {
       case ReviewQuestionKind.match:
-        await _review.acceptMatches([q.face!.faceId], q.match!.person.id);
+        final excluded = _marked[q.key] ?? const <int>{};
+        await _review.answerMatchBatch(
+          [for (final f in q.matchFaces) f.faceId],
+          q.match!.person.id,
+          excluded: excluded,
+        );
       case ReviewQuestionKind.outfit:
         await _review.acceptBodyLink(q.outfit!.bodyId, q.outfit!.person.id);
       case ReviewQuestionKind.duplicate:
@@ -178,7 +189,12 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
   Future<void> _no(ReviewQuestion q) => _run(q, () async {
     switch (q.kind) {
       case ReviewQuestionKind.match:
-        await _review.rejectMatches([q.face!.faceId], q.match!.person.id);
+        final ids = [for (final f in q.matchFaces) f.faceId];
+        await _review.answerMatchBatch(
+          ids,
+          q.match!.person.id,
+          excluded: ids.toSet(),
+        );
       case ReviewQuestionKind.outfit:
         await _review.rejectBodyLink(q.outfit!.bodyId, q.outfit!.person.id);
       case ReviewQuestionKind.duplicate:
@@ -210,7 +226,9 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
     final List<int> ids;
     switch (q.kind) {
       case ReviewQuestionKind.match:
-        ids = await _review.ignoreFaces([q.face!.faceId]);
+        ids = await _review.ignoreFaces([
+          for (final f in q.matchFaces) f.faceId,
+        ]);
       case ReviewQuestionKind.group:
         ids = await _review.dismissGroup(q.group!.id);
       case ReviewQuestionKind.doubtful:
@@ -230,6 +248,7 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
           if (mounted) {
             setState(() {
               _answered--;
+              _sessionStart = _sessionStart.clamp(0, _answered);
               _done.remove(q.key);
             });
           }
@@ -249,10 +268,11 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
       action: SnackBarAction(
         label: l.peopleAction('undo'),
         onPressed: () async {
-          await _review.unsnooze(q.key);
+          await _review.unsnooze(q);
           if (mounted) {
             setState(() {
               _answered--;
+              _sessionStart = _sessionStart.clamp(0, _answered);
               _done.remove(q.key);
             });
           }
@@ -309,15 +329,21 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
     final l = AppLocalizations.of(context);
     final questions = ref.watch(reviewQuestionsByKindProvider(widget.kind));
     final advanced = ref.watch(reviewAdvancedProvider);
+    final sorting = ref.watch(manualSortRunningProvider);
     return Scaffold(
       appBar: AppBar(
         title: Text(l.quickReviewTitle),
         actions: [
           IconButton(
             key: const Key('review-sort-now'),
-            tooltip: l.sortNow,
-            icon: const Icon(Icons.auto_fix_high),
-            onPressed: () => sortNow(context, ref),
+            tooltip: sorting ? l.sorting : l.sortNow,
+            icon: sorting
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.auto_fix_high),
+            onPressed: sorting ? null : () => sortNow(context, ref),
           ),
           TextButton(
             key: const Key('quick-see-all'),
@@ -358,26 +384,39 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
                 ref
                     .watch(reviewCountsByKindProvider(widget.kind))
                     .value
-                    ?.total ??
+                    ?.rawTotal ??
                 0;
             return EmptyState(
               key: const Key('quick-all-done'),
               icon: Icons.task_alt,
               title: l.quickAllDone,
-              body: left > 0 ? l.quickAllDoneSnoozed(left) : l.quickAllDoneBody,
+              body: left > 0 ? l.reviewDeferred(left) : l.quickAllDoneBody,
               actionLabel: left > 0 ? l.quickSeeAll : null,
               onAction: left > 0
                   ? () => openAllReview(context, widget.kind)
                   : null,
             );
           }
+          final sessionAnswered = _answered - _sessionStart;
+          if (sessionAnswered >= reviewSessionSize) {
+            return EmptyState(
+              key: const Key('quick-session-done'),
+              icon: Icons.task_alt,
+              title: l.reviewSessionDone,
+              body: l.reviewSessionRemaining(open.length),
+              actionLabel: l.reviewNextSession,
+              onAction: () => setState(() => _sessionStart = _answered),
+            );
+          }
           final q = open.first;
-          final total = _answered + open.length;
+          final total =
+              sessionAnswered +
+              open.length.clamp(0, reviewSessionSize - sessionAnswered);
           return _QuestionView(
             key: ValueKey(q.key),
             question: q,
             kind: widget.kind,
-            position: _answered + 1,
+            position: sessionAnswered + 1,
             total: total,
             advanced: advanced,
             busy: _busy,
@@ -392,7 +431,8 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
               if (!set.remove(faceId)) set.add(faceId);
             }),
             onDrag:
-                q.kind == ReviewQuestionKind.group ||
+                q.isMatchBatch ||
+                    q.kind == ReviewQuestionKind.group ||
                     q.kind == ReviewQuestionKind.doubtful
                 ? null
                 : (dx) => setState(() => _drag += dx),
@@ -475,7 +515,12 @@ class _QuestionView extends ConsumerWidget {
     );
     final (title, subtitle, person) = switch (q.kind) {
       ReviewQuestionKind.match => (
-        l.reviewMatchQuestion(personName(l, q.match!.person)),
+        q.isMatchBatch
+            ? l.reviewBatchQuestion(
+                personName(l, q.match!.person),
+                q.matchFaces.length,
+              )
+            : l.reviewMatchQuestion(personName(l, q.match!.person)),
         likelihood,
         q.match!.person,
       ),
@@ -504,7 +549,25 @@ class _QuestionView extends ConsumerWidget {
     };
 
     final media = switch (q.kind) {
-      ReviewQuestionKind.match => _Photo(kind: 'f', id: q.face!.faceId),
+      ReviewQuestionKind.match =>
+        q.isMatchBatch
+            ? _Doubtful(
+                item: ReviewDoubtfulItem(
+                  person: q.match!.person,
+                  faces: [
+                    for (final f in q.matchFaces)
+                      ReviewDoubtfulFace(
+                        faceId: f.faceId,
+                        cropPath: f.cropPath,
+                        score: f.score,
+                      ),
+                  ],
+                  remaining: q.matchFaces.length,
+                ),
+                marked: marked,
+                onToggle: onToggle,
+              )
+            : _Photo(kind: 'f', id: q.face!.faceId),
       ReviewQuestionKind.outfit => _Photo(kind: 'b', id: q.outfit!.bodyId),
       ReviewQuestionKind.duplicate => _Pair(item: q.duplicate!),
       ReviewQuestionKind.group => _Group(item: q.group!),
@@ -614,13 +677,19 @@ class _QuestionView extends ConsumerWidget {
                     onNotSure: onNotSure,
                     onIgnore: onIgnore,
                   )
-                : q.kind == ReviewQuestionKind.doubtful
+                : q.kind == ReviewQuestionKind.doubtful || q.isMatchBatch
                 ? _DoubtfulBar(
-                    name: personName(l, q.doubtful!.person),
-                    total: q.doubtful!.faces.length,
+                    name: personName(
+                      l,
+                      q.isMatchBatch ? q.match!.person : q.doubtful!.person,
+                    ),
+                    total: q.isMatchBatch
+                        ? q.matchFaces.length
+                        : q.doubtful!.faces.length,
                     marked: marked.length,
                     suggestions: [
-                      for (final f in q.doubtful!.faces)
+                      for (final f
+                          in q.doubtful?.faces ?? <ReviewDoubtfulFace>[])
                         if (f.suggested != null) f,
                     ].length,
                     move: moveToSuggested,

@@ -63,6 +63,65 @@ void main() {
   );
 
   group('one person is never twice in a frame', () {
+    test('a doubtful track cannot propagate its owner to more faces', () async {
+      final person = await seedPerson(db);
+      final anchor = await seedFace(db, personId: person);
+      final pending = await seedFace(db, seed: 2);
+      await (db.update(db.faces)..where((f) => f.id.isIn([anchor, pending])))
+          .write(FacesCompanion(trackId: Value(anchor)));
+      await db
+          .into(db.reviewDoubtful)
+          .insert(
+            ReviewDoubtfulCompanion.insert(
+              faceId: Value(anchor),
+              personId: person,
+              score: 0.1,
+            ),
+          );
+      await applier.applyFacePlan(const GroupingPlanResponse(mode: 'apply'));
+      expect(await personOf(pending), isNull);
+    });
+
+    test(
+      'doubtful assignments are excluded from subsequent identity models',
+      () async {
+        final person = await seedPerson(db);
+        await seedFace(db, personId: person);
+        final wrong = await seedFace(db, personId: person, seed: 2);
+        expect((await inputs.models()).single.count, 2);
+        await db
+            .into(db.reviewDoubtful)
+            .insert(
+              ReviewDoubtfulCompanion.insert(
+                faceId: Value(wrong),
+                personId: person,
+                score: 0.1,
+              ),
+            );
+        expect((await inputs.models()).single.count, 1);
+        await repo.confirmFaces([wrong], person);
+        expect((await inputs.models()).single.count, 2);
+      },
+    );
+
+    test(
+      'a stale automatic face match respects hidden and no-owner corrections',
+      () async {
+        final person = await seedPerson(db);
+        final hidden = await seedFace(db),
+            noOwner = await seedFace(db, seed: 2);
+        await (db.update(db.faces)..where((f) => f.id.equals(hidden))).write(
+          const FacesCompanion(hidden: Value(true)),
+        );
+        await (db.update(db.faces)..where((f) => f.id.equals(noOwner))).write(
+          const FacesCompanion(ownership: Value('none')),
+        );
+        await applier.applyFacePlan(assign(hidden, person));
+        await applier.applyFacePlan(assign(noOwner, person));
+        expect(await personOf(hidden), isNull);
+        expect(await personOf(noOwner), isNull);
+      },
+    );
     test('the applier will not add a second face of the same photo', () async {
       final sara = await seedPerson(db);
       final photo = await seedMedia(db);

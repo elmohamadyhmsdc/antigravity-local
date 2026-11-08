@@ -93,16 +93,16 @@ Future<void> _open(WidgetTester tester, TestEnv env, String location) async {
 
 void main() {
   group('Review', () {
-    appTest('the header and the tabs count what needs a decision', (
+    appTest('the header counts grouped decisions and the tabs count items', (
       tester,
       env,
     ) async {
       await _seed(env);
       await _open(tester, env, '/review?view=all');
       expect(
-        find.text('Review (6)'),
+        find.text('Review (5)'),
         findsOneWidget,
-        reason: '3 matches + 1 group + 1 duplicate + 1 outfit link',
+        reason: '2 match batches + 1 group + 1 duplicate + 1 body link',
       );
       expect(find.text('Faces (3)'), findsOneWidget);
       expect(find.text('New people (1)'), findsOneWidget);

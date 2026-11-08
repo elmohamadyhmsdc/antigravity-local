@@ -112,11 +112,13 @@ class GroupingRunner {
       (await _db.customSelect(sql).getSingle()).read<int>('n');
 
   Future<GroupingRun> _run({required bool incremental}) async {
+    // Repair evidence must exist before a contaminated identity is used as a
+    // model. It also remains available when the PC's grouping request fails.
+    if (!incremental) await _audit.run();
     final api = _api();
     if (api == null) {
       // the PC is the only thing missing: the audit of faces already on people is local
-      if (!incremental) await _audit.run();
-      return const GroupingRun(skipped: true);
+      return GroupingRun(skipped: true, review: await _review.counts());
     }
     final strictness = kind == 'character'
         ? characterStrictness
@@ -174,7 +176,7 @@ class GroupingRunner {
     await _review.replaceAll(review);
     // Then everything already sorted, the faces the user named included: which of them do not look like
     // the rest of their person? They come back as "Are you sure these are X?" questions.
-    await _audit.run();
+    if (result.changedAnything) await _audit.run();
 
     return GroupingRun(
       assigned: result.assigned,

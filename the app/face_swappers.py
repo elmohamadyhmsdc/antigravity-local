@@ -37,7 +37,7 @@ ARCFACE_128 = np.array([[0.36167656, 0.40387734],
                         [0.38710391, 0.72160547],
                         [0.61507734, 0.72034453]], np.float32)
 
-# name -> (file, crop size). inswapper_128 is loaded by insightface itself.
+# name -> (file, crop size). inswapper_128 uses inswapper_loader.
 SWAPPERS = {
     "inswapper_128": ("inswapper_128.onnx", 128),
     "hyperswap_1b_256": ("hyperswap_1b_256.onnx", 256),

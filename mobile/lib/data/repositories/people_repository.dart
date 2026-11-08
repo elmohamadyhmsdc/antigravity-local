@@ -422,6 +422,7 @@ class PeopleRepository {
 
   Future<void> _assign(Iterable<int> faceIds, int personId) async {
     for (final chunk in _chunks(faceIds)) {
+      await _clearDerivedBodyLinks(chunk);
       final marks = _marks(chunk.length);
       final ids = [for (final i in chunk) Variable.withInt(i)];
       await _db.customUpdate(
@@ -442,6 +443,29 @@ class PeopleRepository {
       // assigned by hand (or accepted in the review): the user vouches for it
       await _vouch(chunk, personId);
     }
+  }
+
+  /// A changed face identity invalidates body identities derived from it. Keep
+  /// explicit manual body decisions; the joined face owner remains authoritative.
+  Future<void> _clearDerivedBodyLinks(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final marks = _marks(ids.length);
+    final vars = [for (final id in ids) Variable.withInt(id)];
+    await _db.customUpdate(
+      "UPDATE body_clusters SET person_id = NULL WHERE id IN (SELECT chest_cluster_id FROM bodies WHERE face_id IN ($marks) UNION SELECT buttocks_cluster_id FROM bodies WHERE face_id IN ($marks))",
+      variables: [...vars, ...vars],
+      updates: {_db.bodyClusters},
+    );
+    await _db.customUpdate(
+      "UPDATE bodies SET person_id = NULL, link_method = NULL, link_confidence = NULL WHERE face_id IN ($marks) AND (link_method IS NULL OR link_method != 'manual')",
+      variables: vars,
+      updates: {_db.bodies},
+    );
+    await _db.customUpdate(
+      'DELETE FROM review_body_links WHERE body_id IN (SELECT id FROM bodies WHERE face_id IN ($marks))',
+      variables: vars,
+      updates: {_db.reviewBodyLinks},
+    );
   }
 
   /// Marks faces as confirmed on [personId] and drops them from the "are you sure?" list.
@@ -510,6 +534,7 @@ class PeopleRepository {
                 mode: InsertMode.insertOrIgnore,
               );
           if (face.personId == pid) {
+            await _clearDerivedBodyLinks([face.id]);
             await (_db.update(_db.faces)..where((f) => f.id.equals(face.id)))
                 .write(const FacesCompanion(personId: Value(null)));
           }
@@ -1012,6 +1037,7 @@ class PeopleRepository {
 
   Future<void> clearAssignments(Iterable<int> ids) => _db.transaction(() async {
     for (final chunk in _chunks(ids)) {
+      await _clearDerivedBodyLinks(chunk);
       await (_db.update(_db.faces)..where((f) => f.id.isIn(chunk))).write(
         const FacesCompanion(
           personId: Value(null),

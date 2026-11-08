@@ -1112,10 +1112,11 @@
   },
   "sortMostFaces": "Most faces",
   "sortName": "Name",
-  "sortNeedsPc": "Pair with your PC to sort faces.",
+  "sortNeedsPc": "Existing people were checked on this phone. Pair with your PC to sort new faces.",
   "sortNewest": "Newest",
   "sortNow": "Sort faces now",
   "sortNowHint": "Ask the PC to sort unsorted faces into people again",
+  "sortFailed": "Could not sort the library. Try Sort now again.",
   "sorting": "Sorting faces…",
   "sourcesTitle": "Sources & scan",
   "strictnessBalanced": "Balanced",
@@ -2321,5 +2322,34 @@
   "discoveryRemoveMatch": "Remove from this group",
   "discoveryAreaRemoveHint": "This example will stay out of area groups after rebuilding.",
   "discoveryAreaRebuild": "Refresh area groups",
-  "discoveryBent": "Bent"
+  "discoveryBent": "Bent",
+  "reviewDeferred": "{count} suggestions remain in detailed review, including uncertain or postponed items.",
+  "@reviewDeferred": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reviewSessionDone": "Review session complete",
+  "reviewSessionRemaining": "{count} grouped decisions remain. You can continue whenever you like.",
+  "@reviewSessionRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reviewNextSession": "Review next 20",
+  "reviewBatchQuestion": "Do these {count} appearances belong to {name}?",
+  "@reviewBatchQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

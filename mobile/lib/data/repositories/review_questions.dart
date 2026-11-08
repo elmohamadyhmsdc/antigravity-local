@@ -1,5 +1,9 @@
 import 'review_repository.dart';
 
+/// A visible batch, never an implicit acceptance of unseen matches.
+const reviewBatchSize = 24;
+const reviewSessionSize = 20;
+
 /// The kinds of quick-review question, one per tab of the full Review screen.
 enum ReviewQuestionKind { match, group, duplicate, outfit, doubtful }
 
@@ -39,6 +43,20 @@ class ReviewQuestion {
       score = face.score,
       evidence = 1,
       impact = 1,
+      group = null,
+      duplicate = null,
+      outfit = null,
+      doubtful = null;
+
+  ReviewQuestion.matchBatch(ReviewMatchGroup batch)
+    : kind = ReviewQuestionKind.match,
+      key =
+          'mb:${batch.person.id}:${batch.faces.map((f) => f.faceId).join(',')}',
+      score = batch.faces.map((f) => f.score).reduce((a, b) => a < b ? a : b),
+      evidence = batch.faces.length,
+      impact = batch.faces.length,
+      match = batch,
+      face = batch.faces.first,
       group = null,
       duplicate = null,
       outfit = null,
@@ -119,6 +137,22 @@ class ReviewQuestion {
   final ReviewBodyLinkItem? outfit;
   final ReviewDoubtfulItem? doubtful;
 
+  List<ReviewMatchFace> get matchFaces => kind != ReviewQuestionKind.match
+      ? const []
+      : key.startsWith('mb:')
+      ? match!.faces
+      : [face!];
+
+  bool get isMatchBatch => matchFaces.length > 1;
+
+  /// Low-evidence hypotheses remain in detailed review, without creating work
+  /// in the daily queue. Existing identity errors always remain actionable.
+  bool get actionable =>
+      kind == ReviewQuestionKind.doubtful ||
+      (likelihood != Likelihood.maybe &&
+          (kind != ReviewQuestionKind.match ||
+              matchFaces.every((f) => f.margin >= 0.05 && f.quality >= 0.45)));
+
   Likelihood get likelihood =>
       likelihoodOf(kind, score, method: outfit?.method);
 }
@@ -146,25 +180,59 @@ List<ReviewQuestion> buildQuestions({
   required List<ReviewBodyLinkItem> outfits,
   List<ReviewDoubtfulItem> doubtful = const [],
   Map<String, ReviewSnooze> snoozes = const {},
+  bool includeDeferred = false,
 }) {
+  final matchQuestions = <ReviewQuestion>[];
+  for (final m in matches) {
+    // Stable ID order prevents score jitter from reshuffling every batch.
+    final faces = [...m.faces]..sort((a, b) => a.faceId.compareTo(b.faceId));
+    for (final likelihood in Likelihood.values) {
+      final eligible = faces.where((f) {
+        final q = ReviewQuestion.match(m, f);
+        return q.likelihood == likelihood &&
+            (includeDeferred || q.actionable) &&
+            !(snoozes[q.key]?.stillHolds(q) ?? false);
+      }).toList();
+      for (var i = 0; i < eligible.length; i += reviewBatchSize) {
+        final chunk = eligible.skip(i).take(reviewBatchSize).toList();
+        matchQuestions.add(
+          chunk.length == 1
+              ? ReviewQuestion.match(m, chunk.single)
+              : ReviewQuestion.matchBatch(
+                  ReviewMatchGroup(person: m.person, faces: chunk),
+                ),
+        );
+      }
+    }
+  }
   final all = [
     for (final d in duplicates) ReviewQuestion.duplicate(d),
     for (final g in groups) ReviewQuestion.group(g),
-    for (final m in matches)
-      for (final f in m.faces) ReviewQuestion.match(m, f),
+    ...matchQuestions,
     for (final o in outfits) ReviewQuestion.outfit(o),
     for (final x in doubtful) ReviewQuestion.doubtful(x),
   ];
   final open = [
     for (final q in all)
-      if (!(snoozes[q.key]?.stillHolds(q) ?? false)) q,
+      if ((includeDeferred || q.actionable) &&
+          !(snoozes[q.key]?.stillHolds(q) ?? false))
+        q,
   ];
   final order = {for (var i = 0; i < open.length; i++) open[i]: i};
   open.sort((a, b) {
+    // Repair existing contamination before adding more content to identities.
+    final repair = (b.kind == ReviewQuestionKind.doubtful ? 1 : 0).compareTo(
+      a.kind == ReviewQuestionKind.doubtful ? 1 : 0,
+    );
+    if (repair != 0) return repair;
     final impact = b.impact.compareTo(a.impact);
     if (impact != 0) return impact;
     final sure = a.likelihood.index.compareTo(b.likelihood.index);
     if (sure != 0) return sure;
+    final score = a.kind == ReviewQuestionKind.doubtful && b.kind == a.kind
+        ? a.score.compareTo(b.score)
+        : b.score.compareTo(a.score);
+    if (score != 0) return score;
     return order[a]!.compareTo(order[b]!);
   });
   return open;

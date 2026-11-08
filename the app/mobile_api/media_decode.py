@@ -7,6 +7,7 @@ to avoid large Base64/JSON allocations; all image scratch files are removed per 
 import base64
 import io
 import json
+import logging
 import math
 import os
 import queue
@@ -15,6 +16,7 @@ import subprocess
 import sys
 import threading
 import tempfile
+import time
 from pathlib import Path
 
 import cv2
@@ -24,6 +26,8 @@ from . import APP_DIR
 
 PREFIX = 'AG_MEDIA_RESULT '
 MAX_MESSAGE = 96 * 1024 * 1024
+MAX_SEQUENTIAL_GAP = 120
+log = logging.getLogger(__name__)
 
 
 class MediaDecodeError(ValueError):
@@ -35,20 +39,31 @@ class ImageTooLarge(MediaDecodeError):
 
 
 class DecoderProcess:
-    def __init__(self, *, timeout=60, command=None):
+    def __init__(self, *, timeout=60, command=None, capture_diagnostics=False):
         self.timeout = timeout
         self.command = command or [sys.executable, '-u', '-X', 'faulthandler', '-m', 'mobile_api.media_decode']
         self.process = None
+        self.capture_diagnostics = capture_diagnostics
+        self.stderr = None
         self.lock = threading.RLock()
 
     def request(self, request):
         with self.lock:
             if self.process is None:
                 responses = queue.Queue(maxsize=2)
-                process = subprocess.Popen(self.command, cwd=APP_DIR, stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE, stderr=None,
-                    env=dict(os.environ, PYTHONIOENCODING='utf-8', OPENCV_FFMPEG_THREADS='2'),
-                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                # Native codec messages arrive on the process handle. A temporary
+                # file avoids blocking a noisy decoder on a full stderr pipe.
+                self.stderr = tempfile.TemporaryFile() if self.capture_diagnostics else None
+                try:
+                    process = subprocess.Popen(self.command, cwd=APP_DIR, stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE, stderr=self.stderr,
+                        env=dict(os.environ, PYTHONIOENCODING='utf-8', OPENCV_FFMPEG_THREADS='2'),
+                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                except OSError:
+                    if self.stderr is not None:
+                        self.stderr.close()
+                        self.stderr = None
+                    raise
                 self.process = process
                 self.responses = responses
 
@@ -83,6 +98,11 @@ class DecoderProcess:
                 if raw is None:
                     raise MediaDecodeError('The media decoder stopped while reading this file.')
                 response = json.loads(raw)
+                if self.stderr is not None:
+                    self.stderr.seek(0)
+                    response['codec_diagnostics'] = bool(self.stderr.read(1))
+                    self.stderr.seek(0)
+                    self.stderr.truncate()
                 if response.get('out_of_memory'):
                     raise MemoryError('The media decoder is out of memory.')
                 if response.get('error'):
@@ -126,6 +146,9 @@ class DecoderProcess:
                 process.wait(timeout=5)
             process.stdin.close()
             process.stdout.close()
+            if self.stderr is not None:
+                self.stderr.close()
+                self.stderr = None
 
 
 def unpack_image(result):
@@ -139,7 +162,7 @@ class IsolatedCapture:
     """The small VideoCapture interface used by VideoJobs, backed by a child process."""
     def __init__(self, path, max_side=4096):
         self.path, self.max_side, self.position = str(path), max_side, 0
-        self.decoder = DecoderProcess()
+        self.decoder = DecoderProcess(capture_diagnostics=True)
         self.ffmpeg_only = False
         try:
             self.info = self._open()
@@ -164,10 +187,17 @@ class IsolatedCapture:
         try:
             if self.decoder.process is None:
                 self._open()
-            result = self.decoder.request({'op': 'frame', 'frame': self.position})
+            result = self.decoder.request({'op': 'frame', 'frame': self.position,
+                                           'seconds': self.position / self.info['fps']})
+            if result.get('codec_diagnostics') and not self.ffmpeg_only:
+                log.warning('Video decoder reported errors at sample %d; retrying with strict FFmpeg.', self.position)
+                self.decoder.close()
+                self.ffmpeg_only = True
+                return self.read()
             return (False, None) if 'pixels' not in result else (True, unpack_image(result))
         except MediaDecodeError:
             if not self.ffmpeg_only:
+                self.decoder.close()
                 self.ffmpeg_only = True
                 return self.read()
             return False, None
@@ -184,20 +214,51 @@ def ffmpeg_exe():
 
 def ffmpeg_frame(path, seconds, max_side, *, data=None):
     args = [ffmpeg_exe(), '-hide_banner', '-loglevel', 'error', '-nostdin', '-threads', '2',
-            '-protocol_whitelist', 'file,pipe', '-err_detect', 'ignore_err']
+            '-protocol_whitelist', 'file,pipe']
     if data is None:
-        args += ['-ss', str(seconds)]
+        args += ['-xerror', '-err_detect', 'explode', '-ss', str(seconds)]
+    else:
+        args += ['-err_detect', 'ignore_err']
     args += ['-i', str(path), '-map', '0:v:0', '-frames:v', '1', '-an', '-sn',
              '-vf', f'scale=w=min({max_side}\\,iw):h=min({max_side}\\,ih):force_original_aspect_ratio=decrease',
              '-threads', '1', '-f', 'image2pipe', '-c:v', 'png', 'pipe:1']
     try:
-        result = subprocess.run(args, input=data, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                timeout=30, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-        if result.stdout:
-            return cv2.imdecode(np.frombuffer(result.stdout, np.uint8), cv2.IMREAD_COLOR)
+        deadline = time.monotonic() + 30
+        for without_probe in (False, True):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+            command = [args[0], '-nofind_stream_info', *args[1:]] if without_probe else args
+            with tempfile.TemporaryFile() as diagnostics:
+                result = subprocess.run(command, input=data, stdout=subprocess.PIPE, stderr=diagnostics,
+                                        timeout=remaining, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                if result.returncode != 0 or not result.stdout:
+                    return None
+                diagnostics.seek(0)
+                if data is not None or not diagnostics.read(1):
+                    return cv2.imdecode(np.frombuffer(result.stdout, np.uint8), cv2.IMREAD_COLOR)
+            # Input probing can log errors from the start of the file before
+            # seeking to an intact GOP. Retry the same timestamp without probing;
+            # strict decoding and diagnostic checks still apply to the sample.
+            if seconds <= 0:
+                return None
     except (OSError, subprocess.SubprocessError):
         pass
     return None
+
+
+def read_video_sample(cap, frame):
+    """Keep reference frames when sampling nearby forward positions."""
+    position = float(cap.get(cv2.CAP_PROP_POS_FRAMES))
+    gap = frame - position
+    if math.isfinite(gap) and 0 <= gap <= MAX_SEQUENTIAL_GAP and gap.is_integer():
+        for _ in range(int(gap)):
+            if not cap.grab():
+                return None
+    elif not cap.set(cv2.CAP_PROP_POS_FRAMES, frame):
+        return None
+    ok, image = cap.read()
+    return image if ok else None
 
 
 def decode_image(data, max_side):
@@ -293,12 +354,9 @@ def main():
                         frame = request['frame']
                         image = None
                         if cap is not None and cap.isOpened():
-                            if cap.set(cv2.CAP_PROP_POS_FRAMES, frame):
-                                ok, image = cap.read()
-                                if not ok:
-                                    image = None
+                            image = read_video_sample(cap, frame)
                         if image is None:
-                            image = ffmpeg_frame(path, frame / fps, max_side)
+                            image = ffmpeg_frame(path, request.get('seconds', frame / fps), max_side)
                         if image is not None and max(image.shape[:2]) > max_side:
                             scale = max_side / max(image.shape[:2])
                             image = cv2.resize(image, (max(1, round(image.shape[1] * scale)), max(1, round(image.shape[0] * scale))))

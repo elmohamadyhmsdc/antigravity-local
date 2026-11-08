@@ -401,6 +401,18 @@ class Redetector {
               mode: InsertMode.insertOrIgnore,
             );
       }
+      if (old.rejected.isNotEmpty) {
+        // A new detection can reconstruct the face/body pair the user broke.
+        // Restore the rejection before allowing that pair to imply ownership.
+        await db.customUpdate(
+          '''UPDATE bodies SET face_id = NULL WHERE id = ? AND EXISTS (
+            SELECT 1 FROM body_rejections r JOIN faces f ON f.person_id = r.person_id
+            WHERE r.body_id = bodies.id AND f.id = bodies.face_id
+          )''',
+          variables: [Variable.withInt(next.id)],
+          updates: {db.bodies},
+        );
+      }
       await db.customUpdate(
         'UPDATE OR REPLACE body_distinct SET body_a = ? WHERE body_a = ?',
         variables: [Variable.withInt(next.id), Variable.withInt(old.id)],

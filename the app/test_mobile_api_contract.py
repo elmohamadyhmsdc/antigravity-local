@@ -882,6 +882,11 @@ def test_grouping_plan_accepts_gzip_bodies_and_gzips_big_answers():
         check(r.headers.get("content-encoding") == "gzip", f"a big answer is gzipped: {dict(r.headers)}")
         check(r.json() == plain.json(), "gzip in/out must not change the answer")
 
+        chunked = e.client.post("/v1/grouping/plan",
+            content=(zipped[i:i + 997] for i in range(0, len(zipped), 997)),
+            headers={**e.auth, "Content-Type": "application/json", "Content-Encoding": "gzip"})
+        check(chunked.status_code == 200 and chunked.json() == plain.json(), "chunked gzip must preserve the plan")
+
         small = e.client.post("/v1/grouping/plan", json=fixture("GroupingPlanRequest.apply_basic"),
                               headers={**e.auth, "Accept-Encoding": "identity"})
         check(small.headers.get("content-encoding") in (None, "identity"), "no gzip unless the client accepts it")
@@ -903,6 +908,8 @@ def test_grouping_plan_rejects_bad_bodies_with_the_error_envelope():
         check(r.status_code == 400 and r.json()["error"]["code"] == "bad_request", r.text)
         check_schema("Error", r.json())
         r = post(b"\x1f\x8b garbage", **{"Content-Encoding": "gzip"})
+        check(r.status_code == 400 and "gzip" in r.json()["error"]["message"], r.text)
+        r = post(gzip.compress(json.dumps(good).encode())[:-5], **{"Content-Encoding": "gzip"})
         check(r.status_code == 400 and "gzip" in r.json()["error"]["message"], r.text)
         r = post(b"{}", **{"Content-Encoding": "br"})
         check(r.status_code == 400, f"unsupported encoding: {r.status_code}")

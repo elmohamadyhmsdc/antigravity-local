@@ -223,7 +223,7 @@ class GroupingInputs {
       final pid = p.read<int>('person_id');
       final rows = await _db
           .customSelect(
-            'SELECT id, quality_score, embedding FROM faces WHERE person_id = ? AND face_px >= ? AND hidden = 0 AND (?3 IS NULL OR model_id = ?3)',
+            "SELECT id, quality_score, embedding FROM faces WHERE person_id = ? AND face_px >= ? AND hidden = 0 AND (ownership IS NULL OR ownership != 'none') AND (?3 IS NULL OR model_id = ?3) AND NOT EXISTS (SELECT 1 FROM review_doubtful d WHERE d.face_id = faces.id AND d.person_id = faces.person_id)",
             variables: [
               Variable.withInt(pid),
               Variable.withReal(_minPx),
@@ -249,8 +249,9 @@ class GroupingInputs {
       final faces = <FaceVector>[];
       for (final r in rows) {
         final v = _vector(r.read<Uint8List>('embedding'));
-        if (v != null) {
-          faces.add(FaceVector(v, r.read<double>('quality_score')));
+        final quality = r.read<double>('quality_score');
+        if (v != null && quality.isFinite) {
+          faces.add(FaceVector(v, quality));
         }
       }
       if (faces.isEmpty) continue;
@@ -310,12 +311,13 @@ class GroupingInputs {
           ..start();
       }
       final v = _vector(r.read<Uint8List>('embedding'));
-      if (v == null) continue;
+      final quality = r.read<double>('quality_score');
+      if (v == null || !quality.isFinite) continue;
       out.add(
         GroupingFace(
           id: r.read<int>('id'),
           embedding: v,
-          quality: r.read<double>('quality_score'),
+          quality: quality,
           frameKey: frameKeyOf(
             r.readNullable<int>('media_id'),
             r.readNullable<int>('frame_number'),
@@ -420,8 +422,8 @@ class GroupingInputs {
         mediaId: r.readNullable<int>('media_id'),
         frameNumber: r.readNullable<int>('frame_number'),
         anchorPersonId: anchor,
-        appearance: appearance == null ? null : _floats(appearance),
-        weakFaceEmbedding: weak == null ? null : vectorFromBlob(weak),
+        appearance: appearance == null ? null : _appearance(appearance),
+        weakFaceEmbedding: weak == null ? null : _vector(weak),
         rejectedPersonIds: rejected[r.read<int>('id')] ?? const [],
         takenAt: r.readNullable<int>('taken_at'),
       );
@@ -467,12 +469,14 @@ class GroupingInputs {
     return lo < looseTimes.length && looseTimes[lo] <= t + eventWindowMs;
   }
 
-  static List<double> _floats(Uint8List blob) {
+  static List<double>? _appearance(Uint8List blob) {
+    if (blob.lengthInBytes != 80 * 4) return null;
     final view = ByteData.sublistView(blob);
-    return [
+    final values = [
       for (var i = 0; i + 4 <= blob.length; i += 4)
         view.getFloat32(i, Endian.little),
     ];
+    return values.every((v) => v.isFinite && v >= 0) ? values : null;
   }
 
   /// A full request for one round.

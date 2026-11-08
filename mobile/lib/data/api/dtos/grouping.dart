@@ -169,19 +169,22 @@ class GroupingPlanRequest {
   /// known person joins them (openapi.yaml `link_alike_people`).
   final bool linkAlikePeople;
 
-  Map<String, dynamic> toJson() => {
+  Map<String, Object> _wireFields() => {
     'mode': mode,
     'stages': stages,
     'strictness': strictness,
-    'models': [for (final m in models) m.toJson()],
-    'pending': [for (final f in pending) f.toJson()],
+    'models': models.map((m) => m.toJson()),
+    'pending': pending.map((f) => f.toJson()),
     'dismissed_face_ids': dismissedFaceIds,
-    'distinct_pairs': [
-      for (final (a, b) in distinctPairs) [a, b],
-    ],
-    'bodies': [for (final b in bodies) b.toJson()],
+    'distinct_pairs': distinctPairs.map((pair) => [pair.$1, pair.$2]),
+    'bodies': bodies.map((b) => b.toJson()),
     'max_suggestions_per_person': maxSuggestionsPerPerson,
     if (linkAlikePeople) 'link_alike_people': true,
+  };
+
+  Map<String, dynamic> toJson() => {
+    for (final MapEntry(:key, :value) in _wireFields().entries)
+      key: value is Iterable ? value.toList() : value,
   };
 
   factory GroupingPlanRequest.fromJson(Map<String, dynamic> json) =>
@@ -219,8 +222,43 @@ class GroupingPlanRequest {
 
   /// The request body exactly as it goes on the wire: JSON, gzipped (a first scan is several MB of
   /// base64 embeddings). Heavy - call it off the UI isolate.
-  Uint8List encodeGzip() =>
-      Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(toJson()))));
+  Uint8List encodeGzip() {
+    final output = _GroupingGzipSink();
+    final compressed = gzip.encoder.startChunkedConversion(output);
+    final utf8Sink = utf8.encoder.startChunkedConversion(compressed);
+    utf8Sink.add('{');
+    var firstField = true;
+    for (final MapEntry(:key, :value) in _wireFields().entries) {
+      if (!firstField) utf8Sink.add(',');
+      firstField = false;
+      utf8Sink.add('${jsonEncode(key)}:');
+      if (value is Iterable) {
+        utf8Sink.add('[');
+        var firstItem = true;
+        for (final item in value) {
+          if (!firstItem) utf8Sink.add(',');
+          firstItem = false;
+          utf8Sink.add(jsonEncode(item));
+        }
+        utf8Sink.add(']');
+      } else {
+        utf8Sink.add(jsonEncode(value));
+      }
+    }
+    utf8Sink.add('}');
+    utf8Sink.close();
+    return output.bytes.takeBytes();
+  }
+}
+
+class _GroupingGzipSink implements Sink<List<int>> {
+  final bytes = BytesBuilder(copy: false);
+
+  @override
+  void add(List<int> data) => bytes.add(data);
+
+  @override
+  void close() {}
 }
 
 class FaceAssignment {

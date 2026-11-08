@@ -68,13 +68,87 @@ Future<_Matches> _seedMatches(AppDatabase db) async {
   m.unsure = await seedFace(db, seed: 4);
   m.other = await seedFace(db, seed: 5);
   await _match(db, m.sure, m.sara, 0.45); // very likely
-  await _match(db, m.unsure, m.sara, 0.28); // maybe
+  await _match(db, m.unsure, m.sara, 0.33); // maybe
   await _match(db, m.other, m.anna, 0.35); // likely
   return m;
 }
 
 void main() {
   group('Quick review', () {
+    appTest('match batches show every member and allow exclusions', (
+      tester,
+      env,
+    ) async {
+      final person = await seedPerson(env.db, name: 'Sara');
+      final ids = [
+        for (var i = 0; i < 26; i++) await seedFace(env.db, seed: 500 + i),
+      ];
+      for (final id in ids) {
+        await _match(env.db, id, person, 0.45);
+      }
+      await _open(tester, env, '/review');
+      expect(_progress(tester), '1 of 2');
+      expect(_question(tester), 'Do these 24 appearances belong to Sara?');
+      await _tap(tester, 'quick-doubtful-${ids.first}');
+      await _tap(tester, 'quick-yes');
+      final rows = await env.db.select(env.db.faces).get();
+      expect(rows.where((f) => f.personId == person), hasLength(23));
+      expect(
+        (await env.db.select(env.db.faceRejections).get()).single.faceId,
+        ids.first,
+      );
+      expect(
+        rows
+            .where((f) => ids.skip(24).contains(f.id))
+            .every((f) => f.personId == null),
+        isTrue,
+      );
+    }, session: testSession);
+
+    appTest(
+      'a session stops after 20 decisions without changing the rest',
+      (tester, env) async {
+        for (var i = 0; i < 21; i++) {
+          final p = await seedPerson(env.db, name: 'Person $i');
+          final f = await seedFace(env.db, seed: 700 + i);
+          await _match(env.db, f, p, 0.45);
+        }
+        await _open(tester, env, '/review');
+        expect(_progress(tester), '1 of 20');
+        for (var i = 0; i < 20; i++) {
+          await _tap(tester, 'quick-unsure');
+        }
+        expect(find.byKey(const Key('quick-session-done')), findsOneWidget);
+        expect(
+          (await env.db.select(env.db.faces).get()).every(
+            (f) => f.personId == null,
+          ),
+          isTrue,
+        );
+        await tester.tap(find.text('Review next 20'));
+        await _settle(tester);
+        expect(_progress(tester), '1 of 1');
+      },
+      session: testSession,
+    );
+
+    appTest(
+      'weak suggestions remain in details without demanding a decision',
+      (tester, env) async {
+        final p = await seedPerson(env.db, name: 'Sara');
+        final f = await seedFace(env.db);
+        await _match(env.db, f, p, 0.28);
+        await _open(tester, env, '/review');
+        expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
+        expect(await env.db.select(env.db.reviewMatches).get(), hasLength(1));
+        expect(
+          (await env.db.select(env.db.faces).get()).single.personId,
+          isNull,
+        );
+        expect(find.byKey(const Key('quick-see-all')), findsOneWidget);
+      },
+      session: testSession,
+    );
     appTest(
       'yes, no and not sure, most certain first, each stored as the usual correction',
       (tester, env) async {
@@ -104,7 +178,7 @@ void main() {
         expect((rejection.faceId, rejection.personId), (m.other, m.anna));
 
         expect(_progress(tester), '3 of 3');
-        expect(_likelihood(tester), 'Maybe');
+        expect(_likelihood(tester), 'Likely');
         await _tap(tester, 'quick-unsure');
         final snooze = (await env.db.select(env.db.reviewSnoozes).get()).single;
         expect(snooze.questionKey, 'm:${m.unsure}:${m.sara}');
@@ -117,7 +191,7 @@ void main() {
         );
         expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
         expect(
-          find.textContaining("1 answer you weren't sure about"),
+          find.textContaining("1 suggestions remain in detailed review"),
           findsOneWidget,
           reason: 'the snoozed question is still in the full lists',
         );
@@ -130,13 +204,13 @@ void main() {
       (tester, env) async {
         final m = await _seedMatches(env.db);
         await env.db.delete(env.db.reviewMatches).go();
-        await _match(env.db, m.unsure, m.sara, 0.28);
+        await _match(env.db, m.unsure, m.sara, 0.33);
         await _open(tester, env, '/review');
         await _tap(tester, 'quick-unsure');
         expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
 
         // the next grouping run brings the same evidence: still parked
-        await _match(env.db, m.unsure, m.sara, 0.29);
+        await _match(env.db, m.unsure, m.sara, 0.34);
         await _settle(tester);
         expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
 

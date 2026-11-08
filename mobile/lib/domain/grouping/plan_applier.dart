@@ -43,13 +43,14 @@ class PlanApplier {
       if (!a.isAuto || !people.contains(a.personId)) continue;
       assigned += await _db.customUpdate(
         // the last NOT EXISTS is the one-person-per-frame rule against faces the person already has
-        'UPDATE faces SET person_id = ? WHERE id = ? AND person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id = ?) AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ? AND p.grouping_locked = 0) AND (faces.media_id IS NULL OR NOT EXISTS (SELECT 1 FROM faces o WHERE o.person_id = ? AND o.media_id = faces.media_id AND o.frame_number IS faces.frame_number))',
+        "UPDATE faces SET person_id = ? WHERE id = ? AND person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id = ?) AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ? AND p.grouping_locked = 0) AND (faces.media_id IS NULL OR NOT EXISTS (SELECT 1 FROM faces o WHERE o.person_id = ? AND o.media_id = faces.media_id AND o.frame_number IS faces.frame_number)) AND faces.hidden = 0 AND (faces.ownership IS NULL OR faces.ownership != 'none') AND faces.kind = ?",
         variables: [
           Variable.withInt(a.personId),
           Variable.withInt(a.faceId),
           Variable.withInt(a.personId),
           Variable.withInt(a.personId),
           Variable.withInt(a.personId),
+          Variable.withString(kind),
         ],
         updates: {_db.faces},
       );
@@ -59,8 +60,11 @@ class PlanApplier {
       if (!g.autoCreate || g.faceIds.isEmpty) continue;
       final rows = await _db
           .customSelect(
-            'SELECT id, quality_score FROM faces WHERE person_id IS NULL AND review_dismissed = 0 AND id IN (${List.filled(g.faceIds.length, '?').join(',')})',
-            variables: [for (final id in g.faceIds) Variable.withInt(id)],
+            "SELECT id, quality_score FROM faces WHERE person_id IS NULL AND review_dismissed = 0 AND hidden = 0 AND (ownership IS NULL OR ownership != 'none') AND kind = ? AND id IN (${List.filled(g.faceIds.length, '?').join(',')})",
+            variables: [
+              Variable.withString(kind),
+              for (final id in g.faceIds) Variable.withInt(id),
+            ],
             readsFrom: {_db.faces},
           )
           .get();
@@ -108,11 +112,14 @@ class PlanApplier {
       '''
       WITH owner AS (
         SELECT track_id, MIN(person_id) AS pid FROM faces
-        WHERE track_id IS NOT NULL AND person_id IS NOT NULL
+        WHERE track_id IS NOT NULL AND person_id IS NOT NULL AND hidden = 0
+          AND NOT EXISTS (SELECT 1 FROM review_doubtful d WHERE d.face_id = faces.id AND d.person_id = faces.person_id)
         GROUP BY track_id HAVING COUNT(DISTINCT person_id) = 1
       )
       UPDATE faces SET person_id = (SELECT pid FROM owner WHERE owner.track_id = faces.track_id)
-      WHERE person_id IS NULL AND review_dismissed = 0
+      WHERE person_id IS NULL AND review_dismissed = 0 AND hidden = 0 AND kind = ?
+        AND (ownership IS NULL OR ownership != 'none')
+        AND NOT EXISTS (SELECT 1 FROM faces suspect JOIN review_doubtful d ON d.face_id = suspect.id AND d.person_id = suspect.person_id WHERE suspect.track_id = faces.track_id)
         AND track_id IN (SELECT track_id FROM owner)
         AND NOT EXISTS (
           SELECT 1 FROM face_rejections r JOIN owner o ON o.pid = r.person_id
@@ -121,6 +128,7 @@ class PlanApplier {
           SELECT 1 FROM persons p JOIN owner o ON o.pid = p.id
           WHERE o.track_id = faces.track_id AND p.grouping_locked = 0)
       ''',
+      variables: [Variable.withString(kind)],
       updates: {_db.faces},
     );
     return FacePlanResult(

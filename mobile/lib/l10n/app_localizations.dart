@@ -2491,7 +2491,7 @@ abstract class AppLocalizations {
   /// No description provided for @sortNeedsPc.
   ///
   /// In en, this message translates to:
-  /// **'Pair with your PC to sort faces.'**
+  /// **'Existing people were checked on this phone. Pair with your PC to sort new faces.'**
   String get sortNeedsPc;
 
   /// No description provided for @sortNewest.
@@ -2511,6 +2511,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ask the PC to sort unsorted faces into people again'**
   String get sortNowHint;
+
+  /// No description provided for @sortFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not sort the library. Try Sort now again.'**
+  String get sortFailed;
 
   /// No description provided for @sorting.
   ///
@@ -6837,6 +6843,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bent'**
   String get discoveryBent;
+
+  /// No description provided for @reviewDeferred.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} suggestions remain in detailed review, including uncertain or postponed items.'**
+  String reviewDeferred(int count);
+
+  /// No description provided for @reviewSessionDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Review session complete'**
+  String get reviewSessionDone;
+
+  /// No description provided for @reviewSessionRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} grouped decisions remain. You can continue whenever you like.'**
+  String reviewSessionRemaining(int count);
+
+  /// No description provided for @reviewNextSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Review next 20'**
+  String get reviewNextSession;
+
+  /// No description provided for @reviewBatchQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Do these {count} appearances belong to {name}?'**
+  String reviewBatchQuestion(String name, int count);
 }
 
 class _AppLocalizationsDelegate

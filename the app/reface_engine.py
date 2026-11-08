@@ -27,8 +27,8 @@ for _stream in (sys.stdout, sys.stderr):
 from cuda_dll_dirs import add_nvidia_dll_dirs
 add_nvidia_dll_dirs()
 
-import insightface
 from insightface.app import FaceAnalysis
+from inswapper_loader import LowMemoryINSwapper
 
 
 @dataclass
@@ -361,7 +361,8 @@ class RefaceEngine:
     Supports faceset building and angle matching for better quality.
     """
     
-    def __init__(self, output_dir: str = None, enable_enhancement: bool = True, upscale: int = 2):
+    def __init__(self, output_dir: str = None, enable_enhancement: bool = True,
+                 upscale: int = 2, load_inswapper: bool = True):
         self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent / "reface_output"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -378,19 +379,10 @@ class RefaceEngine:
         self.app = FaceAnalysis(name='buffalo_l', providers=self.providers)
         self.app.prepare(ctx_id=0, det_size=(640, 640))
         
-        # Load inswapper model
+        # V3 can select a different swapper without first loading INSwapper.
         self.swapper = None
-        model_path = Path(__file__).parent / "models" / "inswapper_128.onnx"
-        
-        if model_path.exists():
-            print(f"[INFO] Loading inswapper model from {model_path}")
-            self.swapper = insightface.model_zoo.get_model(str(model_path), providers=self.providers)
-        else:
-            print("[INFO] Looking for inswapper model...")
-            try:
-                self.swapper = insightface.model_zoo.get_model('inswapper_128.onnx', providers=self.providers)
-            except Exception as e:
-                print(f"[WARNING] Could not load inswapper model: {e}")
+        if load_inswapper:
+            self.swapper = self._load_inswapper()
 
         # Check for GPU
         import onnxruntime as ort
@@ -408,6 +400,17 @@ class RefaceEngine:
             self.enhancer = FaceEnhancer(upscale_factor=upscale)
         
         print("[INFO] RefaceEngine initialized")
+
+    def _load_inswapper(self):
+        model_path = Path(__file__).parent / "models" / "inswapper_128.onnx"
+        if not model_path.exists():
+            # Preserve the legacy current-working-directory lookup.
+            model_path = Path("inswapper_128.onnx")
+        if not model_path.exists():
+            print("[WARNING] Could not find inswapper_128.onnx")
+            return None
+        print(f"[INFO] Loading inswapper model from {model_path}")
+        return LowMemoryINSwapper(model_path, providers=self.providers)
     
     
     def _apply_color_correction(self, source_img: np.ndarray, target_img: np.ndarray) -> np.ndarray:
