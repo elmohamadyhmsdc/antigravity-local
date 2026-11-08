@@ -1,6 +1,49 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P02 (Mobile API Client, Certificate Pinning, UDP Discovery & Pairing UI) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P02 of the Mobile Parity Plan.
+  - Implement Mobile API client, binary float codecs, pinned TLS 1.3 trust manager, redirect rejection, UDP discovery on port 8445, server repository, and Compose pairing screens integrated into Settings.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Binary Vector Codec (`com.facegallery.core.network.codec.VectorCodec`):
+     - Implemented little-endian float32 vector encoding and decoding for InsightFace `buffalo_l@1` (512-d) and `ccip-caformer24@1` (768-d).
+     - Provides base64 string conversion, raw blob packing/unpacking, and automatic length decoding.
+  2. TLS Certificate Pinning & Redirect Rejection (`com.facegallery.core.network.tls`):
+     - `PinnedCertTrustManager.kt`: Custom X509TrustManager validating server certificates strictly against pinned SHA-256 fingerprint in constant time.
+     - `TlsConfig.kt`: Configures OkHttpClient with pinned TrustManager, disabling redirects (`followRedirects = false`, `followSslRedirects = false`) to strictly prevent bearer token leakage.
+  3. Pairing URI Payload Parser (`com.facegallery.core.network.model.PairingPayload`):
+     - Implemented `agmobile://pair?h=<host>&p=<port>&fp=<fingerprint>&c=<code>` parser, validating hostnames/LAN IPs, ports (1..65535), 64-char hex fingerprint normalization, and 8-char pairing codes.
+  4. UDP LAN Discovery Protocol (`com.facegallery.core.network.discovery.DiscoveryService`):
+     - Implemented UDP broadcast service on port 8445 with random 32-char hex nonces.
+     - Formats broadcast requests matching `antigravity-mobile` v1 service specifications.
+     - Discovers available servers across active network interfaces without leaking pins or tokens.
+  5. Typed Mobile API Client (`com.facegallery.core.network.api.MobileApiClient`):
+     - Implemented typed calls for `/v1/health`, `/v1/capabilities`, `/v1/pair/complete`, `/v1/analyze/targeted`, job submissions, job status polling, cancellation, and atomic artifact downloading.
+     - Comprehensive error mapping into `MobileApiException`.
+  6. Server Management Repository (`com.facegallery.data.repository.SqliteServerRepository`):
+     - Implemented CRUD for `servers` table in SQLite schema v20 and token storage in `settings`.
+     - Supports active server selection, last-seen timestamps, and clean deletion.
+  7. Native Compose Pairing UI & Settings Integration:
+     - `PairingViewModel.kt`: Manages discovered servers, saved servers, connection state transitions, and background discovery.
+     - `PairingScreen.kt`: Follows Face Gallery design system (Iris/Amber theme, 48dp touch targets, card lists, manual connect dialog).
+     - `ComputerPairingSection.kt`: Added to `SettingsScreen.kt` showing live PC connection status.
+     - Registered `ROUTE_PAIRING` (`settings/pairing`) in `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `VectorCodecTest`: 512-d, 768-d, auto-length, and dimension mismatch checks passed (5/5).
+    - `PairingPayloadTest`: Standard URI, uppercase colon normalization, code cleaning, and invalid host rejection passed (4/4).
+    - `PinnedCertTrustManagerTest`: Fingerprint normalization, redirect rejection, and empty chain validation passed (4/4).
+    - `DiscoveryProtocolTest`: Nonce generation, JSON payload structure, and matching/rejection logic passed (4/4).
+    - `SqliteServerRepositoryTest`: Server insert, active server switching, token management, and deletion passed (1/1).
+    - `ApiContractFixturesTest`: Verified against backend golden fixtures (`Health.ok.json`, `Capabilities.idle.json`, `PairResponse.ok.json`, `TargetedAnalysisResponse.body.json`, `TargetedAnalysisResponse.area.json`) (5/5).
+  - Total Phase P02 suite: 23 unit tests executed, 23 passed (0 failures).
+  - Combined P01 + P02 suite: All 41 unit tests passed with 0 regressions.
+- Phase P02 closed; ready for Phase P03 (Jobs, Transfers & Background Engine).
+
+
 ## Phase P01 (Encrypted Database Layer, FileStore & Core Repositories) Completed — 2026-11-08
 
 - User Request:
@@ -184,6 +227,49 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P02 (Mobile API Client, Certificate Pinning, UDP Discovery & Pairing UI) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P02 of the Mobile Parity Plan.
+  - Implement Mobile API client, binary float codecs, pinned TLS 1.3 trust manager, redirect rejection, UDP discovery on port 8445, server repository, and Compose pairing screens integrated into Settings.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Binary Vector Codec (`com.facegallery.core.network.codec.VectorCodec`):
+     - Implemented little-endian float32 vector encoding and decoding for InsightFace `buffalo_l@1` (512-d) and `ccip-caformer24@1` (768-d).
+     - Provides base64 string conversion, raw blob packing/unpacking, and automatic length decoding.
+  2. TLS Certificate Pinning & Redirect Rejection (`com.facegallery.core.network.tls`):
+     - `PinnedCertTrustManager.kt`: Custom X509TrustManager validating server certificates strictly against pinned SHA-256 fingerprint in constant time.
+     - `TlsConfig.kt`: Configures OkHttpClient with pinned TrustManager, disabling redirects (`followRedirects = false`, `followSslRedirects = false`) to strictly prevent bearer token leakage.
+  3. Pairing URI Payload Parser (`com.facegallery.core.network.model.PairingPayload`):
+     - Implemented `agmobile://pair?h=<host>&p=<port>&fp=<fingerprint>&c=<code>` parser, validating hostnames/LAN IPs, ports (1..65535), 64-char hex fingerprint normalization, and 8-char pairing codes.
+  4. UDP LAN Discovery Protocol (`com.facegallery.core.network.discovery.DiscoveryService`):
+     - Implemented UDP broadcast service on port 8445 with random 32-char hex nonces.
+     - Formats broadcast requests matching `antigravity-mobile` v1 service specifications.
+     - Discovers available servers across active network interfaces without leaking pins or tokens.
+  5. Typed Mobile API Client (`com.facegallery.core.network.api.MobileApiClient`):
+     - Implemented typed calls for `/v1/health`, `/v1/capabilities`, `/v1/pair/complete`, `/v1/analyze/targeted`, job submissions, job status polling, cancellation, and atomic artifact downloading.
+     - Comprehensive error mapping into `MobileApiException`.
+  6. Server Management Repository (`com.facegallery.data.repository.SqliteServerRepository`):
+     - Implemented CRUD for `servers` table in SQLite schema v20 and token storage in `settings`.
+     - Supports active server selection, last-seen timestamps, and clean deletion.
+  7. Native Compose Pairing UI & Settings Integration:
+     - `PairingViewModel.kt`: Manages discovered servers, saved servers, connection state transitions, and background discovery.
+     - `PairingScreen.kt`: Follows Face Gallery design system (Iris/Amber theme, 48dp touch targets, card lists, manual connect dialog).
+     - `ComputerPairingSection.kt`: Added to `SettingsScreen.kt` showing live PC connection status.
+     - Registered `ROUTE_PAIRING` (`settings/pairing`) in `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `VectorCodecTest`: 512-d, 768-d, auto-length, and dimension mismatch checks passed (5/5).
+    - `PairingPayloadTest`: Standard URI, uppercase colon normalization, code cleaning, and invalid host rejection passed (4/4).
+    - `PinnedCertTrustManagerTest`: Fingerprint normalization, redirect rejection, and empty chain validation passed (4/4).
+    - `DiscoveryProtocolTest`: Nonce generation, JSON payload structure, and matching/rejection logic passed (4/4).
+    - `SqliteServerRepositoryTest`: Server insert, active server switching, token management, and deletion passed (1/1).
+    - `ApiContractFixturesTest`: Verified against backend golden fixtures (`Health.ok.json`, `Capabilities.idle.json`, `PairResponse.ok.json`, `TargetedAnalysisResponse.body.json`, `TargetedAnalysisResponse.area.json`) (5/5).
+  - Total Phase P02 suite: 23 unit tests executed, 23 passed (0 failures).
+  - Combined P01 + P02 suite: All 41 unit tests passed with 0 regressions.
+- Phase P02 closed; ready for Phase P03 (Jobs, Transfers & Background Engine).
 
 
 ## Phase P01 (Encrypted Database Layer, FileStore & Core Repositories) Completed — 2026-11-08
