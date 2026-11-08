@@ -1,6 +1,45 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P05 (Identities, Grouping, Corrections & Review Service) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P05 of the Mobile Parity Plan.
+  - Implement IdentityOperations (merge, split, dissolve, changeKind, Identity Sets), CorrectionService (7 actions, 4 scopes, face/body guards), 3-round GroupingPlanner & Doubt Audit, and ReviewService with queue pruning and viewer highlight navigation.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Identity Operations (`com.facegallery.domain.identity.IdentityOperations`):
+     - `mergePersons`: Merges persons atomically, transferring faces, bodies, confirmations, distinct constraints, and identity sets, with strict rejection against mixing real and character kinds.
+     - `splitPerson`: Isolates selected faces into a newly created person and automatically registers mutual distinct constraints in `person_distinct`.
+     - `dissolvePerson`: Resets assigned detections to NULL and cleans up review matches, doubtful entries, and person constraints.
+     - `changeKind`: Switches person and face kinds ('real' vs 'character').
+     - `createIdentitySet`: Creates curated reference sets (`identity_sets` & `identity_set_faces`).
+  2. Correction Service (`com.facegallery.domain.corrections.CorrectionService`):
+     - Implemented all 7 actions: `ASSIGN_PERSON`, `UNASSIGN_PERSON`, `REJECT_PERSON`, `CONFIRM_MATCH`, `MARK_DISTINCT`, `SUPPRESS_DETECTION`, `OVERRIDE_KIND`.
+     - Implemented all 4 scopes: `SINGLE_DETECTION`, `TRACKLET`, `MEDIA`, `PERSON_CLUSTER`.
+     - Strict integrity guards: automatic rejection cleanup on manual reassignment, face/body tracking consistency, and distinct constraint sorting (`min(pA, pB)`, `max(pA, pB)`).
+  3. 3-Round Grouping Planner & Doubt Audit (`com.facegallery.domain.grouping.GroupingPlanner`):
+     - Round 1: High confidence face matching (cosine similarity >= 0.70, margin >= 0.10).
+     - Round 2: Tracklet continuity / spatiotemporal propagation linking unassigned detections in the same video track.
+     - Round 3: Doubt audit capturing ambiguous/borderline candidates ([0.50, 0.70) or margin < 0.10) into `review_matches` and `review_doubtful`.
+     - Atomic commitment via `applyPlan(...)`.
+  4. Review Service & Viewer Navigation (`com.facegallery.domain.review.ReviewService`):
+     - `fetchPendingReviews`: Retrieves pending review questions with active snooze filtering.
+     - `confirm` / `reject`: Executes corresponding correction action and updates review decision state.
+     - `snooze`: Records temporary snooze entries in `review_snoozes`.
+     - `getMediaHighlightTarget`: Supplies target coordinates, media ID, asset path, frame number, and timestamp to open the exact frame and highlight the detection ROI in the Media Viewer.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `IdentityOperationsTest`: Merge with kind validation, split with distinct pairing, dissolve with unassignment, and identity set creation passed (5/5).
+    - `CorrectionServiceTest`: Single assign with confirmation, tracklet propagation, rejection with unassignment, mark distinct, and suppress detection passed (4/4).
+    - `GroupingPlannerTest`: 3-round execution (Round 1 high conf, Round 2 track continuity, Round 3 doubt question) and DB plan commitment passed (2/2).
+    - `ReviewServiceTest`: Pending reviews fetch, snooze exclusion, confirm, reject, and media highlight target calculation passed (5/5).
+  - Total Phase P05 suite: 16 unit tests executed, 16 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 + P05 suite: 72 unit tests executed and passed (310 total unit tests passing in target project with 0 regressions).
+- Phase P05 closed (commit `b52cc43`); ready for Phase P06 (Mobile Data Migration via .agbackup & Transfer Supplement).
+
+
+
 ## Phase P04 (Media Library, Photo Result Store, Video Sampling & Tracking) Completed — 2026-11-08
 
 - User Request:
@@ -295,6 +334,45 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P05 (Identities, Grouping, Corrections & Review Service) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P05 of the Mobile Parity Plan.
+  - Implement IdentityOperations (merge, split, dissolve, changeKind, Identity Sets), CorrectionService (7 actions, 4 scopes, face/body guards), 3-round GroupingPlanner & Doubt Audit, and ReviewService with queue pruning and viewer highlight navigation.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Identity Operations (`com.facegallery.domain.identity.IdentityOperations`):
+     - `mergePersons`: Merges persons atomically, transferring faces, bodies, confirmations, distinct constraints, and identity sets, with strict rejection against mixing real and character kinds.
+     - `splitPerson`: Isolates selected faces into a newly created person and automatically registers mutual distinct constraints in `person_distinct`.
+     - `dissolvePerson`: Resets assigned detections to NULL and cleans up review matches, doubtful entries, and person constraints.
+     - `changeKind`: Switches person and face kinds ('real' vs 'character').
+     - `createIdentitySet`: Creates curated reference sets (`identity_sets` & `identity_set_faces`).
+  2. Correction Service (`com.facegallery.domain.corrections.CorrectionService`):
+     - Implemented all 7 actions: `ASSIGN_PERSON`, `UNASSIGN_PERSON`, `REJECT_PERSON`, `CONFIRM_MATCH`, `MARK_DISTINCT`, `SUPPRESS_DETECTION`, `OVERRIDE_KIND`.
+     - Implemented all 4 scopes: `SINGLE_DETECTION`, `TRACKLET`, `MEDIA`, `PERSON_CLUSTER`.
+     - Strict integrity guards: automatic rejection cleanup on manual reassignment, face/body tracking consistency, and distinct constraint sorting (`min(pA, pB)`, `max(pA, pB)`).
+  3. 3-Round Grouping Planner & Doubt Audit (`com.facegallery.domain.grouping.GroupingPlanner`):
+     - Round 1: High confidence face matching (cosine similarity >= 0.70, margin >= 0.10).
+     - Round 2: Tracklet continuity / spatiotemporal propagation linking unassigned detections in the same video track.
+     - Round 3: Doubt audit capturing ambiguous/borderline candidates ([0.50, 0.70) or margin < 0.10) into `review_matches` and `review_doubtful`.
+     - Atomic commitment via `applyPlan(...)`.
+  4. Review Service & Viewer Navigation (`com.facegallery.domain.review.ReviewService`):
+     - `fetchPendingReviews`: Retrieves pending review questions with active snooze filtering.
+     - `confirm` / `reject`: Executes corresponding correction action and updates review decision state.
+     - `snooze`: Records temporary snooze entries in `review_snoozes`.
+     - `getMediaHighlightTarget`: Supplies target coordinates, media ID, asset path, frame number, and timestamp to open the exact frame and highlight the detection ROI in the Media Viewer.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `IdentityOperationsTest`: Merge with kind validation, split with distinct pairing, dissolve with unassignment, and identity set creation passed (5/5).
+    - `CorrectionServiceTest`: Single assign with confirmation, tracklet propagation, rejection with unassignment, mark distinct, and suppress detection passed (4/4).
+    - `GroupingPlannerTest`: 3-round execution (Round 1 high conf, Round 2 track continuity, Round 3 doubt question) and DB plan commitment passed (2/2).
+    - `ReviewServiceTest`: Pending reviews fetch, snooze exclusion, confirm, reject, and media highlight target calculation passed (5/5).
+  - Total Phase P05 suite: 16 unit tests executed, 16 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 + P05 suite: 72 unit tests executed and passed (310 total unit tests passing in target project with 0 regressions).
+- Phase P05 closed (commit `b52cc43`); ready for Phase P06 (Mobile Data Migration via .agbackup & Transfer Supplement).
+
+
+
 ## Phase P04 (Media Library, Photo Result Store, Video Sampling & Tracking) Completed — 2026-11-08
 
 - User Request:
@@ -505,6 +583,45 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P05 (Identities, Grouping, Corrections & Review Service) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P05 of the Mobile Parity Plan.
+  - Implement IdentityOperations (merge, split, dissolve, changeKind, Identity Sets), CorrectionService (7 actions, 4 scopes, face/body guards), 3-round GroupingPlanner & Doubt Audit, and ReviewService with queue pruning and viewer highlight navigation.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Identity Operations (`com.facegallery.domain.identity.IdentityOperations`):
+     - `mergePersons`: Merges persons atomically, transferring faces, bodies, confirmations, distinct constraints, and identity sets, with strict rejection against mixing real and character kinds.
+     - `splitPerson`: Isolates selected faces into a newly created person and automatically registers mutual distinct constraints in `person_distinct`.
+     - `dissolvePerson`: Resets assigned detections to NULL and cleans up review matches, doubtful entries, and person constraints.
+     - `changeKind`: Switches person and face kinds ('real' vs 'character').
+     - `createIdentitySet`: Creates curated reference sets (`identity_sets` & `identity_set_faces`).
+  2. Correction Service (`com.facegallery.domain.corrections.CorrectionService`):
+     - Implemented all 7 actions: `ASSIGN_PERSON`, `UNASSIGN_PERSON`, `REJECT_PERSON`, `CONFIRM_MATCH`, `MARK_DISTINCT`, `SUPPRESS_DETECTION`, `OVERRIDE_KIND`.
+     - Implemented all 4 scopes: `SINGLE_DETECTION`, `TRACKLET`, `MEDIA`, `PERSON_CLUSTER`.
+     - Strict integrity guards: automatic rejection cleanup on manual reassignment, face/body tracking consistency, and distinct constraint sorting (`min(pA, pB)`, `max(pA, pB)`).
+  3. 3-Round Grouping Planner & Doubt Audit (`com.facegallery.domain.grouping.GroupingPlanner`):
+     - Round 1: High confidence face matching (cosine similarity >= 0.70, margin >= 0.10).
+     - Round 2: Tracklet continuity / spatiotemporal propagation linking unassigned detections in the same video track.
+     - Round 3: Doubt audit capturing ambiguous/borderline candidates ([0.50, 0.70) or margin < 0.10) into `review_matches` and `review_doubtful`.
+     - Atomic commitment via `applyPlan(...)`.
+  4. Review Service & Viewer Navigation (`com.facegallery.domain.review.ReviewService`):
+     - `fetchPendingReviews`: Retrieves pending review questions with active snooze filtering.
+     - `confirm` / `reject`: Executes corresponding correction action and updates review decision state.
+     - `snooze`: Records temporary snooze entries in `review_snoozes`.
+     - `getMediaHighlightTarget`: Supplies target coordinates, media ID, asset path, frame number, and timestamp to open the exact frame and highlight the detection ROI in the Media Viewer.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `IdentityOperationsTest`: Merge with kind validation, split with distinct pairing, dissolve with unassignment, and identity set creation passed (5/5).
+    - `CorrectionServiceTest`: Single assign with confirmation, tracklet propagation, rejection with unassignment, mark distinct, and suppress detection passed (4/4).
+    - `GroupingPlannerTest`: 3-round execution (Round 1 high conf, Round 2 track continuity, Round 3 doubt question) and DB plan commitment passed (2/2).
+    - `ReviewServiceTest`: Pending reviews fetch, snooze exclusion, confirm, reject, and media highlight target calculation passed (5/5).
+  - Total Phase P05 suite: 16 unit tests executed, 16 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 + P05 suite: 72 unit tests executed and passed (310 total unit tests passing in target project with 0 regressions).
+- Phase P05 closed (commit `b52cc43`); ready for Phase P06 (Mobile Data Migration via .agbackup & Transfer Supplement).
+
 
 
 ## Phase P04 (Media Library, Photo Result Store, Video Sampling & Tracking) Completed — 2026-11-08
