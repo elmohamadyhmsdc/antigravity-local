@@ -1,6 +1,37 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P03 (Jobs, Resumable Transfers & Activity Center) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P03 of the Mobile Parity Plan.
+  - Implement resumable 4MiB chunk uploading, range downloads with SHA-256 verification and `.part` atomic rename, SQLite JobRepository with state machine and event journaling, JobTracker, and the native Compose Activity Center UI.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Resumable Chunk Transfers (`com.facegallery.data.transfers`):
+     - `ResumableTransfers.kt`: Implemented 4 MiB chunk uploads matching `/v1/blobs/{sha256}` HEAD probe + Content-Range PUT protocol, offset sync on 202/409, and Range-based resumable downloads with on-the-fly SHA-256 verification and atomic `.part` replacement.
+     - `UploadQueueManager.kt`: Enqueueing, deduplication by sha256, attempt tracking, and state progression (`pending` -> `uploading` -> `completed` / `failed`).
+  2. SQLite Job & Results Repository (`com.facegallery.data.jobs.SqliteJobRepository`):
+     - Implemented persistent job storage in `jobs` table before network requests, avoiding duplicate job dispatches.
+     - Managed `job_events` journaling with timestamping and status updates.
+     - Added `commitResult(...)` to record completed job outputs into `results` table.
+  3. Job Tracking & Automatic Artifact Import (`com.facegallery.domain.jobs.JobTracker`):
+     - Polling engine with terminal state deduplication, exponential error tolerance, automatic artifact downloading into `FileStore`, and job acknowledgment.
+  4. Activity Center UI & Settings Integration:
+     - `ActivityViewModel.kt`: Live reactive StateFlow of all jobs, active counters, status filtering, and cancel/retry/delete actions.
+     - `ActivityCenterScreen.kt`: Follows Face Gallery design tokens (Iris/Amber, 48dp touch targets, status badges, linear progress indicators, type icons).
+     - `ActivityCenterRow.kt`: Embedded inside `SettingsScreen.kt` for direct access.
+     - Navigation route `ROUTE_ACTIVITY` (`activity`) registered in `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `ResumableTransfersTest`: Hash calculation, 4 MiB chunk constant, and `.part` file atomic replacement passed (3/3).
+    - `SqliteJobRepositoryTest`: State machine transitions, event journaling, results commitment, and active job filters passed (3/3).
+    - `UploadQueueTest`: Enqueueing, progress tracking, attempt counter increment on failure, and completion passed (1/1).
+  - Total Phase P03 suite: 7 unit tests executed, 7 passed (0 failures).
+  - Cumulative P01 + P02 + P03 suite: All 48 unit tests executed and passed (0 regressions).
+- Phase P03 closed; ready for Phase P04 (Media Library & Photo/Video Analysis).
+
+
 ## Phase P02 (Mobile API Client, Certificate Pinning, UDP Discovery & Pairing UI) Completed — 2026-11-08
 
 - User Request:
@@ -227,6 +258,37 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P03 (Jobs, Resumable Transfers & Activity Center) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P03 of the Mobile Parity Plan.
+  - Implement resumable 4MiB chunk uploading, range downloads with SHA-256 verification and `.part` atomic rename, SQLite JobRepository with state machine and event journaling, JobTracker, and the native Compose Activity Center UI.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Resumable Chunk Transfers (`com.facegallery.data.transfers`):
+     - `ResumableTransfers.kt`: Implemented 4 MiB chunk uploads matching `/v1/blobs/{sha256}` HEAD probe + Content-Range PUT protocol, offset sync on 202/409, and Range-based resumable downloads with on-the-fly SHA-256 verification and atomic `.part` replacement.
+     - `UploadQueueManager.kt`: Enqueueing, deduplication by sha256, attempt tracking, and state progression (`pending` -> `uploading` -> `completed` / `failed`).
+  2. SQLite Job & Results Repository (`com.facegallery.data.jobs.SqliteJobRepository`):
+     - Implemented persistent job storage in `jobs` table before network requests, avoiding duplicate job dispatches.
+     - Managed `job_events` journaling with timestamping and status updates.
+     - Added `commitResult(...)` to record completed job outputs into `results` table.
+  3. Job Tracking & Automatic Artifact Import (`com.facegallery.domain.jobs.JobTracker`):
+     - Polling engine with terminal state deduplication, exponential error tolerance, automatic artifact downloading into `FileStore`, and job acknowledgment.
+  4. Activity Center UI & Settings Integration:
+     - `ActivityViewModel.kt`: Live reactive StateFlow of all jobs, active counters, status filtering, and cancel/retry/delete actions.
+     - `ActivityCenterScreen.kt`: Follows Face Gallery design tokens (Iris/Amber, 48dp touch targets, status badges, linear progress indicators, type icons).
+     - `ActivityCenterRow.kt`: Embedded inside `SettingsScreen.kt` for direct access.
+     - Navigation route `ROUTE_ACTIVITY` (`activity`) registered in `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `ResumableTransfersTest`: Hash calculation, 4 MiB chunk constant, and `.part` file atomic replacement passed (3/3).
+    - `SqliteJobRepositoryTest`: State machine transitions, event journaling, results commitment, and active job filters passed (3/3).
+    - `UploadQueueTest`: Enqueueing, progress tracking, attempt counter increment on failure, and completion passed (1/1).
+  - Total Phase P03 suite: 7 unit tests executed, 7 passed (0 failures).
+  - Cumulative P01 + P02 + P03 suite: All 48 unit tests executed and passed (0 regressions).
+- Phase P03 closed; ready for Phase P04 (Media Library & Photo/Video Analysis).
 
 
 ## Phase P02 (Mobile API Client, Certificate Pinning, UDP Discovery & Pairing UI) Completed — 2026-11-08
