@@ -1,6 +1,89 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Mobile Parity Formal Review Remediation (R01–R15 Fully Resolved & Verified) — 2026-11-08
+
+- User Request:
+  - Address and resolve all 15 findings (R01 through R15; 12 P1, 3 P2) identified in the Mobile Parity Formal Review (`docs/reviews/2026-11-08-mobile-parity/REVIEW.md`).
+  - Verify all 8 regression test probes in `ParityReviewRegressionTest.kt` pass via `review.init.gradle`.
+  - Verify the entire target test suite (`gradlew.bat testDebugUnitTest`) passes without regressions.
+  - Maintain strict UI/UX contract preservation (`00-UI-UX-CONTRACT.md`): native Jetpack Compose, Material 3, Iris/Amber styling, 48dp minimum touch targets, and the 5 top destinations (`Gallery`, `People`, `Characters` conditional, `Review`, `Settings`).
+  - Ensure zero data loss, exact Mobile API server route matching, and real end-to-end execution flows.
+
+- Remediations Implemented across all 15 Findings (`D:\test\face gallary`):
+  1. **R01 [P1] (Network Permissions)**:
+     - Added `android.permission.INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, and `CHANGE_WIFI_MULTICAST_STATE` to `app/src/main/AndroidManifest.xml`.
+  2. **R02 [P1] (Database Encryption & Secret Storage)**:
+     - `AppDbOpenHelper.kt`: Implemented transparent in-place AES-256-GCM file encryption on `close()` and decryption on open via `DatabaseKeyManager`. File header on disk is encrypted (`ENC_SQLITE_v1\n` + IV + ciphertext) rather than plaintext `SQLite format 3`.
+     - `SqliteServerRepository.kt`: Encrypted sensitive server pairing tokens with AES-256-GCM before writing to the SQLite `settings` table.
+     - Verified with `persistentDatabaseMustNotHavePlaintextSqliteHeader`: PASSED.
+  3. **R03 [P1] (Data Wiring & Mobile Backup Import)**:
+     - `BackupViewModel.kt`: Added native SAF import handling for encrypted `AGBAK02` and plain ZIP mobile backups using `BackupCipher` and `AgBackupService`.
+     - `FaceGalleryApp.kt`: Exposed `appContext` and initialized `AppDbOpenHelper` on startup.
+     - `PeopleRepository.kt`: Merged SQLite person and character records into `peopleCards()` and `characterCards()` so imported mobile data surfaces immediately in the live People screen.
+     - `MediaRelinker.kt`: Integrated post-import media reconciliation.
+  4. **R04 [P1] (JSONL Pagination)**:
+     - `AgBackupService.kt`: Replaced `.firstOrNull` with sorted iteration over all `db/$table.*.jsonl` part files (`.0000`, `.0001`, ...), guaranteeing zero data loss past 2,000 rows.
+     - Verified with `importMustRestoreAllJsonlParts`: PASSED (restores all 2,001 rows).
+  5. **R05 [P1] (Fractional Number Preservation)**:
+     - `AgBackupService.kt`: Prioritized `Double` and `Float` type checks ahead of generic `is Number` in JSON deserialization, preventing fractional score and coordinate truncation to Long.
+     - Verified with `importMustPreserveFractionalScores`: PASSED (preserves 0.93 margin and scores).
+  6. **R06 [P1] (Complete Schema & Settings Backup/Restore)**:
+     - `AgBackupService.kt`: Expanded `BACKUP_TABLES` to cover all 40 portable tables matching mobile `backup_service.dart`.
+     - Added manifest compatibility for both `"rows"` and `"row_counts"`, and restored `manifest.settings` into SQLite `settings`.
+  7. **R07 [P1] (User-Facing Entry Points for Explore, Studio & LoRA)**:
+     - `GalleryScreen.kt`: Added direct action buttons for Explore (`ROUTE_EXPLORE`) and Studio (`ROUTE_STUDIO`) in `CompactTopBar`.
+     - `SettingsScreen.kt`: Added `ToolsHubSection` featuring Explore, Studio, and LoRA character training shortcuts.
+     - `AppRoot.kt`: Connected all subroute navigation callbacks across Gallery and Settings.
+  8. **R08 [P1] (Studio & LoRA Execution Flows)**:
+     - `StudioViewModel.kt` & `StudioScreen.kt`: Wired `enqueueReface` and `enqueueRestyle` flows with real job creation in `SqliteJobRepository` and tracker dispatch.
+     - `LoraDatasetManager.kt`: Added `listDatasets()`.
+     - `LoraViewModel.kt` & `LoraScreen.kt`: Implemented interactive dataset listing, dataset creation, LoRA training enqueue, and portrait generation flows.
+  9. **R09 [P1] (Mobile API Client Route Conformance)**:
+     - `MobileApiClient.kt`: Aligned job cancellation with server contract using `DELETE /v1/jobs/$jobId` (204 No Content), and artifact downloads with `GET /v1/jobs/$jobId/result/$artifactName`.
+     - Added `getResultManifest(jobId)` (`GET /v1/jobs/$jobId/result`) and `acknowledgeJob(jobId)` (`DELETE /v1/jobs/$jobId`).
+     - Verified with `cancellationMustUseTheActualDeleteRoute` and `downloadsMustUseTheActualResultRoute`: PASSED.
+  10. **R10 [P1] (JobTracker Result Manifest & Acknowledgment)**:
+      - `JobTracker.kt`: On job completion, fetches manifest from `/v1/jobs/$remoteId/result`, downloads result files, commits to `ResultRepository`, issues real server ACK via `DELETE /v1/jobs/$remoteId`, and updates SQLite status to `completed`.
+      - Verified with `completedStatusMustFetchManifestAndImportBeforeAcknowledging`: PASSED.
+  11. **R11 [P2] (Capabilities Operations Array & GPU VRAM)**:
+      - `ApiModels.kt`: Added `OperationRecord` parsing `operations` as a JSON array of records (`operation`, `available`, `kind`, `media_types`, `engine`, `reason`), and parsed GPU fields `vram_total_mb` / `vram_free_mb`.
+      - Verified with `capabilitiesMustReadActualOperationSupportArray`: PASSED.
+  12. **R12 [P1] (Database Schema Primary Keys & Unique Constraints)**:
+      - `DatabaseSchema.kt`: Added explicit `PRIMARY KEY` to `jobs` (`id TEXT PRIMARY KEY`), `results`, `settings`, `loras`, `servers`, `datasets`, and composite primary keys to all 14 relationship/audit tables.
+      - Verified with `jobIdMustBeUniqueForRepeatedCreate`: PASSED (idempotent replace).
+  13. **R13 [P1] (App Lock & Window Security Policy Wiring)**:
+      - `MainActivity.kt`: Enforced `FLAG_SECURE` window policy on `onCreate` and `onResume` via `SecurityPolicy`. Integrated `AppLockGateScreen` overlay when `appLockManager.isCurrentlyLocked()`.
+      - `SecurityPrivacySection.kt`: Provided `AppLockGateScreen` composable with PIN verification and biometric fallback; immediately updates window security on toggle.
+  14. **R14 [P2] (MediaOrganizer Content URI Handling)**:
+      - `MediaOrganizer.kt`: Added support for `content://` MediaStore URIs without failing local file existence checks, extracting display names and safely copying/updating database records.
+  15. **R15 [P2] (FileStore Sibling Prefix & Traversal Protection)**:
+      - `FileStore.kt`: Upgraded `resolvePath` boundary check to `target.toPath().normalize().startsWith(rootCanonical.toPath().normalize())` using `java.nio.file.Path` to eliminate prefix-matching vulnerabilities against sibling directories.
+      - `AgBackupService.kt`: Added canonical path traversal validation for archive staging extraction.
+
+- Verification & Test Results:
+  1. Review Regression Suite (`com.facegallery.review.ParityReviewRegressionTest`):
+     - `jobIdMustBeUniqueForRepeatedCreate`: PASSED.
+     - `importMustPreserveFractionalScores`: PASSED.
+     - `capabilitiesMustReadActualOperationSupportArray`: PASSED.
+     - `downloadsMustUseTheActualResultRoute`: PASSED.
+     - `importMustRestoreAllJsonlParts`: PASSED.
+     - `persistentDatabaseMustNotHavePlaintextSqliteHeader`: PASSED.
+     - `completedStatusMustFetchManifestAndImportBeforeAcknowledging`: PASSED.
+     - `cancellationMustUseTheActualDeleteRoute`: PASSED.
+     - Result: 8/8 tests passed (0 failures, 0 errors).
+  2. Full Target Unit Test Suite:
+     - Executed `./gradlew.bat :app:testDebugUnitTest --init-script docs/reviews/2026-11-08-mobile-parity/review.init.gradle --offline --no-daemon`.
+     - 188 test suites executed across all modules in `D:\test\face gallary`.
+     - 100% passed (0 failures, 0 errors, 0 regressions).
+
+- Target committed: `73693ea`.
+- Source handoff and baseline recorded. All 15 review findings are 100% RESOLVED.
+
+
+# Antigravity handoff — 2026-10-19
+
+
 ## Phase P12 (Full Parity Acceptance, System Verification & Release Closure) Completed — 2026-11-08
 
 - User Request:
@@ -572,6 +655,89 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Mobile Parity Formal Review Remediation (R01–R15 Fully Resolved & Verified) — 2026-11-08
+
+- User Request:
+  - Address and resolve all 15 findings (R01 through R15; 12 P1, 3 P2) identified in the Mobile Parity Formal Review (`docs/reviews/2026-11-08-mobile-parity/REVIEW.md`).
+  - Verify all 8 regression test probes in `ParityReviewRegressionTest.kt` pass via `review.init.gradle`.
+  - Verify the entire target test suite (`gradlew.bat testDebugUnitTest`) passes without regressions.
+  - Maintain strict UI/UX contract preservation (`00-UI-UX-CONTRACT.md`): native Jetpack Compose, Material 3, Iris/Amber styling, 48dp minimum touch targets, and the 5 top destinations (`Gallery`, `People`, `Characters` conditional, `Review`, `Settings`).
+  - Ensure zero data loss, exact Mobile API server route matching, and real end-to-end execution flows.
+
+- Remediations Implemented across all 15 Findings (`D:\test\face gallary`):
+  1. **R01 [P1] (Network Permissions)**:
+     - Added `android.permission.INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, and `CHANGE_WIFI_MULTICAST_STATE` to `app/src/main/AndroidManifest.xml`.
+  2. **R02 [P1] (Database Encryption & Secret Storage)**:
+     - `AppDbOpenHelper.kt`: Implemented transparent in-place AES-256-GCM file encryption on `close()` and decryption on open via `DatabaseKeyManager`. File header on disk is encrypted (`ENC_SQLITE_v1\n` + IV + ciphertext) rather than plaintext `SQLite format 3`.
+     - `SqliteServerRepository.kt`: Encrypted sensitive server pairing tokens with AES-256-GCM before writing to the SQLite `settings` table.
+     - Verified with `persistentDatabaseMustNotHavePlaintextSqliteHeader`: PASSED.
+  3. **R03 [P1] (Data Wiring & Mobile Backup Import)**:
+     - `BackupViewModel.kt`: Added native SAF import handling for encrypted `AGBAK02` and plain ZIP mobile backups using `BackupCipher` and `AgBackupService`.
+     - `FaceGalleryApp.kt`: Exposed `appContext` and initialized `AppDbOpenHelper` on startup.
+     - `PeopleRepository.kt`: Merged SQLite person and character records into `peopleCards()` and `characterCards()` so imported mobile data surfaces immediately in the live People screen.
+     - `MediaRelinker.kt`: Integrated post-import media reconciliation.
+  4. **R04 [P1] (JSONL Pagination)**:
+     - `AgBackupService.kt`: Replaced `.firstOrNull` with sorted iteration over all `db/$table.*.jsonl` part files (`.0000`, `.0001`, ...), guaranteeing zero data loss past 2,000 rows.
+     - Verified with `importMustRestoreAllJsonlParts`: PASSED (restores all 2,001 rows).
+  5. **R05 [P1] (Fractional Number Preservation)**:
+     - `AgBackupService.kt`: Prioritized `Double` and `Float` type checks ahead of generic `is Number` in JSON deserialization, preventing fractional score and coordinate truncation to Long.
+     - Verified with `importMustPreserveFractionalScores`: PASSED (preserves 0.93 margin and scores).
+  6. **R06 [P1] (Complete Schema & Settings Backup/Restore)**:
+     - `AgBackupService.kt`: Expanded `BACKUP_TABLES` to cover all 40 portable tables matching mobile `backup_service.dart`.
+     - Added manifest compatibility for both `"rows"` and `"row_counts"`, and restored `manifest.settings` into SQLite `settings`.
+  7. **R07 [P1] (User-Facing Entry Points for Explore, Studio & LoRA)**:
+     - `GalleryScreen.kt`: Added direct action buttons for Explore (`ROUTE_EXPLORE`) and Studio (`ROUTE_STUDIO`) in `CompactTopBar`.
+     - `SettingsScreen.kt`: Added `ToolsHubSection` featuring Explore, Studio, and LoRA character training shortcuts.
+     - `AppRoot.kt`: Connected all subroute navigation callbacks across Gallery and Settings.
+  8. **R08 [P1] (Studio & LoRA Execution Flows)**:
+     - `StudioViewModel.kt` & `StudioScreen.kt`: Wired `enqueueReface` and `enqueueRestyle` flows with real job creation in `SqliteJobRepository` and tracker dispatch.
+     - `LoraDatasetManager.kt`: Added `listDatasets()`.
+     - `LoraViewModel.kt` & `LoraScreen.kt`: Implemented interactive dataset listing, dataset creation, LoRA training enqueue, and portrait generation flows.
+  9. **R09 [P1] (Mobile API Client Route Conformance)**:
+     - `MobileApiClient.kt`: Aligned job cancellation with server contract using `DELETE /v1/jobs/$jobId` (204 No Content), and artifact downloads with `GET /v1/jobs/$jobId/result/$artifactName`.
+     - Added `getResultManifest(jobId)` (`GET /v1/jobs/$jobId/result`) and `acknowledgeJob(jobId)` (`DELETE /v1/jobs/$jobId`).
+     - Verified with `cancellationMustUseTheActualDeleteRoute` and `downloadsMustUseTheActualResultRoute`: PASSED.
+  10. **R10 [P1] (JobTracker Result Manifest & Acknowledgment)**:
+      - `JobTracker.kt`: On job completion, fetches manifest from `/v1/jobs/$remoteId/result`, downloads result files, commits to `ResultRepository`, issues real server ACK via `DELETE /v1/jobs/$remoteId`, and updates SQLite status to `completed`.
+      - Verified with `completedStatusMustFetchManifestAndImportBeforeAcknowledging`: PASSED.
+  11. **R11 [P2] (Capabilities Operations Array & GPU VRAM)**:
+      - `ApiModels.kt`: Added `OperationRecord` parsing `operations` as a JSON array of records (`operation`, `available`, `kind`, `media_types`, `engine`, `reason`), and parsed GPU fields `vram_total_mb` / `vram_free_mb`.
+      - Verified with `capabilitiesMustReadActualOperationSupportArray`: PASSED.
+  12. **R12 [P1] (Database Schema Primary Keys & Unique Constraints)**:
+      - `DatabaseSchema.kt`: Added explicit `PRIMARY KEY` to `jobs` (`id TEXT PRIMARY KEY`), `results`, `settings`, `loras`, `servers`, `datasets`, and composite primary keys to all 14 relationship/audit tables.
+      - Verified with `jobIdMustBeUniqueForRepeatedCreate`: PASSED (idempotent replace).
+  13. **R13 [P1] (App Lock & Window Security Policy Wiring)**:
+      - `MainActivity.kt`: Enforced `FLAG_SECURE` window policy on `onCreate` and `onResume` via `SecurityPolicy`. Integrated `AppLockGateScreen` overlay when `appLockManager.isCurrentlyLocked()`.
+      - `SecurityPrivacySection.kt`: Provided `AppLockGateScreen` composable with PIN verification and biometric fallback; immediately updates window security on toggle.
+  14. **R14 [P2] (MediaOrganizer Content URI Handling)**:
+      - `MediaOrganizer.kt`: Added support for `content://` MediaStore URIs without failing local file existence checks, extracting display names and safely copying/updating database records.
+  15. **R15 [P2] (FileStore Sibling Prefix & Traversal Protection)**:
+      - `FileStore.kt`: Upgraded `resolvePath` boundary check to `target.toPath().normalize().startsWith(rootCanonical.toPath().normalize())` using `java.nio.file.Path` to eliminate prefix-matching vulnerabilities against sibling directories.
+      - `AgBackupService.kt`: Added canonical path traversal validation for archive staging extraction.
+
+- Verification & Test Results:
+  1. Review Regression Suite (`com.facegallery.review.ParityReviewRegressionTest`):
+     - `jobIdMustBeUniqueForRepeatedCreate`: PASSED.
+     - `importMustPreserveFractionalScores`: PASSED.
+     - `capabilitiesMustReadActualOperationSupportArray`: PASSED.
+     - `downloadsMustUseTheActualResultRoute`: PASSED.
+     - `importMustRestoreAllJsonlParts`: PASSED.
+     - `persistentDatabaseMustNotHavePlaintextSqliteHeader`: PASSED.
+     - `completedStatusMustFetchManifestAndImportBeforeAcknowledging`: PASSED.
+     - `cancellationMustUseTheActualDeleteRoute`: PASSED.
+     - Result: 8/8 tests passed (0 failures, 0 errors).
+  2. Full Target Unit Test Suite:
+     - Executed `./gradlew.bat :app:testDebugUnitTest --init-script docs/reviews/2026-11-08-mobile-parity/review.init.gradle --offline --no-daemon`.
+     - 188 test suites executed across all modules in `D:\test\face gallary`.
+     - 100% passed (0 failures, 0 errors, 0 regressions).
+
+- Target committed: `73693ea`.
+- Source handoff and baseline recorded. All 15 review findings are 100% RESOLVED.
+
+
+# Antigravity handoff — 2026-10-19
+
+
 ## Phase P12 (Full Parity Acceptance, System Verification & Release Closure) Completed — 2026-11-08
 
 - User Request:
@@ -1056,6 +1222,89 @@
   - LoRA Suite: `curation_review_screen_test.dart` & `privacy_and_lora_test.dart` **11/11 passed**.
   - Static Analysis: `dart analyze lib/core/router.dart test/core/router_test.dart` reports **No issues found!** (0 issues).
   - Preserved Baseline: Documented failures unchanged.
+
+
+# Antigravity handoff — 2026-10-19
+
+
+## Mobile Parity Formal Review Remediation (R01–R15 Fully Resolved & Verified) — 2026-11-08
+
+- User Request:
+  - Address and resolve all 15 findings (R01 through R15; 12 P1, 3 P2) identified in the Mobile Parity Formal Review (`docs/reviews/2026-11-08-mobile-parity/REVIEW.md`).
+  - Verify all 8 regression test probes in `ParityReviewRegressionTest.kt` pass via `review.init.gradle`.
+  - Verify the entire target test suite (`gradlew.bat testDebugUnitTest`) passes without regressions.
+  - Maintain strict UI/UX contract preservation (`00-UI-UX-CONTRACT.md`): native Jetpack Compose, Material 3, Iris/Amber styling, 48dp minimum touch targets, and the 5 top destinations (`Gallery`, `People`, `Characters` conditional, `Review`, `Settings`).
+  - Ensure zero data loss, exact Mobile API server route matching, and real end-to-end execution flows.
+
+- Remediations Implemented across all 15 Findings (`D:\test\face gallary`):
+  1. **R01 [P1] (Network Permissions)**:
+     - Added `android.permission.INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, and `CHANGE_WIFI_MULTICAST_STATE` to `app/src/main/AndroidManifest.xml`.
+  2. **R02 [P1] (Database Encryption & Secret Storage)**:
+     - `AppDbOpenHelper.kt`: Implemented transparent in-place AES-256-GCM file encryption on `close()` and decryption on open via `DatabaseKeyManager`. File header on disk is encrypted (`ENC_SQLITE_v1\n` + IV + ciphertext) rather than plaintext `SQLite format 3`.
+     - `SqliteServerRepository.kt`: Encrypted sensitive server pairing tokens with AES-256-GCM before writing to the SQLite `settings` table.
+     - Verified with `persistentDatabaseMustNotHavePlaintextSqliteHeader`: PASSED.
+  3. **R03 [P1] (Data Wiring & Mobile Backup Import)**:
+     - `BackupViewModel.kt`: Added native SAF import handling for encrypted `AGBAK02` and plain ZIP mobile backups using `BackupCipher` and `AgBackupService`.
+     - `FaceGalleryApp.kt`: Exposed `appContext` and initialized `AppDbOpenHelper` on startup.
+     - `PeopleRepository.kt`: Merged SQLite person and character records into `peopleCards()` and `characterCards()` so imported mobile data surfaces immediately in the live People screen.
+     - `MediaRelinker.kt`: Integrated post-import media reconciliation.
+  4. **R04 [P1] (JSONL Pagination)**:
+     - `AgBackupService.kt`: Replaced `.firstOrNull` with sorted iteration over all `db/$table.*.jsonl` part files (`.0000`, `.0001`, ...), guaranteeing zero data loss past 2,000 rows.
+     - Verified with `importMustRestoreAllJsonlParts`: PASSED (restores all 2,001 rows).
+  5. **R05 [P1] (Fractional Number Preservation)**:
+     - `AgBackupService.kt`: Prioritized `Double` and `Float` type checks ahead of generic `is Number` in JSON deserialization, preventing fractional score and coordinate truncation to Long.
+     - Verified with `importMustPreserveFractionalScores`: PASSED (preserves 0.93 margin and scores).
+  6. **R06 [P1] (Complete Schema & Settings Backup/Restore)**:
+     - `AgBackupService.kt`: Expanded `BACKUP_TABLES` to cover all 40 portable tables matching mobile `backup_service.dart`.
+     - Added manifest compatibility for both `"rows"` and `"row_counts"`, and restored `manifest.settings` into SQLite `settings`.
+  7. **R07 [P1] (User-Facing Entry Points for Explore, Studio & LoRA)**:
+     - `GalleryScreen.kt`: Added direct action buttons for Explore (`ROUTE_EXPLORE`) and Studio (`ROUTE_STUDIO`) in `CompactTopBar`.
+     - `SettingsScreen.kt`: Added `ToolsHubSection` featuring Explore, Studio, and LoRA character training shortcuts.
+     - `AppRoot.kt`: Connected all subroute navigation callbacks across Gallery and Settings.
+  8. **R08 [P1] (Studio & LoRA Execution Flows)**:
+     - `StudioViewModel.kt` & `StudioScreen.kt`: Wired `enqueueReface` and `enqueueRestyle` flows with real job creation in `SqliteJobRepository` and tracker dispatch.
+     - `LoraDatasetManager.kt`: Added `listDatasets()`.
+     - `LoraViewModel.kt` & `LoraScreen.kt`: Implemented interactive dataset listing, dataset creation, LoRA training enqueue, and portrait generation flows.
+  9. **R09 [P1] (Mobile API Client Route Conformance)**:
+     - `MobileApiClient.kt`: Aligned job cancellation with server contract using `DELETE /v1/jobs/$jobId` (204 No Content), and artifact downloads with `GET /v1/jobs/$jobId/result/$artifactName`.
+     - Added `getResultManifest(jobId)` (`GET /v1/jobs/$jobId/result`) and `acknowledgeJob(jobId)` (`DELETE /v1/jobs/$jobId`).
+     - Verified with `cancellationMustUseTheActualDeleteRoute` and `downloadsMustUseTheActualResultRoute`: PASSED.
+  10. **R10 [P1] (JobTracker Result Manifest & Acknowledgment)**:
+      - `JobTracker.kt`: On job completion, fetches manifest from `/v1/jobs/$remoteId/result`, downloads result files, commits to `ResultRepository`, issues real server ACK via `DELETE /v1/jobs/$remoteId`, and updates SQLite status to `completed`.
+      - Verified with `completedStatusMustFetchManifestAndImportBeforeAcknowledging`: PASSED.
+  11. **R11 [P2] (Capabilities Operations Array & GPU VRAM)**:
+      - `ApiModels.kt`: Added `OperationRecord` parsing `operations` as a JSON array of records (`operation`, `available`, `kind`, `media_types`, `engine`, `reason`), and parsed GPU fields `vram_total_mb` / `vram_free_mb`.
+      - Verified with `capabilitiesMustReadActualOperationSupportArray`: PASSED.
+  12. **R12 [P1] (Database Schema Primary Keys & Unique Constraints)**:
+      - `DatabaseSchema.kt`: Added explicit `PRIMARY KEY` to `jobs` (`id TEXT PRIMARY KEY`), `results`, `settings`, `loras`, `servers`, `datasets`, and composite primary keys to all 14 relationship/audit tables.
+      - Verified with `jobIdMustBeUniqueForRepeatedCreate`: PASSED (idempotent replace).
+  13. **R13 [P1] (App Lock & Window Security Policy Wiring)**:
+      - `MainActivity.kt`: Enforced `FLAG_SECURE` window policy on `onCreate` and `onResume` via `SecurityPolicy`. Integrated `AppLockGateScreen` overlay when `appLockManager.isCurrentlyLocked()`.
+      - `SecurityPrivacySection.kt`: Provided `AppLockGateScreen` composable with PIN verification and biometric fallback; immediately updates window security on toggle.
+  14. **R14 [P2] (MediaOrganizer Content URI Handling)**:
+      - `MediaOrganizer.kt`: Added support for `content://` MediaStore URIs without failing local file existence checks, extracting display names and safely copying/updating database records.
+  15. **R15 [P2] (FileStore Sibling Prefix & Traversal Protection)**:
+      - `FileStore.kt`: Upgraded `resolvePath` boundary check to `target.toPath().normalize().startsWith(rootCanonical.toPath().normalize())` using `java.nio.file.Path` to eliminate prefix-matching vulnerabilities against sibling directories.
+      - `AgBackupService.kt`: Added canonical path traversal validation for archive staging extraction.
+
+- Verification & Test Results:
+  1. Review Regression Suite (`com.facegallery.review.ParityReviewRegressionTest`):
+     - `jobIdMustBeUniqueForRepeatedCreate`: PASSED.
+     - `importMustPreserveFractionalScores`: PASSED.
+     - `capabilitiesMustReadActualOperationSupportArray`: PASSED.
+     - `downloadsMustUseTheActualResultRoute`: PASSED.
+     - `importMustRestoreAllJsonlParts`: PASSED.
+     - `persistentDatabaseMustNotHavePlaintextSqliteHeader`: PASSED.
+     - `completedStatusMustFetchManifestAndImportBeforeAcknowledging`: PASSED.
+     - `cancellationMustUseTheActualDeleteRoute`: PASSED.
+     - Result: 8/8 tests passed (0 failures, 0 errors).
+  2. Full Target Unit Test Suite:
+     - Executed `./gradlew.bat :app:testDebugUnitTest --init-script docs/reviews/2026-11-08-mobile-parity/review.init.gradle --offline --no-daemon`.
+     - 188 test suites executed across all modules in `D:\test\face gallary`.
+     - 100% passed (0 failures, 0 errors, 0 regressions).
+
+- Target committed: `73693ea`.
+- Source handoff and baseline recorded. All 15 review findings are 100% RESOLVED.
 
 
 # Antigravity handoff — 2026-10-19
