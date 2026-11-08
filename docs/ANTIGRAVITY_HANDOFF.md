@@ -1,6 +1,37 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P11 (Unified Viewer, Privacy, Security & Storage) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P11 of the Mobile Parity Plan.
+  - Implement AppLockManager (PIN hashing with SHA-256, biometric unlock toggle, auto-lock timeout, lock state tracking), SecurityPolicy (FLAG_SECURE window flag management for screenshot prevention and sensitive media blur), StorageCleanupManager (disk breakdown calculation for crops, results, datasets, loras, and temp cache; atomic cache clearing and unreferenced orphaned crop deletion), InsightsRepository (offline SQLite schema v20 queries for media, faces, persons, results, jobs, and storage breakdown), and ViewerOverlayManager (hierarchical hit-testing prioritizing smaller face/sensitive regions over bodies, and contextual action dispatch).
+  - Add native Compose SecurityPrivacySection into SettingsScreen preserving Face Gallery UI/UX and Iris/Amber theme.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Security & Lock Architecture (`com.facegallery.core.security`):
+     - `AppLockManager.kt`: PIN setup with SHA-256 hash persistence, biometric enablement, auto-lock timeout evaluation, activity timestamp recording, and session lock state.
+     - `SecurityPolicy.kt`: Window `FLAG_SECURE` management, screenshot protection preference, and sensitive blur toggle.
+  2. Storage Management & Cleanup (`com.facegallery.core.storage`):
+     - `StorageCleanupManager.kt`: Computes breakdown across crops (`crops/faces`, `crops/bodies`, `crops/characters`), results, datasets, loras, and temp directories. Provides atomic temp cache purge and unreferenced orphaned crop pruning.
+  3. Offline Library Insights (`com.facegallery.domain.insights`):
+     - `InsightsRepository.kt`: Aggregates media counts (total, scanned, pending), face detections (total, assigned, unassigned), identity counts (real, character, favorites), completed results, jobs, and disk consumption from SQLite schema v20.
+  4. Unified Viewer Overlays & Action Dispatch (`com.facegallery.domain.viewer`):
+     - `ViewerOverlayManager.kt`: Area-weighted hierarchical hit testing (prioritizes face/sensitive regions within larger body bounding boxes) and dynamic action dispatch per overlay type (`ASSIGN_PERSON`, `CHANGE_KIND`, `SUPPRESS_DETECTION`, `REVIEW_DOUBT`, `USE_REFACE_SOURCE`, `TRAIN_LORA`, `CLASSIFY_POSE`, `TAG_OUTFIT`, `INSPECT_BODY`, `TOGGLE_SENSITIVE_BLUR`, `CONFIRM_EQUIPMENT`, `REJECT_EQUIPMENT`).
+  5. UI & Settings Integration (`com.facegallery.ui.screens.settings`):
+     - `SecurityPrivacySection.kt`: Material 3 card embedded in `SettingsScreen.kt` providing toggles for screenshot blocking, sensitive region auto-blur, PIN/biometric app lock, and cache cleaning.
+- Verification & Test Results:
+  - 5 unit test suites executed:
+    - `AppLockManagerTest`: PIN setup, verification, wrong PIN rejection, biometric unlock, and disable lock passed (4/4).
+    - `SecurityPolicyTest`: Screenshot protection and sensitive blur toggles passed (1/1).
+    - `StorageCleanupManagerTest`: Directory storage breakdown calculation, temp cache purge, and orphaned crop pruning passed (2/2).
+    - `InsightsRepositoryTest`: Library insights aggregation across media, faces, persons, results, jobs, and storage passed (1/1).
+    - `ViewerOverlayManagerTest`: Area-weighted hit-testing and available actions dispatch passed (2/2).
+  - Total Phase P11 suite: 10 unit tests executed, 10 passed (0 failures).
+  - Cumulative P01-P11 suite: 132 unit tests executed and passed (370 total unit tests passing in target project with 0 regressions).
+- Target committed: `68c7de1`. Phase P11 closed; ready for Phase P12 (Full Parity Acceptance & Verification).
+
+
 ## Phase P10 (LoRA Character Training & Generation) Completed — 2026-11-08
 
 - User Request:
@@ -511,6 +542,37 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P11 (Unified Viewer, Privacy, Security & Storage) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P11 of the Mobile Parity Plan.
+  - Implement AppLockManager (PIN hashing with SHA-256, biometric unlock toggle, auto-lock timeout, lock state tracking), SecurityPolicy (FLAG_SECURE window flag management for screenshot prevention and sensitive media blur), StorageCleanupManager (disk breakdown calculation for crops, results, datasets, loras, and temp cache; atomic cache clearing and unreferenced orphaned crop deletion), InsightsRepository (offline SQLite schema v20 queries for media, faces, persons, results, jobs, and storage breakdown), and ViewerOverlayManager (hierarchical hit-testing prioritizing smaller face/sensitive regions over bodies, and contextual action dispatch).
+  - Add native Compose SecurityPrivacySection into SettingsScreen preserving Face Gallery UI/UX and Iris/Amber theme.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Security & Lock Architecture (`com.facegallery.core.security`):
+     - `AppLockManager.kt`: PIN setup with SHA-256 hash persistence, biometric enablement, auto-lock timeout evaluation, activity timestamp recording, and session lock state.
+     - `SecurityPolicy.kt`: Window `FLAG_SECURE` management, screenshot protection preference, and sensitive blur toggle.
+  2. Storage Management & Cleanup (`com.facegallery.core.storage`):
+     - `StorageCleanupManager.kt`: Computes breakdown across crops (`crops/faces`, `crops/bodies`, `crops/characters`), results, datasets, loras, and temp directories. Provides atomic temp cache purge and unreferenced orphaned crop pruning.
+  3. Offline Library Insights (`com.facegallery.domain.insights`):
+     - `InsightsRepository.kt`: Aggregates media counts (total, scanned, pending), face detections (total, assigned, unassigned), identity counts (real, character, favorites), completed results, jobs, and disk consumption from SQLite schema v20.
+  4. Unified Viewer Overlays & Action Dispatch (`com.facegallery.domain.viewer`):
+     - `ViewerOverlayManager.kt`: Area-weighted hierarchical hit testing (prioritizes face/sensitive regions within larger body bounding boxes) and dynamic action dispatch per overlay type (`ASSIGN_PERSON`, `CHANGE_KIND`, `SUPPRESS_DETECTION`, `REVIEW_DOUBT`, `USE_REFACE_SOURCE`, `TRAIN_LORA`, `CLASSIFY_POSE`, `TAG_OUTFIT`, `INSPECT_BODY`, `TOGGLE_SENSITIVE_BLUR`, `CONFIRM_EQUIPMENT`, `REJECT_EQUIPMENT`).
+  5. UI & Settings Integration (`com.facegallery.ui.screens.settings`):
+     - `SecurityPrivacySection.kt`: Material 3 card embedded in `SettingsScreen.kt` providing toggles for screenshot blocking, sensitive region auto-blur, PIN/biometric app lock, and cache cleaning.
+- Verification & Test Results:
+  - 5 unit test suites executed:
+    - `AppLockManagerTest`: PIN setup, verification, wrong PIN rejection, biometric unlock, and disable lock passed (4/4).
+    - `SecurityPolicyTest`: Screenshot protection and sensitive blur toggles passed (1/1).
+    - `StorageCleanupManagerTest`: Directory storage breakdown calculation, temp cache purge, and orphaned crop pruning passed (2/2).
+    - `InsightsRepositoryTest`: Library insights aggregation across media, faces, persons, results, jobs, and storage passed (1/1).
+    - `ViewerOverlayManagerTest`: Area-weighted hit-testing and available actions dispatch passed (2/2).
+  - Total Phase P11 suite: 10 unit tests executed, 10 passed (0 failures).
+  - Cumulative P01-P11 suite: 132 unit tests executed and passed (370 total unit tests passing in target project with 0 regressions).
+- Target committed: `68c7de1`. Phase P11 closed; ready for Phase P12 (Full Parity Acceptance & Verification).
+
+
 ## Phase P10 (LoRA Character Training & Generation) Completed — 2026-11-08
 
 - User Request:
@@ -937,6 +999,37 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P11 (Unified Viewer, Privacy, Security & Storage) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P11 of the Mobile Parity Plan.
+  - Implement AppLockManager (PIN hashing with SHA-256, biometric unlock toggle, auto-lock timeout, lock state tracking), SecurityPolicy (FLAG_SECURE window flag management for screenshot prevention and sensitive media blur), StorageCleanupManager (disk breakdown calculation for crops, results, datasets, loras, and temp cache; atomic cache clearing and unreferenced orphaned crop deletion), InsightsRepository (offline SQLite schema v20 queries for media, faces, persons, results, jobs, and storage breakdown), and ViewerOverlayManager (hierarchical hit-testing prioritizing smaller face/sensitive regions over bodies, and contextual action dispatch).
+  - Add native Compose SecurityPrivacySection into SettingsScreen preserving Face Gallery UI/UX and Iris/Amber theme.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Security & Lock Architecture (`com.facegallery.core.security`):
+     - `AppLockManager.kt`: PIN setup with SHA-256 hash persistence, biometric enablement, auto-lock timeout evaluation, activity timestamp recording, and session lock state.
+     - `SecurityPolicy.kt`: Window `FLAG_SECURE` management, screenshot protection preference, and sensitive blur toggle.
+  2. Storage Management & Cleanup (`com.facegallery.core.storage`):
+     - `StorageCleanupManager.kt`: Computes breakdown across crops (`crops/faces`, `crops/bodies`, `crops/characters`), results, datasets, loras, and temp directories. Provides atomic temp cache purge and unreferenced orphaned crop pruning.
+  3. Offline Library Insights (`com.facegallery.domain.insights`):
+     - `InsightsRepository.kt`: Aggregates media counts (total, scanned, pending), face detections (total, assigned, unassigned), identity counts (real, character, favorites), completed results, jobs, and disk consumption from SQLite schema v20.
+  4. Unified Viewer Overlays & Action Dispatch (`com.facegallery.domain.viewer`):
+     - `ViewerOverlayManager.kt`: Area-weighted hierarchical hit testing (prioritizes face/sensitive regions within larger body bounding boxes) and dynamic action dispatch per overlay type (`ASSIGN_PERSON`, `CHANGE_KIND`, `SUPPRESS_DETECTION`, `REVIEW_DOUBT`, `USE_REFACE_SOURCE`, `TRAIN_LORA`, `CLASSIFY_POSE`, `TAG_OUTFIT`, `INSPECT_BODY`, `TOGGLE_SENSITIVE_BLUR`, `CONFIRM_EQUIPMENT`, `REJECT_EQUIPMENT`).
+  5. UI & Settings Integration (`com.facegallery.ui.screens.settings`):
+     - `SecurityPrivacySection.kt`: Material 3 card embedded in `SettingsScreen.kt` providing toggles for screenshot blocking, sensitive region auto-blur, PIN/biometric app lock, and cache cleaning.
+- Verification & Test Results:
+  - 5 unit test suites executed:
+    - `AppLockManagerTest`: PIN setup, verification, wrong PIN rejection, biometric unlock, and disable lock passed (4/4).
+    - `SecurityPolicyTest`: Screenshot protection and sensitive blur toggles passed (1/1).
+    - `StorageCleanupManagerTest`: Directory storage breakdown calculation, temp cache purge, and orphaned crop pruning passed (2/2).
+    - `InsightsRepositoryTest`: Library insights aggregation across media, faces, persons, results, jobs, and storage passed (1/1).
+    - `ViewerOverlayManagerTest`: Area-weighted hit-testing and available actions dispatch passed (2/2).
+  - Total Phase P11 suite: 10 unit tests executed, 10 passed (0 failures).
+  - Cumulative P01-P11 suite: 132 unit tests executed and passed (370 total unit tests passing in target project with 0 regressions).
+- Target committed: `68c7de1`. Phase P11 closed; ready for Phase P12 (Full Parity Acceptance & Verification).
 
 
 ## Phase P10 (LoRA Character Training & Generation) Completed — 2026-11-08
