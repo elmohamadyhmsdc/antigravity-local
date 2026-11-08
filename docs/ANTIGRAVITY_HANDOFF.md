@@ -1,6 +1,39 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P09 (Studio: Reface, Restyle & Results) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P09 of the Mobile Parity Plan.
+  - Implement Reface domain (preflight pose buckets, target shares, gap/needsGeneration analysis, small face warnings, time estimation), RefaceRequestBuilder (sources with base64 embeddings and poses, targets with single/all and video trim in seconds, engines v3/v2/dfm, quality profiles, restorers, occluder, parser, identity boost), RestyleRequestBuilder (prompt, negative prompt, strength, steps, seed, protected face ROI, roi bbox, reference images, refine), and ResultRepository (private storage in FileStore resultsDir, SHA-256 digest, DB results table, favourite toggling, deletion).
+  - Add native Compose Studio screen and ViewModel with Reface, Restyle, and Results tabs, preserving Iris/Amber theme and 48dp touch targets.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Reface Domain (`com.facegallery.domain.reface`):
+     - `RefacePreflight.kt`: Head pose buckets (`FRONTAL`, `THREE_QUARTER`, `PROFILE`, `UP`, `DOWN`), target share weighting, real vs generated source coverage, gap identification, tiny face (< 40px) and small face (< 64px) warnings.
+     - `RefaceTime.kt`: Runtime estimation based on server msPerFace, video frames, and face counts; human-friendly formatted time strings.
+     - `RefaceOptions.kt`: Engine validation (`v3`, `v2`, `dfm`), quality profiles, face restorers, occluders, parsers, and identity boost bounds.
+     - `RefaceRequestBuilder.kt`: Generates compliant JSON request payloads with Base64 little-endian embeddings, poses, target face IDs, and video trim (seconds).
+  2. Restyle Domain (`com.facegallery.domain.restyle`):
+     - `RestyleRequestBuilder.kt`: Generates compliant JSON restyle payloads with validated prompt, negative prompt, strength [0.01..1.0], steps [1..150], seed, protected face bounding box, and reference images.
+  3. Results Repository (`com.facegallery.domain.results`):
+     - `ResultRepository.kt`: Manages `results` table and atomic FileStore writes to `results/<id>.<ext>`. Computes SHA-256 digests, tracks favourites, stores artifact contexts in settings, and provides isolated deletion.
+  4. UI & Navigation (`com.facegallery.ui.screens.studio`, `com.facegallery.ui.navigation`):
+     - `StudioScreen.kt`: Material 3 Studio Hub with Reface, Restyle, and Results tabs, preflight warnings card, and result management.
+     - `StudioViewModel.kt`: Asynchronous results loading, favourite toggling, and deletion.
+     - Wired `ROUTE_STUDIO` into `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - 5 unit test suites executed:
+    - `RefacePreflightTest`: Pose bucket classification, small/tiny face warnings, and thin identity gaps passed (2/2).
+    - `RefaceTimeTest`: Millisecond calculations and formatted words ("about 30 s", "about 5 min", "about 1 h") passed (1/1).
+    - `RefaceRequestBuilderTest`: Sources, target faces, video trim, and options JSON generation passed (1/1).
+    - `RestyleRequestBuilderTest`: Restyle prompt, face_bbox, strength, steps, seed, and reference images JSON generation passed (1/1).
+    - `ResultRepositoryTest`: Atomic file store write, SHA-256 calculation, query, favourite toggle, and deletion passed (1/1).
+  - Total Phase P09 suite: 6 unit tests executed, 6 passed (0 failures).
+  - Cumulative P01-P09 suite: 114 unit tests executed and passed (352 total unit tests passing in target project with 0 regressions).
+- Target committed: `dff7e6b`. Phase P09 closed; ready for Phase P10 (LoRA Character Training & Generation).
+
+
 ## Phase P08 (Explore, Poses, Outfits, Areas, Marks & Actions) Completed — 2026-11-08
 
 - User Request:
@@ -445,6 +478,39 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P09 (Studio: Reface, Restyle & Results) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P09 of the Mobile Parity Plan.
+  - Implement Reface domain (preflight pose buckets, target shares, gap/needsGeneration analysis, small face warnings, time estimation), RefaceRequestBuilder (sources with base64 embeddings and poses, targets with single/all and video trim in seconds, engines v3/v2/dfm, quality profiles, restorers, occluder, parser, identity boost), RestyleRequestBuilder (prompt, negative prompt, strength, steps, seed, protected face ROI, roi bbox, reference images, refine), and ResultRepository (private storage in FileStore resultsDir, SHA-256 digest, DB results table, favourite toggling, deletion).
+  - Add native Compose Studio screen and ViewModel with Reface, Restyle, and Results tabs, preserving Iris/Amber theme and 48dp touch targets.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Reface Domain (`com.facegallery.domain.reface`):
+     - `RefacePreflight.kt`: Head pose buckets (`FRONTAL`, `THREE_QUARTER`, `PROFILE`, `UP`, `DOWN`), target share weighting, real vs generated source coverage, gap identification, tiny face (< 40px) and small face (< 64px) warnings.
+     - `RefaceTime.kt`: Runtime estimation based on server msPerFace, video frames, and face counts; human-friendly formatted time strings.
+     - `RefaceOptions.kt`: Engine validation (`v3`, `v2`, `dfm`), quality profiles, face restorers, occluders, parsers, and identity boost bounds.
+     - `RefaceRequestBuilder.kt`: Generates compliant JSON request payloads with Base64 little-endian embeddings, poses, target face IDs, and video trim (seconds).
+  2. Restyle Domain (`com.facegallery.domain.restyle`):
+     - `RestyleRequestBuilder.kt`: Generates compliant JSON restyle payloads with validated prompt, negative prompt, strength [0.01..1.0], steps [1..150], seed, protected face bounding box, and reference images.
+  3. Results Repository (`com.facegallery.domain.results`):
+     - `ResultRepository.kt`: Manages `results` table and atomic FileStore writes to `results/<id>.<ext>`. Computes SHA-256 digests, tracks favourites, stores artifact contexts in settings, and provides isolated deletion.
+  4. UI & Navigation (`com.facegallery.ui.screens.studio`, `com.facegallery.ui.navigation`):
+     - `StudioScreen.kt`: Material 3 Studio Hub with Reface, Restyle, and Results tabs, preflight warnings card, and result management.
+     - `StudioViewModel.kt`: Asynchronous results loading, favourite toggling, and deletion.
+     - Wired `ROUTE_STUDIO` into `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - 5 unit test suites executed:
+    - `RefacePreflightTest`: Pose bucket classification, small/tiny face warnings, and thin identity gaps passed (2/2).
+    - `RefaceTimeTest`: Millisecond calculations and formatted words ("about 30 s", "about 5 min", "about 1 h") passed (1/1).
+    - `RefaceRequestBuilderTest`: Sources, target faces, video trim, and options JSON generation passed (1/1).
+    - `RestyleRequestBuilderTest`: Restyle prompt, face_bbox, strength, steps, seed, and reference images JSON generation passed (1/1).
+    - `ResultRepositoryTest`: Atomic file store write, SHA-256 calculation, query, favourite toggle, and deletion passed (1/1).
+  - Total Phase P09 suite: 6 unit tests executed, 6 passed (0 failures).
+  - Cumulative P01-P09 suite: 114 unit tests executed and passed (352 total unit tests passing in target project with 0 regressions).
+- Target committed: `dff7e6b`. Phase P09 closed; ready for Phase P10 (LoRA Character Training & Generation).
+
+
 ## Phase P08 (Explore, Poses, Outfits, Areas, Marks & Actions) Completed — 2026-11-08
 
 - User Request:
@@ -805,6 +871,39 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P09 (Studio: Reface, Restyle & Results) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P09 of the Mobile Parity Plan.
+  - Implement Reface domain (preflight pose buckets, target shares, gap/needsGeneration analysis, small face warnings, time estimation), RefaceRequestBuilder (sources with base64 embeddings and poses, targets with single/all and video trim in seconds, engines v3/v2/dfm, quality profiles, restorers, occluder, parser, identity boost), RestyleRequestBuilder (prompt, negative prompt, strength, steps, seed, protected face ROI, roi bbox, reference images, refine), and ResultRepository (private storage in FileStore resultsDir, SHA-256 digest, DB results table, favourite toggling, deletion).
+  - Add native Compose Studio screen and ViewModel with Reface, Restyle, and Results tabs, preserving Iris/Amber theme and 48dp touch targets.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Reface Domain (`com.facegallery.domain.reface`):
+     - `RefacePreflight.kt`: Head pose buckets (`FRONTAL`, `THREE_QUARTER`, `PROFILE`, `UP`, `DOWN`), target share weighting, real vs generated source coverage, gap identification, tiny face (< 40px) and small face (< 64px) warnings.
+     - `RefaceTime.kt`: Runtime estimation based on server msPerFace, video frames, and face counts; human-friendly formatted time strings.
+     - `RefaceOptions.kt`: Engine validation (`v3`, `v2`, `dfm`), quality profiles, face restorers, occluders, parsers, and identity boost bounds.
+     - `RefaceRequestBuilder.kt`: Generates compliant JSON request payloads with Base64 little-endian embeddings, poses, target face IDs, and video trim (seconds).
+  2. Restyle Domain (`com.facegallery.domain.restyle`):
+     - `RestyleRequestBuilder.kt`: Generates compliant JSON restyle payloads with validated prompt, negative prompt, strength [0.01..1.0], steps [1..150], seed, protected face bounding box, and reference images.
+  3. Results Repository (`com.facegallery.domain.results`):
+     - `ResultRepository.kt`: Manages `results` table and atomic FileStore writes to `results/<id>.<ext>`. Computes SHA-256 digests, tracks favourites, stores artifact contexts in settings, and provides isolated deletion.
+  4. UI & Navigation (`com.facegallery.ui.screens.studio`, `com.facegallery.ui.navigation`):
+     - `StudioScreen.kt`: Material 3 Studio Hub with Reface, Restyle, and Results tabs, preflight warnings card, and result management.
+     - `StudioViewModel.kt`: Asynchronous results loading, favourite toggling, and deletion.
+     - Wired `ROUTE_STUDIO` into `TopDest.kt` and `AppRoot.kt`.
+- Verification & Test Results:
+  - 5 unit test suites executed:
+    - `RefacePreflightTest`: Pose bucket classification, small/tiny face warnings, and thin identity gaps passed (2/2).
+    - `RefaceTimeTest`: Millisecond calculations and formatted words ("about 30 s", "about 5 min", "about 1 h") passed (1/1).
+    - `RefaceRequestBuilderTest`: Sources, target faces, video trim, and options JSON generation passed (1/1).
+    - `RestyleRequestBuilderTest`: Restyle prompt, face_bbox, strength, steps, seed, and reference images JSON generation passed (1/1).
+    - `ResultRepositoryTest`: Atomic file store write, SHA-256 calculation, query, favourite toggle, and deletion passed (1/1).
+  - Total Phase P09 suite: 6 unit tests executed, 6 passed (0 failures).
+  - Cumulative P01-P09 suite: 114 unit tests executed and passed (352 total unit tests passing in target project with 0 regressions).
+- Target committed: `dff7e6b`. Phase P09 closed; ready for Phase P10 (LoRA Character Training & Generation).
 
 
 ## Phase P08 (Explore, Poses, Outfits, Areas, Marks & Actions) Completed — 2026-11-08
