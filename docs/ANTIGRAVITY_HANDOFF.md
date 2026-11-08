@@ -1,6 +1,37 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P06 (Mobile Data Migration via .agbackup & Transfer Supplement) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P06 of the Mobile Parity Plan.
+  - Implement byte-compatible streaming BackupCipher (AGBAK02, PBKDF2 600k rounds, AES-256-GCM), format detector, AgBackupService (export/import with schema v20 tables, jsonl hashing, base64 blobs, FileStore crops), and MediaRelinker for deterministic media mapping without rescan.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Streaming Backup Cipher (`com.facegallery.data.backup.BackupCipher`):
+     - Byte-compatible streaming envelope matching `mobile/BackupCipher.java` (`AGBAK02\n`, 600,000 PBKDF2 iterations, 1 MiB chunking, AAD authentication of header, record index and length).
+     - Atomic `.part` file generation before final rename to target.
+     - Format auto-detection: `ENCRYPTED_AGBAK02`, `RAW_ZIP`, `UNKNOWN`.
+  2. Backup Service (`com.facegallery.data.backup.AgBackupService`):
+     - `readManifest`: Parses and verifies `manifest.json` (format, versions, row counts, db files SHA-256 hashes).
+     - `exportToZip`: Exports schema v20 database tables into `db/<table_name>.0.jsonl` with Base64 BLOB serialization (`{"$b64": "..."}`), computes SHA-256 digests, copies `FileStore` crops, and compiles manifest.
+     - `importFromZip`: Extracts crops to temporary staging directory, validates SHA-256 of all jsonl files against manifest, executes atomic SQLite transaction (clearing tables in reverse dependency order and inserting rows), and promotes staging crops into `FileStore`.
+     - Supports job/event history and transfer supplement persistence.
+  3. Media Relinker (`com.facegallery.domain.import.MediaRelinker`):
+     - Deterministic relinking of imported media assets against current device MediaStore.
+     - Checks exact URI match first, then exact `(filename, sizeBytes)` match for relocated media.
+     - Rejects fuzzy or ambiguous matches; reports exact missing assets in `RelinkReport`.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `BackupCipherTest`: Encryption and decryption round-trip, format detection (`AGBAK02`, `RAW_ZIP`, `UNKNOWN`), and invalid password rejection passed (3/3).
+    - `AgBackupServiceTest`: Full export-to-ZIP, manifest inspection, clear DB, and import-from-ZIP round-trip verifying restored persons, media, faces, and crop files passed (1/1).
+    - `MediaRelinkerTest`: Relinking valid URIs, relocated items matching filename and size, and reporting missing assets passed (1/1).
+  - Total Phase P06 suite: 5 unit tests executed, 5 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 + P05 + P06 suite: 77 unit tests executed and passed (315 total unit tests passing in target project with 0 regressions).
+- Phase P06 closed (commit `f9bb117`); ready for Phase P07 (Physical Organization & Sidecar Metadata).
+
+
+
 ## Phase P05 (Identities, Grouping, Corrections & Review Service) Completed — 2026-11-08
 
 - User Request:
@@ -334,6 +365,37 @@
 # Antigravity handoff — 2026-10-19
 
 
+## Phase P06 (Mobile Data Migration via .agbackup & Transfer Supplement) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P06 of the Mobile Parity Plan.
+  - Implement byte-compatible streaming BackupCipher (AGBAK02, PBKDF2 600k rounds, AES-256-GCM), format detector, AgBackupService (export/import with schema v20 tables, jsonl hashing, base64 blobs, FileStore crops), and MediaRelinker for deterministic media mapping without rescan.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Streaming Backup Cipher (`com.facegallery.data.backup.BackupCipher`):
+     - Byte-compatible streaming envelope matching `mobile/BackupCipher.java` (`AGBAK02\n`, 600,000 PBKDF2 iterations, 1 MiB chunking, AAD authentication of header, record index and length).
+     - Atomic `.part` file generation before final rename to target.
+     - Format auto-detection: `ENCRYPTED_AGBAK02`, `RAW_ZIP`, `UNKNOWN`.
+  2. Backup Service (`com.facegallery.data.backup.AgBackupService`):
+     - `readManifest`: Parses and verifies `manifest.json` (format, versions, row counts, db files SHA-256 hashes).
+     - `exportToZip`: Exports schema v20 database tables into `db/<table_name>.0.jsonl` with Base64 BLOB serialization (`{"$b64": "..."}`), computes SHA-256 digests, copies `FileStore` crops, and compiles manifest.
+     - `importFromZip`: Extracts crops to temporary staging directory, validates SHA-256 of all jsonl files against manifest, executes atomic SQLite transaction (clearing tables in reverse dependency order and inserting rows), and promotes staging crops into `FileStore`.
+     - Supports job/event history and transfer supplement persistence.
+  3. Media Relinker (`com.facegallery.domain.import.MediaRelinker`):
+     - Deterministic relinking of imported media assets against current device MediaStore.
+     - Checks exact URI match first, then exact `(filename, sizeBytes)` match for relocated media.
+     - Rejects fuzzy or ambiguous matches; reports exact missing assets in `RelinkReport`.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `BackupCipherTest`: Encryption and decryption round-trip, format detection (`AGBAK02`, `RAW_ZIP`, `UNKNOWN`), and invalid password rejection passed (3/3).
+    - `AgBackupServiceTest`: Full export-to-ZIP, manifest inspection, clear DB, and import-from-ZIP round-trip verifying restored persons, media, faces, and crop files passed (1/1).
+    - `MediaRelinkerTest`: Relinking valid URIs, relocated items matching filename and size, and reporting missing assets passed (1/1).
+  - Total Phase P06 suite: 5 unit tests executed, 5 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 + P05 + P06 suite: 77 unit tests executed and passed (315 total unit tests passing in target project with 0 regressions).
+- Phase P06 closed (commit `f9bb117`); ready for Phase P07 (Physical Organization & Sidecar Metadata).
+
+
+
 ## Phase P05 (Identities, Grouping, Corrections & Review Service) Completed — 2026-11-08
 
 - User Request:
@@ -583,6 +645,37 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+
+## Phase P06 (Mobile Data Migration via .agbackup & Transfer Supplement) Completed — 2026-11-08
+
+- User Request:
+  - Implement Phase P06 of the Mobile Parity Plan.
+  - Implement byte-compatible streaming BackupCipher (AGBAK02, PBKDF2 600k rounds, AES-256-GCM), format detector, AgBackupService (export/import with schema v20 tables, jsonl hashing, base64 blobs, FileStore crops), and MediaRelinker for deterministic media mapping without rescan.
+  - Verify and commit phase by phase.
+- Implementation & Changes (`D:\test\face gallary`):
+  1. Streaming Backup Cipher (`com.facegallery.data.backup.BackupCipher`):
+     - Byte-compatible streaming envelope matching `mobile/BackupCipher.java` (`AGBAK02\n`, 600,000 PBKDF2 iterations, 1 MiB chunking, AAD authentication of header, record index and length).
+     - Atomic `.part` file generation before final rename to target.
+     - Format auto-detection: `ENCRYPTED_AGBAK02`, `RAW_ZIP`, `UNKNOWN`.
+  2. Backup Service (`com.facegallery.data.backup.AgBackupService`):
+     - `readManifest`: Parses and verifies `manifest.json` (format, versions, row counts, db files SHA-256 hashes).
+     - `exportToZip`: Exports schema v20 database tables into `db/<table_name>.0.jsonl` with Base64 BLOB serialization (`{"$b64": "..."}`), computes SHA-256 digests, copies `FileStore` crops, and compiles manifest.
+     - `importFromZip`: Extracts crops to temporary staging directory, validates SHA-256 of all jsonl files against manifest, executes atomic SQLite transaction (clearing tables in reverse dependency order and inserting rows), and promotes staging crops into `FileStore`.
+     - Supports job/event history and transfer supplement persistence.
+  3. Media Relinker (`com.facegallery.domain.import.MediaRelinker`):
+     - Deterministic relinking of imported media assets against current device MediaStore.
+     - Checks exact URI match first, then exact `(filename, sizeBytes)` match for relocated media.
+     - Rejects fuzzy or ambiguous matches; reports exact missing assets in `RelinkReport`.
+- Verification & Test Results:
+  - `./gradlew.bat testDebugUnitTest` executed:
+    - `BackupCipherTest`: Encryption and decryption round-trip, format detection (`AGBAK02`, `RAW_ZIP`, `UNKNOWN`), and invalid password rejection passed (3/3).
+    - `AgBackupServiceTest`: Full export-to-ZIP, manifest inspection, clear DB, and import-from-ZIP round-trip verifying restored persons, media, faces, and crop files passed (1/1).
+    - `MediaRelinkerTest`: Relinking valid URIs, relocated items matching filename and size, and reporting missing assets passed (1/1).
+  - Total Phase P06 suite: 5 unit tests executed, 5 passed (0 failures).
+  - Cumulative P01 + P02 + P03 + P04 + P05 + P06 suite: 77 unit tests executed and passed (315 total unit tests passing in target project with 0 regressions).
+- Phase P06 closed (commit `f9bb117`); ready for Phase P07 (Physical Organization & Sidecar Metadata).
+
 
 
 ## Phase P05 (Identities, Grouping, Corrections & Review Service) Completed — 2026-11-08
