@@ -19,6 +19,7 @@ from .reference_reface import REFERENCE_TYPES, run_reference_reface, validate_re
 from .artifact_jobs import ARTIFACT_TYPES, run_artifact, validate_artifact
 from .schemas import decode_embedding
 from .video_jobs import stamp
+from .photo_edit import TYPE as PHOTO_EDIT_TYPE, run_photo_edit, validate_photo_edit
 
 log = logging.getLogger("mobile_api")
 REFACE_TYPES = {f"reface_{kind}_{engine}" for kind in ("image", "video") for engine in ("v3", "v2", "dfm")}
@@ -198,7 +199,9 @@ class StudioJobs:
         return job
 
     def create(self, body, device):
-        if body.get('type') in ARTIFACT_TYPES:
+        if body.get('type') == PHOTO_EDIT_TYPE:
+            validate_photo_edit(body, self.ctx.probe.snapshot())
+        elif body.get('type') in ARTIFACT_TYPES:
             validate_artifact(body, self.ctx.probe.snapshot())
         else:
             validate_reface(body, self.ctx.probe.snapshot())
@@ -310,11 +313,13 @@ class StudioJobs:
                 with self.lock:
                     job.update(status="completed", progress=1.0, message="Ready to download", has_result=True,
                                completed_at=stamp(), details=meta, touched=time.time())
-            except Exception:
+            except Exception as exc:
                 log.exception("Studio job failed: %s", job["job_id"])
+                from photo_edit import PhotoEditError
+                actionable = job['type'] == PHOTO_EDIT_TYPE and isinstance(exc, PhotoEditError)
                 with self.lock:
-                    job.update(status="failed", message="Processing failed", touched=time.time(),
-                               error="The PC could not process this target. Check the PC log, then retry.")
+                    job.update(status="failed", message="Adjust the photo edit" if actionable else "Processing failed", touched=time.time(),
+                               error=str(exc) if actionable else "The PC could not process this target. Check the PC log, then retry.")
 
     def get(self, job_id, device):
         with self.lock:
@@ -362,6 +367,8 @@ class StudioJobs:
             self.worker.join(timeout=5)
 
     def _run_engine(self, job, directory, report, stopped):
+        if job['type'] == PHOTO_EDIT_TYPE:
+            return run_photo_edit(job, directory, report, stopped)
         if job['type'] in REFERENCE_TYPES:
             return run_reference_reface(job, directory, report, stopped)
         if job['type'] in ARTIFACT_TYPES:

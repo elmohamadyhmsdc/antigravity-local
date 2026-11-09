@@ -708,6 +708,10 @@ components:
               type: array
               items: { type: string }
             undress: { type: boolean }
+            photo_edit:
+              type: boolean
+              default: false
+              description: Masked still-photo background/object editing, with person protection and checked outputs.
             restyle_refine:
               type: boolean
               description: Optional SDXL refinement readiness, independently of basic Restyle. Older servers omit this field.
@@ -1551,6 +1555,7 @@ components:
         - reface_video_dfm
         - analyze_video
         - undress_image
+        - edit_image
         - build_lora_dataset
         - train_lora
         - generate_lora_images
@@ -1863,6 +1868,23 @@ components:
         enable_face_detailer: { type: boolean, default: true }
         pose_strength: { type: number, default: 1.0 }
 
+    PhotoEditParams:
+      type: object
+      additionalProperties: false
+      properties:
+        operation: { type: string, enum: [remove, replace], default: replace }
+        instruction: { type: string, maxLength: 600, default: "" }
+        steps: { type: integer, minimum: 10, maximum: 40, default: 26 }
+        seed: { type: integer, minimum: -1, maximum: 2147483647, default: -1 }
+        mask_normalized: { type: boolean, default: false }
+      description: Nonsexual still-photo background/object edits. The PNG mask matches the EXIF-upright image; with mask_normalized, a preview-sized mask of the same aspect ratio is resized in normalized upright coordinates. Select at most 60 percent and avoid protected people. Pixels outside the selection are preserved.
+      allOf:
+        - if: { properties: { operation: { const: remove } }, required: [operation] }
+          else:
+            required: [instruction]
+            properties:
+              instruction: { minLength: 1 }
+
     JobCreate:
       type: object
       required: [type, params, inputs]
@@ -1880,6 +1902,18 @@ components:
               - { $ref: "#/components/schemas/Sha256" }
               - { type: array, items: { $ref: "#/components/schemas/Sha256" } }
       allOf:
+        - if: { properties: { type: { const: edit_image } }, required: [type] }
+          then:
+            required: [client_job_id]
+            properties:
+              params: { $ref: "#/components/schemas/PhotoEditParams" }
+              inputs:
+                type: object
+                additionalProperties: false
+                required: [image, mask]
+                properties:
+                  image: { $ref: "#/components/schemas/Sha256" }
+                  mask: { $ref: "#/components/schemas/Sha256" }
         - if: { properties: { type: { enum: [reface_image_reference, reface_video_reference] } }, required: [type] }
           then:
             properties:

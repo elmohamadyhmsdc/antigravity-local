@@ -392,6 +392,7 @@ class CapabilityProbe:
 
     def engines(self) -> Dict:
         from equipment_detection import model_available as equipment_available
+        from photo_edit import ready as photo_edit_ready
         from .model_readiness import restyle_missing_models
         from .reference_reface import reference_reface_ready
         from pathlib import Path as _Path
@@ -421,6 +422,7 @@ class CapabilityProbe:
             "body_embeddings": self._has("models", "sensitive", "640m.onnx")
                                and self._has("models", "reid", "dinov2_vits14.onnx"),
             "equipment": equipment_available(),
+            "photo_edit": photo_edit_ready(self.app_dir),
             "garment_tags": self._has("models", "wd14_tagger_model.onnx") and self._has("models", "wd14_tagger_tags.csv"),
         }
 

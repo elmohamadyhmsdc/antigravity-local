@@ -182,7 +182,7 @@ class FakeProbe:
             "gpu": {"name": "Fake GPU", "vram_total_mb": 6144, "vram_free_mb": 5000},
             "engines": {"reface": True, "reface_v3": True, "reface_v2": True, "dfm_models": ["RTM_WF_224"], "undress": True,
                         "lora_train": True, "lora_generate": True, "body_detection": True, "character_detection": True,
-                        "sensitive_detection": True, "body_embeddings": True, "garment_tags": True},
+                        "sensitive_detection": True, "body_embeddings": True, "garment_tags": True, "photo_edit": True},
             "restorers": ["codeformer"],
             "reface_profiles": {"fast": {"restorer": "none", "restore_size": 512, "use_parser": False,
                                      "photo_ms_per_face": 140, "video_ms_per_face": 90},

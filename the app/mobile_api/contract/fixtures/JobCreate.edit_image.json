@@ -1,0 +1,14 @@
+{
+  "client_job_id": "fixture-photo-edit",
+  "type": "edit_image",
+  "params": {
+    "operation": "replace",
+    "instruction": "a small blue ceramic vase",
+    "steps": 26,
+    "seed": 123
+  },
+  "inputs": {
+    "image": "7ab0eae7d3446e8aea299157303a263c426e321b36fc4a0ec1ab13b7a00703ea",
+    "mask": "ccdb4df298a1cc193bf06adb3bd04033f66db67931b7af910355d8c98450490c"
+  }
+}

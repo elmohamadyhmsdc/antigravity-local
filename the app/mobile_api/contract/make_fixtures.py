@@ -134,6 +134,7 @@ def system_fixtures():
             "reface": True, "reface_v3": True, "reface_v2": True, "dfm_models": ["RTM_WF_224"],
             "undress": True, "lora_train": True, "lora_generate": True, "body_detection": True,
             "character_detection": True, "sensitive_detection": True, "body_embeddings": True, "garment_tags": True,
+            "photo_edit": True,
         },
         "restorers": ["codeformer"],
         "reface_profiles": {"fast": {"restorer": "none", "restore_size": 512, "use_parser": False,
@@ -387,6 +388,12 @@ def job_fixtures():
         "inputs": {"target": sha("target-photo")},
     }
     write("JobCreate.reface_image_v3", reface_request)
+    write("JobCreate.edit_image", {
+        "client_job_id": "fixture-photo-edit",
+        "type": "edit_image",
+        "params": {"operation": "replace", "instruction": "a small blue ceramic vase", "steps": 26, "seed": 123},
+        "inputs": {"image": sha("edit-photo"), "mask": sha("edit-mask")},
+    })
     write("JobCreate.reface_image", {**reface_request, "type": "reface_image",
           "client_job_id": "fixture-reface-unified-image",
           "params": {**reface_request["params"], "quality_profile": "balanced", "restorer": "auto"}})

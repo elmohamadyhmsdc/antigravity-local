@@ -25,7 +25,8 @@
     "character_detection": true,
     "sensitive_detection": true,
     "body_embeddings": true,
-    "garment_tags": true
+    "garment_tags": true,
+    "photo_edit": true
   },
   "restorers": [
     "codeformer"
