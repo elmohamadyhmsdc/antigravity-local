@@ -10,7 +10,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-from face_compositor import CompositeConfig, FaceCompositor
+from face_compositor import CompositeConfig, FaceCompositor, Prepared
 from identity import build_identity_embedding, select_identity_faces
 from reface_engine import FaceData, Faceset
 from reface_engine_v3 import RefaceEngineV3, FaceSelector
@@ -108,6 +108,134 @@ class QualityTests(unittest.TestCase):
         comp.composite(frame,crop,affine,_FFHQ_512,track_id=1)
         self.assertGreater(masks[0][260,260],.8)
         self.assertEqual(masks[1][260,260],0)
+
+    def test_moving_hand_leaves_no_original_face_trail(self):
+        masker = Masker()
+        comp = FaceCompositor(SimpleNamespace(available=False), masker,
+                              CompositeConfig(temporal=True, relight=0, focus_match=False,
+                                              grain_match=0))
+        frame = np.full((512,512,3), 40, np.uint8)
+        swapped = np.full_like(frame, 200)
+        seg = masker.segment(frame)
+        affine = np.array([[1,0,0],[0,1,0]], np.float32)
+        # A hand enters, moves across the face, then leaves. Previously its
+        # old position exposed 50%, 25%, ... of the original face afterwards.
+        for covered in (None, (180,180), (300,180), None):
+            occ = np.ones((512,512), np.float32)
+            if covered:
+                x, y = covered
+                occ[y:y+60,x:x+60] = 0
+            pre = Prepared(track_id=1, native_px=512, m_ffhq=affine,
+                           orig_aligned=frame, base=swapped, orig_masks=(seg,occ), seg_res=seg)
+            comp.begin_frame()
+            result = comp.finish(pre, frame)
+            for x, y in ((210,210), (330,210)):
+                protected = covered is not None and (x,y) == (covered[0]+30,covered[1]+30)
+                np.testing.assert_array_equal(result[y,x], [40]*3 if protected else [200]*3)
+            np.testing.assert_array_equal(result[:30,:30], frame[:30,:30])
+
+    def test_video_swaps_both_mouth_positions_instead_of_exposing_original_lips(self):
+        comp = FaceCompositor(SimpleNamespace(available=False), Masker(), CompositeConfig(temporal=True))
+        original_seg = np.zeros((512,512), np.uint8)
+        original_seg[50:460,50:460] = 1
+        swapped_seg = original_seg.copy()
+        original_seg[290:330,180:240] = 11
+        swapped_seg[290:330,280:340] = 11
+        frame = np.zeros((512,512,3), np.uint8)
+        mask, _, _ = comp._build_mask(frame, frame, (original_seg,None), swapped_seg)
+        self.assertGreater(mask[310,210], .99)
+        self.assertGreater(mask[310,310], .99)
+        self.assertEqual(mask[20,20], 0)
+
+    def test_video_does_not_copy_original_nose_and_lip_lines(self):
+        comp = FaceCompositor(SimpleNamespace(available=False), Masker(),
+                              CompositeConfig(temporal=True, relight=0, focus_match=False,
+                                              grain_match=0, detail_transfer=.6))
+        swapped = np.full((512,512,3), 128, np.uint8)
+        original = swapped.copy()
+        cv2.line(original, (240,180), (260,280), (30,30,30), 3)
+        cv2.line(original, (190,330), (320,330), (40,40,40), 3)
+        mask = np.ones((512,512), np.float32)
+        result = comp._harmonize(swapped, original, mask, mask, mask, 1, 512)
+        np.testing.assert_array_equal(result, swapped)
+        # Still-photo skin finishing remains available.
+        comp.config.temporal = False
+        photo = comp._harmonize(swapped, original, mask, mask, mask, 1, 512)
+        self.assertGreater(np.abs(photo.astype(float) - swapped).max(), 10)
+
+    def test_video_matches_grain_even_for_large_faces_without_borrowed_texture(self):
+        comp = FaceCompositor(SimpleNamespace(available=False), Masker(),
+                              CompositeConfig(temporal=True, relight=0, focus_match=False))
+        comp._rng = np.random.default_rng(19)
+        swapped = np.full((512,512,3), 128, np.uint8)
+        original = np.clip(128 + np.random.default_rng(18).normal(0,5,swapped.shape), 0,255).astype(np.uint8)
+        mask = np.ones((512,512), np.float32)
+        result = comp._harmonize(swapped, original, mask, mask, mask, 1, 512)
+        self.assertGreater(float(result.std()), 1)
+        correlation = np.corrcoef((result.astype(float)-128).ravel(), (original.astype(float)-128).ravel())[0,1]
+        self.assertLess(abs(correlation), .05)
+
+    def test_gentler_focus_matching_keeps_restored_texture_without_target_detail(self):
+        from face_harmonize import laplacian_var
+        yy, xx = np.indices((128,128))
+        texture = np.clip(128 + 50*np.sin(xx/2) + 30*np.cos(yy/3), 0,255).astype(np.uint8)
+        restored = np.repeat(texture[...,None], 3, axis=2)
+        original = cv2.GaussianBlur(restored, (0,0), 3)
+        mask = np.ones((128,128), np.float32)
+        sharpness = []
+        for strength in (1,.5,.25):
+            comp = FaceCompositor(SimpleNamespace(available=False), Masker(),
+                CompositeConfig(temporal=True, relight=0, grain_match=0,
+                                focus_match_strength=strength))
+            out = comp._harmonize(restored, original, mask, mask, mask, 1, 512)
+            sharpness.append(laplacian_var(out))
+        self.assertLess(sharpness[0], sharpness[1])
+        self.assertLess(sharpness[1], sharpness[2])
+        self.assertLessEqual(sharpness[2], laplacian_var(restored))
+
+    def test_higher_output_profiles_preserve_more_pixels_after_real_h264_encoding(self):
+        from reface_config import output_defaults
+        yy, xx = np.indices((128,160), dtype=np.float32)
+        frames = []
+        for shift in range(6):
+            gray = np.clip(128 + 45*np.sin((xx+shift)/2) + 35*np.cos(yy/3), 0,255).astype(np.uint8)
+            frames.append(np.repeat(gray[...,None], 3, axis=2))
+        scores = []
+        with tempfile.TemporaryDirectory() as tmp:
+            for profile in ('fast','balanced','detail'):
+                config = output_defaults(profile)
+                engine = RefaceEngineV3.__new__(RefaceEngineV3)
+                engine.video_crf, engine.video_preset = config['video_crf'], config['video_preset']
+                output = Path(tmp)/(profile+'.mp4')
+                writer, proc = engine._open_writer(output,30000/1001,160,128)
+                try:
+                    for frame in frames:
+                        engine._write(writer,proc,frame)
+                    engine._close_writer(writer,proc)
+                finally:
+                    engine._abort_writer(writer,proc)
+                validate_video(output,len(frames),30000/1001)
+                self.assertEqual(engine._video_encoding['codec'], 'libx264')
+                cap = cv2.VideoCapture(str(output))
+                try:
+                    errors = []
+                    for frame in frames:
+                        ok, decoded = cap.read()
+                        self.assertTrue(ok)
+                        self.assertEqual(decoded.shape, frame.shape)
+                        errors.append(np.mean((decoded.astype(np.float32)-frame)**2))
+                    scores.append(float(np.mean(errors)))
+                finally:
+                    cap.release()
+        self.assertGreater(scores[0], scores[1])
+        self.assertGreater(scores[1], scores[2])
+
+    def test_invalid_encoder_settings_fail_before_loading_any_models(self):
+        for value in (-1,52,1.5,True):
+            with self.subTest(crf=value), self.assertRaisesRegex(ValueError,'Video CRF'):
+                RefaceEngineV3(video_crf=value)
+        with self.assertRaisesRegex(ValueError,'encoder preset'):
+            RefaceEngineV3(video_preset='unsupported')
 
     def test_nonfinite_occlusion_fails_without_unprotected_paste(self):
         masker = Masker()

@@ -440,6 +440,30 @@ def test_place_swap_fills_uncovered_pixels_from_the_original():
 
 
 @test
+def test_placement_preserves_texture_without_an_intermediate_frame_resize():
+    import cv2
+    import numpy as np
+    from face_compositor import CompositeConfig, FaceCompositor
+
+    # Both transforms describe the same crop. Reprojecting it must preserve
+    # its detail even when the intermediate video frame is much smaller.
+    yy, xx = np.indices((512, 512))
+    texture = (70 + 110 * ((xx // 2 + yy // 2) % 2)).astype(np.uint8)
+    swap = np.repeat(texture[..., None], 3, axis=2)
+    original = np.full_like(swap, 128)
+    frame = np.full((128, 128, 3), 128, np.uint8)
+    matrix = np.array([[4, 0, 0], [0, 4, 0]], np.float32)
+    comp = FaceCompositor(_StubRestorer(), _StubMasker(), CompositeConfig())
+    placed = comp._place_swap(swap, matrix, matrix, original, 512, frame=frame)
+    check(np.array_equal(placed[96:416, 96:416], swap[96:416, 96:416]),
+          "placement must preserve the original swap texture when crop transforms cancel")
+    legacy, _ = comp._place_via_frame(frame, swap, matrix, matrix, original, 512)
+    check(cv2.Laplacian(placed[96:416,96:416], cv2.CV_32F).var() >
+          cv2.Laplacian(legacy[96:416,96:416], cv2.CV_32F).var() * 5,
+          "the intermediate resize must not erase detail before the restorer sees it")
+
+
+@test
 def test_as_2x3_accepts_3x3_and_rejects_garbage():
     import numpy as np
     from face_compositor import _as_2x3
@@ -457,8 +481,7 @@ def test_as_2x3_accepts_3x3_and_rejects_garbage():
 
 @test
 def test_place_via_frame_puts_the_swap_on_the_face():
-    """Production path: invert M_swap onto the frame (insightface paste),
-    then recrop with M_ffhq. This is what composite() uses."""
+    """The diagnostic two-resample path must still place the swap correctly."""
     import cv2
     import numpy as np
     from face_compositor import CompositeConfig, FaceCompositor, alignment_matrix

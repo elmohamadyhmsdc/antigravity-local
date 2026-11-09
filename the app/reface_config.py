@@ -3,6 +3,19 @@
 QUALITY_PROFILES = ("fast", "balanced", "detail")
 RESTORER_ORDER = ("codeformer", "gfpgan_1.4", "gpen_bfr_512", "gpen_bfr_1024", "restoreformer_plus_plus")
 
+_OUTPUT_PROFILES = {
+    "fast": dict(video_crf=16, video_preset="medium", focus_match_strength=1.0),
+    "balanced": dict(video_crf=14, video_preset="medium", focus_match_strength=0.5),
+    "detail": dict(video_crf=12, video_preset="slow", focus_match_strength=0.25),
+}
+
+
+def output_defaults(profile):
+    """Finishing and H.264 settings; independent of which models are installed."""
+    if profile not in QUALITY_PROFILES:
+        raise ValueError("Choose fast, balanced or detail quality.")
+    return dict(_OUTPUT_PROFILES[profile])
+
 
 def profile_defaults(profile, available):
     if profile not in QUALITY_PROFILES:

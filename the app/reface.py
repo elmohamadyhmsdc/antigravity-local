@@ -5,7 +5,7 @@ tracking and current-frame recovery, and restores/blends only the face region.
 Quality profiles configure this same pipeline; they never select a legacy engine.
 """
 from face_restore import MODELS_DIR, RESTORER_FILES
-from reface_config import profile_defaults
+from reface_config import output_defaults, profile_defaults
 from reface_engine import FaceData, Faceset, RefaceResult
 from reface_engine_v3 import RefaceEngineV3
 
@@ -20,6 +20,12 @@ class RefaceEngine(RefaceEngineV3):
         if kwargs.get("dfm_path"):
             selected = "none"
         kwargs.setdefault("restore_size", 1024 if selected == "gpen_bfr_1024" else 512)
+        finishing = output_defaults(quality_profile)
+        for option in ("video_crf", "video_preset"):
+            kwargs.setdefault(option, finishing[option])
+        overrides = dict(kwargs.pop("realism_overrides", None) or {})
+        overrides.setdefault("focus_match_strength", finishing["focus_match_strength"])
+        kwargs["realism_overrides"] = overrides
         # Every profile uses the measured best swapper ("auto" -> SWAPPER_PREFERENCE). 1c for
         # "detail" was re-measured on 2026-10-31: lower identity than 1b, slower, no sharper.
         super().__init__(restorer=selected,

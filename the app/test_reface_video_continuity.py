@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import cv2
 import numpy as np
@@ -11,6 +11,7 @@ from insightface.app.common import Face
 
 from reface_engine import FaceData, Faceset
 from reface_engine_v2 import RefaceEngineV2, VideoConfig
+from reface_engine_v3 import RefaceEngineV3, _FrameJob
 from reface_selection import FaceSelector
 from reface_video_detection import VideoFaceRecovery, detect_faces
 from reface_video_io import validate_video
@@ -108,6 +109,54 @@ class ContinuityTests(unittest.TestCase):
         self.assertEqual(app.models['landmark_3d_68'].get.call_count, 1)
         self.assertEqual(app.models['genderage'].get.call_count, 0)
         self.assertEqual(app.models['landmark_2d_106'].get.call_count, 0)
+
+    def test_v3_pause_discards_staged_frame_and_resumes_without_duplicates(self):
+        engine = RefaceEngineV3.__new__(RefaceEngineV3)
+        engine.swapper, engine.dfm = object(), None
+        engine.begin_video = lambda: None
+        engine._video_recovery = SimpleNamespace(recovered=0)
+        engine._result_details = lambda outcomes, **details: details
+
+        def stage(frame, *args):
+            job = _FrameJob(frame)
+            job.outcomes.append(dict(status='swapped', reason='', degraded=False))
+            return job
+
+        engine._stage_frame = stage
+        with tempfile.TemporaryDirectory() as tmp:
+            engine.output_dir = Path(tmp)
+            source = Path(tmp) / 'source.avi'
+            fps = 30000 / 1001
+            writer = cv2.VideoWriter(str(source), cv2.VideoWriter_fourcc(*'MJPG'), fps, (64,64))
+            self.assertTrue(writer.isOpened())
+            levels = list(range(20,181,20))
+            for level in levels:
+                writer.write(np.full((64,64,3), level, np.uint8))
+            writer.release()
+            counts = []
+            with patch('reface_engine_v3.build_source_from_faceset', return_value=object()):
+                first = engine.reface_video_v3(str(source), object(), finalize=False,
+                    progress_callback=lambda count,total: (counts.append(count) or count < 3))
+                self.assertTrue(first.success, first.message)
+                self.assertEqual(counts, [3])
+                self.assertEqual(first.details['frames_done'], 3)
+                validate_video(first.output_path, 3, fps)
+                rest = engine.reface_video_v3(str(source), object(), finalize=False, resume_from_frame=3)
+                self.assertTrue(rest.success, rest.message)
+                self.assertEqual(rest.details['frames_done'], 6)
+                validate_video(rest.output_path, 6, fps)
+            rendered_levels = []
+            for part in (first.output_path, rest.output_path):
+                cap = cv2.VideoCapture(part)
+                try:
+                    while True:
+                        ok, frame = cap.read()
+                        if not ok:
+                            break
+                        rendered_levels.append(float(frame.mean()))
+                finally:
+                    cap.release()
+            np.testing.assert_allclose(rendered_levels, levels, atol=4)
 
     def test_v2_swaps_every_frame_through_detection_misses_and_keeps_fractional_fps(self):
         engine = RefaceEngineV2.__new__(RefaceEngineV2)

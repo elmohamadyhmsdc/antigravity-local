@@ -186,7 +186,15 @@ class RefaceEngineV3(RefaceEngine):
         realism_overrides: Optional[dict] = None,
         swapper: str = "auto",                    # "auto" | a face_swappers.SWAPPERS name
         occluders: Optional[List[str]] = None,    # None -> face_masking.DEFAULT_OCCLUDERS
+        video_crf: int = 14,                     # H.264 quality; lower preserves more detail
+        video_preset: str = "medium",
     ):
+        if isinstance(video_crf, bool) or not isinstance(video_crf, (int, np.integer)) or not 0 <= video_crf <= 51:
+            raise ValueError("Video CRF must be an integer between 0 and 51")
+        if video_preset not in ("ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"):
+            raise ValueError("Unsupported video encoder preset")
+        self.video_crf, self.video_preset = int(video_crf), video_preset
+        self._video_encoding = None
         wanted = resolve_swapper_name(swapper)
         super().__init__(output_dir=output_dir, enable_enhancement=False, upscale=1,
                          load_inswapper=wanted == "inswapper_128")
@@ -398,12 +406,15 @@ class RefaceEngineV3(RefaceEngine):
 
     def effective_settings(self):
         from dataclasses import asdict
-        return dict(swapper="dfm" if self.dfm else self.swapper_name,
+        settings = dict(swapper="dfm" if self.dfm else self.swapper_name,
                     restorer=getattr(self.restorer, "model_name", "none") if self.restorer.available else "none",
                     identity_boost=self.identity_boost,
                     parser=bool(self.use_parser and self.masker.parser is not None),
                     occluder=bool(self.use_occluder and self.masker.occluder is not None),
                     composite=asdict(self.compositor.config))
+        if getattr(self, "_video_encoding", None) is not None:
+            settings["video_encoding"] = dict(self._video_encoding)
+        return settings
 
     def _result_details(self, outcomes, **extra):
         if isinstance(outcomes, dict):
@@ -464,6 +475,7 @@ class RefaceEngineV3(RefaceEngine):
 
     def begin_video(self):
         """Reset per-video state: landmark tracks and the compositor's temporal smoothing."""
+        self._video_encoding = None
         self._reset_tracks()
         self._video_recovery = VideoFaceRecovery()
         self.compositor.reset()
@@ -564,6 +576,7 @@ class RefaceEngineV3(RefaceEngine):
 
             self.compositor.reset()
             self.compositor.config.temporal = False
+            self._video_encoding = None
             self.compositor.begin_frame()
             self._frame_outcomes = []
             for tf, tid in chosen:
@@ -683,6 +696,13 @@ class RefaceEngineV3(RefaceEngine):
                         processed += 1
                         if progress_callback and processed % 3 == 0 and progress_callback(processed, n_target) is False:
                             stopped = True
+                            # A frame is already staged ahead of this callback.
+                            # Do not write it after the caller checkpoints this
+                            # count: resuming there would repeat that frame.
+                            # shutdown below still waits for its CPU work.
+                            reading = False
+                            pending.clear()
+                            break
             finally:
                 composer.shutdown(wait=True)
 
@@ -725,10 +745,13 @@ class RefaceEngineV3(RefaceEngine):
             command = [_ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "rawvideo",
                        "-pix_fmt", "bgr24", "-s", f"{w}x{h}", "-r", rate_arg(fps), "-i", "-",
                        "-an", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-c:v", "libx264",
-                       "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", str(out_path)]
+                       "-preset", getattr(self, "video_preset", "medium"),
+                       "-crf", str(getattr(self, "video_crf", 14)), "-pix_fmt", "yuv420p", str(out_path)]
             proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=log)
             proc._reface_log = log
             proc._reface_writer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="encode")
+            self._video_encoding = dict(codec="libx264", crf=getattr(self, "video_crf", 14),
+                                        preset=getattr(self, "video_preset", "medium"), pixel_format="yuv420p")
             return None, proc
         except OSError:
             log.close()
@@ -738,6 +761,7 @@ class RefaceEngineV3(RefaceEngine):
             if not writer.isOpened():
                 writer.release()
                 raise OSError("Could not open the video encoder")
+            self._video_encoding = dict(codec="mp4v", pixel_format="yuv420p")
             return writer, None
 
     def _write(self, writer, proc, frame):

@@ -45,10 +45,10 @@ def main():
         for _ in range(9): engine._write(writer,proc,frame)
         engine._close_writer(writer,proc)
         counts=[]
-        part1 = engine.reface_video(str(video),source,[index],target_face_embeddings=refs,finalize=False,
+        part1 = engine.reface_video(str(video),source,target_face_indices=[index],target_face_embeddings=refs,finalize=False,
                                       progress_callback=lambda count,total:(counts.append(count) or count<3))
         assert part1.success and counts[-1]==3, part1
-        part2 = engine.reface_video(str(video),source,[index],target_face_embeddings=refs,finalize=False,resume_from_frame=3)
+        part2 = engine.reface_video(str(video),source,target_face_indices=[index],target_face_embeddings=refs,finalize=False,resume_from_frame=3)
         assert part2.success, part2
         job = Job(id='gpu-acceptance',job_type='reface_video',status=JobStatus.RUNNING,progress=0,message='',created_at='',
                   params={'quality_profile': args.quality_profile}, frames_done=3,part_files=[part1.output_path])
@@ -56,7 +56,8 @@ def main():
         info = validate_video(joined,9,30000/1001)
         report = dict(photo_faces_swapped=result.faces_swapped,unselected_photo_unchanged=True,
                       first_part_frames=part1.details['frames_done'],second_part_frames=part2.details['frames_done'],
-                      video=info,settings=result.details['settings'],image=result.output_path,output=str(joined))
+                      video=info,settings=result.details['settings'],video_settings=part2.details['settings'],
+                      image=result.output_path,output=str(joined))
         (out/'gpu-report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
         print('PASS: selected-face GPU photo preserves the bystander exactly; 3+6 frame pause/resume video joins to 9 frames at 29.97 fps',flush=True)
     finally:

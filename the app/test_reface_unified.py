@@ -8,7 +8,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-from reface_config import profile_defaults, profile_catalog
+from reface_config import output_defaults, profile_defaults, profile_catalog
 from reface import RefaceEngine
 from reface_engine_v3 import RefaceEngineV3
 from mobile_api.reface_runner import run_reface
@@ -50,6 +50,28 @@ class UnifiedTests(unittest.TestCase):
         self.assertEqual(seen['restorer'], 'gpen_bfr_1024')
         self.assertEqual(seen['restore_size'], 1024)
         self.assertTrue(seen['use_parser'])
+
+    def test_output_profiles_retain_more_restored_detail_and_encode_with_less_loss(self):
+        seen = []
+        with patch.object(RefaceEngineV3, '__init__', lambda engine, **kw: seen.append(kw)):
+            for profile in ('fast', 'balanced', 'detail'):
+                RefaceEngine(quality_profile=profile)
+        self.assertEqual([settings['video_crf'] for settings in seen], [16,14,12])
+        self.assertEqual([settings['video_preset'] for settings in seen], ['medium','medium','slow'])
+        self.assertEqual([settings['realism_overrides']['focus_match_strength'] for settings in seen], [1,.5,.25])
+        changed = output_defaults('detail')
+        changed['video_crf'] = 40
+        self.assertEqual(output_defaults('detail')['video_crf'], 12)
+
+    def test_explicit_finishing_and_encoding_override_profile_without_mutating_the_callers_options(self):
+        seen = {}
+        overrides = dict(focus_match_strength=.8, focus_match=False)
+        with patch.object(RefaceEngineV3, '__init__', lambda engine, **kw: seen.update(kw)):
+            RefaceEngine(quality_profile='detail', video_crf=9, video_preset='fast', realism_overrides=overrides)
+        self.assertEqual(seen['video_crf'], 9)
+        self.assertEqual(seen['video_preset'], 'fast')
+        self.assertEqual(seen['realism_overrides'], overrides)
+        self.assertIsNot(seen['realism_overrides'], overrides)
 
     def test_fast_masking_does_not_load_an_unused_parser_and_keeps_occlusion(self):
         from face_masking import FaceMasker

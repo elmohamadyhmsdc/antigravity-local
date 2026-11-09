@@ -102,16 +102,17 @@ class CompositeConfig:
     mask_regions: Optional[List[str]] = None      # None -> face_masking.DEFAULT_REGIONS
     use_parser: bool = True
     use_occluder: bool = True
-    preserve_mouth_interior: bool = True          # keep the target's real teeth
+    preserve_mouth_interior: bool = True          # photos: keep the target's real teeth
     mask_erode: float = 0.02                      # fraction of crop size
     mask_feather: float = 0.05                    # fraction of crop size
     relight: float = 1.0                          # 0..1
-    detail_transfer: float = 0.4                  # 0..1, scaled again by face size
+    detail_transfer: float = 0.4                  # photos: 0..1, scaled again by face size
     grain_match: float = 1.0                      # 0..1
     focus_match: bool = True
+    focus_match_strength: float = 1.0             # 0 = restored detail, 1 = original focus
     blend: float = 1.0
     temporal: bool = False
-    temporal_alpha: float = 0.5                   # gain map and mask
+    temporal_alpha: float = 0.5                   # lighting gain map
     temporal_alpha_slow: float = 0.3              # noise sigma and focus radius
     mask_area_floor: float = 0.005                # below this, statistics are unreliable
     track_ttl: int = 30                           # frames before a track is evicted
@@ -265,15 +266,10 @@ class FaceCompositor:
     # ------------------------------------------------------------- alignment
 
     def _place_via_frame(self, frame, aligned_swap, m_swap, m_ffhq, orig_aligned, size):
-        """Paste the swap crop the same way insightface does (invert M onto
-        the frame), then recrop into FFHQ space.
+        """Legacy two-resample placement retained for alignment diagnostics.
 
-        compose_affine(M_ffhq, M_swap) is the one-resample ideal, but mixing
-        insightface's skimage matrix with OpenCV's FFHQ matrix sent the swapped
-        pixels outside the paste mask, so the original face was written back.
-
-        Only the frame box under the FFHQ crop is rendered: the same two
-        resamples, a few percent of the pixels.
+        Production composes the two affines in _place_swap, preserving detail
+        that would otherwise be lost in the intermediate frame-sized raster.
         """
         m_swap = _as_2x3(m_swap)
         if m_swap is None:
@@ -299,21 +295,9 @@ class FaceCompositor:
     def _place_swap(self, aligned_swap, m_swap, m_ffhq, orig_aligned, size, frame=None):
         """Warp the swapper's crop into FFHQ space, filling anything it doesn't
         cover (forehead, chin edges) from the original."""
-        if frame is not None:
-            try:
-                blended, cov_mean = self._place_via_frame(
-                    frame, aligned_swap, m_swap, m_ffhq, orig_aligned, size,
-                )
-                if cov_mean >= 0.02:
-                    return blended
-                self._log_once(
-                    f"frame-paste coverage {cov_mean:.3f}; trying composed affine"
-                )
-            except Exception as e:
-                self._log_once(f"frame-paste failed ({e}); trying composed affine")
-
         t = compose_affine(m_ffhq, m_swap)
         warped = cv2.warpAffine(aligned_swap, t, (size, size),
+                                flags=cv2.INTER_CUBIC,
                                 borderMode=cv2.BORDER_REPLICATE)
         ones = np.ones(aligned_swap.shape[:2], np.float32)
         cov = cv2.warpAffine(ones, t, (size, size), borderValue=0.0)
@@ -329,10 +313,12 @@ class FaceCompositor:
 
     def _regions(self) -> List[str]:
         regions = list(self.config.mask_regions or DEFAULT_REGIONS)
-        if self.config.preserve_mouth_interior:
+        if self.config.preserve_mouth_interior and not self.config.temporal:
             # Class 11 is the inner mouth. A 128px swap carries about 30 real
             # pixels of teeth, which the restorer then turns into a smear -
-            # keeping the target's own teeth is both cheaper and more honest.
+            # keeping the target's own teeth is both cheaper and more honest
+            # in photos. In video the two mouth shapes move independently;
+            # holes around both shapes expose the old lips beside the swap.
             regions = [r for r in regions if r != "mouth"]
         return regions
 
@@ -432,10 +418,11 @@ class FaceCompositor:
                 return apply_gain(out, gain, cfg.relight)
             out = self._guard("relight", _relight, out)
 
-        if cfg.focus_match:
+        if cfg.focus_match and cfg.focus_match_strength > 0:
             def _focus():
                 s = choose_focus_sigma(out, orig_aligned, mask)
                 s = self._ema(track_id, "focus", s, cfg.temporal_alpha_slow)
+                s *= float(np.clip(cfg.focus_match_strength, 0.0, 1.0))
                 return cv2.GaussianBlur(out, (0, 0), s) if s > 0.05 else out
             out = self._guard("focus match", _focus, out)
 
@@ -444,7 +431,10 @@ class FaceCompositor:
             # pixels; relight above already fell back to a stable global map.
             return out
 
-        frac = self._detail_fraction(native_px)
+        # A high-pass residual also contains the target's nose/lip creases.
+        # Borrowing it in video reintroduces moving original features. Match
+        # sensor grain instead, without copying any target texture pixels.
+        frac = 0.0 if cfg.temporal else self._detail_fraction(native_px)
 
         if cfg.detail_transfer > 0 and frac > 0:
             out = self._guard(
@@ -547,11 +537,11 @@ class FaceCompositor:
 
         out = self._harmonize(pre.base, pre.orig_aligned, mask, region_orig, skin,
                               track_id, native_px)
-        current_mask = mask
-        mask = np.minimum(self._ema(track_id, "mask", mask, self.config.temporal_alpha), current_mask)
-        # Newly protected pixels take effect immediately, including mouth/hair.
-        if self.config.temporal:
-            self._tracks[track_id]["mask"] = mask
+        # Semantic masks describe current-frame visibility, not a quantity
+        # that can be averaged in crop coordinates. EMA leaves translucent
+        # original-face trails when a hand moves away or the expression
+        # changes. Keep the current mask, including its feathered boundary;
+        # only lighting, focus and noise statistics are smoothed over time.
         self._touch(track_id)
 
         result = self._paste(frame, out, mask, pre.m_ffhq, native_px)
