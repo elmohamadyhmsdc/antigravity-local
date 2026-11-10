@@ -292,6 +292,7 @@ class StudioJobs:
                             job.update(status="paused" if paused else "queued",
                                        message="Paused" if paused else "Waiting for resources: " + " ".join(reasons))
                         continue
+                    self._release_scan_engines()
                     meta = self.runner(job, directory, report, stopped)
                 with self.lock:
                     if meta is None:
@@ -365,6 +366,19 @@ class StudioJobs:
         self.wake.set()
         if self.worker is not None:
             self.worker.join(timeout=5)
+
+    def _release_scan_engines(self):
+        """Free the idle scan models before a Studio job. Called under compute_lock, so no
+        scan is running. Most-detail Reface alone peaks at ~5.9 of the 6 GB card; resident
+        scan/outline sessions pushed it into shared system memory (measured 2026-11-11 on a
+        1080p clip: 0.8 s -> 6.0 s per frame). The next scan reloads them on demand."""
+        unload = getattr(self.ctx.engines, "unload", None)
+        if unload is None:
+            return
+        try:
+            unload()
+        except Exception:  # noqa: BLE001 - a slow render beats a refused job
+            log.exception("Could not release scan engines before a Studio job")
 
     def _run_engine(self, job, directory, report, stopped):
         if job['type'] == PHOTO_EDIT_TYPE:

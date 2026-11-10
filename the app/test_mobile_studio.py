@@ -353,6 +353,20 @@ class StudioTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             match_boxes(boxes, [a, FakeFace((0, 0, 20, 20), unit(3))])
 
+    def test_scan_engines_are_released_before_the_engine_runs(self):
+        # Resident scan models push Most-detail Reface past the 6 GB card into shared memory.
+        order = []
+        self.ctx.engines.unload = lambda: order.append("unload")
+        real = self.ctx.studio_jobs.runner
+        self.ctx.studio_jobs.runner = lambda *a: (order.append("run"), real(*a))[1]
+        self.assertEqual(self.wait(self.create())["status"], "completed")
+        self.assertEqual(order, ["unload", "run"])
+
+        def broken():
+            raise RuntimeError("worker already gone")
+        self.ctx.engines.unload = broken
+        self.assertEqual(self.wait(self.create(dict(self.body, client_job_id="request-2")))["status"], "completed")
+
     def test_failure_is_reported_and_expiry_purges_private_workspace(self):
         def fail(*args):
             raise RuntimeError("private path must not leak")

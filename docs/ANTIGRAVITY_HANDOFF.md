@@ -1,5 +1,13 @@
 # Antigravity handoff — 2026-10-19
 
+## Mobile Reface slowdown — 2026-11-11
+
+- User reported the mobile API became very slow after the 2026-11-09 quality change, and asked to keep that change. Evidence: the last live job (`studio_e44a…`, 1080p, 1,642 frames, Most detail) wrote 438 frames in about 90 minutes (~12 s/frame). The log showed VRAM and RAM at 90% or more throughout.
+- Measured on 72 frames of that clip, Most detail, nothing else on the GPU: pre-change code (9e50167) **745 ms/frame**, current code **810 ms/frame** (+9%; CRF 12/slow file 1.65× larger). The quality change is not the main cause. Reface alone peaks at **~5.9 of 6.1 GB**.
+- Cause: the Studio queue never released the idle scan engines (scan worker process, outline/RMBG and other in-process sessions). With them resident, the GPU overflowed into shared system memory. Reproduced on 24 frames: **5,971 ms/frame** with scan engines loaded, **819** after `InsightEngines.unload()`, **797** clean.
+- Fix: `mobile_api/studio_jobs.py` `_release_scan_engines()` calls `ctx.engines.unload()` under `compute_lock` right before every Studio runner. Unload errors are logged and never fail the job. The next scan restarts the worker on demand. Quality settings are unchanged. New test `test_scan_engines_are_released_before_the_engine_runs`. Verified: Studio 15/15, contract 32/32, stateless 5/5, scan worker 3/3, photo edit 18/18, `git diff --check`.
+- Not done: the live server was not restarted and the phone was not touched. Restart Mobile API to load the fix. The stuck job's partial render (438 frames) is still in `mobile_workspace/jobs/`. The first scan after a Studio job pays a model reload of a few seconds. Benchmark script: session scratchpad `bench/bench.py`, not in the repo.
+
 ## Protected photo editor — 2026-11-09
 
 - User requested starting with photos and completing their editing flow. Implemented **nonsexual object/background editing** in the current native Android app (`D:\test\face gallary`) plus PC Mobile API. Flutter and video editing remain unchanged. Open a still photo → overflow → **Edit photo / تعديل الصورة**. Brush/rectangle/eraser, size, undo/redo/clear, pan/zoom, Remove/Replace description, queued progress/cancel/resume, before/after and **Save a copy** as a new PNG. The five top navigation destinations/theme are preserved; English and Arabic resources added.
