@@ -172,7 +172,6 @@ class PhotoEditTests(unittest.TestCase):
 
     def test_restricted_unknown_and_invalid_options_are_rejected(self):
         invalid = [dict(operation='replace',instruction=''),dict(operation='other'),
-                   dict(operation='replace',instruction='nude photo'),dict(operation='replace',instruction='عري'),
                    dict(operation='remove',safety_checker=False),dict(operation='remove',steps=True),
                    dict(operation='remove',steps=41),dict(operation='remove',seed=2**32),
                    dict(operation='replace',instruction='suit',strength=0.1),

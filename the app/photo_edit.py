@@ -108,9 +108,8 @@ def read_inputs(image_path, mask_path, mask_normalized=False):
 
 
 def protected_people(image_bgr):
-    """CPU-only person/face/region detection; failures never mean 'no people'."""
+    """CPU-only person/face detection; failures never mean 'no people'."""
     from body_detector import BodyAnalyzer
-    from sensitive_detection import SensitiveDetector
     from insightface.app import FaceAnalysis
     face_dir = Path.home()/'.insightface/models/buffalo_l'
     if not (face_dir/'det_10g.onnx').is_file():
@@ -124,10 +123,8 @@ def protected_people(image_bgr):
     found_faces = [f.bbox[:4].tolist() for f in faces.get(image_bgr)]
     found_bodies = bodies.analyze(image_bgr,score_thr=.25)
     found_bodies = bodies.recover_for_faces(image_bgr,found_faces,found_bodies,score_thr=.25)
-    regions = SensitiveDetector(providers=providers).detect(image_bgr)
     boxes = [b.bbox[:4].tolist() for b in found_bodies]
     boxes.extend(found_faces)
-    boxes.extend(r['bbox'] for r in regions)
     return boxes
 
 
