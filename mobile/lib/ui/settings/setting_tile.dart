@@ -80,12 +80,12 @@ class SettingTile extends StatelessWidget {
 
     final titleStyle = theme.textTheme.bodyLarge?.copyWith(
       color: isDanger ? theme.colorScheme.error : null,
-      fontWeight: isDanger ? FontWeight.w600 : null,
+      fontWeight: isDanger ? FontWeight.w600 : FontWeight.w500,
     );
 
     final iconColor = isDanger
         ? theme.colorScheme.error
-        : theme.colorScheme.onSurfaceVariant;
+        : theme.colorScheme.primary;
 
     Widget? effectiveTrailing;
     switch (type) {
@@ -93,8 +93,9 @@ class SettingTile extends StatelessWidget {
         effectiveTrailing =
             trailing ??
             Icon(
-              Icons.chevron_right,
-              color: theme.colorScheme.onSurfaceVariant,
+              Icons.chevron_right_rounded,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              size: 22,
             );
         break;
       case SettingTileType.toggle:
@@ -116,8 +117,9 @@ class SettingTile extends StatelessWidget {
               ),
             const SizedBox(width: 4),
             Icon(
-              Icons.chevron_right,
-              color: theme.colorScheme.onSurfaceVariant,
+              Icons.chevron_right_rounded,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              size: 22,
             ),
           ],
         );
@@ -129,10 +131,22 @@ class SettingTile extends StatelessWidget {
     }
 
     return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       leading: leading != null
-          ? IconTheme(
-              data: IconThemeData(color: iconColor),
-              child: leading!,
+          ? Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isDanger
+                    ? theme.colorScheme.error.withValues(alpha: 0.12)
+                    : theme.colorScheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: IconTheme(
+                data: IconThemeData(color: iconColor, size: 20),
+                child: leading!,
+              ),
             )
           : null,
       title: Text(title, style: titleStyle),
@@ -143,7 +157,9 @@ class SettingTile extends StatelessWidget {
                   ? theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.error.withValues(alpha: 0.8),
                     )
-                  : null,
+                  : theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
             )
           : null,
       trailing: effectiveTrailing,

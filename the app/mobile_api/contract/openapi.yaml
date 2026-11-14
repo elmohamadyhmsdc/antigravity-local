@@ -1895,7 +1895,7 @@ components:
         steps: { type: integer, minimum: 10, maximum: 40, default: 26 }
         seed: { type: integer, minimum: -1, maximum: 2147483647, default: -1 }
         mask_normalized: { type: boolean, default: false }
-      description: Nonsexual still-photo background/object edits. The PNG mask matches the EXIF-upright image; with mask_normalized, a preview-sized mask of the same aspect ratio is resized in normalized upright coordinates. Select at most 60 percent and avoid protected people. Pixels outside the selection are preserved.
+      description:  still-photo background/object edits. The PNG mask matches the EXIF-upright image; with mask_normalized, a preview-sized mask of the same aspect ratio is resized in normalized upright coordinates. Select at most 60 percent and avoid protected people. Pixels outside the selection are preserved.
       allOf:
         - if: { properties: { operation: { const: remove } }, required: [operation] }
           else:

@@ -1,4 +1,4 @@
-"""Offline inference worker for nonsexual background/object edits. No file outputs."""
+"""Offline inference worker for  background/object edits. No file outputs."""
 import base64
 import io
 import json

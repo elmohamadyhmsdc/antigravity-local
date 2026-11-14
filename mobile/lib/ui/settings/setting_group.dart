@@ -35,11 +35,13 @@ class SettingGroup extends StatelessWidget {
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             elevation: 0,
-            color: theme.colorScheme.surfaceContainerHighest.withValues(
-              alpha: 0.4,
-            ),
+            color: theme.colorScheme.surfaceContainerLow,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25),
+                width: 0.8,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: Column(
@@ -49,9 +51,9 @@ class SettingGroup extends StatelessWidget {
                   if (i < children.length - 1)
                     Divider(
                       height: 1,
-                      indent: 56,
+                      indent: 64,
                       color: theme.colorScheme.outlineVariant.withValues(
-                        alpha: 0.4,
+                        alpha: 0.25,
                       ),
                     ),
                 ],

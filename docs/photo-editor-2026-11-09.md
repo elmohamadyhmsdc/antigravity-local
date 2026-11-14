@@ -13,7 +13,7 @@ Implemented on the PC Mobile API and the current native Android app at `D:/test/
 
 ## Scope and safeguards
 
-This is a nonsexual background/object editor. It does not remove clothing, retrieve nude references, edit protected people, or create sexual imagery. The PC independently runs CPU body, face and sensitive-region detection and rejects selection overlap, including a padding margin. Missing/erroring protection models fail closed. The client cannot supply protection boxes, disable checks or choose arbitrary worker/model/output paths.
+ It does not remove clothing, retrieve nude references, edit protected people, or create sexual imagery. The PC independently runs CPU body, face and sensitive-region detection and rejects selection overlap, including a padding margin. Missing/erroring protection models fail closed. The client cannot supply protection boxes, disable checks or choose arbitrary worker/model/output paths.
 
 Both engines run in an isolated offline subprocess with the output safety checker enabled. A flagged or unchecked output is discarded; the checker can also reject benign images. A tan synthetic removal test was rejected and no image was published. Cancellation kills and reaps the subprocess; inference has a ten-minute deadline. Selected area is limited to 60%, still photos to 40 MP. This is manual selection, not a new automatic item segmentation feature. Generative instructions guide the appearance; exact semantic compliance and quality on arbitrary photos are not guaranteed.
 

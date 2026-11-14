@@ -436,10 +436,18 @@ class _MenuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 18, color: Colors.white70),
         const SizedBox(width: 12),
-        Text(text, style: const TextStyle(fontSize: 14, color: Colors.white)),
+        Flexible(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 14, color: Colors.white),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }

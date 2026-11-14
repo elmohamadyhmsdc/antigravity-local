@@ -161,55 +161,104 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
     bool characters,
   ) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      backgroundColor: scheme.surfaceContainerHigh,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              key: const Key('manage-identity-groups'),
-              leading: const Icon(Icons.folder_outlined),
-              title: Text(l10n.identityGroupsTitle),
-              onTap: () {
-                Navigator.pop(ctx);
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => IdentityGroupsScreen(kind: scopedKind),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.manage_accounts_outlined,
+                      color: scheme.primary,
+                      size: 20,
+                    ),
                   ),
-                );
-              },
-            ),
-            ListTile(
-              key: const Key('open-review'),
-              leading: const Icon(Icons.fact_check_outlined),
-              title: Text(l10n.reviewTitle),
-              trailing: review > 0 ? Text('$review') : null,
-              onTap: () {
-                Navigator.pop(ctx);
-                _openReview();
-              },
-            ),
-            ListTile(
-              key: const Key('test-character-photo'),
-              leading: const Icon(Icons.add_photo_alternate_outlined),
-              title: const Text('Analyze photo'),
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('${Routes.analyze}?characters=$characters');
-              },
-            ),
-            ListTile(
-              key: const Key('open-bodies'),
-              leading: const Icon(Icons.accessibility_new),
-              title: Text(l10n.bodiesTitle),
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push(Routes.bodies);
-              },
-            ),
-          ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.peopleAction('more'),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _ToolsSheetTile(
+                key: const Key('manage-identity-groups'),
+                icon: Icons.folder_outlined,
+                title: l10n.identityGroupsTitle,
+                subtitle: 'Organize people & characters into folders',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => IdentityGroupsScreen(kind: scopedKind),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 6),
+              _ToolsSheetTile(
+                key: const Key('open-review'),
+                icon: Icons.fact_check_outlined,
+                title: l10n.reviewTitle,
+                subtitle: 'Review doubts and merge suggestions',
+                trailingBadge: review > 0 ? '$review' : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openReview();
+                },
+              ),
+              const SizedBox(height: 6),
+              _ToolsSheetTile(
+                key: const Key('test-character-photo'),
+                icon: Icons.add_photo_alternate_outlined,
+                title: 'Analyze photo',
+                subtitle: 'Detect faces & characters from a single image',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('${Routes.analyze}?characters=$characters');
+                },
+              ),
+              const SizedBox(height: 6),
+              _ToolsSheetTile(
+                key: const Key('open-bodies'),
+                icon: Icons.accessibility_new,
+                title: l10n.bodiesTitle,
+                subtitle: 'Browse detected full-body crops and poses',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push(Routes.bodies);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -375,9 +424,23 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
             ? null
             : SafeArea(
                 top: false,
-                child: Material(
-                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                  elevation: 4,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.25),
+                        width: 0.8,
+                      ),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 8,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1440,6 +1503,109 @@ class _SelectionActionButton extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   fontSize: 10,
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToolsSheetTile extends StatelessWidget {
+  const _ToolsSheetTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailingBadge,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final String? trailingBadge;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Material(
+      color: scheme.surfaceContainerLowest,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: scheme.outlineVariant.withValues(alpha: 0.3),
+          width: 0.8,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: scheme.primary, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailingBadge != null)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    trailingBadge!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: scheme.primary,
+                    ),
+                  ),
+                ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+                size: 20,
               ),
             ],
           ),
