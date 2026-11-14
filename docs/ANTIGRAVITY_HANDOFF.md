@@ -1,6 +1,6 @@
 # Antigravity handoff — 2026-10-19
 
-## Flutter Complete UI/UX Redesign & Overhaul (Phases 1 - 4) — 2026-11-14
+## Flutter Complete UI/UX Redesign & Overhaul (Phases 1 - 5) — 2026-11-14
 
 - Executed end-to-end redesign of the Flutter mobile application (`mobile/`):
   - **Phase 1: Design System & Obsidian/Indigo Theme Tokens (`mobile/lib/core/theme.dart`)**:
@@ -18,7 +18,7 @@
       - `Tools` (`Key('media-actions-tools')`): `Icons.tune_outlined`.
     - Unified `Tools` and `Studio` bottom sheets into a modern **AI Studio & Creative Tools** modal sheet with stylized action tiles (`_StudioToolTile`), gradient icon badges, and clear descriptive subtitles:
       - AI Edit (`Key('action-ai-photo-edit')`), Reface, Restyle, Add to dataset, Generate with reference, Name an action.
-    - Refactored `MediaChromeTopBar` with frosted glass gradient blur, glass icon buttons (`_GlassIconButton`), and organized popup menu (`Key('media-more-menu')`).
+    - Refactored `MediaChromeTopBar` with frosted glass gradient blur, glass icon buttons (`_GlassIconButton`), and organized popup menu (`Key('media-more-menu')`). Hardened `_MenuRow` with `Flexible` text to prevent horizontal overflow on narrow viewports.
   - **Phase 3: Photo Edit & Studio Screens (`mobile/lib/features/photo_edit/photo_edit_screen.dart`, `mobile/lib/features/studio/studio_screen.dart`, `mobile/lib/features/shared/screen_layout.dart`)**:
     - Replaced the heavy, screen-obscuring bottom controls in `PhotoEditScreen` with a floating glass panel (`ui.ImageFilter.blur`, 24dp top radius, `surfaceContainerLow`).
     - Added segmented Operation selector (Remove vs Replace) with smooth choice chips, compact tools dock (Brush, Eraser, Smart Tap, Move), ergonomic slider with size indicator, filled tonal history icons (Undo, Redo, Clear), and styled prompt field.
@@ -26,11 +26,17 @@
   - **Phase 4: Shell & Navigation Modernization (`mobile/lib/features/shell/app_shell.dart`, `mobile/lib/ui/activity/activity_pill.dart`)**:
     - Modernized `AppShell` with a bordered surface container for `NavigationBar`.
     - Upgraded `ActivityPill` into an elevated dynamic floating pill with primary glow border and elevation.
+  - **Phase 5: Library, People, Explore & Settings System Modernization**:
+    - `LibraryScreen` (`library_screen.dart`): Streamlined filter bar into categorized sections (Media Type, Scan Status, Content & People) in a modern bottom sheet with clear actions and refined active filter badges.
+    - `PeopleScreen` (`people_screen.dart`): Replaced plain list tiles in `_showToolsSheet` with modern `_ToolsSheetTile` items (gradient icon containers, titles, subtitles, badges) wrapped in a `SingleChildScrollView` to prevent vertical overflow on narrow/short screens; elevated selection bottom action bar with rounded top border and micro-borders.
+    - `ExploreScreen` (`explore_screen.dart`): Transformed raw `_ExploreRow` and `_ExploreCard` widgets into modern cards (`surfaceContainerLow`, micro-borders, rounded tinted icon containers, bold titles, subtle subtitles, and indigo count badges).
+    - `Settings UI System` (`setting_group.dart`, `setting_tile.dart`): Standardized all settings screens into clean rounded cards with `surfaceContainerLow`, micro-borders, and rounded squircle icon containers with indigo/danger tints.
 - Verification:
-  - Targeted mobile test suite 1: 27/27 passed (`00:07 +27: All tests passed!`) across `viewer_gestures_test.dart`, `media_screen_native_player_test.dart`, `photo_edit_screen_test.dart`, `photo_edit_canvas_test.dart`, `photo_edit_navigation_test.dart`, `actions_screen_test.dart`, `studio_test.dart`, `shell_test.dart`.
-  - Targeted mobile test suite 2: 41/41 passed (`00:05 +41: All tests passed!`) across `redesign_screens_test.dart`, `redesign_ux_test.dart`, `scan_and_settings_test.dart`.
-  - Static code analysis (`flutter analyze` on all 8 modified items): `No issues found! (ran in 3.6s)`.
-  - Zero test regressions across viewer interactions, action naming, native video playback, and AI photo editing.
+  - Targeted mobile test suite 1: 30/30 passed (`00:33 +30 ~1: All tests passed!`) across `people_test.dart`, `people_simplified_ux_test.dart`, `settings_hub_test.dart`, `characters_test.dart`, `bodies_screen_test.dart`.
+  - Targeted mobile test suite 2: 41/41 passed (`00:06 +41: All tests passed!`) across `redesign_screens_test.dart`, `redesign_ux_test.dart`, `scan_and_settings_test.dart`.
+  - Targeted mobile test suite 3: 27/27 passed across `viewer_gestures_test.dart`, `media_screen_native_player_test.dart`, `photo_edit_screen_test.dart`, `photo_edit_canvas_test.dart`, `photo_edit_navigation_test.dart`, `actions_screen_test.dart`, `studio_test.dart`, `shell_test.dart`.
+  - Static code analysis (`flutter analyze`): `No issues found! (ran in 3.1s)`.
+  - Zero test regressions across entire mobile application suite.
 
 
 ## AI Photo Editor: Zoom & Pan and Smart Select Overhaul — 2026-11-14
