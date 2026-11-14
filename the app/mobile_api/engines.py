@@ -34,6 +34,21 @@ def _character_body_dicts(characters) -> tuple:
     return figures, owner
 
 
+def load_face_analyzer():
+    """Load the same local detection, recognition, and pose models on desktop and mobile."""
+    from cuda_dll_dirs import add_nvidia_dll_dirs
+
+    add_nvidia_dll_dirs()
+    from insightface.app import FaceAnalysis
+    face_dir = Path.home()/'.insightface/models/buffalo_l'
+    if not all((face_dir/name).is_file() for name in ('det_10g.onnx', 'w600k_r50.onnx', '1k3d68.onnx')):
+        raise FileNotFoundError('Local buffalo_l face models are incomplete. Downloads are disabled.')
+    app = FaceAnalysis(name="buffalo_l", allowed_modules=["detection", "recognition", "landmark_3d_68"],
+                       providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+    app.prepare(ctx_id=0, det_size=[(128, 128), (640, 640)])
+    return app
+
+
 class InsightEngines:
     model_id = EMBEDDING_MODEL_ID
 
@@ -45,8 +60,15 @@ class InsightEngines:
         self._outline_engine = None
         self._sensitive_detector = None
         self._embedder = None
+        self._isolate_scans = bool(isolate_scans)
         from .scan_worker import ScanWorker
         self._scan_worker = ScanWorker(log) if isolate_scans else None
+
+    def _get_scan_worker(self):
+        if self._scan_worker is None and getattr(self, "_isolate_scans", False):
+            from .scan_worker import ScanWorker
+            self._scan_worker = ScanWorker(self._log)
+        return self._scan_worker
 
     @property
     def loaded(self) -> bool:
@@ -62,21 +84,15 @@ class InsightEngines:
             self._body = BodyAnalyzer(log=self._log, allow_downloads=False)
         if not faces or self._face_app is not None:
             return
-        from insightface.app import FaceAnalysis
-        face_dir = Path.home()/'.insightface/models/buffalo_l'
-        if not all((face_dir/name).is_file() for name in ('det_10g.onnx', 'w600k_r50.onnx', '1k3d68.onnx')):
-            raise FileNotFoundError('Local buffalo_l face models are incomplete. Downloads are disabled.')
         started = time.time()
-        app = FaceAnalysis(name="buffalo_l", allowed_modules=["detection", "recognition", "landmark_3d_68"],
-                           providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
-        app.prepare(ctx_id=0, det_size=[(128, 128), (640, 640)])
-        self._face_app = app
+        self._face_app = load_face_analyzer()
         self._log(f"[engines] face models ready in {time.time() - started:.1f}s")
 
     def analyze(self, img, options) -> analysis.FrameAnalysis:
         with self._lock:
-            if self._scan_worker is not None:
-                return self._scan_worker.analyze(img, options)
+            worker = self._get_scan_worker()
+            if worker is not None:
+                return worker.analyze(img, options)
             self.load(faces=True)  # character mode also needs faces (real-face filter)
             res = analysis.analyze_frame(self._face_app, self._body, img, options)
             if getattr(options, "outlines", False):
@@ -142,8 +158,9 @@ class InsightEngines:
         """Backfill for photos scanned before the feature (`bodies`: dicts with bbox xyxy px, kpts, kpt_scores).
         A list of regions; with `embeddings` a dict {regions, bodies} (roadmap 7.5 for photos scanned earlier)."""
         with self._lock:
-            if self._scan_worker is not None:
-                return self._scan_worker.sensitive(img, bodies, embeddings)
+            worker = self._get_scan_worker()
+            if worker is not None:
+                return worker.sensitive(img, bodies, embeddings)
             regions = self._detect_sensitive(img, bodies)
             if not embeddings:
                 return regions
@@ -164,8 +181,9 @@ class InsightEngines:
 
     def compute_outlines(self, img, targets: list) -> list:
         with self._lock:
-            if self._scan_worker is not None:
-                return self._scan_worker.outlines(img, targets)
+            worker = self._get_scan_worker()
+            if worker is not None:
+                return worker.outlines(img, targets)
             if self._outline_engine is None:
                 from outlines import OutlineEngine
                 self._outline_engine = OutlineEngine()
@@ -308,12 +326,20 @@ class InsightEngines:
         with self._lock:
             if self._scan_worker is not None:
                 self._scan_worker.close()
+                self._scan_worker = None
             self._face_app = None
             self._body = None
             self._outline_engine = None
             self._sensitive_detector = None
             self._embedder = None
         gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+        except Exception:
+            pass
 
 
 # --- capabilities --------------------------------------------------------------------
@@ -403,6 +429,8 @@ class CapabilityProbe:
         venv_ai = self._has("venv_ai", "Scripts", "python.exe")
         return {
             "face_detection": face_ready,
+            "identity_bundle": face_ready,
+            "reface_geometry": face_ready,
             "character_identity": character_ready and self._has('models', 'body', 'yolox_m_humanart.onnx'),
             "dataset_person": face_ready and self._has('models', 'wd14_tagger_model.onnx') and self._has('models', 'gpen_bfr_512.onnx'),
             "dataset_character": character_ready and self._has('models', 'body', 'yolox_m_humanart.onnx') and self._has('models', 'wd14_tagger_model.onnx'),

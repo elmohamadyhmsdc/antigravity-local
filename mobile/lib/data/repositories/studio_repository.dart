@@ -189,6 +189,7 @@ class StudioRepository {
     required Map<String, dynamic> params,
     required File target,
     required bool video,
+    File? identityBundle,
     int? personId,
     ArtifactContext? context,
   }) async {
@@ -198,6 +199,7 @@ class StudioRepository {
       params: params,
       inputs: {
         'target': [target],
+        if (identityBundle != null) 'identity_bundle': [identityBundle],
       },
       personId: personId,
       context: context,

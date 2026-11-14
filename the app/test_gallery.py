@@ -298,6 +298,20 @@ def test_associate_faces_bodies_matches_crossing_pairs():
 
 
 @test
+def test_a_subthreshold_face_body_candidate_cannot_displace_the_best_pair():
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    import person_linking as pl
+
+    bodies = [SimpleNamespace(bbox=i) for i in range(2)]
+    scores = ((0.90, 0.64), (0.34, 0.0))
+    with patch.object(pl, "face_body_score", side_effect=lambda f, b, *_: scores[f][b]):
+        pairs = pl.associate_faces_bodies(range(2), bodies)
+    check([pair[:2] for pair in pairs] == [(0, 0)], f"wrong surviving pair: {pairs}")
+
+
+@test
 def test_associate_faces_bodies_is_one_to_one_and_rejects_bad_pairs():
     import person_linking as pl
 
@@ -711,6 +725,53 @@ def test_group_library_matches_known_people_and_creates_new_ones():
                 check(person.get("avatar_face_id"), "a new person should get an explicit cover")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+@test
+def test_grouping_respects_cooccurrence_of_compacted_video_faces_and_manual_body_links():
+    import gallery_grouping as gg
+
+    db, tmp = temp_db()
+    try:
+        vecs = identity(70, 7)
+        with db.batch():
+            person = db.create_person("Known")
+            corrected = db.create_person("Manual")
+            media = db.upsert_media("clip.mp4", {"type": "video"})
+            known = db.add_face(vecs[0], "clip.mp4", person_id=person, quality_score=.9,
+                                extra={"media_id": media, "frame_number": 0})
+            for i, vector in enumerate(vecs[1:5]):
+                db.add_face(vector, f"known_{i}.jpg", person_id=person, quality_score=.9)
+            pending = db.add_face(vecs[5], "clip.mp4", quality_score=.9,
+                                  extra={"media_id": media, "frame_number": 15})
+            db.upsert_media("clip.mp4", {"detections": [[15, 1.5, "f", known, 0, 0, 50, 50]]})
+            body = db.add_body({"media_id": media, "frame_number": 15, "bbox": {},
+                                "weak_face_embedding": vecs[6].tolist()})
+            manual = db.add_body({"media_id": media, "frame_number": 0, "face_id": known, "bbox": {}})
+            db.link_body_to_person(manual, corrected, "manual")
+        gg.group_library(db, "balanced", log=lambda _: None)
+        check(db.get_face(pending)["person_id"] is None, "same-frame face must stay unassigned")
+        check(db.body_person_id(db.get_body(body)) is None, "same-frame inferred body must stay unassigned")
+        check(db.body_person_id(db.get_body(manual)) == corrected, "manual link takes precedence")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@test
+def test_desktop_video_only_group_needs_sustained_distinct_views():
+    from types import SimpleNamespace
+    from gallery_grouping import _can_create_person
+
+    group = SimpleNamespace(auto_create=True, face_ids=[1, 2, 3], quality=.8, cohesion=.9)
+    db = SimpleNamespace(media={1: {"type": "video", "fps": 30}},
+                         faces={i: {"embedding": [i]} for i in group.face_ids})
+    sightings = {1: {(1, 0), (1, 30)}, 2: {(1, 60), (1, 90)}, 3: {(1, 120)}}
+    check(_can_create_person(db, group, sightings), "five independent sample positions should qualify")
+    db.faces[3]["embedding"] = db.faces[2]["embedding"]
+    check(not _can_create_person(db, group, sightings), "repeated embeddings are not distinct evidence")
+    db.faces[3]["embedding"] = [3]
+    sightings[3].add((1, 60))
+    check(not _can_create_person(db, group, sightings), "two candidate faces sharing a frame cannot auto-group")
 
 
 @test

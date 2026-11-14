@@ -40,15 +40,15 @@ def render_options(st, faceset_name=None):
             dfm_path = str(candidate)
 
     available = [name for name, filename in RESTORER_FILES.items() if (MODELS_DIR / filename).is_file()]
+    profile = st.selectbox("Quality", QUALITY_PROFILES, index=1, key="reface_quality_profile",
+                           format_func=PROFILE_LABELS.get)
+    st.caption(PROFILE_HELP[profile])
+    defaults = profile_defaults(profile, available)
     if dfm_path:
-        profile, restorer, use_parser = "balanced", "none", True
+        restorer, use_parser = "none", defaults["use_parser"]
         st.caption("Trained identity: separate face restoration is disabled.")
         weight = 0.5
     else:
-        profile = st.selectbox("Quality", QUALITY_PROFILES, index=1, key="reface_quality_profile",
-                               format_func=PROFILE_LABELS.get)
-        st.caption(PROFILE_HELP[profile])
-        defaults = profile_defaults(profile, available)
         restorer = st.selectbox("Restorer", ["auto", "none"] + available, key="reface_restorer",
                                 format_func=lambda name: "Automatic" if name == "auto" else name)
         actual_restorer = defaults["restorer"] if restorer == "auto" else restorer
@@ -73,7 +73,9 @@ def render_options(st, faceset_name=None):
                           key="reface_identity_strength", help="Higher strengthens the source identity; too high can look exaggerated.")
         preset = st.selectbox("Appearance", ["natural", "maximum_detail", "clean"], key="reface_appearance",
                                format_func=lambda value: {"natural": "Natural", "maximum_detail": "Maximum detail", "clean": "Clean"}[value])
-        overrides = {}
+        overrides = {"use_3d_geometry": st.checkbox(
+            "Experimental 3D visibility mask", value=False, key="reface_use_3d_geometry",
+        )}
         if st.checkbox("Fine-tune realism", key="reface_tune_realism"):
             overrides["detail_transfer"] = st.slider("Skin detail transfer", 0.0, 1.0, 0.4, 0.05)
             overrides["grain_match"] = st.slider("Grain match", 0.0, 1.0, 1.0, 0.05)
@@ -84,6 +86,27 @@ def render_options(st, faceset_name=None):
     return dict(quality_profile=profile, restorer=restorer, restorer_weight=weight,
                 use_parser=use_parser, use_occluder=use_occluder, dfm_path=dfm_path,
                 swapper=swapper, identity_boost=boost, realism_preset=preset, realism_overrides=overrides)
+
+
+def load_identity_profile(upload):
+    """Import the same JSON profile exported by the Mobile API."""
+    from identity_bundle import IdentityBundle
+
+    return IdentityBundle.from_json(upload.getvalue().decode("utf-8-sig"))
+
+
+def add_identity_profile(faceset):
+    """Use the shared pose-aware source for curated faces that already have embeddings."""
+    from identity_bundle import build_identity_bundle
+
+    if not faceset.faces or getattr(faceset, "identity_bundle", None) is not None:
+        return faceset
+    candidates = [dict(source_id=str(i), embedding=f.embedding, quality=f.quality, pose=f.pose,
+                       is_synthetic=getattr(f, "generated", False)) for i, f in enumerate(faceset.faces)]
+    bundle = build_identity_bundle(candidates, label=faceset.name, min_quality=0.0)
+    if bundle.sources:
+        faceset.identity_bundle = bundle
+    return faceset
 
 
 def gallery_faceset(name, records):
@@ -97,14 +120,21 @@ def gallery_faceset(name, records):
             embedding = np.asarray(record.get("embedding"), np.float32)
             if embedding.shape != (512,) or not np.isfinite(embedding).all() or np.linalg.norm(embedding) < 1e-8:
                 continue
+            pose = record.get("pose") or (0.0, 0.0, 0.0)
+            if isinstance(pose, dict):
+                pose = tuple(pose.get(axis) or 0.0 for axis in ("yaw", "pitch", "roll"))
+            pose = tuple(float(value) for value in pose)
+            quality = float(record.get("quality_score") or 0.0)
+            if len(pose) != 3 or not np.isfinite(pose).all() or not np.isfinite(quality):
+                continue
             faceset.add_face(FaceData(
                 image_path=record.get("image_path") or record.get("source_path") or "",
-                embedding=embedding, pose=tuple(record.get("pose") or (0.0, 0.0, 0.0)),
-                bbox=[0, 0, 0, 0], quality=float(record.get("quality_score") or 0.0),
+                embedding=embedding, pose=pose,
+                bbox=[0, 0, 0, 0], quality=min(1.0, max(0.0, quality)),
             ))
         except (TypeError, ValueError):
             continue
-    return faceset
+    return add_identity_profile(faceset)
 
 
 def target_files(data_sources):

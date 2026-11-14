@@ -103,8 +103,16 @@ class CompositeConfig:
     use_parser: bool = True
     use_occluder: bool = True
     preserve_mouth_interior: bool = True          # photos: keep the target's real teeth
-    mask_erode: float = 0.02                      # fraction of crop size
-    mask_feather: float = 0.05                    # fraction of crop size
+    # Fractions of crop size. The old inward 0.02 erode + 0.05 ramp handed the
+    # outer cheeks/jaw - and, around the kept mouth interior, the lips and smile -
+    # back to the original face: a mixed, "distorted" face. Measured 2026-11-11
+    # (public InsightFace sample photos, 30 cross-swaps, independent glintr100,
+    # ~340 px and ~135 px faces): source likeness 0.53 -> 0.68, original face
+    # left 0.28 -> 0.11, no visible seam. A negative erode (grow first) reached
+    # 0.70 / 0.09 but paints a few pixels past the parsed face (hair line, a
+    # hand at the edge), so it stays opt-in; 0 keeps every pixel inside it.
+    mask_erode: float = 0.0
+    mask_feather: float = 0.02
     relight: float = 1.0                          # 0..1
     detail_transfer: float = 0.4                  # photos: 0..1, scaled again by face size
     grain_match: float = 1.0                      # 0..1
@@ -116,6 +124,12 @@ class CompositeConfig:
     temporal_alpha_slow: float = 0.3              # noise sigma and focus radius
     mask_area_floor: float = 0.005                # below this, statistics are unreliable
     track_ttl: int = 30                           # frames before a track is evicted
+    adaptive_restorer: bool = True                # adaptively disable restorer on tiny/distant faces
+    restorer_min_size: int = 64                   # minimum native face height in px for restoration
+    use_3d_geometry: bool = False                 # opt-in experimental visibility weighting
+
+
+_ONES_128 = np.ones((128, 128), dtype=np.float32)
 
 
 PRESETS = {
@@ -187,6 +201,7 @@ class Prepared:
     seg_res: object = _UNSET                     # parser map of the restored crop
     mask_error: Optional[Exception] = None
     abort: Optional[tuple] = None                # (status, reason) when the face cannot be composited
+    mask_3d: Optional[np.ndarray] = None         # 3D visibility mask from surface normals
     degraded: List[str] = field(default_factory=list)
 
 
@@ -201,6 +216,7 @@ class FaceCompositor:
         self._rng = np.random.default_rng()
         self._logged = set()
         self._pool = None   # one worker: the restorer runs while the masks are built
+        self._track_restorer_active = {}
 
     def _executor(self) -> ThreadPoolExecutor:
         if self._pool is None:
@@ -236,8 +252,20 @@ class FaceCompositor:
     def reset(self):
         """Clear temporal state. Call at the start of each video."""
         self._tracks.clear()
+        self._track_restorer_active.clear()
         self._frame_no = 0
         self._logged.clear()
+
+    def unload(self):
+        """Release pool, restorer, and masker sessions."""
+        if self._pool is not None:
+            self._pool.shutdown(wait=True)
+            self._pool = None
+        if self.restorer is not None and hasattr(self.restorer, "unload"):
+            self.restorer.unload()
+        if self.masker is not None and hasattr(self.masker, "unload"):
+            self.masker.unload()
+        self.reset()
 
     def begin_frame(self):
         """Advance the frame counter and evict stale tracks."""
@@ -281,7 +309,7 @@ class FaceCompositor:
         rw, rh = x1 - x0, y1 - y0
         im = _into_roi(cv2.invertAffineTransform(m_swap), x0, y0)
         canvas = cv2.warpAffine(aligned_swap, im, (rw, rh), borderValue=0)
-        ones = np.ones(aligned_swap.shape[:2], np.float32)
+        ones = _ONES_128 if aligned_swap.shape[:2] == (128, 128) else np.ones(aligned_swap.shape[:2], np.float32)
         cov_f = cv2.warpAffine(ones, im, (rw, rh), borderValue=0.0)
         m_read = _from_roi(m_ffhq, x0, y0)
         warped = cv2.warpAffine(canvas, m_read, (size, size),
@@ -335,7 +363,7 @@ class FaceCompositor:
             occ = self.masker.occlusion_mask(orig_aligned)
         return seg, occ
 
-    def _build_mask(self, restored, orig_aligned, orig_masks=None, seg_res=_UNSET):
+    def _build_mask(self, restored, orig_aligned, orig_masks=None, seg_res=_UNSET, mask_3d=None):
         """Return (paste_mask, region_orig, skin_orig), all float32 [0,1].
 
         `orig_masks` is _orig_masks(orig_aligned) and `seg_res` the parser map of `restored` when the caller
@@ -385,6 +413,9 @@ class FaceCompositor:
             if occ.shape != (h, w) or not np.isfinite(occ).all():
                 raise ValueError("invalid occlusion matte")
             mask *= harden_occlusion(np.clip(occ, 0.0, 1.0))
+
+        if mask_3d is not None:
+            mask *= np.clip(mask_3d, 0.0, 1.0)
 
         return np.clip(mask, 0.0, 1.0), region_orig, skin
 
@@ -476,7 +507,18 @@ class FaceCompositor:
         prepare() can run while finish() still composites this one.
         """
         self.last_degraded = []
-        restorer = self.restorer if restore and getattr(self.restorer, "available", False) else None
+        should_restore = restore and getattr(self.restorer, "available", False)
+        if should_restore and getattr(self.config, "adaptive_restorer", True) and native_px is not None:
+            min_sz = getattr(self.config, "restorer_min_size", 64)
+            if track_id in self._track_restorer_active:
+                was_active = self._track_restorer_active[track_id]
+                # Hysteresis: stay active unless native_px falls below min_sz - 8 (e.g. 56px)
+                # Stay inactive unless native_px rises above min_sz + 8 (e.g. 72px)
+                should_restore = (native_px >= (min_sz - 8)) if was_active else (native_px >= (min_sz + 8))
+            else:
+                should_restore = (native_px >= min_sz)
+            self._track_restorer_active[track_id] = should_restore
+        restorer = self.restorer if should_restore else None
         size = self.config.restore_size
         pre = Prepared(track_id=track_id, native_px=native_px)
         m_ffhq = alignment_matrix(kps, size)
@@ -510,6 +552,18 @@ class FaceCompositor:
             seg_res = self.masker.segment(base) if self.config.use_parser else None
         except Exception as exc:
             pre.mask_error, seg_res = exc, _UNSET
+        pre.mask_3d = None
+        if getattr(self.config, "use_3d_geometry", False) and kps is not None and len(kps) >= 5:
+            try:
+                from reface_3d_geometry import estimate_dynamic_pose_pnp, should_use_3d_geometry, generate_3d_visibility_confidence_mask
+                kps_hom = np.hstack([kps, np.ones((len(kps), 1))])
+                crop_kps = (m_ffhq @ kps_hom.T).T
+                pose = estimate_dynamic_pose_pnp(crop_kps, (size, size))
+                use_3d, _ = should_use_3d_geometry(pose, face_pixel_size=int(native_px or size))
+                if use_3d:
+                    pre.mask_3d = generate_3d_visibility_confidence_mask((size, size), crop_kps, pose)
+            except Exception:
+                pass
         pre.m_ffhq, pre.orig_aligned, pre.base = m_ffhq, orig_aligned, base
         pre.orig_masks, pre.seg_res, pre.degraded = orig_masks, seg_res, self.last_degraded
         return pre
@@ -526,7 +580,7 @@ class FaceCompositor:
         try:
             if pre.mask_error is not None:
                 raise pre.mask_error
-            mask, region_orig, skin = self._build_mask(pre.base, pre.orig_aligned, pre.orig_masks, pre.seg_res)
+            mask, region_orig, skin = self._build_mask(pre.base, pre.orig_aligned, pre.orig_masks, pre.seg_res, mask_3d=pre.mask_3d)
         except Exception as exc:
             self.last_reason = f"mask failed: {exc}"
             self._log_once(self.last_reason)

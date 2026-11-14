@@ -23,6 +23,35 @@ class AveragedSource:
         self.normed_embedding = np.asarray(normed_embedding, dtype=np.float32)
 
 
+class BundleSource(AveragedSource):
+    def __init__(self, bundle):
+        super().__init__(bundle.primary_embedding)
+        self.bundle = bundle
+        self.previous = {}
+
+    def for_face(self, face, track_id):
+        from identity_bundle import estimate_pose_from_kps
+
+        landmarks = getattr(face, "kps", None)
+        if landmarks is None or not np.isfinite(landmarks).all():
+            return AveragedSource(self.normed_embedding)
+        pose = estimate_pose_from_kps(landmarks)
+        angle = self.bundle.get_best_embedding_for_pose(pose)
+        # Keep the consensus as an anchor and smooth sector transitions in video.
+        current = _unit(self.normed_embedding * .65 + angle * .35)
+        if current is None:
+            return AveragedSource(self.normed_embedding)
+        previous = self.previous.get(track_id)
+        if previous is not None:
+            current = _unit(previous * .45 + current * .55)
+        if current is None:
+            return AveragedSource(self.normed_embedding)
+        if len(self.previous) >= 64 and track_id not in self.previous:
+            self.previous.pop(next(iter(self.previous)))
+        self.previous[track_id] = current
+        return AveragedSource(current)
+
+
 def _unit(v: np.ndarray) -> Optional[np.ndarray]:
     v = np.asarray(v, dtype=np.float32).ravel()
     n = np.linalg.norm(v)
@@ -94,6 +123,9 @@ def build_source_from_faceset(
 ) -> Optional[AveragedSource]:
     """Convenience: return an AveragedSource ready to pass to INSwapper.get,
     or None if the faceset has no usable embeddings."""
+    bundle = getattr(faceset, "identity_bundle", None)
+    if bundle is not None:
+        return BundleSource(bundle)
     emb = build_identity_embedding(faceset, top_k=top_k, quality_weighted=quality_weighted)
     if emb is None:
         return None

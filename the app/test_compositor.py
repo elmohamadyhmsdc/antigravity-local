@@ -284,6 +284,23 @@ def test_feather_mask_keeps_a_solid_centre():
 
 
 @test
+def test_negative_erode_centres_the_ramp_on_the_outline():
+    """Erode < 0 grows the region first: the outer cheeks/jaw get the swap, not the old face."""
+    import numpy as np
+    from face_masking import feather_mask
+
+    region = np.zeros((512, 512), np.float32)
+    region[128:384, 128:384] = 1.0
+    inside = feather_mask(region, erode=0.02, feather=0.05)
+    straddle = feather_mask(region, erode=-0.01, feather=0.02)
+    check(inside[256, 140] < 0.25, f"positive erode keeps the rim original, got {inside[256, 140]:.3f}")
+    check(straddle[256, 132] > 0.9, f"just inside the outline should be swapped, got {straddle[256, 132]:.3f}")
+    check(0.2 < straddle[256, 127] < 0.8, f"the ramp should straddle the outline, got {straddle[256, 127]:.3f}")
+    check(straddle[256, 110] < 0.01, f"well outside the outline stays original, got {straddle[256, 110]:.3f}")
+    check(straddle[256, 256] > 0.99, "centre stays solid")
+
+
+@test
 def test_occluder_regression_hand_survives():
     """The destroyed-hand bug: an occluder hole must stay a hole."""
     import numpy as np

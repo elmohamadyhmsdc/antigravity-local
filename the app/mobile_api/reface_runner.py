@@ -39,6 +39,11 @@ def run_reface(job, directory, report, stopped):
     finally:
         # A paused video must release its ONNX sessions before the next queued job.
         engine = job.pop("_engine", None)
+        if engine is not None and hasattr(engine, "unload"):
+            try:
+                engine.unload()
+            except Exception:
+                pass
         compositor = getattr(engine, "compositor", None)
         pool = getattr(compositor, "_pool", None)
         if pool is not None:
@@ -58,12 +63,24 @@ def _run_reface(job, directory, report, stopped):
         start = params.get("start_time", 0)
         params["end_time"] = min(params.get("end_time") or start + 3, start + 3)
     faceset = Faceset("mobile")
-    for face in params["source_faces"]:
-        pose = face.get("pose") or {}
-        fd = FaceData("", decode_embedding(face["embedding"]),
-                      tuple(pose.get(k, 0) or 0 for k in ("yaw", "pitch", "roll")), [], face["quality"])
-        fd.generated = face.get("generated", False)
-        faceset.add_face(fd)
+    bundle = None
+    bundle_path = directory / "input.identity_bundle"
+    if bundle_path.exists():
+        from identity_bundle import IdentityBundle
+        bundle = IdentityBundle.from_json(bundle_path.read_text(encoding="utf-8"))
+    elif "identity_bundle" in params:
+        from identity_bundle import IdentityBundle
+        bundle = IdentityBundle.from_dict(params["identity_bundle"])
+    if bundle is not None:
+        from reface import faceset_from_bundle
+        faceset = faceset_from_bundle(bundle, name="mobile")
+    else:
+        for face in params.get("source_faces", []):
+            pose = face.get("pose") or {}
+            fd = FaceData("", decode_embedding(face["embedding"]),
+                          tuple(pose.get(k, 0) or 0 for k in ("yaw", "pitch", "roll")), [], face["quality"])
+            fd.generated = face.get("generated", False)
+            faceset.add_face(fd)
     legacy = job["type"].endswith("_v2")
     unified = job["type"] in ("reface_image", "reface_video")
     dfm = job["type"].endswith("_dfm") or (unified and "dfm_model" in params)
@@ -91,6 +108,7 @@ def _run_reface(job, directory, report, stopped):
             restorer_weight=params.get("restorer_weight", 0.5),
             use_parser=params.get("use_parser", None if unified else True), use_occluder=params.get("use_occluder", True),
             realism_preset=params.get("realism_preset", "natural"),
+            realism_overrides={"use_3d_geometry": params.get("use_3d_geometry", False)},
             swapper=params.get("swapper", "auto"), identity_boost=params.get("identity_boost", .5),
             **({"quality_profile": params.get("quality_profile", "balanced")} if unified else {}))
         if dfm_path and engine.dfm is None:
@@ -154,6 +172,8 @@ def _run_reface(job, directory, report, stopped):
     kwargs = dict(progress_callback=progress, start_time=params.get("start_time", 0),
                   end_time=params.get("end_time"), resume_from_frame=base, finalize=False)
     kwargs.update(target_face_indices=selected, target_face_embeddings=references)
+    if not legacy:
+        kwargs["enable_diagnostics"] = True
     if legacy:
         result = engine.reface_video_with_faceset_v2(str(target), faceset, **kwargs)
     elif unified:
@@ -175,6 +195,10 @@ def _run_reface(job, directory, report, stopped):
         report(min(.98,(base+done)/length),'Rendering video',frames_done=base+done,last_frame=first+base+done-1)
     validate_video(result.output_path, done, fps)
     details = getattr(result, "details", {})
+    diagnostics = details.pop("diagnostics", None)
+    if diagnostics:
+        from reface import merge_video_diagnostics
+        job["_diagnostics"] = merge_video_diagnostics(job.get("_diagnostics"), diagnostics)
     job["_frames_recovered"] = job.get("_frames_recovered", 0) + details.get("frames_recovered", 0)
     totals = job.setdefault("_face_totals", dict(faces_swapped=0, faces_failed=0, faces_skipped=0, faces_degraded=0))
     for key in totals:
@@ -209,7 +233,13 @@ def _run_reface(job, directory, report, stopped):
         raise ValueError("No faces were swapped in this video.")
     audio = mux_audio(output, str(target), params.get("start_time", 0), params.get("end_time"))
     validate_video(output, length, fps)
-    return {**job.get("_effective_details", {}), **job["_face_totals"],
+    effective = dict(job.get("_effective_details", {}))
+    if summary := job.get("_diagnostics"):
+        effective["diagnostics"] = summary
+        if summary["gap_count"]:
+            warning = "Some video frames may contain an unchanged face. Review the result."
+            effective["warnings"] = list(dict.fromkeys([warning, *effective.get("warnings", [])]))
+    return {**effective, **job["_face_totals"],
             "frames_done": job["_frames_done"], "frames_recovered": job["_frames_recovered"], "fps": fps, "audio_preserved": audio,
             "preview": params.get("preview", False),
             "engine": "reface" if unified else "v2" if legacy else "dfm" if dfm else "v3"}

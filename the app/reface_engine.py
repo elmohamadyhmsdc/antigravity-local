@@ -327,6 +327,8 @@ class Faceset:
             'faces': faces_data,
             'created_at': self.created_at
         }
+        if bundle := getattr(self, 'identity_bundle', None):
+            data['identity_bundle'] = bundle.to_dict()
         with open(path, 'wb') as f:
             pickle.dump(data, f)
             
@@ -340,7 +342,10 @@ class Faceset:
         # Reconstruct object
         faceset = Faceset(name=data['name'])
         faceset.created_at = data.get('created_at', datetime.now())
-        
+        if 'identity_bundle' in data:
+            from identity_bundle import IdentityBundle
+            faceset.identity_bundle = IdentityBundle.from_dict(data['identity_bundle'])
+
         # Reconstruct FaceData objects from dicts
         for face_dict in data['faces']:
             faceset.faces.append(FaceData(
@@ -400,6 +405,21 @@ class RefaceEngine:
             self.enhancer = FaceEnhancer(upscale_factor=upscale)
         
         print("[INFO] RefaceEngine initialized")
+
+    def unload(self):
+        """Release models, ONNX sessions, and CUDA memory."""
+        self.app = None
+        self.swapper = None
+        self.enhancer = None
+        import gc
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+        except Exception:
+            pass
 
     def _load_inswapper(self):
         model_path = Path(__file__).parent / "models" / "inswapper_128.onnx"

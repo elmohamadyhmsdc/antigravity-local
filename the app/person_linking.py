@@ -241,11 +241,19 @@ class Cluster:
     quality: float        # mean face quality
 
 
-def _cannot_link_mask(frame_keys: Sequence[Optional[Hashable]]) -> np.ndarray:
-    keys = list(frame_keys)
-    n = len(keys)
+def _key_sets(frame_keys: Sequence[Optional[Hashable]]) -> List[set]:
+    return [set() if k is None else {k} for k in frame_keys]
+
+
+def _cannot_link_mask(key_sets: Sequence[set]) -> np.ndarray:
+    """n x n: True where two items share a photo / frame (an item may stand for several faces)."""
+    n = len(key_sets)
     mask = np.zeros((n, n), dtype=bool)
-    for idx in _group_by_frame(keys):
+    by_key: Dict[Hashable, List[int]] = defaultdict(list)
+    for i, keys in enumerate(key_sets):
+        for k in keys:
+            by_key[k].append(i)
+    for idx in by_key.values():
         if len(idx) > 1:
             ix = np.asarray(idx)
             mask[np.ix_(ix, ix)] = True
@@ -253,39 +261,103 @@ def _cannot_link_mask(frame_keys: Sequence[Optional[Hashable]]) -> np.ndarray:
     return mask
 
 
-def _average_linkage(e: np.ndarray, frame_keys, distance: float) -> np.ndarray:
-    from sklearn.cluster import AgglomerativeClustering
+# Two branches of the clustering tree that share two or more photos / frames, and at least this share of
+# the smaller one's, are different people seen together (two people through one video): never merged.
+# A single conflict (a mirror selfie, a photo of a photo: one person twice in one picture) keeps the old
+# rule - a maximal distance inside the average, then cluster_faces keeps one face per frame.
+FRAME_CONFLICT_SHARE = 0.2
+
+
+def _constrained_cut(z: np.ndarray, key_sets: Sequence[set], distance: float) -> np.ndarray:
+    """Flat clusters from an average-linkage tree: the largest subtrees that merged below `distance`
+    without joining two branches that share many photos / frames (FRAME_CONFLICT_SHARE). Without frame
+    conflicts this is exactly the plain cut (merges at a height below the threshold are kept)."""
+    n = len(key_sets)
+    total = n + len(z)
+    keys: List[Optional[set]] = [set(k) for k in key_sets] + [None] * len(z)
+    clash = [False] * total     # this subtree holds a refused merge: it is no cluster
+    for i, (a, b, _, _) in enumerate(z):
+        a, b, node = int(a), int(b), n + i
+        if clash[a] or clash[b]:
+            clash[node] = True
+        else:
+            big, small = (keys[a], keys[b]) if len(keys[a]) >= len(keys[b]) else (keys[b], keys[a])
+            shared = sum(1 for k in small if k in big)
+            if shared >= 2 and shared >= FRAME_CONFLICT_SHARE * len(small):
+                clash[node] = True
+            else:
+                big.update(small)
+                keys[node] = big
+        keys[a] = keys[b] = None
+    labels = np.full(n, -1, dtype=int)
+    next_label = 0
+    stack = [total - 1]
+    while stack:
+        node = stack.pop()
+        if node >= n and (clash[node] or z[node - n, 2] >= distance):
+            stack.extend((int(z[node - n, 0]), int(z[node - n, 1])))
+            continue
+        leaves, todo = [], [node]
+        while todo:
+            x = todo.pop()
+            if x < n:
+                leaves.append(x)
+            else:
+                todo.extend((int(z[x - n, 0]), int(z[x - n, 1])))
+        labels[leaves] = next_label
+        next_label += 1
+    return labels
+
+
+def _average_linkage(e: np.ndarray, frame_keys, distance: float,
+                     key_sets: Optional[Sequence[set]] = None) -> np.ndarray:
+    """Average-linkage labels at `distance`, with the one-person-per-frame rule as a HARD constraint.
+
+    Same-frame pairs still get the maximum distance (it delays such merges), but on its own that is only
+    a penalty inside an average: two people who share 80 video frames have 6400 cross pairs and 80
+    "same-frame" ones, so they used to fuse. The tree is therefore never cut into a cluster that joins
+    two branches sharing several frames (see FRAME_CONFLICT_SHARE). `key_sets` (one set per row) replaces
+    `frame_keys` when a row stands for several faces (the big-inbox micro-clusters)."""
+    from scipy.cluster.hierarchy import linkage
+    from scipy.spatial.distance import squareform
     if len(e) == 1:
         return np.zeros(1, dtype=int)
+    sets = list(key_sets) if key_sets is not None else _key_sets(frame_keys)
     d = np.clip(1.0 - e @ e.T, 0.0, 2.0).astype(np.float64)
-    # Same-frame pairs get the maximum distance so average linkage keeps them apart
-    d[_cannot_link_mask(frame_keys)] = 2.0
+    d[_cannot_link_mask(sets)] = 2.0
+    d = (d + d.T) / 2.0
     np.fill_diagonal(d, 0.0)
-    return AgglomerativeClustering(n_clusters=None, metric="precomputed", linkage="average",
-                                   distance_threshold=distance).fit_predict(d)
+    z = linkage(squareform(d, checks=False), method="average")
+    return _constrained_cut(z, sets, distance)
 
 
 def _leader_then_link(e: np.ndarray, q: np.ndarray, frame_keys, distance: float,
                       micro: float = 0.25) -> np.ndarray:
     """For big inboxes: fold near-identical faces into micro-clusters first, then
-    average-link the micro-cluster centroids. Keeps memory O(N * leaders)."""
+    average-link the micro-cluster centroids. Keeps memory O(N * leaders).
+    A micro-cluster never takes two faces of one frame, and two micro-clusters that share a frame
+    never end up in one cluster."""
     order = np.argsort(-q)
     leaders: List[int] = []
+    lead_keys: List[set] = []
     lead_vecs = np.zeros_like(e)
     owner = np.full(len(e), -1, dtype=int)
     for i in order:
+        key = frame_keys[i]
         if leaders:
             sims = lead_vecs[:len(leaders)] @ e[i]
             j = int(sims.argmax())
-            same_frame = frame_keys[i] is not None and frame_keys[i] == frame_keys[leaders[j]]
-            if 1.0 - sims[j] <= micro and not same_frame:
+            if 1.0 - sims[j] <= micro and (key is None or key not in lead_keys[j]):
                 owner[i] = j
+                if key is not None:
+                    lead_keys[j].add(key)
                 continue
         owner[i] = len(leaders)
         lead_vecs[len(leaders)] = e[i]
         leaders.append(int(i))
+        lead_keys.append(set() if key is None else {key})
     cents = normalize_rows(np.stack([e[owner == j].mean(0) for j in range(len(leaders))]))
-    lead_labels = _average_linkage(cents, [None] * len(leaders), distance)
+    lead_labels = _average_linkage(cents, None, distance, key_sets=lead_keys)
     return lead_labels[owner]
 
 
@@ -352,9 +424,13 @@ def cluster_faces(embeddings: np.ndarray, qualities: Sequence[float], params: Gr
     clusters = []
     for lab in set(labels[labels >= 0].tolist()):
         idx = np.where(labels == lab)[0]
-        sims = e[idx] @ e[idx].T
+        members = e[idx].astype(np.float64)
         k = len(idx)
-        cohesion = float((sims.sum() - k) / (k * (k - 1))) if k > 1 else 1.0
+        # The sum of pairwise dot products is the squared norm of the sum.
+        # Remove the diagonal to score only pairs of distinct observations.
+        total = members.sum(axis=0)
+        cohesion = float((total @ total - np.einsum("ij,ij->", members, members)) /
+                         (k * (k - 1))) if k > 1 else 1.0
         clusters.append(Cluster(idx.tolist(), cohesion, float(q[idx].mean())))
     clusters.sort(key=lambda c: (-len(c.indices), -c.cohesion))
     return clusters
@@ -497,8 +573,9 @@ def associate_faces_bodies(face_boxes: Sequence, bodies: Sequence, face_kps: Opt
         fk = face_kps[i] if face_kps is not None else None
         for j, b in enumerate(bodies):
             m[i, j] = face_body_score(fb, b.bbox, fk, getattr(b, "kpts", None), getattr(b, "kpt_scores", None))
-    rows, cols = linear_sum_assignment(-m)
-    return [(int(r), int(c), float(m[r, c])) for r, c in zip(rows, cols) if m[r, c] >= min_score]
+    eligible = m >= min_score
+    rows, cols = linear_sum_assignment(-np.where(eligible, m, 0.0))
+    return [(int(r), int(c), float(m[r, c])) for r, c in zip(rows, cols) if eligible[r, c]]
 
 
 EXTENT_LABELS = {"full": "Full body", "knee": "Knee-up", "upper": "Upper body", "head": "Head & shoulders"}
@@ -614,7 +691,7 @@ def appearance_similarity_many(a, matrix) -> np.ndarray:
             continue
         rows = matrix[:, r * REGION_LEN:(r + 1) * REGION_LEN]
         both = rows.any(axis=1)
-        total += wt * (rows @ ra) * both
+        total += wt * np.einsum("ij,j->i", rows, ra) * both
         weight += wt * both
     return np.divide(total, weight, out=np.zeros_like(total), where=weight > 0)
 
@@ -736,11 +813,13 @@ def link_faceless_bodies(bodies: Sequence[Dict], anchor_person: Callable[[Dict],
       2. the same outfit as an identified body in the same photo/video
     """
     anchors_by_media: Dict[Hashable, List[Tuple[Dict, int]]] = defaultdict(list)
+    people_by_frame: Dict[Tuple, set] = defaultdict(set)
     loose = []
     for b in bodies:
         pid = anchor_person(b)
         if pid is not None:
             anchors_by_media[b.get("media_id")].append((b, pid))
+            people_by_frame[(b.get("media_id"), b.get("frame_number"))].add(pid)
         else:
             loose.append(b)
 
@@ -750,31 +829,46 @@ def link_faceless_bodies(bodies: Sequence[Dict], anchor_person: Callable[[Dict],
         built = _EventTimeline([(b, pid) for rows in anchors_by_media.values() for b, pid in rows], params)
         timeline = built if built.times else None
 
+    # Reuse the model scoring across weak faces instead of dispatching matrix products
+    # for every body and every known person separately.
+    weak_matches: Dict[int, Match] = {}
+    if models:
+        weak_indices = [i for i, b in enumerate(loose) if b.get("weak_face_embedding") is not None]
+        for offset in range(0, len(weak_indices), 256):
+            indices = weak_indices[offset:offset + 256]
+            matches = match_faces(np.asarray([loose[i]["weak_face_embedding"] for i in indices], dtype=np.float32),
+                                  models, params, rejected=[loose[i].get("rejected_person_ids") for i in indices])
+            weak_matches.update(zip(indices, matches))
+
+    outfit_by_media = {}
     proposals: List[BodyLink] = []
-    for b in loose:
+    for i, b in enumerate(loose):
         rejected = set(b.get("rejected_person_ids") or ())
         best: Optional[BodyLink] = None
-        wf = b.get("weak_face_embedding")
-        if wf is not None and models:
-            m = match_faces(np.asarray([wf], dtype=np.float32), models, params, rejected=[rejected])[0]
-            if m.decision == "auto":
+        # People whose identified body is in this very photo / frame cannot be this body too.
+        media_id = b.get("media_id")
+        frame_people = people_by_frame.get((media_id, b.get("frame_number")), ())
+        m = weak_matches.get(i)
+        if m is not None:
+            if m.person_id in frame_people:
+                pass    # the best match is already elsewhere in the frame: the weak face proves nothing
+            elif m.decision == "auto":
                 best = BodyLink(b["id"], m.person_id, "weak_face", round(m.score, 4), "auto")
             elif m.decision == "suggest":
                 best = BodyLink(b["id"], m.person_id, "weak_face", round(m.score, 4), "suggest")
         app = b.get("appearance")
         if app is not None and (best is None or best.decision != "auto"):
             per_person: Dict[int, float] = {}
-            same_frame_people = set()
-            for a, pid in anchors_by_media.get(b.get("media_id"), []):
-                if a.get("frame_number") == b.get("frame_number"):
-                    same_frame_people.add(pid)  # that person is already elsewhere in this frame
-                    continue
-                if pid in rejected:
-                    continue
-                sim = appearance_similarity(app, a.get("appearance"))
-                per_person[pid] = max(per_person.get(pid, 0.0), sim)
-            for pid in same_frame_people:
-                per_person.pop(pid, None)
+            if media_id not in outfit_by_media:
+                anchors = [(pid, a["appearance"]) for a, pid in anchors_by_media.get(media_id, [])
+                           if a.get("appearance") is not None]
+                outfit_by_media[media_id] = ([pid for pid, _ in anchors],
+                                           np.asarray([v for _, v in anchors], dtype=np.float32))
+            pids, matrix = outfit_by_media[media_id]
+            if pids:
+                for pid, sim in zip(pids, appearance_similarity_many(app, matrix)):
+                    if pid not in frame_people and pid not in rejected:
+                        per_person[pid] = max(per_person.get(pid, 0.0), float(sim))
             if per_person:
                 ranked = sorted(per_person.items(), key=lambda t: -t[1])
                 pid, sim = ranked[0]
@@ -784,9 +878,7 @@ def link_faceless_bodies(bodies: Sequence[Dict], anchor_person: Callable[[Dict],
                 elif sim >= params.body_suggest and best is None:
                     best = BodyLink(b["id"], pid, "appearance", round(sim, 4), "suggest")
         if best is None and timeline is not None:
-            frame_people = {pid for a, pid in anchors_by_media.get(b.get("media_id"), [])
-                            if a.get("frame_number") == b.get("frame_number")}
-            best = timeline.link(b, frame_people, set(b.get("rejected_person_ids") or ()), params)
+            best = timeline.link(b, frame_people, rejected, params)
         if best is not None:
             proposals.append(best)
 

@@ -9,18 +9,19 @@ review_state(), which is what the Gallery's Review tab shows.
 The decisions themselves are made by grouping_core.plan() - the same DB-free
 code the mobile API serves - over a snapshot of this JSON database. This module
 only builds that snapshot and applies the result, so the Streamlit gallery and
-the phone can never drift apart. Nothing here decides thresholds; those live in
-person_linking.STRICTNESS.
+the phone reuse the same matching, clustering and body-linking decisions.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass, field
+from itertools import combinations
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import grouping_core as gc
 import person_linking as pl
 from database import JsonDatabase, norm_path
 
-DERIVED_BODY_LINKS = ("appearance", "weak_face")
+DERIVED_BODY_LINKS = ("appearance", "weak_face", "event_outfit")
 VIDEO_SUFFIXES = (".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".m4v")
 
 
@@ -44,7 +45,9 @@ def face_quality_of(face: Dict) -> float:
 
 def person_models(db: JsonDatabase, person_ids: Optional[Sequence[int]] = None) -> Dict[int, pl.PersonModel]:
     faces = [f for f in db.faces.values()
-             if f.get("person_id") is not None and (person_ids is None or f["person_id"] in person_ids)]
+             if f.get("person_id") is not None and _eligible(f)
+             and not db.persons.get(f["person_id"], {}).get("grouping_locked")
+             and (person_ids is None or f["person_id"] in person_ids)]
     if not faces:
         return {}
     e = db.get_embeddings_for([f["id"] for f in faces])
@@ -55,22 +58,76 @@ def person_models(db: JsonDatabase, person_ids: Optional[Sequence[int]] = None) 
 # The database as a grouping_core snapshot
 # ---------------------------------------------------------------------------
 
-def _pending_faces(db: JsonDatabase):
-    """(faces that belong to nobody, their snapshot form, the ones dismissed from review)."""
-    unassigned = [f for f in db.faces.values() if f.get("person_id") is None]
+def _eligible(face):
+    return (not face.get("hidden") and face.get("ownership") != "none"
+            and (face.get("face_px") is None or face["face_px"] >= 40))
+
+
+def _face_occurrences(db):
+    """Index every observed frame of a compacted face, including its stored representative."""
+    frames = defaultdict(set)
+    for face in db.faces.values():
+        if not face.get("hidden") and (key := frame_key(face)) is not None:
+            frames[face["id"]].add(key)
+    for mid, media in db.media.items():
+        for hit in media.get("detections") or ():
+            if len(hit) < 4:
+                continue
+            frame, _, kind, fid = hit[:4]
+            if kind == "f" and fid in db.faces and not db.faces[fid].get("hidden"):
+                if frame is not None or media.get("type") != "video":
+                    frames[fid].add((mid, frame))
+    return frames
+
+
+def _people_in_frames(db, occurrences):
+    people = defaultdict(set)
+    for fid, keys in occurrences.items():
+        person = db.faces[fid].get("person_id")
+        if person is not None:
+            for key in keys:
+                people[key].add(person)
+    return people
+
+
+def _pending_faces(db: JsonDatabase, occurrences, occupied):
+    unassigned = [f for f in db.faces.values() if f.get("person_id") is None and _eligible(f)
+                  and f.get("ownership") != "manual"]
     vectors = db.get_embeddings_for([f["id"] for f in unassigned])
-    pending = [gc.PendingFace(f["id"], vec, face_quality_of(f), frame_key(f),
-                              set(f.get("rejected_person_ids") or ()))
-               for f, vec in zip(unassigned, vectors)]
+    pending = []
+    for face, vec in zip(unassigned, vectors):
+        fid = face["id"]
+        rejected = set(face.get("rejected_person_ids") or ())
+        rejected.update(pid for key in occurrences[fid] for pid in occupied.get(key, ()))
+        pending.append(gc.PendingFace(fid, vec, face_quality_of(face), frame_key(face), rejected))
     return unassigned, pending, {f["id"] for f in unassigned if f.get("review_dismissed")}
 
 
-def _body_inputs(db: JsonDatabase) -> List[gc.BodyInput]:
-    return [gc.BodyInput(id=b["id"], media_id=b.get("media_id"), frame_number=b.get("frame_number"),
-                         anchor_person_id=db.body_person_id(b), appearance=b.get("appearance"),
-                         weak_face_embedding=b.get("weak_face_embedding"),
-                         rejected_person_ids=set(b.get("rejected_person_ids") or ()))
-            for b in db.bodies.values()]
+def _body_inputs(db: JsonDatabase, occupied, refresh_derived=False):
+    inputs = []
+    for body in db.bodies.values():
+        if body.get("hidden") or body.get("ownership") == "none":
+            continue
+        key = frame_key(body)
+        anchor = db.body_person_id(body)
+        if refresh_derived and _can_rederive_body(db, body):
+            anchor = db.faces.get(body.get("face_id"), {}).get("person_id")
+        if anchor is None and body.get("ownership") == "manual":
+            continue
+        rejected = set(body.get("rejected_person_ids") or ())
+        if anchor is None:
+            if body.get("face_id") in db.faces:
+                continue  # Wait for the body's own confirmed face.
+            if key is not None:
+                rejected.update(occupied.get(key, ()))
+        mid = body.get("media_id")
+        if mid is None and body.get("source_path"):
+            mid = norm_path(body["source_path"])
+        inputs.append(gc.BodyInput(id=body["id"], media_id=mid, frame_number=body.get("frame_number"),
+                                   anchor_person_id=anchor, appearance=body.get("appearance"),
+                                   weak_face_embedding=body.get("weak_face_embedding"),
+                                   rejected_person_ids=rejected))
+    return inputs
 
 
 @dataclass
@@ -88,10 +145,39 @@ class GroupingSummary:
         if self.new_people:
             bits.append(f"{self.new_people} new people ({self.faces_in_new_people} faces)")
         if self.bodies_linked:
-            bits.append(f"{self.bodies_linked} bodies linked by outfit")
+            bits.append(f"{self.bodies_linked} bodies linked to people")
         if self.pending_faces:
             bits.append(f"{self.pending_faces} faces left to review")
         return ", ".join(bits) if bits else "Nothing new to group"
+
+
+def _group_frames(face_ids, occurrences):
+    frames = set()
+    for fid in face_ids:
+        keys = occurrences[fid]
+        if frames & keys:
+            return None
+        frames.update(keys)
+    return frames
+
+
+def _can_create_person(db, group, occurrences):
+    if not group.auto_create:
+        return False
+    frames = _group_frames(group.face_ids, occurrences)
+    if frames is None:
+        return False
+    media_ids = {mid for mid, _ in frames}
+    if len(media_ids) != 1:
+        return True
+    media = db.media.get(next(iter(media_ids)), {})
+    if media.get("type") != "video":
+        return True
+    positions = [frame for _, frame in frames if frame is not None]
+    views = {tuple(db.faces[fid].get("embedding") or ()) for fid in group.face_ids}
+    return (len(positions) >= 5 and len(views) >= 3 and group.quality >= .55
+            and group.cohesion >= .70
+            and max(positions) - min(positions) >= 4 * (media.get("fps") or 30))
 
 
 def group_library(db: Optional[JsonDatabase] = None, strictness: str = "balanced",
@@ -102,22 +188,32 @@ def group_library(db: Optional[JsonDatabase] = None, strictness: str = "balanced
     summary = GroupingSummary()
 
     with db.batch():
-        unassigned, pending, dismissed = _pending_faces(db)
+        occurrences = _face_occurrences(db)
+        occupied = _people_in_frames(db, occurrences)
+        unassigned, pending, dismissed = _pending_faces(db, occurrences, occupied)
         stages = [s for s, wanted in (("match", match_existing), ("cluster", create_new)) if wanted]
 
         if stages and unassigned:
             models = person_models(db) if match_existing else {}
             plan = gc.plan(gc.Snapshot(models=models, pending=pending, dismissed_face_ids=dismissed), "apply", stages, params)
 
-            for a in plan.assignments:  # apply mode: confident matches only
-                db.assign_face_to_person(a.face_id, a.person_id)
+            by_person = defaultdict(list)
+            for a in sorted(plan.assignments, key=lambda a: -a.score):
+                keys = occurrences[a.face_id]
+                if any(a.person_id in occupied[key] for key in keys):
+                    continue
+                by_person[a.person_id].append(a.face_id)
+                for key in keys:
+                    occupied[key].add(a.person_id)
                 summary.assigned_to_existing += 1
+            for pid, face_ids in by_person.items():
+                db.batch_assign_faces(face_ids, pid)
             if match_existing and models:
                 log(f"[grouping] {summary.assigned_to_existing} faces matched to existing people")
 
             if create_new and len(unassigned) > len(plan.assignments):
                 for group in plan.groups:
-                    if not group.auto_create:
+                    if not _can_create_person(db, group, occurrences):
                         continue
                     pid = db.create_person()
                     db.update_person(pid, {"name": f"Person {pid}", "auto_created": True})
@@ -129,28 +225,34 @@ def group_library(db: Optional[JsonDatabase] = None, strictness: str = "balanced
                 log(f"[grouping] {summary.new_people} new people created")
 
         if link_bodies and db.bodies:
-            summary.bodies_linked = relink_bodies(db, params)
+            summary.bodies_linked = relink_bodies(db, params, _people_in_frames(db, occurrences))
 
         summary.pending_faces = sum(1 for f in db.faces.values() if f.get("person_id") is None)
     return summary
 
 
-def relink_bodies(db: JsonDatabase, params: pl.GroupingParams) -> int:
+def _can_rederive_body(db, body):
+    return (body.get("link_method") in DERIVED_BODY_LINKS and body.get("ownership") not in ("manual", "none")
+            and not db.persons.get(body.get("person_id"), {}).get("grouping_locked"))
+
+
+def relink_bodies(db: JsonDatabase, params: pl.GroupingParams, occupied=None) -> int:
     """Re-derive outfit / weak-face body links (manual links are left alone)."""
     linked = 0
     with db.batch():
+        models = person_models(db)
+        if occupied is None:
+            occupied = _people_in_frames(db, _face_occurrences(db))
+        plan = gc.plan(gc.Snapshot(models=models, bodies=_body_inputs(db, occupied, refresh_derived=True)),
+                       "apply", ["bodies"], params)
         for body in db.bodies.values():
-            if body.get("link_method") in DERIVED_BODY_LINKS:
+            if _can_rederive_body(db, body):
                 body["person_id"] = None
                 body["link_method"] = None
                 body["link_confidence"] = None
         db.save_db()
-        models = person_models(db)
-        if not models:
-            return 0
-        plan = gc.plan(gc.Snapshot(models=models, bodies=_body_inputs(db)), "apply", ["bodies"], params)
         for link in plan.body_links:
-            if link.decision == "auto":
+            if link.decision == "auto" and not db.persons.get(link.person_id, {}).get("grouping_locked"):
                 db.link_body_to_person(link.body_id, link.person_id, link.method, link.confidence)
                 linked += 1
     return linked
@@ -197,18 +299,28 @@ def review_state(db: Optional[JsonDatabase] = None, strictness: str = "balanced"
     """Everything the gallery wants a decision on. Pure read - nothing is changed."""
     db = db or JsonDatabase()
     params = pl.params_for(strictness)
-    _, pending, dismissed = _pending_faces(db)
-    snapshot = gc.Snapshot(models=person_models(db), pending=pending, bodies=_body_inputs(db),
-                           distinct_pairs=db.distinct_pairs(), dismissed_face_ids=dismissed)
+    occurrences = _face_occurrences(db)
+    occupied = _people_in_frames(db, occurrences)
+    _, pending, dismissed = _pending_faces(db, occurrences, occupied)
+    distinct = set(db.distinct_pairs())
+    for people in occupied.values():
+        distinct.update(combinations(sorted(people), 2))
+    snapshot = gc.Snapshot(models=person_models(db), pending=pending, bodies=_body_inputs(db, occupied),
+                           distinct_pairs=sorted(distinct), dismissed_face_ids=dismissed)
     plan = gc.plan(snapshot, "review", gc.STAGES, params, max_suggestions_per_person)
 
     state = ReviewState()
     for a in plan.assignments:  # already best-first per person and capped
         state.suggestions.setdefault(a.person_id, []).append(FaceSuggestion(a.face_id, a.person_id, a.score))
-    state.groups = [GroupSuggestion(g.face_ids, g.cohesion, g.quality) for g in plan.groups]
+    unsorted = list(plan.unsorted_face_ids)
+    for group in plan.groups:
+        if _group_frames(group.face_ids, occurrences) is None:
+            unsorted.extend(group.face_ids)
+        else:
+            state.groups.append(GroupSuggestion(group.face_ids, group.cohesion, group.quality))
     state.duplicates = [(d.person_a, d.person_b, d.score) for d in plan.duplicates]
     state.body_links = list(plan.body_links)
-    state.unsorted_face_ids = list(plan.unsorted_face_ids)
+    state.unsorted_face_ids = unsorted
     return state
 
 

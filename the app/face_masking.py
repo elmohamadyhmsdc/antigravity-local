@@ -148,6 +148,14 @@ class FaceMasker:
         else:
             print("[MASK] no occluder available (no occlusion handling)")
 
+    def unload(self):
+        """Release ONNX sessions and CUDA memory."""
+        self.parser = None
+        self.occluder = None
+        self._occluders.clear()
+        import gc
+        gc.collect()
+
     # ---- individual masks -------------------------------------------------
 
     def segment(self, crop_bgr: np.ndarray):
@@ -287,13 +295,23 @@ def feather_mask(mask: np.ndarray, erode: float = 0.02, feather: float = 0.05) -
     # foreground value and distanceTransform sees no edge at all, so a region
     # touching the crop border (a close-up, a face cut off by the frame) kept
     # full weight there and pasted with a hard seam along the crop boundary.
-    e = int(size * erode)
-    if e > 0:
+    e = int(size * abs(erode))
+    if e > 0 and erode > 0:
         binary = cv2.erode(binary, np.ones((2 * e + 1, 2 * e + 1), np.uint8),
                            borderType=cv2.BORDER_CONSTANT, borderValue=0)
+    elif e > 0:
+        # A negative erode grows the region first, so the inward ramp straddles
+        # the face outline instead of handing the outer cheeks/jaw back to the
+        # original face.
+        binary = cv2.dilate(binary, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * e + 1, 2 * e + 1)),
+                            borderType=cv2.BORDER_CONSTANT, borderValue=0)
 
     f = max(2.0, size * feather)
     padded = cv2.copyMakeBorder(binary, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
     dist = cv2.distanceTransform(padded, cv2.DIST_L2, 5)[1:-1, 1:-1]
-    ramp = np.clip(dist / f, 0.0, 1.0).astype(np.float32)
-    return cv2.GaussianBlur(ramp, (0, 0), 1.0)
+    ramp = cv2.GaussianBlur(np.clip(dist / f, 0.0, 1.0).astype(np.float32), (0, 0), 1.0)
+    if erode >= 0:
+        # Without erosion the 1 px blur would leak just past the outline; keep
+        # every painted pixel inside the region (hair, background, a hand).
+        ramp *= (mask > 0.5)
+    return ramp

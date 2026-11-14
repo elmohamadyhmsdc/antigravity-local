@@ -918,10 +918,11 @@ class JsonDatabase:
         return list(self.bodies.values())
 
     def body_person_id(self, body: Dict) -> Optional[int]:
-        """Who a body belongs to: its face's person if it has one, else the
-        person it was linked to by outfit/weak face/by hand."""
+        """Resolve a manual correction first, then the face and inferred body link."""
         if not body:
             return None
+        if body.get("link_method") == "manual" or body.get("ownership") == "manual":
+            return body.get("person_id") if body.get("person_id") in self.persons else None
         fid = body.get("face_id")
         if fid is not None:
             face = self.faces.get(fid)

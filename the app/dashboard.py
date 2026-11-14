@@ -112,14 +112,10 @@ DB_AVAILABLE = True # JsonDatabase is always available if imported successfully
 
 # from mask_utils import generate_body_mask (Removed)
 
-@st.cache_resource
 def get_face_analyzer():
-    from insightface.app import FaceAnalysis
-    app = FaceAnalysis(name='buffalo_l')
-    # Use CUDA if available, else CPU (ctx_id=0 for GPU 0, -1 for CPU)
-    # The user has GPU (implied by previous context/requirements).
-    app.prepare(ctx_id=0, det_size=(640, 640))
-    return app
+    from gallery_page import _face_analyzer
+
+    return _face_analyzer()
 
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
@@ -1725,8 +1721,8 @@ elif page == "🎭 Reface":
     
     # Import the single public engine; model loading happens when processing starts.
     try:
-        from reface import RefaceEngine, Faceset
-        from reface_desktop import (render_options, gallery_faceset, target_files,
+        from reface import Faceset, faceset_from_bundle, managed_reface_engine
+        from reface_desktop import (add_identity_profile, render_options, gallery_faceset, load_identity_profile, target_files,
                                     select_target, stage_target_upload, selected_targets)
         reface_v2_error = None
     except Exception as e:
@@ -1777,7 +1773,7 @@ elif page == "🎭 Reface":
                 st.caption("Upload the person's face you want to insert")
                 
                 # Source mode selection
-                source_mode = st.radio("Source Mode", ["📤 Upload New", "📦 Use Faceset", "👥 Gallery Person", "🧬 Trained LoRA"],
+                source_mode = st.radio("Source Mode", ["📤 Upload New", "📦 Use Faceset", "👥 Gallery Person", "Identity Profile", "🧬 Trained LoRA"],
                                        horizontal=True, key="v2_source_mode")
 
                 if source_mode == "📤 Upload New":
@@ -1850,6 +1846,19 @@ elif page == "🎭 Reface":
                                     except Exception:
                                         st.image(first_face.image_path, caption=f"Face from {selected_fs}", width=200)
 
+                            if fs_data and fs_data.faces:
+                                if st.button("Prepare identity profile", key="reface_prepare_identity_profile"):
+                                    bundle = getattr(add_identity_profile(fs_data), "identity_bundle", None)
+                                    if bundle is not None:
+                                        st.session_state["reface_export_bundle"] = selected_fs, bundle.to_json()
+                                export = st.session_state.get("reface_export_bundle")
+                                if export and export[0] == selected_fs:
+                                    st.download_button(
+                                        "Download identity profile", data=export[1],
+                                        file_name=f"{selected_fs}-identity.json", mime="application/json",
+                                        key="reface_export_identity_profile",
+                                    )
+
                         if st.button("✅ Use This Faceset", key="v2_use_faceset", use_container_width=True):
                             st.session_state['v2_selected_faceset'] = selected_fs
                             st.session_state['v2_data_source_mode'] = 'faceset'
@@ -1881,6 +1890,18 @@ elif page == "🎭 Reface":
                                 st.session_state['v2_selected_faceset'] = selected.name
                                 st.session_state['v2_data_source_mode'] = 'faceset'
                                 st.success(f"Ready: {person['name']} ({len(selected.faces)} source faces)")
+
+                elif source_mode == "Identity Profile":
+                    profile_file = st.file_uploader("Identity profile", type=["json"], key="reface_profile_file")
+                    if profile_file is not None:
+                        try:
+                            bundle = load_identity_profile(profile_file)
+                            st.caption(f"{bundle.label} · {len(bundle.sources)} source faces")
+                            if st.button("Use this identity profile", key="reface_use_profile"):
+                                st.session_state["reface_identity_profile"] = bundle.to_dict()
+                                st.session_state["v2_data_source_mode"] = "identity_profile"
+                        except (ValueError, TypeError, KeyError) as error:
+                            st.error(f"Could not open the identity profile. {error}")
 
                 else:  # 🧬 Trained LoRA
                     from database import get_person_lora_info as _v2_get_lora_info
@@ -2065,7 +2086,8 @@ elif page == "🎭 Reface":
                                 try:
                                     import cv2
 
-                                    app = get_face_analyzer()  # cached; loading buffalo_l per click cost seconds
+                                    app = get_face_analyzer()  # cached for target selection
+                                    from analysis import detect_faces
 
                                     if is_video_target:
                                         # For video, extract first frame
@@ -2078,49 +2100,47 @@ elif page == "🎭 Reface":
                                     else:
                                         frame = cv2.imread(target_path_str)
                                 
-                                    if frame is not None:
-                                        # Detect faces
-                                        faces = app.get(frame)
+                                    faces = detect_faces(app, frame) if frame is not None else []
                                     
-                                        if faces:
-                                            st.session_state['v2_detected_faces'] = []
-                                            st.session_state['v2_selected_target_faces'] = []
-                                            for k in [k for k in st.session_state.keys()
-                                                      if str(k).startswith('v2_target_face_')]:
-                                                del st.session_state[k]
+                                    if faces:
+                                        st.session_state['v2_detected_faces'] = []
+                                        st.session_state['v2_selected_target_faces'] = []
+                                        for k in [k for k in st.session_state.keys()
+                                                  if str(k).startswith('v2_target_face_')]:
+                                            del st.session_state[k]
 
-                                            # Save face crops for display
-                                            face_crops_dir = Path(__file__).parent / "reface_uploads" / "v2_face_crops"
-                                            face_crops_dir.mkdir(parents=True, exist_ok=True)
+                                        # Save face crops for display
+                                        face_crops_dir = Path(__file__).parent / "reface_uploads" / "v2_face_crops"
+                                        face_crops_dir.mkdir(parents=True, exist_ok=True)
                                         
-                                            for i, face in enumerate(faces):
-                                                bbox = face.bbox.astype(int)
-                                                x1, y1, x2, y2 = bbox
+                                        for i, face in enumerate(faces):
+                                            bbox = face.bbox.astype(int)
+                                            x1, y1, x2, y2 = bbox
                                             
-                                                # Add padding
-                                                pad = 20
-                                                x1 = max(0, x1 - pad)
-                                                y1 = max(0, y1 - pad)
-                                                x2 = min(frame.shape[1], x2 + pad)
-                                                y2 = min(frame.shape[0], y2 + pad)
+                                            # Add padding
+                                            pad = 20
+                                            x1 = max(0, x1 - pad)
+                                            y1 = max(0, y1 - pad)
+                                            x2 = min(frame.shape[1], x2 + pad)
+                                            y2 = min(frame.shape[0], y2 + pad)
                                             
-                                                face_crop = frame[y1:y2, x1:x2]
-                                                crop_path = face_crops_dir / f"face_{i}.jpg"
-                                                cv2.imwrite(str(crop_path), face_crop)
+                                            face_crop = frame[y1:y2, x1:x2]
+                                            crop_path = face_crops_dir / f"face_{i}.jpg"
+                                            cv2.imwrite(str(crop_path), face_crop)
                                             
-                                                st.session_state['v2_detected_faces'].append({
-                                                    'index': i,
-                                                    'bbox': bbox.tolist(),
-                                                    'crop_path': str(crop_path),
-                                                    # Reface finds selected people in every frame by
-                                                    # identity; detection order changes frame to frame.
-                                                    'embedding': [float(x) for x in face.normed_embedding],
-                                                })
+                                            st.session_state['v2_detected_faces'].append({
+                                                'index': i,
+                                                'bbox': bbox.tolist(),
+                                                'crop_path': str(crop_path),
+                                                # Reface finds selected people in every frame by
+                                                # identity; detection order changes frame to frame.
+                                                'embedding': [float(x) for x in face.normed_embedding],
+                                            })
                                         
-                                            st.success(f"✅ Detected {len(faces)} faces!")
-                                            st.rerun()
-                                        else:
-                                            st.warning("No faces detected in the media")
+                                        st.success(f"✅ Detected {len(faces)} faces!")
+                                        st.rerun()
+                                    else:
+                                        st.warning("No faces detected in the media")
                                 except Exception as e:
                                     st.error(f"Face detection failed: {e}")
                                     import traceback
@@ -2195,6 +2215,9 @@ elif page == "🎭 Reface":
         has_source = (st.session_state.get('v2_data_source_mode') == 'faceset' and st.session_state.get('v2_selected_faceset')) or \
                      (st.session_state.get('v2_data_source_mode') == 'upload' and st.session_state.get('v2_source_paths'))
 
+        if st.session_state.get('v2_data_source_mode') == 'identity_profile':
+            has_source = bool(st.session_state.get('reface_identity_profile'))
+
         if has_source and st.session_state.get('v2_target_path'):
             selection_error = None
             try:
@@ -2236,6 +2259,8 @@ elif page == "🎭 Reface":
                             
                             if st.session_state.get('v2_data_source_mode') == 'faceset':
                                 params['faceset_name'] = st.session_state['v2_selected_faceset']
+                            elif st.session_state.get('v2_data_source_mode') == 'identity_profile':
+                                params['identity_bundle'] = st.session_state['reface_identity_profile']
                             else:
                                 params['source_paths'] = st.session_state['v2_source_paths']
                             
@@ -2245,77 +2270,85 @@ elif page == "🎭 Reface":
                             st.success(f"✅ Job {job.id} added to background queue!")
                             st.info("Check the '⚙️ Background Jobs' tab to see progress.")
                         else:
-                            engine = RefaceEngine(**engine_options)
+                            with managed_reface_engine(**engine_options) as engine:
 
-                            # Get or build faceset
-                            if st.session_state.get('v2_data_source_mode') == 'faceset':
-                                faceset = engine.load_faceset_by_name(st.session_state['v2_selected_faceset'])
-                                if not faceset:
-                                    st.error("Failed to load faceset")
+                                # Get or build faceset
+                                if engine_options.get('dfm_path'):
+                                    faceset = None
+                                elif st.session_state.get('v2_data_source_mode') == 'identity_profile':
+                                    faceset = faceset_from_bundle(st.session_state['reface_identity_profile'])
+                                elif st.session_state.get('v2_data_source_mode') == 'faceset':
+                                    faceset = engine.load_faceset_by_name(st.session_state['v2_selected_faceset'])
+                                    if not faceset:
+                                        st.error("Failed to load faceset")
+                                        st.stop()
+                                else:
+                                    st.text("Building faceset from source media...")
+                                    progress = st.progress(0)
+                                    status_build = st.empty()
+                                    eta_v2_build = ETACalculator(len(st.session_state['v2_source_paths']))
+                                    def update_progress(current, total):
+                                        eta_str = eta_v2_build.get_eta_string(current)
+                                        progress_pct = int((current / total) * 100) if total > 0 else 0
+                                        progress.progress(current / total)
+                                        status_build.text(f"Building faceset: {current}/{total} ({progress_pct}%) ({eta_str} remaining)...")
+
+                                    from identity_builder import faceset_from_media
+                                    faceset = faceset_from_media(st.session_state['v2_source_paths'],
+                                                                 engine.app, name="reface_temp")
+                                    add_identity_profile(faceset)
+                                    update_progress(1, 1)
+
+                                if not engine_options.get("dfm_path") and (not faceset or not faceset.faces):
+                                    st.error("No faces found in source!")
                                     st.stop()
-                            else:
-                                st.text("Building faceset from source media...")
-                                progress = st.progress(0)
-                                status_build = st.empty()
-                                eta_v2_build = ETACalculator(len(st.session_state['v2_source_paths']))
-                                def update_progress(current, total):
-                                    eta_str = eta_v2_build.get_eta_string(current)
-                                    progress_pct = int((current / total) * 100) if total > 0 else 0
-                                    progress.progress(current / total)
-                                    status_build.text(f"Building faceset: {current}/{total} ({progress_pct}%) ({eta_str} remaining)...")
-                                
-                                from identity_builder import faceset_from_media
-                                faceset = faceset_from_media(st.session_state['v2_source_paths'],
-                                                             engine.app, name="reface_temp")
-                                update_progress(1, 1)
 
-                            if not faceset or not faceset.faces:
-                                st.error("No faces found in source!")
-                                st.stop()
-                            
-                            st.success(f"✅ Faceset ready with {len(faceset.faces)} faces")
-                            
-                            # Perform swap
-                            
-                            st.text("Swapping faces...")
-                            swap_progress = st.progress(0)
-                            
-                            status_v2_swap = st.empty()
-                            def update_swap(current, total):
-                                if 'eta_v2_swap' not in st.session_state or st.session_state.eta_v2_swap_total != total:
-                                    st.session_state.eta_v2_swap = ETACalculator(total)
-                                    st.session_state.eta_v2_swap_total = total
-                                    
-                                eta_str = st.session_state.eta_v2_swap.get_eta_string(current)
-                                # st.progress rejects anything outside [0, 1], and an
-                                # engine working from an unknown frame count can report
-                                # a ratio above 1. Clamp rather than crash the page.
-                                ratio = min(1.0, max(0.0, current / total)) if total > 0 else 0.0
-                                progress_pct = int(ratio * 100)
-                                swap_progress.progress(ratio)
-                                status_v2_swap.text(f"Swapping frames: {current}/{total} ({progress_pct}%) ({eta_str} remaining)...")
-                            
-                            if is_video:
-                                # Apply chosen end time
-                                final_end_time = end_time_sec if end_time_sec > 0.0 else None
+                                if faceset is not None:
+                                    st.success(f"✅ Faceset ready with {len(faceset.faces)} faces")
 
-                                result = engine.reface_video(
-                                    target_video_path=target_path, faceset=faceset,
-                                    target_face_indices=target_face_indices,
-                                    target_face_embeddings=target_face_embeddings,
-                                    progress_callback=update_swap, start_time=start_time_sec,
-                                    end_time=final_end_time,
-                                )
-                            else:
-                                result = engine.reface_image(
-                                    target_image_path=target_path, faceset=faceset,
-                                    target_face_indices=target_face_indices,
-                                    target_face_embeddings=target_face_embeddings,
-                                )
-                                swap_progress.progress(1.0)
-                            
+                                # Perform swap
+
+                                st.text("Swapping faces...")
+                                swap_progress = st.progress(0)
+
+                                status_v2_swap = st.empty()
+                                def update_swap(current, total):
+                                    if 'eta_v2_swap' not in st.session_state or st.session_state.eta_v2_swap_total != total:
+                                        st.session_state.eta_v2_swap = ETACalculator(total)
+                                        st.session_state.eta_v2_swap_total = total
+
+                                    eta_str = st.session_state.eta_v2_swap.get_eta_string(current)
+                                    # st.progress rejects anything outside [0, 1], and an
+                                    # engine working from an unknown frame count can report
+                                    # a ratio above 1. Clamp rather than crash the page.
+                                    ratio = min(1.0, max(0.0, current / total)) if total > 0 else 0.0
+                                    progress_pct = int(ratio * 100)
+                                    swap_progress.progress(ratio)
+                                    status_v2_swap.text(f"Swapping frames: {current}/{total} ({progress_pct}%) ({eta_str} remaining)...")
+
+                                if is_video:
+                                    # Apply chosen end time
+                                    final_end_time = end_time_sec if end_time_sec > 0.0 else None
+
+                                    result = engine.reface_video(
+                                        target_video_path=target_path, faceset=faceset,
+                                        target_face_indices=target_face_indices,
+                                        target_face_embeddings=target_face_embeddings,
+                                        progress_callback=update_swap, start_time=start_time_sec,
+                                        end_time=final_end_time,
+                                    )
+                                else:
+                                    result = engine.reface_image(
+                                        target_image_path=target_path, faceset=faceset,
+                                        target_face_indices=target_face_indices,
+                                        target_face_embeddings=target_face_embeddings,
+                                    )
+                                    swap_progress.progress(1.0)
+
                             if result.success:
                                 st.success(f"✅ {result.message}")
+                                for warning in (getattr(result, "details", None) or {}).get("warnings", []):
+                                    st.warning(warning)
                                 if getattr(result, "details", None):
                                     with st.expander("Result settings and quality report"):
                                         st.json(result.details)
@@ -2897,7 +2930,12 @@ After building a faceset, you'll see:
                                 status_icon = "✅" if job.status == JobStatus.COMPLETED else "❌"
                                 st.markdown(f"{status_icon} **Job {job.id}** - {job.job_type}")
                                 st.caption(job.message)
-                                
+                                if job.job_type.startswith("reface_") and job.details:
+                                    for warning in job.details.get("warnings", []):
+                                        st.warning(warning)
+                                    with st.expander("Result settings and quality report"):
+                                        st.json(job.details)
+
                                 if job.result_path and Path(job.result_path).exists():
                                     col1, col2 = st.columns([3, 1])
                                     with col1:

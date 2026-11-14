@@ -1,4 +1,4 @@
-"""Opt-in, local-model-only Reface round trip against the real GPU engines.
+r"""Opt-in, local-model-only Reface round trip against the real GPU engines.
 
 Usage: venv\Scripts\python test_mobile_studio_gpu.py --source photo.jpg --target other.jpg
 Uses a temporary API workspace and does not import the desktop user database.
@@ -28,6 +28,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source',required=True,type=Path)
     parser.add_argument('--target',required=True,type=Path)
+    parser.add_argument('--identity-video',type=Path,help='Build and download an identity, then render this selected-face clip.')
     parser.add_argument('--restyle',action='store_true',help='Also run one clothing restyle of the target.')
     parser.add_argument('--train-dataset',type=Path,help='Use five captioned photos for one tiny training epoch.')
     parser.add_argument('--build-dataset',type=Path,help='Build and caption a real dataset from five local person photos.')
@@ -99,6 +100,32 @@ def main():
                 assert client.delete('/v1/jobs/'+id,headers=headers).status_code==204
                 print(f'PASS: real {kind} -> verified artifact -> ACK/purge.',flush=True)
                 return data
+            if args.identity_video:
+                import json
+                identity = run('build_identity', {}, {'images': [upload(photo(args.source))]}, 'identity_bundle.json')
+                assert json.loads(identity)['sources'], 'Identity contains no usable sources'
+                video = cv2.VideoCapture(str(args.identity_video))
+                try:
+                    ok, frame = video.read()
+                finally:
+                    video.release()
+                assert ok, 'The video has no readable first frame'
+                encoded = cv2.imencode('.png', frame)[1].tobytes()
+                analysis = client.post('/v1/analyze/image', headers=headers,
+                                       files={'image': ('frame.png', encoded, 'image/png')},
+                                       data={'options': '{"detect_bodies":false,"min_quality":0}'})
+                assert analysis.status_code == 200, analysis.text
+                targets = [f for f in analysis.json()['faces'] if f.get('embedding')]
+                assert len(targets) >= 2, 'Expected two people in the first frame'
+                index = max(range(len(targets)), key=lambda i: targets[i]['bbox']['x'])
+                run('reface_video', {
+                    'target_embeddings': [f['embedding'] for f in targets],
+                    'target_indices': [index],
+                    'use_3d_geometry': False,
+                }, {
+                    'target': upload(args.identity_video.read_bytes()),
+                    'identity_bundle': upload(identity),
+                }, 'result.mp4')
             if args.restyle:
                 target=photo(args.target)
                 run('undress_image',{'prompt':'Photorealistic fashion portrait, fully clothed in a blue tailored jacket and trousers, preserve the face, background and lighting',

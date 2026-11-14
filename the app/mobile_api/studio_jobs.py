@@ -60,21 +60,37 @@ def validate_reface(body, capabilities):
     kind, params, inputs = body.get("type"), body.get("params"), body.get("inputs")
     if kind not in REFACE_TYPES or not isinstance(params, dict) or not isinstance(inputs, dict):
         raise bad_request("A supported Reface type, params and inputs are required.")
-    if set(inputs) != {"target"}:
-        raise bad_request("Reface requires exactly one target blob.")
+    allowed_inputs = {"target", "identity_bundle"}
+    if "target" not in inputs or set(inputs) - allowed_inputs:
+        raise bad_request("Reface requires exactly one target blob (and optional identity_bundle).")
+    if any(not isinstance(value, str) for value in inputs.values()):
+        raise bad_request("Reface inputs must be single blob references.")
     allowed = {"source_faces", "model_id", "target_faces", "restorer", "restorer_weight", "use_parser",
                "use_occluder", "realism_preset", "dfm_model", "start_time", "end_time",
-               "target_embeddings", "target_indices", "preview", "identity_boost", "swapper", "quality_profile"}
+               "target_embeddings", "target_indices", "preview", "identity_boost", "swapper", "quality_profile",
+               "identity_bundle", "use_3d_geometry"}
     if set(params) - allowed:
         raise bad_request("An unsupported Reface option was supplied.")
     if params.get("model_id", "buffalo_l@1") != "buffalo_l@1":
         raise ApiError(409, "model_mismatch", "The source identity uses a different embedding model.")
+    has_bundle = "identity_bundle" in inputs or "identity_bundle" in params
+    if "identity_bundle" in inputs and "identity_bundle" in params:
+        raise bad_request("Supply the identity bundle as either a blob or an inline object.")
+    if "identity_bundle" in params:
+        from identity_bundle import validate_bundle_dict
+        valid_b, b_err = validate_bundle_dict(params["identity_bundle"])
+        if not valid_b:
+            raise bad_request(f"Invalid identity_bundle parameter: {b_err}")
     faces = params.get("source_faces")
     unified = kind in ("reface_image", "reface_video")
     dfm = kind.endswith("_dfm") or (unified and "dfm_model" in params)
-    if not isinstance(faces, list) or len(faces) > 100 or (not faces and not dfm):
-        raise bad_request("Choose between 1 and 100 source faces (DFM may omit them).")
-    for face in faces:
+    if not has_bundle:
+        if not isinstance(faces, list) or len(faces) > 100 or (not faces and not dfm):
+            raise bad_request("Choose between 1 and 100 source faces (DFM may omit them).")
+    elif faces is not None:
+        if not isinstance(faces, list) or len(faces) > 100:
+            raise bad_request("Choose between 1 and 100 source faces.")
+    for face in (faces or []):
         try:
             embedding = decode_embedding(face["embedding"])
             quality = face["quality"]
@@ -105,7 +121,7 @@ def validate_reface(body, capabilities):
         raise ApiError(409, "engine_unavailable", "This Reface engine is not available on the PC.")
     if params.get("restorer", "auto") not in ["auto", "none", *capabilities["restorers"]]:
         raise bad_request("Choose an available restorer.")
-    for key in ("use_parser", "use_occluder"):
+    for key in ("use_parser", "use_occluder", "use_3d_geometry"):
         if key in params and not isinstance(params[key], bool):
             raise bad_request(f"{key} must be true or false.")
     for key, low, high in [("restorer_weight", 0, 1), ("start_time", 0, 86400), ("end_time", 0, 86400)]:
@@ -124,6 +140,8 @@ def validate_reface(body, capabilities):
     if params.get("swapper", "auto") not in ("auto", "inswapper_128", "hyperswap_1b_256", "hyperswap_1c_256"):
         raise bad_request("Choose a supported swapper.")
     legacy = kind.endswith("_v2")
+    if legacy and "use_3d_geometry" in params:
+        raise bad_request("3D geometry requires the shared Reface engine.")
     if "quality_profile" in params:
         from reface_config import QUALITY_PROFILES
         if not unified or params["quality_profile"] not in QUALITY_PROFILES:
@@ -301,7 +319,7 @@ class StudioJobs:
                 files = []
                 for name, mime in [("result.png", "image/png"), ("result.mp4", "video/mp4"),
                                    ('dataset.zip','application/zip'), ('portraits.zip','application/zip'),
-                                   ('lora.safetensors','application/octet-stream')]:
+                                   ('lora.safetensors','application/octet-stream'), ('identity_bundle.json', 'application/json')]:
                     path = directory / name
                     if path.exists():
                         with open(path, "rb") as source:

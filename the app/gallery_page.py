@@ -48,16 +48,16 @@ LINK_LABELS = {"appearance": "same outfit", "weak_face": "partial face", "manual
 # ---------------------------------------------------------------------------
 
 @st.cache_resource(show_spinner=False)
+def _face_analyzer():
+    from mobile_api.engines import load_face_analyzer
+
+    return load_face_analyzer()
+
+
+@st.cache_resource(show_spinner=False)
 def _scanner_models(detect_bodies: bool, detect_characters: bool = False):
     """Face analyzer + body analyzer, loaded once per session."""
-    from cuda_dll_dirs import add_nvidia_dll_dirs
-    add_nvidia_dll_dirs()
-    app = None
-    if not detect_characters:
-        from insightface.app import FaceAnalysis
-        app = FaceAnalysis(name="buffalo_l", allowed_modules=["detection", "recognition", "landmark_3d_68"],
-                           providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
-        app.prepare(ctx_id=0, det_size=[(128, 128), (640, 640)])
+    app = _face_analyzer()
     body = None
     if detect_bodies or detect_characters:
         from body_detector import BodyAnalyzer
@@ -563,7 +563,7 @@ def scan_with_ui(db: JsonDatabase, paths: Sequence[str], strictness: str = "bala
 
         summary = scanner.scan_paths(paths, progress=progress)
         grouping = None
-        if regroup and not detect_characters:
+        if regroup:
             status.update(label="Grouping people…")
             grouping = gg.group_library(db, strictness, log=lambda m: current.caption(m))
         status.update(label=f"Done · {summary.as_text()}", state="complete", expanded=False)

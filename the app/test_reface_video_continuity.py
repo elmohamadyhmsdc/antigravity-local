@@ -33,6 +33,25 @@ def face(index=0, box=(80, 60, 120, 110)):
 
 
 class ContinuityTests(unittest.TestCase):
+    def test_selected_video_frame_uses_live_tracker_and_excludes_bystander(self):
+        engine = RefaceEngineV3.__new__(RefaceEngineV3)
+        engine.app = SimpleNamespace(models={"recognition": object()})
+        engine.smooth_alpha, engine.smooth_landmarks = .6, True
+        engine.compositor = Mock()
+        engine.compositor.config = SimpleNamespace()
+        engine._prepare_face = Mock(return_value=(None, None))
+        engine._finish_face_into = Mock()
+        engine.begin_video()
+        selector = engine._make_selector([0], [unit(0), unit(1)])
+        frame = np.zeros((180, 240, 3), np.uint8)
+        with patch("reface_engine_v3.detect_video_faces",
+                   side_effect=lambda *_: [face(), face(1, (150, 60, 195, 115))]):
+            for index in range(5):
+                engine.render_frame(frame, object(), index, [0], selector)
+        self.assertEqual(engine._prepare_face.call_count, 5)
+        self.assertTrue(all(call.args[1].normed_embedding[0] == 1
+                            for call in engine._prepare_face.call_args_list))
+
     def test_multiple_selected_poses_do_not_cancel_the_same_person(self):
         other_pose = unit(0) + .1 * unit(10)
         other_pose /= np.linalg.norm(other_pose)
@@ -227,6 +246,71 @@ class ContinuityTests(unittest.TestCase):
         self.assertEqual(len(seen_sources), 5)
         for embedding in seen_sources:
             np.testing.assert_allclose(embedding, unit(3))
+
+    def test_temporal_evidence_retains_profile_turn_without_leaking_bystander(self):
+        # Index 0 is selected; Index 1 is unselected bystander
+        selector = FaceSelector([unit(0), unit(1)], [0])
+
+        # Step 1: Confirm track 1 over 4 frames with high similarity (0.60)
+        confirmed_emb = unit(0) * 0.6 + unit(5) * 0.4
+        confirmed_emb /= np.linalg.norm(confirmed_emb)
+        for frame in range(4):
+            self.assertTrue(selector.wants(1, frame, lambda: confirmed_emb))
+
+        # Step 2: Steep profile turn drops similarity to 0.30 (no unselected competition)
+        profile_emb = unit(0) * 0.30 + unit(7) * 0.70
+        profile_emb /= np.linalg.norm(profile_emb)
+        self.assertTrue(selector.wants(1, 4, lambda: profile_emb))
+
+        # Step 3: Unselected stranger appears and scores higher than target
+        stranger_emb = unit(1) * 0.45 + unit(8) * 0.55
+        stranger_emb /= np.linalg.norm(stranger_emb)
+        self.assertFalse(selector.wants(1, 5, lambda: stranger_emb))
+
+    def test_adaptive_landmark_smoothing_eliminates_lag_during_fast_motion(self):
+        from reface_tracking import FaceTracker
+        tracker = FaceTracker()
+
+        # Initial position
+        f0 = face(0, (50, 50, 90, 100))
+        tracker.update([f0])
+
+        # Subtle movement (1 px): alpha should smooth
+        f_subtle = face(0, (51, 50, 91, 100))
+        tracker.update([f_subtle])
+        # Smooth landmark remains close to previous
+        self.assertAlmostEqual(f_subtle.kps[0, 0], 60 * 0.55 + 61 * 0.45, delta=2.0)
+
+        # Fast jump (40 px jump): adaptive alpha should snap toward current landmarks
+        tracker2 = FaceTracker()
+        f_start = face(0, (50, 50, 90, 100))
+        tracker2.update([f_start])
+        f_fast = face(0, (90, 50, 130, 100))
+        tracker2.update([f_fast])
+        # With adaptive alpha (~0.9+), kps[0, 0] must be close to current 100, not lagging near 60
+        self.assertGreater(f_fast.kps[0, 0], 95.0)
+
+    def test_motion_predicted_search_region_follows_moving_face(self):
+        recovery = VideoFaceRecovery()
+        selector = FaceSelector([unit(0)], [0])
+        accepts = lambda f: selector.wants(0, 0, lambda: f.normed_embedding)
+        frame = np.full((300, 400, 3), 80, np.uint8)
+
+        # Frame 0 at x=50
+        recovery.detect(frame, lambda img: [face(0, (50, 60, 90, 110))], accepts)
+        # Frame 1 at x=70 (velocity = +20 px)
+        recovery.detect(frame, lambda img: [face(0, (70, 60, 110, 110))], accepts)
+
+        # Frame 2: Missed in full frame!
+        search_rois = []
+        def detector(image):
+            search_rois.append(image.shape)
+            # Detects face centered near x=90 in full frame
+            return [face(0, (20, 25, 60, 75))]
+
+        recovery.detect(frame, detector, accepts)
+        self.assertEqual(len(search_rois), 2)
+        self.assertEqual(recovery.recovered, 1)
 
 
 if __name__ == '__main__':

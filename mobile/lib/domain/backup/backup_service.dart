@@ -15,7 +15,7 @@ import '../scan/drawn_face_sweep.dart';
 /// exactly: every person, face, body, photo record, rejection, detection and crop.
 ///
 /// The archive inside an `.agbackup` is a ZIP. The UI encrypts this private
-/// temporary archive by default before sharing it using BackupCrypto.
+/// temporary archive by default before saving it using BackupCrypto.
 ///   manifest.json                 format, versions, row counts, sha-256 of every db file
 ///   db/`table`.`n`.jsonl          one JSON object per row (blobs as {"$b64": ...}), 2000 rows per file
 ///   crops/faces/`id`.jpg, crops/bodies/`id`.jpg

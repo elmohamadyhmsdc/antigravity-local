@@ -6,13 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../data/db/app_database.dart';
 import '../../data/index/index_loader.dart';
+import '../../data/platform/backup_crypto.dart';
+import '../../data/platform/backup_file.dart';
 import '../../data/repositories/app_settings.dart';
 import '../../domain/backup/backup_service.dart';
-import '../../data/platform/backup_crypto.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
@@ -22,7 +22,7 @@ import '../shared/screen_layout.dart';
 import 'password_dialog.dart';
 
 /// S26 - the phone holds the ONLY copy of the library, so this is where it is protected: export one
-/// `.agbackup` file (share sheet / Files), restore it later, replacing the library.
+/// `.agbackup` file to Android Files, or restore it later, replacing the library.
 class BackupScreen extends ConsumerStatefulWidget {
   const BackupScreen({super.key});
 
@@ -49,7 +49,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final engine = ref.read(scanEngineProvider);
     final scanWasRunning = engine.isRunning;
     bool? wasActive;
-    File? plaintext;
+    Directory? staging;
     setState(() {
       _busy = true;
       _message = null;
@@ -58,8 +58,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       await engine.pauseAndWait();
       wasActive = await tracker.suspendForMaintenance();
       final tmp = await getTemporaryDirectory();
-      final dir = Directory('${tmp.path}/backups');
-      if (await dir.exists()) await dir.delete(recursive: true);
+      final dir = staging = await tmp.createTemp('ag-backup-');
       var file = await service.export(
         dir,
         recordBackup: false,
@@ -68,7 +67,6 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         },
       );
       if (encrypted) {
-        plaintext = file;
         final target = File(
           '${file.path.substring(0, file.path.length - backupExtension.length)}encrypted.$backupExtension',
         );
@@ -76,29 +74,22 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           setState(() => _progress = const BackupProgress('encrypting', 0, 0));
         }
         await ref.read(backupCryptoProvider).encrypt(file, target, password!);
+        await file.delete();
         file = target;
-        await plaintext.delete();
-        plaintext = null;
       }
       if (!mounted) return;
-      final shared = await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          subject: l10n.backupShareSubject,
-        ),
-      );
-      if (shared.status == ShareResultStatus.dismissed) {
-        if (mounted) setState(() => _message = l10n.backupShareCancelled);
-      } else {
+      if (await saveBackupFile(file)) {
         await settings.setLastBackupAt(DateTime.now());
         if (mounted) setState(() => _message = l10n.backupDone);
+      } else {
+        if (mounted) setState(() => _message = l10n.backupSaveCancelled);
       }
     } on Object catch (e) {
       if (mounted) setState(() => _message = l10n.backupFailed('$e'));
     } finally {
       try {
-        if (plaintext != null && await plaintext.exists()) {
-          await plaintext.delete();
+        if (staging != null && await staging.exists()) {
+          await staging.delete(recursive: true);
         }
       } finally {
         if (wasActive != null) tracker.resumeAfterMaintenance(wasActive);

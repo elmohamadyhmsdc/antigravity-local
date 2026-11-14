@@ -21,7 +21,7 @@ from .errors import ApiError, bad_request
 from .schemas import CHARACTER_FACE_MODEL_ID
 from . import EMBEDDING_MODEL_ID
 
-ARTIFACT_TYPES = {'undress_image', 'build_lora_dataset', 'train_lora', 'generate_lora_images'}
+ARTIFACT_TYPES = {'undress_image', 'build_lora_dataset', 'train_lora', 'generate_lora_images', 'build_identity'}
 
 
 def dataset_anchor(params):
@@ -54,7 +54,7 @@ def validate_artifact(body, caps):
     if kind not in ARTIFACT_TYPES or not isinstance(params, dict) or not isinstance(inputs, dict):
         raise bad_request('A supported Studio type, params and inputs are required.')
     slots = {'undress_image': ('image', {'image', 'refs'}), 'build_lora_dataset': ('images', {'images'}),
-             'train_lora': ('dataset', {'dataset'}), 'generate_lora_images': ('lora', {'lora', 'reference'})}
+             'train_lora': ('dataset', {'dataset'}), 'generate_lora_images': ('lora', {'lora', 'reference'}), 'build_identity': ('images', {'images'})}
     required, allowed = slots[kind]
     if required not in inputs or set(inputs) - allowed:
         raise bad_request('The job has missing or unsupported input slots.')
@@ -66,9 +66,9 @@ def validate_artifact(body, caps):
         elif not isinstance(value, str):
             raise bad_request(f'{name} must reference one blob.')
     trigger = params.get('trigger_word')
-    if kind != 'undress_image' and (not isinstance(trigger, str) or re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{2,63}', trigger) is None):
+    if kind not in ('undress_image', 'build_identity') and (not isinstance(trigger, str) or re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{2,63}', trigger) is None):
         raise bad_request('Use a trigger word of 3 to 64 letters, digits or underscores.')
-    engine = {'undress_image': 'undress', 'train_lora': 'lora_train', 'generate_lora_images': 'lora_generate'}.get(kind)
+    engine = {'undress_image': 'undress', 'train_lora': 'lora_train', 'generate_lora_images': 'lora_generate', 'build_identity': 'identity_bundle'}.get(kind)
     if engine and not caps['engines'][engine]:
         raise ApiError(409, 'engine_unavailable', 'The required engine is unavailable on this PC.')
     if kind in ('undress_image', 'generate_lora_images'):
@@ -95,6 +95,12 @@ def validate_artifact(body, caps):
                 isinstance(v, bool) or not isinstance(v, (float,int)) or not math.isfinite(v) or v < 0
                 for v in box.values()) or box['w'] <= 0 or box['h'] <= 0):
             raise bad_request('The protected face box is invalid.')
+    elif kind == 'build_identity':
+        allowed_params = {'label', 'min_quality', 'top_k'}
+        if 'label' in params and (not isinstance(params['label'], str) or len(params['label']) > 128):
+            raise bad_request('label must be text of at most 128 characters.')
+        bounded(params, 'min_quality', 0.25, 0.0, 1.0)
+        bounded(params, 'top_k', 20, 1, 100, True)
     elif kind == 'build_lora_dataset':
         allowed_params = {'trigger_word', 'repeats', 'anchor_embedding', 'identity_model_id', 'max_frames_per_video',
                           'enable_face_detailer', 'resolution_mode'}
@@ -233,6 +239,38 @@ def run_artifact(job, directory, report, stopped, ctx):
             return None
         finally:
             client.close()
+    if kind == 'build_identity':
+        from identity_bundle import build_identity_bundle_from_images
+        ctx.engines.load(faces=True)
+        inputs = sorted(directory.glob('input.images.*'))
+        if not inputs:
+            raise ValueError('No input images provided for identity bundle.')
+        report(0.1, 'Detecting and aligning source faces')
+        label = params.get('label', 'unnamed')
+        min_quality = params.get('min_quality', 0.25)
+        top_k = params.get('top_k', 20)
+        bundle = build_identity_bundle_from_images(
+            inputs,
+            label=label,
+            detector=getattr(ctx.engines, '_face_app', None),
+            min_quality=min_quality,
+            top_k=top_k,
+        )
+        if stopped():
+            return None
+        if not bundle.sources:
+            raise ValueError("No usable source faces were found. Choose clear photos of one person.")
+        report(0.9, 'Computing identity consensus and angle profile')
+        bundle_file = directory / 'identity_bundle.json'
+        bundle_file.write_text(bundle.to_json(indent=2), encoding='utf-8')
+        return {
+            'identity_id': bundle.identity_id,
+            'bundle_hash': bundle.bundle_hash,
+            'source_count': len(bundle.sources),
+            'excluded_count': len(bundle.excluded_sources),
+            'consistency_score': bundle.metrics.get('consistency_score', 0.0),
+            'coverage_percentage': bundle.metrics.get('coverage_percentage', 0.0),
+        }
     if kind == 'build_lora_dataset':
         from lora_dataset import detect_face_record_from_image, detect_character_record_from_image, _write_dataset_records, WD14Tagger, sample_video_frames
         from face_restore import FaceRestorer

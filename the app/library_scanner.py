@@ -36,6 +36,7 @@ import analysis
 import face_quality
 import person_linking as pl
 from database import JsonDatabase, norm_path
+from mobile_api.media_decode import read_video_sample
 
 SCAN_VERSION = 2
 
@@ -149,14 +150,9 @@ class LibraryScanner:
     @property
     def face_app(self):
         if self._face_app is None:
-            from cuda_dll_dirs import add_nvidia_dll_dirs
-            add_nvidia_dll_dirs()
-            from insightface.app import FaceAnalysis
-            app = FaceAnalysis(name="buffalo_l",
-                               allowed_modules=["detection", "recognition", "landmark_3d_68"],
-                               providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
-            app.prepare(ctx_id=0, det_size=[(128, 128), (640, 640)])
-            self._face_app = app
+            from mobile_api.engines import load_face_analyzer
+
+            self._face_app = load_face_analyzer()
         return self._face_app
 
     @property
@@ -263,6 +259,7 @@ class LibraryScanner:
     def _scan_video(self, path: Path, sig: Dict, record: Optional[Dict], summary: ScanSummary):
         cap = cv2.VideoCapture(str(path))
         if not cap.isOpened():
+            cap.release()
             raise IOError("could not open video")
         try:
             fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
@@ -278,6 +275,8 @@ class LibraryScanner:
                     and record.get("character_scan", False) == self.options.detect_characters):
                 resume_from = int(record.get("last_frame") or 0)
                 detections = list(record.get("detections") or [])
+                if any(d[0] == resume_from for d in detections):
+                    resume_from += 1
                 self.log(f"[scan] resuming {path.name} at frame {resume_from}")
 
             media_id = self.db.upsert_media(str(path), {
@@ -289,26 +288,39 @@ class LibraryScanner:
                 "detections": detections, "last_frame": resume_from,
             })
             state = _FileState(self.db, str(path), media_id, is_video=True)
-            frame_number, frames_done = 0, 0
-            if resume_from:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, resume_from)
-                frame_number = resume_from
-            while True:
-                ok, frame = cap.read()
-                if not ok or frame is None:
-                    break
-                if frame_number % step == 0:
-                    t = round(frame_number / fps, 2) if fps else None
-                    detections.extend(self._scan_frame(frame, state, frame_number, t, summary))
-                    frames_done += 1
-                    summary.frames += 1
-                    if frames_done % 20 == 0:
-                        self.db.upsert_media(str(path), {"last_frame": frame_number, "detections": detections})
-                frame_number += 1
+            frame_number = resume_from + (-resume_from % step)
+            frames_done = int(record.get("frames_scanned") or 0) if resume_from else 0
+            sampled = 0
+            consecutive_errors = 0
+            while not total or frame_number < total:
+                frame = read_video_sample(cap, frame_number)
+                if frame is None or not frame.size:
+                    if not total:
+                        break
+                    consecutive_errors += 1
+                    if consecutive_errors >= 8:
+                        raise IOError(f"Could not decode video near frame {frame_number}")
+                    frame_number += step
+                    continue
+                consecutive_errors = 0
+                t = round(frame_number / fps, 2) if fps else None
+                detections.extend(self._scan_frame(frame, state, frame_number, t, summary))
+                frames_done += 1
+                sampled += 1
+                summary.frames += 1
+                frame_number += step
+                if sampled % 20 == 0:
+                    self.db.upsert_media(str(path), {
+                        "last_frame": frame_number, "detections": detections, "frames_scanned": frames_done,
+                    })
+                    self.db.flush()
+            if not frames_done and not detections and not resume_from:
+                raise IOError("Could not decode any sampled video frames")
         finally:
             cap.release()
         self.db.upsert_media(str(path), {
-            "scan_status": "done", "detections": detections, "last_frame": frame_number,
+            "scan_status": "done", "detections": detections,
+            "last_frame": min(frame_number, total) if total else frame_number,
             "frames_scanned": frames_done,
             "face_count": len({d[3] for d in detections if d[2] == "f"}),
             "body_count": sum(1 for d in detections if d[2] == "b"),
@@ -335,9 +347,12 @@ class LibraryScanner:
 
         face_ids: Dict[int, Optional[int]] = {}
         ignored_faces = set()
+        state.used_faces.clear()
         for i, (face, q) in enumerate(zip(faces, quality)):
             if not result.passes_gate[i]:
                 face_ids[i] = None
+                if state.is_face_suppressed(self, face, frame_number):
+                    ignored_faces.add(i)
                 continue
             fid, kind = state.store_face(self, img, face, q, frame_number, timestamp)
             face_ids[i] = fid
@@ -350,6 +365,7 @@ class LibraryScanner:
                 summary.faces_linked += 1
                 if kind == "updated":
                     summary.faces_updated += 1
+            state.used_faces.add(fid)
             x1, y1, x2, y2 = [int(v) for v in face.bbox[:4]]
             detections.append([frame_number, timestamp, "f", fid, x1, y1, x2 - x1, y2 - y1])
 
@@ -380,8 +396,11 @@ class _FileState:
         existing = db.get_faces_by_source(source_path)
         self.candidate_ids = [f["id"] for f in existing]
         self.candidate_vecs = pl.normalize_rows(db.get_embeddings_for(self.candidate_ids)) if existing else None
-        self.kept_body_appearance: List[np.ndarray] = []
-        self.kept_bodies = len(db.get_bodies_by_media(media_id))
+        self.kept_body_appearance = []
+        self.kept_bodies = sum(b.get("face_id") is None and b.get("weak_face_embedding") is None
+                               for b in db.get_bodies_by_media(media_id))
+        self.used_faces = set()
+        self.candidate_index = {fid: i for i, fid in enumerate(self.candidate_ids)}
 
     # -- faces --
 
@@ -401,29 +420,42 @@ class _FileState:
         if not self.is_video:
             for fid in self.candidate_ids:
                 face = self.db.get_face(fid)
-                if face and face.get("bbox_width"):
+                if fid not in self.used_faces and face and face.get("bbox_width"):
                     box = (face.get("bbox_x") or 0, face.get("bbox_y") or 0,
                            face["bbox_width"], face.get("bbox_height") or 0)
                     if self._iou(bbox, box) >= 0.5:
                         return fid
         sims = self.candidate_vecs @ emb
+        for fid in self.used_faces:
+            if fid in self.candidate_index:
+                sims[self.candidate_index[fid]] = -np.inf
         best = int(np.argmax(sims))
         if 1.0 - float(sims[best]) <= scanner.options.video_similar_distance:
             return self.candidate_ids[best]
         return None
 
     def _remember(self, fid: int, emb: np.ndarray):
+        self.candidate_index[fid] = len(self.candidate_ids)
         self.candidate_ids.append(fid)
         row = pl.normalize_rows(emb)[None]
         self.candidate_vecs = row if self.candidate_vecs is None else np.vstack([self.candidate_vecs, row])
+
+    def is_face_suppressed(self, scanner: "LibraryScanner", face, frame_number) -> bool:
+        emb = face.normed_embedding
+        if emb is None:
+            return False
+        x1, y1, x2, y2 = (float(v) for v in face.bbox[:4])
+        return self.db.is_face_suppressed(
+            self.source_path, emb, (x1, y1, x2 - x1, y2 - y1), frame_number, self.is_video,
+            scanner.options.duplicate_distance, scanner.options.video_similar_distance,
+        )
 
     def store_face(self, scanner: "LibraryScanner", img, face, q: Dict,
                    frame_number: Optional[int], timestamp: Optional[float]) -> Tuple[Optional[int], str]:
         emb = face.normed_embedding
         x1, y1, x2, y2 = [float(v) for v in face.bbox[:4]]
         bbox = (x1, y1, x2 - x1, y2 - y1)
-        if self.db.is_face_suppressed(self.source_path, emb, bbox, frame_number, self.is_video,
-                                     scanner.options.duplicate_distance, scanner.options.video_similar_distance):
+        if self.is_face_suppressed(scanner, face, frame_number):
             return None, "suppressed"
         meta = {
             "media_id": self.media_id,
@@ -437,7 +469,7 @@ class _FileState:
         kind = "linked"
         if fid is None:
             dup = self.db.find_duplicate(emb.tolist(), scanner.options.duplicate_distance)
-            if dup:
+            if dup and dup[0] not in self.used_faces:
                 fid = dup[0]  # same face already mined from another copy of this file
         if fid is not None:
             existing = self.db.get_face(fid) or {}
@@ -474,16 +506,15 @@ class _FileState:
     def store_body(self, scanner: "LibraryScanner", img, body, appearance: Optional[np.ndarray],
                    face_id: Optional[int], weak: Optional[Tuple[np.ndarray, float]],
                    frame_number: Optional[int], timestamp: Optional[float]) -> Optional[int]:
-        if face_id is None:
-            # Faceless bodies: only keep ones that look different from what we
-            # already kept for this file, so a static video doesn't fill up with
-            # the same shot
-            if self.kept_bodies >= scanner.options.max_bodies_per_media:
-                return None
-            if appearance is not None and any(
-                    pl.appearance_similarity(appearance, kept) >= 0.9 for kept in self.kept_body_appearance):
-                return None
+        outfit_only = face_id is None and weak is None
+        if outfit_only and self.kept_bodies >= scanner.options.max_bodies_per_media:
+            return None
         x1, y1, x2, y2 = [float(v) for v in body.bbox[:4]]
+        bbox = (x1, y1, x2 - x1, y2 - y1)
+        if self.is_video and outfit_only and appearance is not None and any(
+                self._iou(bbox, other_box) >= .7 and pl.appearance_similarity(appearance, other) >= .9
+                for other_box, other, previous in self.kept_body_appearance if previous != frame_number):
+            return None
         record = {
             "media_id": self.media_id,
             "source_path": self.source_path,
@@ -506,9 +537,10 @@ class _FileState:
             if imwrite(crop_path, self._body_crop(img, body.bbox)):
                 record["crop_path"] = str(crop_path)
         bid = self.db.add_body(record)
-        self.kept_bodies += 1
-        if appearance is not None and face_id is None:
-            self.kept_body_appearance.append(appearance)
+        if outfit_only:
+            self.kept_bodies += 1
+            if appearance is not None:
+                self.kept_body_appearance.append((bbox, appearance, frame_number))
         return bid
 
     def _body_crop_path(self, scanner: "LibraryScanner", frame_number: Optional[int]) -> Path:

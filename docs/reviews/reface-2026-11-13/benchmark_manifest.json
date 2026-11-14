@@ -1,0 +1,173 @@
+{
+  "version": "1.0.0",
+  "created_at": "2026-11-13T12:00:00Z",
+  "description": "Reface Frame Diagnostics & Benchmark Test Set Manifest across diverse motion, occlusion, and lighting scenarios",
+  "ground_truth_states": {
+    "present_processable": "Target face is clearly in frame, unoccluded or lightly occluded, and valid for swapping",
+    "occluded": "Target face is heavily covered (> 70%) by hand, hair, glass, or object",
+    "out_of_frame": "Target person is physically outside camera field of view",
+    "uncertain": "Extreme motion blur, sensor noise, or ambiguous identity where ground truth cannot be established"
+  },
+  "failure_taxonomy": [
+    { "code": "not_detected", "description": "Face detector produced no bounding box or landmarks in target ROI" },
+    { "code": "identity_rejected", "description": "Detection rejected by identity verification against source model" },
+    { "code": "tracking_failed", "description": "Kalman / IoU / optical tracking lost continuity across consecutive frames" },
+    { "code": "alignment_invalid", "description": "Landmark configuration degenerate, collapsed, or out of frame bounds" },
+    { "code": "model_failed", "description": "Swapper or DFM neural network raised runtime error or produced null" },
+    { "code": "mask_invalid", "description": "Segmentation mask empty, corrupted, or inverted" },
+    { "code": "no_visible_change", "description": "Output face region pixel delta below UNCHANGED_FACE_MAD threshold" },
+    { "code": "low_quality", "description": "Face height below MIN_FACE_PX gate (40px) or unrecoverably degraded" }
+  ],
+  "scenarios": [
+    {
+      "id": "SCN-01",
+      "name": "frontal_speech",
+      "category": "core",
+      "description": "Frontal angle, natural indoor lighting, active mouth movement and speech articulation",
+      "expected_challenges": ["inner mouth preservation", "lip sync integrity", "teeth realism"],
+      "clip_ref": "clips/scn01_frontal_speech.mp4",
+      "fps": 30.0,
+      "frames_total": 90,
+      "ground_truth_summary": {
+        "present_processable": 90,
+        "occluded": 0,
+        "out_of_frame": 0,
+        "uncertain": 0
+      }
+    },
+    {
+      "id": "SCN-02",
+      "name": "profile_turn",
+      "category": "pose",
+      "description": "Continuous head turn from frontal (0 deg) to sharp profile (> 60 deg yaw) and return",
+      "expected_challenges": ["profile landmark estimation", "affine warp collapse", "ear/cheek blending"],
+      "clip_ref": "clips/scn02_profile_turn.mp4",
+      "fps": 30.0,
+      "frames_total": 120,
+      "ground_truth_summary": {
+        "present_processable": 105,
+        "occluded": 15,
+        "out_of_frame": 0,
+        "uncertain": 0
+      }
+    },
+    {
+      "id": "SCN-03",
+      "name": "fast_motion",
+      "category": "temporal",
+      "description": "Rapid translation, head nodding and whip pan creating directional motion blur",
+      "expected_challenges": ["tracking displacement", "blur-induced detection drop", "jitter compensation"],
+      "clip_ref": "clips/scn03_fast_motion.mp4",
+      "fps": 30.0,
+      "frames_total": 75,
+      "ground_truth_summary": {
+        "present_processable": 60,
+        "occluded": 0,
+        "out_of_frame": 0,
+        "uncertain": 15
+      }
+    },
+    {
+      "id": "SCN-04",
+      "name": "variable_lighting",
+      "category": "illumination",
+      "description": "Subject moving from direct sunbeam into shadow with dramatic color temperature shift",
+      "expected_challenges": ["color transfer flicker", "shadow harshness", "gain map adaptation"],
+      "clip_ref": "clips/scn04_variable_lighting.mp4",
+      "fps": 25.0,
+      "frames_total": 100,
+      "ground_truth_summary": {
+        "present_processable": 100,
+        "occluded": 0,
+        "out_of_frame": 0,
+        "uncertain": 0
+      }
+    },
+    {
+      "id": "SCN-05",
+      "name": "small_face",
+      "category": "resolution",
+      "description": "Full-body and upper-body wide framing where face is 40-70px in 1080p frame",
+      "expected_challenges": ["detection at coarse grid", "restorer over-smoothing", "boundary sharpness mismatch"],
+      "clip_ref": "clips/scn05_small_face.mp4",
+      "fps": 30.0,
+      "frames_total": 90,
+      "ground_truth_summary": {
+        "present_processable": 90,
+        "occluded": 0,
+        "out_of_frame": 0,
+        "uncertain": 0
+      }
+    },
+    {
+      "id": "SCN-06",
+      "name": "occlusion_hand_glasses",
+      "category": "occlusion",
+      "description": "Hand entering frame, touching chin, rubbing eye; glasses frame and temple arms",
+      "expected_challenges": ["occluder mask leakage", "skin-on-skin boundary", "instant hand response"],
+      "clip_ref": "clips/scn06_occlusion_hand.mp4",
+      "fps": 30.0,
+      "frames_total": 110,
+      "ground_truth_summary": {
+        "present_processable": 75,
+        "occluded": 35,
+        "out_of_frame": 0,
+        "uncertain": 0
+      }
+    },
+    {
+      "id": "SCN-07",
+      "name": "multi_person_cross",
+      "category": "tracking",
+      "description": "Two individuals walking past each other with overlapping bounding boxes and camera crossover",
+      "expected_challenges": ["identity switch", "bystander accidental swap", "tracklet association"],
+      "clip_ref": "clips/scn07_multi_person_cross.mp4",
+      "fps": 30.0,
+      "frames_total": 150,
+      "ground_truth_summary": {
+        "present_processable": 140,
+        "occluded": 10,
+        "out_of_frame": 0,
+        "uncertain": 0
+      }
+    },
+    {
+      "id": "SCN-08",
+      "name": "exit_and_reentry",
+      "category": "temporal",
+      "description": "Target person walks completely out of frame for 25 frames and re-enters from opposite side",
+      "expected_challenges": ["track expiry (TTL)", "re-acquisition without new identity", "state re-initialization"],
+      "clip_ref": "clips/scn08_exit_reentry.mp4",
+      "fps": 30.0,
+      "frames_total": 120,
+      "ground_truth_summary": {
+        "present_processable": 95,
+        "occluded": 0,
+        "out_of_frame": 25,
+        "uncertain": 0
+      }
+    },
+    {
+      "id": "SCN-09",
+      "name": "scene_cut",
+      "category": "scene",
+      "description": "Two distinct camera shots joined by an instantaneous hard cut without cross-fade",
+      "expected_challenges": ["instant temporal state reset", "smoothing filter purge", "affine transition suppression"],
+      "clip_ref": "clips/scn09_scene_cut.mp4",
+      "fps": 24.0,
+      "frames_total": 72,
+      "ground_truth_summary": {
+        "present_processable": 72,
+        "occluded": 0,
+        "out_of_frame": 0,
+        "uncertain": 0
+      }
+    }
+  ],
+  "identity_splits": {
+    "policy": "Strict isolation between build source images and held-out evaluation references using perceptual dHash grouping to eliminate identical or burst shots",
+    "min_held_out_photos": 4,
+    "min_build_photos": 4,
+    "independent_judge": "antelopev2 glintr100 (ONNX), strictly distinct from buffalo_l w600k used by swappers"
+  }
+}

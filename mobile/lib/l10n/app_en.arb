@@ -537,7 +537,7 @@
     }
   },
   "assignTo": "Assign to…",
-  "backupDone": "Backup created. Choose where to save it.",
+  "backupDone": "Backup saved to the location you chose in Files.",
   "backupFailed": "Backup problem: {error}",
   "@backupFailed": {
     "placeholders": {
@@ -567,7 +567,6 @@
   "backupReminderNever": "You have never made a backup",
   "backupReminderOld": "Your last backup is more than 2 weeks old",
   "backupSettingsHint": "Save or restore your whole library",
-  "backupShareSubject": "Your Gallery backup",
   "backupStageCrops": "Saving face pictures…",
   "backupStageDatabase": "Saving your library…",
   "backupStageFinishing": "Finishing…",
@@ -1512,7 +1511,7 @@
     }
   },
   "restyleRefineUnavailable": "Optional SDXL refinement is not installed on this PC. Basic Restyle can run without it.",
-  "backupShareCancelled": "Backup sharing was cancelled. Choose a destination to keep a copy outside this app.",
+  "backupSaveCancelled": "Backup save cancelled.",
   "refaceReference": "Choose a photo of the person to replace",
   "refaceReferenceHint": "Select their face in a reference photo. Only matching people in the video will be replaced.",
   "refaceAllVideoFaces": "Replace all video faces instead",

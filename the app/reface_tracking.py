@@ -101,11 +101,13 @@ class FaceTracker:
                 predicted = track.kps.mean(0) + track.velocity * age
                 distance = float(np.linalg.norm(centre - predicted)) / scale
                 sim = float(emb @ track.embedding) if emb is not None and track.embedding is not None else None
-                if sim is not None and sim < 0.35:
+                overlap = iou(box, track.box)
+                if sim is not None and sim < 0.28:
+                    continue
+                if sim is not None and sim < 0.35 and (distance > 0.8 or overlap < 0.35):
                     continue
                 if distance > (4 if sim is not None and sim > 0.6 else 1.5):
                     continue
-                overlap = iou(box, track.box)
                 costs[row, col] = ((1 - sim) * 1.2 + min(distance, 2) * .2 + (1 - overlap) * .1
                                    if sim is not None else distance * .7 + (1 - overlap) * .3)
         matches, ids = assignment(costs), []
@@ -121,10 +123,18 @@ class FaceTracker:
             ids.append(tid)
             if kps is None:
                 continue
+            face_scale = max(float(np.linalg.norm(kps[0] - kps[1])) * 2, 1.0)
             velocity = np.zeros(2) if prev is None else (kps.mean(0) - prev.kps.mean(0)) / (self.clock - prev.seen)
             # Avoid blending coordinates over a reacquisition or large jump.
             if prev is not None and self.clock - prev.seen == 1 and costs[row, col] < .8 and smooth:
-                kps = alpha * kps + (1 - alpha) * prev.kps
+                displacement = float(np.linalg.norm(kps.mean(0) - prev.kps.mean(0))) / face_scale
+                if displacement > 0.25:
+                    eff_alpha = min(0.95, alpha + (displacement - 0.25) * 2.0)
+                elif displacement < 0.08:
+                    eff_alpha = max(0.40, alpha - 0.15)
+                else:
+                    eff_alpha = alpha
+                kps = eff_alpha * kps + (1 - eff_alpha) * prev.kps
                 face.kps = kps
             self.tracks[tid] = Track(kps.copy(), box.copy(), emb if emb is not None else
                                      (prev.embedding if prev else None), self.clock, velocity)

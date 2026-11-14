@@ -712,6 +712,103 @@ def test_link_alike_people_must_be_a_boolean():
     check(gc.plan_request(req)["assignments"] == [], "the flag is accepted")
 
 
+def _with_cosine(base, rng, s):
+    """A unit vector whose cosine to the unit vector `base` is exactly `s`."""
+    o = rng.normal(size=len(base))
+    o -= (o @ base) * base
+    o /= np.linalg.norm(o)
+    return s * base + np.sqrt(1.0 - s * s) * o
+
+
+def _two_people_in_one_video(frames, rng, cross=0.35):
+    """Faces of two different people A and B, both in every sampled frame of one video. Same-person faces
+    have cosine ~0.60, A-vs-B faces ~`cross` (siblings, or two people in the same light and pose)."""
+    a = _unit(rng)
+    b = _with_cosine(a, rng, cross / 0.6)
+    pending, truth = [], []
+    for f in range(frames):
+        for label, centre in ((0, a), (1, b)):
+            pending.append(gc.PendingFace(1000 + len(pending), _with_cosine(centre, rng, np.sqrt(0.6)), 0.9,
+                                          f"7:{f * 30}"))
+            truth.append(label)
+    return pending, truth
+
+
+@test
+def test_two_people_seen_together_in_a_long_video_are_never_fused_into_one():
+    """2026-11-11: the one-person-per-frame rule was only a large distance inside average linkage. Over a
+    long video the many A-vs-B pairs drowned it: 80 frames of two people fused into ONE group, and then the
+    per-frame clean-up dropped half of the faces. More frames (more proof they differ) made it worse."""
+    for frames in (20, 80, 160):
+        pending, truth = _two_people_in_one_video(frames, np.random.default_rng(frames))
+        for mode in ("apply", "review"):
+            out = gc.plan(gc.Snapshot(pending=pending), mode, ["cluster"])
+            label = {f.id: t for f, t in zip(pending, truth)}
+            for g in out.groups:
+                check(len({label[i] for i in g.face_ids}) == 1,
+                      f"{frames} frames, {mode}: a group mixes two people "
+                      f"({sum(label[i] == 0 for i in g.face_ids)} A + {sum(label[i] == 1 for i in g.face_ids)} B)")
+            grouped = sum(len(g.face_ids) for g in out.groups)
+            check(len(out.groups) == 2 and grouped == len(pending),
+                  f"{frames} frames, {mode}: expected the two people as two whole groups, got "
+                  f"{[len(g.face_ids) for g in out.groups]} ({len(pending) - grouped} faces dropped)")
+    # The big-inbox path (micro-clusters first, used above 2500 seed faces) obeys the same rule.
+    pending, truth = _two_people_in_one_video(80, np.random.default_rng(3))
+    e = np.stack([f.embedding for f in pending])
+    clusters = pl.cluster_faces(e, [f.quality for f in pending], pl.params_for("balanced"),
+                                [f.frame_key for f in pending], direct_limit=10)
+    check(all(len({truth[i] for i in c.indices}) == 1 for c in clusters),
+          f"big-inbox path mixes people: {[sorted({truth[i] for i in c.indices}) for c in clusters]}")
+    check(sum(len(c.indices) for c in clusters) == len(pending), "big-inbox path drops faces")
+
+
+@test
+def test_one_person_twice_in_one_photo_is_still_one_person():
+    """The guard above must not split a person over one mirror selfie / photo of a photo: one face of that
+    photo is left out (as before), the person stays one group."""
+    rng = np.random.default_rng(21)
+    p = _unit(rng)
+    pending = [gc.PendingFace(500 + i, _with_cosine(p, rng, np.sqrt(0.6)), 0.9, f"{40 + i}:") for i in range(30)]
+    pending.append(gc.PendingFace(600, _with_cosine(p, rng, np.sqrt(0.6)), 0.9, "40:"))   # the mirror image
+    for mode in ("apply", "review"):
+        out = gc.plan(gc.Snapshot(pending=pending), mode, ["cluster"])
+        check(len(out.groups) == 1 and len(out.groups[0].face_ids) == 30,
+              f"{mode}: one person, one face of the mirror photo left out: {[len(g.face_ids) for g in out.groups]}")
+
+
+@test
+def test_a_faceless_body_never_joins_a_person_already_in_its_frame():
+    """2026-11-11: the weak-face rule linked a faceless body to a person whose own body was in that same
+    frame (the outfit and event rules already refused that): one person, two bodies, one frame."""
+    rng = np.random.default_rng(5)
+    p = _unit(rng)
+    models = pl.build_person_models(_faces_near(p, 8, rng), [1] * 8, [0.9] * 8)
+    weak = _faces_near(p, 1, rng)[0]
+    bodies = [gc.BodyInput(1, media_id=5, frame_number=30, anchor_person_id=1),
+              gc.BodyInput(2, media_id=5, frame_number=30, weak_face_embedding=weak),
+              gc.BodyInput(3, media_id=5, frame_number=60, weak_face_embedding=weak)]
+    for mode in ("apply", "review"):
+        out = gc.plan(gc.Snapshot(models=models, bodies=bodies), mode, ["bodies"])
+        linked = {l.body_id for l in out.body_links if l.person_id == 1}
+        check(2 not in linked, f"{mode}: body 2 shares frame 30 with person 1's own body: {out.body_links}")
+    out = gc.plan(gc.Snapshot(models=models, bodies=bodies), "apply", ["bodies"])
+    check([(l.body_id, l.method, l.decision) for l in out.body_links] == [(3, "weak_face", "auto")],
+          f"the same weak face in another frame still links: {out.body_links}")
+
+
+@test
+def test_cluster_cohesion_matches_the_pairwise_mean():
+    rng = np.random.default_rng(41)
+    base = _unit(rng)
+    faces = _faces_near(base, 24, rng)
+    groups = pl.cluster_faces(faces, [0.9] * len(faces), pl.params_for("balanced"))
+    check(len(groups) == 1 and len(groups[0].indices) == len(faces), "the fixture should form one cluster")
+    members = pl.normalize_rows(faces)[groups[0].indices].astype(np.float64)
+    pairwise = members @ members.T
+    expected = pairwise[np.triu_indices(len(members), k=1)].mean()
+    check(abs(groups[0].cohesion - expected) < 1e-10, "cohesion must use the mean over distinct pairs")
+
+
 @test
 def test_grouping_core_imports_no_database():
     import ast

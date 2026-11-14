@@ -1417,7 +1417,7 @@ abstract class AppLocalizations {
   /// No description provided for @backupDone.
   ///
   /// In en, this message translates to:
-  /// **'Backup created. Choose where to save it.'**
+  /// **'Backup saved to the location you chose in Files.'**
   String get backupDone;
 
   /// No description provided for @backupFailed.
@@ -1473,12 +1473,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save or restore your whole library'**
   String get backupSettingsHint;
-
-  /// No description provided for @backupShareSubject.
-  ///
-  /// In en, this message translates to:
-  /// **'Your Gallery backup'**
-  String get backupShareSubject;
 
   /// No description provided for @backupStageCrops.
   ///
@@ -4228,11 +4222,11 @@ abstract class AppLocalizations {
   /// **'Optional SDXL refinement is not installed on this PC. Basic Restyle can run without it.'**
   String get restyleRefineUnavailable;
 
-  /// No description provided for @backupShareCancelled.
+  /// No description provided for @backupSaveCancelled.
   ///
   /// In en, this message translates to:
-  /// **'Backup sharing was cancelled. Choose a destination to keep a copy outside this app.'**
-  String get backupShareCancelled;
+  /// **'Backup save cancelled.'**
+  String get backupSaveCancelled;
 
   /// No description provided for @refaceReference.
   ///

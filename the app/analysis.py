@@ -272,8 +272,10 @@ def analyze_frame(face_app, body, img, options,
                                              for _, p, b in overrides):
             passes[i] = True
     forced = [k == "person" for k in face_kinds]
-    # Crowds: faces far smaller than the biggest one are background, not subjects.
-    sharp_idx = [i for i in range(len(faces)) if passes[i]]
+    # Crowds: faces far smaller than the biggest one are background, not subjects. Measured among the
+    # people only: a big drawn face (a poster, a cartoon on TV) or one the user called a character is no
+    # yardstick for the people in front of it (it used to make them all "background").
+    sharp_idx = [i for i in range(len(faces)) if passes[i] and not drawn[i] and face_kinds[i] != "character"]
     keep_flags = drop_background([_box_px(faces[i].bbox) for i in sharp_idx], [forced[i] for i in sharp_idx])
     for i, keep in zip(sharp_idx, keep_flags):
         if not keep:
@@ -378,6 +380,7 @@ def analyze_frame(face_app, body, img, options,
         attach_identity(img, characters, get_ccip_embedder())
         timings["characters"] = (time.perf_counter() - t) * 1000.0
         drawn_face_boxes = [f.bbox for i, f in enumerate(faces) if drawn[i] and face_kinds[i] is None]
+        real_face_boxes = [faces[i].bbox for i in real]
         faces = [faces[i] for i in real]
         quality = [quality[i] for i in real]
         passes = [passes[i] for i in real]
@@ -390,6 +393,9 @@ def analyze_frame(face_app, body, img, options,
         def is_char_body(b):
             if any(np.allclose(b.bbox, cbox, atol=1.0) for cbox in char_body_boxes):
                 return True
+            # A body around a clear real face is that person's, whatever drawing it wears (an anime print).
+            if any(_centre_inside(fbox, b.bbox) for fbox in real_face_boxes):
+                return False
             return any(_centre_inside(dbox, b.bbox) for dbox in drawn_face_boxes)
 
         bodies = [b for b, k in zip(bodies, body_kinds)

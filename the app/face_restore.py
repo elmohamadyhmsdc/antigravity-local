@@ -107,15 +107,26 @@ class FaceRestorer:
             return name, np.array(self.weight, dtype=dtype)
         return name, np.array([self.weight], dtype=dtype)
 
+    def unload(self):
+        """Release the ONNX session and CUDA memory."""
+        self.session = None
+        self.available = False
+        import gc
+        gc.collect()
+
     def enhance(self, crop_bgr: np.ndarray) -> np.ndarray:
         """Restore an aligned face crop. Returns BGR uint8 at model size."""
         if not self.available or crop_bgr is None:
             return crop_bgr
         try:
-            face = cv2.resize(crop_bgr, (self.size, self.size), interpolation=cv2.INTER_LINEAR)
-            blob = face[:, :, ::-1].astype(np.float32) / 255.0       # BGR->RGB, [0,1]
-            blob = (blob - 0.5) / 0.5                                 # [-1,1]
-            blob = blob.transpose(2, 0, 1)[None, ...].astype(np.float32)  # NCHW
+            blob = cv2.dnn.blobFromImage(
+                crop_bgr,
+                scalefactor=1.0 / 127.5,
+                size=(self.size, self.size),
+                mean=(127.5, 127.5, 127.5),
+                swapRB=True,
+                crop=False,
+            )
 
             feeds = {self._img_input: blob}
             if self._scalar_input is not None:

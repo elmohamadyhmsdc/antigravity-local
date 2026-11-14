@@ -1,3 +1,4 @@
+import time
 """
 Antigravity Local - Reface Engine V3 (HD)
 
@@ -33,7 +34,7 @@ import cv2
 import numpy as np
 
 from reface_engine import RefaceEngine, RefaceResult, Faceset, FaceData  # noqa: F401
-from identity import AveragedSource, build_source_from_faceset, select_identity_faces
+from identity import AveragedSource, BundleSource, build_source_from_faceset, select_identity_faces
 from face_restore import FaceRestorer, resolve_restorer_name
 from face_masking import FaceMasker, DEFAULT_REGIONS
 from face_compositor import CompositeConfig, FaceCompositor, config_from_preset, alignment_matrix
@@ -159,10 +160,16 @@ def rate_arg(fps: float) -> str:
 
 class _FrameJob:
     """One staged frame: the picture being painted, what was found in it and how each face went."""
-    __slots__ = ("result", "faces", "outcomes", "futures")
+    __slots__ = ("result", "faces", "outcomes", "futures", "t0", "frame_no", "total_ms",
+                 "decode_ms", "detect_ms", "match_ms", "prepare_ms", "composite_ms", "rejected_targets")
 
     def __init__(self, frame):
         self.result, self.faces, self.outcomes, self.futures = frame, [], [], []
+        self.t0 = time.perf_counter()
+        self.frame_no = 0
+        self.total_ms = 0.0
+        self.decode_ms = self.detect_ms = self.match_ms = self.prepare_ms = self.composite_ms = 0.0
+        self.rejected_targets = 0
 
 
 class RefaceEngineV3(RefaceEngine):
@@ -358,6 +365,8 @@ class RefaceEngineV3(RefaceEngine):
                     raise ValueError("DFM did not produce a face")
                 crop = cv2.resize(swapped.swapped_face, (aligned.shape[1], aligned.shape[0]))
             else:
+                if isinstance(source, BundleSource):
+                    source = source.for_face(target_face, track_id)
                 boosted = self.boosted_source(source, original, target_face)
                 crop, matrix = unpack_swap_result(self.swapper.get(original, target_face, boosted, paste_back=False))
                 if matrix is None:
@@ -412,9 +421,31 @@ class RefaceEngineV3(RefaceEngine):
                     parser=bool(self.use_parser and self.masker.parser is not None),
                     occluder=bool(self.use_occluder and self.masker.occluder is not None),
                     composite=asdict(self.compositor.config))
+        settings["adaptive_recognition"] = False
+        settings["adaptive_restorer"] = getattr(self.compositor.config, "adaptive_restorer", True)
         if getattr(self, "_video_encoding", None) is not None:
             settings["video_encoding"] = dict(self._video_encoding)
         return settings
+
+    def unload(self):
+        """Release models, ONNX sessions, and CUDA memory."""
+        if hasattr(self, "compositor") and self.compositor is not None:
+            self.compositor.unload()
+        self.app = None
+        self.swapper = None
+        self.restorer = None
+        self.dfm = None
+        if hasattr(self, "_tracker"):
+            self._tracker.clear()
+        import gc
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+        except Exception:
+            pass
 
     def _result_details(self, outcomes, **extra):
         if isinstance(outcomes, dict):
@@ -508,22 +539,34 @@ class RefaceEngineV3(RefaceEngine):
         """
         original = frame
         job = _FrameJob(frame)
+        job.frame_no = frame_no
         self._check_scene(frame, selector, composer)
+        stage_start = time.perf_counter()
         detector = lambda image: detect_video_faces(self.app, image)
         accepts = (lambda face: selector.wants(0, frame_no, lambda: face.normed_embedding)) if selector else (lambda face: True)
         faces = self._video_recovery.detect(frame, detector, accepts)
+        job.detect_ms = (time.perf_counter() - stage_start) * 1000
+        stage_start = time.perf_counter()
         faces, track_ids = self._smooth(faces)
+        picked = self._pick_faces(frame, faces, track_ids, frame_no, target_face_indices, selector)
+        if selector is not None and len(picked) < len(faces):
+            job.rejected_targets = selector.missing_count(
+                faces, [face for face, _ in picked], lambda face: face.normed_embedding)
+        job.match_ms = (time.perf_counter() - stage_start) * 1000
         job.faces = faces
         self._submit(composer, self.compositor.begin_frame)
         self._frame_outcomes = job.outcomes
-        if faces:
-            for tf, tid in self._pick_faces(frame, faces, track_ids, frame_no, target_face_indices, selector):
-                pre, error = self._prepare_face(original, tf, source, tid)
-                job.futures.append(self._submit(composer, self._finish_face_into, job, tf, pre, error, tid))
+        for tf, tid in picked:
+            started = time.perf_counter()
+            pre, error = self._prepare_face(original, tf, source, tid)
+            job.prepare_ms += (time.perf_counter() - started) * 1000
+            job.futures.append(self._submit(composer, self._finish_face_into, job, tf, pre, error, tid))
         return job
 
     def _finish_face_into(self, job, target_face, pre, error, track_id):
+        started = time.perf_counter()
         job.result = self._finish_face(job.result, target_face, pre, error, track_id, sink=job.outcomes)
+        job.composite_ms += (time.perf_counter() - started) * 1000
 
     @staticmethod
     def _complete_frame(job):
@@ -531,6 +574,7 @@ class RefaceEngineV3(RefaceEngine):
         for future in job.futures:
             future.result()
         swaps = sum(item["status"] == "swapped" for item in job.outcomes)
+        job.total_ms = (time.perf_counter() - job.t0) * 1000.0
         return job.result, swaps, job.faces
 
     @staticmethod
@@ -538,7 +582,7 @@ class RefaceEngineV3(RefaceEngine):
         if target_face_indices is None or target_face_embeddings is None or len(target_face_embeddings) == 0:
             return None
         try:
-            return FaceSelector(target_face_embeddings, target_face_indices)
+            return FaceSelector(target_face_embeddings, target_face_indices, adaptive_recognition=False)
         except Exception as e:
             raise ValueError("Reference identities are invalid; detect the targets again") from e
 
@@ -663,6 +707,14 @@ class RefaceEngineV3(RefaceEngine):
             processed, swaps, cur = 0, 0, first
             outcomes = dict(faces_swapped=0, faces_skipped=0, faces_failed=0, faces_degraded=0, warnings=set())
             stopped = False
+            enable_diagnostics = bool(_ignore.get("enable_diagnostics", False))
+            diag = None
+            if enable_diagnostics:
+                try:
+                    from reface_diagnostics import FrameOutcome, FrameTiming, RefaceDiagnostics
+                    diag = RefaceDiagnostics(fps=fps)
+                except Exception:
+                    diag = None
             # The next frame's models run while this frame's CPU half (blend, relight, grain, paste) and the
             # encoder still work: one ordered compositing worker, one frame in flight. Same pixels, less waiting.
             composer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="composite")
@@ -670,13 +722,16 @@ class RefaceEngineV3(RefaceEngine):
             try:
                 while reading or pending:
                     if reading and not stopped and cur < end_frame:
+                        decode_start = time.perf_counter()
                         ret, frame = cap.read()
+                        decode_ms = (time.perf_counter() - decode_start) * 1000
                         if ret:
                             if writer is None and proc is None:
                                 # Prefer piping raw frames to x264 (no intermediate MJPG re-compression)
                                 writer, proc = self._open_writer(out_path, fps, frame.shape[1], frame.shape[0])
-                            pending.append(self._stage_frame(frame, source, cur, target_face_indices,
-                                                             selector, composer))
+                            staged = self._stage_frame(frame, source, cur, target_face_indices, selector, composer)
+                            staged.decode_ms = decode_ms
+                            pending.append(staged)
                             cur += 1
                         else:
                             reading = False
@@ -692,7 +747,32 @@ class RefaceEngineV3(RefaceEngine):
                             outcomes["faces_degraded"] += bool(outcome.get("degraded"))
                             if outcome["reason"] and len(outcomes["warnings"]) < 16:
                                 outcomes["warnings"].add(outcome["reason"])
+                        encode_start = time.perf_counter()
                         self._write(writer, proc, frame)
+                        if diag is not None:
+                            f_idx = getattr(job, "frame_no", processed)
+                            diag.record_timing(FrameTiming(
+                                frame_index=f_idx,
+                            timestamp_sec=round(f_idx / fps, 3),
+                                decode_ms=getattr(job, "decode_ms", 0.0),
+                            detect_ms=getattr(job, "detect_ms", 0.0),
+                            match_ms=getattr(job, "match_ms", 0.0),
+                            composite_ms=getattr(job, "composite_ms", 0.0),
+                            prepare_ms=getattr(job, "prepare_ms", 0.0),
+                                encode_ms=(time.perf_counter() - encode_start) * 1000,
+                                total_frame_ms=getattr(job, "total_ms", 0.0),
+                            ))
+                            for outcome in job.outcomes:
+                                diag.record_outcome(FrameOutcome(
+                                    frame_index=f_idx,
+                                    timestamp_sec=round(f_idx / fps, 3),
+                                    track_id=outcome.get("track_id", 0),
+                                    status=outcome.get("status", "skipped"),
+                                    reason=outcome.get("reason", ""),
+                                ))
+                            for _ in range(getattr(job, "rejected_targets", 0)):
+                                diag.record_outcome(FrameOutcome(
+                                    f_idx, round(f_idx / fps, 3), 0, "skipped", "identity_rejected"))
                         processed += 1
                         if progress_callback and processed % 3 == 0 and progress_callback(processed, n_target) is False:
                             stopped = True
@@ -727,9 +807,21 @@ class RefaceEngineV3(RefaceEngine):
 
             if finalize:
                 validate_video(out_path, processed, fps)
+            diag_extra = {}
+            if diag is not None:
+                diag.finish()
+                diag_summary = diag.summarize()
+                diag_extra["diagnostics"] = diag_summary
+                if self.output_dir:
+                    try:
+                        import json
+                        diag_file = Path(self.output_dir) / f"reface_diagnostics_{ts}.json"
+                        diag_file.write_text(json.dumps(diag_summary, indent=2), encoding="utf-8")
+                    except Exception:
+                        pass
             msg = f"V3 video {'stopped' if stopped else 'complete'} ({swaps} swaps in {processed} frames)"
             return RefaceResult(True, str(out_path), msg, swaps, self._result_details(
-                outcomes, frames_done=processed, frames_recovered=self._video_recovery.recovered))
+                outcomes, frames_done=processed, frames_recovered=self._video_recovery.recovered, **diag_extra))
         except Exception as e:
             import traceback
             traceback.print_exc()

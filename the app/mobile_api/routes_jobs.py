@@ -101,7 +101,7 @@ def build_jobs_router(ctx, require_device):
         directory = manager(job_id).result(job_id, device)
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
         entry = next((f for f in manifest["files"] if f["name"] == name), None)
-        if entry is None or name not in ("detections.ndjson", "result.png", "result.mp4", 'dataset.zip', 'portraits.zip', 'lora.safetensors'):
+        if entry is None or name not in ("detections.ndjson", "result.png", "result.mp4", 'dataset.zip', 'portraits.zip', 'lora.safetensors', 'identity_bundle.json'):
             raise not_found()
         return ResultFileResponse(directory / name, media_type=entry["mime"], filename=name,
                                   headers={"Cache-Control": "no-store"})

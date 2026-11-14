@@ -12,7 +12,8 @@ import cv2
 import numpy as np
 
 from job_manager import Job, JobManager, JobStatus, run_single_job
-from reface_desktop import gallery_faceset, selected_targets, select_target, stage_target_upload, target_files
+from reface_desktop import (gallery_faceset, load_identity_profile, selected_targets, select_target,
+                            stage_target_upload, target_files)
 
 
 def embedding(index=0):
@@ -31,6 +32,21 @@ class DesktopAdaptersTests(unittest.TestCase):
         self.assertEqual(len(faceset.faces), 1)
         self.assertEqual(faceset.faces[0].pose, (1, 2, 3))
         np.testing.assert_array_equal(faceset.faces[0].embedding, embedding())
+
+    def test_shared_identity_profile_preserves_pose_and_faceset_round_trip(self):
+        from reface import Faceset, faceset_from_bundle
+
+        source = gallery_faceset("synthetic", [
+            dict(embedding=embedding(), quality_score=.8, pose=dict(yaw=32, pitch=4, roll=None)),
+        ])
+        payload = source.identity_bundle.to_json().encode("utf-8")
+        bundle = load_identity_profile(SimpleNamespace(getvalue=lambda: payload))
+        restored = faceset_from_bundle(bundle)
+        self.assertEqual(restored.faces[0].pose, (32.0, 4.0, 0.0))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "gallery.pkl"
+            source.save(path)
+            self.assertEqual(Faceset.load(path).identity_bundle.bundle_hash, bundle.bundle_hash)
 
     def test_all_faces_ignores_old_ticks_and_selected_people_keep_bystander_references(self):
         state = dict(reface_replace_all=True, v2_selected_target_faces=[0],
@@ -163,6 +179,33 @@ class WorkerTests(unittest.TestCase):
         self.assertIsNone(kwargs['target_face_indices'])
         self.assertFalse(kwargs['finalize'])
         self.finalize.assert_called_once()
+
+    def test_video_checkpoint_accumulates_gap_diagnostics(self):
+        result = self.result()
+        result.details.update(
+            diagnostics=dict(gaps=[{"start_frame": 1}], gap_count=1,
+                             truncated_log=False, gap_basis="estimated_from_render_outcomes"),
+            frames_recovered=2,
+        )
+        def render(*args, **kwargs):
+            kwargs["progress_callback"](3, 3)
+            return result
+        self.engine.reface_video.side_effect = render
+        job = self.create("reface_video", quality_profile="balanced", is_video=True)
+        self.manager.request_stop(job.id)
+        self.assertFalse(self.run_job(job)[0])
+        self.manager.resume_job(job.id)
+        done, stored = self.run_job(job)
+        self.assertTrue(done, stored.error)
+        self.assertEqual(stored.details["diagnostics"]["gap_count"], 2)
+        self.assertEqual(stored.details["frames_recovered"], 4)
+
+    def test_queued_shared_profile_is_used_without_loading_a_local_faceset(self):
+        bundle = gallery_faceset("profile", [dict(embedding=embedding(), quality_score=.9)]).identity_bundle
+        done, stored = self.run_job(self.create(quality_profile="balanced", identity_bundle=bundle.to_dict()))
+        self.assertTrue(done, stored.error)
+        self.engine.load_faceset_by_name.assert_not_called()
+        self.assertEqual(self.engine.reface_image.call_args.args[1].identity_bundle.bundle_hash, bundle.bundle_hash)
 
     def test_saved_v1_v2_v3_jobs_keep_their_original_engine(self):
         for kind, constructor, method in (

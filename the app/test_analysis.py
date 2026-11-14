@@ -232,5 +232,73 @@ def test_analyze_frame_leaves_outline_lists_empty():
     check(r.body_outlines == [], "analyze_frame leaves body_outlines empty")
 
 
+def _real_embedding(seed):
+    """A face embedding with no component along the drawn-face direction (a photographed face)."""
+    import drawn_faces
+    v = np.random.default_rng(seed).normal(size=512).astype(np.float32)
+    return v - (v @ drawn_faces._direction) * drawn_faces._direction
+
+
+@test
+def test_a_big_drawn_face_does_not_turn_the_real_people_into_crowd_background():
+    """2026-11-11: two people (100 px faces) in front of a cartoon poster (400 px drawn face). The crowd rule
+    measured the people against the drawn face, called both "background" and stored neither."""
+    from analysis import AnalyzeOptions, analyze_frame
+    from mobile_api.testing import FakeFace
+    import drawn_faces
+    import face_quality
+
+    people = [FakeFace((100, 300, 200, 400), _real_embedding(1)), FakeFace((300, 300, 400, 400), _real_embedding(2))]
+    poster = FakeFace((900, 100, 1300, 500), drawn_faces._direction)
+    img = _img(1400, 900)
+    alone = analyze_frame(None, None, img, AnalyzeOptions(detect_bodies=False), detect=lambda im: list(people),
+                          assess=lambda im, f: face_quality.assess(f, None))
+    check(alone.passes_gate == [True, True], f"the two people alone pass: {alone.passes_gate}")
+    r = analyze_frame(None, None, img, AnalyzeOptions(detect_bodies=False), detect=lambda im: people + [poster],
+                      assess=lambda im, f: face_quality.assess(f, None))
+    check(len(r.faces) == 2, f"the drawn face is dropped, the people stay: {len(r.faces)} faces")
+    check(r.passes_gate == [True, True], f"the people are still stored next to a poster: {r.passes_gate}")
+
+
+@test
+def test_a_real_persons_body_survives_an_anime_print_when_characters_are_detected():
+    """2026-11-11: with character detection on (the phone's cartoon setting), a body that contained the centre
+    of any drawn face was a character's body - so a real person in an anime-print shirt lost their body (and
+    their face lost its body link), while the same photo without character detection kept it."""
+    from types import SimpleNamespace
+    import analysis
+    import drawn_faces
+    from analysis import AnalyzeOptions, analyze_frame
+    from mobile_api.testing import FakeBody
+
+    saved = analysis._anime_detector, analysis._ccip_embedder
+    analysis._anime_detector = SimpleNamespace(detect=lambda img, score_thresh: [])
+    analysis._ccip_embedder = SimpleNamespace(embed_crop=lambda crop: np.eye(768, dtype=np.float32)[1])
+    try:
+        person = FakeBody((0, 0, 128, 256), (64, 40))
+
+        class Bodies:
+            available = True
+
+            def analyze(self, img, score_thr=0.5):
+                return [person]
+
+        real = SimpleNamespace(bbox=np.array([40, 10, 88, 72], np.float32), det_score=.9, kps=None,
+                               embedding=_real_embedding(3))
+        shirt = SimpleNamespace(bbox=np.array([39, 110, 89, 160], np.float32), det_score=.9, kps=None,
+                                embedding=(drawn_faces._direction * 20).astype(np.float32))   # 50 px drawn print
+        img = _img(128, 256)
+        for faceless in (False, True):
+            r = analyze_frame(None, Bodies(), img,
+                              AnalyzeOptions(detect_bodies=True, detect_characters=True, faceless_characters=faceless),
+                              detect=lambda im: [real, shirt], assess=lambda im, f: {"quality_score": .7})
+            check(len(r.faces) == 1 and len(r.bodies) == 1 and [(fi, bi) for fi, bi, _ in r.pairs] == [(0, 0)],
+                  f"faceless_characters={faceless}: the person keeps face + body + link "
+                  f"(faces={len(r.faces)}, bodies={len(r.bodies)}, pairs={r.pairs})")
+            check(all(c.body_bbox is None for c in r.characters), "no character takes the person's body")
+    finally:
+        analysis._anime_detector, analysis._ccip_embedder = saved
+
+
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

@@ -702,8 +702,10 @@ components:
             reface:
               type: boolean
               description: Unified Reface image/video jobs and quality profiles are supported.
-            reface_v3: { type: boolean }
-            reface_v2: { type: boolean }
+            reface_v3: { type: boolean, deprecated: true, description: "Readiness for legacy *_v3 job aliases." }
+            reface_v2: { type: boolean, deprecated: true, description: "Readiness for legacy *_v2 job aliases." }
+            identity_bundle: { type: boolean }
+            reface_geometry: { type: boolean }
             dfm_models:
               type: array
               items: { type: string }
@@ -1559,6 +1561,7 @@ components:
         - build_lora_dataset
         - train_lora
         - generate_lora_images
+        - build_identity
 
     SourceFace:
       type: object
@@ -1688,7 +1691,8 @@ components:
     RefaceParams:
       type: object
       description: |
-        reface_image / reface_video, plus compatibility aliases. Inputs: `target` (image or video blob).
+        Submit new work as reface_image or reface_video. Numbered and *_dfm job types are legacy aliases.
+        Inputs: `target` (image or video blob).
         `target_faces` are matched to detections by IoU on the server (indices
         are not stable across runs). `dfm_model` selects a trained identity for unified
         jobs and is required for *_dfm aliases; then `source_faces` may be empty. Photo selections use boxes. All video engines
@@ -1696,8 +1700,14 @@ components:
         `target_indices`. Omit selection to swap all faces. Empty selections
         are invalid. Preview videos render at most three seconds of the trim range.
         Legacy supports automatic/disabled enhancement and its occlusion option.
-      required: [source_faces]
       properties:
+        identity_bundle:
+          type: object
+          description: Reusable Multi-Photo Identity Profile (Phase 4). When provided, source_faces is optional.
+        use_3d_geometry:
+          type: boolean
+          default: false
+          description: Enable experimental pose-based visibility masking when engines.reface_geometry is available.
         quality_profile:
           type: string
           enum: [fast, balanced, detail]
@@ -1797,6 +1807,14 @@ components:
         refine: { type: boolean, default: true }
         refine_strength: { type: number, default: 0.40 }
         refine_steps: { type: integer, default: 35 }
+
+    BuildIdentityParams:
+      type: object
+      description: "Inputs: `images` blobs (up to 64). Result: identity_bundle.json containing multi-photo angle-aware representations, outlier exclusions and hash."
+      properties:
+        label: { type: string, maxLength: 128 }
+        min_quality: { type: number, minimum: 0, maximum: 1, default: 0.25 }
+        top_k: { type: integer, minimum: 1, maximum: 100, default: 20 }
 
     BuildLoraDatasetParams:
       type: object
@@ -1955,7 +1973,30 @@ components:
           then:
             properties:
               params: { $ref: "#/components/schemas/RefaceParams" }
-              inputs: { required: [target] }
+              inputs:
+                type: object
+                required: [target]
+                additionalProperties: false
+                properties:
+                  target: { $ref: "#/components/schemas/Sha256" }
+                  identity_bundle: { $ref: "#/components/schemas/Sha256" }
+            anyOf:
+              - properties:
+                  params:
+                    required: [source_faces]
+                    properties:
+                      source_faces: { minItems: 1 }
+              - properties:
+                  params: { required: [identity_bundle] }
+              - properties:
+                  inputs: { required: [identity_bundle] }
+              - properties:
+                  type: { enum: [reface_image, reface_video, reface_image_dfm, reface_video_dfm] }
+                  params: { required: [dfm_model] }
+            not:
+              properties:
+                params: { required: [identity_bundle] }
+                inputs: { required: [identity_bundle] }
         - if: { properties: { type: { const: analyze_video } }, required: [type] }
           then:
             properties:
@@ -1966,6 +2007,11 @@ components:
             properties:
               params: { $ref: "#/components/schemas/UndressParams" }
               inputs: { required: [image] }
+        - if: { properties: { type: { const: build_identity } }, required: [type] }
+          then:
+            properties:
+              params: { $ref: "#/components/schemas/BuildIdentityParams" }
+              inputs: { required: [images] }
         - if: { properties: { type: { const: build_lora_dataset } }, required: [type] }
           then:
             properties:

@@ -44,6 +44,8 @@ class GpuInfo {
 class Engines {
   const Engines({
     this.reface = false,
+    this.identityBundle = false,
+    this.refaceGeometry = false,
     required this.refaceV3,
     required this.refaceV2,
     required this.dfmModels,
@@ -60,6 +62,8 @@ class Engines {
   });
 
   final bool reface;
+  final bool identityBundle;
+  final bool refaceGeometry;
   final bool refaceV3;
   final bool refaceV2;
   final List<String> dfmModels;
@@ -82,6 +86,8 @@ class Engines {
 
   factory Engines.fromJson(Map<String, dynamic> json) => Engines(
     reface: json['reface'] as bool? ?? false,
+    identityBundle: json['identity_bundle'] as bool? ?? false,
+    refaceGeometry: json['reface_geometry'] as bool? ?? false,
     refaceV3: field<bool>(json, 'reface_v3', 'engines'),
     refaceV2: field<bool>(json, 'reface_v2', 'engines'),
     dfmModels: list(json['dfm_models'], 'engines.dfm_models').cast<String>(),

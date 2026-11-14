@@ -17,12 +17,35 @@ def detect_faces(app, image, *, landmarks=False):
     faces = []
     for index, box in enumerate(boxes):
         face = Face(bbox=box[:4], kps=points[index] if points is not None else None, det_score=box[4])
-        tasks = ("recognition", "landmark_3d_68") if landmarks else ("recognition",)
-        for task in tasks:
-            model = app.models.get(task)
-            if model is not None:
-                model.get(image, face)
         faces.append(face)
+    recognition = app.models.get("recognition")
+    if recognition is not None:
+        # The ArcFace model accepts a batch of crops. Keep current-frame identity
+        # checks while reducing separate inference calls in multi-face frames.
+        batch = (1 < len(faces) <= 8 and callable(getattr(recognition, "get_feat", None))
+                 and all(face.kps is not None for face in faces))
+        if batch:
+            from insightface.utils.face_align import norm_crop
+            try:
+                crops = [norm_crop(image, landmark=face.kps, image_size=recognition.input_size[0])
+                         for face in faces]
+                embeddings = np.asarray(recognition.get_feat(crops))
+                if embeddings.shape != (len(faces), 512) or not np.isfinite(embeddings).all():
+                    raise ValueError("Unexpected recognition batch output")
+                for face, embedding in zip(faces, embeddings):
+                    face.embedding = embedding
+            except Exception as error:
+                # Some recognizer exports only accept a single crop.
+                if "out of memory" in str(error).lower():
+                    raise
+                batch = False
+        if not batch:
+            for face in faces:
+                recognition.get(image, face)
+    landmark_model = app.models.get("landmark_3d_68") if landmarks else None
+    if landmark_model is not None:
+        for face in faces:
+            landmark_model.get(image, face)
     return faces
 
 
@@ -55,8 +78,12 @@ class VideoFaceRecovery:
                 continue
             size = np.maximum(box[2:] - box[:2], 1)
             margin = size * (.6 + misses * .2)
-            x0, y0 = np.maximum(0, np.floor(box[:2] - margin)).astype(int)
-            x1, y1 = np.minimum([width, height], np.ceil(box[2:] + margin)).astype(int)
+            vel = getattr(previous, "_vel", None)
+            shift = (np.asarray(vel, np.float64) * (misses + 1)) if vel is not None else np.zeros(2)
+            center = (box[:2] + box[2:]) / 2.0 + shift
+            half = (size / 2.0) + margin
+            x0, y0 = np.maximum(0, np.floor(center - half)).astype(int)
+            x1, y1 = np.minimum([width, height], np.ceil(center + half)).astype(int)
             found = False
             if x1 - x0 >= 32 and y1 - y0 >= 32 and (x0, y0, x1, y1) != (0, 0, width, height):
                 for candidate in detector(frame[y0:y1, x0:x1]):
@@ -82,5 +109,16 @@ class VideoFaceRecovery:
                     found = True
             if not found and misses < 2:
                 pending.append((previous, misses + 1))
-        self.previous = ([(face, 0) for face in selected] + pending)[:16]
+        updated_prev = []
+        for face in selected:
+            face_box = np.asarray(face.bbox, np.float64)
+            face_center = (face_box[:2] + face_box[2:]) / 2.0
+            match = next((p for p, _ in self.previous if iou(face_box, p.bbox) >= 0.2), None)
+            if match is not None:
+                p_center = (np.asarray(match.bbox[:2], np.float64) + np.asarray(match.bbox[2:], np.float64)) / 2.0
+                face._vel = face_center - p_center
+            else:
+                face._vel = getattr(face, "_vel", np.zeros(2))
+            updated_prev.append((face, 0))
+        self.previous = (updated_prev + pending)[:16]
         return faces

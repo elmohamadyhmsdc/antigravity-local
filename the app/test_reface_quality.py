@@ -433,6 +433,21 @@ class QualityTests(unittest.TestCase):
             self.assertEqual(validate_video(output,5,30000/1001)['frames'],5)
             with self.assertRaisesRegex(ValueError,'expected 6'): validate_video(output,6)
 
+    def test_reface_diagnostics_reporting_integration(self):
+        from reface_diagnostics import RefaceDiagnostics, FrameOutcome, FrameTiming
+        diag = RefaceDiagnostics(fps=30.0)
+        diag.record_timing(FrameTiming(frame_index=0, timestamp_sec=0.0, total_frame_ms=25.0))
+        diag.record_outcome(FrameOutcome(frame_index=0, timestamp_sec=0.0, track_id=1, status="swapped"))
+        diag.record_timing(FrameTiming(frame_index=1, timestamp_sec=0.033, total_frame_ms=22.0))
+        diag.record_outcome(FrameOutcome(frame_index=1, timestamp_sec=0.033, track_id=1, status="skipped", reason="not_detected"))
+        diag.finish()
+        summary = diag.summarize()
+        self.assertEqual(summary["total_frames"], 2)
+        self.assertEqual(summary["swapped_count"], 1)
+        self.assertEqual(summary["skipped_count"], 1)
+        self.assertEqual(summary["gap_count"], 1)
+        self.assertIn("not_detected", summary["reasons"])
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

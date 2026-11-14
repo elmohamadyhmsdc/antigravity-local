@@ -78,6 +78,24 @@ class ArtifactStore {
             );
       };
     }
+    if (job.type == 'build_identity') {
+      return () async {
+        await commitContext();
+        final file = files.resolve(relative);
+        if (await file.exists()) {
+          final content = await file.readAsString();
+          final parsed = jsonDecode(content) as Map<String, dynamic>;
+          if (parsed['schema_version'] != '1.0' ||
+              !parsed.containsKey('primary_embedding')) {
+            throw const FormatException('Invalid identity bundle artifact.');
+          }
+          if (job.personId != null) {
+            await db.putSetting('identity_bundle_${job.personId}', content);
+          }
+          await db.putSetting('identity_bundle_${job.id}', content);
+        }
+      };
+    }
     if (!const [
       'build_lora_dataset',
       'generate_lora_images',

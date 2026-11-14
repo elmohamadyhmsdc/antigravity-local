@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IdentityBundle",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "algorithm_version",
+    "identity_id",
+    "label",
+    "created_at",
+    "primary_embedding",
+    "sources",
+    "excluded_sources",
+    "angle_embeddings",
+    "metrics",
+    "bundle_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0"]
+    },
+    "algorithm_version": {
+      "type": "string",
+      "enum": ["identity_v1"]
+    },
+    "identity_id": {
+      "type": "string",
+      "pattern": "^ident_[a-f0-9]{16,64}$"
+    },
+    "label": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "primary_embedding": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 512,
+      "maxItems": 512
+    },
+    "angle_embeddings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "number" },
+        "minItems": 512,
+        "maxItems": 512
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "embedding", "pose", "quality", "bbox", "is_synthetic"],
+        "properties": {
+          "source_id": { "type": "string" },
+          "embedding": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 512,
+            "maxItems": 512
+          },
+          "pose": {
+            "type": "object",
+            "required": ["yaw", "pitch", "roll"],
+            "properties": {
+              "yaw": { "type": "number" },
+              "pitch": { "type": "number" },
+              "roll": { "type": "number" }
+            }
+          },
+          "quality": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "bbox": {
+            "type": "object",
+            "required": ["x", "y", "w", "h"],
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" },
+              "w": { "type": "number" },
+              "h": { "type": "number" }
+            }
+          },
+          "is_synthetic": { "type": "boolean" }
+        }
+      }
+    },
+    "excluded_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "reason", "similarity", "details"],
+        "properties": {
+          "source_id": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "multiple_faces",
+              "no_face_detected",
+              "outlier_dissimilar",
+              "duplicate",
+              "low_quality",
+              "extreme_pose"
+            ]
+          },
+          "similarity": { "type": "number" },
+          "details": { "type": "string" }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "input_count",
+        "kept_count",
+        "excluded_count",
+        "consistency_score",
+        "pose_coverage",
+        "coverage_percentage"
+      ],
+      "properties": {
+        "input_count": { "type": "integer", "minimum": 0 },
+        "kept_count": { "type": "integer", "minimum": 0 },
+        "excluded_count": { "type": "integer", "minimum": 0 },
+        "consistency_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "pose_coverage": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" }
+        },
+        "coverage_percentage": { "type": "number", "minimum": 0.0, "maximum": 100.0 }
+      }
+    },
+    "bundle_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

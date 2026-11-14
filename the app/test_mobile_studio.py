@@ -83,6 +83,41 @@ class StudioTests(unittest.TestCase):
         self.assertFalse(self.ctx.workspace.job_dir(id).exists())
         self.assertFalse(self.ctx.workspace.has_blob(self.sha))
 
+    def test_identity_artifact_round_trip_with_geometry_option(self):
+        from identity_bundle import build_identity_bundle
+
+        self.ctx.probe.value["engines"]["identity_bundle"] = True
+        bundle = build_identity_bundle([{
+            "source_id": "photo", "embedding": unit(1), "quality": .9,
+        }])
+        payload = bundle.to_json().encode()
+
+        def runner(job, directory, report, stopped):
+            if job["type"] == "build_identity":
+                self.assertEqual((directory / "input.images.0000").read_bytes(), self.input)
+                (directory / "identity_bundle.json").write_bytes(payload)
+                return {}
+            self.assertEqual((directory / "input.identity_bundle").read_bytes(), payload)
+            self.assertIs(job["params"]["use_3d_geometry"], False)
+            (directory / "result.png").write_bytes(b"fake-png")
+            return {"faces_swapped": 1}
+
+        self.ctx.studio_jobs.runner = runner
+        with patch.object(self.ctx.workspace, "blob_cache_bytes", 128 * 1024):
+            build = self.create(dict(type="build_identity", client_job_id="identity",
+                                     inputs={"images": [self.sha]}, params={}))
+            self.assertEqual(self.wait(build)["status"], "completed")
+            download = self.client.get(f"/v1/jobs/{build}/result/identity_bundle.json", headers=self.headers)
+            self.assertEqual(download.status_code, 200, download.text)
+            self.assertEqual(download.content, payload)
+            digest = hashlib.sha256(payload).hexdigest()
+            upload = self.client.put(f"/v1/blobs/{digest}", content=payload, headers=self.headers)
+            self.assertIn(upload.status_code, (200, 201, 204), upload.text)
+            render = self.create(dict(type="reface_image", client_job_id="bundle-render",
+                                      inputs={"target": self.sha, "identity_bundle": digest},
+                                      params={"use_3d_geometry": False}))
+            self.assertEqual(self.wait(render)["status"], "completed")
+
 
     def test_real_adapter_uses_embedding_sources_and_bbox_selection(self):
         with tempfile.TemporaryDirectory() as tmp:

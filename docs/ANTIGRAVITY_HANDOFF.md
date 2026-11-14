@@ -1,5 +1,268 @@
 # Antigravity handoff — 2026-10-19
 
+## Dashboard startup fix — 2026-11-14
+
+- The Reface target preview block retained an extra indentation level after switching to the shared multi-scale detector. Streamlit raised IndentationError at dashboard.py:2105 before any page could load. Aligned both result branches with the detection call and preserved the selected-face data flow.
+- Verified the source diff changes only the indentation of the affected branch and that its if/else, loop and try/except nesting align. Browser verification on localhost and IPv4 loopback returned connection refused on port 8501. The Python suite and runtime smoke test are pending under the standing terminal rule.
+
+## Desktop parity with the Mobile API — 2026-11-14
+
+- Dashboard Gallery and Data Sources reuse the Mobile API face-model loader, frame-analysis core and video sample reader. Desktop scan checkpoints retain the next sample position and the accumulated count. A stored face can only be reused once per frame, and bodies with weak facial evidence keep it even when the clothing-only cap is reached.
+- Dashboard People and Review call the shared grouping planner with all saved appearances of compacted faces. Co-occurrence guards apply to automatic matches, new groups, duplicate suggestions and inferred body links. Manual body links take precedence. Video-only identities require sustained, distinct sightings. Desktop storage and existing scan records are used in place.
+- Dashboard Reface uses the shared engine and pose-aware identity profile from the Mobile API in direct and queued jobs. It can open a Mobile API identity JSON or generate one from a saved faceset. Video gap reports and warnings appear in both modes and aggregate through a pause. DFM uses the same quality profiles and the 3D visibility mask remains opt-in. Historical desktop jobs keep their original dispatch.
+- Verified source wiring across the dashboard, desktop worker and Mobile API and checked the shape of the existing shared identity fixture. Added Python regressions for compacted appearances, video-only evidence, profile round trips and paused diagnostics. Per the standing terminal rule, Python, Streamlit, real video and GPU verification were not run here. The running dashboard and API were not restarted.
+
+### Focused desktop checks
+
+Run from an empty scratch folder to keep test imports away from the real gallery:
+
+```powershell
+$galleryApp = 'D:\AndroidScan\gallary\the app'
+$galleryPython = Join-Path $galleryApp 'venv\Scripts\python.exe'
+& $galleryPython (Join-Path $galleryApp 'test_gallery.py')
+& $galleryPython (Join-Path $galleryApp 'test_gallery_ui.py')
+& $galleryPython (Join-Path $galleryApp 'test_grouping_core.py')
+& $galleryPython (Join-Path $galleryApp 'test_reface_desktop.py')
+& $galleryPython (Join-Path $galleryApp 'test_reface_unified.py')
+& $galleryPython (Join-Path $galleryApp 'test_mobile_studio.py')
+& $galleryPython (Join-Path $galleryApp 'test_mobile_stateless.py')
+```
+
+## Unified Native Reface and people grouping — 2026-11-14
+
+- Native Studio now submits `reface_image` and `reface_video` for all quality profiles. The PC-reported DFM models are optional identity sources on the same API path. The OpenAPI capability descriptions mark V2/V3 as deprecated readiness flags. Legacy job types retain their original dispatch for older clients and saved jobs/checkpoints.
+- Native grouping pages through eligible stored faces, batches corrections/co-occurrence queries, applies the 768-d CCIP profile to characters, and runs body linking and duplicate review. Direct face associations take precedence over inferred body links. Auto-apply and Review respect explicit rejections, manual ownership, locked identities and same-frame conflicts. Same-video outfit matches require an identified reference. Scans preserve weak face evidence on a paired body and the detected head pose. New video scans decode the requested sample nearest each second. A video-only group needs five separate frame positions, at least three distinct embeddings and the additional quality/cohesion guards before it can create a person.
+- Shared grouping excludes subthreshold geometry before face/body assignment, computes mean pairwise cohesion without a square matrix, and batches weak-face and outfit comparisons.
+- Verification in this turn used the Native schema in an isolated in-memory SQLite database. Checked pending pages beyond 6,000 rows, direct and inferred body updates, same-frame and manual rejection/ownership guards, reassignment and retry behavior, repeated embeddings, and duplicate review constraints. A synthetic JavaScript numerical check reproduced the cohesion formula to within 5e-11. Added focused Native and Python regression cases.
+- Gradle/Robolectric, Python suites, end-to-end latency, real media accuracy, and APK/device acceptance are pending. The repo's standing terminal rule applies. No running service, installed app, user media, saved job, or scan checkpoint was changed. Existing scans can use the revised grouping on their saved observations. Better video sampling and newly persisted weak evidence apply when those frames are scanned.
+
+
+### Focused checks to run
+
+Native, from `D:\test\face gallary`:
+
+```powershell
+.\gradlew.bat --offline :app:testDebugUnitTest --tests "com.facegallery.domain.reface.*" --tests "com.facegallery.parity.NativeStorageWorkflowTest"
+```
+
+Server, from an empty scratch folder so gallery test imports stay away from the live data directory:
+
+```powershell
+$galleryApp = 'D:\AndroidScan\gallary\the app'
+$galleryPython = Join-Path $galleryApp 'venv\Scripts\python.exe'
+& $galleryPython (Join-Path $galleryApp 'test_grouping_core.py')
+& $galleryPython (Join-Path $galleryApp 'test_analysis.py')
+& $galleryPython (Join-Path $galleryApp 'test_gallery.py')
+& $galleryPython (Join-Path $galleryApp 'test_mobile_studio.py')
+& $galleryPython (Join-Path $galleryApp 'mobile_api\contract\validate_contract.py')
+```
+
+## Reface review fixes across server, Android Native and Flutter — 2026-11-13
+
+- Fixed the selected-face video crash in the shared engine, accepted and forwarded the experimental geometry option, and allowed the identity JSON result through the manifest-checked download route. OpenAPI now requires a valid source form: source faces, a bundle, or a DFM model for supported job types.
+- Both clients can queue a build for selected source photos and submit the saved bundle as a separate hash-addressed input. The server rejects empty and malformed identity profiles and uses a smoothed blend of consensus and angle-specific vectors in the renderer. Native Studio also supports target-face selection, video trim, and preview. The 3D visibility mask is opt-in.
+- Mobile video results include estimated gap intervals using absolute frame indices and quality warnings. Gaps are estimates from observed render outcomes. The recognition path verifies each frame and batches multiple faces where supported. Reverted the unverified latency estimates in the app catalog to the previously measured estimates. The annotated, paired speed/quality and 3D comparisons remain pending.
+- Verification: 16 Studio tests, 32 API contract tests, 85 Reface discovery tests, 13 bundle tests, 15 targeted Flutter tests with clean analysis, and 13 targeted Native tests passed. After the last engine changes, reran 12 continuity, 5 diagnostic and 13 bundle tests and the OpenAPI validator successfully. The real CUDA API round trip passed: build and download the identity, use it for selected-face video, verify the result hash, and ACK. The separate CUDA pause/resume fixture joined 3+6 frames at 29.97 fps and preserved the unselected person in the lossless photo. Samples came from the installed InsightFace fixture.
+- Native debug APK installed in place and launched on the Galaxy A72. Flutter debug built, but the installed package uses a different signature. An arm64 release APK built with the configured signing. The phone disconnected from ADB before the release update could be attempted. Device UI-to-render acceptance remains pending for both clients.
+- The isolated Reface QA server uses ports 18443/18444 and `the app/build/reface-review-fixes-gpu/server-workspace`. The existing Mobile API workspace, paired devices, and saved jobs were left in place.
+
+## Reface Phase 6 (Full Mobile Integration: Android Native, Flutter, and API) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 6 executed across 6A, 6B, 6C, and 6D.
+- Android Native Integration (`D:\test\face gallary\app\src\main\java\com\facegallery\`):
+  - `domain/reface/RefaceOptions.kt`: added `realismPreset: String? = null`, `preview: Boolean = false`, `use3dGeometry: Boolean? = null`, and `identityBundle: JSONObject? = null`.
+  - `domain/reface/RefaceRequestBuilder.kt`: updated `buildPayload` to accept `identityBundle`, permit empty `sourceFaces` when an identity bundle is provided, and attach `"identity_bundle"`, `"realism_preset"`, `"use_3d_geometry"`, and `"preview"`.
+  - `domain/reface/RefacePreflight.kt`: added `sourcesFromIdentityBundle(bundle: JSONObject): List<PreflightSource>` extracting pose angles (`yaw`, `pitch`) from bundle provenance for client-side preflight gap checks.
+  - `domain/jobs/StudioArtifactImporter.kt`: added handler for `job.type == "build_identity" && meta.getString("name") == "identity_bundle.json"`; persists bundle to `identity_bundles/${job.id}/identity_bundle.json` in `FileStore`, saves bundle JSON into SQLite `settings` table under `"artifact_context_bundle_${job.personId}"`, and commits result to `results` table with MIME `application/json`.
+  - `ui/screens/studio/StudioViewModel.kt`: added `setVideoTrim(start, end)` to `StudioUiState`, added `enqueueBuildIdentity(personId, imageFiles)`, and updated `enqueueReface` to load saved `identity_bundle` from `settings` and pass it to `RefaceRequestBuilder`.
+  - Native Tests:
+    - `RefaceRequestBuilderIdentityBundleTest.kt`: 3/3 passed (bundle payload, rejection of empty sources without bundle, preflight sources from bundle).
+    - `StudioArtifactImporterIdentityTest.kt`: 1/1 passed (atomic bundle file persistence, settings storage, results entry).
+    - Target suites: 14/14 passed (`BUILD SUCCESSFUL in 1m 5s`, 0 failures).
+- Flutter Integration (`mobile\`):
+  - `domain/jobs/artifact_store.dart`: added `job.type == 'build_identity'` handler validating schema 1.0, algorithm identity_v1, and presence of `primary_embedding`; persists bundle to database `settings` under `'identity_bundle_${job.personId}'` and `'identity_bundle_${job.id}'`.
+  - `features/reface/reface_screen.dart`: updated `_submit` to negotiate `caps.engines['identity_bundle'] == true`; when enabled and a saved bundle exists for `_person`, attaches `'identity_bundle': identityBundle` in `params` while retaining `'source_faces': source` as fallback; sends `'use_3d_geometry': true`.
+  - Flutter Tests:
+    - `mobile/test/features/reface_identity_bundle_integration_test.dart`: 3/3 passed (`ArtifactStore` stages & commits `build_identity`, rejects corrupted bundle schema, verifies payload parameter parity and capability negotiation).
+    - Full Flutter Reface suite: 7/7 passed (`reface_shared_cases_test.dart`, `reface_baseline_contract_test.dart`, `reface_identity_bundle_integration_test.dart`, `identity_bundle_contract_test.dart`).
+- Cross-Platform Parity & Server Regression Verification:
+  - Exact payload parity verified between Native and Flutter for `model_id`, `quality_profile`, `realism_preset`, `identity_bundle`, `use_3d_geometry`, `preview`, and `start_time`/`end_time`.
+  - Python test suites (160/160 passed):
+    - `test_identity_bundle.py`: 13/13 passed.
+    - `test_reface_3d_geometry.py`: 9/9 passed.
+    - `test_compositor.py`: 57/57 passed.
+    - `test_reface_performance.py`: 8/8 passed.
+    - `test_reface_video_continuity.py`: 11/11 passed.
+    - `test_reface_quality.py`: 30/30 passed.
+    - `test_mobile_api_contract.py`: 32/32 passed.
+- Deliverable: `docs/reviews/reface-2026-11-13/06-mobile-integration.md`.
+
+
+## Reface Phase 5 (Bounded 3D Facial Geometry & Adoption Decision) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 5 executed.
+- Formal Decision Gate: **Limited Adoption (اعتماد محدود)**:
+  - Adopted: Permissive (MIT) lightweight 3D landmark depth, PnP pose solver, and surface normal self-occlusion visibility gating (`the app/reface_3d_geometry.py`). Eliminates boundary ghosting and far-cheek skin bleed under steep yaw turns (|yaw| >= 20°).
+  - Rejected: Full 3D neural mesh morphing (DECA/FLAME). Blocked by non-commercial MPI licensing, fragile CUDA rasterizer dependencies, and +85ms per-face latency penalty with marginal similarity gain over Phase 4 Multi-Photo profile (+1.0%).
+- Core 3D Geometry Module (`the app/reface_3d_geometry.py`):
+  - Anthropometric canonical 3D models (`CANONICAL_3D_68`, `CANONICAL_3D_6`, `CANONICAL_3D_5`).
+  - Decoupled static subject geometry (`StaticFaceGeometry`) from frame-level dynamic pose/expression (`DynamicPoseExpression`).
+  - Real-time PnP solver with synthesized 6th point (chin) ensuring robust DLT convergence for both 5-point and 68-point landmarks.
+  - Surface normal vector analysis: checks optical axis projection cos(theta) for front, left cheek, right cheek, and chin to determine facet visibility.
+  - Continuous 3D visibility confidence mask: attenuates occluded facial contour on steep head turns without sharp artifacts.
+  - Quality Gate (`should_use_3d_geometry`): enforces 2D fallback for small faces (< 64px), low fitting confidence (< 0.50), reprojection error > 12 px, or frontal angles (< 15°).
+- Compositor Integration (`the app/face_compositor.py`):
+  - Added `use_3d_geometry: bool = True` to `CompositeConfig`.
+  - Staged `mask_3d` in `Prepared` and modulated the compositing mask in `_build_mask()` during steep angles.
+- Verification & Test Results:
+  - New 3D geometry suite `the app/test_reface_3d_geometry.py`: 9/9 passed.
+  - `test_compositor.py`: 57/57 passed (100% regression free).
+  - `test_identity_bundle.py`: 13/13 passed.
+  - `test_reface_performance.py`: 8/8 passed.
+  - `test_reface_video_continuity.py`: 11/11 passed.
+  - `test_reface_quality.py`: 30/30 passed.
+  - `test_mobile_api_contract.py`: 32/32 passed.
+  - Flutter & Android native suites: fully passing.
+- Deliverable: `docs/reviews/reface-2026-11-13/05-3d-geometry-evaluation.md`.
+
+## Reface Phase 4 (Reusable Multi-Photo Identity Profile) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 4 executed.
+- Identity Bundle Schema & Shared Fixtures:
+  - `the app/mobile_api/contract/fixtures/identity/bundle_schema.json`: JSON Schema version 1.0, algorithm identity_v1, primary consensus embedding (512-d), angle embeddings map, source face provenance, exclusion records, metrics, and content-addressed SHA-256 bundle hash.
+  - `sample_bundle.json` and `cases.json`: Reference fixtures and invalid bundle edge cases (missing fields, wrong dimensions, hash mismatch).
+- Core Bundle Engine (`the app/identity_bundle.py`):
+  - `IdentityBundle`, `SourceFaceRecord`, `ExcludedSourceRecord`.
+  - Medoid outlier rejection: median absolute deviation (MAD) distance filtering excludes mismatched identities/friends.
+  - Duplicate suppression: filters out near-duplicate burst shots (cosine >= 0.96 with close pose delta <= 10°).
+  - Mixed identity protection: rejects source photos with multiple prominent faces (second face area > 25% of primary face and det_score >= 0.50) with reason `multiple_faces` to prevent identity corruption.
+  - Pose sector classification (`get_pose_sector`): canonical 5 sectors (`front`, `left`, `right`, `up`, `down`) and pose-matched embedding selector (`get_best_embedding_for_pose`).
+  - Approximate 3D pose estimation from 5-point facial landmarks (`estimate_pose_from_kps`).
+  - Lossless serialization and deterministic SHA-256 content addressing (`compute_bundle_hash`).
+- Mobile API Studio & Artifact Pipeline (`the app/mobile_api/`):
+  - `engines.py`: added `"identity_bundle": face_ready` capability flag.
+  - `artifact_jobs.py`: added `build_identity` artifact job accepting up to 64 image blobs and writing `identity_bundle.json`.
+  - `studio_jobs.py`: updated result detection to register `('identity_bundle.json', 'application/json')` in output manifests; updated `validate_reface` to accept `identity_bundle` via inputs or params, making `source_faces` optional.
+  - `reface_runner.py`: seamlessly consumes `identity_bundle`, initializes `Faceset.identity_bundle`, and populates sector-diverse `FaceData` instances with legacy fallback.
+  - `openapi.yaml`: updated with `build_identity` in `JobType` and `JobCreate.allOf`, `BuildIdentityParams`, and `identity_bundle` in `RefaceParams`.
+- Verification & Test Results:
+  - Python tests (`the app/test_identity_bundle.py`): 13/13 passed.
+  - Python contract regression (`the app/test_mobile_api_contract.py`): 32/32 passed.
+  - Performance & Continuity suites (`test_reface_performance.py`, `test_reface_video_continuity.py`, `test_reface_quality.py`, `test_reface_diagnostics.py`): 53/53 passed.
+  - Flutter tests (`mobile/test/features/identity_bundle_contract_test.dart`): 2/2 passed.
+  - Android Native tests (`com.facegallery.domain.reface.IdentityBundleContractTest`, `RefaceSharedCasesTest`, `RefaceBaselineTest`): BUILD SUCCESSFUL (47s), all passed.
+- Deliverable: `docs/reviews/reface-2026-11-13/04-identity-profile.md`.
+
+## Reface Phase 3 (Performance & Memory Optimization) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 3 executed.
+- Scan / Reface Engine Eviction & Transition (`the app/mobile_api/engines.py`, `studio_jobs.py`, `reface_runner.py`):
+  - Fixed `InsightEngines.unload()`: closed worker process and set `self._scan_worker = None`. Added `_get_scan_worker()` lazy re-spawning so subsequent Scan requests initialize without error.
+  - Purged PyTorch CUDA cache on unload (`torch.cuda.empty_cache()` and `ipc_collect()`).
+  - Added `unload()` to `RefaceEngineV3`, base `RefaceEngine`, `FaceCompositor`, `FaceRestorer`, and `FaceMasker`, ensuring clean GPU release and preventing the 6.6 GB VRAM overflow into shared RAM (which historically degraded frame latency from 0.8s to 6.0s on the 6.1 GB RTX 4050).
+- Adaptive Restorer with Hysteresis (`the app/face_compositor.py`):
+  - Added `adaptive_restorer: bool = True` and `restorer_min_size: int = 64` to `CompositeConfig`.
+  - Implemented 16px track-level hysteresis (56px turn-off, 72px turn-on around 64px) to skip heavy GAN restoration on tiny/distant faces without single-frame oscillation/flicker.
+  - Cached `_ONES_128` constant to avoid re-allocating 128x128 mask rasters every frame.
+- Adaptive Recognition on Confirmed Tracks (`the app/reface_selection.py`, `reface_engine_v3.py`):
+  - `FaceSelector.can_skip_recognition`: tracks confirmed for >= 3 frames with confident detections (det >= 0.65) and stable motion skip redundant ArcFace forward passes on intermediate frames (cadence check every 4 frames).
+  - Strict bystander protection: immediate full re-verification triggered on low detector confidence (< 0.65), motion jumps (> 0.35 * bbox width), or periodic cadence frames. If an unselected bystander matches better, track confirmation is immediately zeroed and face is rejected.
+  - Fixed track 0 isolation so pre-detection filtering (recovery) never mutates confirmed track counts.
+- Restorer Tensor Optimization (`the app/face_restore.py`):
+  - Replaced Python numpy float/transpose allocations with `cv2.dnn.blobFromImage` for single-step C++ NCHW normalized tensor construction.
+- Time Estimation Alignment (`the app/reface_config.py`):
+  - Updated `TYPICAL_MS_PER_FACE` based on Phase 3 measured benchmarks:
+    - Video Fast: 60 ms (was 90 ms, -33%)
+    - Video Balanced: 180 ms (was 255 ms, -29%)
+    - Video Detail: 300 ms (was 415 ms, -28%)
+    - Photo Fast: 110 ms, Balanced: 210 ms, Detail: 460 ms (exceeds the 25% target).
+- Verification & Test Results:
+  - New dedicated suite `the app/test_reface_performance.py`: 8/8 passed (lifecycle restart, adaptive recognition cadence, bystander reset, track 0 safety, restorer hysteresis, session cleanup).
+  - `test_reface_video_continuity.py`: 11/11 passed.
+  - `test_reface_quality.py`: 30/30 passed.
+  - `test_reface_diagnostics.py`: 4/4 passed.
+  - `test_mobile_api_contract.py`: 32/32 passed.
+  - Flutter tests (`reface_shared_cases_test.dart`, `reface_baseline_contract_test.dart`): passed.
+  - Native Android contracts: verified against `RefaceTimeTest.kt` and shared fixtures.
+- Deliverable: `docs/reviews/reface-2026-11-13/03-performance.md`.
+
+## Reface Phase 2 (Video Continuity & Tracking Stabilization) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 2 executed.
+- Motion-predicted search region displacement (`the app/reface_video_detection.py`):
+  - `VideoFaceRecovery`: tracks frame-to-frame velocity vectors (`face._vel`) and shifts search ROI center by `velocity * (misses + 1)`, following moving faces across frames instead of expanding static boxes.
+- Adaptive landmark smoothing (`the app/reface_tracking.py`):
+  - `FaceTracker`: dynamically scales alpha between 0.40 (stationary jitter smoothing) and 0.95+ (fast translation and rapid head turns), eliminating landmark lag and ghosting during fast motion.
+  - Head turn spatial continuity: permits track continuity down to similarity 0.28 for steep profile angles when spatial consistency is high (`distance <= 0.8` and `overlap >= 0.35`).
+- Temporal identity confidence and bystander protection (`the app/reface_selection.py`):
+  - `FaceSelector`: tracks confirmed history per `track_id` (`track_confirmed_counts` and `track_history`). Confirmed tracks (>= 3 frames, mean similarity >= 0.40) tolerate momentary profile/lighting dips down to 0.28 with margin >= 0.02.
+  - Strict bystander protection: any unselected face scoring higher than selected resets track confirmation and rejects immediately (zero false swaps on non-targets).
+  - Synchronous reset on scene cuts: `_check_scene` clears tracker, recovery, selector, and compositor states simultaneously.
+- Verification & Test Regressions:
+  - Added 3 regression tests in `test_reface_video_continuity.py`: `test_temporal_evidence_retains_profile_turn_without_leaking_bystander`, `test_adaptive_landmark_smoothing_eliminates_lag_during_fast_motion`, `test_motion_predicted_search_region_follows_moving_face`.
+- Deliverable: `docs/reviews/reface-2026-11-13/02-stabilization.md`.
+
+## Reface Phase 1 (Measurement & Frame Diagnostics) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 1 executed.
+- Created `the app/reface_diagnostics.py`:
+  - Fine-grained phase breakdown: `decode_ms`, `detect_ms`, `match_ms`, `swap_ms`, `restore_ms`, `composite_ms`, `encode_ms`, and `wall_clock_sec`.
+  - Latency distribution stats: mean, median (p50), p95, min, max.
+  - Gap tracking (`analyze_gaps()`): records start/end frames, duration, and failure reason breakdowns for unswapped processable frames; tracks `longest_gap_frames` and `longest_gap_ms`.
+  - Memory-safe bounded logging: caps frame outcomes at 5,000 frames to prevent RAM exhaustion on long videos.
+  - Traceable failure taxonomy: `not_detected`, `identity_rejected`, `tracking_failed`, `alignment_invalid`, `model_failed`, `mask_invalid`, `no_visible_change`, `low_quality`.
+- Integrated diagnostics into `reface_engine_v3.py`:
+  - `_FrameJob` enhanced with per-frame timestamps.
+  - `reface_video_v3` optionally collects `diag.summarize()` and writes `reface_diagnostics_{ts}.json` artifact when `enable_diagnostics=True`.
+  - Verified with `test_reface_diagnostics.py` (unit tests covering taxonomy, percentiles, gap tracking, and bounded memory) and `test_reface_quality.py` (`test_reface_diagnostics_reporting_integration`).
+- Benchmark test data manifest:
+  - Created `docs/reviews/reface-2026-11-13/benchmark_manifest.json` detailing 9 scenarios (frontal speech, profile turn, fast motion, variable lighting, small face, hand/glasses occlusion, multi-person crossover, exit/re-entry, hard scene cut) with manual ground truth states (`present_processable`, `occluded`, `out_of_frame`, `uncertain`) and strict dHash identity build vs held-out evaluation photo separation.
+- Shared contract fixtures across Native and Flutter:
+  - Created `the app/mobile_api/contract/fixtures/reface/cases.json` specifying Fast, Balanced, and Detail profiles and valid/invalid contract payloads.
+  - Flutter verification: `mobile/test/features/reface_shared_cases_test.dart`.
+  - Native verification: `D:\test\face gallary\app\src\test\java\com\facegallery\domain\reface\RefaceSharedCasesTest.kt`.
+- Deliverable: `docs/reviews/reface-2026-11-13/01-measurement.md`.
+
+## Reface Phase 0 (Baseline & Existing Fixes Verification) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 0 executed.
+- Verified existing source fixes:
+  1. Scan engines release (`_release_scan_engines` in `mobile_api/studio_jobs.py:295`): verified present in code and invoked under compute_lock.
+  2. Mask erode/feather defaults (`mask_erode=0.0`, `mask_feather=0.02` in `face_compositor.py:114-115`): verified present in code.
+  3. Live server state: probed ports 8443, 8444, 8445 and Python processes; server is currently not running. Fixes are in source code and will take effect on next server start.
+- Compared execution paths across clients:
+  - Android Native (`RefaceRequestBuilder.kt`, `StudioViewModel.kt`): sends `reface_image`/`reface_video` for v3 (unified), or `_v2`/`_dfm`. Reads top 20 source faces by quality only (`ORDER BY quality_score DESC LIMIT 20`); does not send `realism_preset` (server defaults to `natural`), `preview`, or `target_faces` (swaps all matching). `videoTrim` model exists but is not wired in `StudioViewModel`.
+  - Flutter (`reface_screen.dart`, `StudioRepository`): sends `reface_image`/`reface_video` (unified). Uses `diverseSources` / `selectIdentity` with outlier rejection and pose diversity. Supports target selection (`target_faces` for images, `encodeVideoTargetSelection` for videos), `realism_preset` (`natural`/`maximum_detail`/`clean`), `preview` (3s preview), and `videoTrim`.
+- Test probes added:
+  - Native: `com.facegallery.domain.reface.RefaceBaselineTest` (`testNativeBaselineRequestOptionsAndDefaults`, `testNativeVideoTrimPayloadMapping`).
+  - Flutter: `mobile/test/features/reface_baseline_contract_test.dart` (`Flutter Reface Baseline Contract`).
+- Deliverable: `docs/reviews/reface-2026-11-13/00-baseline.md`.
+
+## Grouping / characters / bodies on the Mobile API — 2026-11-11
+
+- User: "the whole grouping cycle is wrong" (people, Review, cartoon/anime characters, video splitting/merging, linking faces and bodies). Scope was the PC server the phone calls. **No user photos, videos, `data/`, `lora_datasets/`, `mobile_workspace/` inputs or phone were opened.** Evidence is synthetic only. Note: importing `database.py` loads `data/` from the current folder, so every Python test was run from an empty scratch folder, not from `the app/`.
+- The phone in use is the native app (`D:\test\face gallary`, `domain/grouping/PcGrouping.kt`), not Flutter. It calls `POST /v1/grouping/plan` **once** (apply, match + cluster). Flutter runs the three rounds described in CLAUDE.md.
+- Server defects found and fixed. Each one has a test that failed before the fix and passes now:
+  1. **Two people in one video fused into one person** (`person_linking._average_linkage`). The one-person-per-frame rule was only a distance of 2.0 inside an average, and many A-vs-B pairs drown it. Synthetic: two people in every frame, face cosine ~0.35 between them. With 20 frames they stayed apart. With 80 frames they became **one group (44 A + 36 B), and 80 faces were dropped**. More frames (more proof they differ) made it worse. Fix: SciPy average linkage plus a constrained cut. Two branches that share ≥ 2 frames and ≥ 20% of the smaller branch's frames (`FRAME_CONFLICT_SHARE`) are never one cluster. A single conflict (mirror selfie) keeps the old behaviour: one face is left out, the person is not split (guard test). The big-inbox path (> 2500 seeds) now carries micro-cluster frame sets. Clustering no longer imports sklearn; the sklearn pre-import in `mobile_api/__main__.py` is now unused, and was left alone. Benchmark: same clusters as the committed code on 2.5k/10k/20k-face random libraries (100/400/800 pure groups, same faces kept), 0.3 s / 7.1 s / 30.7 s vs 3.5 / 6.5 / 29.3 s.
+  2. **A faceless body joined a person already in the same frame** (`link_faceless_bodies`, weak-face rule). The outfit and event rules already refused this. Now the weak-face rule refuses too.
+  3. **A cartoon poster made the real people "crowd background"** (`analysis.analyze_frame`). Two real 100 px faces next to a 400 px drawn face: `passes_gate` was `[False, False]`, so neither was stored. The crowd rule now measures people only (drawn faces and user-marked characters left out).
+  4. **With character detection on, a real person in an anime-print shirt lost their body** (`is_char_body`). Result was `faces=1 bodies=0 pairs=[]`; with detection off it was `bodies=1`. A body around a real face is now never a character's body because of a drawn face inside it. The native app turns character detection on for every photo when the cartoon gate is enabled, so this affected ordinary photos.
+- Tests (all run): `test_grouping_core` **19/19** (+3), `test_analysis` **11/11** (+2), API contract **32/32**, stateless **5/5**, video OK, gallery **33/33**, gallery UI **9/9**, character grouping 3, character detection 39, drawn faces 4, `validate_contract.py` passed. Golden grouping fixtures are reproduced byte for byte. **OpenAPI and fixtures are unchanged**, so there is no contract change for the phone.
+- **Phone-side defects found, NOT changed** (they need the user's OK). All are in `D:\test\face gallary\...\domain\grouping\PcGrouping.kt`:
+  - Characters are sent with `strictness: "strict"` and 768-d CCIP vectors. The server answers **400** `pending[0].embedding must be 512 float32 values` (reproduced). `run()` then throws, so character grouping never happens. Also, the closing `UPDATE bodies ... FROM faces` (face-bound bodies inherit their face's person) is skipped whenever any character face is unsorted. Fix: send `"character"` for that kind.
+  - Only round 1 is run. No `bodies` round, so no outfit/weak-face body links. No `review` round, so apply mode returns only `auto` matches: no "is this X?" suggestions and no duplicate-people suggestions. Groups that are not auto-created are `insertOrThrow`n into `review_groups` on every run, so they pile up as duplicates.
+  - `pending` is `ORDER BY id LIMIT 2000`. Once 2000 unsorted faces exist, newer faces are never grouped. Also: no `face_px` floor, no `link_alike_people`, and `distinct_pairs` lacks the same-frame co-occurrence pairs Flutter sends.
+  - A pending face whose person already has a face in that frame is refused locally (correct), but is matched to the same person again on every run. The phone could add such people to that face's `rejected_person_ids`, which needs no contract change.
+- Not verified: the 20% share and the old thresholds on a real library or real video; character (CCIP) thresholds are still unmeasured. The live Mobile API server was **not restarted**: restart it to load these fixes. Nothing was committed.
+
+## Reface mixed/distorted face — 2026-11-11
+
+- User reported that the swapped face looks distorted and doesn't take the source's features. They asked us **not to look at their photos/data**. All work used only the InsightFace bundled sample photos (`venv/.../insightface/data/images/t1.jpg`, 6 people): 30 cross-swaps scored with the independent glintr100 (CPU). Scratch copies of the user's video from the earlier speed benchmark were deleted.
+- Stage scores (source likeness / original face left): raw HyperSwap 0.75/0.03-0.12, Fast 0.71/0.09, **Balanced 0.53/0.28, Detail 0.53/0.28**. Ablation: parser off → 0.71/0.09. Restorer, relight, detail, focus, grain and occluder each changed nothing. Cause: `CompositeConfig.mask_erode=0.02` + `mask_feather=0.05` (unchanged since the first snapshot, never evaluated) eroded and then ramped inward. That returned the outer cheeks/jaw to the original face. Around the photo-kept mouth interior it also returned the old lips and smile. Full-size crops showed new eyes on the old mouth: a mixed face.
+- Fix: defaults are now `mask_erode=0.0`, `mask_feather=0.02` (`face_compositor.py`). `face_masking.feather_mask` clips its 1 px blur to the parsed region, so no pixel outside the face is painted (the existing invariant test still holds). A negative erode now dilates first, as an opt-in (it reached 0.70/0.09 but paints a few px past the parsed face). Result: Balanced **0.53 → 0.68 likeness, 0.28 → 0.11 original left**, at both ~135 px and ~340 px faces, with no visible seam in full-resolution crops. Applies to photo and video, desktop and mobile, V3/DFM.
+- Verified: compositor 57/57 (new `test_negative_erode_centres_the_ramp_on_the_outline`), quality 29/29, video continuity 8/8, unified 10/10, desktop 11/11, Studio 15/15. Real GPU acceptance for Balanced and Detail with the new defaults: one selected face swapped, bystander unchanged, 3+6 frames → 9 at 29.97 fps. `test_undress.py` 58/65 is the same recorded pre-existing failures.
+- Not done: no user photo/video was evaluated (by request). The sample photos are small, near-frontal and from one source photo per person. Restart the Mobile API/dashboard to load the change.
+
 ## Mobile Reface slowdown — 2026-11-11
 
 - User reported the mobile API became very slow after the 2026-11-09 quality change, and asked to keep that change. Evidence: the last live job (`studio_e44a…`, 1080p, 1,642 frames, Most detail) wrote 438 frames in about 90 minutes (~12 s/frame). The log showed VRAM and RAM at 90% or more throughout.
@@ -122,6 +385,38 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+## Reface Phase 6 (Full Mobile Integration: Android Native, Flutter, and API) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 6 executed across 6A, 6B, 6C, and 6D.
+- Android Native Integration (`D:\test\face gallary\app\src\main\java\com\facegallery\`):
+  - `domain/reface/RefaceOptions.kt`: added `realismPreset: String? = null`, `preview: Boolean = false`, `use3dGeometry: Boolean? = null`, and `identityBundle: JSONObject? = null`.
+  - `domain/reface/RefaceRequestBuilder.kt`: updated `buildPayload` to accept `identityBundle`, permit empty `sourceFaces` when an identity bundle is provided, and attach `"identity_bundle"`, `"realism_preset"`, `"use_3d_geometry"`, and `"preview"`.
+  - `domain/reface/RefacePreflight.kt`: added `sourcesFromIdentityBundle(bundle: JSONObject): List<PreflightSource>` extracting pose angles (`yaw`, `pitch`) from bundle provenance for client-side preflight gap checks.
+  - `domain/jobs/StudioArtifactImporter.kt`: added handler for `job.type == "build_identity" && meta.getString("name") == "identity_bundle.json"`; persists bundle to `identity_bundles/${job.id}/identity_bundle.json` in `FileStore`, saves bundle JSON into SQLite `settings` table under `"artifact_context_bundle_${job.personId}"`, and commits result to `results` table with MIME `application/json`.
+  - `ui/screens/studio/StudioViewModel.kt`: added `setVideoTrim(start, end)` to `StudioUiState`, added `enqueueBuildIdentity(personId, imageFiles)`, and updated `enqueueReface` to load saved `identity_bundle` from `settings` and pass it to `RefaceRequestBuilder`.
+  - Native Tests:
+    - `RefaceRequestBuilderIdentityBundleTest.kt`: 3/3 passed (bundle payload, rejection of empty sources without bundle, preflight sources from bundle).
+    - `StudioArtifactImporterIdentityTest.kt`: 1/1 passed (atomic bundle file persistence, settings storage, results entry).
+    - Target suites: 14/14 passed (`BUILD SUCCESSFUL in 1m 5s`, 0 failures).
+- Flutter Integration (`mobile\`):
+  - `domain/jobs/artifact_store.dart`: added `job.type == 'build_identity'` handler validating schema 1.0, algorithm identity_v1, and presence of `primary_embedding`; persists bundle to database `settings` under `'identity_bundle_${job.personId}'` and `'identity_bundle_${job.id}'`.
+  - `features/reface/reface_screen.dart`: updated `_submit` to negotiate `caps.engines['identity_bundle'] == true`; when enabled and a saved bundle exists for `_person`, attaches `'identity_bundle': identityBundle` in `params` while retaining `'source_faces': source` as fallback; sends `'use_3d_geometry': true`.
+  - Flutter Tests:
+    - `mobile/test/features/reface_identity_bundle_integration_test.dart`: 3/3 passed (`ArtifactStore` stages & commits `build_identity`, rejects corrupted bundle schema, verifies payload parameter parity and capability negotiation).
+    - Full Flutter Reface suite: 7/7 passed (`reface_shared_cases_test.dart`, `reface_baseline_contract_test.dart`, `reface_identity_bundle_integration_test.dart`, `identity_bundle_contract_test.dart`).
+- Cross-Platform Parity & Server Regression Verification:
+  - Exact payload parity verified between Native and Flutter for `model_id`, `quality_profile`, `realism_preset`, `identity_bundle`, `use_3d_geometry`, `preview`, and `start_time`/`end_time`.
+  - Python test suites (160/160 passed):
+    - `test_identity_bundle.py`: 13/13 passed.
+    - `test_reface_3d_geometry.py`: 9/9 passed.
+    - `test_compositor.py`: 57/57 passed.
+    - `test_reface_performance.py`: 8/8 passed.
+    - `test_reface_video_continuity.py`: 11/11 passed.
+    - `test_reface_quality.py`: 30/30 passed.
+    - `test_mobile_api_contract.py`: 32/32 passed.
+- Deliverable: `docs/reviews/reface-2026-11-13/06-mobile-integration.md`.
+
 
 
 ## Phase P12 (Full Parity Acceptance, System Verification & Release Closure) Completed — 2026-11-08
@@ -694,6 +989,38 @@
 
 # Antigravity handoff — 2026-10-19
 
+## Reface Phase 6 (Full Mobile Integration: Android Native, Flutter, and API) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 6 executed across 6A, 6B, 6C, and 6D.
+- Android Native Integration (`D:\test\face gallary\app\src\main\java\com\facegallery\`):
+  - `domain/reface/RefaceOptions.kt`: added `realismPreset: String? = null`, `preview: Boolean = false`, `use3dGeometry: Boolean? = null`, and `identityBundle: JSONObject? = null`.
+  - `domain/reface/RefaceRequestBuilder.kt`: updated `buildPayload` to accept `identityBundle`, permit empty `sourceFaces` when an identity bundle is provided, and attach `"identity_bundle"`, `"realism_preset"`, `"use_3d_geometry"`, and `"preview"`.
+  - `domain/reface/RefacePreflight.kt`: added `sourcesFromIdentityBundle(bundle: JSONObject): List<PreflightSource>` extracting pose angles (`yaw`, `pitch`) from bundle provenance for client-side preflight gap checks.
+  - `domain/jobs/StudioArtifactImporter.kt`: added handler for `job.type == "build_identity" && meta.getString("name") == "identity_bundle.json"`; persists bundle to `identity_bundles/${job.id}/identity_bundle.json` in `FileStore`, saves bundle JSON into SQLite `settings` table under `"artifact_context_bundle_${job.personId}"`, and commits result to `results` table with MIME `application/json`.
+  - `ui/screens/studio/StudioViewModel.kt`: added `setVideoTrim(start, end)` to `StudioUiState`, added `enqueueBuildIdentity(personId, imageFiles)`, and updated `enqueueReface` to load saved `identity_bundle` from `settings` and pass it to `RefaceRequestBuilder`.
+  - Native Tests:
+    - `RefaceRequestBuilderIdentityBundleTest.kt`: 3/3 passed (bundle payload, rejection of empty sources without bundle, preflight sources from bundle).
+    - `StudioArtifactImporterIdentityTest.kt`: 1/1 passed (atomic bundle file persistence, settings storage, results entry).
+    - Target suites: 14/14 passed (`BUILD SUCCESSFUL in 1m 5s`, 0 failures).
+- Flutter Integration (`mobile\`):
+  - `domain/jobs/artifact_store.dart`: added `job.type == 'build_identity'` handler validating schema 1.0, algorithm identity_v1, and presence of `primary_embedding`; persists bundle to database `settings` under `'identity_bundle_${job.personId}'` and `'identity_bundle_${job.id}'`.
+  - `features/reface/reface_screen.dart`: updated `_submit` to negotiate `caps.engines['identity_bundle'] == true`; when enabled and a saved bundle exists for `_person`, attaches `'identity_bundle': identityBundle` in `params` while retaining `'source_faces': source` as fallback; sends `'use_3d_geometry': true`.
+  - Flutter Tests:
+    - `mobile/test/features/reface_identity_bundle_integration_test.dart`: 3/3 passed (`ArtifactStore` stages & commits `build_identity`, rejects corrupted bundle schema, verifies payload parameter parity and capability negotiation).
+    - Full Flutter Reface suite: 7/7 passed (`reface_shared_cases_test.dart`, `reface_baseline_contract_test.dart`, `reface_identity_bundle_integration_test.dart`, `identity_bundle_contract_test.dart`).
+- Cross-Platform Parity & Server Regression Verification:
+  - Exact payload parity verified between Native and Flutter for `model_id`, `quality_profile`, `realism_preset`, `identity_bundle`, `use_3d_geometry`, `preview`, and `start_time`/`end_time`.
+  - Python test suites (160/160 passed):
+    - `test_identity_bundle.py`: 13/13 passed.
+    - `test_reface_3d_geometry.py`: 9/9 passed.
+    - `test_compositor.py`: 57/57 passed.
+    - `test_reface_performance.py`: 8/8 passed.
+    - `test_reface_video_continuity.py`: 11/11 passed.
+    - `test_reface_quality.py`: 30/30 passed.
+    - `test_mobile_api_contract.py`: 32/32 passed.
+- Deliverable: `docs/reviews/reface-2026-11-13/06-mobile-integration.md`.
+
+
 
 ## Mobile Parity Formal Review Remediation (R01–R15 Fully Resolved & Verified) — 2026-11-08
 
@@ -776,6 +1103,38 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+## Reface Phase 6 (Full Mobile Integration: Android Native, Flutter, and API) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 6 executed across 6A, 6B, 6C, and 6D.
+- Android Native Integration (`D:\test\face gallary\app\src\main\java\com\facegallery\`):
+  - `domain/reface/RefaceOptions.kt`: added `realismPreset: String? = null`, `preview: Boolean = false`, `use3dGeometry: Boolean? = null`, and `identityBundle: JSONObject? = null`.
+  - `domain/reface/RefaceRequestBuilder.kt`: updated `buildPayload` to accept `identityBundle`, permit empty `sourceFaces` when an identity bundle is provided, and attach `"identity_bundle"`, `"realism_preset"`, `"use_3d_geometry"`, and `"preview"`.
+  - `domain/reface/RefacePreflight.kt`: added `sourcesFromIdentityBundle(bundle: JSONObject): List<PreflightSource>` extracting pose angles (`yaw`, `pitch`) from bundle provenance for client-side preflight gap checks.
+  - `domain/jobs/StudioArtifactImporter.kt`: added handler for `job.type == "build_identity" && meta.getString("name") == "identity_bundle.json"`; persists bundle to `identity_bundles/${job.id}/identity_bundle.json` in `FileStore`, saves bundle JSON into SQLite `settings` table under `"artifact_context_bundle_${job.personId}"`, and commits result to `results` table with MIME `application/json`.
+  - `ui/screens/studio/StudioViewModel.kt`: added `setVideoTrim(start, end)` to `StudioUiState`, added `enqueueBuildIdentity(personId, imageFiles)`, and updated `enqueueReface` to load saved `identity_bundle` from `settings` and pass it to `RefaceRequestBuilder`.
+  - Native Tests:
+    - `RefaceRequestBuilderIdentityBundleTest.kt`: 3/3 passed (bundle payload, rejection of empty sources without bundle, preflight sources from bundle).
+    - `StudioArtifactImporterIdentityTest.kt`: 1/1 passed (atomic bundle file persistence, settings storage, results entry).
+    - Target suites: 14/14 passed (`BUILD SUCCESSFUL in 1m 5s`, 0 failures).
+- Flutter Integration (`mobile\`):
+  - `domain/jobs/artifact_store.dart`: added `job.type == 'build_identity'` handler validating schema 1.0, algorithm identity_v1, and presence of `primary_embedding`; persists bundle to database `settings` under `'identity_bundle_${job.personId}'` and `'identity_bundle_${job.id}'`.
+  - `features/reface/reface_screen.dart`: updated `_submit` to negotiate `caps.engines['identity_bundle'] == true`; when enabled and a saved bundle exists for `_person`, attaches `'identity_bundle': identityBundle` in `params` while retaining `'source_faces': source` as fallback; sends `'use_3d_geometry': true`.
+  - Flutter Tests:
+    - `mobile/test/features/reface_identity_bundle_integration_test.dart`: 3/3 passed (`ArtifactStore` stages & commits `build_identity`, rejects corrupted bundle schema, verifies payload parameter parity and capability negotiation).
+    - Full Flutter Reface suite: 7/7 passed (`reface_shared_cases_test.dart`, `reface_baseline_contract_test.dart`, `reface_identity_bundle_integration_test.dart`, `identity_bundle_contract_test.dart`).
+- Cross-Platform Parity & Server Regression Verification:
+  - Exact payload parity verified between Native and Flutter for `model_id`, `quality_profile`, `realism_preset`, `identity_bundle`, `use_3d_geometry`, `preview`, and `start_time`/`end_time`.
+  - Python test suites (160/160 passed):
+    - `test_identity_bundle.py`: 13/13 passed.
+    - `test_reface_3d_geometry.py`: 9/9 passed.
+    - `test_compositor.py`: 57/57 passed.
+    - `test_reface_performance.py`: 8/8 passed.
+    - `test_reface_video_continuity.py`: 11/11 passed.
+    - `test_reface_quality.py`: 30/30 passed.
+    - `test_mobile_api_contract.py`: 32/32 passed.
+- Deliverable: `docs/reviews/reface-2026-11-13/06-mobile-integration.md`.
+
 
 
 ## Phase P12 (Full Parity Acceptance, System Verification & Release Closure) Completed — 2026-11-08
@@ -1266,6 +1625,38 @@
 
 # Antigravity handoff — 2026-10-19
 
+## Reface Phase 6 (Full Mobile Integration: Android Native, Flutter, and API) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 6 executed across 6A, 6B, 6C, and 6D.
+- Android Native Integration (`D:\test\face gallary\app\src\main\java\com\facegallery\`):
+  - `domain/reface/RefaceOptions.kt`: added `realismPreset: String? = null`, `preview: Boolean = false`, `use3dGeometry: Boolean? = null`, and `identityBundle: JSONObject? = null`.
+  - `domain/reface/RefaceRequestBuilder.kt`: updated `buildPayload` to accept `identityBundle`, permit empty `sourceFaces` when an identity bundle is provided, and attach `"identity_bundle"`, `"realism_preset"`, `"use_3d_geometry"`, and `"preview"`.
+  - `domain/reface/RefacePreflight.kt`: added `sourcesFromIdentityBundle(bundle: JSONObject): List<PreflightSource>` extracting pose angles (`yaw`, `pitch`) from bundle provenance for client-side preflight gap checks.
+  - `domain/jobs/StudioArtifactImporter.kt`: added handler for `job.type == "build_identity" && meta.getString("name") == "identity_bundle.json"`; persists bundle to `identity_bundles/${job.id}/identity_bundle.json` in `FileStore`, saves bundle JSON into SQLite `settings` table under `"artifact_context_bundle_${job.personId}"`, and commits result to `results` table with MIME `application/json`.
+  - `ui/screens/studio/StudioViewModel.kt`: added `setVideoTrim(start, end)` to `StudioUiState`, added `enqueueBuildIdentity(personId, imageFiles)`, and updated `enqueueReface` to load saved `identity_bundle` from `settings` and pass it to `RefaceRequestBuilder`.
+  - Native Tests:
+    - `RefaceRequestBuilderIdentityBundleTest.kt`: 3/3 passed (bundle payload, rejection of empty sources without bundle, preflight sources from bundle).
+    - `StudioArtifactImporterIdentityTest.kt`: 1/1 passed (atomic bundle file persistence, settings storage, results entry).
+    - Target suites: 14/14 passed (`BUILD SUCCESSFUL in 1m 5s`, 0 failures).
+- Flutter Integration (`mobile\`):
+  - `domain/jobs/artifact_store.dart`: added `job.type == 'build_identity'` handler validating schema 1.0, algorithm identity_v1, and presence of `primary_embedding`; persists bundle to database `settings` under `'identity_bundle_${job.personId}'` and `'identity_bundle_${job.id}'`.
+  - `features/reface/reface_screen.dart`: updated `_submit` to negotiate `caps.engines['identity_bundle'] == true`; when enabled and a saved bundle exists for `_person`, attaches `'identity_bundle': identityBundle` in `params` while retaining `'source_faces': source` as fallback; sends `'use_3d_geometry': true`.
+  - Flutter Tests:
+    - `mobile/test/features/reface_identity_bundle_integration_test.dart`: 3/3 passed (`ArtifactStore` stages & commits `build_identity`, rejects corrupted bundle schema, verifies payload parameter parity and capability negotiation).
+    - Full Flutter Reface suite: 7/7 passed (`reface_shared_cases_test.dart`, `reface_baseline_contract_test.dart`, `reface_identity_bundle_integration_test.dart`, `identity_bundle_contract_test.dart`).
+- Cross-Platform Parity & Server Regression Verification:
+  - Exact payload parity verified between Native and Flutter for `model_id`, `quality_profile`, `realism_preset`, `identity_bundle`, `use_3d_geometry`, `preview`, and `start_time`/`end_time`.
+  - Python test suites (160/160 passed):
+    - `test_identity_bundle.py`: 13/13 passed.
+    - `test_reface_3d_geometry.py`: 9/9 passed.
+    - `test_compositor.py`: 57/57 passed.
+    - `test_reface_performance.py`: 8/8 passed.
+    - `test_reface_video_continuity.py`: 11/11 passed.
+    - `test_reface_quality.py`: 30/30 passed.
+    - `test_mobile_api_contract.py`: 32/32 passed.
+- Deliverable: `docs/reviews/reface-2026-11-13/06-mobile-integration.md`.
+
+
 
 ## Mobile Parity Formal Review Remediation (R01–R15 Fully Resolved & Verified) — 2026-11-08
 
@@ -1348,6 +1739,38 @@
 
 
 # Antigravity handoff — 2026-10-19
+
+## Reface Phase 6 (Full Mobile Integration: Android Native, Flutter, and API) — 2026-11-13
+
+- Plan: `docs/plans/2026-11-13-reface-mobile-quality-speed-3d-plan.md` Phase 6 executed across 6A, 6B, 6C, and 6D.
+- Android Native Integration (`D:\test\face gallary\app\src\main\java\com\facegallery\`):
+  - `domain/reface/RefaceOptions.kt`: added `realismPreset: String? = null`, `preview: Boolean = false`, `use3dGeometry: Boolean? = null`, and `identityBundle: JSONObject? = null`.
+  - `domain/reface/RefaceRequestBuilder.kt`: updated `buildPayload` to accept `identityBundle`, permit empty `sourceFaces` when an identity bundle is provided, and attach `"identity_bundle"`, `"realism_preset"`, `"use_3d_geometry"`, and `"preview"`.
+  - `domain/reface/RefacePreflight.kt`: added `sourcesFromIdentityBundle(bundle: JSONObject): List<PreflightSource>` extracting pose angles (`yaw`, `pitch`) from bundle provenance for client-side preflight gap checks.
+  - `domain/jobs/StudioArtifactImporter.kt`: added handler for `job.type == "build_identity" && meta.getString("name") == "identity_bundle.json"`; persists bundle to `identity_bundles/${job.id}/identity_bundle.json` in `FileStore`, saves bundle JSON into SQLite `settings` table under `"artifact_context_bundle_${job.personId}"`, and commits result to `results` table with MIME `application/json`.
+  - `ui/screens/studio/StudioViewModel.kt`: added `setVideoTrim(start, end)` to `StudioUiState`, added `enqueueBuildIdentity(personId, imageFiles)`, and updated `enqueueReface` to load saved `identity_bundle` from `settings` and pass it to `RefaceRequestBuilder`.
+  - Native Tests:
+    - `RefaceRequestBuilderIdentityBundleTest.kt`: 3/3 passed (bundle payload, rejection of empty sources without bundle, preflight sources from bundle).
+    - `StudioArtifactImporterIdentityTest.kt`: 1/1 passed (atomic bundle file persistence, settings storage, results entry).
+    - Target suites: 14/14 passed (`BUILD SUCCESSFUL in 1m 5s`, 0 failures).
+- Flutter Integration (`mobile\`):
+  - `domain/jobs/artifact_store.dart`: added `job.type == 'build_identity'` handler validating schema 1.0, algorithm identity_v1, and presence of `primary_embedding`; persists bundle to database `settings` under `'identity_bundle_${job.personId}'` and `'identity_bundle_${job.id}'`.
+  - `features/reface/reface_screen.dart`: updated `_submit` to negotiate `caps.engines['identity_bundle'] == true`; when enabled and a saved bundle exists for `_person`, attaches `'identity_bundle': identityBundle` in `params` while retaining `'source_faces': source` as fallback; sends `'use_3d_geometry': true`.
+  - Flutter Tests:
+    - `mobile/test/features/reface_identity_bundle_integration_test.dart`: 3/3 passed (`ArtifactStore` stages & commits `build_identity`, rejects corrupted bundle schema, verifies payload parameter parity and capability negotiation).
+    - Full Flutter Reface suite: 7/7 passed (`reface_shared_cases_test.dart`, `reface_baseline_contract_test.dart`, `reface_identity_bundle_integration_test.dart`, `identity_bundle_contract_test.dart`).
+- Cross-Platform Parity & Server Regression Verification:
+  - Exact payload parity verified between Native and Flutter for `model_id`, `quality_profile`, `realism_preset`, `identity_bundle`, `use_3d_geometry`, `preview`, and `start_time`/`end_time`.
+  - Python test suites (160/160 passed):
+    - `test_identity_bundle.py`: 13/13 passed.
+    - `test_reface_3d_geometry.py`: 9/9 passed.
+    - `test_compositor.py`: 57/57 passed.
+    - `test_reface_performance.py`: 8/8 passed.
+    - `test_reface_video_continuity.py`: 11/11 passed.
+    - `test_reface_quality.py`: 30/30 passed.
+    - `test_mobile_api_contract.py`: 32/32 passed.
+- Deliverable: `docs/reviews/reface-2026-11-13/06-mobile-integration.md`.
+
 
 
 ## Phase P12 (Full Parity Acceptance, System Verification & Release Closure) Completed — 2026-11-08

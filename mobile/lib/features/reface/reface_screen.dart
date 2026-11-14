@@ -77,6 +77,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   var _preset = 'natural';
   bool _parser = true, _occluder = true, _busy = false;
   bool _loraIdentity = false;
+  bool _useIdentityBundle = true;
+  bool _use3dGeometry = false;
   double _identityBoost = .5;
   String? _error;
   VideoTrimSelection? _videoTrim;
@@ -904,7 +906,90 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     _ => null,
   };
 
-  bool _validate(AppLocalizations l10n) {
+  Future<String?> _savedIdentityBundle(Capabilities caps) async {
+    final personId = _person;
+    if (!_useIdentityBundle ||
+        personId == null ||
+        _identityMode == 'dfm' ||
+        _directSource ||
+        _useImportedSource ||
+        _loraIdentity ||
+        !caps.engines.identityBundle) {
+      return null;
+    }
+    final value = await ref.read(databaseProvider).setting('identity_bundle_$personId');
+    if (value == null) return null;
+    try {
+      final bundle = jsonDecode(value);
+      if (bundle is Map && bundle['schema_version'] == '1.0' &&
+          bundle['algorithm_version'] == 'identity_v1') {
+        return value;
+      }
+      return null;
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
+  Future<void> _buildIdentity(Capabilities caps) async {
+    final personId = _person;
+    if (personId == null || !caps.engines.identityBundle) return;
+    final location = await chooseRefaceMediaSource(context);
+    if (location == null || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    Directory? staging;
+    try {
+      final picked = await ref.read(refaceSourcePickerProvider)(location);
+      if (picked.isEmpty || !mounted) return;
+      final inputs = <File>[];
+      for (final source in picked) {
+        if (await isVideoTarget(source)) {
+          staging ??= await (await getTemporaryDirectory()).createTemp('identity-');
+          final frames = await ref.read(refaceVideoFramesProvider)(File(source.path));
+          for (final frame in frames) {
+            if (inputs.length == 64) break;
+            inputs.add(await File('${staging.path}/${inputs.length}.jpg').writeAsBytes(frame));
+          }
+        } else {
+          inputs.add(File(source.path));
+        }
+        if (inputs.length == 64) break;
+      }
+      if (!mounted) return;
+      if (inputs.isEmpty) throw const FormatException('Choose clear source photos or a readable video.');
+      await prepareBackgroundForWork(context, ref);
+      if (!mounted) return;
+      await ref.read(studioRepositoryProvider).enqueueInputs(
+        serverId: caps.serverId,
+        type: 'build_identity',
+        params: const {},
+        inputs: {'images': inputs},
+        personId: personId,
+      );
+      if (!mounted) return;
+      ref.read(jobTrackerProvider).start();
+      setState(() => _useIdentityBundle = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Identity build queued. Follow its progress in Studio.')),
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      try {
+        await staging?.delete(recursive: true);
+      } on FileSystemException {
+        // The durable queue owns its staged copies.
+      }
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  bool _validate(AppLocalizations l10n, {bool hasBundle = false}) {
     String? error;
     if (_step == 0) {
       if (_video == null &&
@@ -933,7 +1018,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         _identityMode != 'dfm' &&
         (_useImportedSource
             ? _importedSource == null
-            : ((!_directSource && _person == null) || _sources.isEmpty))) {
+            : ((!_directSource && _person == null) || (_sources.isEmpty && !hasBundle)))) {
       error = l10n.selectIdentityRequired;
     }
     setState(() => _error = error);
@@ -949,6 +1034,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       _error = null;
     });
     File? temporary;
+    File? bundleFile;
     try {
       if (ref.read(studioApiProvider) == null) {
         throw FormatException(l10n.studioNeedsPc);
@@ -1024,6 +1110,12 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           );
         }
       }
+      final identityBundle = await _savedIdentityBundle(caps);
+      if (identityBundle != null) {
+        final tmp = await getTemporaryDirectory();
+        bundleFile = File('${tmp.path}/reface-identity-${DateTime.now().microsecondsSinceEpoch}.json');
+        await bundleFile.writeAsString(identityBundle);
+      }
       final params = <String, dynamic>{
         'source_faces': source,
         'model_id': caps.embeddingModelId,
@@ -1032,6 +1124,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         'use_occluder': _occluder,
         'realism_preset': _preset,
         'quality_profile': _qualityProfile,
+        if (caps.engines.refaceGeometry && _use3dGeometry)
+          'use_3d_geometry': true,
         if (_identityMode != 'dfm') 'identity_boost': _identityBoost,
         'preview': preview,
         if (_identityMode == 'dfm') 'dfm_model': _dfm,
@@ -1064,6 +1158,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
             params: params,
             target: file,
             video: _video != null,
+            identityBundle: bundleFile,
             personId: _person,
             context: ArtifactContext(
               mediaId: _contextMediaId,
@@ -1088,6 +1183,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     } finally {
       if (temporary != null && await temporary.exists()) {
         await temporary.delete();
+      }
+      if (bundleFile != null && await bundleFile.exists()) {
+        await bundleFile.delete();
       }
       if (mounted) setState(() => _busy = false);
     }
@@ -1146,8 +1244,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                     }),
               onStepContinue: _busy || caps == null || available.isEmpty
                   ? null
-                  : () {
-                      if (!_validate(l10n)) return;
+                  : () async {
+                      final bundle = _step == 1 ? await _savedIdentityBundle(caps) : null;
+                      if (!mounted || !_validate(l10n, hasBundle: bundle != null)) return;
                       if (_step < 2) {
                         setState(() => _step++);
                       } else {
@@ -1470,6 +1569,20 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                           child: Text(_personName ?? l10n.selectSourcePerson),
                         ),
                       if (_identityMode != 'dfm' &&
+                          _person != null &&
+                          (caps?.engines.identityBundle ?? false)) ...[
+                        OutlinedButton.icon(
+                          onPressed: _busy ? null : () => _buildIdentity(caps!),
+                          icon: const Icon(Icons.add_photo_alternate_outlined),
+                          label: const Text('Build identity from photos'),
+                        ),
+                        SwitchListTile(
+                          title: const Text('Use saved identity when available'),
+                          value: _useIdentityBundle,
+                          onChanged: _busy ? null : (value) => setState(() => _useIdentityBundle = value),
+                        ),
+                      ],
+                      if (_identityMode != 'dfm' &&
                           _faces.isNotEmpty &&
                           caps != null &&
                           _faces.any(
@@ -1711,6 +1824,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                               onChanged: (value) =>
                                   setState(() => _parser = value),
                             ),
+                            if (caps?.engines.refaceGeometry ?? false)
+                              SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text('Experimental 3D visibility mask'),
+                                value: _use3dGeometry,
+                                onChanged: (value) => setState(() => _use3dGeometry = value),
+                              ),
                             Text(l10n.refaceIdentityBoost),
                             Slider(
                               key: const Key('reface-identity-boost'),

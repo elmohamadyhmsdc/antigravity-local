@@ -25,6 +25,8 @@ class MainActivity : FlutterActivity() {
     }
     private val security by lazy { SecurityBridge(this) }
     private var securityChannel: MethodChannel? = null
+    private val backup by lazy { BackupBridge(this) }
+    private var backupChannel: MethodChannel? = null
     private val mediaOrganizer by lazy {
         (organizer ?: MediaOrganizerBridge(applicationContext).also { organizer = it }).also { it.activity = this }
     }
@@ -53,8 +55,9 @@ class MainActivity : FlutterActivity() {
         mediaPickerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/media_picker").also {
             it.setMethodCallHandler(mediaPicker::handle)
         }
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/backup")
-            .setMethodCallHandler(BackupBridge(appContext)::handle)
+        backupChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/backup").also {
+            it.setMethodCallHandler(backup::handle)
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/network")
             .setMethodCallHandler(NetworkBridge()::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/video_scan")
@@ -203,6 +206,9 @@ class MainActivity : FlutterActivity() {
         security.cancelPending()
         securityChannel?.setMethodCallHandler(null)
         securityChannel = null
+        backup.cancelPendingSave()
+        backupChannel?.setMethodCallHandler(null)
+        backupChannel = null
         mediaOrganizer.detach(this)
         mediaPicker.close()
         mediaPickerChannel?.setMethodCallHandler(null)
@@ -214,6 +220,7 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (!mediaOrganizer.onActivityResult(requestCode, resultCode) &&
             !mediaPicker.onActivityResult(requestCode, resultCode, data) &&
+            !backup.onActivityResult(requestCode, resultCode, data) &&
             !security.onActivityResult(requestCode, resultCode)) super.onActivityResult(requestCode, resultCode, data)
     }
 }

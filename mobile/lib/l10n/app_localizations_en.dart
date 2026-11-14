@@ -930,7 +930,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assignTo => 'Assign to…';
 
   @override
-  String get backupDone => 'Backup created. Choose where to save it.';
+  String get backupDone => 'Backup saved to the location you chose in Files.';
 
   @override
   String backupFailed(String error) {
@@ -965,9 +965,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupSettingsHint => 'Save or restore your whole library';
-
-  @override
-  String get backupShareSubject => 'Your Gallery backup';
 
   @override
   String get backupStageCrops => 'Saving face pictures…';
@@ -2638,8 +2635,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Optional SDXL refinement is not installed on this PC. Basic Restyle can run without it.';
 
   @override
-  String get backupShareCancelled =>
-      'Backup sharing was cancelled. Choose a destination to keep a copy outside this app.';
+  String get backupSaveCancelled => 'Backup save cancelled.';
 
   @override
   String get refaceReference => 'Choose a photo of the person to replace';

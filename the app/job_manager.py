@@ -429,6 +429,8 @@ def run_single_job(job_id: str, jobs_dir: str):
     from reface_engine import RefaceEngine
     from reface_engine_v2 import RefaceEngineV2, EnhancementConfig, OcclusionConfig, VideoConfig
 
+    engine = None
+    is_unified = False
     try:
         # Mark as running
         job.status = JobStatus.RUNNING
@@ -486,7 +488,10 @@ def run_single_job(job_id: str, jobs_dir: str):
             )
         
         # Load or build faceset (DFM mode is trained per-person -> no source needed)
-        if is_dfm and not params.get('faceset_name') and not params.get('source_paths'):
+        if is_unified and params.get("identity_bundle") is not None:
+            from reface import faceset_from_bundle
+            faceset = faceset_from_bundle(params["identity_bundle"])
+        elif is_dfm and (is_unified or not (params.get("faceset_name") or params.get("source_paths"))):
             faceset = None
         elif params.get('faceset_name'):
             print(f"[JOB {job_id}] Loading faceset: {params['faceset_name']}")
@@ -508,6 +513,9 @@ def run_single_job(job_id: str, jobs_dir: str):
                 # detector's first face, and filters the faces (identity_builder.py).
                 from identity_builder import faceset_from_media
                 faceset = faceset_from_media(params['source_paths'], engine.app, name="temp_job")
+                if is_unified:
+                    from reface_desktop import add_identity_profile
+                    add_identity_profile(faceset)
             else:
                 faceset = engine.build_faceset_from_media(
                     params['source_paths'],
@@ -629,9 +637,20 @@ def run_single_job(job_id: str, jobs_dir: str):
             details = getattr(result, "details", {})
             for key in ("faces_swapped", "faces_failed", "faces_skipped", "faces_degraded"):
                 job.details[key] = job.details.get(key, 0) + details.get(key, 0)
-            for key in ("settings", "identity", "warnings"):
+            for key in ("settings", "identity"):
                 if key in details:
                     job.details[key] = details[key]
+            if details.get("warnings"):
+                job.details["warnings"] = list(dict.fromkeys([
+                    *job.details.get("warnings", []), *details["warnings"],
+                ]))
+            if details.get("diagnostics"):
+                from reface import merge_video_diagnostics
+                job.details["diagnostics"] = merge_video_diagnostics(
+                    job.details.get("diagnostics"), details["diagnostics"],
+                )
+            if "frames_recovered" in details:
+                job.details["frames_recovered"] = job.details.get("frames_recovered", 0) + details["frames_recovered"]
         # Check if stopped
         if stop_requested[0]:
             part_path = result.output_path if ((is_v2 or is_modern) and is_video and result and result.success) else None
@@ -747,6 +766,13 @@ def run_single_job(job_id: str, jobs_dir: str):
         print(f"\n[JOB {job_id}] ❌ ERROR: {error_msg}")
         print(traceback.format_exc())
         return False
+    finally:
+        unload = getattr(engine, "unload", None)
+        if is_unified and unload is not None:
+            try:
+                unload()
+            except Exception as cleanup_error:
+                print(f"[JOB {job_id}] Reface cleanup failed: {cleanup_error}")
 
 
 def queue_worker(jobs_dir: str):

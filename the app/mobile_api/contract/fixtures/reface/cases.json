@@ -1,0 +1,109 @@
+{
+  "version": "1.0.0",
+  "profiles": {
+    "fast": {
+      "video_crf": 16,
+      "video_preset": "medium",
+      "focus_match_strength": 1.0,
+      "default_restorer": "none",
+      "use_parser": false
+    },
+    "balanced": {
+      "video_crf": 14,
+      "video_preset": "medium",
+      "focus_match_strength": 0.5,
+      "default_restorer": "gpen_bfr_512",
+      "use_parser": true
+    },
+    "detail": {
+      "video_crf": 12,
+      "video_preset": "slow",
+      "focus_match_strength": 0.25,
+      "default_restorer": "gpen_bfr_1024",
+      "use_parser": true
+    }
+  },
+  "valid_test_cases": [
+    {
+      "name": "photo_balanced_default",
+      "client": "shared",
+      "payload": {
+        "client_job_id": "test-photo-balanced",
+        "type": "reface_image",
+        "params": {
+          "model_id": "buffalo_l@1",
+          "quality_profile": "balanced",
+          "restorer": "auto",
+          "use_parser": true,
+          "use_occluder": true,
+          "realism_preset": "natural",
+          "identity_boost": 0.5
+        }
+      }
+    },
+    {
+      "name": "video_detail_trimmed",
+      "client": "shared",
+      "payload": {
+        "client_job_id": "test-video-detail-trimmed",
+        "type": "reface_video",
+        "params": {
+          "model_id": "buffalo_l@1",
+          "quality_profile": "detail",
+          "restorer": "auto",
+          "use_parser": true,
+          "use_occluder": true,
+          "realism_preset": "maximum_detail",
+          "identity_boost": 0.5,
+          "start_time": 1.5,
+          "end_time": 8.0,
+          "preview": false
+        }
+      }
+    },
+    {
+      "name": "video_fast_preview",
+      "client": "shared",
+      "payload": {
+        "client_job_id": "test-video-fast-preview",
+        "type": "reface_video",
+        "params": {
+          "model_id": "buffalo_l@1",
+          "quality_profile": "fast",
+          "restorer": "none",
+          "use_parser": false,
+          "use_occluder": true,
+          "realism_preset": "natural",
+          "identity_boost": 0.0,
+          "preview": true
+        }
+      }
+    }
+  ],
+  "invalid_test_cases": [
+    {
+      "name": "invalid_model_id",
+      "error_code": "model_mismatch",
+      "expected_status": 409,
+      "patch": { "model_id": "arcface_r100" }
+    },
+    {
+      "name": "invalid_trim_end_before_start",
+      "error_message": "The trim end must be after the start.",
+      "expected_status": 400,
+      "patch": { "start_time": 5.0, "end_time": 2.0 }
+    },
+    {
+      "name": "invalid_restorer",
+      "error_message": "Choose an available restorer.",
+      "expected_status": 400,
+      "patch": { "restorer": "nonexistent_restorer" }
+    },
+    {
+      "name": "invalid_realism_preset",
+      "error_message": "Choose a supported realism preset.",
+      "expected_status": 400,
+      "patch": { "realism_preset": "hyper_ultra" }
+    }
+  ]
+}
