@@ -45,7 +45,7 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
   var _operation = PhotoEditOperation.remove;
   var _brushRadius = 0.035;
   var _smartTolerance = 0.22;
-  var _strength = 0.75;
+  var _strength = 0.85;
   var _busy = false;
   var _progressText = '';
   double _progress = 0.0;
@@ -866,14 +866,14 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Body Preservation / الحفاظ على الجسم: ${((1.0 - _strength) * 100).round()}%',
+                        'Change Strength / قوة التغيير: ${(_strength * 100).round()}%',
                         style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      _strength <= 0.75 ? 'عالي (يحافظ على القوام)' : 'تغيير حر',
+                      _strength >= 0.80 ? 'واضح وقوي' : 'طبيعي معتدل',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: scheme.primary),
                     ),
                   ],
@@ -886,9 +886,9 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                   child: Slider(
                     key: const Key('strength-slider'),
                     value: _strength,
-                    min: 0.50,
-                    max: 0.95,
-                    divisions: 9,
+                    min: 0.60,
+                    max: 1.0,
+                    divisions: 8,
                     onChanged: (v) => setState(() => _strength = v),
                   ),
                 ),

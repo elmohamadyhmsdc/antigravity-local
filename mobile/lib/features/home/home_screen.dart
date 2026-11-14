@@ -263,27 +263,38 @@ class _StatusBanner extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 16),
       child: Material(
         color: bg,
-        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: fg.withValues(alpha: 0.2),
+            width: 0.8,
+          ),
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 text,
                 key: const Key('status-banner'),
-                style: TextStyle(color: fg),
+                style: TextStyle(color: fg, fontWeight: FontWeight.w500),
               ),
-              if (status is ServerRevoked)
+              if (status is ServerRevoked) ...[
+                const SizedBox(height: 8),
                 TextButton(
                   onPressed: onPairAgain,
                   child: Text(l10n.homePairAgain),
                 ),
-              if (status is ServerOffline)
+              ],
+              if (status is ServerOffline) ...[
+                const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => context.push(Routes.connection),
                   child: Text(l10n.connectionFix),
                 ),
+              ],
             ],
           ),
         ),
@@ -300,6 +311,8 @@ class _StatsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final tiles = [
       (l10n.statPeople, stats.people, Icons.people_outline),
       (l10n.statFaces, stats.faces, Icons.face_outlined),
@@ -318,8 +331,15 @@ class _StatsGrid extends StatelessWidget {
               SizedBox(
                 width: width,
                 child: Material(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(16),
+                  color: scheme.surfaceContainerLow,
+                  clipBehavior: Clip.antiAlias,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: scheme.outlineVariant.withValues(alpha: 0.3),
+                      width: 0.8,
+                    ),
+                  ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
                     onTap: () => context.go(
@@ -332,20 +352,34 @@ class _StatsGrid extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            icon,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.primary,
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              icon,
+                              size: 20,
+                              color: scheme.primary,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           Text(
                             '$value',
                             key: Key('stat-$label'),
-                            style: Theme.of(context).textTheme.headlineSmall,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
+                          const SizedBox(height: 2),
                           Text(
                             label,
-                            style: Theme.of(context).textTheme.bodySmall,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),

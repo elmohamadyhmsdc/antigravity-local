@@ -89,8 +89,9 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
           ),
         );
 
-    if (pickedCandidates == null || pickedCandidates.isEmpty || !mounted)
+    if (pickedCandidates == null || pickedCandidates.isEmpty || !mounted) {
       return;
+    }
 
     final currentCat = switch (_activeCategory) {
       'face' => CurationCategory.face,

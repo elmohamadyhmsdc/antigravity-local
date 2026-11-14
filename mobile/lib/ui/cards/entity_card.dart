@@ -159,70 +159,77 @@ class EntityCard extends StatelessWidget {
       enabled: !isDisabled,
       child: Opacity(
         opacity: isDisabled ? 0.45 : 1.0,
-        child: InkWell(
-          onTap: isDisabled || isBusy ? null : onTap,
-          onLongPress: isDisabled || isBusy ? null : onLongPress,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _buildVisual(context),
-              if (isSelected)
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.35),
-                    border: Border.all(
-                      color: theme.colorScheme.primary,
-                      width: 3,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: isDisabled || isBusy ? null : onTap,
+            onLongPress: isDisabled || isBusy ? null : onLongPress,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildVisual(context),
+                if (isSelected)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.35),
+                      border: Border.all(
+                        color: theme.colorScheme.primary,
+                        width: 3,
+                      ),
                     ),
-                  ),
-                  child: const Align(
-                    alignment: Alignment.topRight,
-                    child: Padding(
-                      padding: EdgeInsets.all(6),
-                      child: CircleAvatar(
-                        radius: 12,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.check, size: 16, color: Colors.blue),
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: CircleAvatar(
+                          radius: 12,
+                          backgroundColor: Colors.white,
+                          child: Icon(
+                            Icons.check,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              if (isBusy)
-                Container(
-                  color: Colors.black38,
-                  child: const Center(child: CircularProgressIndicator()),
-                ),
-              if (badge != null) Positioned(top: 6, left: 6, child: badge!),
-              if (title != null)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 4,
-                    ),
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [Colors.black87, Colors.transparent],
+                if (isBusy)
+                  Container(
+                    color: Colors.black38,
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
+                if (badge != null) Positioned(top: 6, left: 6, child: badge!),
+                if (title != null)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
                       ),
-                    ),
-                    child: Text(
-                      title!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [Colors.black87, Colors.transparent],
+                        ),
+                      ),
+                      child: Text(
+                        title!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -65,7 +65,14 @@ class SurfaceSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: Theme.of(context).colorScheme.surfaceContainerLow,
-    borderRadius: BorderRadius.circular(16),
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: BorderSide(
+        color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
+        width: 0.8,
+      ),
+    ),
     child: Padding(padding: EdgeInsets.all(padding), child: child),
   );
 }
@@ -92,8 +99,14 @@ class StatusNotice extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isError ? scheme.errorContainer : scheme.surfaceContainer,
+          color: isError ? scheme.errorContainer : scheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isError
+                ? scheme.error.withValues(alpha: 0.3)
+                : scheme.outlineVariant.withValues(alpha: 0.3),
+            width: 0.8,
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

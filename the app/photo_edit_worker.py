@@ -168,7 +168,7 @@ def main():
         "artifacts, lowres, low quality, duplicate, text, watermark"
     )
 
-    strength = float(options.get('strength', 0.75))
+    strength = float(options.get('strength', 0.85))
     strength = max(0.2, min(1.0, strength))
 
     generated = pipe(prompt=prompt, negative_prompt=negative, image=original, mask_image=mask,

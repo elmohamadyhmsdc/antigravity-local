@@ -31,11 +31,21 @@
     - `PeopleScreen` (`people_screen.dart`): Replaced plain list tiles in `_showToolsSheet` with modern `_ToolsSheetTile` items (gradient icon containers, titles, subtitles, badges) wrapped in a `SingleChildScrollView` to prevent vertical overflow on narrow/short screens; elevated selection bottom action bar with rounded top border and micro-borders.
     - `ExploreScreen` (`explore_screen.dart`): Transformed raw `_ExploreRow` and `_ExploreCard` widgets into modern cards (`surfaceContainerLow`, micro-borders, rounded tinted icon containers, bold titles, subtle subtitles, and indigo count badges).
     - `Settings UI System` (`setting_group.dart`, `setting_tile.dart`): Standardized all settings screens into clean rounded cards with `surfaceContainerLow`, micro-borders, and rounded squircle icon containers with indigo/danger tints.
+  - **Phase 6: Home, Activity & Jobs, Empty States, and Shared Surface Overhaul**:
+    - `HomeScreen` (`home_screen.dart`): Transformed `_StatsGrid` cards with rounded tinted icon containers (`primary.withValues(alpha: 0.1)`), 16dp rounded geometry with micro-borders (`outlineVariant`), bold metric counters, and modernized `_StatusBanner`.
+    - `JobsScreen` (`jobs_screen.dart`): Elevated Activity hub and `_JobTile` with status-colored squircle containers (green for completed, red for failed, indigo for queued/running), rounded progress bars, and styled Library analysis status tile.
+    - `Shared UI & Surfaces` (`screen_layout.dart`, `empty_state.dart`, `review_banner.dart`, `entity_card.dart`):
+      - `SurfaceSection`: Enhanced with 0.8px micro-borders and `surfaceContainerLow` elevation across all screens that rely on it.
+      - `StatusNotice`: Styled with subtle micro-borders and semantic background tinting.
+      - `EmptyState`: Enhanced with 0.8px micro-borders and soft primary tinting on the icon container, giving every empty state in the app a high-end look.
+      - `ReviewBanner`: Modernized with rounded icon containers, indigo micro-borders, and clean typography.
+      - `EntityCard`: Replaced hardcoded blue check with dynamic `theme.colorScheme.primary` and added 14dp rounded clip.
 - Verification:
   - Targeted mobile test suite 1: 30/30 passed (`00:33 +30 ~1: All tests passed!`) across `people_test.dart`, `people_simplified_ux_test.dart`, `settings_hub_test.dart`, `characters_test.dart`, `bodies_screen_test.dart`.
-  - Targeted mobile test suite 2: 41/41 passed (`00:06 +41: All tests passed!`) across `redesign_screens_test.dart`, `redesign_ux_test.dart`, `scan_and_settings_test.dart`.
-  - Targeted mobile test suite 3: 27/27 passed across `viewer_gestures_test.dart`, `media_screen_native_player_test.dart`, `photo_edit_screen_test.dart`, `photo_edit_canvas_test.dart`, `photo_edit_navigation_test.dart`, `actions_screen_test.dart`, `studio_test.dart`, `shell_test.dart`.
-  - Static code analysis (`flutter analyze`): `No issues found! (ran in 3.1s)`.
+  - Targeted mobile test suite 2: 70/70 passed (`00:10 +70: All tests passed!`) across `entity_card_test.dart`, `scan_and_settings_test.dart`, `storage_screen_test.dart`, `results_screen_test.dart`, `quick_review_test.dart`, `review_test.dart`.
+  - Targeted mobile test suite 3: 41/41 passed across `redesign_screens_test.dart`, `redesign_ux_test.dart`, `scan_and_settings_test.dart`.
+  - Targeted mobile test suite 4: 27/27 passed across `viewer_gestures_test.dart`, `media_screen_native_player_test.dart`, `photo_edit_screen_test.dart`, `photo_edit_canvas_test.dart`, `photo_edit_navigation_test.dart`, `actions_screen_test.dart`, `studio_test.dart`, `shell_test.dart`.
+  - Static code analysis (`flutter analyze` on entire `mobile/` project): `No issues found! (ran in 3.7s)` — 100% clean across all files.
   - Zero test regressions across entire mobile application suite.
 
 
@@ -58,14 +68,16 @@
   - **Theme & Layout Fixes**:
     - Fixed `SegmentedButtonThemeData` in `mobile/lib/core/theme.dart`: replaced invalid `selectedBackgroundColor` with `WidgetStateProperty.resolveWith` on `backgroundColor` and `foregroundColor`.
     - Wrapped Body Preservation row in `Expanded` with text ellipsis to prevent horizontal flex overflow on compact phone screens.
-  - **Server Worker Token Length Fix (`the app/photo_edit_worker.py`, `photo_edit.py`)**:
+  - **Server Worker Token Length & Face Core Protection Fix (`the app/photo_edit_worker.py`, `photo_edit.py`)**:
     - Resolved `PhotoEditError: Shorten the description to a few clear words so the model can read all of it`: CLIP text encoder has a 77-token ceiling, and verbose templates previously consumed ~46 tokens, triggering premature `description_too_long` rejections on descriptive prompts.
     - Updated `photo_edit_worker.py` to streamline the prompt and gracefully truncate token sequences to `model_max_length - 2` via `pipe.tokenizer` rather than aborting the job, allowing comprehensive Arabic and English descriptions without rejection.
+    - Resolved zero-difference / unchanged result bug in clothing inpainting: `protect_face_cores` in `photo_edit.py` was erroneously treating whole-body bounding boxes (`bh/bw > 2.0`) and torso detector boxes as face ovals, carving out 52,000+ pixels directly from the center of the clothing mask and leaving only negligible border slivers. Added strict aspect ratio and height gating (`0.5 <= bh/bw <= 1.7` and `bh <= 0.55 * h`), preserving 100% of the clothing and torso mask while shielding only the actual face (chin/mouth/eyes) from brush bleed.
+    - Increased replacement strength default from 0.75 to 0.85 in both `photo_edit_worker.py` and mobile UI slider (`photo_edit_screen.dart`), giving prominent, photorealistic outfit transformations without ghosting from the original fabric.
     - Restored safety regex filter in `photo_edit.py` `validate_options`.
 - Verification & Tests:
-  - Python server suite (`test_photo_edit.py`): 19/19 passed (`Ran 19 tests in 0.639s: OK`).
+  - Python server suite (`test_photo_edit.py`): 19/19 passed (`Ran 19 tests in 0.654s: OK`).
   - Unit & Widget test suite (`flutter test test/features/smart_selector_test.dart test/features/photo_edit_canvas_test.dart test/features/photo_edit_screen_test.dart test/features/photo_edit_navigation_test.dart`): All 7 tests passed (`00:02 +7: All tests passed!`).
-  - Code analysis (`flutter analyze lib/features/photo_edit lib/core/theme.dart test/features/smart_selector_test.dart test/features/photo_edit_canvas_test.dart test/features/photo_edit_screen_test.dart test/features/photo_edit_navigation_test.dart`): `No issues found! (ran in 3.3s)`.
+  - Code analysis (`flutter analyze lib/features/photo_edit lib/core/theme.dart test/features/smart_selector_test.dart test/features/photo_edit_canvas_test.dart test/features/photo_edit_screen_test.dart test/features/photo_edit_navigation_test.dart`): `No issues found! (ran in 3.5s)`.
 
 ## AI Photo Editor: Clothes & Object Inpainting (Removal & Prompt Replacement) — 2026-11-14
 

@@ -217,11 +217,12 @@ class AutoDatasetCurator {
         }
         final cos = na > 0 && nb > 0 ? dot / math.sqrt(na * nb) : 0.0;
         // near-identical vectors (same expression, same light): the same picture, whoever the photo is
-        if (cos >= 0.85)
+        if (cos >= 0.85) {
           sim = math.max(
             sim,
             ((cos - 0.85) / 0.15).clamp(0.0, 1.0) * 0.5 + 0.5,
           );
+        }
       }
       if (a.yaw == null || b.yaw == null) return math.max(sim, 0.5);
       final dy = (a.yaw! - b.yaw!).abs() / 90;

@@ -165,8 +165,14 @@ def protect_face_cores(mask, boxes):
         bw, bh = x2 - x1, y2 - y1
         if bw <= 0 or bh <= 0:
             continue
-        center = (int(round((x1 + x2) / 2)), int(round(y1 + bh * 0.50)))
-        axes = (max(1, int(round(bw * 0.44))), max(1, int(round(bh * 0.48))))
+        # Only treat face boxes as faces (faces are roughly square, 0.5 <= bh/bw <= 1.7, and not tall bodies)
+        aspect = bh / max(1.0, bw)
+        if aspect > 1.7 or aspect < 0.5:
+            continue
+        if bh > h * 0.55:
+            continue
+        center = (int(round((x1 + x2) / 2)), int(round(y1 + bh * 0.48)))
+        axes = (max(1, int(round(bw * 0.42))), max(1, int(round(bh * 0.44))))
         face_oval = np.zeros((h, w), np.uint8)
         cv2.ellipse(face_oval, center, axes, 0, 0, 360, 1, -1)
         overlap = int(np.count_nonzero(safe_mask & face_oval))

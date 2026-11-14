@@ -58,21 +58,48 @@ class JobsScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          ListTile(
-            leading: const Icon(Icons.document_scanner_outlined),
-            title: const Text('Library analysis'),
-            subtitle: scan == null || scan.phase == ScanPhase.idle
-                ? const Text('No active scan')
-                : Text(
-                    '${switch (scan.phase) {
-                      ScanPhase.paused => 'Paused',
-                      ScanPhase.completed => 'Completed',
-                      ScanPhase.waiting => 'Waiting',
-                      _ => 'In progress',
-                    }} · ${scan.done + scan.failed} / ${scan.total}',
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Material(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  width: 0.8,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(Routes.runningScan),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.document_scanner_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 20,
+                  ),
+                ),
+                title: const Text('Library analysis', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: scan == null || scan.phase == ScanPhase.idle
+                    ? const Text('No active scan')
+                    : Text(
+                        '${switch (scan.phase) {
+                          ScanPhase.paused => 'Paused',
+                          ScanPhase.completed => 'Completed',
+                          ScanPhase.waiting => 'Waiting',
+                          _ => 'In progress',
+                        }} · ${scan.done + scan.failed} / ${scan.total}',
+                      ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.push(Routes.runningScan),
+              ),
+            ),
           ),
           Expanded(
             child: ref
@@ -136,34 +163,99 @@ class _JobTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Card(
-      child: ListTile(
-        key: Key('job-${job.id}'),
-        leading: Icon(
-          job.status == 'completed'
-              ? Icons.check_circle_outline
-              : Icons.pending_actions,
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isCompleted = job.status == 'completed';
+    final isFailed = job.status == 'failed' || job.status == 'lost';
+    final statusColor = isCompleted
+        ? Colors.green
+        : isFailed
+        ? scheme.error
+        : scheme.primary;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: scheme.surfaceContainerLow,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.3),
+            width: 0.8,
+          ),
         ),
-        title: Text(jobTypeLabel(l10n, job.type)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${jobStatusLabel(l10n, job.status)} · ${(job.progress * 100).round()}%',
+        child: ListTile(
+          key: Key('job-${job.id}'),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            if (!const [
-              'completed',
-              'failed',
-              'lost',
-              'paused',
-            ].contains(job.status))
-              LinearProgressIndicator(value: job.progress),
-            if (job.error != null)
-              Text(job.error!, maxLines: 2, overflow: TextOverflow.ellipsis),
-          ],
+            alignment: Alignment.center,
+            child: Icon(
+              isCompleted
+                  ? Icons.check_circle_outline_rounded
+                  : isFailed
+                  ? Icons.error_outline_rounded
+                  : Icons.pending_actions_rounded,
+              color: statusColor,
+              size: 20,
+            ),
+          ),
+          title: Text(
+            jobTypeLabel(l10n, job.type),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 2),
+              Text(
+                '${jobStatusLabel(l10n, job.status)} · ${(job.progress * 100).round()}%',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              if (!const [
+                'completed',
+                'failed',
+                'lost',
+                'paused',
+              ].contains(job.status)) ...[
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: job.progress,
+                    minHeight: 5,
+                    backgroundColor: scheme.surfaceContainerHighest,
+                  ),
+                ),
+              ],
+              if (job.error != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  job.error!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.error,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          trailing: Icon(
+            Icons.chevron_right_rounded,
+            color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
+            size: 20,
+          ),
+          onTap: () => context.push('${Routes.jobs}/${job.id}'),
         ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push('${Routes.jobs}/${job.id}'),
       ),
     );
   }

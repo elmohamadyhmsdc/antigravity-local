@@ -23,17 +23,33 @@ class ReviewBanner extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Material(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(16),
+        color: scheme.surfaceContainerHigh,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: scheme.primary.withValues(alpha: 0.35),
+            width: 0.8,
+          ),
+        ),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
             child: Row(
               children: [
-                Icon(icon, color: scheme.onSecondaryContainer),
-                const SizedBox(width: 12),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, color: scheme.primary, size: 20),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,20 +57,25 @@ class ReviewBanner extends StatelessWidget {
                       Text(
                         title,
                         style: text.titleSmall?.copyWith(
-                          color: scheme.onSecondaryContainer,
+                          color: scheme.onSurface,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       if (body != null)
                         Text(
                           body!,
                           style: text.bodySmall?.copyWith(
-                            color: scheme.onSecondaryContainer,
+                            color: scheme.onSurfaceVariant,
                           ),
                         ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: scheme.onSecondaryContainer),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  size: 20,
+                ),
               ],
             ),
           ),
