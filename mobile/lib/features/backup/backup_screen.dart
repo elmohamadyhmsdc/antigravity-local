@@ -45,6 +45,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     if (!mounted || (encrypted && password == null)) return;
     final service = ref.read(backupServiceProvider);
     final settings = ref.read(appSettingsProvider);
+    final crypto = ref.read(backupCryptoProvider);
     final tracker = ref.read(jobTrackerProvider);
     final engine = ref.read(scanEngineProvider);
     final scanWasRunning = engine.isRunning;
@@ -73,7 +74,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         if (mounted) {
           setState(() => _progress = const BackupProgress('encrypting', 0, 0));
         }
-        await ref.read(backupCryptoProvider).encrypt(file, target, password!);
+        await crypto.encrypt(file, target, password!);
         await file.delete();
         file = target;
       }
