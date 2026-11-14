@@ -28,6 +28,7 @@ import '../features/people/organize_media_screen.dart';
 import '../features/people/people_screen.dart';
 import '../features/people/person_detail_screen.dart';
 import '../features/people/unsorted_screen.dart';
+import '../features/photo_edit/photo_edit_screen.dart';
 import '../features/reface/reface_screen.dart';
 import '../features/restyle/restyle_screen.dart';
 import '../features/results/results_screen.dart';
@@ -75,6 +76,7 @@ abstract final class Routes {
   // Studio
   static const studioReface = '/studio/reface';
   static const restyle = '/restyle';
+  static const photoEdit = '/photo-edit';
   static const studioGenerate = '/studio/generate';
   static const studioDatasetsNew = '/studio/datasets/new';
   static const studioCuration = '/studio/curation'; // /studio/curation/:id
@@ -406,6 +408,12 @@ GoRouter createRouter({
           targetDetectionId: int.tryParse(
             state.uri.queryParameters['target'] ?? '',
           ),
+        ),
+      ),
+      GoRoute(
+        path: Routes.photoEdit,
+        builder: (context, state) => PhotoEditScreen(
+          mediaId: int.tryParse(state.uri.queryParameters['media'] ?? ''),
         ),
       ),
       GoRoute(

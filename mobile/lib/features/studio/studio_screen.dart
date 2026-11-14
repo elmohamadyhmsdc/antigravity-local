@@ -127,7 +127,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen> {
           subtitle: l.studioRefaceDescription,
           onTap: () => context.push(Routes.reface),
         ),
-        const Divider(),
+        const SizedBox(height: 6),
         ActionRow(
           key: const Key('studio-restyle'),
           icon: Icons.checkroom_outlined,
@@ -135,7 +135,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen> {
           subtitle: l.studioRestyleDescription,
           onTap: () => context.push(Routes.restyle),
         ),
-        const Divider(),
+        const SizedBox(height: 6),
         ActionRow(
           key: const Key('studio-generate'),
           icon: Icons.auto_awesome_outlined,
@@ -143,7 +143,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen> {
           subtitle: 'Create images with a trained model',
           onTap: () => context.push(Routes.studioGenerate),
         ),
-        const Divider(),
+        const SizedBox(height: 6),
         ActionRow(
           key: const Key('studio-lora'),
           icon: Icons.model_training_outlined,
@@ -151,7 +151,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen> {
           subtitle: 'Prepare examples and train a model',
           onTap: () => context.push(Routes.lora),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         OutlinedButton.icon(
           key: const Key('studio-results'),
           onPressed: _showResults,

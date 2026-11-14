@@ -32,10 +32,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Future<void> _openFilters() async {
     final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      backgroundColor: scheme.surfaceContainerLow,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, updateSheet) {
           void update(MediaFilter value) {
@@ -45,16 +49,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
           return SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Filter media',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Row(
+                    children: [
+                      Icon(Icons.tune, color: scheme.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Filter Media',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
+
+                  // Media Kind
+                  Text(
+                    'Media Type',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     children: [
@@ -74,9 +96,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+
+                  // Scan Status
+                  Text(
+                    'Scan Status',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
+                    runSpacing: 8,
                     children: [
                       for (final (scan, label) in [
                         (ScanFilter.all, l.filterAll),
@@ -93,58 +126,82 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         ),
                     ],
                   ),
-                  FilterChip(
-                    key: const Key('filter-has-faces'),
-                    label: Text(l.filterHasFaces),
-                    selected: _filter.hasFaces == true,
-                    onSelected: (on) => update(
-                      on
-                          ? _filter.copyWith(hasFaces: true)
-                          : _filter.copyWith(clearHasFaces: true),
+                  const SizedBox(height: 16),
+
+                  // Content & People
+                  Text(
+                    'Content & People',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (_filter.personId == null)
-                    ActionChip(
-                      key: const Key('filter-pick-person'),
-                      avatar: const Icon(Icons.person_search),
-                      label: Text(l.filterPerson),
-                      onPressed: () async {
-                        final choice = await pickPerson(
-                          sheetContext,
-                          allowNew: false,
-                          title: l.filterPerson,
-                        );
-                        if (choice?.personId != null && mounted) {
-                          update(_filter.copyWith(personId: choice!.personId));
-                        }
-                      },
-                    )
-                  else
-                    InputChip(
-                      key: const Key('filter-person'),
-                      label: Text(
-                        personNameOf(l, _filter.personId!, {
-                          for (final p
-                              in ref.read(peopleProvider).value ??
-                                  const <PersonSummary>[])
-                            p.id: p,
-                        }),
-                      ),
-                      onDeleted: () =>
-                          update(_filter.copyWith(clearPerson: true)),
-                    ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      TextButton(
-                        onPressed: () => update(const MediaFilter()),
-                        child: Text(l.clearFilters),
+                      FilterChip(
+                        key: const Key('filter-has-faces'),
+                        avatar: const Icon(Icons.face_outlined, size: 16),
+                        label: Text(l.filterHasFaces),
+                        selected: _filter.hasFaces == true,
+                        onSelected: (on) => update(
+                          on
+                              ? _filter.copyWith(hasFaces: true)
+                              : _filter.copyWith(clearHasFaces: true),
+                        ),
                       ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(sheetContext),
-                        child: const Text('Show media'),
+                      if (_filter.personId == null)
+                        ActionChip(
+                          key: const Key('filter-pick-person'),
+                          avatar: const Icon(Icons.person_search, size: 16),
+                          label: Text(l.filterPerson),
+                          onPressed: () async {
+                            final choice = await pickPerson(
+                              sheetContext,
+                              allowNew: false,
+                              title: l.filterPerson,
+                            );
+                            if (choice?.personId != null && mounted) {
+                              update(_filter.copyWith(personId: choice!.personId));
+                            }
+                          },
+                        )
+                      else
+                        InputChip(
+                          key: const Key('filter-person'),
+                          avatar: const Icon(Icons.person, size: 16),
+                          label: Text(
+                            personNameOf(l, _filter.personId!, {
+                              for (final p
+                                  in ref.read(peopleProvider).value ??
+                                      const <PersonSummary>[])
+                                p.id: p,
+                            }),
+                          ),
+                          onDeleted: () =>
+                              update(_filter.copyWith(clearPerson: true)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => update(const MediaFilter()),
+                          child: Text(l.clearFilters),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          child: const Text('Show media'),
+                        ),
                       ),
                     ],
                   ),
@@ -196,52 +253,53 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
           if (_tab == 0) const ScanInviteStrip(),
           if (_tab == 0 && !_filter.isDefault)
-            FilterBar(
-              filters: [
-                if (_filter.kind != null)
-                  FilterSpec(
-                    key: 'kind',
-                    label: _filter.kind!,
-                    options: const [],
-                    currentValue: _filter.kind,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FilterBar(
+                      filters: [
+                        if (_filter.kind != null)
+                          FilterSpec(
+                            key: 'kind',
+                            label: _filter.kind!,
+                            options: const [],
+                            currentValue: _filter.kind,
+                          ),
+                        if (_filter.scan != ScanFilter.all)
+                          FilterSpec(
+                            key: 'scan',
+                            label: _filter.scan.name,
+                            options: const [],
+                            currentValue: _filter.scan,
+                          ),
+                        if (_filter.hasFaces == true)
+                          const FilterSpec(
+                            key: 'faces',
+                            label: 'Faces',
+                            options: [],
+                            currentValue: true,
+                          ),
+                        if (_filter.personId != null)
+                          FilterSpec(
+                            key: 'person',
+                            label: 'Person',
+                            options: const [],
+                            currentValue: _filter.personId,
+                          ),
+                      ],
+                      onFilterChanged: (_, _) {},
+                    ),
                   ),
-                if (_filter.scan != ScanFilter.all)
-                  FilterSpec(
-                    key: 'scan',
-                    label: _filter.scan.name,
-                    options: const [],
-                    currentValue: _filter.scan,
+                  TextButton.icon(
+                    key: const Key('library-clear-filters'),
+                    onPressed: () =>
+                        setState(() => _filter = const MediaFilter()),
+                    icon: const Icon(Icons.filter_alt_off_outlined, size: 16),
+                    label: Text(l10n.clearFilters),
                   ),
-                if (_filter.hasFaces == true)
-                  const FilterSpec(
-                    key: 'faces',
-                    label: 'Faces',
-                    options: [],
-                    currentValue: true,
-                  ),
-                if (_filter.personId != null)
-                  FilterSpec(
-                    key: 'person',
-                    label: 'Person',
-                    options: const [],
-                    currentValue: _filter.personId,
-                  ),
-              ],
-              onFilterChanged: (_, _) {},
-              onClearAll: () => setState(() => _filter = const MediaFilter()),
-            ),
-          if (_tab == 0 && !_filter.isDefault)
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TextButton.icon(
-                  key: const Key('library-clear-filters'),
-                  onPressed: () =>
-                      setState(() => _filter = const MediaFilter()),
-                  icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
-                  label: Text(l10n.clearFilters),
-                ),
+                ],
               ),
             ),
           Expanded(

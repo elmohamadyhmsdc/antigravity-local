@@ -13,40 +13,53 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const ActivityPill(),
-          NavigationBar(
-            selectedIndex: navigationShell.currentIndex,
-            onDestinationSelected: (index) =>
-                navigationShell.goBranch(index, initialLocation: false),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.photo_library_outlined),
-                selectedIcon: Icon(Icons.photo_library),
-                label: 'Gallery',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.people_outline),
-                selectedIcon: Icon(Icons.people),
-                label: 'People',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.explore_outlined),
-                selectedIcon: Icon(Icons.explore),
-                label: 'Explore',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.auto_awesome_outlined),
-                selectedIcon: Icon(Icons.auto_awesome),
-                label: 'Studio',
-              ),
-            ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: scheme.outlineVariant.withValues(alpha: 0.6),
+              width: 0.8,
+            ),
           ),
-        ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ActivityPill(),
+            NavigationBar(
+              selectedIndex: navigationShell.currentIndex,
+              onDestinationSelected: (index) =>
+                  navigationShell.goBranch(index, initialLocation: false),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.photo_library_outlined),
+                  selectedIcon: Icon(Icons.photo_library),
+                  label: 'Gallery',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.people_outline),
+                  selectedIcon: Icon(Icons.people),
+                  label: 'People',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.explore_outlined),
+                  selectedIcon: Icon(Icons.explore),
+                  label: 'Explore',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.auto_awesome_outlined),
+                  selectedIcon: Icon(Icons.auto_awesome),
+                  label: 'Studio',
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

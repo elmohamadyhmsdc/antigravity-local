@@ -158,24 +158,59 @@ class ActionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: emphasized ? scheme.primaryContainer : scheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(13),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: scheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: emphasized
+                ? scheme.primary.withValues(alpha: 0.4)
+                : scheme.outlineVariant.withValues(alpha: 0.6),
+            width: 0.8,
+          ),
         ),
-        child: Icon(
-          icon,
-          color: emphasized ? scheme.onPrimaryContainer : scheme.primary,
+        child: ListTile(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          leading: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: emphasized
+                  ? scheme.primary.withValues(alpha: 0.18)
+                  : scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: emphasized ? scheme.primary : scheme.onSurface,
+              size: 22,
+            ),
+          ),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+          ),
+          subtitle: subtitle == null
+              ? null
+              : Text(
+                  subtitle!,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 13,
+                    height: 1.25,
+                  ),
+                ),
+          trailing: Icon(
+            Icons.chevron_right,
+            size: 20,
+            color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
+          ),
+          onTap: onTap,
         ),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: subtitle == null ? null : Text(subtitle!),
-      trailing: const Icon(Icons.chevron_right, size: 20),
-      onTap: onTap,
     );
   }
 }

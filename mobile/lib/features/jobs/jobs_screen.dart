@@ -25,6 +25,7 @@ String jobStatusLabel(AppLocalizations l10n, String status) => switch (status) {
   _ => l10n.statusLost,
 };
 String jobTypeLabel(AppLocalizations l10n, String type) => switch (type) {
+  'edit_image' => 'AI Photo Edit',
   'undress_image' => l10n.restyleTitle,
   'build_lora_dataset' => l10n.loraDatasetBuild,
   'train_lora' => l10n.loraTrain,

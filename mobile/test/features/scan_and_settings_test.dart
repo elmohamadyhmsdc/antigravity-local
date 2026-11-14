@@ -328,6 +328,141 @@ void main() {
     );
 
     appTest(
+      'select all chooses all individual albums allowing exclusion, and deselect all clears',
+      (tester, env) async {
+        env.library.addAlbum(
+          const AlbumInfo(id: 'all', name: 'Recent', count: 540, isAll: true),
+          syntheticAssets(1),
+        );
+        env.library.addAlbum(
+          const AlbumInfo(id: 'cam', name: 'Camera', count: 480),
+          syntheticAssets(1),
+        );
+        env.library.addAlbum(
+          const AlbumInfo(id: 'shots', name: 'Screenshots', count: 50),
+          syntheticAssets(1),
+        );
+        env.library.addAlbum(
+          const AlbumInfo(id: 'wa', name: 'WhatsApp', count: 10),
+          syntheticAssets(1),
+        );
+        await _open(tester, env, '/sources');
+
+        final selectAllBtn = find.byKey(const Key('albums-select-all'));
+        final deselectAllBtn = find.byKey(const Key('albums-deselect-all'));
+
+        expect(selectAllBtn, findsOneWidget);
+        expect(deselectAllBtn, findsOneWidget);
+        expect(tester.widget<TextButton>(selectAllBtn).onPressed, isNotNull);
+        expect(tester.widget<TextButton>(deselectAllBtn).onPressed, isNull);
+
+        // Tap "Select all": selects all individual albums (cam, shots, wa) but not "all"
+        await tester.tap(selectAllBtn);
+        await _settle(tester);
+
+        expect((await env.settingsSnapshot()).albumIds, ['cam', 'shots', 'wa']);
+        expect(
+          tester
+              .widget<CheckboxListTile>(find.byKey(const Key('album-all')))
+              .value,
+          isFalse,
+        );
+        expect(
+          tester
+              .widget<CheckboxListTile>(find.byKey(const Key('album-cam')))
+              .value,
+          isTrue,
+        );
+        expect(
+          tester
+              .widget<CheckboxListTile>(find.byKey(const Key('album-shots')))
+              .value,
+          isTrue,
+        );
+        expect(
+          tester
+              .widget<CheckboxListTile>(find.byKey(const Key('album-wa')))
+              .value,
+          isTrue,
+        );
+
+        // Now selectAll is disabled because all individual albums are selected
+        expect(tester.widget<TextButton>(selectAllBtn).onPressed, isNull);
+        // deselectAll is enabled
+        expect(tester.widget<TextButton>(deselectAllBtn).onPressed, isNotNull);
+
+        // Exclude one album (Screenshots)
+        await tester.tap(find.byKey(const Key('album-shots')));
+        await _settle(tester);
+
+        expect((await env.settingsSnapshot()).albumIds, ['cam', 'wa']);
+        expect(
+          tester
+              .widget<CheckboxListTile>(find.byKey(const Key('album-shots')))
+              .value,
+          isFalse,
+        );
+        // selectAll is re-enabled because not all individual albums are selected
+        expect(tester.widget<TextButton>(selectAllBtn).onPressed, isNotNull);
+
+        // Tap "Deselect all"
+        await tester.tap(deselectAllBtn);
+        await _settle(tester);
+
+        expect((await env.settingsSnapshot()).albumIds, isEmpty);
+        expect(
+          tester
+              .widget<CheckboxListTile>(find.byKey(const Key('album-cam')))
+              .value,
+          isFalse,
+        );
+        expect(
+          tester
+              .widget<CheckboxListTile>(find.byKey(const Key('album-wa')))
+              .value,
+          isFalse,
+        );
+        expect(tester.widget<TextButton>(deselectAllBtn).onPressed, isNull);
+        expect(tester.widget<TextButton>(selectAllBtn).onPressed, isNotNull);
+      },
+      session: testSession,
+    );
+
+    appTest(
+      'select all and deselect all are disabled while a scan is running',
+      (tester, env) async {
+        env.library.addAlbum(
+          const AlbumInfo(id: 'cam', name: 'Camera', count: 480),
+          syntheticAssets(1),
+        );
+        await _open(
+          tester,
+          env,
+          '/sources',
+          progress: const ScanProgress(
+            phase: ScanPhase.running,
+            total: 10,
+            done: 2,
+          ),
+        );
+
+        expect(
+          tester
+              .widget<TextButton>(find.byKey(const Key('albums-select-all')))
+              .onPressed,
+          isNull,
+        );
+        expect(
+          tester
+              .widget<TextButton>(find.byKey(const Key('albums-deselect-all')))
+              .onPressed,
+          isNull,
+        );
+      },
+      session: testSession,
+    );
+
+    appTest(
       'without photo access it explains and offers to ask again',
       (tester, env) async {
         env.library.access = false;

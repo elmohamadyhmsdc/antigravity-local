@@ -1552,6 +1552,12 @@ abstract class AppLocalizations {
   /// **'Clear selection'**
   String get clearSelection;
 
+  /// No description provided for @deselectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Deselect all'**
+  String get deselectAll;
+
   /// No description provided for @compare.
   ///
   /// In en, this message translates to:

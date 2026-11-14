@@ -56,13 +56,21 @@ class PhotoEditTests(unittest.TestCase):
         self.assertEqual(result[55,75,3],255)
         np.testing.assert_array_equal(result[self.mask == 0],photo[self.mask == 0])
 
-    def test_person_overlap_prevents_renderer_from_running(self):
-        with patch('photo_edit.render_crop') as renderer:
-            with self.assertRaisesRegex(ValueError,'protected person'):
-                photo_edit.edit_photo(self.job,self.directory,lambda *a:None,lambda:False,
-                                       finder=lambda image:[[65,45,88,68]])
-            renderer.assert_not_called()
-        self.assertFalse((self.directory/'result.png').exists())
+    def test_clothing_and_person_selection_is_permitted_for_editing(self):
+        with patch('photo_edit.render_crop', return_value=self.render()) as renderer:
+            meta = photo_edit.edit_photo(self.job, self.directory, lambda *a: None, lambda: False,
+                                         finder=lambda image: [[65, 45, 88, 68]], renderer=self.render)
+            self.assertTrue((self.directory / 'result.png').exists())
+            self.assertTrue(meta['outside_selection_unchanged'])
+
+    def test_face_core_protection_preserves_accidental_brush_overlap(self):
+        mask = np.zeros((120, 180), np.uint8)
+        mask[30:80, 50:100] = 1 # large body/clothes selection
+        mask[15:25, 55:65] = 1 # small overlap touching face
+        box = [50, 10, 70, 30]
+        safe = photo_edit.protect_face_cores(mask, [box])
+        self.assertEqual(safe[20, 60], 0) # face center was cleared
+        self.assertEqual(safe[55, 75], 1) # body/clothes selection retained
 
     def test_person_detection_failure_is_not_treated_as_no_people(self):
         def fail(_): raise RuntimeError('Model unavailable')
@@ -166,11 +174,16 @@ class PhotoEditTests(unittest.TestCase):
         invalid = [dict(operation='replace',instruction=''),dict(operation='other'),
                    dict(operation='replace',instruction='nude photo'),dict(operation='replace',instruction='عري'),
                    dict(operation='remove',safety_checker=False),dict(operation='remove',steps=True),
-                   dict(operation='remove',steps=41),dict(operation='remove',seed=2**32)]
+                   dict(operation='remove',steps=41),dict(operation='remove',seed=2**32),
+                   dict(operation='replace',instruction='suit',strength=0.1),
+                   dict(operation='replace',instruction='suit',strength=1.5),
+                   dict(operation='replace',instruction='suit',strength=True)]
         for options in invalid:
             with self.subTest(options=options),self.assertRaises(ValueError):
                 photo_edit.validate_options(options)
         self.assertEqual(photo_edit.validate_options(dict(operation='remove'))['operation'],'remove')
+        valid_strength = photo_edit.validate_options(dict(operation='replace',instruction='blue suit',strength=0.75))
+        self.assertEqual(valid_strength['strength'], 0.75)
 
     def test_capability_and_exact_input_slots_are_required(self):
         body = dict(type='edit_image',params=self.job['params'],inputs=dict(image='a'*64,mask='b'*64))

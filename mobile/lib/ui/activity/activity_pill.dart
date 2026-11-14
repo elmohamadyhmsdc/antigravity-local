@@ -75,14 +75,16 @@ class ActivityPill extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Material(
           key: const Key('activity-pill'),
-          color: colorScheme.surfaceContainerHighest,
-          elevation: 2,
+          color: colorScheme.surfaceContainerHigh,
+          elevation: 3,
+          shadowColor: Colors.black.withValues(alpha: 0.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
             side: BorderSide(
               color: state is ActivityFailed
-                  ? colorScheme.error.withValues(alpha: 0.5)
-                  : colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ? colorScheme.error.withValues(alpha: 0.6)
+                  : colorScheme.primary.withValues(alpha: 0.28),
+              width: 0.8,
             ),
           ),
           child: InkWell(

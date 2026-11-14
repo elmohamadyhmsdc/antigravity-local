@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -113,53 +114,104 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                       onAction: () => ref.invalidate(albumsProvider),
                     );
                   }
-                  return Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      children: [
-                        for (final a in list) ...[
-                          CheckboxListTile(
-                            key: Key('album-${a.id}'),
-                            value: chosen.contains(a.id),
-                            title: Text(a.isAll ? l10n.allMedia : a.name),
-                            subtitle: Text(l10n.mediaCount(a.count)),
-                            onChanged: progress.isActive
+                  final allAlbum = list.firstWhereOrNull((a) => a.isAll);
+                  final individualAlbums = list.where((a) => !a.isAll).toList();
+                  final targetAlbums =
+                      individualAlbums.isNotEmpty ? individualAlbums : list;
+                  final targetIds = targetAlbums.map((a) => a.id).toSet();
+                  final isAllSelected = targetIds.isNotEmpty &&
+                      targetIds.every(chosen.contains) &&
+                      (individualAlbums.isEmpty ||
+                          (allAlbum != null
+                              ? !chosen.contains(allAlbum.id)
+                              : true));
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          TextButton.icon(
+                            key: const Key('albums-select-all'),
+                            icon: const Icon(Icons.select_all, size: 18),
+                            label: Text(l10n.selectAll),
+                            onPressed: progress.isActive || isAllSelected
                                 ? null
-                                : (on) {
-                                    final next = {...chosen};
-                                    if (a.isAll) {
-                                      on == true
-                                          ? next.add(a.id)
-                                          : next.clear();
-                                    } else {
-                                      next.remove('all');
-                                      on == true
-                                          ? next.add(a.id)
-                                          : next.remove(a.id);
-                                    }
-                                    settingsStore.setAlbumIds(next);
-                                  },
+                                : () => settingsStore.setAlbumIds(targetIds),
                           ),
-                          if (chosen.contains(a.id) && !a.isAll)
-                            SwitchListTile(
-                              key: Key('album-anime-${a.id}'),
-                              contentPadding: const EdgeInsetsDirectional.only(
-                                start: 32,
-                                end: 16,
-                              ),
-                              title: Text(l10n.charactersAlbumToggle),
-                              value: illustrated.contains(a.id),
-                              onChanged: progress.isActive
-                                  ? null
-                                  : (on) {
-                                      final next = {...illustrated};
-                                      on ? next.add(a.id) : next.remove(a.id);
-                                      settingsStore.setCharacterAlbumIds(next);
-                                    },
-                            ),
+                          TextButton.icon(
+                            key: const Key('albums-deselect-all'),
+                            icon: const Icon(Icons.deselect, size: 18),
+                            label: Text(l10n.deselectAll),
+                            onPressed: progress.isActive || chosen.isEmpty
+                                ? null
+                                : () => settingsStore.setAlbumIds(const {}),
+                          ),
                         ],
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(
+                          children: [
+                            for (final a in list) ...[
+                              CheckboxListTile(
+                                key: Key('album-${a.id}'),
+                                value: chosen.contains(a.id),
+                                title: Text(a.isAll ? l10n.allMedia : a.name),
+                                subtitle: Text(l10n.mediaCount(a.count)),
+                                onChanged: progress.isActive
+                                    ? null
+                                    : (on) {
+                                        final next = {...chosen};
+                                        if (a.isAll) {
+                                          if (on == true) {
+                                            next
+                                              ..clear()
+                                              ..add(a.id);
+                                          } else {
+                                            next.clear();
+                                          }
+                                        } else {
+                                          if (allAlbum != null) {
+                                            next.remove(allAlbum.id);
+                                          }
+                                          next.remove('all');
+                                          on == true
+                                              ? next.add(a.id)
+                                              : next.remove(a.id);
+                                        }
+                                        settingsStore.setAlbumIds(next);
+                                      },
+                              ),
+                              if (chosen.contains(a.id) && !a.isAll)
+                                SwitchListTile(
+                                  key: Key('album-anime-${a.id}'),
+                                  contentPadding:
+                                      const EdgeInsetsDirectional.only(
+                                    start: 32,
+                                    end: 16,
+                                  ),
+                                  title: Text(l10n.charactersAlbumToggle),
+                                  value: illustrated.contains(a.id),
+                                  onChanged: progress.isActive
+                                      ? null
+                                      : (on) {
+                                          final next = {...illustrated};
+                                          on
+                                              ? next.add(a.id)
+                                              : next.remove(a.id);
+                                          settingsStore
+                                              .setCharacterAlbumIds(next);
+                                        },
+                                ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),

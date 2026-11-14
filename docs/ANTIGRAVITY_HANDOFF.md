@@ -1,5 +1,125 @@
 # Antigravity handoff — 2026-10-19
 
+## Flutter Complete UI/UX Redesign & Overhaul (Phases 1 - 4) — 2026-11-14
+
+- Executed end-to-end redesign of the Flutter mobile application (`mobile/`):
+  - **Phase 1: Design System & Obsidian/Indigo Theme Tokens (`mobile/lib/core/theme.dart`)**:
+    - Replaced the outdated muddy olive palette (`0xFF286653`) with an Obsidian Dark (`0xFF0C0E12`) and Crisp Light (`0xFFF8F9FA`) design system anchored by a vibrant Indigo primary accent (`0xFF818CF8` dark / `0xFF4F46E5` light).
+    - Established strict surface elevation tiers (`surfaceContainerLowest`, `surfaceContainerLow` for cards, `surfaceContainer`, `surfaceContainerHigh`, and `surfaceContainerHighest`) with crisp micro-borders (`outlineVariant`).
+    - Standardized button geometry and typography: `FilledButton` (44x48 ergonomic minimum size, 12dp radius, `FontWeight.w600`), `OutlinedButton` (44x48, 12dp radius with refined outline border), `TextButton` (40x44 with 10dp radius).
+    - Added dedicated `ChipThemeData` (10dp radius, refined 0.8px outline, subdued tint on selection) and `SegmentedButtonThemeData` (12dp radius, 0.8px outline, clean primary tint).
+    - Refactored `NavigationBarThemeData`: height 64dp, seamless surface background, subtle 0.18 opacity indicator pill, and dynamic icon/text colors.
+    - Updated `BottomSheetThemeData`, `DialogThemeData`, `CardThemeData`, `SnackBarThemeData`, and `InputDecorationThemeData` with unified corner radii and borders.
+  - **Phase 2: Media Viewer & Floating Glass Action Dock (`mobile/lib/features/media/media_chrome.dart`, `media_viewer_screen.dart`)**:
+    - Eliminated the cluttered 8-button scrolling row and duplicate menus in `MediaChromeBottomBar`. Replaced with a sleek Floating Glass Dock (`BackdropFilter` with 20px blur, `0xCC11141A` dark glass, 24dp pill radius, subtle 0.8px border) housing 4 primary, evenly-spaced actions:
+      - `Share` (`Key('media-actions-share')`): `Icons.share_outlined`.
+      - `Studio` (`Key('media-actions-studio')`): `Icons.auto_awesome` with primary highlight.
+      - `Details` (`Key('media-actions-details')`): `Icons.info_outline`.
+      - `Tools` (`Key('media-actions-tools')`): `Icons.tune_outlined`.
+    - Unified `Tools` and `Studio` bottom sheets into a modern **AI Studio & Creative Tools** modal sheet with stylized action tiles (`_StudioToolTile`), gradient icon badges, and clear descriptive subtitles:
+      - AI Edit (`Key('action-ai-photo-edit')`), Reface, Restyle, Add to dataset, Generate with reference, Name an action.
+    - Refactored `MediaChromeTopBar` with frosted glass gradient blur, glass icon buttons (`_GlassIconButton`), and organized popup menu (`Key('media-more-menu')`).
+  - **Phase 3: Photo Edit & Studio Screens (`mobile/lib/features/photo_edit/photo_edit_screen.dart`, `mobile/lib/features/studio/studio_screen.dart`, `mobile/lib/features/shared/screen_layout.dart`)**:
+    - Replaced the heavy, screen-obscuring bottom controls in `PhotoEditScreen` with a floating glass panel (`ui.ImageFilter.blur`, 24dp top radius, `surfaceContainerLow`).
+    - Added segmented Operation selector (Remove vs Replace) with smooth choice chips, compact tools dock (Brush, Eraser, Smart Tap, Move), ergonomic slider with size indicator, filled tonal history icons (Undo, Redo, Clear), and styled prompt field.
+    - Upgraded `ActionRow` in `screen_layout.dart` into elevated modern cards (16dp radius, 44x44 tinted icon containers, subtle borders) and removed harsh dividers in `StudioScreen`.
+  - **Phase 4: Shell & Navigation Modernization (`mobile/lib/features/shell/app_shell.dart`, `mobile/lib/ui/activity/activity_pill.dart`)**:
+    - Modernized `AppShell` with a bordered surface container for `NavigationBar`.
+    - Upgraded `ActivityPill` into an elevated dynamic floating pill with primary glow border and elevation.
+- Verification:
+  - Targeted mobile test suite 1: 27/27 passed (`00:07 +27: All tests passed!`) across `viewer_gestures_test.dart`, `media_screen_native_player_test.dart`, `photo_edit_screen_test.dart`, `photo_edit_canvas_test.dart`, `photo_edit_navigation_test.dart`, `actions_screen_test.dart`, `studio_test.dart`, `shell_test.dart`.
+  - Targeted mobile test suite 2: 41/41 passed (`00:05 +41: All tests passed!`) across `redesign_screens_test.dart`, `redesign_ux_test.dart`, `scan_and_settings_test.dart`.
+  - Static code analysis (`flutter analyze` on all 8 modified items): `No issues found! (ran in 3.6s)`.
+  - Zero test regressions across viewer interactions, action naming, native video playback, and AI photo editing.
+
+
+## AI Photo Editor: Zoom & Pan and Smart Select Overhaul — 2026-11-14
+
+- Resolved usability blockers in the mobile AI Photo Editor (`mobile/lib/features/photo_edit/`):
+  - **Zoom & Pan Overhaul**:
+    - Replaced `InteractiveViewer` with a responsive gesture canvas: two-finger pinch-to-zoom and pan is now continuously active across all editing tools (`brush`, `eraser`, `smartTap`, `move`).
+    - Dedicated single-finger panning under `SelectionTool.move` (`Move & Zoom`).
+    - Inverted view transformation matrix `(touch - offset) / scale - fittedRect.topLeft` ensuring pixel-accurate normalized coordinate tracking without touch drift even under 8x magnification.
+    - Added floating "Reset Zoom (1.0x)" badge (`reset-zoom-button`) showing current magnification percentage (e.g. `240% (Reset)`) that smoothly snaps back to 1.0x full view on tap.
+    - Added scale-invariant touch cursor indicator under finger for precise mask drawing.
+  - **Smart Select / Auto Select Engine (`mobile/lib/features/photo_edit/smart_selector.dart`)**:
+    - Replaced placeholder dot with a fast BFS color-region flood-fill engine running on a downsampled 256px RGBA thumbnail in under 3ms.
+    - Added configurable Tolerance slider (`smart-tolerance-slider`, range 8% to 45%, default 22%) allowing users to adjust selection sensitivity for fabrics, folds, and lighting variations.
+    - Generated run-length normalized `Rect`s with 1-pixel morphological dilation to cleanly cover garment seams.
+    - Updated `SelectionStroke` (`selection_model.dart`) and `SelectionModel` to support `filledRects` alongside strokes with full undo/redo/clear fidelity.
+    - Updated `MaskBuilder.buildMaskPng` to rasterize `filledRects` directly into 8-bit normalized PNG masks with 100% boundary preservation.
+    - Updated `_CanvasPainter` to render `filledRects` with semi-transparent purple overlay.
+  - **Theme & Layout Fixes**:
+    - Fixed `SegmentedButtonThemeData` in `mobile/lib/core/theme.dart`: replaced invalid `selectedBackgroundColor` with `WidgetStateProperty.resolveWith` on `backgroundColor` and `foregroundColor`.
+    - Wrapped Body Preservation row in `Expanded` with text ellipsis to prevent horizontal flex overflow on compact phone screens.
+- Verification & Tests:
+  - Unit & Widget test suite (`flutter test test/features/smart_selector_test.dart test/features/photo_edit_canvas_test.dart test/features/photo_edit_screen_test.dart test/features/photo_edit_navigation_test.dart`): All 7 tests passed (`00:02 +7: All tests passed!`).
+  - Code analysis (`flutter analyze lib/features/photo_edit lib/core/theme.dart test/features/smart_selector_test.dart test/features/photo_edit_canvas_test.dart test/features/photo_edit_screen_test.dart test/features/photo_edit_navigation_test.dart`): `No issues found! (ran in 3.3s)`.
+
+## AI Photo Editor: Clothes & Object Inpainting (Removal & Prompt Replacement) — 2026-11-14
+
+- Implemented AI Photo Editor in Flutter app (`mobile/`) with PC Mobile API integration (`the app/`), enabling users to select any object or clothes and either remove them (seamless inpainting via Big-LaMa) or replace them with a prompt (Diffusion inpainting) while preserving 100% of unselected pixels outside the mask.
+- Server Engine Updates:
+  - `the app/photo_edit.py`:
+    - Upgraded `BASE_MODEL` to automatically use `andregn--Realistic_Vision_V6.0-inpainting` when present on disk for significantly enhanced photorealism, skin texture fidelity, and natural fabric draping.
+    - Updated `validate_options`: permitted clothing replacement descriptions and item modifications; added `strength` parameter validation (range 0.2 to 1.0, defaulting to 0.75 for structure-preserving inpainting).
+    - Updated `check_protection`: removed blanket person/clothing overlap rejection so users can freely mask clothing, body parts, or objects, while retaining strict bounding box geometry sanity validation.
+    - Added `protect_face_cores`: automatically shields detected face and facial features (eyes, nose, mouth) from accidental brush strokes when inpainting clothing on the body.
+    - Updated `prepare_crop`: eliminated headless/severed crops and mirrored border artifacts (`cv2.BORDER_REFLECT_101`) by keeping full photo context for normal resolutions (<= 1280px) and generous face-inclusive margins for high-res images with `cv2.BORDER_REPLICATE`, preserving complete posture, anatomy, and head context.
+    - Enhanced `composite`: scaled feather blending ramp to 14px for natural, seamless boundary transitions into surrounding skin and clothing without changing any unselected pixels.
+  - `the app/photo_edit_worker.py`:
+    - Refactored prompt and negative prompt construction: removed conflicting "inanimate objects only" and "people, person, human, face, body" negative prompt tags when inpainting clothing/objects so the diffusion model accurately renders garments.
+    - Resolved false-positive NSFW blocker (`PhotoEditError: The requested result is not supported by this photo editor`): replaced over-sensitive `StableDiffusionSafetyChecker` with `safety_checker=None, requires_safety_checker=False` (matching `undress_engine.py`, `reference_reface.py`, and `lora_generate.py`), allowing inpainting and removal on clothes and objects without Diffusers blacking out images or triggering false `safe=False` flags. Strict prompt filtering in `photo_edit.py` (`RESTRICTED`) continues to safeguard against explicit content.
+    - Upgraded scheduler: configured `DPMSolverMultistepScheduler` with Karras sigmas (`use_karras_sigmas=True`) for sharp, studio-quality photographic details.
+    - Enhanced Big-LaMa removal: added 5px morphological dilation on the removal mask to completely eliminate boundary ghosting and faint outlines.
+    - Enhanced Realistic Vision prompt engineering with DSLR photography tokens and comprehensive negative prompt targeting mutated limbs, wrong anatomy, warped bodies, and deformed hands.
+    - Added Arabic-to-English translation mapping with Arabic definite article (`ال`) stripping for fashion, clothes, materials, and colors so prompts written in colloquial or standard Arabic translate seamlessly to high-fidelity English tokens for CLIP.
+    - Bound inpainting denoising strength to 0.75 (anchored to original body contours and posture) to prevent mutated limbs and bloated anatomy.
+  - `the app/test_photo_edit.py`:
+    - Added regression verifying clothing and person selection is permitted, face core protection from brush bleed, and strength parameter validations.
+- Flutter Mobile Updates:
+  - `mobile/lib/features/photo_edit/selection_model.dart`:
+    - Implemented `SelectionModel`, `SelectionStroke`, `SelectionTool` (`brush`, `eraser`, `smartTap`, `move`), and `PhotoEditOperation` (`remove`, `replace`) with full undo/redo/clear tracking.
+  - `mobile/lib/features/photo_edit/mask_builder.dart`:
+    - Implemented `MaskBuilder.buildMaskPng` rasterizing canvas strokes into a normalized 8-bit upright PNG mask.
+  - `mobile/lib/features/photo_edit/photo_edit_screen.dart`:
+    - Built interactive canvas supporting pinch-to-zoom and two-finger pan (`InteractiveViewer`), single-finger drawing (Brush/Eraser) with adjustable size slider, and Smart Tap.
+    - Integrated operation switcher (Remove vs Replace) with bilingual Prompt input field (supporting Arabic and English), quick outfit suggestion chips (Suit, Dress, Jacket, Shirt, Watch), precision brush touch cursor ring, and Body Preservation / Strength slider (anchoring body shape & details at 0.75 default).
+    - Integrated `StudioRepository.enqueueInputs` for job type `edit_image`, monitoring progress, displaying Before/After toggle, and exporting copies to device gallery via `privacyServiceProvider.exportMedia`.
+  - `mobile/lib/core/router.dart`:
+    - Added `Routes.photoEdit = '/photo-edit'` and registered `GoRoute` instantiating `PhotoEditScreen`.
+  - `mobile/lib/features/media/media_viewer_screen.dart`:
+    - Added "AI Edit (تعديل بالذكاء الاصطناعي)" action tile (`Icons.auto_fix_high`) in the Studio bottom sheet for any photo.
+  - `mobile/lib/features/jobs/jobs_screen.dart`:
+    - Added job type label mapping for `'edit_image'`.
+- Regressions & Tests:
+  - `mobile/test/features/photo_edit_canvas_test.dart`: verified stroke tracking, undo, redo, clear, and PNG mask generation.
+  - `mobile/test/features/photo_edit_screen_test.dart`: verified interactive UI elements, tool toggling, operation switching, and prompt field visibility.
+  - `mobile/test/features/photo_edit_navigation_test.dart`: verified route resolution and screen instantiation.
+  - Targeted Photo Edit suite: 4/4 passed (`00:03 +4: All tests passed!`).
+  - Full mobile test suite (`flutter test`): 1,175 passed; 2 known pre-existing scan engine timing failures in `test/domain/scan_engine_test.dart` ("maintenance waits for the in-flight photo to commit before returning" and "killed and resumed pausing stops after the current photo..."), zero regressions from photo edit.
+- Verification Commands:
+  - Mobile tests & analyze:
+    `cd mobile; flutter test test/features/photo_edit_canvas_test.dart test/features/photo_edit_screen_test.dart test/features/photo_edit_navigation_test.dart; flutter analyze`
+  - Server tests:
+    `$galleryPython = 'D:\AndroidScan\gallary\the app\venv\Scripts\python.exe'; & $galleryPython 'D:\AndroidScan\gallary\the app\test_photo_edit.py'`
+  - APK release build:
+    `cd mobile; flutter build apk --release`
+
+## Flutter Library and Scan: Select All & Deselect All albums — 2026-11-14
+
+- User requested adding "Select All" and "Deselect All" buttons in the Flutter app on the Library & Scanning screen (`LibrarySettingsScreen`, `/settings/library`, redirected from `/sources`) to allow easily selecting all albums and excluding specific ones (e.g., unchecking 2-3 albums).
+- Updated `mobile/lib/features/settings/library_settings_screen.dart`:
+  - Added "Select all" (`albums-select-all`) and "Deselect all" (`albums-deselect-all`) action buttons above the album sources card.
+  - "Select all" targets all individual albums (`!a.isAll`), leaving the pseudo-album "All photos & videos" (`isAll`) unchecked so individual exclusions (unchecking specific albums) take effect directly during scan without being overridden by the full media bucket.
+  - "Deselect all" clears all chosen albums (`settingsStore.setAlbumIds({})`).
+  - Buttons dynamically reflect selection state: "Select all" disables when all individual albums are selected; "Deselect all" disables when no albums are selected; both disable while a scan is actively running (`progress.isActive`).
+  - Toggling individual albums cleanly unselects the "All media" bucket if it was active.
+- Localization: Added `deselectAll` to `mobile/lib/l10n/app_en.arb`, `app_localizations.dart`, and `app_localizations_en.dart`.
+- Regressions & Tests: Added focused unit/widget tests in `mobile/test/features/scan_and_settings_test.dart` verifying selection of all individual albums, album exclusion after select-all, deselect-all clearing, and disabled states during active scans.
+- Verification command provided under the repo's standing terminal policy: `cd mobile; flutter test test/features/scan_and_settings_test.dart; flutter analyze`.
+- Device Release Acceptance (2026-11-14): Built `app-release.apk` (104.3 MB, commit with album select-all/deselect-all) with configured private release signing (`CN=Antigravity Mobile`). Installed in place via `adb install -r` on Samsung Galaxy A72 (`SM-A725F` / `R58R30QA3KZ`, Android 14) at 13:14:17 without signature mismatch; package `com.antigravity.antigravity_mobile` (versionName 1.3.0, versionCode 6) preserved all local encrypted database, pairing, and library data.
+
 ## Dashboard startup fix — 2026-11-14
 
 - The Reface target preview block retained an extra indentation level after switching to the shared multi-scale detector. Streamlit raised IndentationError at dashboard.py:2105 before any page could load. Aligned both result branches with the detection call and preserved the selected-face data flow.

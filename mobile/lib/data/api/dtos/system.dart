@@ -56,6 +56,7 @@ class Engines {
     required this.bodyDetection,
     this.characterDetection = false,
     this.sensitiveDetection = false,
+    this.photoEdit = false,
     this.bodyEmbeddings = false,
     this.garmentTags = false,
     this.equipment = false,
@@ -76,6 +77,7 @@ class Engines {
 
   /// Roadmap section 8: the PC can return exposed / covered body-part regions.
   final bool sensitiveDetection;
+  final bool photoEdit;
 
   /// Roadmap Phase 7: the WD14 tagger is installed, so garment tags can be asked for.
   final bool garmentTags;
@@ -100,6 +102,7 @@ class Engines {
     bodyDetection: field<bool>(json, 'body_detection', 'engines'),
     characterDetection: json['character_detection'] as bool? ?? false,
     sensitiveDetection: json['sensitive_detection'] as bool? ?? false,
+    photoEdit: json['photo_edit'] as bool? ?? false,
     garmentTags: json['garment_tags'] as bool? ?? false,
     equipment: json['equipment'] as bool? ?? false,
     bodyEmbeddings: json['body_embeddings'] as bool? ?? false,

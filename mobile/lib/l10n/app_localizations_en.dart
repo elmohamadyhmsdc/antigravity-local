@@ -1011,6 +1011,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clearSelection => 'Clear selection';
 
   @override
+  String get deselectAll => 'Deselect all';
+
+  @override
   String get compare => 'Compare';
 
   @override

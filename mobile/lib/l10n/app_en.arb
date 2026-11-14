@@ -597,6 +597,7 @@
   "chooseAlbums": "Choose albums",
   "chooseAlbumsFirst": "Choose albums first",
   "clearSelection": "Clear selection",
+  "deselectAll": "Deselect all",
   "compare": "Compare",
   "coverChanged": "Cover photo changed",
   "create": "Create",

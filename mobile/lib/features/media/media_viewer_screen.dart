@@ -301,110 +301,118 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   }
 
   void _showStudioMenu(BuildContext context, MediaRow media) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.face_retouching_natural),
-              title: const Text('Reface'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                context.push('${Routes.studioReface}?target=media:${media.id}');
-              },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 8, bottom: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: primary, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'AI Studio & Creative Tools',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (media.kind == 'photo') ...[
+                  _StudioToolTile(
+                    key: const Key('action-ai-photo-edit'),
+                    icon: Icons.auto_fix_high,
+                    accentColor: const Color(0xFF8B5CF6),
+                    title: 'AI Edit (تعديل بالذكاء الاصطناعي)',
+                    subtitle: 'Erase or replace objects and clothing with a prompt',
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      context.push('${Routes.photoEdit}?media=${media.id}');
+                    },
+                  ),
+                ],
+                _StudioToolTile(
+                  icon: Icons.face_retouching_natural,
+                  accentColor: const Color(0xFF10B981),
+                  title: 'Reface',
+                  subtitle: 'Seamless face swap with high identity fidelity',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    context.push('${Routes.studioReface}?target=media:${media.id}');
+                  },
+                ),
+                if (media.kind == 'photo') ...[
+                  _StudioToolTile(
+                    icon: Icons.checkroom_outlined,
+                    accentColor: const Color(0xFFF59E0B),
+                    title: 'Restyle',
+                    subtitle: 'Transform outfits and generate styled fashion shots',
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      context.push('${Routes.restyle}?media=${media.id}');
+                    },
+                  ),
+                  _StudioToolTile(
+                    icon: Icons.folder_outlined,
+                    accentColor: const Color(0xFF3B82F6),
+                    title: 'Add to training dataset',
+                    subtitle: 'Add as a LoRA model training reference',
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      context.push('${Routes.studioDatasetsNew}?media=${media.id}');
+                    },
+                  ),
+                  _StudioToolTile(
+                    icon: Icons.auto_awesome_outlined,
+                    accentColor: const Color(0xFFEC4899),
+                    title: 'Generate with this reference',
+                    subtitle: 'Use as inspiration for new image generation',
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      context.push('${Routes.studioGenerate}?media=${media.id}');
+                    },
+                  ),
+                ],
+                _StudioToolTile(
+                  icon: Icons.motion_photos_on_outlined,
+                  accentColor: const Color(0xFF06B6D4),
+                  title: 'Name an action',
+                  subtitle: 'Label poses, activities and key movements',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ActionExampleScreen(media: media),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-            if (media.kind == 'photo') ...[
-              ListTile(
-                leading: const Icon(Icons.checkroom_outlined),
-                title: const Text('Restyle'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push('${Routes.restyle}?media=${media.id}');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.folder_outlined),
-                title: const Text('Add to training dataset'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push('${Routes.studioDatasetsNew}?media=${media.id}');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.auto_awesome_outlined),
-                title: const Text('Generate with this reference'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push('${Routes.studioGenerate}?media=${media.id}');
-                },
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
   }
 
   void _showTools(BuildContext context, MediaRow media) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.motion_photos_on_outlined),
-                title: const Text('Name an action'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ActionExampleScreen(media: media),
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.face_retouching_natural),
-                title: const Text('Reface'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push(
-                    '${Routes.studioReface}?target=media:${media.id}',
-                  );
-                },
-              ),
-              if (media.kind == 'photo') ...[
-                ListTile(
-                  leading: const Icon(Icons.checkroom_outlined),
-                  title: const Text('Restyle'),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    context.push('${Routes.restyle}?media=${media.id}');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.folder_outlined),
-                  title: const Text('Add to training dataset'),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    context.push(
-                      '${Routes.studioDatasetsNew}?media=${media.id}',
-                    );
-                  },
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
+    _showStudioMenu(context, media);
   }
 
   void _showDetectionActions(
@@ -964,6 +972,92 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _StudioToolTile extends StatelessWidget {
+  const _StudioToolTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.accentColor,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final Color? accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = accentColor ?? theme.colorScheme.primary;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: theme.colorScheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            width: 0.8,
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: accent, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
