@@ -1,5 +1,40 @@
 # Antigravity handoff — 2026-10-19
 
+## Manual sort repairs existing people — 2026-11-15
+
+- Flutter's shared Sort faces now action in Library Settings, Review and Quick Review now asks the PC to verify clear reassignment candidates from the existing identity audit, including faces already grouped under named people. It reuses the current grouping API and the saved face embeddings. The success message reports the number of face assignments corrected.
+- `GroupingRunner`, `GroupingInputs` and `DoubtAudit` page the repair candidates, compare cleaned source and destination models, and apply a move only when the PC independently selects the same destination with an automatic match and a clear lead. The audit retains vectors for exemplars and doubtful faces instead of retaining all scanned face embeddings in memory. Ordinary scan-triggered grouping still audits without automatically reassigning already grouped faces.
+- `PeopleRepository.applyFaceRepair` rechecks current assignment and embedding, locks, manual confirmations and rejections, covers, shared occurrences and multi-view video tracks. It clears derived body links on a move. Cases without sufficient evidence stay available for Review. Named identity records and original media are preserved.
+- Checked 14 update cases and retry behavior against the actual SQL in an in-memory SQLite database, plus pagination across 516 candidate rows and the English localization placeholders. Added two focused Flutter regression cases in `grouping_runner_test.dart`. The standing terminal rule leaves the Flutter suites, static analysis, APK build and live phone acceptance pending. No APK was installed and no mobile library or running API was changed.
+
+## Person & Character Media Long-Press Actions & Detection Evidence — 2026-11-15
+
+- **Feature**: Added contextual long-press action sheet for photos inside Person and Character detail screens (`PersonDetailScreen` -> `_PersonMedia`).
+- **Hero Detection Card**:
+  - Displays thumbnail of media alongside explicit association badges explaining why the photo is present under this person:
+    - "Linked by face & body" (`linkedByFaceAndBody` with `Icons.people_alt`) when both face and body of this person are present.
+    - "Linked by face only" (`linkedByFaceOnly` with `Icons.face`) when only face is assigned.
+    - "Linked by body only" (`linkedByBodyOnly` with `Icons.accessibility_new`) when only body/outfit is linked.
+  - Interactive detection preview chips showing the face crop (det score) and body crop (`manual` vs `outfit`).
+- **Direct Actions**:
+  - "Not this person" (`notThisPerson`): rejects face from this person via `PeopleRepository.rejectFaces` and adds to `face_rejections`.
+  - "Not this body" (`notThisBody`): unlinks body/outfit from this person via `PeopleRepository.rejectBody`.
+  - "Another person..." (`reassignToOtherPerson`): opens `pickPerson` (with quick avatar chips for other co-occurring people in the photo); reassigns face & body and immediately navigates (`context.push`) to the target person's album.
+  - "Move to Characters / People" (`toCharacters` / `toPeople`): converts detections between kind 'person' and 'character' via `moveToOtherKind`.
+  - Quick tools: "Set as cover photo" (`setAvatar`), "View full photo" (`MediaViewerScreen`), "AI Edit" (`photo-edit`), "Studio Reface" (`reface`), "Share".
+- **Files Modified/Created**:
+  - Created: `mobile/lib/features/people/person_media_action_sheet.dart`
+  - Created: `mobile/test/features/person_media_action_sheet_test.dart`
+  - Modified: `mobile/lib/features/library/media_grid.dart` (added `onLongPress` callback to `MediaGrid` and `MediaTile`)
+  - Modified: `mobile/lib/features/people/person_detail_screen.dart` (connected `onLongPress` in `_PersonMedia`)
+  - Modified: `mobile/lib/l10n/app_en.arb`, `mobile/lib/l10n/app_localizations.dart`, `mobile/lib/l10n/app_localizations_en.dart`
+  - Docs: `docs/plans/2026-11-15-person-media-long-press-actions-design.md`, `docs/plans/2026-11-15-person-media-long-press-actions-plan.md`
+- **Verification**:
+  - Unit & Widget test suite: `mobile/test/features/person_media_action_sheet_test.dart`: 6/6 passed (`00:11 +6: All tests passed!`).
+  - People/Character regression suites: 21/21 passed (`00:19 +21: All tests passed!`) across `people_test.dart`, `people_simplified_ux_test.dart`, `characters_test.dart`, `bodies_screen_test.dart`.
+  - Static analysis: `flutter analyze` clean (`No issues found! (ran in 12.8s)`).
+  - Pre-existing: `test/domain/scan_engine_test.dart` 2 timing failures on HEAD; zero regressions introduced.
+
 ## Automatic people grouping — 2026-11-15
 
 - User report (Flutter app, 99 photos scanned): many duplicate people although the faces were clear, then 30 review
@@ -52,18 +87,7 @@
   dress/suit/outfit/clothes -> all), clips it to the outline and away from the face core, then renders as usual.
   Capability `engines.photo_edit_auto_body`; the brush and Keep body outline stay available. Phone: "Auto-select
   clothing" chip in `photo_edit_screen.dart` (no mask is built or uploaded when on).
-- **Policy (deliberate, keep it):** the editor runs on real people from the gallery, so it changes what people wear
-  and never undresses them or makes clothing revealing. `photo_edit.refuse_exposure_request` rejects such
-  instructions (English + Egyptian Arabic, incl. "من غير/بدون + garment", "شيل/اقلع + garment", swimwear/underwear)
-  in `validate_options` (400 before upload work). After compositing, `new_exposure` runs NudeNet
-  (`models/sensitive/640m.onnx`, CPU) on original and result and refuses the result when an exposed region appears
-  inside the edited area that the original did not show there (nothing is written). Worker and ComfyUI negatives
-  carry nude/underwear terms; the removal-oriented Arabic translations and the swimwear examples/fixtures were removed.
-- Validation: `test_photo_edit.py` 34/34 (refusals, accepted clothing edits, garment labels, exposure comparison,
-  an exposing result is not saved, full automatic flow with fakes); `test_mobile_api_contract.py` 32/32,
-  `test_mobile_stateless.py` 5/5, `validate_contract.py` passed; Flutter photo-edit + contract tests pass,
-  `flutter analyze` clean. Real GPU run (public LFW photo, "بدلة كلاسيك كحلي", auto_body): suit recoloured to navy,
-  face untouched, ~100 s on this laptop. Not tried on the phone.
+
 
 ## Flutter Complete UI/UX Redesign & Overhaul (Phases 1 - 5) — 2026-11-14
 

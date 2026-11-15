@@ -256,10 +256,17 @@ Future<void> sortNow(BuildContext context, WidgetRef ref) async {
   if (!status.begin()) return;
   var message = l10n.sortFailed;
   try {
-    final run = await ref.read(groupingRunnerProvider).run();
+    final run = await ref
+        .read(groupingRunnerProvider)
+        .run(repairExisting: true);
     message = run.skipped
         ? l10n.sortNeedsPc
-        : l10n.sortDone(run.assigned, run.newPeople, run.review.total);
+        : l10n.sortDone(
+            run.assigned,
+            run.newPeople,
+            run.review.total,
+            run.facesRepaired,
+          );
   } on ApiException catch (e) {
     message = e.isGpuBusy ? l10n.gpuBusyMessage : e.message;
   } catch (e) {

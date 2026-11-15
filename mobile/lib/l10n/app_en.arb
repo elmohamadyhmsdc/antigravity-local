@@ -1096,7 +1096,7 @@
     }
   },
   "sortBy": "Sort",
-  "sortDone": "Added {assigned} faces to people, created {created} people, {review} to review",
+  "sortDone": "Added {assigned} faces to people, created {created} people, corrected {repaired} face assignments, {review} to review",
   "@sortDone": {
     "placeholders": {
       "assigned": {
@@ -1107,15 +1107,18 @@
       },
       "review": {
         "type": "int"
+      },
+      "repaired": {
+        "type": "int"
       }
     }
   },
   "sortMostFaces": "Most faces",
   "sortName": "Name",
-  "sortNeedsPc": "Existing people were checked on this phone. Pair with your PC to sort new faces.",
+  "sortNeedsPc": "Existing people were checked on this phone. Pair with your PC to apply corrections and sort new faces.",
   "sortNewest": "Newest",
   "sortNow": "Sort faces now",
-  "sortNowHint": "Ask the PC to sort unsorted faces into people again",
+  "sortNowHint": "Ask the PC to sort new faces and correct clear mistakes in existing people, including named people",
   "sortFailed": "Could not sort the library. Try Sort now again.",
   "sorting": "Sorting faces…",
   "sourcesTitle": "Sources & scan",
@@ -2344,6 +2347,21 @@
       },
       "count": {
         "type": "int"
+      }
+    }
+  },
+  "notThisBody": "Not this body",
+  "linkedByFaceAndBody": "Linked by face & body",
+  "linkedByFaceOnly": "Linked by face only",
+  "linkedByBodyOnly": "Linked by body only",
+  "reassignToOtherPerson": "Another person...",
+  "setAsPersonCover": "Set as cover photo",
+  "viewFullMedia": "View full photo",
+  "reassignedToPerson": "Moved to {name}",
+  "@reassignedToPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
       }
     }
   }

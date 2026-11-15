@@ -317,7 +317,7 @@ final characterGroupingRunnerProvider = Provider<GroupingRunner>(
     api: () => ref.read(mobileApiProvider),
     review: ref.watch(characterReviewRepositoryProvider),
     kind: 'character',
-    merge: ref.watch(characterPeopleRepositoryProvider).mergePeople,
+    people: ref.watch(characterPeopleRepositoryProvider),
   ),
 );
 
@@ -328,7 +328,7 @@ final groupingRunnerProvider = Provider<GroupingRunner>(
     api: () => ref.read(mobileApiProvider),
     review: ref.watch(reviewRepositoryProvider),
     then: ref.watch(characterGroupingRunnerProvider),
-    merge: ref.watch(peopleRepositoryProvider).mergePeople,
+    people: ref.watch(peopleRepositoryProvider),
   ),
 );
 

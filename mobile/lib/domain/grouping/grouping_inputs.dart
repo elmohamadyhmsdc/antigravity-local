@@ -18,6 +18,14 @@ class FaceVector {
   final double quality;
 }
 
+typedef FaceRepairCandidate = ({
+  GroupingFace face,
+  int sourceId,
+  int targetId,
+  String modelId,
+  Uint8List embedding,
+});
+
 Float32List _normalized(Float32List v) {
   var sum = 0.0;
   for (final x in v) {
@@ -207,20 +215,28 @@ class GroupingInputs {
     }
   }
 
-  Future<List<GroupingModel>> models({int cap = groupingMemberCap}) async {
-    final people = await _db
+  Future<List<GroupingModel>> models({
+    int cap = groupingMemberCap,
+    Set<int>? onlyPeople,
+  }) async {
+    final rows = await _db
         .customSelect(
           'SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL AND EXISTS (SELECT 1 FROM persons p WHERE p.id = faces.person_id AND p.grouping_locked = 0 AND p.kind = ?) ORDER BY person_id',
           variables: [Variable.withString(kind)],
           readsFrom: {_db.faces, _db.persons},
         )
         .get();
+    final people = [
+      for (final row in rows)
+        if (onlyPeople == null ||
+            onlyPeople.contains(row.read<int>('person_id')))
+          row.read<int>('person_id'),
+    ];
     cap = effectiveMemberCap(people.length, cap);
     final libraryModel = await activeEmbeddingModel(_db, kind);
     final out = <GroupingModel>[];
     final slice = Stopwatch()..start();
-    for (final p in people) {
-      final pid = p.read<int>('person_id');
+    for (final pid in people) {
       final rows = await _db
           .customSelect(
             "SELECT id, quality_score, embedding FROM faces WHERE person_id = ? AND face_px >= ? AND hidden = 0 AND (ownership IS NULL OR ownership != 'none') AND (?3 IS NULL OR model_id = ?3) AND NOT EXISTS (SELECT 1 FROM review_doubtful d WHERE d.face_id = faces.id AND d.person_id = faces.person_id)",
@@ -267,13 +283,65 @@ class GroupingInputs {
           ..start();
       }
     }
-    final live = {for (final m in out) m.pid};
-    _modelCache.removeWhere((pid, _) => !live.contains(pid));
+    if (onlyPeople == null) {
+      final live = {for (final m in out) m.pid};
+      _modelCache.removeWhere((pid, _) => !live.contains(pid));
+    }
     return out;
   }
 
   /// person id -> (signature of the faces it was built from, the model).
   final _modelCache = <int, (String, GroupingModel)>{};
+
+  /// Only the audit's clear alternatives are checked on the PC. Page the
+  /// embeddings so an existing library can be repaired without a huge upload.
+  Stream<List<FaceRepairCandidate>> repairCandidates() async* {
+    const pageSize = 256;
+    final model = await activeEmbeddingModel(_db, kind);
+    var after = 0;
+    while (true) {
+      final rows = await _db.customSelect(
+        '''
+        SELECT f.id, f.model_id, f.embedding, f.quality_score, f.media_id, f.frame_number,
+               d.person_id, d.suggested_person_id
+        FROM review_doubtful d JOIN faces f ON f.id = d.face_id AND f.person_id = d.person_id
+        WHERE f.id > ?1 AND f.kind = ?2 AND (?3 IS NULL OR f.model_id = ?3)
+          AND d.suggested_person_id IS NOT NULL AND f.review_dismissed = 0
+        ORDER BY f.id LIMIT $pageSize
+        ''',
+        variables: [
+          Variable.withInt(after),
+          Variable.withString(kind),
+          Variable<String>(model),
+        ],
+      ).get();
+      if (rows.isEmpty) return;
+      after = rows.last.read<int>('id');
+      final candidates = <FaceRepairCandidate>[];
+      for (final row in rows) {
+        final blob = row.read<Uint8List>('embedding');
+        final vector = _vector(blob);
+        final quality = row.read<double>('quality_score');
+        if (vector == null || !quality.isFinite) continue;
+        candidates.add((
+          face: GroupingFace(
+            id: row.read<int>('id'),
+            embedding: vector,
+            quality: quality,
+            frameKey: frameKeyOf(
+              row.readNullable<int>('media_id'),
+              row.readNullable<int>('frame_number'),
+            ),
+          ),
+          sourceId: row.read<int>('person_id'),
+          targetId: row.read<int>('suggested_person_id'),
+          modelId: row.read<String>('model_id'),
+          embedding: blob,
+        ));
+      }
+      if (candidates.isNotEmpty) yield candidates;
+    }
+  }
 
   /// Faces that belong to nobody, with the people they were told they are NOT.
   Future<List<GroupingFace>> pending() async {

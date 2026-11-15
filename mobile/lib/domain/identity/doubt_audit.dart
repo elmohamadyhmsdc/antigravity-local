@@ -58,9 +58,7 @@ class DoubtAudit {
     final flagged = <int, List<_Doubt>>{};
     final cores = <int, Float32List>{};
     final exemplars = <int, List<IdentityFace>>{};
-    final modelIds = <int, String>{};
-    final rawEmbeddings = <int, Uint8List>{};
-    final vectors = <int, Float32List>{};
+    final coreModels = <int, String>{};
     final slice = Stopwatch()..start();
     for (final p in people) {
       final pid = p.read<int>('id');
@@ -79,6 +77,7 @@ class DoubtAudit {
           .get();
       final faces = <IdentityFace>[];
       final trusted = <int>{};
+      final modelIds = <String>{};
       for (final r in rows) {
         // Missing/poor evidence is not an accusation of wrong identity.
         if (!r.read<double>('quality_score').isFinite ||
@@ -88,13 +87,10 @@ class DoubtAudit {
             r.read<double>('sharpness') <= 0) {
           continue;
         }
-        final blob = r.read<Uint8List>('embedding');
-        final v = _vector(blob);
+        final v = _vector(r.read<Uint8List>('embedding'));
         if (v == null) continue;
         final id = r.read<int>('id');
-        vectors[id] = v;
-        rawEmbeddings[id] = blob;
-        modelIds[id] = r.read<String>('model_id');
+        modelIds.add(r.read<String>('model_id'));
         if (r.read<bool>('confirmed')) trusted.add(id);
         faces.add(
           IdentityFace(
@@ -109,7 +105,7 @@ class DoubtAudit {
       if (faces.length >= 3) {
         // Old imports can contain compatible-sized but unrelated model spaces.
         // Without a selected library model, do not invent comparisons across them.
-        if (faces.map((f) => modelIds[f.id]).toSet().length != 1) continue;
+        if (modelIds.length != 1) continue;
         final selection = selectIdentity(
           faces,
           floor: _floor,
@@ -130,19 +126,21 @@ class DoubtAudit {
         ).kept;
         exemplars[pid] = refs;
         final doubts = <_Doubt>[];
-        for (final id in selection.outliers) {
-          final score = selection.similarity[id];
+        final outliers = selection.outliers.toSet();
+        for (final f in faces) {
+          if (!outliers.contains(f.id)) continue;
+          final score = selection.similarity[f.id];
           if (score == null) continue;
-          final comparable = refs.where((f) => modelIds[f.id] == modelIds[id]);
-          final nearest = comparable.fold<double>(
+          final nearest = refs.fold<double>(
             -1,
-            (s, f) => math.max(s, _cosine(vectors[id]!, f.embedding)),
+            (s, ref) => math.max(s, _cosine(f.embedding, ref.embedding)),
           );
           if (nearest >= (_character ? 0.82 : 0.45)) continue;
-          doubts.add(_Doubt(id, math.max(score, nearest)));
+          doubts.add(_Doubt(f.id, f.embedding, math.max(score, nearest)));
         }
         if (doubts.isNotEmpty) flagged[pid] = doubts;
         cores[pid] = _core(refs);
+        coreModels[pid] = modelIds.single;
       }
       // a big library is a lot of arithmetic: never hold the screen (or the Pause button) for long
       if (slice.elapsedMilliseconds > 12) {
@@ -156,31 +154,28 @@ class DoubtAudit {
     // Where a doubtful face fits better: the other person whose core it is closest to.
     for (final entry in flagged.entries) {
       for (final d in entry.value) {
-        final v = vectors[d.faceId]!;
+        final v = d.embedding;
         int? best;
         var bestScore = -1.0, runnerUp = -1.0;
         // Coarse identity retrieval first. Do not run 24 exemplar comparisons
         // against every person for every face in a large repair backlog.
         final candidates = [
           for (final c in cores.entries)
-            if (c.key != entry.key) (c.key, _cosine(v, c.value)),
+            if (c.key != entry.key && coreModels[c.key] == coreModels[entry.key])
+              (c.key, _cosine(v, c.value)),
         ]..sort((a, b) => b.$2.compareTo(a.$2));
         for (final candidate in candidates.take(8)) {
-          final c = MapEntry(candidate.$1, cores[candidate.$1]!);
-          final refs = exemplars[c.key]!
-              .where((f) => modelIds[f.id] == modelIds[d.faceId])
-              .toList();
-          if (refs.isEmpty) continue;
+          final refs = exemplars[candidate.$1]!;
           final scores = [for (final f in refs) _cosine(v, f.embedding)]
             ..sort((a, b) => b.compareTo(a));
           final top = scores.take(3).toList();
           final s =
-              0.5 * _cosine(v, c.value) +
+              0.5 * candidate.$2 +
               0.5 * top.reduce((a, b) => a + b) / top.length;
           if (s > bestScore) {
             runnerUp = bestScore;
             bestScore = s;
-            best = c.key;
+            best = candidate.$1;
           } else if (s > runnerUp) {
             runnerUp = s;
           }
@@ -228,7 +223,7 @@ class DoubtAudit {
               Variable<double>(d.suggestedScore),
               Variable.withInt(d.faceId),
               Variable.withInt(e.key),
-              Variable<Uint8List>(rawEmbeddings[d.faceId]!),
+              Variable<Uint8List>(embeddingToBlob(d.embedding)),
             ],
             updates: {_db.reviewDoubtful},
           );
@@ -283,9 +278,10 @@ class DoubtAudit {
 }
 
 class _Doubt {
-  _Doubt(this.faceId, this.score);
+  _Doubt(this.faceId, this.embedding, this.score);
 
   final int faceId;
+  final Float32List embedding;
   final double score;
   int? suggested;
   double? suggestedScore;

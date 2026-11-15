@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:drift/drift.dart';
 
@@ -519,6 +520,63 @@ class PeopleRepository {
   /// Assign (or move) faces to a person. A rejection of that very pair is forgotten.
   Future<void> assignFaces(Iterable<int> faceIds, int personId) =>
       _db.transaction(() => _assign(faceIds, personId));
+
+  /// Applies a PC-confirmed audit suggestion while its input still holds.
+  Future<bool> applyFaceRepair({
+    required int faceId,
+    required int sourceId,
+    required int targetId,
+    required String modelId,
+    required Uint8List embedding,
+  }) => _db.transaction(() async {
+    if (sourceId == targetId) return false;
+    final changed = await _db.customUpdate(
+      '''
+      WITH appearances AS (
+        SELECT media_id, frame_number FROM faces WHERE id = ?1 AND media_id IS NOT NULL
+        UNION
+        SELECT media_id, frame_number FROM media_detections WHERE kind = 'f' AND ref_id = ?1
+      )
+      UPDATE faces SET person_id = ?3
+      WHERE id = ?1 AND person_id = ?2 AND model_id = ?4 AND embedding = ?5
+        AND hidden = 0 AND review_dismissed = 0 AND ownership IS NOT 'none'
+        AND EXISTS (SELECT 1 FROM review_doubtful d
+                    WHERE d.face_id = ?1 AND d.person_id = ?2 AND d.suggested_person_id = ?3)
+        AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ?2 AND p.kind = faces.kind
+                    AND p.grouping_locked = 0 AND p.avatar_face_id IS NOT ?1)
+        AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ?3 AND p.kind = faces.kind
+                    AND p.grouping_locked = 0)
+        AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = ?1)
+        AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = ?1 AND r.person_id = ?3)
+        AND NOT EXISTS (SELECT 1 FROM bodies b WHERE b.face_id = ?1 AND b.link_method = 'manual')
+        AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.track_id = faces.track_id AND f.id != ?1)
+        AND NOT EXISTS (
+          SELECT 1 FROM appearances a JOIN faces f
+            ON f.media_id = a.media_id AND f.frame_number IS a.frame_number
+          WHERE f.person_id = ?3
+          UNION ALL
+          SELECT 1 FROM appearances a JOIN media_detections d
+            ON d.media_id = a.media_id AND d.frame_number IS a.frame_number AND d.kind = 'f'
+          JOIN faces f ON f.id = d.ref_id AND f.person_id = ?3
+        )
+      ''',
+      variables: [
+        Variable.withInt(faceId),
+        Variable.withInt(sourceId),
+        Variable.withInt(targetId),
+        Variable.withString(modelId),
+        Variable<Uint8List>(embedding),
+      ],
+      updates: {_db.faces},
+    );
+    if (changed == 0) return false;
+    await _clearDerivedBodyLinks([faceId]);
+    await (_db.delete(_db.reviewDoubtful)..where((d) => d.faceId.equals(faceId)))
+        .go();
+    await (_db.delete(_db.reviewMatches)..where((r) => r.faceId.equals(faceId)))
+        .go();
+    return true;
+  });
 
   /// "This is not that person": the face leaves the person and auto-grouping never puts it back.
   /// `fromPersonId` null = whoever it is assigned to now.

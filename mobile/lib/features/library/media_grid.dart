@@ -22,12 +22,14 @@ class MediaGrid extends ConsumerStatefulWidget {
     required this.empty,
     this.columns = 3,
     this.onSelect,
+    this.onLongPress,
   });
 
   final MediaFilter filter;
   final Widget empty;
   final int columns;
   final ValueChanged<MediaListItem>? onSelect;
+  final ValueChanged<MediaListItem>? onLongPress;
 
   @override
   ConsumerState<MediaGrid> createState() => _MediaGridState();
@@ -144,6 +146,7 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
             item: items[at],
             filter: widget.filter,
             onSelect: widget.onSelect,
+            onLongPress: widget.onLongPress,
           );
         },
       ),
@@ -153,11 +156,18 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
 
 /// One photo in a grid: thumbnail, how many faces were found, whether it is scanned yet.
 class MediaTile extends ConsumerWidget {
-  const MediaTile({super.key, required this.item, this.filter, this.onSelect});
+  const MediaTile({
+    super.key,
+    required this.item,
+    this.filter,
+    this.onSelect,
+    this.onLongPress,
+  });
 
   final MediaListItem item;
   final MediaFilter? filter;
   final ValueChanged<MediaListItem>? onSelect;
+  final ValueChanged<MediaListItem>? onLongPress;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -194,6 +204,7 @@ class MediaTile extends ConsumerWidget {
         );
         context.push(uri.toString());
       },
+      onLongPress: onLongPress == null ? null : () => onLongPress!(item),
       child: Stack(
         fit: StackFit.expand,
         children: [

@@ -22,6 +22,7 @@ import '../shared/person_picker.dart';
 import 'face_grid.dart';
 import 'action_sheet.dart';
 import 'people_actions.dart';
+import 'person_media_action_sheet.dart';
 import 'training_export_dialog.dart';
 import 'identity_groups_screen.dart';
 import '../video_actions/video_actions_screen.dart';
@@ -171,7 +172,7 @@ class PersonDetailScreen extends ConsumerWidget {
                 Expanded(
                   child: TabBarView(
                     children: [
-                      _PersonMedia(personId: personId),
+                      _PersonMedia(personId: personId, person: p),
                       DefaultTabController(
                         length: 4,
                         initialIndex: initialTab == 2
@@ -750,46 +751,57 @@ class _BodyLinkTile extends ConsumerWidget {
   }
 }
 
-class _PersonMedia extends StatefulWidget {
-  const _PersonMedia({required this.personId});
+class _PersonMedia extends ConsumerStatefulWidget {
+  const _PersonMedia({required this.personId, this.person});
   final int personId;
+  final PersonSummary? person;
   @override
-  State<_PersonMedia> createState() => _PersonMediaState();
+  ConsumerState<_PersonMedia> createState() => _PersonMediaState();
 }
 
-class _PersonMediaState extends State<_PersonMedia> {
+class _PersonMediaState extends ConsumerState<_PersonMedia> {
   String? _kind;
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Align(
-        alignment: Alignment.centerRight,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: DropdownButton<String>(
-            value: _kind ?? 'all',
-            items: const [
-              DropdownMenuItem(value: 'all', child: Text('All media')),
-              DropdownMenuItem(value: 'photo', child: Text('Photos')),
-              DropdownMenuItem(value: 'video', child: Text('Videos')),
-            ],
-            onChanged: (value) =>
-                setState(() => _kind = value == 'all' ? null : value),
+  Widget build(BuildContext context) {
+    final p = widget.person ?? ref.watch(personProvider(widget.personId)).value;
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: DropdownButton<String>(
+              value: _kind ?? 'all',
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All media')),
+                DropdownMenuItem(value: 'photo', child: Text('Photos')),
+                DropdownMenuItem(value: 'video', child: Text('Videos')),
+              ],
+              onChanged: (value) =>
+                  setState(() => _kind = value == 'all' ? null : value),
+            ),
           ),
         ),
-      ),
-      Expanded(
-        child: MediaGrid(
-          columns: 4,
-          filter: MediaFilter(personId: widget.personId, kind: _kind),
-          empty: EmptyState(
-            icon: Icons.photo_outlined,
-            title: AppLocalizations.of(context).noPhotosOfPerson,
+        Expanded(
+          child: MediaGrid(
+            columns: 4,
+            filter: MediaFilter(personId: widget.personId, kind: _kind),
+            onLongPress: p == null
+                ? null
+                : (item) => showPersonMediaActionSheet(
+                      context,
+                      person: p,
+                      item: item,
+                    ),
+            empty: EmptyState(
+              icon: Icons.photo_outlined,
+              title: AppLocalizations.of(context).noPhotosOfPerson,
+            ),
           ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 class _PersonModels extends ConsumerWidget {

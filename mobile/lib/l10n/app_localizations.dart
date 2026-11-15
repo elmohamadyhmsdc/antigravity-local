@@ -2473,8 +2473,8 @@ abstract class AppLocalizations {
   /// No description provided for @sortDone.
   ///
   /// In en, this message translates to:
-  /// **'Added {assigned} faces to people, created {created} people, {review} to review'**
-  String sortDone(int assigned, int created, int review);
+  /// **'Added {assigned} faces to people, created {created} people, corrected {repaired} face assignments, {review} to review'**
+  String sortDone(int assigned, int created, int review, int repaired);
 
   /// No description provided for @sortMostFaces.
   ///
@@ -2491,7 +2491,7 @@ abstract class AppLocalizations {
   /// No description provided for @sortNeedsPc.
   ///
   /// In en, this message translates to:
-  /// **'Existing people were checked on this phone. Pair with your PC to sort new faces.'**
+  /// **'Existing people were checked on this phone. Pair with your PC to apply corrections and sort new faces.'**
   String get sortNeedsPc;
 
   /// No description provided for @sortNewest.
@@ -2509,7 +2509,7 @@ abstract class AppLocalizations {
   /// No description provided for @sortNowHint.
   ///
   /// In en, this message translates to:
-  /// **'Ask the PC to sort unsorted faces into people again'**
+  /// **'Ask the PC to sort new faces and correct clear mistakes in existing people, including named people'**
   String get sortNowHint;
 
   /// No description provided for @sortFailed.
@@ -6843,6 +6843,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Do these {count} appearances belong to {name}?'**
   String reviewBatchQuestion(String name, int count);
+
+  /// No description provided for @notThisBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Not this body'**
+  String get notThisBody;
+
+  /// No description provided for @linkedByFaceAndBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked by face & body'**
+  String get linkedByFaceAndBody;
+
+  /// No description provided for @linkedByFaceOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked by face only'**
+  String get linkedByFaceOnly;
+
+  /// No description provided for @linkedByBodyOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked by body only'**
+  String get linkedByBodyOnly;
+
+  /// No description provided for @reassignToOtherPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Another person...'**
+  String get reassignToOtherPerson;
+
+  /// No description provided for @setAsPersonCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Set as cover photo'**
+  String get setAsPersonCover;
+
+  /// No description provided for @viewFullMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'View full photo'**
+  String get viewFullMedia;
+
+  /// No description provided for @reassignedToPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved to {name}'**
+  String reassignedToPerson(String name);
 }
 
 class _AppLocalizationsDelegate

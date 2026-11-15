@@ -1653,8 +1653,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sortBy => 'Sort';
 
   @override
-  String sortDone(int assigned, int created, int review) {
-    return 'Added $assigned faces to people, created $created people, $review to review';
+  String sortDone(int assigned, int created, int review, int repaired) {
+    return 'Added $assigned faces to people, created $created people, corrected $repaired face assignments, $review to review';
   }
 
   @override
@@ -1665,7 +1665,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sortNeedsPc =>
-      'Existing people were checked on this phone. Pair with your PC to sort new faces.';
+      'Existing people were checked on this phone. Pair with your PC to apply corrections and sort new faces.';
 
   @override
   String get sortNewest => 'Newest';
@@ -1675,7 +1675,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sortNowHint =>
-      'Ask the PC to sort unsorted faces into people again';
+      'Ask the PC to sort new faces and correct clear mistakes in existing people, including named people';
 
   @override
   String get sortFailed => 'Could not sort the library. Try Sort now again.';
@@ -4255,5 +4255,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String reviewBatchQuestion(String name, int count) {
     return 'Do these $count appearances belong to $name?';
+  }
+
+  @override
+  String get notThisBody => 'Not this body';
+
+  @override
+  String get linkedByFaceAndBody => 'Linked by face & body';
+
+  @override
+  String get linkedByFaceOnly => 'Linked by face only';
+
+  @override
+  String get linkedByBodyOnly => 'Linked by body only';
+
+  @override
+  String get reassignToOtherPerson => 'Another person...';
+
+  @override
+  String get setAsPersonCover => 'Set as cover photo';
+
+  @override
+  String get viewFullMedia => 'View full photo';
+
+  @override
+  String reassignedToPerson(String name) {
+    return 'Moved to $name';
   }
 }

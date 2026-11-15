@@ -72,7 +72,7 @@ void main() {
       db: db,
       api: () => holder!.api,
       review: review,
-      merge: people.mergePeople,
+      people: people,
     );
   });
   tearDown(() async {
@@ -83,6 +83,93 @@ void main() {
   Future<int?> personOf(int face) async => (await (db.select(
     db.faces,
   )..where((f) => f.id.equals(face))).getSingle()).personId;
+
+  test('manual sort repairs clear mistakes inside named people', () async {
+    final sara = await seedPerson(db, name: 'Sara');
+    final omar = await seedPerson(db, name: 'Omar');
+    for (var i = 0; i < 8; i++) {
+      await seedFace(db, personId: sara, embedding: near(unitVec(1), i, 0.3));
+      await seedFace(db, personId: omar, embedding: near(unitVec(2), i, 0.3));
+    }
+    final clear = await seedFace(db, personId: sara, seed: 2);
+    final linkedBody = await seedBody(
+      db,
+      faceId: clear,
+      personId: sara,
+      linkMethod: 'weak_face',
+    );
+    final manual = await seedFace(db, personId: sara, seed: 1);
+    await PeopleRepository(db, FileStore(tmp)).confirmFaces([manual], sara);
+    final ambiguous = await seedFace(db, personId: sara, seed: 2);
+    final blocked = await seedFace(db, personId: sara, seed: 2);
+    final sharedPhoto = await seedMedia(db);
+    await seedFace(db, personId: omar, mediaId: sharedPhoto, seed: 2);
+    await db.into(db.mediaDetections).insert(
+      MediaDetectionsCompanion.insert(
+        mediaId: sharedPhoto,
+        kind: 'f',
+        refId: blocked,
+        x: 0.1,
+        y: 0.1,
+        w: 0.2,
+        h: 0.2,
+      ),
+    );
+    api.groupingHandler = (request) {
+      if (request.stages.join(',') != 'match') return _plan(request.mode);
+      expect(request.pending.map((f) => f.id), [clear, ambiguous, blocked]);
+      expect(request.models.map((m) => m.pid), [sara, omar]);
+      return _plan('apply', assignments: [
+        _assign(clear, omar),
+        _assign(ambiguous, omar, decision: 'suggest'),
+        _assign(blocked, omar),
+      ]);
+    };
+
+    expect((await runner.run()).facesRepaired, 0);
+    expect(await personOf(clear), sara);
+    final result = await runner.run(repairExisting: true);
+
+    expect(result.facesRepaired, 1);
+    expect(await personOf(clear), omar);
+    expect(await personOf(manual), sara);
+    expect(await personOf(ambiguous), sara);
+    expect(await personOf(blocked), sara);
+    expect((await db.select(db.persons).get()).map((p) => p.name), [
+      'Sara',
+      'Omar',
+    ]);
+    expect(
+      (await review.doubtful()).single.faces.map((f) => f.faceId),
+      unorderedEquals([ambiguous, blocked]),
+    );
+    expect((await db.select(db.faceConfirmations).get()).single.faceId, manual);
+    final body = await (db.select(db.bodies)
+          ..where((b) => b.id.equals(linkedBody)))
+        .getSingle();
+    expect(body.personId, isNull);
+    expect(body.linkMethod, isNull);
+  });
+
+  test('a lock set during the repair upload wins over the PC plan', () async {
+    final sara = await seedPerson(db, name: 'Sara');
+    final omar = await seedPerson(db, name: 'Omar');
+    for (var i = 0; i < 6; i++) {
+      await seedFace(db, personId: sara, seed: 1);
+      await seedFace(db, personId: omar, seed: 2);
+    }
+    final face = await seedFace(db, personId: sara, seed: 2);
+    api.groupingHandler = (request) async {
+      if (request.stages.join(',') != 'match') return _plan(request.mode);
+      await PeopleRepository(db, FileStore(tmp))
+          .setPersonFlags([omar], groupingLocked: true);
+      return _plan('apply', assignments: [_assign(face, omar)]);
+    };
+
+    expect((await runner.run(repairExisting: true)).facesRepaired, 0);
+    expect(await personOf(face), sara);
+    expect(api.groupingCalls.map((r) => r.stages.join(',')), contains('match'));
+  });
 
   test(
     'a lock rejects even an already requested automatic plan until unlocked',

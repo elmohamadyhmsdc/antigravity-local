@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../../data/api/dtos/grouping.dart';
 import '../../data/api/mobile_api.dart';
 import '../../data/db/app_database.dart';
@@ -16,6 +18,7 @@ class GroupingRun {
     this.facesInNewPeople = 0,
     this.bodiesLinked = 0,
     this.peopleMerged = 0,
+    this.facesRepaired = 0,
     this.review = const ReviewCounts(),
   });
 
@@ -28,19 +31,19 @@ class GroupingRun {
 
   /// Provisional people folded into the person they clearly are (duplicates the app made itself).
   final int peopleMerged;
+  final int facesRepaired;
   final ReviewCounts review;
 }
 
-/// Moves every face, body and artifact of [sourceId] to [targetId] (PeopleRepository.mergePeople).
-typedef MergePeople =
-    Future<void> Function({required int sourceId, required int targetId});
+enum _GroupingPass { incremental, full, repair }
 
 /// "Sort my gallery", phone edition. The PC decides (POST /v1/grouping/plan, stateless), the phone
 /// applies, in three rounds so that ids stay real:
 ///   1. apply [match, cluster]  -> confident matches + new people, in one transaction
 ///   2. apply [bodies]          -> outfit / weak-face links against the people that now exist
 ///   3. review [all four]       -> everything that still needs a decision, stored for the Review screen
-///   4. audit (local)           -> faces already on a person that do not look like her, stored the same way
+/// A full run audits the faces already assigned. A manual repair pass also
+/// checks the audit's suggested moves with the PC before the usual rounds.
 /// Every round is idempotent, so running it again (or after a crash) is always safe.
 class GroupingRunner {
   GroupingRunner({
@@ -53,7 +56,7 @@ class GroupingRunner {
     GroupingInputs? inputs,
     DoubtAudit? audit,
     this._memberCap = groupingMemberCap,
-    this._merge,
+    this._people,
   }) : _applier = applier ?? PlanApplier(_db, kind: kind),
        _inputs = inputs ?? GroupingInputs(_db, kind: kind),
        _audit = audit ?? DoubtAudit(_db, kind: kind);
@@ -66,8 +69,7 @@ class GroupingRunner {
   final DoubtAudit _audit;
   final int _memberCap;
 
-  /// Without it (tests of other rounds) the `people` stage's merges are not applied.
-  final MergePeople? _merge;
+  final PeopleRepository? _people;
 
   /// Another kind's runner that follows this one (people, then characters).
   final GroupingRunner? _then;
@@ -76,39 +78,46 @@ class GroupingRunner {
   final String kind;
 
   Future<GroupingRun>? _running;
-  bool _runningIncremental = false;
+  _GroupingPass? _runningPass;
 
-  /// Runs the three rounds (a second call while one is running joins it).
-  Future<GroupingRun> run({bool incremental = false}) {
+  /// Join a pass that already covers the work, or follow it with a broader one.
+  Future<GroupingRun> run({
+    bool incremental = false,
+    bool repairExisting = false,
+  }) {
+    final pass = repairExisting
+        ? _GroupingPass.repair
+        : incremental
+        ? _GroupingPass.incremental
+        : _GroupingPass.full;
     final running = _running;
-    // A final/manual full pass must not silently join a smaller in-scan pass.
     if (running != null) {
-      // a failed small pass must not stop the full one that was asked for after it
-      return incremental || !_runningIncremental
-          ? running
-          : running.then((_) => run(), onError: (_) => run());
+      if (pass.index <= _runningPass!.index) return running;
+      Future<GroupingRun> follow() =>
+          run(incremental: incremental, repairExisting: repairExisting);
+      return running.then((_) => follow(), onError: (_) => follow());
     }
-    _runningIncremental = incremental;
-    return _running = _runBoth(incremental: incremental).whenComplete(() {
+    _runningPass = pass;
+    return _running = _runBoth(pass).whenComplete(() {
       _running = null;
-      _runningIncremental = false;
+      _runningPass = null;
     });
   }
 
   /// This kind, then the kind that follows it: the follower runs even if this one failed (the
   /// first error is still reported).
-  Future<GroupingRun> _runBoth({required bool incremental}) async {
+  Future<GroupingRun> _runBoth(_GroupingPass pass) async {
     GroupingRun? result;
     Object? error;
     StackTrace? trace;
     try {
-      result = await _run(incremental: incremental);
+      result = await _run(pass);
     } catch (e, s) {
       error = e;
       trace = s;
     }
     try {
-      await _then?.run(incremental: incremental);
+      await _then?.run(incremental: pass == _GroupingPass.incremental);
     } catch (e, s) {
       if (error == null) {
         error = e;
@@ -122,7 +131,8 @@ class GroupingRunner {
   Future<int> _count(String sql) async =>
       (await _db.customSelect(sql).getSingle()).read<int>('n');
 
-  Future<GroupingRun> _run({required bool incremental}) async {
+  Future<GroupingRun> _run(_GroupingPass pass) async {
+    final incremental = pass == _GroupingPass.incremental;
     // Repair evidence must exist before a contaminated identity is used as a
     // model. It also remains available when the PC's grouping request fails.
     if (!incremental) await _audit.run();
@@ -134,6 +144,9 @@ class GroupingRunner {
     final strictness = kind == 'character'
         ? characterStrictness
         : personStrictness;
+    final repaired = pass == _GroupingPass.repair
+        ? await _repairFaces(api, strictness)
+        : 0;
 
     var result = const FacePlanResult();
     var merged = 0;
@@ -141,7 +154,7 @@ class GroupingRunner {
       final plan = await api.groupingPlan(
         await _inputs.request(
           mode: 'apply',
-          stages: _merge == null
+          stages: _people == null
               ? [
                   for (final s in round1Stages)
                     if (s != 'people') s,
@@ -166,7 +179,7 @@ class GroupingRunner {
     final people = await _count(
       "SELECT COUNT(*) AS n FROM persons WHERE kind = '$kind'",
     );
-    if (unsorted > 0 || (_merge != null && people > 1)) {
+    if (unsorted > 0 || (_people != null && people > 1)) {
       await round1();
       // A merge leaves one bigger, better model: faces that fitted neither half may fit it now.
       if (merged > 0 && !incremental) await round1();
@@ -209,7 +222,7 @@ class GroupingRunner {
     await _review.replaceAll(review);
     // Then everything already sorted, the faces the user named included: which of them do not look like
     // the rest of their person? They come back as "Are you sure these are X?" questions.
-    if (result.changedAnything || merged > 0) await _audit.run();
+    if (result.changedAnything || merged > 0 || repaired > 0) await _audit.run();
 
     return GroupingRun(
       assigned: result.assigned,
@@ -217,16 +230,75 @@ class GroupingRunner {
       facesInNewPeople: result.facesInNewPeople,
       bodiesLinked: bodiesLinked,
       peopleMerged: merged,
+      facesRepaired: repaired,
       review: await _review.counts(),
     );
+  }
+
+  Future<int> _repairFaces(MobileApi api, String strictness) async {
+    final people = _people;
+    if (people == null) return 0;
+    List<(int, int)>? distinctPairs;
+    var repaired = 0;
+    await for (final page in _inputs.repairCandidates()) {
+      final models = await _inputs.models(
+        cap: math.min(_memberCap, 24),
+        onlyPeople: {
+          for (final c in page) c.sourceId,
+          for (final c in page) c.targetId,
+        },
+      );
+      final modelIds = {for (final m in models) m.pid};
+      final candidates = {
+        for (final c in page)
+          if (modelIds.contains(c.sourceId) && modelIds.contains(c.targetId))
+            c.face.id: c,
+      };
+      if (candidates.isEmpty) continue;
+      final pairs = distinctPairs ??= await _inputs.distinctPairs();
+      final plan = await api.groupingPlan(
+        GroupingPlanRequest(
+          mode: 'apply',
+          stages: const ['match'],
+          strictness: strictness,
+          models: models,
+          pending: [for (final c in candidates.values) c.face],
+          distinctPairs: [
+            for (final pair in pairs)
+              if (modelIds.contains(pair.$1) && modelIds.contains(pair.$2)) pair,
+          ],
+        ),
+      );
+      for (final assignment in plan.assignments) {
+        final c = candidates[assignment.faceId];
+        // The audit compared the rest of the library. On the PC, the source
+        // still competes with the proposed target using its cleaned model.
+        if (c == null ||
+            assignment.personId != c.targetId ||
+            !assignment.isAuto ||
+            assignment.margin < 0.12) {
+          continue;
+        }
+        if (await people.applyFaceRepair(
+          faceId: c.face.id,
+          sourceId: c.sourceId,
+          targetId: c.targetId,
+          modelId: c.modelId,
+          embedding: c.embedding,
+        )) {
+          repaired++;
+        }
+      }
+    }
+    return repaired;
   }
 
   /// Applies the `people` stage: each provisional person is merged into the person it clearly is,
   /// unless the user took it over (named, locked, confirmed...) since the plan was made, or the two now
   /// appear together somewhere (mergePeople refuses that).
   Future<int> _applyMerges(List<PersonMergePlan> merges) async {
-    final merge = _merge;
-    if (merge == null || merges.isEmpty) return 0;
+    final people = _people;
+    if (people == null || merges.isEmpty) return 0;
     final provisional = (await _inputs.provisionalPersonIds()).toSet();
     final gone = <int, int>{}; // absorbed -> where its faces went
     int resolve(int id) {
@@ -247,7 +319,7 @@ class GroupingRunner {
       );
       if (alive != 2) continue;
       try {
-        await merge(sourceId: source, targetId: target);
+        await people.mergePeople(sourceId: source, targetId: target);
       } on MergeBlockedException {
         continue;
       }
