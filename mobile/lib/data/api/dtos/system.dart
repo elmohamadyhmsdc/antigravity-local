@@ -55,6 +55,7 @@ class Engines {
     required this.loraGenerate,
     required this.bodyDetection,
     this.characterDetection = false,
+    this.characterLibraryRepair = false,
     this.sensitiveDetection = false,
     this.photoEdit = false,
     this.photoEditReference = false,
@@ -77,6 +78,7 @@ class Engines {
   final bool loraGenerate;
   final bool bodyDetection;
   final bool characterDetection;
+  final bool characterLibraryRepair;
 
   /// Roadmap section 8: the PC can return exposed / covered body-part regions.
   final bool sensitiveDetection;
@@ -107,6 +109,7 @@ class Engines {
     loraGenerate: field<bool>(json, 'lora_generate', 'engines'),
     bodyDetection: field<bool>(json, 'body_detection', 'engines'),
     characterDetection: json['character_detection'] as bool? ?? false,
+    characterLibraryRepair: json['character_library_repair'] as bool? ?? false,
     sensitiveDetection: json['sensitive_detection'] as bool? ?? false,
     photoEdit: json['photo_edit'] as bool? ?? false,
     photoEditReference: json['photo_edit_reference'] as bool? ?? false,

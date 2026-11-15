@@ -132,6 +132,78 @@ class StudioRepository {
             ..limit(100))
           .get();
 
+  /// Current human face observations that may be reused by Reface.
+  Future<List<FaceRow>> refaceSources(
+    int personId, {
+    Iterable<int>? faceIds,
+    String? modelId,
+  }) async {
+    final ids = faceIds?.toSet();
+    if (ids != null && ids.isEmpty) return const [];
+    final rows = await db.customSelect(
+      '''
+      SELECT f.*
+      FROM faces f
+      WHERE f.person_id = ? AND f.kind = 'person' AND f.hidden = 0
+        AND f.review_dismissed = 0 AND f.ownership IS NOT 'none'
+        AND f.face_px >= ?
+        AND NOT EXISTS (
+          SELECT 1 FROM review_doubtful d
+          WHERE d.face_id = f.id AND d.person_id = f.person_id
+        )
+        ${modelId == null ? '' : 'AND f.model_id = ?'}
+        ${ids == null ? '' : 'AND f.id IN (${List.filled(ids.length, '?').join(',')})'}
+      ORDER BY f.quality_score DESC, f.id
+      LIMIT 100
+      ''',
+      variables: [
+        Variable.withInt(personId),
+        Variable.withReal(sourceFaceMinPx),
+        if (modelId != null) Variable.withString(modelId),
+        if (ids != null)
+          for (final id in ids) Variable.withInt(id),
+      ],
+      readsFrom: {db.faces, db.reviewDoubtful},
+    ).get();
+    return [for (final row in rows) db.faces.map(row.data)];
+  }
+
+  /// Saved album profiles remain usable while their source faces still belong to this person.
+  Future<String?> savedRefaceProfile(int personId, String modelId) =>
+      db.transaction(() async {
+        final json = await db.setting('identity_bundle_$personId');
+        if (json == null) return null;
+        try {
+          final bundle = jsonDecode(json);
+          if (bundle is! Map ||
+              bundle['schema_version'] != '1.0' ||
+              bundle['algorithm_version'] != 'identity_v1' ||
+              bundle['primary_embedding'] is! List ||
+              (bundle['primary_embedding'] as List).length != 512) {
+            return null;
+          }
+          final stored = await db.setting(identityBundleSourcesKey(personId));
+          if (stored != null && stored.isNotEmpty) {
+            final context = ArtifactContext.decode(stored);
+            if (context == null ||
+                context.sourceFaceIds.isEmpty ||
+                context.personId != personId ||
+                context.identityModelId != modelId) {
+              return null;
+            }
+            final faces = await refaceSources(
+              personId,
+              faceIds: context.sourceFaceIds,
+              modelId: modelId,
+            );
+            if (faces.length != context.sourceFaceIds.length) return null;
+          }
+          return json;
+        } on FormatException {
+          return null;
+        }
+      });
+
   /// [count] faces for the default source selection: only faces that really look like the person (a
   /// stranger grouped in by mistake is left out - the swap would learn their face), no near-identical
   /// pictures, then the best one first and each time the face that adds the most (quality plus how far

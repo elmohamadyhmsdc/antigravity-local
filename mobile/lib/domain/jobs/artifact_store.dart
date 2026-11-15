@@ -89,10 +89,21 @@ class ArtifactStore {
               !parsed.containsKey('primary_embedding')) {
             throw const FormatException('Invalid identity bundle artifact.');
           }
-          if (job.personId != null) {
-            await db.putSetting('identity_bundle_${job.personId}', content);
-          }
-          await db.putSetting('identity_bundle_${job.id}', content);
+          await db.transaction(() async {
+            final personId = job.personId;
+            if (personId != null) {
+              final contextJson = await db.setting('$artifactContextPrefix${job.id}');
+              final context = ArtifactContext.decode(contextJson);
+              await db.putSetting('identity_bundle_$personId', content);
+              await db.putSetting(
+                identityBundleSourcesKey(personId),
+                context != null && context.sourceFaceIds.isNotEmpty
+                    ? jsonEncode(context.toJson())
+                    : '',
+              );
+            }
+            await db.putSetting('identity_bundle_${job.id}', content);
+          });
         }
       };
     }

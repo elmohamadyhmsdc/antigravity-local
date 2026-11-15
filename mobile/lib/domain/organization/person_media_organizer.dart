@@ -25,6 +25,11 @@ String organizationSegment(String name, {String fallback = 'Unnamed'}) {
   return out.toString();
 }
 
+bool canOrganizePerson(PersonRow? person) =>
+    person != null &&
+    person.kind == 'person' &&
+    (person.name ?? '').trim().isNotEmpty;
+
 class PersonOrganizeItem {
   const PersonOrganizeItem({
     required this.media,
@@ -72,34 +77,79 @@ class PersonMediaOrganizer {
   static const _links = '''
     SELECT d.media_id, COALESCE(f.person_id, bf.person_id, b.person_id) AS person_id
     FROM media_detections d LEFT JOIN faces f ON d.kind = 'f' AND f.id = d.ref_id
-    LEFT JOIN bodies b ON d.kind = 'b' AND b.id = d.ref_id LEFT JOIN faces bf ON bf.id = b.face_id
-    UNION SELECT media_id, person_id FROM faces WHERE media_id IS NOT NULL
+      AND f.hidden = 0 AND f.ownership IS NOT 'none'
+    LEFT JOIN bodies b ON d.kind = 'b' AND b.id = d.ref_id
+      AND b.hidden = 0 AND b.ownership IS NOT 'none'
+    LEFT JOIN faces bf ON bf.id = b.face_id AND bf.hidden = 0 AND bf.ownership IS NOT 'none'
+    UNION SELECT media_id, person_id FROM faces
+      WHERE media_id IS NOT NULL AND hidden = 0 AND ownership IS NOT 'none'
     UNION SELECT b.media_id, COALESCE(f.person_id, b.person_id) FROM bodies b
-      LEFT JOIN faces f ON f.id = b.face_id WHERE b.media_id IS NOT NULL''';
+      LEFT JOIN faces f ON f.id = b.face_id AND f.hidden = 0 AND f.ownership IS NOT 'none'
+      WHERE b.media_id IS NOT NULL AND b.hidden = 0 AND b.ownership IS NOT 'none'
+    ''';
+
+  Future<List<QueryRow>> _linksFor(String column, Iterable<int> ids) async {
+    final keys = ids.toSet().toList();
+    final result = <QueryRow>[];
+    for (var i = 0; i < keys.length; i += 300) {
+      final chunk = keys.skip(i).take(300).toList();
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      result.addAll(await db.customSelect(
+        'SELECT * FROM ($_links) WHERE $column IN ($placeholders)',
+        variables: [for (final id in chunk) Variable.withInt(id)],
+        readsFrom: {db.mediaDetections, db.faces, db.bodies},
+      ).get());
+    }
+    return result;
+  }
+
+  Future<Map<int, Set<int>>> ownersForMedia(Iterable<int> mediaIds) async {
+    final owners = <int, Set<int>>{};
+    for (final row in await _linksFor('media_id', mediaIds)) {
+      final id = row.readNullable<int>('person_id');
+      if (id != null) {
+        owners.putIfAbsent(row.read<int>('media_id'), () => {}).add(id);
+      }
+    }
+    return owners;
+  }
+
+  Future<Set<int>> mediaForPeople(Iterable<int> personIds) async => {
+    for (final row in await _linksFor('person_id', personIds)) row.read<int>('media_id'),
+  };
+
+  Future<Set<int>> namedPersonIds() async => {
+    for (final row in await db.select(db.persons).get())
+      if (canOrganizePerson(row)) row.id,
+  };
+
+  Future<_FolderIndex> _folders() async => _FolderIndex(
+    await (rootFolder?.call() ?? Future.value(dcimRoot)),
+    await db.select(db.identityGroups).get(),
+    await db.select(db.persons).get(),
+  );
 
   Future<List<PersonOrganizeItem>> plan(
     Set<int> personIds, {
     Map<int, int?> choices = const {},
+    Set<int>? mediaIds,
   }) async {
     if (personIds.isEmpty) return [];
-    final people = await (db.select(
-      db.persons,
-    )..where((p) => p.id.isIn(personIds))).get();
-    final peopleById = {for (final p in people) p.id: p};
-    final links = await db
-        .customSelect(
-          'SELECT * FROM ($_links) WHERE person_id IN (${List.filled(personIds.length, '?').join(',')})',
-          variables: [for (final id in personIds) Variable.withInt(id)],
-          readsFrom: {db.mediaDetections, db.faces, db.bodies},
-        )
-        .get();
+    final layout = await _folders();
+    final peopleById = {
+      for (final id in personIds)
+        if (layout.people[id] case final person?) id: person,
+    };
+    if (peopleById.isEmpty) return [];
+    final links = mediaIds == null
+        ? await _linksFor('person_id', peopleById.keys)
+        : await _linksFor('media_id', mediaIds);
     final ownersByMedia = <int, Set<int>>{};
     for (final link in links) {
       final person = link.readNullable<int>('person_id');
+      final mediaId = link.read<int>('media_id');
       if (person != null && peopleById.containsKey(person)) {
-        ownersByMedia
-            .putIfAbsent(link.read<int>('media_id'), () => {})
-            .add(person);
+        ownersByMedia.putIfAbsent(mediaId, () => {}).add(person);
       }
     }
     final media = <MediaRow>[];
@@ -124,45 +174,17 @@ class PersonMediaOrganizer {
         originals[original.assetId] = original;
       }
     }
-    final root = await (rootFolder?.call() ?? Future.value(dcimRoot));
-    final groups = await db.select(db.identityGroups).get();
-    final allPeople = await db.select(db.persons).get();
     final journal = await db.select(db.personMediaMoves).get();
     final oldByMedia = {for (final j in journal) j.mediaId: j};
+    final pendingOwners = await ownersForMedia([
+      for (final j in journal)
+        if (j.state == 'pending' && ownersByMedia.containsKey(j.mediaId)) j.mediaId,
+    ]);
     final next = <String, int>{};
     for (final j in journal) {
       final key = '${j.personId}:${j.mediaKind}';
       if ((next[key] ?? 0) < j.sequence) next[key] = j.sequence;
     }
-    String identityName(PersonRow p) => (p.name ?? '').trim().isNotEmpty
-        ? p.name!.trim()
-        : '${p.kind == 'character' ? 'Character' : 'Person'} ${p.id}';
-    String groupFolder(int id) {
-      final group = groups.where((g) => g.id == id).firstOrNull;
-      if (group == null) return '';
-      final base = organizationSegment(group.name);
-      final duplicates = groups
-          .where(
-            (g) =>
-                organizationSegment(g.name).toLowerCase() == base.toLowerCase(),
-          )
-          .length;
-      return duplicates > 1 ? '${base}_$id' : base;
-    }
-
-    String personFolder(PersonRow p) {
-      final base = organizationSegment(identityName(p));
-      final duplicates = allPeople
-          .where(
-            (other) =>
-                other.groupId == p.groupId &&
-                organizationSegment(identityName(other)).toLowerCase() ==
-                    base.toLowerCase(),
-          )
-          .length;
-      return duplicates > 1 ? '${base}_${p.id}' : base;
-    }
-
     final output = <PersonOrganizeItem>[];
     for (final m in media) {
       final owners = [for (final id in ownersByMedia[m.id]!) peopleById[id]!];
@@ -184,7 +206,12 @@ class PersonMediaOrganizer {
         status = 'stale_scan';
       }
       final prior = oldByMedia[m.id];
-      if (prior?.state == 'pending') status = 'pending';
+      if (prior != null &&
+          prior.state == 'pending' &&
+          pendingOwners[m.id]?.contains(prior.personId) == true &&
+          layout.accepts(prior.personId, prior.mediaKind, prior.targetPath, prior.targetName)) {
+        status = 'pending';
+      }
       var sequence = 0;
       OriginalMediaMove? request;
       if (selected != null && source?.available == true && status == 'ready') {
@@ -214,22 +241,14 @@ class PersonMediaOrganizer {
         if (!RegExp(r'^[a-z0-9]{1,12}$').hasMatch(extension)) {
           status = 'unsupported';
         }
-        final folder = personFolder(selected);
-        final category = selected.groupId == null
-            ? ''
-            : groupFolder(selected.groupId!);
-        final path = '$root${category.isEmpty ? '' : '$category/'}$folder/';
-        final base = organizationSegment(
-          identityName(selected),
-        ).replaceAll(' ', '_');
+        final path = layout.path(selected);
+        final prefix = layout.filePrefix(selected, m.kind);
         var name =
-            '${base}_${m.kind == 'video' ? 'video' : 'image'}_${sequence.toString().padLeft(4, '0')}.$extension';
+            '$prefix${sequence.toString().padLeft(4, '0')}.$extension';
         if (prior != null &&
             prior.targetPath == path &&
             source.name == prior.targetName &&
-            prior.targetName.startsWith(
-              '${base}_${m.kind == 'video' ? 'video' : 'image'}_',
-            )) {
+            prior.targetName.startsWith(prefix)) {
           name = prior.targetName;
         }
         request = OriginalMediaMove(
@@ -313,20 +332,23 @@ class PersonMediaOrganizer {
   }
 
   Future<List<PersonOrganizeItem>> pending() async {
+    final layout = await _folders();
     final records = await (db.select(
       db.personMediaMoves,
     )..where((m) => m.state.equals('pending'))).get();
+    final owners = await ownersForMedia(records.map((j) => j.mediaId));
     final items = <PersonOrganizeItem>[];
     for (final j in records) {
       final media = await (db.select(
         db.media,
       )..where((m) => m.id.equals(j.mediaId))).getSingleOrNull();
       if (media == null || media.assetId != j.assetId) continue;
-      final owner = j.personId == null
-          ? null
-          : await (db.select(
-              db.persons,
-            )..where((p) => p.id.equals(j.personId!))).getSingleOrNull();
+      final owner = layout.people[j.personId];
+      if (owner == null ||
+          owners[j.mediaId]?.contains(owner.id) != true ||
+          !layout.accepts(owner.id, j.mediaKind, j.targetPath, j.targetName)) {
+        continue;
+      }
       final source = OriginalMediaInfo(
         assetId: j.assetId,
         name: j.sourceName,
@@ -337,7 +359,7 @@ class PersonMediaOrganizer {
       items.add(
         PersonOrganizeItem(
           media: media,
-          owners: [?owner],
+          owners: [owner],
           source: source,
           ownerId: j.personId,
           sequence: j.sequence,
@@ -402,12 +424,28 @@ class PersonMediaOrganizer {
     void Function(int, int)? onProgress,
   }) async {
     if (_busy) throw StateError('A media move is already running');
-    final selected = items.where((i) => i.canApply).toList();
-    if (selected.isEmpty) return [];
+    final approved = items.where((i) => i.canApply).toList();
+    if (approved.isEmpty) return [];
     _busy = true;
     final results = <OriginalMoveResult>[];
     try {
       await beforeMove?.call();
+      final layout = await _folders();
+      final owners = await ownersForMedia(approved.map((item) => item.media.id));
+      final selected = <PersonOrganizeItem>[];
+      for (final item in approved) {
+        final request = item.request!;
+        if (owners[item.media.id]?.contains(item.ownerId) == true &&
+            layout.accepts(item.ownerId, item.media.kind, request.targetPath, request.targetName)) {
+          selected.add(item);
+        } else {
+          results.add(OriginalMoveResult(
+            assetId: item.media.assetId,
+            status: 'stale_owner',
+          ));
+        }
+      }
+      if (selected.isEmpty) return results;
       await db.transaction(() async {
         for (final item in selected) {
           final r = item.request!;
@@ -513,5 +551,48 @@ class PersonMediaOrganizer {
       afterMove?.call();
     }
     return results;
+  }
+}
+
+class _FolderIndex {
+  _FolderIndex(this.root, List<IdentityGroupRow> groupRows, List<PersonRow> rows)
+    : groups = {for (final group in groupRows) group.id: group},
+      people = {for (final row in rows) if (canOrganizePerson(row)) row.id: row};
+
+  final String root;
+  final Map<int, IdentityGroupRow> groups;
+  final Map<int, PersonRow> people;
+
+  final _paths = <int, String>{};
+
+  String path(PersonRow person) => _paths.putIfAbsent(person.id, () {
+    final group = groups[person.groupId];
+    var category = '';
+    if (group != null) {
+      final base = organizationSegment(group.name);
+      final duplicate = groups.values.any(
+        (g) => g.id != group.id &&
+            organizationSegment(g.name).toLowerCase() == base.toLowerCase(),
+      );
+      category = duplicate ? '${base}_${group.id}/' : '$base/';
+    }
+    final base = organizationSegment(person.name!);
+    final duplicate = people.values.any(
+      (p) => p.id != person.id && p.groupId == person.groupId &&
+          organizationSegment(p.name!).toLowerCase() == base.toLowerCase(),
+    );
+    final folder = duplicate ? '${base}_${person.id}' : base;
+    return '$root$category$folder/';
+  });
+
+  String filePrefix(PersonRow person, String kind) {
+    final name = organizationSegment(person.name!).replaceAll(' ', '_');
+    return '${name}_${kind == 'video' ? 'video' : 'image'}_';
+  }
+
+  bool accepts(int? ownerId, String kind, String targetPath, String targetName) {
+    final owner = people[ownerId];
+    return owner != null && path(owner) == targetPath &&
+        targetName.startsWith(filePrefix(owner, kind));
   }
 }

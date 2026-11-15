@@ -350,13 +350,18 @@ class PeopleRepository {
         return id;
       });
 
-  Future<void> renamePerson(int id, String? name) {
+  Future<void> renamePerson(int id, String? name) async {
+    if (await _writePersonName(id, name) && kind == 'person') {
+      await autoOrganizer?.syncPersonGroup(id);
+    }
+  }
+
+  Future<bool> _writePersonName(int id, String? name) async {
     final trimmed = name?.trim();
-    return (_db.update(_db.persons)..where((p) => p.id.equals(id))).write(
-      PersonsCompanion(
-        name: Value(trimmed == null || trimmed.isEmpty ? null : trimmed),
-      ),
-    );
+    final saved = trimmed == null || trimmed.isEmpty ? null : trimmed;
+    final renamed = await (_db.update(_db.persons)..where((p) => p.id.equals(id)))
+        .write(PersonsCompanion(name: Value(saved)));
+    return renamed > 0 && saved != null;
   }
 
   Future<void> setAvatar(int personId, int faceId) async {
@@ -771,6 +776,14 @@ class PeopleRepository {
     required int targetId,
   }) async {
     if (sourceId == targetId) return;
+    await _mergePeople(sourceId: sourceId, targetId: targetId);
+    await autoOrganizer?.syncPersonGroup(targetId);
+  }
+
+  Future<void> _mergePeople({
+    required int sourceId,
+    required int targetId,
+  }) async {
     await _db.transaction(() async {
       final source = await (_db.select(
         _db.persons,
@@ -950,9 +963,6 @@ class PeopleRepository {
       )..where((p) => p.id.equals(targetId))).write(updates);
       await (_db.delete(_db.persons)..where((p) => p.id.equals(sourceId))).go();
     });
-    if (autoOrganizer != null) {
-      await autoOrganizer!.syncPersonGroup(targetId);
-    }
   }
 
   Future<void> setPersonGroup(int personId, int? groupId) async {
@@ -1134,16 +1144,23 @@ class PeopleRepository {
     int targetId, {
     String? name,
     int? coverFaceId,
-  }) => _db.transaction(() async {
-    if (await person(targetId) == null) {
-      throw StateError('The target person no longer exists.');
+  }) async {
+    final sources = ids.toSet()..remove(targetId);
+    final named = await _db.transaction(() async {
+      if (await person(targetId) == null) {
+        throw StateError('The target person no longer exists.');
+      }
+      for (final id in sources) {
+        await _mergePeople(sourceId: id, targetId: targetId);
+      }
+      final named = name != null && await _writePersonName(targetId, name);
+      if (coverFaceId != null) await setAvatar(targetId, coverFaceId);
+      return named;
+    });
+    if (kind == 'person' && (sources.isNotEmpty || named)) {
+      await autoOrganizer?.syncPersonGroup(targetId);
     }
-    for (final id in ids.toSet()) {
-      if (id != targetId) await mergePeople(sourceId: id, targetId: targetId);
-    }
-    if (name != null) await renamePerson(targetId, name);
-    if (coverFaceId != null) await setAvatar(targetId, coverFaceId);
-  });
+  }
 
   Future<List<FaceItem>> availableFaces({int? excludePersonId}) async {
     final rows = await _db

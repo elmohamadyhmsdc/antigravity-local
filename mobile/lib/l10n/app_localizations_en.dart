@@ -1916,6 +1916,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectSourcePerson => 'Choose source person';
 
   @override
+  String get refaceBuildGalleryProfile => 'Build profile from selected faces';
+
+  @override
+  String get refaceBuildImportedProfile => 'Build profile from other media';
+
+  @override
+  String get refaceProfileBuilding => 'Building face profile…';
+
+  @override
+  String get refaceProfileNoCrops =>
+      'No saved face crops are available for this selection. Choose other faces or add source media.';
+
+  @override
+  String get refaceProfileSourcesChanged =>
+      'The selected faces changed. Choose the source person or faces again.';
+
+  @override
+  String get refaceUseSavedProfile => 'Use saved face profile when available';
+
+  @override
   String get sourceFacesHint =>
       'Select clear faces of the same person. The best 20 are selected by default.';
 
@@ -3229,6 +3249,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get repairMixedCharacters => 'Repair mixed characters';
+
+  @override
   String get quickReviewTitle => 'Quick review';
 
   @override
@@ -4098,7 +4121,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get organizeNaming =>
-      'Files use the person or character name, with separate image and video numbers. File types are preserved. Renaming helps organization; visual detection still uses the image or video.';
+      'Named people use group/person folders in Your Gallery, with separate image and video numbers. People without a saved name keep their current location.';
 
   @override
   String get organizeApply => 'Move selected originals';
@@ -4119,7 +4142,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get organizeNoFiles =>
-      'No original photos or videos are linked to the selected identities.';
+      'No original photos or videos are linked to the selected named people.';
 
   @override
   String get organizeSharedHint =>
@@ -4162,6 +4185,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'missing': 'Original is unavailable',
       'stale_scan': 'File changed since detection. Scan it again first.',
       'stale': 'File changed after this preview. Refresh to review it.',
+      'stale_owner': 'The owner or folder changed. Refresh the preview.',
       'conflict':
           'A file with this name already exists. Nothing will be replaced.',
       'pending': 'An earlier move needs review first.',
@@ -4193,7 +4217,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get autoSyncOrganizedFoldersHint =>
-      'Move files and metadata automatically when people change groups or corrections occur';
+      'Move originals into named people’s folders when their names, groups or assignments change.';
 
   @override
   String get moveWithoutAskingTitle => 'Move photos without asking';

@@ -1,5 +1,63 @@
 # Antigravity handoff — 2026-10-19
 
+## Named People folders and list order — 2026-11-15
+
+- In the Flutter app, People → More → Move and rename originals opens the existing confirmation preview for every named human identity. Originals are organized under `Your Gallery/<group>/<person>/`, or `DCIM/Your Gallery/<group>/<person>/` with standard MediaStore access. A named person without a group goes directly under `Your Gallery/`.
+- The preview, automatic scan and folder sync, Inspector folder-owner action, and pending move replay require a human People row with a saved nonblank name. Numbered fallback names and Characters are ineligible. The apply step rechecks current ownership and destination after waiting for the scan. Shared files can have one physical destination, and choosing a named owner in the preview continues to use that destination. The automatic path checks eligibility after resolving the primary owner.
+- Automatic sync honors its Settings switch. Saving a person's name and renaming a group invoke the same folder sync as changing group membership. Bulk merge invokes folder sync after committing the merged rows and name. People and Characters sort named identities first, then apply pinning and the selected sort within each set.
+- Changed the Flutter organization domain, People and group repositories, provider wiring, People tools and sort, Inspector owner menu, and English strings. Added regression coverage for named-only eligibility, stale previews, naming hooks, and a pinned unnamed identity sorting below a named one.
+- Verified the production ownership SQL against an in-memory SQLite fixture (17 assertions covering direct and aliased faces, linked and standalone bodies, hidden and unassigned observations, shared owners, and the owner-scoped media query). Five source and localization assertions passed. Flutter analysis and tests, debug APK build, and on-device Android move verification are pending. No phone originals, scan jobs, or PC services were changed during this work.
+- Run these commands in PowerShell to validate and build the Flutter app.
+
+  ```powershell
+  Set-Location -LiteralPath 'D:\AndroidScan\gallary\mobile'
+  flutter analyze
+  flutter test test/domain/person_media_organizer_test.dart test/domain/organization/dynamic_auto_organizer_test.dart test/domain/organization/auto_organize_hooks_test.dart test/features/sidecar_auto_organize_e2e_test.dart test/features/people_test.dart test/features/characters_test.dart
+  flutter build apk --debug
+  ```
+
+## Repair previously mixed Characters in the Flutter library — 2026-11-15
+
+- People → Characters → Repair mixed characters starts one scoped scan of existing photos and videos that have character detections. It negotiates the PC's optional `character_library_repair` capability before queueing work. The normal People grouping pass runs afterward so recovered human faces can join existing people or form new groups.
+- The repair removes an automatic character occurrence only when a newly stored, eligible human face overlaps it at the same photo or near the same video time. A matching new character observation or a manual kind correction preserves the older assignment. Confirmed faces, curated identity sets, manually linked bodies and locked identities are protected. Character observations in other frames remain linked. Empty unnamed automatic character identities are hidden with their records retained. The dedicated repair leaves original files in place.
+- Repair markers and the scan scope persist across retries, and affected videos start at the beginning once. An interrupted repair continues from its saved checkpoint. Videos with unreadable samples can be retried from the repair action.
+- Verified 10 SQLite assertions using the implementation statements on synthetic mixed photos, shared video occurrences, explicit and locked corrections, finished video cursor reset, and failed video checkpoint preservation. Added a Flutter result-store regression that reclassifies two faces in a single old character and protects a confirmed third appearance. Flutter tests, APK build, running PC and real-library repair are pending under the standing terminal rule. Changes are local to source.
+
+After building the phone app and restarting PC Mobile API, open Characters and tap **Repair mixed characters** once. Watch progress under Running scan. Review contains ambiguous human matches if the existing grouping policy needs confirmation.
+
+From `mobile`:
+
+```powershell
+flutter analyze
+flutter test test/domain/photo_result_store_test.dart test/domain/character_parity_test.dart test/domain/video_scan_test.dart test/domain/scan_engine_test.dart
+flutter build apk --debug
+```
+
+## Stricter character detection and gallery Reface profiles — 2026-11-15
+
+- The shared PC analyzer preserves an eligible human face in a mixed scene. An isolated anime hit needs a higher score, and the lower candidate score requires overlapping drawn-face and landmark evidence. The analyzer rejects hand-area detections when reliable pose locates the head elsewhere. Faceless character candidates require an illustrated source and torso evidence, or a strong tall box if pose is unavailable. Explicit person and character corrections retain precedence.
+- In Flutter Studio → Reface → Source identity, choosing a person loads current compatible faces and selects pose-diverse sources. Build profile from selected faces queues the existing PC identity job with that person's saved face crops. The new profile records local source provenance and is reusable while its source faces remain eligible and assigned to the same person. Explicit saved-set or face edits use that selection. A valid ready profile can be submitted by itself.
+- Checked 7 source-selection and reassignment cases on SQLite using the implementation query, 10 synthetic score and geometry cases using the same numeric rules, and all 6 new localization entries. Added detector and Flutter regressions for mixed media, false wrist detections, crop staging and source corrections.
+- Full Python and Flutter suites, APK build, real-photo and anime accuracy, and a full Reface job remain pending under the standing terminal rule. The changes are local to source. Restart the PC Mobile API to load the analyzer and build the Flutter app for the new Studio action. Already catalogued detections use the new rules after redetection.
+
+Focused PC checks from an empty scratch folder:
+
+```powershell
+$galleryApp = 'D:\AndroidScan\gallary\the app'
+$galleryPython = Join-Path $galleryApp 'venv\Scripts\python.exe'
+& $galleryPython (Join-Path $galleryApp 'test_character_detection.py')
+& $galleryPython (Join-Path $galleryApp 'test_anime_detector.py')
+& $galleryPython (Join-Path $galleryApp 'test_analysis.py')
+```
+
+From `mobile`:
+
+```powershell
+flutter analyze
+flutter test test/features/reface_identity_bundle_integration_test.dart test/features/reface_all_faces_test.dart test/features/reface_direct_identity_test.dart
+flutter build apk --debug
+```
+
 ## One-tap review and automatic matches — 2026-11-15
 
 - Flutter Quick Review shows a named move action when the identity audit proposes a destination. It moves only the faces shown for that destination, with optional exceptions selected in the batch. Other faces remain open. The repository rechecks the audit row, ownership, recent confirmations and rejections before recording the move as a rejected old assignment and a confirmed new one.

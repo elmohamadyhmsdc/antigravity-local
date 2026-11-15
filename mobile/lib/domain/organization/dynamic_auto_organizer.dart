@@ -17,12 +17,14 @@ class DynamicAutoOrganizer {
     required this.organizer,
     this.sidecarStorage = const SidecarStorage(),
     this.masterResolver = const MasterPersonResolver(),
+    this.enabled,
   });
 
   final AppDatabase db;
   final PersonMediaOrganizer organizer;
   final SidecarStorage sidecarStorage;
   final MasterPersonResolver masterResolver;
+  final Future<bool> Function()? enabled;
 
   /// Syncs one media item and its sidecar to its target folder.
   Future<OriginalMoveResult?> syncMedia(
@@ -55,6 +57,20 @@ class DynamicAutoOrganizer {
     String? rootDirectory,
     Map<int, int> explicitMasters = const {},
   }) async {
+    if (!(await enabled?.call() ?? true)) return {};
+    return _syncBatch(
+      mediaIds,
+      rootDirectory: rootDirectory,
+      explicitMasters: explicitMasters,
+    );
+  }
+
+  Future<Map<int, OriginalMoveResult>> _syncBatch(
+    Iterable<int> mediaIds, {
+    String? rootDirectory,
+    required Map<int, int> explicitMasters,
+  }) async {
+    if (organizer.isRunning) return {};
     final staged = <_Staged>[];
     for (final id in mediaIds.toSet()) {
       final one = await _stage(id, explicitMasters[id]);
@@ -64,13 +80,12 @@ class DynamicAutoOrganizer {
     final plan = await organizer.plan(
       {for (final s in staged) s.master.id},
       choices: {for (final s in staged) s.media.id: s.master.id},
+      mediaIds: {for (final s in staged) s.media.id},
     );
-    final items = <int, PersonOrganizeItem>{};
-    for (final item in plan) {
-      if (item.canApply && staged.any((s) => s.media.id == item.media.id)) {
-        items[item.media.id] = item;
-      }
-    }
+    final items = {
+      for (final item in plan)
+        if (item.canApply) item.media.id: item,
+    };
     if (items.isEmpty) return {};
     final results = await organizer.apply(items.values.toList());
     final out = <int, OriginalMoveResult>{};
@@ -93,34 +108,44 @@ class DynamicAutoOrganizer {
     )..where((m) => m.id.equals(mediaId))).getSingleOrNull();
     if (media == null) return null;
 
-    // Find all candidate owners for this media
-    final faces = await (db.select(
-      db.faces,
-    )..where((f) => f.mediaId.equals(mediaId) & f.hidden.equals(false))).get();
-    final bodies = await (db.select(
-      db.bodies,
-    )..where((b) => b.mediaId.equals(mediaId) & b.hidden.equals(false))).get();
-
-    final ownerIds = <int>{
-      for (final f in faces)
-        if (f.personId != null) f.personId!,
-      for (final b in bodies)
-        if (b.personId != null) b.personId!,
-    };
-
-    if (ownerIds.isEmpty) return null;
+    final detections = await (db.select(db.mediaDetections)
+      ..where((d) => d.mediaId.equals(mediaId))).get();
+    final faceRefs = [for (final d in detections) if (d.kind == 'f') d.refId];
+    final bodyRefs = [for (final d in detections) if (d.kind == 'b') d.refId];
+    final faces = await (db.select(db.faces)..where(
+      (f) => (f.mediaId.equals(mediaId) | f.id.isIn(faceRefs)) &
+          f.hidden.not() &
+          (f.ownership.isNull() | f.ownership.equals('none').not()),
+    )).get();
+    final bodies = await (db.select(db.bodies)..where(
+      (b) => (b.mediaId.equals(mediaId) | b.id.isIn(bodyRefs)) &
+          b.hidden.not() &
+          (b.ownership.isNull() | b.ownership.equals('none').not()),
+    )).get();
+    final ownerIds = (await organizer.ownersForMedia([mediaId]))[mediaId];
+    if (ownerIds == null || ownerIds.isEmpty) return null;
+    if (explicitMasterId != null && !ownerIds.contains(explicitMasterId)) {
+      return null;
+    }
 
     final candidates = await (db.select(
       db.persons,
     )..where((p) => p.id.isIn(ownerIds))).get();
     if (candidates.isEmpty) return null;
 
-    // Prepare face boxes for prominence calculation
-    final faceBoxes = <int, List<double>>{
-      for (final f in faces)
-        if (f.personId != null)
-          f.personId!: [f.bboxX, f.bboxY, f.bboxW, f.bboxH],
-    };
+    final faceBoxes = <int, List<double>>{};
+    final occurrences = {for (final d in detections) if (d.kind == 'f') d.refId: d};
+    for (final face in faces) {
+      final owner = face.personId;
+      if (owner == null) continue;
+      final d = occurrences[face.id];
+      final box = [d?.x ?? face.bboxX, d?.y ?? face.bboxY,
+        d?.w ?? face.bboxW, d?.h ?? face.bboxH];
+      final prior = faceBoxes[owner];
+      if (prior == null || box[2] * box[3] > prior[2] * prior[3]) {
+        faceBoxes[owner] = box;
+      }
+    }
 
     final masterPerson = masterResolver.resolveMasterByBbox(
       candidates: candidates,
@@ -128,7 +153,7 @@ class DynamicAutoOrganizer {
       explicitChoice: explicitMasterId,
     );
 
-    if (masterPerson == null) return null;
+    if (masterPerson == null || !canOrganizePerson(masterPerson)) return null;
 
     return _Staged(media, faces, bodies, masterPerson);
   }
@@ -278,38 +303,39 @@ class DynamicAutoOrganizer {
     }
   }
 
-  /// Sets an explicit master person for a media and triggers auto-sync.
+  /// A user-selected move works independently of automatic folder sync.
   Future<OriginalMoveResult?> setMasterPerson(
     int mediaId,
     int personId, {
     String? rootDirectory,
-  }) => syncMedia(
-    mediaId,
-    explicitMasterId: personId,
-    rootDirectory: rootDirectory,
-  );
+  }) async {
+    final results = await _syncBatch(
+      [mediaId],
+      rootDirectory: rootDirectory,
+      explicitMasters: {mediaId: personId},
+    );
+    return results[mediaId];
+  }
 
-  /// Moves all media of a person when their organizing group changes.
   Future<List<OriginalMoveResult>> syncPersonGroup(
     int personId, {
     String? rootDirectory,
-  }) async {
-    // Find all media where person is assigned
-    final faces = await (db.select(
-      db.faces,
-    )..where((f) => f.personId.equals(personId))).get();
-    final bodies = await (db.select(
-      db.bodies,
-    )..where((b) => b.personId.equals(personId))).get();
-    final mediaIds = <int>{
-      for (final f in faces)
-        if (f.mediaId != null) f.mediaId!,
-      for (final b in bodies)
-        if (b.mediaId != null) b.mediaId!,
-    };
+  }) => syncPeopleFolders([personId], rootDirectory: rootDirectory);
 
-    final results = await syncBatch(mediaIds, rootDirectory: rootDirectory);
-    return results.values.toList();
+  Future<List<OriginalMoveResult>> syncPeopleFolders(
+    Iterable<int> personIds, {
+    String? rootDirectory,
+  }) async {
+    try {
+      final named = await organizer.namedPersonIds();
+      final ids = await organizer.mediaForPeople(personIds.where(named.contains));
+      final results = await syncBatch(ids, rootDirectory: rootDirectory);
+      return results.values.toList();
+    } catch (_) {
+      // The identity change has already been saved. Remaining files can be
+      // moved from the organizer preview when Android is ready.
+      return [];
+    }
   }
 }
 

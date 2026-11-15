@@ -11,8 +11,8 @@ import '../shared/empty_state.dart';
 import '../shared/image_preview.dart';
 
 class OrganizePersonMediaScreen extends ConsumerStatefulWidget {
-  const OrganizePersonMediaScreen({super.key, required this.personIds});
-  final Set<int> personIds;
+  const OrganizePersonMediaScreen({super.key, this.personIds});
+  final Set<int>? personIds;
   @override
   ConsumerState<OrganizePersonMediaScreen> createState() =>
       _OrganizePersonMediaState();
@@ -44,7 +44,10 @@ class _OrganizePersonMediaState
       final pending = await service.pending();
       final plan = resume
           ? pending
-          : await service.plan(widget.personIds, choices: choices);
+          : await service.plan(
+              widget.personIds ?? await service.namedPersonIds(),
+              choices: choices,
+            );
       if (!mounted || version != generation) return;
       setState(() {
         items = plan;

@@ -14,6 +14,7 @@ class ArtifactContext {
     this.qualityWarnings = const [],
     this.datasetId,
     this.referenceMediaId,
+    this.sourceFaceIds = const [],
   });
 
   final int? mediaId;
@@ -27,6 +28,7 @@ class ArtifactContext {
   final List<String> qualityWarnings;
   final String? datasetId;
   final int? referenceMediaId;
+  final List<int> sourceFaceIds;
 
   Map<String, dynamic> toJson() => {
     if (mediaId != null) 'mediaId': mediaId,
@@ -40,6 +42,7 @@ class ArtifactContext {
     if (qualityWarnings.isNotEmpty) 'qualityWarnings': qualityWarnings,
     if (datasetId != null) 'datasetId': datasetId,
     if (referenceMediaId != null) 'referenceMediaId': referenceMediaId,
+    if (sourceFaceIds.isNotEmpty) 'sourceFaceIds': sourceFaceIds,
   };
 
   static ArtifactContext? decode(String? value) {
@@ -73,6 +76,10 @@ class ArtifactContext {
         datasetId: json['datasetId'] is String
             ? json['datasetId'] as String
             : null,
+        sourceFaceIds: switch (json['sourceFaceIds']) {
+          final List<Object?> ids => ids.whereType<int>().toList(),
+          _ => const [],
+        },
         referenceMediaId: json['referenceMediaId'] is int
             ? json['referenceMediaId'] as int
             : null,
@@ -94,7 +101,10 @@ class ArtifactContext {
     qualityWarnings: qualityWarnings,
     datasetId: datasetId,
     referenceMediaId: referenceMediaId,
+    sourceFaceIds: sourceFaceIds,
   );
 }
 
 const artifactContextPrefix = 'artifact.context.';
+
+String identityBundleSourcesKey(int personId) => 'identity_bundle_sources_$personId';

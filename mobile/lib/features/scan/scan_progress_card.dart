@@ -383,6 +383,7 @@ Future<void> startScan(
   WidgetRef ref, {
   bool enumerate = true,
   Set<String>? albumIds,
+  bool repairCharacters = false,
 }) async {
   final engine = ref.read(scanEngineProvider);
   if (engine.isRunning) return;
@@ -392,7 +393,11 @@ Future<void> startScan(
   }
   await prepareBackgroundForWork(ref.context, ref);
   if (!ref.context.mounted) return;
-  unawaited(engine.start(enumerate: enumerate, albumIds: albumIds));
+  unawaited(engine.start(
+    enumerate: enumerate,
+    albumIds: albumIds,
+    repairCharacters: repairCharacters,
+  ));
 }
 
 /// A dedicated view of the live analysis, including video stages and controls.

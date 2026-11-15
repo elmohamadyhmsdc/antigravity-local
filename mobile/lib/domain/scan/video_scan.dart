@@ -16,6 +16,7 @@ import '../../data/media/media_library.dart';
 import '../../data/platform/video_frames.dart';
 import '../../data/repositories/app_settings.dart';
 import '../../data/repositories/library_repository.dart';
+import '../../data/repositories/character_repair.dart';
 import 'photo_result_store.dart';
 import 'video_hash.dart';
 import 'video_sampling.dart';
@@ -66,6 +67,7 @@ class VideoScan {
     void Function(VideoScanProgress progress)? onProgress,
     void Function(Uint8List bytes, int? timestampMs)? onPreview,
     bool characterScan = false,
+    bool repairCharacters = false,
 
     /// The PC has the sensitive-region model: sampled frames also ask for regions (roadmap S4); any
     /// frame with a counting region flags the whole clip.
@@ -259,6 +261,7 @@ class VideoScan {
         frameNumber: frame,
         timestampMs: timestamp,
         complete: false,
+        repairCharacters: repairCharacters,
       );
       outcome = StoreOutcome(
         facesSeen: outcome.facesSeen + stored.facesSeen,
@@ -425,7 +428,7 @@ class VideoScan {
               bytes,
               filename: 'frame.jpg',
               options: AnalyzeOptions(
-                detectBodies: prefs.scanBodies,
+                detectBodies: prefs.scanBodies || repairCharacters,
                 detectCharacters: isCharScan,
                 minQuality: prefs.qualityGate,
                 modelId: prefs.modelId,
@@ -450,15 +453,20 @@ class VideoScan {
         await local.close();
       }
       publish(VideoScanStage.finish);
-      await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
-        MediaCompanion(
-          scanStatus: const Value('done'),
-          scanVersion: const Value(scanVersion),
-          scannedAt: Value(DateTime.now().millisecondsSinceEpoch),
-          scanError: Value(localWarning),
-        ),
-      );
-      await (db.delete(db.settings)..where((s) => s.key.equals(gridKey))).go();
+      await db.transaction(() async {
+        await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
+          MediaCompanion(
+            scanStatus: const Value('done'),
+            scanVersion: const Value(scanVersion),
+            scannedAt: Value(DateTime.now().millisecondsSinceEpoch),
+            scanError: Value(localWarning),
+          ),
+        );
+        await (db.delete(db.settings)..where((s) => s.key.equals(gridKey))).go();
+        if (repairCharacters && localWarning == null) {
+          await CharacterRepair(db).finish(media.id);
+        }
+      });
       return true;
     }
 
@@ -534,7 +542,7 @@ class VideoScan {
                   ? 'adaptive'
                   : 'fixed',
               'min_quality': prefs.qualityGate,
-              'detect_bodies': prefs.scanBodies,
+              'detect_bodies': prefs.scanBodies || repairCharacters,
               'detect_characters': isCharScan,
               'model_id': prefs.modelId,
               'start_frame': current.lastScannedFrame,
@@ -779,14 +787,19 @@ class VideoScan {
           }
         }
         publish(VideoScanStage.finish);
-        await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
-          MediaCompanion(
-            scanStatus: const Value('done'),
-            scanVersion: const Value(scanVersion),
-            scannedAt: Value(DateTime.now().millisecondsSinceEpoch),
-            scanError: Value(warning),
-          ),
-        );
+        await db.transaction(() async {
+          await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
+            MediaCompanion(
+              scanStatus: const Value('done'),
+              scanVersion: const Value(scanVersion),
+              scannedAt: Value(DateTime.now().millisecondsSinceEpoch),
+              scanError: Value(warning),
+            ),
+          );
+          if (repairCharacters && warning == null && (currentJob?.skippedSamples ?? 0) == 0) {
+            await CharacterRepair(db).finish(media.id);
+          }
+        });
         // ACK only after every frame committed locally. A failed ACK is safe to retry later.
         try {
           await api.deleteVideoJob(id);

@@ -115,6 +115,36 @@ void main() {
     },
   );
 
+  test('only named People can become folder owners', () async {
+    final unnamed = await seedPerson(db);
+    final character = await seedPerson(db, name: 'Cartoon');
+    await (db.update(db.persons)..where((p) => p.id.equals(character))).write(
+      const PersonsCompanion(kind: Value('character')),
+    );
+    await media('real');
+    await media('unnamed', owner: unnamed);
+    await media('toon', owner: character);
+    final plan = await organizer.plan({luffy, unnamed, character});
+    expect(plan.single.media.assetId, 'real');
+    expect(plan.single.request!.targetPath, 'DCIM/Your Gallery/One Piece/Luffy/');
+    await organizer.apply(plan);
+    expect(bridge.moves.single.single.asset.assetId, 'real');
+    expect(bridge.originals['unnamed']!.path, 'DCIM/Camera/');
+    expect(bridge.originals['toon']!.path, 'DCIM/Camera/');
+  });
+
+  test('a stale preview cannot move a person who was unnamed after approval', () async {
+    await media('1');
+    final preview = await organizer.plan({luffy});
+    await (db.update(db.persons)..where((p) => p.id.equals(luffy))).write(
+      const PersonsCompanion(name: Value(null)),
+    );
+    final result = await organizer.apply(preview);
+    expect(result.single.status, 'stale_owner');
+    expect(bridge.moves, isEmpty);
+    expect(await db.select(db.personMediaMoves).get(), isEmpty);
+  });
+
   test('each shared file gets exactly one owner and one native move', () async {
     final zoro = await seedPerson(db, name: 'Zoro');
     final id = await media('1');

@@ -2902,6 +2902,42 @@ abstract class AppLocalizations {
   /// **'Choose source person'**
   String get selectSourcePerson;
 
+  /// No description provided for @refaceBuildGalleryProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Build profile from selected faces'**
+  String get refaceBuildGalleryProfile;
+
+  /// No description provided for @refaceBuildImportedProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Build profile from other media'**
+  String get refaceBuildImportedProfile;
+
+  /// No description provided for @refaceProfileBuilding.
+  ///
+  /// In en, this message translates to:
+  /// **'Building face profile…'**
+  String get refaceProfileBuilding;
+
+  /// No description provided for @refaceProfileNoCrops.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved face crops are available for this selection. Choose other faces or add source media.'**
+  String get refaceProfileNoCrops;
+
+  /// No description provided for @refaceProfileSourcesChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected faces changed. Choose the source person or faces again.'**
+  String get refaceProfileSourcesChanged;
+
+  /// No description provided for @refaceUseSavedProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Use saved face profile when available'**
+  String get refaceUseSavedProfile;
+
   /// No description provided for @sourceFacesHint.
   ///
   /// In en, this message translates to:
@@ -5212,6 +5248,12 @@ abstract class AppLocalizations {
   /// **'{count} character appearances found'**
   String charactersFound(int count);
 
+  /// No description provided for @repairMixedCharacters.
+  ///
+  /// In en, this message translates to:
+  /// **'Repair mixed characters'**
+  String get repairMixedCharacters;
+
   /// No description provided for @quickReviewTitle.
   ///
   /// In en, this message translates to:
@@ -6595,7 +6637,7 @@ abstract class AppLocalizations {
   /// No description provided for @organizeNaming.
   ///
   /// In en, this message translates to:
-  /// **'Files use the person or character name, with separate image and video numbers. File types are preserved. Renaming helps organization; visual detection still uses the image or video.'**
+  /// **'Named people use group/person folders in Your Gallery, with separate image and video numbers. People without a saved name keep their current location.'**
   String get organizeNaming;
 
   /// No description provided for @organizeApply.
@@ -6631,7 +6673,7 @@ abstract class AppLocalizations {
   /// No description provided for @organizeNoFiles.
   ///
   /// In en, this message translates to:
-  /// **'No original photos or videos are linked to the selected identities.'**
+  /// **'No original photos or videos are linked to the selected named people.'**
   String get organizeNoFiles;
 
   /// No description provided for @organizeSharedHint.
@@ -6667,7 +6709,7 @@ abstract class AppLocalizations {
   /// No description provided for @organizeStatus.
   ///
   /// In en, this message translates to:
-  /// **'{status, select, ready{Ready to move} already{Already organized} choose_owner{Choose one destination owner} missing{Original is unavailable} stale_scan{File changed since detection. Scan it again first.} stale{File changed after this preview. Refresh to review it.} conflict{A file with this name already exists. Nothing will be replaced.} pending{An earlier move needs review first.} moved{Moved} cancelled{Cancelled — original kept} denied{Android did not grant permission} uncertain{Check interrupted move to confirm the current location} unsupported{This file cannot be moved here} other{Could not move this file}}'**
+  /// **'{status, select, ready{Ready to move} already{Already organized} choose_owner{Choose one destination owner} missing{Original is unavailable} stale_scan{File changed since detection. Scan it again first.} stale{File changed after this preview. Refresh to review it.} stale_owner{The owner or folder changed. Refresh the preview.} conflict{A file with this name already exists. Nothing will be replaced.} pending{An earlier move needs review first.} moved{Moved} cancelled{Cancelled — original kept} denied{Android did not grant permission} uncertain{Check interrupted move to confirm the current location} unsupported{This file cannot be moved here} other{Could not move this file}}'**
   String organizeStatus(String status);
 
   /// No description provided for @organizeCancelPending.
@@ -6703,7 +6745,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoSyncOrganizedFoldersHint.
   ///
   /// In en, this message translates to:
-  /// **'Move files and metadata automatically when people change groups or corrections occur'**
+  /// **'Move originals into named people’s folders when their names, groups or assignments change.'**
   String get autoSyncOrganizedFoldersHint;
 
   /// No description provided for @moveWithoutAskingTitle.

@@ -14,7 +14,7 @@ import 'package:antigravity_mobile/data/repositories/action_frames.dart';
 import 'package:antigravity_mobile/domain/scan/drawn_faces.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
 import 'package:antigravity_mobile/domain/geometry/outline.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -89,6 +89,55 @@ void main() {
       );
     },
   );
+
+  test('repairs two mixed humans while keeping a manually confirmed character', () async {
+    final p = await seedPerson(db);
+    final confirmed = await seedPerson(db, name: 'Character to keep');
+    await db.customUpdate(
+      "UPDATE persons SET kind = 'character' WHERE id IN (?, ?)",
+      variables: [Variable.withInt(p), Variable.withInt(confirmed)],
+    );
+    final first = await seedMedia(db, asset: 'mixed-1');
+    final second = await seedMedia(db, asset: 'mixed-2');
+    final third = await seedMedia(db, asset: 'confirmed');
+    await seedMedia(db, asset: 'unrelated');
+    final repair = LibraryRepository(db).characterRepair;
+    for (final (media, owner) in [(first, p), (second, p), (third, confirmed)]) {
+      final id = await seedFace(db, mediaId: media, personId: owner, h: .3, y: .125);
+      await (db.update(db.faces)..where((f) => f.id.equals(id))).write(
+        const FacesCompanion(kind: Value('character')),
+      );
+      if (media == third) {
+        await db.into(db.faceConfirmations).insert(
+          FaceConfirmationsCompanion.insert(
+            faceId: Value(id),
+            personId: owner,
+            confirmedAt: 1,
+          ),
+        );
+      }
+    }
+
+    expect(await repair.enqueue(), 3);
+    final repo = LibraryRepository(db);
+    expect((await repo.scanCounts(characterRepairOnly: true)).pending, 3);
+    for (final id in [first, second, third]) {
+      final media = (await repo.mediaById(id))!;
+      await store.store(
+        media,
+        analysis(faces: [faceJson(unitVec(id), crop: false)]),
+        repairCharacters: true,
+      );
+      expect(await repair.pending(id), isFalse);
+    }
+    final faces = await db.select(db.faces).get();
+    expect(faces.where((f) => f.kind == 'person'), hasLength(3));
+    expect(faces.where((f) => f.kind == 'character').single.personId, confirmed);
+    final groups = await db.select(db.persons).get();
+    expect(groups.singleWhere((row) => row.id == p).hidden, isTrue);
+    expect(await repair.enqueue(), 0);
+    expect(await repair.pending(third), isFalse);
+  });
 
   group('one photo', () {
     test(

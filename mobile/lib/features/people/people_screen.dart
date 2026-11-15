@@ -11,11 +11,13 @@ import '../../library_providers.dart';
 import '../../ui/scaffolds/tab_root_scaffold.dart';
 import '../../ui/sheets/name_sheet.dart';
 import '../review/review_banner.dart';
+import '../scan/scan_progress_card.dart';
 import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import 'people_actions.dart';
 import 'action_sheet.dart';
 import 'identity_groups_screen.dart';
+import 'organize_media_screen.dart';
 
 enum PeopleSort { mostFaces, name, newest }
 
@@ -213,7 +215,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                 key: const Key('manage-identity-groups'),
                 icon: Icons.folder_outlined,
                 title: l10n.identityGroupsTitle,
-                subtitle: 'Organize people & characters into folders',
+                subtitle: l10n.identityGroupsIntro,
                 onTap: () {
                   Navigator.pop(ctx);
                   Navigator.of(context).push(
@@ -223,6 +225,21 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   );
                 },
               ),
+              if (!characters) ...[
+                const SizedBox(height: 6),
+                _ToolsSheetTile(
+                  key: const Key('organize-named-people'),
+                  icon: Icons.drive_file_move_outlined,
+                  title: l10n.organizeTitle,
+                  subtitle: l10n.organizeNaming,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => const OrganizePersonMediaScreen(),
+                    ));
+                  },
+                ),
+              ],
               const SizedBox(height: 6),
               _ToolsSheetTile(
                 key: const Key('open-review'),
@@ -268,6 +285,8 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final characters = _kind == 'character';
+    final scanRunning =
+        characters && (ref.watch(scanProgressProvider).value?.isActive ?? false);
     final allKinds = _kind == 'all';
     final listProvider = allKinds
         ? _allIdentitiesProvider
@@ -622,6 +641,31 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   ),
                 ),
               ),
+            if (characters && !_selecting)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: TextButton.icon(
+                    key: const Key('repair-mixed-characters'),
+                    icon: const Icon(Icons.auto_fix_high_outlined),
+                    label: Text(l10n.repairMixedCharacters),
+                    onPressed: scanRunning
+                        ? null
+                        : () async {
+                            await startScan(
+                              ref,
+                              enumerate: false,
+                              repairCharacters: true,
+                            );
+                            if (context.mounted &&
+                                ref.read(scanEngineProvider).isRunning) {
+                              context.push(Routes.runningScan);
+                            }
+                          },
+                  ),
+                ),
+              ),
             Expanded(
               child: people.when(
                 loading: () => const LoadingBox(),
@@ -648,22 +692,12 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                     );
                   }
                   final shown = [...visible];
-                  switch (_sort) {
-                    case PeopleSort.mostFaces:
-                      break; // the query already orders by face count
-                    case PeopleSort.name:
-                      shown.sort(
-                        (a, b) => personName(l10n, a).toLowerCase().compareTo(
-                          personName(l10n, b).toLowerCase(),
-                        ),
-                      );
-                    case PeopleSort.newest:
-                      shown.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                  }
                   shown.sort((a, b) {
+                    final named = (b.isNamed ? 1 : 0).compareTo(a.isNamed ? 1 : 0);
+                    if (named != 0) return named;
                     final pin = (b.pinned ? 1 : 0).compareTo(a.pinned ? 1 : 0);
                     if (pin != 0) return pin;
-                    return switch (_sort) {
+                    final order = switch (_sort) {
                       PeopleSort.name =>
                         personName(l10n, a).toLowerCase().compareTo(
                           personName(l10n, b).toLowerCase(),
@@ -673,6 +707,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                         a.faceCount,
                       ),
                     };
+                    return order != 0 ? order : a.id.compareTo(b.id);
                   });
                   return CustomScrollView(
                     keyboardDismissBehavior:

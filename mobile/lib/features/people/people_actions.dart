@@ -31,7 +31,8 @@ List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
     const PeopleMenuAction('merge', Icons.merge),
     if (single) const PeopleMenuAction('rename', Icons.edit_outlined),
     const PeopleMenuAction('setGroup', Icons.folder_outlined),
-    const PeopleMenuAction('organizeMedia', Icons.drive_file_move_outlined),
+    if (people.any((p) => p.kind == 'person' && p.isNamed))
+      const PeopleMenuAction('organizeMedia', Icons.drive_file_move_outlined),
     PeopleMenuAction(
       people.every((p) => p.hidden) ? 'show' : 'hide',
       Icons.visibility_outlined,

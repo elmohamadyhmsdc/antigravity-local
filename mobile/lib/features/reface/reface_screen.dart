@@ -674,7 +674,12 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
 
   Future<void> _loadPerson(int id) async {
     try {
-      final faces = await ref.read(studioRepositoryProvider).sourceFaces(id);
+      final modelId =
+          _caps(ref.read(serverStatusProvider).value)?.embeddingModelId ??
+          'buffalo_l@1';
+      final faces = await ref
+          .read(studioRepositoryProvider)
+          .refaceSources(id, modelId: modelId);
       final db = ref.read(databaseProvider);
       final person = await (db.select(
         db.persons,
@@ -690,8 +695,10 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         _directSource = false;
         _useImportedSource = false;
         _loraIdentity = false;
+        _useIdentityBundle = true;
         _identitySet = null;
         _personName = name;
+        _error = null;
         _faces = faces;
         _sources.clear();
         _sources.addAll(
@@ -789,6 +796,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           ..clear()
           ..addAll(faces.map((f) => f.id));
         _identitySet = id;
+        _useIdentityBundle = false;
         _error = null;
       });
     } catch (e) {
@@ -917,59 +925,96 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         !caps.engines.identityBundle) {
       return null;
     }
-    final value = await ref.read(databaseProvider).setting('identity_bundle_$personId');
-    if (value == null) return null;
-    try {
-      final bundle = jsonDecode(value);
-      if (bundle is Map && bundle['schema_version'] == '1.0' &&
-          bundle['algorithm_version'] == 'identity_v1') {
-        return value;
-      }
-      return null;
-    } on FormatException {
-      return null;
-    } on TypeError {
-      return null;
-    }
+    return ref
+        .read(studioRepositoryProvider)
+        .savedRefaceProfile(personId, caps.embeddingModelId);
   }
 
-  Future<void> _buildIdentity(Capabilities caps) async {
+  Future<void> _buildIdentity(
+    Capabilities caps, {
+    required bool fromGallery,
+  }) async {
     final personId = _person;
-    if (personId == null || !caps.engines.identityBundle) return;
-    final location = await chooseRefaceMediaSource(context);
-    if (location == null || !mounted) return;
+    if (personId == null || _busy || !caps.engines.identityBundle) return;
+    final l = AppLocalizations.of(context);
+    final location = fromGallery ? null : await chooseRefaceMediaSource(context);
+    if ((!fromGallery && location == null) || !mounted || _person != personId) {
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
     Directory? staging;
     try {
-      final picked = await ref.read(refaceSourcePickerProvider)(location);
-      if (picked.isEmpty || !mounted) return;
+      final repo = ref.read(studioRepositoryProvider);
       final inputs = <File>[];
-      for (final source in picked) {
-        if (await isVideoTarget(source)) {
-          staging ??= await (await getTemporaryDirectory()).createTemp('identity-');
-          final frames = await ref.read(refaceVideoFramesProvider)(File(source.path));
-          for (final frame in frames) {
-            if (inputs.length == 64) break;
-            inputs.add(await File('${staging.path}/${inputs.length}.jpg').writeAsBytes(frame));
+      final faceIds = <int>[];
+      if (fromGallery) {
+        final faces = await repo.refaceSources(
+          personId,
+          faceIds: _sources,
+          modelId: caps.embeddingModelId,
+        );
+        for (final face in faces) {
+          if (inputs.length == 64) break;
+          final path = face.cropPath;
+          if (path == null) continue;
+          try {
+            final file = repo.files.resolve(path);
+            if (await file.length() == 0) continue;
+            inputs.add(file);
+            faceIds.add(face.id);
+          } on FileSystemException {
+            // Crops can be evicted or removed after the face was selected.
+          } on FormatException {
+            // Older libraries can contain paths that no longer resolve.
           }
-        } else {
-          inputs.add(File(source.path));
         }
-        if (inputs.length == 64) break;
+      } else {
+        final picked = await ref.read(refaceSourcePickerProvider)(location!);
+        if (picked.isEmpty || !mounted) return;
+        for (final source in picked) {
+          if (await isVideoTarget(source)) {
+            staging ??= await (await getTemporaryDirectory()).createTemp(
+              'identity-',
+            );
+            final frames = await ref
+                .read(refaceVideoFramesProvider)(File(source.path));
+            for (final frame in frames) {
+              if (inputs.length == 64) break;
+              final file = File('${staging.path}/${inputs.length}.jpg');
+              inputs.add(await file.writeAsBytes(frame));
+            }
+          } else {
+            inputs.add(File(source.path));
+          }
+          if (inputs.length == 64) break;
+        }
       }
       if (!mounted) return;
-      if (inputs.isEmpty) throw const FormatException('Choose clear source photos or a readable video.');
+      if (inputs.isEmpty) {
+        throw FormatException(
+          fromGallery
+              ? l.refaceProfileNoCrops
+              : 'Choose clear source photos or a readable video.',
+        );
+      }
       await prepareBackgroundForWork(context, ref);
       if (!mounted) return;
-      await ref.read(studioRepositoryProvider).enqueueInputs(
+      await repo.enqueueInputs(
         serverId: caps.serverId,
         type: 'build_identity',
         params: const {},
         inputs: {'images': inputs},
         personId: personId,
+        context: fromGallery
+            ? ArtifactContext(
+                personId: personId,
+                identityModelId: caps.embeddingModelId,
+                sourceFaceIds: faceIds,
+              )
+            : null,
       );
       if (!mounted) return;
       ref.read(jobTrackerProvider).start();
@@ -1064,27 +1109,29 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       if (await file.length() > caps.limits.maxUploadMb * 1024 * 1024) {
         throw FormatException(l10n.fileTooLarge);
       }
-      final source = _identityMode == 'dfm'
-          ? <Map<String, dynamic>>[]
-          : _useImportedSource
-          ? _importedSources[_importedSource!].encode()
-          : StudioRepository.encodeFaces(
-              (_directSource
-                      ? await (ref
-                                .read(databaseProvider)
-                                .select(ref.read(databaseProvider).faces)
-                              ..where((f) => f.id.isIn(_sources)))
-                            .get()
-                      : await ref
-                            .read(identityRepositoryProvider)
-                            .selection(
-                              personId: _person!,
-                              faceIds: _sources,
-                              modelId: caps.embeddingModelId,
-                            ))
-                  .take(_loraIdentity ? 60 : 100),
-              caps.embeddingModelId,
-            );
+      final identityBundle = await _savedIdentityBundle(caps);
+      final source = <Map<String, dynamic>>[];
+      if (_identityMode != 'dfm' && identityBundle == null) {
+        if (_useImportedSource) {
+          source.addAll(_importedSources[_importedSource!].encode());
+        } else {
+          final db = ref.read(databaseProvider);
+          final faces = _directSource
+              ? await (db.select(db.faces)..where((f) => f.id.isIn(_sources))).get()
+              : await ref.read(studioRepositoryProvider).refaceSources(
+                  _person!,
+                  faceIds: _sources,
+                  modelId: caps.embeddingModelId,
+                );
+          if (faces.length != _sources.length) {
+            throw FormatException(l10n.refaceProfileSourcesChanged);
+          }
+          source.addAll(StudioRepository.encodeFaces(
+            faces.take(_loraIdentity ? 60 : 100),
+            caps.embeddingModelId,
+          ));
+        }
+      }
       if (_loraIdentity && _identityMode != 'dfm') {
         final models = ref.read(lorasProvider).value ?? const <LoraRow>[];
         final model = models
@@ -1110,7 +1157,6 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           );
         }
       }
-      final identityBundle = await _savedIdentityBundle(caps);
       if (identityBundle != null) {
         final tmp = await getTemporaryDirectory();
         bundleFile = File('${tmp.path}/reface-identity-${DateTime.now().microsecondsSinceEpoch}.json');
@@ -1195,6 +1241,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final caps = _caps(ref.watch(serverStatusProvider).value);
+    final buildingProfile = _person != null &&
+        (ref.watch(jobsProvider).value ?? const <JobRow>[]).any(
+          (job) => job.type == 'build_identity' &&
+              job.personId == _person &&
+              !const ['completed', 'failed', 'paused', 'lost', 'cancelled']
+                  .contains(job.status),
+        );
     final identitySets =
         (ref.watch(identitySetsProvider).value ?? const <IdentitySetRow>[])
             .where((set) => set.personId == _person)
@@ -1570,16 +1623,35 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                         ),
                       if (_identityMode != 'dfm' &&
                           _person != null &&
-                          (caps?.engines.identityBundle ?? false)) ...[
+                          !_directSource &&
+                          !_useImportedSource &&
+                          caps != null &&
+                          caps.engines.identityBundle) ...[
+                        FilledButton.tonalIcon(
+                          key: const Key('reface-build-gallery-profile'),
+                          onPressed: _busy || buildingProfile || _sources.isEmpty
+                              ? null
+                              : () => _buildIdentity(caps, fromGallery: true),
+                          icon: const Icon(Icons.collections_outlined),
+                          label: Text(
+                            buildingProfile
+                                ? l10n.refaceProfileBuilding
+                                : l10n.refaceBuildGalleryProfile,
+                          ),
+                        ),
                         OutlinedButton.icon(
-                          onPressed: _busy ? null : () => _buildIdentity(caps!),
+                          onPressed: _busy || buildingProfile
+                              ? null
+                              : () => _buildIdentity(caps, fromGallery: false),
                           icon: const Icon(Icons.add_photo_alternate_outlined),
-                          label: const Text('Build identity from photos'),
+                          label: Text(l10n.refaceBuildImportedProfile),
                         ),
                         SwitchListTile(
-                          title: const Text('Use saved identity when available'),
+                          title: Text(l10n.refaceUseSavedProfile),
                           value: _useIdentityBundle,
-                          onChanged: _busy ? null : (value) => setState(() => _useIdentityBundle = value),
+                          onChanged: _busy || buildingProfile
+                              ? null
+                              : (value) => setState(() => _useIdentityBundle = value),
                         ),
                       ],
                       if (_identityMode != 'dfm' &&
@@ -1723,6 +1795,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                     value: _sources.contains(face.id),
                                     onChanged: (_) => setState(() {
                                       _identitySet = null;
+                                      _useIdentityBundle = false;
                                       if (!_sources.remove(face.id)) {
                                         _sources.add(face.id);
                                       }

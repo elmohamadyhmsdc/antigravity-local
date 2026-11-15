@@ -92,8 +92,8 @@ class CharacterTests(unittest.TestCase):
         self.assertEqual(real.characters, [])
         drawn = analyze_frame(None, Bodies(), drawing(), options(), detect=lambda _: [face],
                               assess=lambda img, f: {"quality_score": .45})
-        self.assertEqual(drawn.faces, [])
-        self.assertEqual(len(drawn.characters), 2)
+        self.assertEqual(drawn.faces, [face])
+        self.assertEqual(drawn.characters, [])
 
     def test_real_person_with_detect_bodies_and_characters_preserves_body(self):
         class Bodies:
@@ -351,6 +351,9 @@ class KindCorrectionTests(unittest.TestCase):
         import drawn_faces
         f = self.face(box, score)
         f.embedding = (drawn_faces._direction * 20).astype(np.float32)
+        x1, y1, x2, y2 = box
+        fractions = np.array([[.28, .32], [.72, .32], [.5, .5], [.34, .74], [.66, .74]])
+        f.kps = (fractions * (x2 - x1, y2 - y1) + (x1, y1)).astype(np.float32)
         return f
 
     def test_a_drawn_face_is_boxed_by_the_people_detector(self):
@@ -387,14 +390,49 @@ class KindCorrectionTests(unittest.TestCase):
         self.assertEqual(res.faces, [])
         self.anime.append({"bbox": np.array([10, 150, 50, 200], np.float32), "score": .8})
         seen = self.run_frame([self.drawn_face()], self.bodies(), faceless_characters=False)
-        self.assertEqual(sorted(list(c.face_bbox) for c in seen.characters),
-                         [[10, 150, 50, 200], [40, 10, 88, 72]])
+        self.assertEqual([list(c.face_bbox) for c in seen.characters], [[10, 150, 50, 200]])
 
     def test_the_anime_detector_fills_in_faces_the_people_detector_missed(self):
         self.anime.append({"bbox": np.array([10, 150, 50, 200], np.float32), "score": .8})
         res = self.run_frame([self.drawn_face()], self.bodies((0, 0, 128, 256)))
         boxes = sorted(list(c.face_bbox) for c in res.characters if c.face_bbox is not None)
         self.assertEqual(boxes, [[10, 150, 50, 200], [40, 10, 88, 72]])
+
+    def test_low_confidence_shape_cannot_change_an_unrelated_real_face(self):
+        self.anime.append({"bbox": [74, 110, 119, 155], "score": .62})
+        real = self.face()
+        res = self.run_frame([real], self.bodies(), quality=.45, faceless_characters=False)
+        self.assertEqual(res.faces, [real])
+        self.assertEqual(res.characters, [])
+
+    def test_drawn_embedding_with_collapsed_landmarks_is_not_independent_face_evidence(self):
+        fake = self.drawn_face()
+        fake.kps[:] = (64, 41)
+        res = self.run_frame([fake], self.bodies())
+        self.assertEqual(res.characters, [])
+
+    def test_high_scoring_anime_box_at_a_wrist_is_rejected(self):
+        self.anime.append({"bbox": [75, 105, 120, 150], "score": .96})
+        person = body()
+        person.kpts = np.zeros((17, 2), np.float32)
+        person.kpt_scores = np.zeros(17, np.float32)
+        for index, point in ((0, (64, 40)), (1, (58, 36)), (2, (70, 36)), (9, (97, 125))):
+            person.kpts[index] = point
+            person.kpt_scores[index] = .9
+        bodies = SimpleNamespace(available=True, analyze=lambda *_args, **_kwargs: [person])
+        res = self.run_frame([], bodies, faceless_characters=False)
+        self.assertEqual(res.characters, [])
+        self.assertEqual(len(res.bodies), 1)
+
+    def test_wrist_only_pose_does_not_become_a_faceless_character(self):
+        shape = body()
+        shape.kpts = np.zeros((17, 2), np.float32)
+        shape.kpt_scores = np.zeros(17, np.float32)
+        shape.kpts[9] = (64, 100)
+        shape.kpt_scores[9] = .9
+        bodies = SimpleNamespace(available=True, analyze=lambda *_args, **_kwargs: [shape])
+        res = self.run_frame([], bodies)
+        self.assertEqual(res.characters, [])
 
     def test_a_speck_of_a_drawn_face_is_no_character_face(self):
         self.anime.append({"bbox": np.array([10, 150, 28, 168], np.float32), "score": .9})
@@ -490,10 +528,11 @@ class KindCorrectionTests(unittest.TestCase):
         self.assertEqual((len(photo.bodies), photo.characters), (1, []))
         illustrated = self.run_frame([], self.bodies((0, 0, 128, 256)))
         self.assertEqual((illustrated.bodies, len(illustrated.characters)), ([], 1))
-        # Next to a drawn face, a faceless figure is a character even in an ordinary photo.
+        # A drawing elsewhere in a mixed photo does not change the faceless body's kind.
         self.anime.append({"bbox": np.array([2, 2, 42, 42], np.float32), "score": .9})
         drawn = self.run_frame([], self.bodies((40, 60, 128, 256)), faceless_characters=False)
-        self.assertEqual(len(drawn.characters), 2)
+        self.assertEqual(len(drawn.characters), 1)
+        self.assertEqual(len(drawn.bodies), 1)
 
     def test_characters_get_exposed_regions_and_body_vectors_like_people(self):
         """One detector pass over people AND drawn bodies; regions/vectors are routed back to their owner."""

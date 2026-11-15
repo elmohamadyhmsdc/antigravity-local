@@ -1270,6 +1270,12 @@
   "videoTrimStart": "Start (seconds)",
   "videoTrimEnd": "End (seconds, optional)",
   "selectSourcePerson": "Choose source person",
+  "refaceBuildGalleryProfile": "Build profile from selected faces",
+  "refaceBuildImportedProfile": "Build profile from other media",
+  "refaceProfileBuilding": "Building face profile…",
+  "refaceProfileNoCrops": "No saved face crops are available for this selection. Choose other faces or add source media.",
+  "refaceProfileSourcesChanged": "The selected faces changed. Choose the source person or faces again.",
+  "refaceUseSavedProfile": "Use saved face profile when available",
   "sourceFacesHint": "Select clear faces of the same person. The best 20 are selected by default.",
   "refaceHd": "V3 · HD",
   "refaceLegacy": "V2",
@@ -1796,6 +1802,7 @@
       }
     }
   },
+  "repairMixedCharacters": "Repair mixed characters",
   "quickReviewTitle": "Quick review",
   "quickReviewProgress": "{current} of {total}",
   "@quickReviewProgress": {
@@ -2301,13 +2308,13 @@
   },
   "organizeTitle": "Move and rename originals",
   "organizeIntro": "Review the original photos and videos before moving them on this phone. Android will ask for permission. A running scan pauses during the move. Existing destination files are kept.",
-  "organizeNaming": "Files use the person or character name, with separate image and video numbers. File types are preserved. Renaming helps organization; visual detection still uses the image or video.",
+  "organizeNaming": "Named people use group/person folders in Your Gallery, with separate image and video numbers. People without a saved name keep their current location.",
   "organizeApply": "Move selected originals",
   "organizeWorking": "Moving originals…",
   "organizeResume": "Review interrupted move",
   "organizeLoadFailed": "Could not prepare the move. Allow gallery access and use Android 10 or newer, then try again.",
   "organizeInterrupted": "The move was interrupted. Refresh, then review the interrupted move to check which files still need moving.",
-  "organizeNoFiles": "No original photos or videos are linked to the selected identities.",
+  "organizeNoFiles": "No original photos or videos are linked to the selected named people.",
   "organizeSharedHint": "Some files show several selected identities. Choose one destination owner for each shared file.",
   "organizeChooseOwner": "Whose folder should contain this file?",
   "organizeSelectNone": "Select none",
@@ -2333,7 +2340,7 @@
       }
     }
   },
-  "organizeStatus": "{status, select, ready{Ready to move} already{Already organized} choose_owner{Choose one destination owner} missing{Original is unavailable} stale_scan{File changed since detection. Scan it again first.} stale{File changed after this preview. Refresh to review it.} conflict{A file with this name already exists. Nothing will be replaced.} pending{An earlier move needs review first.} moved{Moved} cancelled{Cancelled — original kept} denied{Android did not grant permission} uncertain{Check interrupted move to confirm the current location} unsupported{This file cannot be moved here} other{Could not move this file}}",
+  "organizeStatus": "{status, select, ready{Ready to move} already{Already organized} choose_owner{Choose one destination owner} missing{Original is unavailable} stale_scan{File changed since detection. Scan it again first.} stale{File changed after this preview. Refresh to review it.} stale_owner{The owner or folder changed. Refresh the preview.} conflict{A file with this name already exists. Nothing will be replaced.} pending{An earlier move needs review first.} moved{Moved} cancelled{Cancelled — original kept} denied{Android did not grant permission} uncertain{Check interrupted move to confirm the current location} unsupported{This file cannot be moved here} other{Could not move this file}}",
   "@organizeStatus": {
     "placeholders": {
       "status": {
@@ -2346,7 +2353,7 @@
   "setAsMasterOwner": "Set as primary file owner",
   "setAsMasterOwnerSubtitle": "Physical media file will be stored in this person's folder",
   "autoSyncOrganizedFolders": "Auto-sync organized folders",
-  "autoSyncOrganizedFoldersHint": "Move files and metadata automatically when people change groups or corrections occur",
+  "autoSyncOrganizedFoldersHint": "Move originals into named people’s folders when their names, groups or assignments change.",
   "moveWithoutAskingTitle": "Move photos without asking",
   "moveWithoutAskingOn": "Allowed. People's folders are in “Your Gallery” on the phone's storage (outside DCIM), each photo keeps its .json file beside it, and photos move after a scan with no prompts, also in the background.",
   "moveWithoutAskingOff": "Not allowed yet. Without it Android asks before every batch of moves, the .json files cannot be saved and photos are not moved automatically. Tap, then switch on “Allow access to manage all files” for this app, once.",

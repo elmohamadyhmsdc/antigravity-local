@@ -73,6 +73,11 @@ class IdentityGroupsRepository {
         nameKey: Value(value.toLowerCase()),
       ),
     );
+    if (autoOrganizer != null) {
+      final members = await (db.select(db.persons)
+        ..where((p) => p.groupId.equals(id) & p.kind.equals('person'))).get();
+      await autoOrganizer!.syncPeopleFolders(members.map((p) => p.id));
+    }
   }
 
   Future<void> assign(Iterable<int> people, int? groupId) async {

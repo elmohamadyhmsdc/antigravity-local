@@ -699,7 +699,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                           ],
                         ),
                         children: [
-                          if (!isMaster)
+                          if (!isMaster && person?.kind == 'person' && person?.isNamed == true)
                             ListTile(
                               key: Key('who-set-master-${entry.key}'),
                               leading: const Icon(
@@ -709,21 +709,23 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                               title: Text(l10n.setAsMasterOwner),
                               subtitle: Text(l10n.setAsMasterOwnerSubtitle),
                               onTap: () async {
-                                setState(() {
-                                  _explicitMasterId = entry.key;
-                                });
                                 final autoOrganizer = ref.read(
                                   dynamicAutoOrganizerProvider,
                                 );
-                                await autoOrganizer.setMasterPerson(
+                                final result = await autoOrganizer.setMasterPerson(
                                   widget.media.id,
                                   entry.key,
                                 );
                                 if (context.mounted) {
+                                  if (result?.moved == true) {
+                                    setState(() => _explicitMasterId = entry.key);
+                                  }
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        '$name is now the primary file owner',
+                                        result?.moved == true
+                                            ? '$name is now the primary file owner'
+                                            : l10n.organizeStatus(result?.status ?? 'other'),
                                       ),
                                       duration: const Duration(seconds: 2),
                                     ),

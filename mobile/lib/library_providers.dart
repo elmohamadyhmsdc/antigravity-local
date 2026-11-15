@@ -630,6 +630,7 @@ final dynamicAutoOrganizerProvider = Provider<DynamicAutoOrganizer>((ref) {
   return DynamicAutoOrganizer(
     db: ref.watch(databaseProvider),
     organizer: ref.watch(personMediaOrganizerProvider),
+    enabled: () async => (await ref.read(appSettingsProvider).load()).autoOrganizeEnabled,
   );
 });
 

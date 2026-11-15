@@ -98,6 +98,7 @@ class ScanEngine {
   ScanProgress _progress = const ScanProgress();
   bool _active = false;
   bool _canDetectCharacters = false;
+  bool _canRepairCharacters = false;
 
   /// The PC has the NudeNet model: scans of real photos also ask for exposed / covered regions
   /// (roadmap section 8). Drawn albums never do.
@@ -195,7 +196,11 @@ class ScanEngine {
 
   /// Runs until the queue is empty or the scan is paused. `enumerate` = list the chosen albums first
   /// (a new scan); false = just work through what is already queued (resume).
-  Future<void> start({bool enumerate = true, Set<String>? albumIds}) async {
+  Future<void> start({
+    bool enumerate = true,
+    Set<String>? albumIds,
+    bool repairCharacters = false,
+  }) async {
     if (_active || mediaOrganizationActive) return;
     _allowReconnectResume = true;
     _active = true;
@@ -204,7 +209,7 @@ class ScanEngine {
     _pauseSignal = Completer<void>();
     try {
       await runZoned(
-        () => _run(enumerate, albumIds: albumIds),
+        () => _run(enumerate, albumIds: albumIds, repairCharacters: repairCharacters),
         zoneValues: {_inScanKey: true},
       );
     } catch (e) {
@@ -245,7 +250,11 @@ class ScanEngine {
     );
   }
 
-  Future<void> _run(bool enumerate, {Set<String>? albumIds}) async {
+  Future<void> _run(
+    bool enumerate, {
+    Set<String>? albumIds,
+    required bool repairCharacters,
+  }) async {
     final api = _api();
     if (api == null) {
       await _pause(PauseReason.notPaired);
@@ -261,6 +270,15 @@ class ScanEngine {
     _emit(const ScanProgress(phase: ScanPhase.preparing));
     final caps = await api.capabilities();
     _canDetectCharacters = caps.engines.characterDetection;
+    _canRepairCharacters = caps.engines.characterLibraryRepair;
+    final repair = _repo.characterRepair;
+    final repairOnly = repairCharacters || (!enumerate && await repair.sessionActive());
+    if (repairOnly && !_canRepairCharacters) {
+      await _pause(PauseReason.error,
+          'Update the PC server and check its face and character models to repair existing characters.');
+      return;
+    }
+    if (enumerate && !repairCharacters) await repair.setSessionActive(false);
     _canDetectSensitive = caps.engines.sensitiveDetection;
     _canEmbedBodies = caps.engines.bodyEmbeddings;
     final characterAlbums = prefs.characterAlbumIds.toSet().intersection(
@@ -316,8 +334,12 @@ class ScanEngine {
         return;
       }
     }
+    if (repairCharacters) {
+      await repair.enqueue();
+      await repair.setSessionActive(true);
+    }
     await _repo.resetScanning();
-    final counts = await _repo.scanCounts();
+    final counts = await _repo.scanCounts(characterRepairOnly: repairOnly);
 
     var modelId = prefs.modelId;
     final started = _clock();
@@ -337,7 +359,7 @@ class ScanEngine {
     void prepareNextPhoto() {
       _preparedPhoto = () async {
         try {
-          final next = await _repo.nextPending();
+          final next = await _repo.nextPending(characterRepairOnly: repairOnly);
           if (next == null || next.kind != 'photo' || _pauseRequested) {
             return null;
           }
@@ -441,7 +463,7 @@ class ScanEngine {
         await _pause(PauseReason.user);
         return;
       }
-      final row = await _repo.claimNext();
+      final row = await _repo.claimNext(characterRepairOnly: repairOnly);
       if (row == null) break;
       current = row;
       previewBytes = null;
@@ -522,12 +544,15 @@ class ScanEngine {
       return;
     }
     await _media.clearCache();
-    await _store.flushOrganization(shouldStop: () => _pauseRequested);
+    if (!repairOnly) {
+      await _store.flushOrganization(shouldStop: () => _pauseRequested);
+    }
     try {
       await _afterRun?.call();
     } catch (_) {
       // housekeeping only (thumbnail trim): never fails a finished scan
     }
+    if (repairOnly) await repair.setSessionActive(false);
     await _settings.setScanActive(false);
     _emit(
       snapshot(
@@ -547,6 +572,10 @@ class ScanEngine {
     Uint8List? preparedPhoto,
     required void Function() prepareNextPhoto,
   }) async {
+    final repairing = await _repo.characterRepair.pending(row.id);
+    if (repairing && !_canRepairCharacters) {
+      return _stop(row.id, PauseReason.error, 'Restart the updated PC server to continue character repair.');
+    }
     Uint8List? bytes;
     try {
       if (row.kind == 'video') {
@@ -611,7 +640,8 @@ class ScanEngine {
             report: (_, _) {},
             onProgress: onVideoProgress,
             onPreview: preview,
-            characterScan: row.illustrated || _canDetectCharacters,
+            characterScan: repairing || row.illustrated || _canDetectCharacters,
+            repairCharacters: repairing,
             sensitiveScan: _canDetectSensitive,
           );
           return _Scanned(
@@ -619,12 +649,12 @@ class ScanEngine {
             (await _settings.load()).modelId ?? modelId ?? 'buffalo_l@1',
           );
         }
-        final isCharScan = row.illustrated || _canDetectCharacters;
+        final isCharScan = repairing || row.illustrated || _canDetectCharacters;
         final response = await _orPause(
           api.analyzeImage(
             bytes!,
             options: AnalyzeOptions(
-              detectBodies: prefs.scanBodies,
+              detectBodies: prefs.scanBodies || repairing,
               detectCharacters: isCharScan,
               minQuality: prefs.qualityGate,
               modelId: modelId,
@@ -650,7 +680,11 @@ class ScanEngine {
         if (media == null) {
           return const _Failed(); // deleted from the library while it was being analysed
         }
-        final outcome = await _store.store(media, response);
+        final outcome = await _store.store(
+          media,
+          response,
+          repairCharacters: repairing,
+        );
         return _Scanned(outcome, response.modelId);
       } on VideoScanPaused {
         return _stop(row.id, PauseReason.user);

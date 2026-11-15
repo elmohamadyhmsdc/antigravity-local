@@ -727,6 +727,7 @@ components:
             lora_generate: { type: boolean }
             body_detection: { type: boolean }
             character_detection: { type: boolean, default: false }
+            character_library_repair: { type: boolean, default: false }
             sensitive_detection:
               type: boolean
               default: false

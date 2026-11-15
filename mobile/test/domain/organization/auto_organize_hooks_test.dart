@@ -98,6 +98,16 @@ void main() {
     tmp.deleteSync(recursive: true);
   });
 
+  test('giving a person a name triggers folder sync once', () async {
+    final id = await db
+        .into(db.persons)
+        .insert(PersonsCompanion.insert(createdAt: 1));
+    final people = PeopleRepository(db, files, autoOrganizer: spyAutoOrganizer);
+    await people.renamePerson(id, '  Mona  ');
+    await people.renamePerson(id, null);
+    expect(spyAutoOrganizer.syncedPersonGroupIds, [id]);
+  });
+
   test(
     'CorrectionService.apply triggers DynamicAutoOrganizer on reassignment',
     () async {

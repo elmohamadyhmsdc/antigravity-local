@@ -45,11 +45,12 @@ void main() {
       (tester, env) async {
         final sara = await seedPerson(env.db, name: 'Sara', createdAt: 1);
         final omar = await seedPerson(env.db, name: 'Omar', createdAt: 2);
-        await seedPerson(
+        final unnamed = await seedPerson(
           env.db,
           name: null,
           createdAt: 3,
         ); // unnamed -> "Person 3"
+        await env.db.customUpdate('UPDATE persons SET pinned = 1 WHERE id = $unnamed');
         for (var i = 0; i < 3; i++) {
           await seedFace(env.db, personId: sara, seed: i + 1);
         }
@@ -85,6 +86,13 @@ void main() {
             saraAt.dy < omarAt.dy ||
             (saraAt.dy == omarAt.dy && saraAt.dx < omarAt.dx);
         expect(saraFirst, isTrue, reason: 'Sara has 3 faces, Omar 1');
+        final unnamedAt = tester.getTopLeft(find.byKey(Key('person-$unnamed')));
+        expect(
+          omarAt.dy < unnamedAt.dy ||
+              (omarAt.dy == unnamedAt.dy && omarAt.dx < unnamedAt.dx),
+          isTrue,
+          reason: 'a named person comes before a pinned unnamed person',
+        );
 
         await tester.enterText(find.byKey(const Key('people-search')), 'om');
         await tester.pumpAndSettle();

@@ -12,6 +12,7 @@ import '../../data/index/embedding_index.dart';
 import '../../data/repositories/library_repository.dart';
 import '../../data/repositories/action_frames.dart';
 import '../../data/repositories/character_repository.dart';
+import '../../data/repositories/character_repair.dart';
 import '../../data/repositories/kind_corrections.dart';
 import '../../data/repositories/face_suppression_store.dart';
 import '../../data/repositories/sensitive_store.dart';
@@ -116,6 +117,7 @@ class PhotoResultStore {
   Future<StoreOutcome> store(
     MediaRow media,
     AnalyzeImageResponse analysis, {
+    bool repairCharacters = false,
     int? frameNumber,
     int? timestampMs,
     bool complete = true,
@@ -669,6 +671,18 @@ class PhotoResultStore {
         );
       }
 
+      if (repairCharacters) {
+        final repair = CharacterRepair(_db);
+        await repair.reconcile(
+          media,
+          analysis,
+          humanFaces: faceDbId.keys.toSet(),
+          frameNumber: frameNumber,
+          timestampMs: timestampMs,
+        );
+        if (complete) await repair.finish(media.id);
+      }
+
       // Detections the user moved to a person or character join it.
       await KindOverrideStore(
         _db,
@@ -703,7 +717,7 @@ class PhotoResultStore {
     await _index.addAll([...newVectors, ...replaced]);
     // Not moved now: a photo moved right after its scan has usually no person yet (grouping runs later), and a
     // move per photo means a system sheet per photo. The scan moves them all, in chunks, once it has grouped.
-    if (autoOrganizer != null) pendingOrganize.add(media.id);
+    if (!repairCharacters && autoOrganizer != null) pendingOrganize.add(media.id);
     return StoreOutcome(
       facesSeen: gated.length,
       newFaceIds: newIds,

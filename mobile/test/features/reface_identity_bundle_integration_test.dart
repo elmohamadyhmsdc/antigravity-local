@@ -6,8 +6,11 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
+import 'package:antigravity_mobile/data/repositories/artifact_context.dart';
 import 'package:antigravity_mobile/data/repositories/studio_repository.dart';
 import 'package:antigravity_mobile/domain/jobs/artifact_store.dart';
+
+import '../support/seed.dart';
 
 void main() {
   group('Reface & Identity Bundle Mobile Integration (Phase 6)', () {
@@ -57,6 +60,7 @@ void main() {
       final sampleFile = File('../the app/mobile_api/contract/fixtures/identity/sample_bundle.json');
       expect(sampleFile.existsSync(), true, reason: 'sample_bundle.json fixture must exist');
       final sampleJson = sampleFile.readAsStringSync();
+      final faceId = await seedFace(db, personId: 42);
 
       // Create dummy image input
       final img = File('${tmp.path}/input.jpg');
@@ -68,6 +72,11 @@ void main() {
         params: {'model_id': 'buffalo_l@1'},
         inputs: {'images': [img]},
         personId: 42,
+        context: ArtifactContext(
+          personId: 42,
+          identityModelId: 'buffalo_l@1',
+          sourceFaceIds: [faceId],
+        ),
       );
 
       final job = (await repository.job(jobId))!;
@@ -102,6 +111,16 @@ void main() {
 
       final storedForJob = await db.setting('identity_bundle_$jobId');
       expect(storedForJob, storedForPerson);
+      expect(await repository.savedRefaceProfile(42, 'buffalo_l@1'), sampleJson);
+      expect(await repository.savedRefaceProfile(99, 'buffalo_l@1'), isNull);
+
+      await (db.update(db.faces)..where((f) => f.id.equals(faceId)))
+          .write(const FacesCompanion(personId: Value(99)));
+      expect(
+        await repository.savedRefaceProfile(42, 'buffalo_l@1'),
+        isNull,
+        reason: 'a correction invalidates the saved profile for the old person',
+      );
     });
 
     test('ArtifactStore rejects invalid identity bundle schema', () async {

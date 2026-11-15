@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:antigravity_mobile/app.dart';
+import 'package:antigravity_mobile/data/api/dtos/system.dart';
 import 'package:antigravity_mobile/domain/jobs/job_tracker.dart';
 import 'package:antigravity_mobile/domain/scan/scan_state.dart';
 import 'package:antigravity_mobile/features/reface/reface_media.dart';
@@ -14,12 +15,72 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../domain/job_tracker_test.dart' show FakeStudioApi;
 import '../support/fakes.dart';
+import '../support/fixtures.dart';
 import '../support/harness.dart';
 import '../support/seed.dart' show seedPerson, seedFace;
 import 'reface_direct_identity_test.dart' show analysis, face, tapVisible;
 import 'studio_test.dart' show next;
 
 void main() {
+  appTest('builds a profile from the selected person without a source picker', (
+    tester,
+    env,
+  ) async {
+    final caps = fixture('Capabilities.idle');
+    env.api.capabilities_ = Capabilities.fromJson({
+      ...caps,
+      'engines': {
+        ...(caps['engines'] as Map<String, dynamic>),
+        'identity_bundle': true,
+      },
+    });
+    final person = await seedPerson(env.db, name: 'Source');
+    final crop = await tester.runAsync(
+      () => env.files.write('faces/source.jpg', tinyPng),
+    );
+    final stored = await seedFace(env.db, personId: person, cropPath: crop);
+    env.targetPicker = () async => RefaceTarget.photo(tinyPng);
+
+    await env.pump(
+      tester,
+      extra: [
+        initialLocationProvider.overrideWithValue('/reface?person=$person'),
+        refaceSourcePickerProvider.overrideWithValue((_) async {
+          fail('The profile must use library crops directly.');
+        }),
+        jobTrackerProvider.overrideWith((ref) {
+          final tracker = JobTracker(
+            repository: ref.read(studioRepositoryProvider),
+            api: () => null,
+            keepAlive: const NoKeepAlive(),
+          );
+          ref.onDispose(tracker.dispose);
+          return tracker;
+        }),
+      ],
+    );
+    await tapVisible(tester, const Key('reface-all-faces'));
+    await pickRefaceTarget(tester);
+    await next(tester);
+    final build = find.byKey(const Key('reface-build-gallery-profile'));
+    await tester.ensureVisible(build);
+    await tester.pumpAndSettle();
+    await tester.tap(build);
+    for (var i = 0; i < 30; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+      await tester.pump();
+      if ((await env.db.select(env.db.jobs).get()).isNotEmpty) break;
+    }
+    final job = (await env.db.select(env.db.jobs).get()).single;
+    expect(job.type, 'build_identity');
+    expect(job.personId, person);
+    expect((jsonDecode(job.requestJson)['inputs'] as Map)['images'], hasLength(1));
+    final context = jsonDecode((await env.db.setting('artifact.context.${job.id}'))!);
+    expect(context['sourceFaceIds'], [stored]);
+  }, session: testSession);
+
   for (final video in [false, true]) {
     for (final profile in ['fast', 'balanced', 'detail']) {
       appTest(
