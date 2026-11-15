@@ -32,14 +32,20 @@ const groupingMinCharacterFacePx = 32.0;
 /// The Review screen shows at most this many suggested faces per person (review_state's default).
 const groupingMaxSuggestionsPerPerson = 60;
 
-/// Stages of the three rounds (see openapi.yaml, POST /v1/grouping/plan).
-const round1Stages = ['match', 'cluster'];
+/// Stages of the three rounds (see openapi.yaml, POST /v1/grouping/plan). Round 1 also asks which
+/// provisional people (made by grouping, never named or locked) clearly are someone else (`people`).
+const round1Stages = ['match', 'cluster', 'people'];
 const round2Stages = ['bodies'];
 const round3Stages = ['match', 'cluster', 'duplicates', 'bodies'];
 
 /// A scan asks the PC to group after this many new faces / photos (and always when it ends).
 const groupEveryNewFaces = 100;
 const groupEveryPhotos = 200;
+
+/// Real people are grouped with thresholds the PC derives from the library itself (`auto`): faces seen
+/// together in one photo, and people marked different, show how alike different people look here. There
+/// is no setting for it any more: nobody can know whether their gallery "needs" strict or loose.
+const personStrictness = 'auto';
 
 /// Drawn characters are grouped with their own thresholds (CCIP embeddings, not ArcFace). The
 /// server maps this name to `person_linking.STRICTNESS['character']`.

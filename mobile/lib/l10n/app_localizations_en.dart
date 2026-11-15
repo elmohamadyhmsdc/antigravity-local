@@ -513,7 +513,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsPlaceholder =>
-      'Pairing, grouping strictness, scan defaults and app lock.';
+      'Pairing, grouping, scan defaults and app lock.';
 
   @override
   String get welcomeTitle => 'Connect to your PC';
@@ -1687,25 +1687,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sourcesTitle => 'Sources & scan';
 
   @override
-  String get strictnessBalanced => 'Balanced';
-
-  @override
-  String get strictnessBalancedHint =>
-      'Recommended. Adds a face to a person only when it is clearly them.';
-
-  @override
-  String get strictnessLoose => 'Loose';
-
-  @override
-  String get strictnessLooseHint =>
-      'Groups more faces automatically. Quicker, but may need more corrections.';
-
-  @override
-  String get strictnessStrict => 'Strict';
-
-  @override
-  String get strictnessStrictHint =>
-      'Asks you about more faces. Fewer mistakes.';
+  String get groupingAutomaticHint =>
+      'Automatic. Thresholds follow your library: stricter when different people look alike, and duplicate people the app made are merged on their own.';
 
   @override
   String suggestedFacesTitle(String name, int count) {

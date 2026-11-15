@@ -809,6 +809,112 @@ def test_cluster_cohesion_matches_the_pairwise_mean():
     check(abs(groups[0].cohesion - expected) < 1e-10, "cohesion must use the mean over distinct pairs")
 
 
+# ---------------------------------------------------------------------------
+# people stage: provisional duplicates are merged; auto thresholds follow the library
+# ---------------------------------------------------------------------------
+
+def _split_people(provisional, distinct=()):
+    snap = _split_person_snapshot(True, 1)
+    snap.pending = []
+    snap.provisional_person_ids = set(provisional)
+    snap.distinct_pairs = list(distinct)
+    return gc.plan(snap, "apply", ["people"], "auto")
+
+
+@test
+def test_a_provisional_duplicate_is_merged_into_the_users_person():
+    out = _split_people({2})
+    check([(m.absorb, m.into) for m in out.merges] == [(2, 1)], f"2 joins 1: {out.merges}")
+    out = _split_people({1, 2})
+    check(len(out.merges) == 1 and {out.merges[0].absorb, out.merges[0].into} == {1, 2},
+          f"two provisional halves become one: {out.merges}")
+
+
+@test
+def test_people_the_user_owns_are_never_merged_on_their_own():
+    check(_split_people(set()).merges == [], "nothing provisional, nothing merged")
+    # 1 and 3 are the user's (named), 2 is provisional and alike both: 1 and 3 must not be joined through it
+    rng = np.random.default_rng(7)
+    u = _unit(rng)
+    e = np.vstack([_faces_near(u, 6, rng), _faces_near(u, 6, rng), _faces_near(u, 6, rng)])
+    models = pl.build_person_models(e, [1] * 6 + [2] * 6 + [3] * 6, [0.8] * 18)
+    merges = pl.auto_merge_people(models, {2}, 0.5)
+    check(len(merges) == 1 and merges[0][0] == 2 and merges[0][1] in (1, 3), f"only 2 moves: {merges}")
+
+
+@test
+def test_people_seen_together_or_marked_different_are_never_merged():
+    check(_split_people({2}, [(1, 2)]).merges == [], "a distinct pair stays two people")
+    # chain: 2 ~ 1 and 2 ~ 3, but 1 and 3 appear in one photo -> 2 may join only one of them
+    rng = np.random.default_rng(7)
+    u = _unit(rng)
+    e = np.vstack([_faces_near(u, 6, rng), _faces_near(u, 6, rng), _faces_near(u, 6, rng)])
+    models = pl.build_person_models(e, [1] * 6 + [2] * 6 + [3] * 6, [0.8] * 18)
+    merges = pl.auto_merge_people(models, {1, 2, 3}, 0.5, [(1, 3)])
+    joined = {}
+    for a, b, _ in merges:
+        joined[a] = b
+    check(not (joined.get(1) == 3 or joined.get(3) == 1) and len(merges) == 1, f"1 and 3 stay apart: {merges}")
+
+
+@test
+def test_a_stranger_is_not_merged():
+    rng = np.random.default_rng(3)
+    e = np.vstack([_faces_near(_unit(rng), 6, rng), _faces_near(_unit(rng), 6, rng)])
+    models = pl.build_person_models(e, [1] * 6 + [2] * 6, [0.8] * 12)
+    check(pl.auto_merge_people(models, {1, 2}, 0.45) == [], "two different people stay two")
+
+
+@test
+def test_the_people_stage_is_apply_only_and_merges_appear_only_when_asked():
+    snap = _split_person_snapshot(True, 1)
+    snap.pending = []
+    try:
+        gc.plan(snap, "review", ["people"])
+        check(False, "review mode must refuse the people stage")
+    except gc.GroupingRequestError:
+        pass
+    check("merges" not in gc.plan(snap, "apply", ["match"]).as_dict(), "old rounds answer exactly as before")
+    check(gc.plan(snap, "apply", ["people"]).as_dict()["merges"] == [], "asked, nothing provisional -> []")
+
+
+@test
+def test_auto_thresholds_follow_how_alike_different_people_look():
+    loose, balanced, strict = (pl.params_for(s) for s in ("loose", "balanced", "strict"))
+    check(pl.params_for_risk(0.0) == loose and pl.params_for_risk(1.0) == strict
+          and pl.params_for_risk(0.5) == balanced, "risk 0 / 0.5 / 1 are the three presets")
+    unalike = pl.auto_params([0.05] * 40)
+    lookalike = pl.auto_params([0.45] * 40)
+    check(unalike.match_auto < balanced.match_auto < lookalike.match_auto,
+          f"match bar follows the library: {unalike.match_auto} {lookalike.match_auto}")
+    check(unalike.cluster_distance > lookalike.cluster_distance, "and so does the clustering cut")
+    few_unalike = pl.auto_params([0.05, 0.06])
+    check(few_unalike == pl.auto_params([]), "two pairs are too few to loosen anything")
+    check(pl.auto_params([0.45]).match_auto == strict.match_auto, "...but one look-alike pair is enough to tighten")
+
+
+@test
+def test_auto_uses_same_frame_faces_of_the_request():
+    rng = np.random.default_rng(5)
+    u = _unit(rng)
+    # brothers: two faces per photo, very alike, never the same person
+    pend = []
+    for k in range(12):
+        a, b = _faces_near(u, 2, rng, noise=0.8)
+        pend += [gc.PendingFace(2 * k, a, 0.8, f"m{k}:"), gc.PendingFace(2 * k + 1, b, 0.8, f"m{k}:")]
+    snap = gc.Snapshot(pending=pend)
+    negs = gc.negative_similarities(snap, pl.normalize_rows(np.stack([p.embedding for p in pend])),
+                                    [p.frame_key for p in pend])
+    check(len(negs) == 12, f"one pair per photo: {len(negs)}")
+    check(pl.lookalike_risk(negs) > pl.AUTO_DEFAULT_RISK, f"look-alikes raise the risk: {pl.lookalike_risk(negs)}")
+    req = json.loads(json.dumps({"mode": "apply", "stages": ["match", "cluster", "people"], "strictness": "auto",
+                                 "models": [], "pending": [], "distinct_pairs": [], "bodies": [],
+                                 "provisional_person_ids": [3, 4]}))
+    snap, *_ = gc.snapshot_from_request(req)
+    check(snap.provisional_person_ids == {3, 4}, "provisional ids are read")
+    check(gc.plan_request(req)["merges"] == [], "an empty library answers an empty list")
+
+
 @test
 def test_grouping_core_imports_no_database():
     import ast

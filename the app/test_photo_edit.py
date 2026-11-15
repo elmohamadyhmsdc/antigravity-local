@@ -9,11 +9,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 import numpy as np
 from PIL import Image
 from fastapi.testclient import TestClient
 
 import photo_edit
+from comfy_bridge import _stop_prompt
 from mobile_api.app import create_app
 from mobile_api.errors import ApiError
 from mobile_api.photo_edit import validate_photo_edit
@@ -35,7 +37,38 @@ class PhotoEditTests(unittest.TestCase):
         self.job = dict(type='edit_image',params=dict(operation='replace',instruction='a small blue ceramic vase',seed=123))
 
     def render(self,*args):
+        if args and isinstance(args[0], np.ndarray):
+            h, w = args[0].shape[:2]
+            return np.full((h, w, 3), (10, 80, 210), np.uint8)
         return np.full((768,768,3),(10,80,210),np.uint8)
+
+    def test_model_option_validation_and_default(self):
+        opts = photo_edit.validate_options(dict(operation='replace',instruction='red shirt'))
+        self.assertEqual(opts['model'], photo_edit.MODEL_REALISTIC_VISION)
+        opts_cyber = photo_edit.validate_options(dict(operation='replace',instruction='red shirt',model='cyber_realistic'))
+        self.assertEqual(opts_cyber['model'], 'cyber_realistic')
+        opts_sdxl = photo_edit.validate_options(dict(operation='replace',instruction='red shirt',model='sdxl'))
+        self.assertEqual(opts_sdxl['model'], 'sdxl')
+        with self.assertRaisesRegex(photo_edit.PhotoEditError, 'Model must be one of'):
+            photo_edit.validate_options(dict(operation='replace',instruction='red shirt',model='unknown_model'))
+
+    def test_sdxl_model_uses_1024_work_size(self):
+        job = dict(type='edit_image',params=dict(operation='replace',instruction='a red silk shirt',model='sdxl',seed=456))
+        captured_canvas_shape = []
+        def capturing_render(canvas, mask, options, stopped):
+            captured_canvas_shape.append(canvas.shape)
+            return np.full_like(canvas, (20, 50, 180))
+        meta = photo_edit.edit_photo(job, self.directory, lambda *a: None, lambda: False,
+                                     finder=lambda image: [], renderer=capturing_render)
+        self.assertEqual(captured_canvas_shape, [(1024, 1024, 3)])
+        self.assertEqual(meta['model'], 'sdxl')
+        self.assertTrue((self.directory / 'result.png').exists())
+
+    def test_cyber_realistic_model_metadata(self):
+        job = dict(type='edit_image',params=dict(operation='replace',instruction='a leather jacket',model='cyber_realistic',seed=789))
+        meta = photo_edit.edit_photo(job, self.directory, lambda *a: None, lambda: False,
+                                     finder=lambda image: [], renderer=self.render)
+        self.assertEqual(meta['model'], 'cyber_realistic')
 
     def test_native_dimensions_alpha_and_all_unselected_pixels_survive(self):
         meta = photo_edit.edit_photo(self.job,self.directory,lambda *a:None,lambda:False,
@@ -193,6 +226,76 @@ class PhotoEditTests(unittest.TestCase):
         with self.assertRaises(ApiError) as error: validate_photo_edit(body,dict(engines={}))
         self.assertEqual(error.exception.status,409)
 
+    def test_gguf_requires_ready_capability_and_replace(self):
+        body = dict(type='edit_image', params=dict(self.job['params'], model='sdxl_gguf'),
+                    inputs=dict(image='a' * 64, mask='b' * 64))
+        caps = dict(engines=dict(photo_edit=True))
+        with self.assertRaises(ApiError) as error:
+            validate_photo_edit(body, caps)
+        self.assertEqual(error.exception.code, 'engine_unavailable')
+        validate_photo_edit(body, dict(caps, photo_edit_models=['sdxl_gguf']))
+        with self.assertRaisesRegex(photo_edit.PhotoEditError, 'Replace only'):
+            photo_edit.validate_options(dict(operation='remove', model='sdxl_gguf'))
+
+    def test_gguf_renderer_uses_translated_prompt_and_protected_composite(self):
+        job = dict(type='edit_image', params=dict(self.job['params'], model='sdxl_gguf', instruction='قميص أحمر'))
+        report = lambda *args: None
+        stopped = lambda: False
+        with patch('comfy_bridge.render', side_effect=self.render) as render:
+            meta = photo_edit.edit_photo(job, self.directory, report, stopped, finder=lambda image: [])
+        canvas, mask, options, _, _, work_size = render.call_args.args
+        self.assertEqual(canvas.shape, (1024, 1024, 3))
+        self.assertEqual(mask.shape, (1024, 1024))
+        self.assertEqual(work_size, 1024)
+        self.assertEqual(options['instruction'], 'shirt red')
+        self.assertEqual(meta['model'], 'sdxl_gguf')
+        with Image.open(self.directory / 'result.png') as image:
+            result = np.asarray(image)
+        np.testing.assert_array_equal(result[self.mask == 0], self.photo[self.mask == 0])
+
+    def test_builtin_renderer_receives_sdxl_work_size(self):
+        job = dict(type='edit_image', params=dict(self.job['params'], model='sdxl'))
+        with patch('photo_edit.render_crop', side_effect=lambda canvas, *args, **kwargs: self.render(canvas)) as render:
+            photo_edit.edit_photo(job, self.directory, lambda *args: None, lambda: False, finder=lambda image: [])
+        self.assertEqual(render.call_args.kwargs['work_size'], 1024)
+        self.assertNotIn('work_size', render.call_args.args[2])
+
+    def test_guided_replace_validates_reference_slots_and_accepts_no_prompt(self):
+        body = dict(type='edit_image', params={'operation': 'replace'},
+                    inputs={'image': 'a' * 64, 'mask': 'b' * 64, 'refs': ['c' * 64]})
+        caps = dict(engines=dict(photo_edit=True, photo_edit_reference=True))
+        validate_photo_edit(body, caps)
+        with self.assertRaises(ApiError):
+            validate_photo_edit(body, dict(engines=dict(photo_edit=True)))
+        for refs in ([], 'c' * 64, ['c' * 64] * 4):
+            with self.assertRaises(ApiError):
+                validate_photo_edit(dict(body, inputs=dict(body['inputs'], refs=refs)), caps)
+        for params in ({'operation': 'remove'}, {'model': 'sdxl_gguf'}):
+            with self.assertRaises(ApiError):
+                validate_photo_edit(dict(body, params=params), caps)
+
+    def test_egyptian_body_prompt_retains_swimwear_and_shirtless_instruction(self):
+        from photo_edit_worker import translate_instruction
+
+        self.assertEqual(translate_instruction('صدر من غير قميص ومايوه أزرق'),
+                         'chest without shirt and swimwear blue')
+
+    def test_guided_replace_reads_both_refs_without_treating_body_as_face(self):
+        for index in range(2):
+            Image.new('RGB', (300, 500), (10, 50, 180)).save(self.directory/f'input.refs.{index:04d}', format='PNG')
+        job = dict(type='edit_image', params={'operation': 'replace', 'seed': 25},
+                   request={'inputs': {'refs': ['one', 'two']}})
+        torso = [55, 39, 97, 74]
+        with patch('photo_edit.protected_people', return_value=([torso], [])), \
+             patch('photo_edit.render_crop', side_effect=lambda canvas, *a, **kw: self.render(canvas)) as render:
+            meta = photo_edit.edit_photo(job, self.directory, lambda *a: None, lambda: False)
+        self.assertEqual(meta['reference_count'], 2)
+        self.assertEqual([ref.shape for ref in render.call_args.kwargs['references']], [(512, 512, 3)] * 2)
+        with Image.open(self.directory/'result.png') as opened:
+            result = np.asarray(opened)
+        np.testing.assert_array_equal(result[self.mask == 0], self.photo[self.mask == 0])
+        self.assertFalse(np.array_equal(result[55, 75], self.photo[55, 75]))
+
 
 class PhotoEditStudioTests(unittest.TestCase):
     def test_owned_idempotent_lifecycle_download_and_cleanup(self):
@@ -243,6 +346,23 @@ class PhotoEditStudioTests(unittest.TestCase):
                 ctx.studio_jobs.close()
                 ctx.video_jobs.close()
                 client.close()
+
+
+class ComfyCancellationTests(unittest.TestCase):
+    def test_stop_addresses_only_its_prompt_while_another_is_running(self):
+        requests = []
+
+        def handle(request):
+            if request.method == 'POST':
+                requests.append((request.url.path, json.loads(request.content)))
+                return httpx.Response(200)
+            return httpx.Response(200, json={'queue_pending': [], 'queue_running': [[0, 'other-prompt']]})
+
+        transport = httpx.MockTransport(handle)
+        with httpx.Client(transport=transport, base_url='http://127.0.0.1:8188') as client:
+            self.assertTrue(_stop_prompt(client, 'own-prompt'))
+        self.assertEqual(requests, [('/queue', {'delete': ['own-prompt']}),
+                                    ('/interrupt', {'prompt_id': 'own-prompt'})])
 
 
 if __name__ == '__main__':

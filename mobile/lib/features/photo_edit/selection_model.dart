@@ -1,15 +1,50 @@
 import 'package:flutter/material.dart';
 
-enum SelectionTool {
-  brush,
-  eraser,
-  smartTap,
-  move,
-}
+enum SelectionTool { brush, eraser, smartTap, move }
 
-enum PhotoEditOperation {
-  remove,
-  replace,
+enum PhotoEditOperation { remove, replace }
+
+enum PhotoEditModel { realisticVision, sdxlGguf, cyberRealistic, sdxl }
+
+extension PhotoEditModelExt on PhotoEditModel {
+  String get id {
+    switch (this) {
+      case PhotoEditModel.realisticVision:
+        return 'realistic_vision';
+      case PhotoEditModel.cyberRealistic:
+        return 'cyber_realistic';
+      case PhotoEditModel.sdxl:
+        return 'sdxl';
+      case PhotoEditModel.sdxlGguf:
+        return 'sdxl_gguf';
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case PhotoEditModel.realisticVision:
+        return 'Realistic Vision';
+      case PhotoEditModel.cyberRealistic:
+        return 'CyberRealistic';
+      case PhotoEditModel.sdxl:
+        return 'SDXL 1024p';
+      case PhotoEditModel.sdxlGguf:
+        return 'SDXL GGUF';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case PhotoEditModel.realisticVision:
+        return 'Balanced photorealism & clean edge inpainting (768p)';
+      case PhotoEditModel.cyberRealistic:
+        return 'High contrast studio textures & sharp garments (768p)';
+      case PhotoEditModel.sdxl:
+        return 'Ultra high-definition native inpainting (1024p)';
+      case PhotoEditModel.sdxlGguf:
+        return 'Experimental 1024px inpainting on the PC';
+    }
+  }
 }
 
 @immutable
@@ -49,7 +84,7 @@ class SelectionStroke {
 
 class SelectionModel extends ChangeNotifier {
   SelectionModel({List<SelectionStroke>? initialStrokes})
-      : _strokes = List.of(initialStrokes ?? []);
+    : _strokes = List.of(initialStrokes ?? []);
 
   final List<SelectionStroke> _strokes;
   final List<List<SelectionStroke>> _undoStack = [];
@@ -59,9 +94,12 @@ class SelectionModel extends ChangeNotifier {
 
   bool get canUndo => _undoStack.isNotEmpty || _strokes.isNotEmpty;
   bool get canRedo => _redoStack.isNotEmpty;
-  bool get hasSelection => _strokes.any((s) =>
-      !s.isEraser &&
-      (s.points.isNotEmpty || (s.filledRects != null && s.filledRects!.isNotEmpty)));
+  bool get hasSelection => _strokes.any(
+    (s) =>
+        !s.isEraser &&
+        (s.points.isNotEmpty ||
+            (s.filledRects != null && s.filledRects!.isNotEmpty)),
+  );
 
   void addStroke(SelectionStroke stroke) {
     if (stroke.points.isEmpty &&

@@ -33,6 +33,9 @@ EMBEDDING_DIM = 512
 CHARACTER_EMBEDDING_DIM = 768  # CCIP; used when strictness == "character"
 MODES = ("apply", "review")
 STAGES = ("match", "cluster", "duplicates", "bodies")
+# apply only, opt-in: provisional people that clearly are another person are merged into them (`merges`)
+PEOPLE_STAGE = "people"
+ALL_STAGES = STAGES + (PEOPLE_STAGE,)
 APPLY_STAGES = ("match", "cluster", "bodies")
 DEFAULT_MAX_SUGGESTIONS_PER_PERSON = 60
 
@@ -84,6 +87,9 @@ class Snapshot:
     # real person but were never merged do not block each other's matches (see person_linking.match_faces),
     # and in apply mode a new group that clearly is a known person joins them instead of becoming a duplicate.
     link_alike_people: bool = False
+    # People the grouping itself created and the user has not named, confirmed or locked. Only these may be
+    # folded into another person automatically (the "people" stage). Empty = never merge people on its own.
+    provisional_person_ids: Set[int] = field(default_factory=set)
 
 
 @dataclass
@@ -122,6 +128,16 @@ class DuplicatePeople:
 
 
 @dataclass
+class PersonMerge:
+    absorb: int       # a provisional person ...
+    into: int         # ... whose faces all belong to this one
+    score: float
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {"absorb": self.absorb, "into": self.into, "score": self.score}
+
+
+@dataclass
 class GroupingPlan:
     mode: str
     assignments: List[FaceAssignment] = field(default_factory=list)
@@ -129,6 +145,7 @@ class GroupingPlan:
     duplicates: List[DuplicatePeople] = field(default_factory=list)
     body_links: List[pl.BodyLink] = field(default_factory=list)
     unsorted_face_ids: List[int] = field(default_factory=list)
+    merges: Optional[List[PersonMerge]] = None    # set only when the people stage ran
 
     def as_dict(self) -> Dict[str, Any]:
         """GroupingPlanResponse."""
@@ -140,6 +157,7 @@ class GroupingPlan:
             "body_links": [{"body_id": l.body_id, "person_id": l.person_id, "method": l.method,
                             "confidence": l.confidence, "decision": l.decision} for l in self.body_links],
             "unsorted_face_ids": self.unsorted_face_ids,
+            **({} if self.merges is None else {"merges": [m.as_dict() for m in self.merges]}),
         }
 
 
@@ -165,6 +183,37 @@ def _known_person_for(emb: np.ndarray, qual: np.ndarray, rejected: List[Set[int]
     return best
 
 
+MAX_NEGATIVE_PAIRS = 20_000
+
+
+def negative_similarities(snapshot: Snapshot, e: np.ndarray, keys: Sequence[Optional[Hashable]]) -> List[float]:
+    """Similarities of pairs that are certainly two different people: unsorted faces seen in one photo /
+    frame, and people marked distinct (the user said so, or they appear together). What "auto" calibrates on."""
+    out: List[float] = []
+    by_key: Dict[Hashable, List[int]] = {}
+    for i, k in enumerate(keys):
+        if k is not None:
+            by_key.setdefault(k, []).append(i)
+    for idx in by_key.values():
+        if len(idx) < 2:
+            continue
+        sims = e[idx] @ e[idx].T
+        iu = np.triu_indices(len(idx), 1)
+        out.extend(sims[iu].tolist())
+        if len(out) >= MAX_NEGATIVE_PAIRS:
+            return out[:MAX_NEGATIVE_PAIRS]
+    models = snapshot.models
+    for a, b in snapshot.distinct_pairs:
+        ma, mb = models.get(a), models.get(b)
+        if ma is None or mb is None or ma.proto.shape != mb.proto.shape:
+            continue
+        # one value per pair: how alike these two people typically look
+        out.append(float((ma.members[:20] @ mb.members[:20].T).mean()))
+        if len(out) >= MAX_NEGATIVE_PAIRS:
+            break
+    return out
+
+
 def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_STAGES,
          strictness: Union[str, pl.GroupingParams] = "balanced",
          max_suggestions_per_person: int = DEFAULT_MAX_SUGGESTIONS_PER_PERSON) -> GroupingPlan:
@@ -172,14 +221,14 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
     if mode not in MODES:
         raise GroupingRequestError(f"mode must be one of {', '.join(MODES)}")
     wanted = set(stages)
-    unknown = wanted - set(STAGES)
+    unknown = wanted - set(ALL_STAGES)
     if unknown:
         raise GroupingRequestError(f"unknown stage(s): {', '.join(sorted(unknown))}")
     review = mode == "review"
     if not review and "duplicates" in wanted:
         raise GroupingRequestError("the duplicates stage is only available in review mode")
-    params = strictness if isinstance(strictness, pl.GroupingParams) else pl.params_for(strictness)
-
+    if review and PEOPLE_STAGE in wanted:
+        raise GroupingRequestError("the people stage is only available in apply mode")
     models = snapshot.models
     # A manual hide applies to every automatic round, including matching and
     # auto-created groups, not just the review card that was dismissed.
@@ -196,6 +245,13 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
         e = np.zeros((0, EMBEDDING_DIM), dtype=np.float32)
         q = np.zeros(0, dtype=np.float32)
         keys, rejected = [], []
+
+    if isinstance(strictness, pl.GroupingParams):
+        params = strictness
+    elif strictness == pl.AUTO:
+        params = pl.auto_params(negative_similarities(snapshot, e, keys))
+    else:
+        params = pl.params_for(strictness)
 
     claimed: Set[int] = set()   # positions in `pending` that are spoken for
 
@@ -262,6 +318,11 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
             if review and link.decision != "suggest":
                 continue
             result.body_links.append(link)
+
+    if PEOPLE_STAGE in wanted:
+        result.merges = [PersonMerge(a, b, s) for a, b, s in
+                         pl.auto_merge_people(models, snapshot.provisional_person_ids, params.people_merge_auto,
+                                              [tuple(p) for p in snapshot.distinct_pairs])]
 
     if review:
         result.unsorted_face_ids = [pending[i].id for i in range(n) if i not in claimed]
@@ -330,11 +391,11 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
     mode = req.get("mode")
     _expect(mode in MODES, f"mode must be one of {', '.join(MODES)}")
     stages = _list(req, "stages")
-    _expect(all(s in STAGES for s in stages), f"stages may only contain {', '.join(STAGES)}")
+    _expect(all(s in ALL_STAGES for s in stages), f"stages may only contain {', '.join(ALL_STAGES)}")
     _expect(len(set(stages)) == len(stages), "stages must not repeat")
     strictness = req.get("strictness")
-    _expect(isinstance(strictness, str) and strictness in pl.STRICTNESS,
-            f"strictness must be one of {', '.join(pl.STRICTNESS)}")
+    _expect(isinstance(strictness, str) and strictness in pl.STRICTNESS_NAMES,
+            f"strictness must be one of {', '.join(pl.STRICTNESS_NAMES)}")
     dim = CHARACTER_EMBEDDING_DIM if strictness == "character" else EMBEDDING_DIM
     cap = req.get("max_suggestions_per_person", DEFAULT_MAX_SUGGESTIONS_PER_PERSON)
     _expect(isinstance(cap, int) and not isinstance(cap, bool) and cap >= 1,
@@ -399,8 +460,9 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
     dismissed = set(_int_list(req.get("dismissed_face_ids", []), "dismissed_face_ids"))
     link_alike = req.get("link_alike_people", False)
     _expect(isinstance(link_alike, bool), "link_alike_people must be true or false")
-    return (Snapshot(models, pending, bodies, distinct, dismissed, link_alike), mode, list(stages),
-            strictness, cap)
+    provisional = set(_int_list(req.get("provisional_person_ids", []), "provisional_person_ids"))
+    return (Snapshot(models, pending, bodies, distinct, dismissed, link_alike, provisional), mode,
+            list(stages), strictness, cap)
 
 
 def plan_request(req: Dict) -> Dict[str, Any]:

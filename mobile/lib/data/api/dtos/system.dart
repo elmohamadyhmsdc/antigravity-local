@@ -57,6 +57,9 @@ class Engines {
     this.characterDetection = false,
     this.sensitiveDetection = false,
     this.photoEdit = false,
+    this.photoEditReference = false,
+    this.photoEditBodyShape = false,
+    this.photoEditAutoBody = false,
     this.bodyEmbeddings = false,
     this.garmentTags = false,
     this.equipment = false,
@@ -78,6 +81,9 @@ class Engines {
   /// Roadmap section 8: the PC can return exposed / covered body-part regions.
   final bool sensitiveDetection;
   final bool photoEdit;
+  final bool photoEditReference;
+  final bool photoEditBodyShape;
+  final bool photoEditAutoBody;
 
   /// Roadmap Phase 7: the WD14 tagger is installed, so garment tags can be asked for.
   final bool garmentTags;
@@ -103,6 +109,9 @@ class Engines {
     characterDetection: json['character_detection'] as bool? ?? false,
     sensitiveDetection: json['sensitive_detection'] as bool? ?? false,
     photoEdit: json['photo_edit'] as bool? ?? false,
+    photoEditReference: json['photo_edit_reference'] as bool? ?? false,
+    photoEditBodyShape: json['photo_edit_body_shape'] as bool? ?? false,
+    photoEditAutoBody: json['photo_edit_auto_body'] as bool? ?? false,
     garmentTags: json['garment_tags'] as bool? ?? false,
     equipment: json['equipment'] as bool? ?? false,
     bodyEmbeddings: json['body_embeddings'] as bool? ?? false,
@@ -198,6 +207,7 @@ class Capabilities {
     this.refaceVideoMs = const {},
     this.operations = const [],
     this.hasOperationSupport = false,
+    this.photoEditModels,
     required this.apiVersion,
     required this.serverId,
     required this.name,
@@ -246,6 +256,7 @@ class Capabilities {
   final Engines engines;
   final List<String> restorers;
   final List<String> loraBaseCheckpoints;
+  final List<String>? photoEditModels;
   final ServerLimits limits;
   final BusyInfo? busy;
 
@@ -283,6 +294,9 @@ class Capabilities {
         json['lora_base_checkpoints'],
         'lora_base_checkpoints',
       ).cast<String>(),
+      photoEditModels: json['photo_edit_models'] == null
+          ? null
+          : list(json['photo_edit_models'], 'photo_edit_models').cast<String>(),
       limits: ServerLimits.fromJson(map(json['limits'], 'limits')),
       busy: json['busy'] == null
           ? null

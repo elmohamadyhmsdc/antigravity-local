@@ -1,0 +1,70 @@
+{
+  "api_version": "1.0.0",
+  "server_id": "srv_7f3a91c2",
+  "name": "RTX-PC",
+  "embedding_model": {
+    "id": "buffalo_l@1",
+    "dim": 512
+  },
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "vram_total_mb": 6144,
+    "vram_free_mb": 5320
+  },
+  "engines": {
+    "reface": true,
+    "reface_v3": true,
+    "reface_v2": true,
+    "dfm_models": [
+      "RTM_WF_224"
+    ],
+    "undress": true,
+    "lora_train": true,
+    "lora_generate": true,
+    "body_detection": true,
+    "character_detection": true,
+    "sensitive_detection": true,
+    "body_embeddings": true,
+    "garment_tags": true,
+    "photo_edit": true
+  },
+  "restorers": [
+    "codeformer"
+  ],
+  "reface_profiles": {
+    "fast": {
+      "restorer": "none",
+      "restore_size": 512,
+      "use_parser": false,
+      "photo_ms_per_face": 140,
+      "video_ms_per_face": 90
+    },
+    "balanced": {
+      "restorer": "codeformer",
+      "restore_size": 512,
+      "use_parser": true,
+      "photo_ms_per_face": 300,
+      "video_ms_per_face": 255
+    },
+    "detail": {
+      "restorer": "codeformer",
+      "restore_size": 512,
+      "use_parser": true,
+      "photo_ms_per_face": 660,
+      "video_ms_per_face": 415
+    }
+  },
+  "lora_base_checkpoints": [
+    "sd15_realistic_base"
+  ],
+  "limits": {
+    "max_image_px": 4096,
+    "max_upload_mb": 2048,
+    "blob_cache_mb": 20480
+  },
+  "busy": null,
+  "photo_edit_models": [
+    "realistic_vision",
+    "sdxl_gguf"
+  ]
+}

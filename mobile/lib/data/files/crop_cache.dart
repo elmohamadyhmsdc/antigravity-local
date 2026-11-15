@@ -26,14 +26,19 @@ cropPixels(
   CropKind kind,
   ({double x, double y, double w, double h}) box,
   int width,
-  int height,
-) {
+  int height, {
+  bool pad = true,
+}) {
   final x1 = box.x * width, y1 = box.y * height;
   final x2 = (box.x + box.w) * width, y2 = (box.y + box.h) * height;
-  final padX = kind == CropKind.face
+  final padX = !pad
+      ? 0.0
+      : kind == CropKind.face
       ? math.max(x2 - x1, y2 - y1) * 0.2
       : (x2 - x1) * 0.06;
-  final padY = kind == CropKind.face
+  final padY = !pad
+      ? 0.0
+      : kind == CropKind.face
       ? math.max(x2 - x1, y2 - y1) * 0.2
       : (y2 - y1) * 0.04;
   final left = (x1 - padX).floor().clamp(0, width - 1);

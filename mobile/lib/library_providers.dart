@@ -315,9 +315,9 @@ final characterGroupingRunnerProvider = Provider<GroupingRunner>(
   (ref) => GroupingRunner(
     db: ref.watch(databaseProvider),
     api: () => ref.read(mobileApiProvider),
-    settings: ref.watch(appSettingsProvider),
     review: ref.watch(characterReviewRepositoryProvider),
     kind: 'character',
+    merge: ref.watch(characterPeopleRepositoryProvider).mergePeople,
   ),
 );
 
@@ -326,9 +326,9 @@ final groupingRunnerProvider = Provider<GroupingRunner>(
   (ref) => GroupingRunner(
     db: ref.watch(databaseProvider),
     api: () => ref.read(mobileApiProvider),
-    settings: ref.watch(appSettingsProvider),
     review: ref.watch(reviewRepositoryProvider),
     then: ref.watch(characterGroupingRunnerProvider),
+    merge: ref.watch(peopleRepositoryProvider).mergePeople,
   ),
 );
 

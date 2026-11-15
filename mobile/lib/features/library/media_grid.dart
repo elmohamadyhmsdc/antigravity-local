@@ -21,11 +21,13 @@ class MediaGrid extends ConsumerStatefulWidget {
     required this.filter,
     required this.empty,
     this.columns = 3,
+    this.onSelect,
   });
 
   final MediaFilter filter;
   final Widget empty;
   final int columns;
+  final ValueChanged<MediaListItem>? onSelect;
 
   @override
   ConsumerState<MediaGrid> createState() => _MediaGridState();
@@ -138,7 +140,11 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
             );
           }
-          return MediaTile(item: items[at], filter: widget.filter);
+          return MediaTile(
+            item: items[at],
+            filter: widget.filter,
+            onSelect: widget.onSelect,
+          );
         },
       ),
     );
@@ -147,10 +153,11 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
 
 /// One photo in a grid: thumbnail, how many faces were found, whether it is scanned yet.
 class MediaTile extends ConsumerWidget {
-  const MediaTile({super.key, required this.item, this.filter});
+  const MediaTile({super.key, required this.item, this.filter, this.onSelect});
 
   final MediaListItem item;
   final MediaFilter? filter;
+  final ValueChanged<MediaListItem>? onSelect;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -169,6 +176,10 @@ class MediaTile extends ConsumerWidget {
     return GestureDetector(
       key: Key('media-${item.id}'),
       onTap: () {
+        if (onSelect case final select?) {
+          select(item);
+          return;
+        }
         final f = filter;
         final params = <String, String>{};
         if (f != null) {

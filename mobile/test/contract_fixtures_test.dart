@@ -9,6 +9,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
+import 'package:antigravity_mobile/data/api/dtos/system.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final _fixtureDir = Directory('../the app/mobile_api/contract/fixtures');
@@ -99,6 +101,23 @@ void main() {
     });
   }
 
+  test('photo edit models are optional on the capabilities wire format', () {
+    Capabilities read(String name) => Capabilities.fromJson(
+      jsonDecode(
+            File(
+              '${_fixtureDir.path}/Capabilities.$name.json',
+            ).readAsStringSync(),
+          )
+          as Map<String, dynamic>,
+    );
+
+    expect(read('idle').photoEditModels, isNull);
+    expect(read('photo_edit_models').photoEditModels, [
+      'realistic_vision',
+      'sdxl_gguf',
+    ]);
+  });
+
   test(
     'grouping apply fixture: decisions the server computed are readable',
     () {
@@ -116,6 +135,34 @@ void main() {
       final groups = (res['groups'] as List).cast<Map<String, dynamic>>();
       expect(groups.single['face_ids'], [103, 104, 105]);
       expect(groups.single['auto_create'], isTrue);
+    },
+  );
+
+  test(
+    'grouping people fixture: auto thresholds and provisional merges round-trip',
+    () {
+      Map<String, dynamic> read(String name) =>
+          jsonDecode(File('${_fixtureDir.path}/$name').readAsStringSync())
+              as Map<String, dynamic>;
+      final req = GroupingPlanRequest.fromJson(
+        read('GroupingPlanRequest.apply_people.json'),
+      );
+      expect(req.strictness, 'auto');
+      expect(req.stages, contains('people'));
+      expect(req.provisionalPersonIds, [4]);
+      expect(req.toJson()['provisional_person_ids'], [4]);
+      final res = GroupingPlanResponse.fromJson(
+        read('GroupingPlanResponse.apply_people.json'),
+      );
+      expect(res.merges!.map((m) => (m.absorb, m.into)), [(4, 1)]);
+      final old = GroupingPlanResponse.fromJson(
+        read('GroupingPlanResponse.apply_basic.json'),
+      );
+      expect(
+        old.merges,
+        isNull,
+        reason: 'rounds without the stage carry no merges',
+      );
     },
   );
 }

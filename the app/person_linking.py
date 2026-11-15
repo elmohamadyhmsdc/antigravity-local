@@ -38,6 +38,7 @@ class GroupingParams:
     auto_create_cohesion: float = 0.40
     merge_suggest: float = 0.40     # person-to-person score for "possibly the same person"
     merge_auto: float = 0.60        # new groups this alike are folded together without asking
+    people_merge_auto: float = 0.50  # a provisional person this alike another is merged into it (apply "people")
     body_auto: float = 0.86         # outfit similarity to auto-link a faceless body (same video/photo)
     body_margin: float = 0.06
     body_suggest: float = 0.78
@@ -53,12 +54,12 @@ class GroupingParams:
 STRICTNESS: Dict[str, GroupingParams] = {
     "strict": GroupingParams(match_auto=0.48, match_margin=0.14, suggest=0.30, cluster_distance=0.64,
                              seed_quality=0.55, auto_create_size=4, auto_create_cohesion=0.45,
-                             merge_suggest=0.45, merge_auto=0.65, body_auto=0.90, body_margin=0.08, body_suggest=0.82,
+                             merge_suggest=0.45, merge_auto=0.65, people_merge_auto=0.56, body_auto=0.90, body_margin=0.08, body_suggest=0.82,
                              event_auto=0.92, event_suggest=0.85),
     "balanced": GroupingParams(),
     "loose": GroupingParams(match_auto=0.34, match_margin=0.07, suggest=0.22, cluster_distance=0.75,
                             seed_quality=0.40, auto_create_size=2, auto_create_cohesion=0.35,
-                            merge_suggest=0.35, merge_auto=0.55, body_auto=0.82, body_margin=0.05, body_suggest=0.74,
+                            merge_suggest=0.35, merge_auto=0.55, people_merge_auto=0.45, body_auto=0.82, body_margin=0.05, body_suggest=0.74,
                             event_auto=0.87, event_suggest=0.78),
     # Drawn characters (CCIP caformer-24 embeddings, 768-d). deepghs publishes 0.178 as the cosine
     # distance below which two images show one character (similarity ~0.82); these sit just
@@ -66,12 +67,68 @@ STRICTNESS: Dict[str, GroupingParams] = {
     # Merge. NOT yet measured on this library: eval it before loosening.
     "character": GroupingParams(match_auto=0.86, match_margin=0.05, suggest=0.74, cluster_distance=0.18,
                                 seed_quality=0.55, min_group_size=2, auto_create_size=3,
-                                auto_create_cohesion=0.82, merge_suggest=0.80, merge_auto=0.92),
+                                auto_create_cohesion=0.82, merge_suggest=0.80, merge_auto=0.92,
+                                people_merge_auto=0.92),
 }
 
 
 def params_for(strictness: str) -> GroupingParams:
+    if strictness == AUTO:
+        return auto_params()
     return STRICTNESS.get(strictness, STRICTNESS["balanced"])
+
+
+# ---------------------------------------------------------------------------
+# "auto": thresholds that follow the library instead of a setting
+# ---------------------------------------------------------------------------
+# The user should not have to know whether their gallery needs "strict" or "loose". What decides it is how
+# alike DIFFERENT people in this library look: a family of brothers needs the strict bars, a gallery of
+# unrelated friends can be grouped loosely. Faces seen together in one photo / frame (and people the user
+# said are different) are known-different pairs, so their high similarities measure exactly that. The
+# risk 0..1 places every threshold on the loose (0) - balanced (0.5) - strict (1) line.
+
+AUTO = "auto"
+AUTO_DEFAULT_RISK = 0.35        # no known-different pairs to go on yet
+AUTO_MIN_NEGATIVES = 8          # fewer pairs than this say too little; they only ever raise the risk
+AUTO_LOOKALIKE_LOW = 0.18       # known-different pairs this alike (98th pct) -> risk 0
+AUTO_LOOKALIKE_HIGH = 0.38      # ... and this alike -> risk 1 (strict)
+STRICTNESS_NAMES = ("strict", "balanced", "loose", "character", AUTO)
+_INT_FIELDS = {"min_group_size", "auto_create_size", "event_window_ms"}
+
+
+def _lerp_params(a: GroupingParams, b: GroupingParams, t: float) -> GroupingParams:
+    out = {}
+    for name in GroupingParams.__dataclass_fields__:
+        x, y = getattr(a, name), getattr(b, name)
+        v = x + (y - x) * t
+        out[name] = int(round(v)) if name in _INT_FIELDS else round(float(v), 4)
+    return GroupingParams(**out)
+
+
+def params_for_risk(risk: float) -> GroupingParams:
+    """0 = loose, 0.5 = balanced, 1 = strict, linear in between."""
+    r = float(np.clip(risk, 0.0, 1.0))
+    if r <= 0.5:
+        return _lerp_params(STRICTNESS["loose"], STRICTNESS["balanced"], r / 0.5)
+    return _lerp_params(STRICTNESS["balanced"], STRICTNESS["strict"], (r - 0.5) / 0.5)
+
+
+def lookalike_risk(negative_similarities: Sequence[float]) -> float:
+    """How risky automatic grouping is in this library, from the similarities of known-different pairs."""
+    s = np.asarray(list(negative_similarities), dtype=np.float32)
+    if len(s) == 0:
+        return AUTO_DEFAULT_RISK
+    # with few pairs the max is all we have; it may only make grouping more careful
+    hi = float(np.percentile(s, 98)) if len(s) >= AUTO_MIN_NEGATIVES else float(s.max())
+    risk = (hi - AUTO_LOOKALIKE_LOW) / (AUTO_LOOKALIKE_HIGH - AUTO_LOOKALIKE_LOW)
+    risk = float(np.clip(risk, 0.0, 1.0))
+    if len(s) < AUTO_MIN_NEGATIVES:
+        risk = max(risk, AUTO_DEFAULT_RISK)
+    return risk
+
+
+def auto_params(negative_similarities: Sequence[float] = ()) -> GroupingParams:
+    return params_for_risk(lookalike_risk(negative_similarities))
 
 
 # ---------------------------------------------------------------------------
@@ -506,6 +563,69 @@ def suggest_merges(models: Dict[int, PersonModel], params: GroupingParams,
         if sc >= params.merge_suggest:
             out.append((pids[i], pids[j], round(sc, 4)))
     out.sort(key=lambda t: -t[2])
+    return out
+
+
+def auto_merge_people(models: Dict[int, PersonModel], provisional: Iterable[int], threshold: float,
+                      distinct: Optional[Iterable[Tuple[int, int]]] = None) -> List[Tuple[int, int, float]]:
+    """(absorb, into, score): people the grouping created on its own that clearly are another person.
+
+    A person split in two (an early scan round saw only part of their photos, or two poses) used to stay
+    two people for good: apply mode never merged people, only review asked "same person?". Here only
+    PROVISIONAL people (made by grouping, not named / confirmed / locked by the user) are ever absorbed, and
+    two people the user owns are never joined, even through a provisional one. Pairs are taken best first
+    (union-find); a join is refused when any pair across the two sides is distinct (the user said so, or
+    they appear in one photo / frame). Each side's target is its user-owned person, else its biggest."""
+    prov = set(provisional) & set(models)
+    if not prov or len(models) < 2:
+        return []
+    skip = {frozenset(p) for p in (distinct or ())}
+    pids = sorted(models)
+    protos = np.stack([models[p].proto for p in pids])
+    quick = protos @ protos.T
+    pairs = []
+    ii, jj = np.nonzero(np.triu(quick >= threshold - 0.15, 1))
+    for i, j in zip(ii.tolist(), jj.tolist()):
+        a, b = pids[i], pids[j]
+        if (a not in prov and b not in prov) or frozenset((a, b)) in skip:
+            continue
+        sc = person_pair_score(models[a], models[b])
+        if sc >= threshold:
+            pairs.append((sc, a, b))
+    if not pairs:
+        return []
+    parent = {p: p for p in pids}
+    members = {p: {p} for p in pids}
+
+    def root(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    best: Dict[int, float] = {}
+    for sc, a, b in sorted(pairs, reverse=True):
+        ra, rb = root(a), root(b)
+        if ra == rb:
+            continue
+        if sum(1 for p in members[ra] | members[rb] if p not in prov) > 1:
+            continue
+        if any(frozenset((x, y)) in skip for x in members[ra] for y in members[rb]):
+            continue
+        parent[rb] = ra
+        members[ra] |= members.pop(rb)
+        best[a] = max(best.get(a, 0.0), sc)
+        best[b] = max(best.get(b, 0.0), sc)
+    out = []
+    for r, group in members.items():
+        if len(group) < 2:
+            continue
+        owned = [p for p in group if p not in prov]
+        into = owned[0] if owned else max(group, key=lambda p: (models[p].count, -p))
+        for p in sorted(group):
+            if p != into:
+                out.append((p, into, round(best.get(p, 0.0), 4)))
+    out.sort(key=lambda t: (-t[2], t[0]))
     return out
 
 

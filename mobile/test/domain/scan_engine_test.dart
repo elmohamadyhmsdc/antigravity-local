@@ -34,12 +34,7 @@ class Rig {
     repo = LibraryRepository(db);
     store = PhotoResultStore(db: db, files: files, index: index);
     review = ReviewRepository(db, PeopleRepository(db, files, index: index));
-    grouping = GroupingRunner(
-      db: db,
-      api: () => pc,
-      settings: settings,
-      review: review,
-    );
+    grouping = GroupingRunner(db: db, api: () => pc, review: review);
     library.addAlbum(
       const AlbumInfo(id: 'cam', name: 'Camera', count: 3),
       syntheticAssets(3),

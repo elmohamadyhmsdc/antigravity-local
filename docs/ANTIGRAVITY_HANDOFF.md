@@ -82,6 +82,31 @@
 ## AI Photo Editor: Clothes & Object Inpainting (Removal & Prompt Replacement) — 2026-11-14
 
 - Implemented AI Photo Editor in Flutter app (`mobile/`) with PC Mobile API integration (`the app/`), enabling users to select any object or clothes and either remove them (seamless inpainting via Big-LaMa) or replace them with a prompt (Diffusion inpainting) while preserving 100% of unselected pixels outside the mask.
+- Multi-Model Support for Photo Inpainting (Realistic Vision, CyberRealistic, SDXL 1024p) — 2026-11-14:
+  - `the app/photo_edit.py`:
+    - Added multi-model configuration: `MODEL_REALISTIC_VISION = 'realistic_vision'` (default), `MODEL_CYBER_REALISTIC = 'cyber_realistic'`, and `MODEL_SDXL = 'sdxl'`.
+    - Integrated paths for `CYBER_MODEL` (`CyberRealistic_FINAL_FP16.safetensors`) and `SDXL_MODEL` (`diffusers--stable-diffusion-xl-1.0-inpainting-0.1`).
+    - Added dynamic resolution support: SD 1.5 models use 768px (`WORK_SIZE`), while SDXL uses native 1024px (`WORK_SIZE_SDXL = 1024`).
+    - Updated `validate_options`: allows `'model'` parameter (restricted to `SUPPORTED_MODELS`).
+    - Updated `prepare_crop`, `composite`, and `render_crop`: parameterized `work_size` to dynamically adapt canvas and composite dimensions to 1024px for SDXL and 768px for SD 1.5.
+    - Updated `edit_photo`: passes `model` and `work_size` to worker and includes `model` in returned job metadata.
+  - `the app/photo_edit_worker.py`:
+    - Added multi-model dispatching:
+      - `realistic_vision`: loads `StableDiffusionInpaintPipeline` from `BASE_MODEL`.
+      - `cyber_realistic`: loads `StableDiffusionInpaintPipeline.from_single_file` from `CYBER_MODEL` with `safety_checker=None` directly in FP16 with zero network downloads.
+      - `sdxl`: loads `StableDiffusionXLInpaintPipeline.from_pretrained` from `SDXL_MODEL` with `variant='fp16'` at native 1024x1024 resolution.
+    - Parameterized dynamic working dimensions (`work_size = 1024` for SDXL, `768` for SD 1.5).
+  - `mobile/lib/features/photo_edit/selection_model.dart`:
+    - Added `enum PhotoEditModel { realisticVision, cyberRealistic, sdxl }` with helper properties `id`, `displayName`, and `description`.
+  - `mobile/lib/features/photo_edit/photo_edit_screen.dart`:
+    - Added `_selectedModel` state variable defaulting to `PhotoEditModel.realisticVision`.
+    - Added modern AI Model Selector chip row under Replace operation with icons, titles, and live subtitle description.
+    - Passed `'model': _selectedModel.id` in job payload parameters.
+  - Verification:
+    - `python test_photo_edit.py`: 22/22 tests passed (including new tests for model validation, SDXL 1024p resolution, and CyberRealistic metadata).
+    - `flutter test`: 5/5 tests passed (`photo_edit_screen_test.dart`, `photo_edit_canvas_test.dart`, `photo_edit_navigation_test.dart`).
+    - `dart analyze`: No issues found!
+
 - Server Engine Updates:
   - `the app/photo_edit.py`:
     - Upgraded `BASE_MODEL` to automatically use `andregn--Realistic_Vision_V6.0-inpainting` when present on disk for significantly enhanced photorealism, skin texture fidelity, and natural fabric draping.

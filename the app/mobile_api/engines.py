@@ -419,8 +419,8 @@ class CapabilityProbe:
     def engines(self) -> Dict:
         from equipment_detection import model_available as equipment_available
         from photo_edit import ready as photo_edit_ready
-        from .model_readiness import restyle_missing_models
-        from .reference_reface import reference_reface_ready
+        from .model_readiness import clothing_parser_path, restyle_missing_models
+        from .reference_reface import reference_inpaint_missing, reference_reface_ready
         from pathlib import Path as _Path
         face_ready = all((_Path.home() / '.insightface' / 'models' / 'buffalo_l' / name).is_file()
                          for name in ('det_10g.onnx', 'w600k_r50.onnx'))
@@ -451,6 +451,9 @@ class CapabilityProbe:
                                and self._has("models", "reid", "dinov2_vits14.onnx"),
             "equipment": equipment_available(),
             "photo_edit": photo_edit_ready(self.app_dir),
+            "photo_edit_reference": not reference_inpaint_missing(self.app_dir),
+            "photo_edit_body_shape": self._has('models', 'rmbg.onnx'),
+            "photo_edit_auto_body": self._has('models', 'rmbg.onnx') and clothing_parser_path(self.app_dir) is not None,
             "garment_tags": self._has("models", "wd14_tagger_model.onnx") and self._has("models", "wd14_tagger_tags.csv"),
         }
 
@@ -460,9 +463,12 @@ class CapabilityProbe:
             cached = dict(self._snapshot_cache)
             cached["gpu"] = self.gpu()
             return cached
+        from photo_edit import available_replace_models
         from reface_config import profile_catalog
         restorers = self.restorers()
-        result = {"gpu": self.gpu(), "engines": self.engines(), "restorers": restorers,
+        engines = self.engines()
+        result = {"gpu": self.gpu(), "engines": engines, "restorers": restorers,
+                  "photo_edit_models": available_replace_models(self.app_dir) if engines['photo_edit'] else [],
                   "reface_profiles": profile_catalog(restorers),
                   "lora_base_checkpoints": self.lora_base_checkpoints()}
         self._snapshot_cache = result

@@ -12,6 +12,25 @@ def hub_roots():
     return list(dict.fromkeys(roots))
 
 
+def find_local_model(app_dir, repo, groups, cache_roots=None):
+    roots = hub_roots() if cache_roots is None else cache_roots
+    name = repo.replace('/', '--')
+    candidates = [Path(app_dir)/'models'/'undress'/name]
+    for root in roots:
+        snapshots = Path(root)/('models--' + name)/'snapshots'
+        if snapshots.is_dir():
+            candidates.extend(sorted(p for p in snapshots.iterdir() if p.is_dir()))
+    return next((p for p in candidates if all(any((p/f).is_file() and (p/f).stat().st_size > 0
+                                                  for f in group) for group in groups)), None)
+
+
+def clothing_parser_path(app_dir):
+    from undress_core import CLOTHES_PARSER_ID
+
+    return find_local_model(app_dir, CLOTHES_PARSER_ID,
+                            (('config.json',), ('preprocessor_config.json',), ('model.safetensors', 'pytorch_model.bin')))
+
+
 def restyle_missing_models(app_dir, *, refine=True, cache_roots=None):
     """Require real weights, rather than treating an empty models directory as ready."""
     from undress_core import INPAINT_MODEL_ID, SDXL_INPAINT_MODEL_ID, OPENPOSE_CONTROLNET_ID, CLOTHES_PARSER_ID
@@ -33,11 +52,6 @@ def restyle_missing_models(app_dir, *, refine=True, cache_roots=None):
             ('text_encoder_2/model.safetensors','text_encoder_2/model.fp16.safetensors','text_encoder_2/pytorch_model.bin'),)
     missing = []
     for repo, groups in required.items():
-        candidates = [Path(app_dir)/'models'/'undress'/repo.replace('/','--')]
-        for root in roots:
-            snapshots = Path(root)/('models--'+repo.replace('/','--'))/'snapshots'
-            if snapshots.is_dir(): candidates.extend(p for p in snapshots.iterdir() if p.is_dir())
-        if not any(all(any((p/name).is_file() and (p/name).stat().st_size > 0 for name in group)
-                       for group in groups) for p in candidates):
+        if find_local_model(app_dir, repo, groups, roots) is None:
             missing.append(repo)
     return missing

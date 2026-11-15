@@ -148,6 +148,8 @@ def system_fixtures():
         "busy": None,
     }
     write("Capabilities.idle", caps)
+    write("Capabilities.photo_edit_models", dict(caps, photo_edit_models=["realistic_vision", "sdxl_gguf"]))
+    write("Capabilities.photo_edit_guided", dict(caps, engines=dict(caps["engines"], photo_edit_reference=True)))
     busy = dict(caps, busy={"job_id": "9c1d2e84-aaaa-4bbb-8ccc-0123456789ab", "job_type": "reface_video_v3", "source": "dashboard"})
     write("Capabilities.busy_with_dashboard_job", busy)
     write("PairResponse.ok", {"token": "agm_" + sha("device-token")[:40], "server_id": "srv_7f3a91c2", "server_name": "RTX-PC"})
@@ -368,6 +370,14 @@ def grouping_fixtures():
     write("GroupingPlanRequest.event_outfit", event_req)
     write("GroupingPlanResponse.event_outfit", plan(event_req))
 
+    # The phone's round 1: thresholds derived from the library ("auto") and the people stage. Person 4 was
+    # made by grouping (provisional) and clearly is person 1, so it is merged into them; 2 is the user's.
+    # No random numbers: the other fixtures stay byte-identical.
+    people_req = dict(base, mode="apply", stages=["match", "cluster", "people"], strictness="auto", bodies=[],
+                      link_alike_people=True, provisional_person_ids=[4])
+    write("GroupingPlanRequest.apply_people", people_req)
+    write("GroupingPlanResponse.apply_people", plan(people_req))
+
 
 # --------------------------------------------------------------------------- jobs
 
@@ -388,11 +398,29 @@ def job_fixtures():
         "inputs": {"target": sha("target-photo")},
     }
     write("JobCreate.reface_image_v3", reface_request)
-    write("JobCreate.edit_image", {
+    edit_image = {
         "client_job_id": "fixture-photo-edit",
         "type": "edit_image",
         "params": {"operation": "replace", "instruction": "a small blue ceramic vase", "steps": 26, "seed": 123},
         "inputs": {"image": sha("edit-photo"), "mask": sha("edit-mask")},
+    }
+    write("JobCreate.edit_image", edit_image)
+    write("JobCreate.edit_image_gguf", {
+        **edit_image,
+        "client_job_id": "fixture-photo-edit-gguf",
+        "params": dict(edit_image["params"], model="sdxl_gguf", strength=0.85),
+    })
+    write("JobCreate.edit_image_guided", {
+        **edit_image,
+        "client_job_id": "fixture-photo-edit-guided",
+        "params": {"operation": "replace", "seed": 123},
+        "inputs": dict(edit_image["inputs"], refs=[sha("upper-body-reference"), sha("swimwear-reference")]),
+    })
+    write("JobCreate.edit_image_auto_body", {
+        "client_job_id": "fixture-photo-edit-auto-body",
+        "type": "edit_image",
+        "params": {"operation": "replace", "instruction": "blue swimwear", "auto_body": True, "preserve_body_shape": True, "steps": 26, "seed": 123},
+        "inputs": {"image": sha("edit-photo")},
     })
     write("JobCreate.reface_image", {**reface_request, "type": "reface_image",
           "client_job_id": "fixture-reface-unified-image",

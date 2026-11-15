@@ -604,39 +604,37 @@ void main() {
       );
     }
 
-    appTest('grouping strictness and the quality gate are saved', (
-      tester,
-      env,
-    ) async {
-      await _open(tester, env, '/settings/library');
-      await _openSection(tester, 'library-matching-section');
-      expect(find.text('Balanced'), findsOneWidget);
-      expect(find.textContaining('Recommended'), findsOneWidget);
+    appTest(
+      'grouping is automatic (no strictness to pick) and the quality gate is saved',
+      (tester, env) async {
+        await _open(tester, env, '/settings/library');
+        await _openSection(tester, 'library-matching-section');
+        expect(
+          find.textContaining('Thresholds follow your library'),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('strictness')), findsNothing);
+        expect(find.text('Strict'), findsNothing);
 
-      await tester.ensureVisible(find.text('Strict'));
-      await _settle(tester);
-      await tester.tap(find.text('Strict'));
-      await _settle(tester);
-      expect((await env.settingsSnapshot()).strictness, 'strict');
-      expect(find.textContaining('Fewer mistakes'), findsOneWidget);
-
-      final slider = find.byKey(const Key('quality-gate'));
-      await tester.scrollUntilVisible(
-        slider,
-        100,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await _settle(tester);
-      await tester.drag(slider, const Offset(200, 0));
-      await _settle(tester);
-      final gate = (await env.settingsSnapshot()).qualityGate;
-      expect(
-        gate,
-        greaterThan(0.40),
-        reason: 'dragging right raises the minimum quality',
-      );
-      expect(gate, lessThanOrEqualTo(0.80));
-    }, session: testSession);
+        final slider = find.byKey(const Key('quality-gate'));
+        await tester.scrollUntilVisible(
+          slider,
+          100,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await _settle(tester);
+        await tester.drag(slider, const Offset(200, 0));
+        await _settle(tester);
+        final gate = (await env.settingsSnapshot()).qualityGate;
+        expect(
+          gate,
+          greaterThan(0.40),
+          reason: 'dragging right raises the minimum quality',
+        );
+        expect(gate, lessThanOrEqualTo(0.80));
+      },
+      session: testSession,
+    );
 
     appTest(
       'it links to Sources, to Backup and shows the paired PC',

@@ -1,15 +1,17 @@
-"""Offline inference worker for  background/object edits. No file outputs."""
+"""Offline inference worker for masked photo edits. No file outputs."""
 import base64
 import io
 import json
 import os
+import re
 import sys
 
-os.environ['HF_HUB_OFFLINE'] = '1'
-os.environ['TRANSFORMERS_OFFLINE'] = '1'
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-
 ARABIC_EN_MAP = {
+    'مايوه': 'swimwear', 'مايوهات': 'swimwear', 'سباحه': 'swimming',
+    'البحر': 'the sea', 'بحر': 'sea', 'الشاطئ': 'the beach', 'شاطئ': 'beach',
+    'بدون': 'without', 'منغير': 'without', 'صدر': 'chest', 'بطن': 'abdomen',
+    'ذراع': 'arm', 'ذراعين': 'arms', 'ساق': 'leg', 'ساقين': 'legs', 'جسم': 'body',
+    'بشره': 'skin', 'مكشوف': 'bare', 'عاري': 'bare', 'شيل': 'remove', 'اشيل': 'remove',
     # Clothing / garments
     'بدله': 'formal business suit', 'طقم': 'outfit suit',
     'بليزر': 'blazer jacket', 'توكسيدو': 'tuxedo suit', 'فيست': 'vest', 'صديري': 'waistcoat vest',
@@ -63,7 +65,7 @@ def normalize_arabic(text: str) -> str:
 
 
 def translate_instruction(text: str) -> str:
-    words = text.split()
+    words = re.sub(r'\bمن\s+غير\b', 'منغير', text).split()
     translated = []
     has_arabic = False
     for word in words:
@@ -75,6 +77,9 @@ def translate_instruction(text: str) -> str:
         elif norm.startswith('ال') and len(norm) > 3 and norm[2:] in ARABIC_EN_MAP:
             translated.append(ARABIC_EN_MAP[norm[2:]])
             has_arabic = True
+        elif norm.startswith('و') and norm[1:].removeprefix('ال') in ARABIC_EN_MAP:
+            translated.append('and ' + ARABIC_EN_MAP[norm[1:].removeprefix('ال')])
+            has_arabic = True
         elif any('\u0600' <= c <= '\u06ff' for c in word):
             has_arabic = True
         else:
@@ -85,22 +90,48 @@ def translate_instruction(text: str) -> str:
 
 
 def main():
+    os.environ['HF_HUB_OFFLINE'] = '1'
+    os.environ['TRANSFORMERS_OFFLINE'] = '1'
+    os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
     from PIL import Image
     import torch
     import cv2
     from diffusers import StableDiffusionInpaintPipeline, DPMSolverMultistepScheduler
     import numpy as np
-    from photo_edit import BASE_MODEL, REMOVAL_MODEL, PREFIX, WORK_SIZE, validate_options, png64
+    from photo_edit import (
+        APP, BASE_MODEL, CYBER_MODEL, SDXL_MODEL, REMOVAL_MODEL, PREFIX,
+        WORK_SIZE, WORK_SIZE_SDXL, MODEL_SDXL, MODEL_CYBER_REALISTIC, MODEL_REALISTIC_VISION,
+        validate_options, png64
+    )
 
     raw = sys.stdin.buffer.read(10*1024*1024+1)
     if len(raw) > 10*1024*1024:
         raise ValueError('The edit request is too large')
     request = json.loads(raw)
-    options = validate_options({k:request[k] for k in ('operation','instruction','steps','seed','strength') if k in request})
+    if request.get('task') == 'parse_clothes':
+        from mobile_api.model_readiness import clothing_parser_path
+        from transformers import AutoModelForSemanticSegmentation, SegformerImageProcessor
+        from undress_engine import parse_clothes
+
+        local = clothing_parser_path(APP)
+        if local is None:
+            raise ValueError('The local clothing parser is missing')
+        torch.set_num_threads(min(4, os.cpu_count() or 1))
+        processor = SegformerImageProcessor.from_pretrained(str(local), local_files_only=True)
+        parser = AutoModelForSemanticSegmentation.from_pretrained(str(local), local_files_only=True).eval()
+        with Image.open(io.BytesIO(base64.b64decode(request['image'], validate=True))) as image:
+            labels = parse_clothes(image.convert('RGB'), processor, parser)
+        print(PREFIX + json.dumps(dict(safe=True, image=png64(labels))), flush=True)
+        return
+    options = validate_options({k:request[k] for k in ('operation','instruction','steps','seed','strength','model') if k in request})
+    model_choice = options.get('model', MODEL_REALISTIC_VISION)
+    work_size = int(request.get('work_size', WORK_SIZE_SDXL if model_choice == MODEL_SDXL else WORK_SIZE))
+
     def image(key, mode):
         opened = Image.open(io.BytesIO(base64.b64decode(request[key],validate=True)))
-        if opened.size != (WORK_SIZE,WORK_SIZE):
-            raise ValueError('Unsupported edit dimensions')
+        if opened.size != (work_size, work_size):
+            raise ValueError(f'Unsupported edit dimensions: {opened.size} != {(work_size, work_size)}')
         return opened.convert(mode)
     original,mask = image('image','RGB'),image('mask','L')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -126,8 +157,37 @@ def main():
         print(PREFIX+json.dumps(dict(safe=True,image=png64((result*255).clip(0,255).astype(np.uint8)))),flush=True)
         return
 
-    pipe = StableDiffusionInpaintPipeline.from_pretrained(str(BASE_MODEL),local_files_only=True,
-        use_safetensors=True,torch_dtype=dtype,safety_checker=None,requires_safety_checker=False)
+    references = request.get('references', [])
+    if references:
+        from mobile_api.reference_reface import load_reference_inpaint_pipeline
+
+        pipe = load_reference_inpaint_pipeline(.65)
+    elif model_choice == MODEL_SDXL:
+        from diffusers import StableDiffusionXLInpaintPipeline
+        pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
+            str(SDXL_MODEL),
+            variant='fp16',
+            local_files_only=True,
+            torch_dtype=dtype,
+            use_safetensors=True,
+        )
+    elif model_choice == MODEL_CYBER_REALISTIC:
+        pipe = StableDiffusionInpaintPipeline.from_single_file(
+            str(CYBER_MODEL),
+            local_files_only=True,
+            torch_dtype=dtype,
+            safety_checker=None,
+        )
+    else:
+        pipe = StableDiffusionInpaintPipeline.from_pretrained(
+            str(BASE_MODEL),
+            local_files_only=True,
+            use_safetensors=True,
+            torch_dtype=dtype,
+            safety_checker=None,
+            requires_safety_checker=False,
+        )
+
     try:
         pipe.scheduler = DPMSolverMultistepScheduler.from_config(
             pipe.scheduler.config,
@@ -140,25 +200,31 @@ def main():
         except Exception:
             pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
 
-    pipe.enable_attention_slicing()
-    pipe.enable_vae_slicing()
-    pipe.to(device)
+    if not references:
+        if hasattr(pipe, 'enable_attention_slicing'):
+            pipe.enable_attention_slicing()
+        if hasattr(pipe, 'enable_vae_slicing'):
+            pipe.enable_vae_slicing()
+        pipe.to(device)
     pipe.set_progress_bar_config(disable=True)
 
     translated_instruction = translate_instruction(options['instruction'])
     prompt = (
-        f"RAW photograph of (({translated_instruction}):1.25), tailored fit, "
-        "natural clothing folds, fabric texture, realistic human proportions, "
-        "hyperrealistic, 8k uhd, dslr, soft studio lighting"
+        f"{translated_instruction}, photorealistic, natural texture and proportions, "
+        "matching the perspective and lighting of the surrounding photo"
     )
+    if request.get('preserve_body_shape'):
+        prompt += ', original build and pose of the person, ordinary unretouched skin texture'
     # Ensure prompt stays within CLIP token limit (77 tokens) without failing the job
-    if len(pipe.tokenizer(prompt, truncation=False).input_ids) > pipe.tokenizer.model_max_length:
-        input_ids = pipe.tokenizer(
-            prompt,
-            truncation=True,
-            max_length=pipe.tokenizer.model_max_length - 2,
-        ).input_ids
-        prompt = pipe.tokenizer.decode(input_ids, skip_special_tokens=True)
+    tokenizer = getattr(pipe, 'tokenizer', None)
+    if tokenizer is not None and hasattr(tokenizer, 'model_max_length'):
+        if len(tokenizer(prompt, truncation=False).input_ids) > tokenizer.model_max_length:
+            input_ids = tokenizer(
+                prompt,
+                truncation=True,
+                max_length=tokenizer.model_max_length - 2,
+            ).input_ids
+            prompt = tokenizer.decode(input_ids, skip_special_tokens=True)
 
     negative = (
         "(deformed, distorted, disfigured:1.35), (bad anatomy, wrong anatomy:1.2), "
@@ -167,14 +233,25 @@ def main():
         "unnatural body proportions, warped fabric, disproportional body, bloated, "
         "artifacts, lowres, low quality, duplicate, text, watermark"
     )
+    if request.get('preserve_body_shape'):
+        negative += ', exaggerated muscle definition, sculpted abs, fitness model, plastic skin, leftover cuffs, stray garment logos'
 
     strength = float(options.get('strength', 0.85))
     strength = max(0.2, min(1.0, strength))
 
+    guidance = {}
+    if references:
+        images = []
+        for encoded in references:
+            with Image.open(io.BytesIO(base64.b64decode(encoded, validate=True))) as reference:
+                images.append(reference.convert('RGB'))
+        # One adapter with several images, rather than one adapter per reference.
+        guidance['ip_adapter_image'] = [images]
     generated = pipe(prompt=prompt, negative_prompt=negative, image=original, mask_image=mask,
-                     height=WORK_SIZE, width=WORK_SIZE, strength=strength,
+                     height=work_size, width=work_size, strength=strength,
                      num_inference_steps=options['steps'], guidance_scale=7.5,
-                     generator=torch.Generator(device=device).manual_seed(options['seed']))
+                     generator=torch.Generator(device='cpu' if references else device).manual_seed(options['seed']),
+                     **guidance)
 
     print(PREFIX+json.dumps(dict(safe=True,image=png64(np.asarray(generated.images[0].convert('RGB'))))),flush=True)
 

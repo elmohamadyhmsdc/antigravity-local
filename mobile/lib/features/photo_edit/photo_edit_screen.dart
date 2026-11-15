@@ -8,21 +8,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/artifact_context.dart';
+import '../../data/repositories/media_queries.dart';
 import '../../library_providers.dart';
 import '../../providers.dart';
 import '../../studio_providers.dart';
+import '../library/media_grid.dart';
 import '../privacy/app_lock.dart';
+import '../shared/person_picker.dart';
 import '../studio/studio_helpers.dart';
 import 'mask_builder.dart';
+import 'reference_crop.dart';
 import 'selection_model.dart';
 import 'smart_selector.dart';
 
 class PhotoEditScreen extends ConsumerStatefulWidget {
-  const PhotoEditScreen({
-    super.key,
-    this.mediaId,
-    this.initialPhotoBytes,
-  });
+  const PhotoEditScreen({super.key, this.mediaId, this.initialPhotoBytes});
 
   final int? mediaId;
   final Uint8List? initialPhotoBytes;
@@ -32,6 +32,7 @@ class PhotoEditScreen extends ConsumerStatefulWidget {
 }
 
 class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
+  static const _maxReferences = 3;
   final _promptController = TextEditingController();
   final _selectionModel = SelectionModel();
 
@@ -43,10 +44,19 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
 
   var _activeTool = SelectionTool.brush;
   var _operation = PhotoEditOperation.remove;
+  var _selectedModel = PhotoEditModel.realisticVision;
+  var _guided = false;
+  var _autoBody = false;
+  var _keepBodyShape = false;
+  bool get _usesAutoBody =>
+      _operation == PhotoEditOperation.replace && _autoBody;
+  final _references = <Uint8List>[];
   var _brushRadius = 0.035;
   var _smartTolerance = 0.22;
   var _strength = 0.85;
   var _busy = false;
+  String? _pendingJob;
+  var _pausing = false;
   var _progressText = '';
   double _progress = 0.0;
   String? _error;
@@ -146,16 +156,55 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
       setState(() => _error = 'PC GPU server is offline or not paired.');
       return;
     }
-    if (!_selectionModel.hasSelection) {
-      setState(() => _error = 'Select an object or clothing first.');
+    final automatic = _usesAutoBody;
+    final keepShape =
+        _operation == PhotoEditOperation.replace &&
+        (_keepBodyShape || automatic);
+    if (automatic && !caps.engines.photoEditAutoBody ||
+        keepShape && !caps.engines.photoEditBodyShape) {
+      setState(
+        () => _error = 'This PC does not have the body editing models ready.',
+      );
+      return;
+    }
+    if (!automatic && !_selectionModel.hasSelection) {
+      setState(
+        () => _error = 'Select the body area, clothing, or object to edit.',
+      );
       return;
     }
     if (_operation == PhotoEditOperation.replace &&
+        (!_guided || automatic) &&
         _promptController.text.trim().isEmpty) {
-      setState(() => _error = 'Please enter a description for the replacement.');
+      setState(
+        () => _error = 'Please enter a description for the replacement.',
+      );
+      return;
+    }
+    final operation = _operation;
+    final guided = operation == PhotoEditOperation.replace && _guided;
+    final model = guided ? PhotoEditModel.realisticVision : _selectedModel;
+    final references = guided
+        ? List<Uint8List>.of(_references)
+        : const <Uint8List>[];
+    if (guided && (!caps.engines.photoEditReference || references.isEmpty)) {
+      setState(
+        () => _error = caps.engines.photoEditReference
+            ? 'Add at least one reference photo or choose Text only.'
+            : 'Photo guidance is unavailable on this PC.',
+      );
+      return;
+    }
+    if (!guided &&
+        operation == PhotoEditOperation.replace &&
+        !_availableModels(caps.photoEditModels).contains(model)) {
+      setState(
+        () => _error = 'That model is unavailable. Choose another model.',
+      );
       return;
     }
 
+    FocusScope.of(context).unfocus();
     setState(() {
       _busy = true;
       _error = null;
@@ -175,49 +224,68 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
         targetH = (targetH * scale).round();
       }
 
-      final maskBytes = await MaskBuilder.buildMaskPng(
-        _selectionModel,
-        width: targetW,
-        height: targetH,
-      );
-
       final photoFile = await privatePickedPhoto(ref, photo);
       filesToClean.add(photoFile);
-
-      final fileStore = ref.read(fileStoreProvider);
-      final maskPath = 'work/photo_edit/mask_${DateTime.now().microsecondsSinceEpoch}.png';
-      await fileStore.write(maskPath, maskBytes);
-      final maskFile = fileStore.resolve(maskPath);
-      filesToClean.add(maskFile);
+      File? maskFile;
+      if (!automatic) {
+        final maskBytes = await MaskBuilder.buildMaskPng(
+          _selectionModel,
+          width: targetW,
+          height: targetH,
+        );
+        final fileStore = ref.read(fileStoreProvider);
+        final maskPath =
+            'work/photo_edit/mask_${DateTime.now().microsecondsSinceEpoch}.png';
+        await fileStore.write(maskPath, maskBytes);
+        maskFile = fileStore.resolve(maskPath);
+        filesToClean.add(maskFile);
+      }
+      final referenceFiles = <File>[];
+      for (final bytes in references) {
+        final file = await privatePickedPhoto(ref, bytes);
+        referenceFiles.add(file);
+        filesToClean.add(file);
+      }
+      if (!mounted) return;
 
       setState(() {
         _progressText = 'Uploading to PC server...';
         _progress = 0.15;
       });
 
-      final operationStr = _operation == PhotoEditOperation.remove ? 'remove' : 'replace';
+      final operationStr = operation == PhotoEditOperation.remove
+          ? 'remove'
+          : 'replace';
       final promptStr = _promptController.text.trim();
 
-      final jobId = await ref.read(studioRepositoryProvider).enqueueInputs(
-        serverId: caps.serverId,
-        type: 'edit_image',
-        context: ArtifactContext(
-          mediaId: _contextMediaId,
-          assetId: _contextAssetId,
-        ),
-        params: {
-          'operation': operationStr,
-          'instruction': promptStr,
-          'steps': 26,
-          'mask_normalized': true,
-          'strength': _strength,
-        },
-        inputs: {
-          'image': [photoFile],
-          'mask': [maskFile],
-        },
-      );
+      final jobId = await ref
+          .read(studioRepositoryProvider)
+          .enqueueInputs(
+            serverId: caps.serverId,
+            type: 'edit_image',
+            context: ArtifactContext(
+              mediaId: _contextMediaId,
+              assetId: _contextAssetId,
+            ),
+            params: {
+              'operation': operationStr,
+              'instruction': promptStr,
+              'steps': 26,
+              if (!automatic) 'mask_normalized': true,
+              if (automatic) 'auto_body': true,
+              if (keepShape) 'preserve_body_shape': true,
+              'strength': _strength,
+              if (operation == PhotoEditOperation.replace) 'model': model.id,
+            },
+            inputs: {
+              'image': [photoFile],
+              if (maskFile != null) 'mask': [maskFile],
+              if (referenceFiles.isNotEmpty) 'refs': referenceFiles,
+            },
+          );
 
+      if (!mounted) return;
+      setState(() => _pendingJob = jobId);
       ref.read(jobTrackerProvider).start();
 
       // Monitor job until completed or failed
@@ -228,7 +296,84 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
       for (final f in filesToClean) {
         if (await f.exists()) await f.delete();
       }
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _pendingJob = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _addReference({required bool fromPerson}) async {
+    if (_references.length >= _maxReferences) return;
+    try {
+      Uint8List? bytes;
+      if (fromPerson) {
+        final choice = await pickPerson(
+          context,
+          allowNew: false,
+          title: 'Choose the person',
+        );
+        final personId = choice?.personId;
+        if (!mounted || personId == null) return;
+        final photo = await showModalBottomSheet<MediaListItem>(
+          context: context,
+          useSafeArea: true,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (context) => FractionallySizedBox(
+            heightFactor: .85,
+            child: Column(
+              children: [
+                const ListTile(title: Text('Choose a photo of this person')),
+                Expanded(
+                  child: MediaGrid(
+                    filter: MediaFilter(personId: personId, kind: 'photo'),
+                    empty: const Center(
+                      child: Text('No photos are assigned to this person.'),
+                    ),
+                    onSelect: (photo) => Navigator.of(context).pop(photo),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        if (!mounted || photo == null) return;
+        final source = await ref
+            .read(mediaActionSourceProvider)
+            .resolve(photo.id, maxSide: 1280);
+        bytes = source.photoBytes;
+        if (bytes == null)
+          throw const FormatException(
+            'This reference photo could not be opened.',
+          );
+      } else {
+        bytes = await ref.read(photoPickerProvider).pickPhoto();
+      }
+      if (!mounted || bytes == null) return;
+      final crop = await choosePhotoEditReference(context, bytes);
+      if (!mounted || crop == null) return;
+      setState(() => _references.add(crop));
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+  }
+
+  Future<void> _pauseEdit() async {
+    final id = _pendingJob;
+    if (id == null || _pausing) return;
+    setState(() => _pausing = true);
+    try {
+      final job = await ref.read(studioRepositoryProvider).job(id);
+      if (job != null && mounted) {
+        await ref.read(jobTrackerProvider).pause(job);
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _pausing = false);
     }
   }
 
@@ -236,23 +381,26 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
     final repo = ref.read(studioRepositoryProvider);
     final files = ref.read(fileStoreProvider);
 
-    for (var i = 0; i < 300; i++) {
-      if (!mounted) return;
+    while (mounted) {
       await Future<void>.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
       final job = await repo.job(jobId);
-      if (job == null) continue;
+      if (job == null)
+        throw const FormatException('This edit is no longer available.');
 
       if (mounted) {
         setState(() {
-          _progress = (job.progress / 100.0).clamp(0.15, 0.95);
+          _progress = job.progress.clamp(0.15, 0.95);
           _progressText = job.status == 'running'
-              ? 'Processing AI edit (${(job.progress).round()}%)...'
+              ? 'Processing AI edit (${(job.progress * 100).round()}%)...'
               : '${job.status}...';
         });
       }
 
       if (job.status == 'completed') {
-        final resultRow = await (repo.db.select(repo.db.results)..where((r) => r.id.equals(jobId))).getSingleOrNull();
+        final resultRow = await (repo.db.select(
+          repo.db.results,
+        )..where((r) => r.id.equals(jobId))).getSingleOrNull();
         final path = resultRow?.path;
         if (path != null) {
           final resFile = files.resolve(path);
@@ -263,6 +411,7 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                 _resultBytes = resBytes;
                 _resultFile = resFile;
                 _showOriginal = false;
+                _savedToGallery = false;
                 _progress = 1.0;
                 _progressText = 'Done';
               });
@@ -270,11 +419,18 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
             return;
           }
         }
-      } else if (job.status == 'failed') {
-        throw Exception(job.error != null && job.error!.isNotEmpty ? job.error! : 'AI edit failed on server.');
+      } else if (job.status == 'paused') {
+        if (_pausing) continue;
+        if (job.error?.isNotEmpty == true) throw Exception(job.error);
+        return;
+      } else if (job.status == 'failed' || job.status == 'lost') {
+        throw Exception(
+          job.error != null && job.error!.isNotEmpty
+              ? job.error!
+              : 'AI edit failed on server.',
+        );
       }
     }
-    throw TimeoutException('AI edit timed out.');
   }
 
   Future<void> _saveCopy() async {
@@ -282,7 +438,9 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
     if (file == null || _savedToGallery) return;
 
     try {
-      final saved = await ref.read(privacyServiceProvider).exportMedia(file, 'image/png');
+      final saved = await ref
+          .read(privacyServiceProvider)
+          .exportMedia(file, 'image/png');
       if (mounted) {
         setState(() => _savedToGallery = saved);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -295,9 +453,9 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
       }
     }
   }
@@ -307,6 +465,7 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
     final photo = _photoBytes;
     final decoded = _decodedPhoto;
     final result = _resultBytes;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -327,13 +486,18 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
             if (_error != null)
               Container(
                 color: Theme.of(context).colorScheme.errorContainer,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
                         _error!,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
                       ),
                     ),
                     IconButton(
@@ -345,55 +509,75 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
               ),
 
             // Canvas Area
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (photo == null || decoded == null)
-                    const Center(child: CircularProgressIndicator())
-                  else if (result != null && !_showOriginal)
-                    Image.memory(
-                      result,
-                      fit: BoxFit.contain,
-                    )
-                  else
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        return _buildInteractiveCanvas(
-                          constraints.maxWidth,
-                          constraints.maxHeight,
-                          decoded,
-                        );
-                      },
-                    ),
-
-                  // Progress Overlay
-                  if (_busy)
-                    Container(
-                      color: Colors.black54,
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(value: _progress > 0 ? _progress : null),
-                          const SizedBox(height: 16),
-                          Text(
-                            _progressText,
-                            style: const TextStyle(color: Colors.white, fontSize: 16),
-                          ),
-                        ],
+            if (!keyboardVisible)
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (photo == null || decoded == null)
+                      const Center(child: CircularProgressIndicator())
+                    else if (result != null && !_showOriginal)
+                      Image.memory(result, fit: BoxFit.contain)
+                    else
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          return _buildInteractiveCanvas(
+                            constraints.maxWidth,
+                            constraints.maxHeight,
+                            decoded,
+                          );
+                        },
                       ),
-                    ),
-                ],
+
+                    // Progress Overlay
+                    if (_busy)
+                      Container(
+                        color: Colors.black54,
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              value: _progress > 0 ? _progress : null,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _progressText,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
+                            ),
+                            if (_pendingJob != null)
+                              FilledButton.tonal(
+                                onPressed: _pausing ? null : _pauseEdit,
+                                child: const Text('Pause edit'),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
 
             // Bottom Controls
             if (result != null)
               _buildResultControls()
             else
-              _buildEditorControls(),
+              Flexible(
+                key: const ValueKey('photo-edit-controls'),
+                flex: keyboardVisible ? 1 : 0,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * .70,
+                  ),
+                  child: SingleChildScrollView(
+                    reverse: keyboardVisible,
+                    child: _buildEditorControls(),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -460,8 +644,14 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
       final canvasX = (screenPos.dx - _offset.dx) / _scale;
       final canvasY = (screenPos.dy - _offset.dy) / _scale;
       if (!fittedRect.contains(Offset(canvasX, canvasY))) return null;
-      final nx = ((canvasX - fittedRect.left) / fittedRect.width).clamp(0.0, 1.0);
-      final ny = ((canvasY - fittedRect.top) / fittedRect.height).clamp(0.0, 1.0);
+      final nx = ((canvasX - fittedRect.left) / fittedRect.width).clamp(
+        0.0,
+        1.0,
+      );
+      final ny = ((canvasY - fittedRect.top) / fittedRect.height).clamp(
+        0.0,
+        1.0,
+      );
       return Offset(nx, ny);
     }
 
@@ -470,7 +660,7 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapUp: (details) {
-            if (_activeTool == SelectionTool.smartTap) {
+            if (!_usesAutoBody && _activeTool == SelectionTool.smartTap) {
               final norm = toNormalized(details.localPosition);
               if (norm != null) {
                 _performSmartSelect(norm);
@@ -482,8 +672,10 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
             _baseOffset = _offset;
             _focalStart = details.localFocalPoint;
 
-            if (details.pointerCount == 1 &&
-                (_activeTool == SelectionTool.brush || _activeTool == SelectionTool.eraser)) {
+            if (!_usesAutoBody &&
+                details.pointerCount == 1 &&
+                (_activeTool == SelectionTool.brush ||
+                    _activeTool == SelectionTool.eraser)) {
               final norm = toNormalized(details.localFocalPoint);
               if (norm != null) {
                 setState(() => _activeStrokePoints = [norm]);
@@ -491,13 +683,15 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
             }
           },
           onScaleUpdate: (details) {
-            if (details.pointerCount >= 2 || _activeTool == SelectionTool.move) {
+            if (details.pointerCount >= 2 ||
+                _activeTool == SelectionTool.move) {
               if (_activeStrokePoints.isNotEmpty) {
                 setState(() => _activeStrokePoints = []);
               }
               final newScale = (_baseScale * details.scale).clamp(1.0, 8.0);
               final focal = details.localFocalPoint;
-              Offset newOffset = focal - (focal - _baseOffset) * (newScale / _baseScale);
+              Offset newOffset =
+                  focal - (focal - _baseOffset) * (newScale / _baseScale);
               newOffset += (details.localFocalPoint - _focalStart);
 
               if (newScale <= 1.0) {
@@ -509,7 +703,8 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                 _offset = newOffset;
               });
             } else if (details.pointerCount == 1 &&
-                (_activeTool == SelectionTool.brush || _activeTool == SelectionTool.eraser)) {
+                (_activeTool == SelectionTool.brush ||
+                    _activeTool == SelectionTool.eraser)) {
               final norm = toNormalized(details.localFocalPoint);
               if (norm != null) {
                 setState(() => _activeStrokePoints.add(norm));
@@ -542,6 +737,7 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
               scale: _scale,
               offset: _offset,
               model: _selectionModel,
+              showSelection: !_usesAutoBody,
               activePoints: _activeStrokePoints,
               activeRadius: _brushRadius,
               isEraser: _activeTool == SelectionTool.eraser,
@@ -566,7 +762,10 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                 },
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.75),
                     borderRadius: BorderRadius.circular(20),
@@ -582,7 +781,11 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.zoom_out_map, size: 14, color: Colors.white),
+                      const Icon(
+                        Icons.zoom_out_map,
+                        size: 14,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '${(_scale * 100).round()}% (1.0x)',
@@ -602,9 +805,22 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
     );
   }
 
+  List<PhotoEditModel> _availableModels(List<String>? advertised) => [
+    for (final model in PhotoEditModel.values)
+      if (advertised?.contains(model.id) ?? (model != PhotoEditModel.sdxlGguf))
+        model,
+  ];
+
   Widget _buildEditorControls() {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final caps = _operation == PhotoEditOperation.replace
+        ? studioCapabilities(ref.watch(serverStatusProvider).value)
+        : null;
+    final models = _availableModels(caps?.photoEditModels);
+    final canGuide =
+        caps?.engines.photoEdit == true &&
+        caps?.engines.photoEditReference == true;
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -649,10 +865,15 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                         label: const Center(child: Text('Remove / إزالة')),
                         selected: _operation == PhotoEditOperation.remove,
                         showCheckmark: false,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(9),
+                        ),
                         side: BorderSide.none,
                         onSelected: (v) {
-                          if (v) setState(() => _operation = PhotoEditOperation.remove);
+                          if (v)
+                            setState(
+                              () => _operation = PhotoEditOperation.remove,
+                            );
                         },
                       ),
                     ),
@@ -664,10 +885,15 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                         label: const Center(child: Text('Replace / استبدال')),
                         selected: _operation == PhotoEditOperation.replace,
                         showCheckmark: false,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(9),
+                        ),
                         side: BorderSide.none,
                         onSelected: (v) {
-                          if (v) setState(() => _operation = PhotoEditOperation.replace);
+                          if (v)
+                            setState(
+                              () => _operation = PhotoEditOperation.replace,
+                            );
                         },
                       ),
                     ),
@@ -686,7 +912,8 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                       avatar: const Icon(Icons.brush, size: 17),
                       label: const Text('Brush'),
                       selected: _activeTool == SelectionTool.brush,
-                      onSelected: (_) => setState(() => _activeTool = SelectionTool.brush),
+                      onSelected: (_) =>
+                          setState(() => _activeTool = SelectionTool.brush),
                     ),
                     const SizedBox(width: 6),
                     FilterChip(
@@ -694,7 +921,8 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                       avatar: const Icon(Icons.auto_fix_normal, size: 17),
                       label: const Text('Eraser'),
                       selected: _activeTool == SelectionTool.eraser,
-                      onSelected: (_) => setState(() => _activeTool = SelectionTool.eraser),
+                      onSelected: (_) =>
+                          setState(() => _activeTool = SelectionTool.eraser),
                     ),
                     const SizedBox(width: 6),
                     FilterChip(
@@ -702,7 +930,8 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                       avatar: const Icon(Icons.touch_app, size: 17),
                       label: const Text('Smart Tap'),
                       selected: _activeTool == SelectionTool.smartTap,
-                      onSelected: (_) => setState(() => _activeTool = SelectionTool.smartTap),
+                      onSelected: (_) =>
+                          setState(() => _activeTool = SelectionTool.smartTap),
                     ),
                     const SizedBox(width: 6),
                     FilterChip(
@@ -710,7 +939,8 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                       avatar: const Icon(Icons.pan_tool_outlined, size: 17),
                       label: const Text('Move & Zoom'),
                       selected: _activeTool == SelectionTool.move,
-                      onSelected: (_) => setState(() => _activeTool = SelectionTool.move),
+                      onSelected: (_) =>
+                          setState(() => _activeTool = SelectionTool.move),
                     ),
                   ],
                 ),
@@ -728,27 +958,22 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Tolerance / الحساسية: ${(_smartTolerance * 100).round()}%',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: scheme.primary,
-                                ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                'Tap to select object/clothes',
-                                style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
-                              ),
-                            ],
+                          Text(
+                            'Tolerance / الحساسية: ${(_smartTolerance * 100).round()}%',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: scheme.primary,
+                            ),
                           ),
                           SliderTheme(
                             data: SliderTheme.of(context).copyWith(
                               trackHeight: 3,
-                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 6,
+                              ),
                             ),
                             child: Slider(
                               key: const Key('smart-tolerance-slider'),
@@ -756,20 +981,27 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                               min: 0.08,
                               max: 0.45,
                               divisions: 15,
-                              onChanged: (v) => setState(() => _smartTolerance = v),
+                              onChanged: (v) =>
+                                  setState(() => _smartTolerance = v),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ] else if (_activeTool != SelectionTool.move) ...[
-                    Icon(Icons.line_weight, size: 18, color: scheme.onSurfaceVariant),
+                    Icon(
+                      Icons.line_weight,
+                      size: 18,
+                      color: scheme.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: SliderTheme(
                         data: SliderTheme.of(context).copyWith(
                           trackHeight: 3,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 7,
+                          ),
                         ),
                         child: Slider(
                           value: _brushRadius,
@@ -783,28 +1015,37 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                     Expanded(
                       child: Text(
                         'Pinch to zoom, drag to pan the image.',
-                        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   IconButton.filledTonal(
                     key: const Key('edit-undo'),
                     icon: const Icon(Icons.undo, size: 18),
                     tooltip: 'Undo',
-                    onPressed: _selectionModel.canUndo ? _selectionModel.undo : null,
+                    onPressed: _selectionModel.canUndo
+                        ? _selectionModel.undo
+                        : null,
                   ),
                   const SizedBox(width: 4),
                   IconButton.filledTonal(
                     key: const Key('edit-redo'),
                     icon: const Icon(Icons.redo, size: 18),
                     tooltip: 'Redo',
-                    onPressed: _selectionModel.canRedo ? _selectionModel.redo : null,
+                    onPressed: _selectionModel.canRedo
+                        ? _selectionModel.redo
+                        : null,
                   ),
                   const SizedBox(width: 4),
                   IconButton.filledTonal(
                     key: const Key('edit-clear'),
                     icon: const Icon(Icons.delete_outline, size: 18),
                     tooltip: 'Clear',
-                    onPressed: _selectionModel.canUndo ? _selectionModel.clear : null,
+                    onPressed: _selectionModel.canUndo
+                        ? _selectionModel.clear
+                        : null,
                   ),
                 ],
               ),
@@ -812,13 +1053,166 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
               // Prompt TextField if Replace
               if (_operation == PhotoEditOperation.replace) ...[
                 const SizedBox(height: 8),
+                if (caps?.engines.photoEditAutoBody == true ||
+                    caps?.engines.photoEditBodyShape == true ||
+                    _autoBody ||
+                    _keepBodyShape)
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      if (caps?.engines.photoEditAutoBody == true || _autoBody)
+                        FilterChip(
+                          key: const Key('auto-clothing-selection'),
+                          label: const Text('Auto-select clothing'),
+                          selected: _autoBody,
+                          onSelected: _busy
+                              ? null
+                              : (value) => setState(() => _autoBody = value),
+                        ),
+                      if (caps?.engines.photoEditBodyShape == true ||
+                          _keepBodyShape)
+                        FilterChip(
+                          key: const Key('keep-body-outline'),
+                          label: const Text('Keep body outline'),
+                          selected: _keepBodyShape || _autoBody,
+                          onSelected: _busy || _autoBody
+                              ? null
+                              : (value) =>
+                                    setState(() => _keepBodyShape = value),
+                        ),
+                    ],
+                  ),
+                if (canGuide || _guided)
+                  Row(
+                    spacing: 6,
+                    children: [
+                      ChoiceChip(
+                        key: const Key('text-only-edit'),
+                        label: const Text('Text only'),
+                        selected: !_guided,
+                        onSelected: _busy
+                            ? null
+                            : (_) => setState(() => _guided = false),
+                      ),
+                      ChoiceChip(
+                        key: const Key('photo-guided-edit'),
+                        label: const Text('Photo guide'),
+                        selected: _guided,
+                        onSelected: _busy || !canGuide
+                            ? null
+                            : (_) => setState(() => _guided = true),
+                      ),
+                    ],
+                  ),
+                if (_guided)
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      for (var index = 0; index < _references.length; index++)
+                        InputChip(
+                          label: Text('Photo ${index + 1}'),
+                          avatar: CircleAvatar(
+                            backgroundImage: MemoryImage(_references[index]),
+                          ),
+                          onDeleted: _busy
+                              ? null
+                              : () =>
+                                    setState(() => _references.removeAt(index)),
+                        ),
+                      if (_references.length < _maxReferences) ...[
+                        ActionChip(
+                          key: const Key('reference-from-person'),
+                          avatar: const Icon(Icons.person_search, size: 16),
+                          label: const Text('From person'),
+                          onPressed: _busy || !canGuide
+                              ? null
+                              : () => _addReference(fromPerson: true),
+                        ),
+                        ActionChip(
+                          key: const Key('reference-from-gallery'),
+                          avatar: const Icon(
+                            Icons.photo_library_outlined,
+                            size: 16,
+                          ),
+                          label: const Text('From gallery'),
+                          onPressed: _busy || !canGuide
+                              ? null
+                              : () => _addReference(fromPerson: false),
+                        ),
+                      ],
+                    ],
+                  )
+                else if (models.isNotEmpty)
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = max(
+                        116.0,
+                        (constraints.maxWidth - 4 * (models.length - 1)) /
+                            models.length,
+                      );
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          spacing: 4,
+                          children: [
+                            for (final model in models)
+                              SizedBox(
+                                width: width,
+                                child: ChoiceChip(
+                                  key: Key(
+                                    'model-${model.id.replaceAll('_', '-')}',
+                                  ),
+                                  label: Text(
+                                    model.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  selected: _selectedModel == model,
+                                  showCheckmark: false,
+                                  onSelected: _busy
+                                      ? null
+                                      : (selected) {
+                                          if (selected) {
+                                            setState(
+                                              () => _selectedModel = model,
+                                            );
+                                          }
+                                        },
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                if (!_guided && models.contains(_selectedModel))
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 4, 6, 2),
+                    child: Text(
+                      _selectedModel.description,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 4),
                 TextField(
                   key: const Key('instruction-input'),
                   controller: _promptController,
                   decoration: InputDecoration(
-                    labelText: 'Prompt / الوصف (عربي أو إنجليزي)',
-                    hintText: 'e.g. بدلة كلاسيك كحلي / elegant red evening dress...',
-                    prefixIcon: Icon(Icons.auto_awesome, size: 18, color: scheme.primary),
+                    labelText: _guided && !_autoBody
+                        ? 'Optional description / وصف اختياري'
+                        : 'Prompt / الوصف (عربي أو إنجليزي)',
+                    hintText: _autoBody
+                        ? 'e.g. بدّل القميص والبنطلون لمايوه أزرق'
+                        : 'e.g. مايوه أزرق / blue swimwear',
+                    prefixIcon: Icon(
+                      Icons.auto_awesome,
+                      size: 18,
+                      color: scheme.primary,
+                    ),
                     isDense: true,
                   ),
                 ),
@@ -828,33 +1222,55 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                   child: Row(
                     children: [
                       ActionChip(
-                        avatar: const Text('👔', style: TextStyle(fontSize: 13)),
+                        avatar: const Text(
+                          '👔',
+                          style: TextStyle(fontSize: 13),
+                        ),
                         label: const Text('بدلة كلاسيك كحلي'),
-                        onPressed: () => setState(() => _promptController.text = 'بدلة كلاسيك كحلي'),
+                        onPressed: () => setState(
+                          () => _promptController.text = 'بدلة كلاسيك كحلي',
+                        ),
                       ),
                       const SizedBox(width: 5),
                       ActionChip(
-                        avatar: const Text('👗', style: TextStyle(fontSize: 13)),
+                        avatar: const Text(
+                          '👗',
+                          style: TextStyle(fontSize: 13),
+                        ),
                         label: const Text('فستان سواريه أحمر'),
-                        onPressed: () => setState(() => _promptController.text = 'فستان سواريه أحمر'),
+                        onPressed: () => setState(
+                          () => _promptController.text = 'فستان سواريه أحمر',
+                        ),
                       ),
                       const SizedBox(width: 5),
                       ActionChip(
-                        avatar: const Text('🧥', style: TextStyle(fontSize: 13)),
+                        avatar: const Text(
+                          '🧥',
+                          style: TextStyle(fontSize: 13),
+                        ),
                         label: const Text('جاكيت جلد أسود'),
-                        onPressed: () => setState(() => _promptController.text = 'جاكيت جلد أسود'),
+                        onPressed: () => setState(
+                          () => _promptController.text = 'جاكيت جلد أسود',
+                        ),
                       ),
                       const SizedBox(width: 5),
                       ActionChip(
-                        avatar: const Text('👕', style: TextStyle(fontSize: 13)),
+                        avatar: const Text(
+                          '👕',
+                          style: TextStyle(fontSize: 13),
+                        ),
                         label: const Text('قميص كاجوال أبيض'),
-                        onPressed: () => setState(() => _promptController.text = 'قميص كاجوال أبيض'),
+                        onPressed: () => setState(
+                          () => _promptController.text = 'قميص كاجوال أبيض',
+                        ),
                       ),
                       const SizedBox(width: 5),
                       ActionChip(
                         avatar: const Text('⌚', style: TextStyle(fontSize: 13)),
                         label: const Text('ساعة يد فخمة'),
-                        onPressed: () => setState(() => _promptController.text = 'ساعة يد فخمة'),
+                        onPressed: () => setState(
+                          () => _promptController.text = 'ساعة يد فخمة',
+                        ),
                       ),
                     ],
                   ),
@@ -862,26 +1278,39 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Icon(Icons.accessibility_new, size: 16, color: scheme.primary),
+                    Icon(
+                      Icons.accessibility_new,
+                      size: 16,
+                      color: scheme.primary,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Change Strength / قوة التغيير: ${(_strength * 100).round()}%',
-                        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       _strength >= 0.80 ? 'واضح وقوي' : 'طبيعي معتدل',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: scheme.primary),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: scheme.primary,
+                      ),
                     ),
                   ],
                 ),
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
+                    ),
                   ),
                   child: Slider(
                     key: const Key('strength-slider'),
@@ -902,7 +1331,10 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                 ),
-                onPressed: (!_busy && _selectionModel.hasSelection) ? _submit : null,
+                onPressed:
+                    (!_busy && (_usesAutoBody || _selectionModel.hasSelection))
+                    ? _submit
+                    : null,
                 icon: const Icon(Icons.auto_fix_high, size: 20),
                 label: Text(
                   _operation == PhotoEditOperation.remove
@@ -941,8 +1373,12 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   key: const Key('toggle-before-after'),
-                  onPressed: () => setState(() => _showOriginal = !_showOriginal),
-                  icon: Icon(_showOriginal ? Icons.visibility : Icons.visibility_off, size: 18),
+                  onPressed: () =>
+                      setState(() => _showOriginal = !_showOriginal),
+                  icon: Icon(
+                    _showOriginal ? Icons.visibility : Icons.visibility_off,
+                    size: 18,
+                  ),
                   label: Text(_showOriginal ? 'Show Result' : 'Show Before'),
                 ),
               ),
@@ -975,6 +1411,7 @@ class _CanvasPainter extends CustomPainter {
     required this.scale,
     required this.offset,
     required this.model,
+    required this.showSelection,
     required this.activePoints,
     required this.activeRadius,
     required this.isEraser,
@@ -985,6 +1422,7 @@ class _CanvasPainter extends CustomPainter {
   final double scale;
   final Offset offset;
   final SelectionModel model;
+  final bool showSelection;
   final List<Offset> activePoints;
   final double activeRadius;
   final bool isEraser;
@@ -998,14 +1436,29 @@ class _CanvasPainter extends CustomPainter {
     canvas.scale(scale, scale);
 
     // 1. Draw the photo inside fittedRect
-    final src = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
-    canvas.drawImageRect(image, src, fittedRect, Paint()..filterQuality = FilterQuality.medium);
+    final src = Rect.fromLTWH(
+      0,
+      0,
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+    canvas.drawImageRect(
+      image,
+      src,
+      fittedRect,
+      Paint()..filterQuality = FilterQuality.medium,
+    );
+    if (!showSelection) {
+      canvas.restore();
+      return;
+    }
 
     // 2. Draw mask overlay
     canvas.saveLayer(null, Paint());
 
     final maskPaint = Paint()
-      ..color = const Color(0x77A855F7) // Semi-transparent purple
+      ..color =
+          const Color(0x77A855F7) // Semi-transparent purple
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
@@ -1027,7 +1480,9 @@ class _CanvasPainter extends CustomPainter {
     void drawStroke(List<Offset> points, double radius, bool eraser) {
       if (points.isEmpty) return;
       final pxRadius = radius * fittedRect.width;
-      final p = eraser ? (eraserPaint..strokeWidth = pxRadius * 2) : (maskPaint..strokeWidth = pxRadius * 2);
+      final p = eraser
+          ? (eraserPaint..strokeWidth = pxRadius * 2)
+          : (maskPaint..strokeWidth = pxRadius * 2);
 
       if (points.length == 1) {
         final pt = Offset(
@@ -1082,7 +1537,9 @@ class _CanvasPainter extends CustomPainter {
         fittedRect.top + activePoints.last.dy * fittedRect.height,
       );
       final ringPaint = Paint()
-        ..color = isEraser ? Colors.redAccent.withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.9)
+        ..color = isEraser
+            ? Colors.redAccent.withValues(alpha: 0.85)
+            : Colors.white.withValues(alpha: 0.9)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0 / scale;
       canvas.drawCircle(lastPt, activeRadius * fittedRect.width, ringPaint);
@@ -1094,7 +1551,8 @@ class _CanvasPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CanvasPainter oldDelegate) {
-    return oldDelegate.scale != scale ||
+    return oldDelegate.showSelection != showSelection ||
+        oldDelegate.scale != scale ||
         oldDelegate.offset != offset ||
         oldDelegate.activePoints != activePoints ||
         oldDelegate.activeRadius != activeRadius ||

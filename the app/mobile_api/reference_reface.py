@@ -34,7 +34,7 @@ BASE_REL = Path("models/undress/Uminosachi--realisticVisionV51_v51VAE-inpainting
 ADAPTER_REL = Path("models/undress/h94--IP-Adapter")
 
 
-def reference_reface_missing(app_dir=APP_DIR):
+def reference_inpaint_missing(app_dir=APP_DIR):
     root = Path(app_dir)
     required = [
         root / "venv/Scripts/python.exe", root / "venv_ai/Scripts/python.exe",
@@ -51,11 +51,16 @@ def reference_reface_missing(app_dir=APP_DIR):
         root / ADAPTER_REL / "models/ip-adapter-plus_sd15.bin",
         root / ADAPTER_REL / "models/image_encoder/model.safetensors",
         root / ADAPTER_REL / "models/image_encoder/config.json",
-        root / "models/anime_face_detect.onnx", root / "models/ccip_character.onnx",
     ]
+    return [str(p) for p in required if not p.is_file() or p.stat().st_size == 0]
+
+
+def reference_reface_missing(app_dir=APP_DIR):
+    root = Path(app_dir)
+    required = [root / "models/anime_face_detect.onnx", root / "models/ccip_character.onnx"]
     face_root = Path.home() / ".insightface/models/buffalo_l"
     required += [face_root / n for n in ("det_10g.onnx", "w600k_r50.onnx")]
-    return [str(p) for p in required if not p.is_file() or p.stat().st_size == 0]
+    return reference_inpaint_missing(root) + [str(p) for p in required if not p.is_file() or p.stat().st_size == 0]
 
 
 def reference_reface_ready(app_dir=APP_DIR):
@@ -253,7 +258,7 @@ def seed_reference_pixels(crop, mask, reference, source_box):
     return seeded
 
 
-def _pipeline_predictor(params):
+def load_reference_inpaint_pipeline(reference_scale):
     import torch
     from diffusers import StableDiffusionInpaintPipeline
     from transformers import CLIPVisionModelWithProjection
@@ -268,10 +273,17 @@ def _pipeline_predictor(params):
     pipe.load_ip_adapter(str(APP_DIR / ADAPTER_REL), subfolder="models",
                          weight_name="ip-adapter-plus_sd15.bin", image_encoder_folder=None,
                          local_files_only=True)
-    pipe.set_ip_adapter_scale(float(params.get("reference_scale", .8)))
+    pipe.set_ip_adapter_scale(reference_scale)
     # Load the adapter before offload and keep its attention processors intact.
     pipe.enable_model_cpu_offload()
     pipe.vae.enable_slicing()
+    return pipe
+
+
+def _pipeline_predictor(params):
+    import torch
+
+    pipe = load_reference_inpaint_pipeline(float(params.get("reference_scale", .8)))
     cartoon = params["target_kind"] == "character"
     prompt = ("a neutral 2D anime cartoon face matching the reference appearance, drawn line art, cel shading, preserve the existing illustration style and lighting"
               if cartoon else "a neutral human face matching the reference appearance, preserve the existing lighting and photographic style")

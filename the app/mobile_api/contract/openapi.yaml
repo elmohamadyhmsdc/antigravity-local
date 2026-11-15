@@ -408,7 +408,7 @@ paths:
         server (413 `too_large`).
 
         The phone orchestrates rounds so ids stay real: round 1 `apply` with
-        [match, cluster] -> apply the autos in one transaction (new people get real
+        [match, cluster, people] -> apply the autos in one transaction, then the merges (new people get real
         ids) -> round 2 `apply` with [bodies] (derived body links cleared first) ->
         round 3 `review` with all four stages -> store the suggestions. In `apply`
         mode `body_links` also carries the `suggest` links; the caller applies only
@@ -430,7 +430,7 @@ paths:
   /v1/jobs:
     post:
       summary: Queue a GPU job
-      description: "Implements analyze_video, Reface, clothing restyle and character LoRA dataset/train/generate jobs. Studio requests are limited to 512 KB, require client_job_id and queue behind active GPU work. Jobs and input snapshots are private to their paired device."
+      description: "Implements analyze_video, Photo Edit, Reface, clothing restyle and character LoRA dataset/train/generate jobs. Studio requests are limited to 512 KB, require client_job_id and queue behind active GPU work. Jobs and input snapshots are private to their paired device."
       requestBody:
         required: true
         content:
@@ -501,7 +501,7 @@ paths:
     parameters:
       - { name: job_id, in: path, required: true, schema: { type: string } }
     post:
-      summary: Pause a queued job or request pause at the next video checkpoint
+      summary: Pause a queued job or request interruption of a running job
       responses:
         "200":
           description: OK
@@ -713,7 +713,13 @@ components:
             photo_edit:
               type: boolean
               default: false
-              description: Masked still-photo background/object editing, with person protection and checked outputs.
+              description: Masked still-photo editing with protected face features and checked outputs.
+            photo_edit_reference:
+              type: boolean
+              default: false
+              description: Local image-guided photo editing is available with one to three reference crops.
+            photo_edit_body_shape: { type: boolean, default: false }
+            photo_edit_auto_body: { type: boolean, default: false }
             restyle_refine:
               type: boolean
               description: Optional SDXL refinement readiness, independently of basic Restyle. Older servers omit this field.
@@ -759,6 +765,11 @@ components:
         lora_base_checkpoints:
           type: array
           items: { type: string }
+        photo_edit_models:
+          type: array
+          description: Ready models for Replace in the photo editor. Older servers omit this field.
+          items: { type: string }
+          uniqueItems: true
         limits:
           type: object
           required: [max_image_px, max_upload_mb, blob_cache_mb]
@@ -1426,10 +1437,20 @@ components:
           enum: [apply, review]
         stages:
           type: array
-          description: apply supports match, cluster, bodies; review supports all four
-          items: { type: string, enum: [match, cluster, duplicates, bodies] }
+          description: >-
+            apply supports match, cluster, bodies and people; review supports match, cluster, duplicates
+            and bodies. people (apply only) answers `merges`: provisional people that clearly are another
+            person.
+          items: { type: string, enum: [match, cluster, duplicates, bodies, people] }
           uniqueItems: true
-        strictness: { type: string, enum: [strict, balanced, loose, character], description: "character = drawn characters: embeddings are CCIP (768 floats), not ArcFace (512)" }
+        strictness:
+          type: string
+          enum: [auto, strict, balanced, loose, character]
+          description: >-
+            auto = thresholds derived from the request itself: the similarities of known-different pairs
+            (pending faces that share a frame_key, and distinct_pairs) place every threshold between loose
+            (different people look unalike here) and strict (look-alikes, e.g. relatives). character = drawn
+            characters: embeddings are CCIP (768 floats), not ArcFace (512)
         models:
           type: array
           items: { $ref: "#/components/schemas/GroupingModel" }
@@ -1456,6 +1477,13 @@ components:
             strictness profile's merge_auto, and not in distinct_pairs) as one when matching: they do not
             count as each other's runner-up, and in apply mode a freshly clustered group that clearly is a
             known person comes back as auto assignments to them instead of a new group.
+        provisional_person_ids:
+          type: array
+          description: >-
+            People the grouping created and the user never named, confirmed or locked. Only these may be
+            absorbed by the people stage, and two people outside this list are never joined, not even
+            through a provisional one.
+          items: { type: integer }
 
       allOf:
         - if: { properties: { strictness: { const: character } } }
@@ -1509,6 +1537,14 @@ components:
         person_b: { type: integer }
         score: { type: number }
 
+    PersonMerge:
+      type: object
+      required: [absorb, into, score]
+      properties:
+        absorb: { type: integer, description: "A provisional person ..." }
+        into: { type: integer, description: "... whose faces all belong to this person" }
+        score: { type: number, description: "Person-pair score that justified it (>= the profile's people_merge_auto)" }
+
     BodyLink:
       type: object
       required: [body_id, person_id, method, confidence, decision]
@@ -1540,6 +1576,13 @@ components:
         unsorted_face_ids:
           type: array
           items: { type: integer }
+        merges:
+          type: array
+          description: >-
+            Present only when the people stage was asked for. Best first; apply in order, following earlier
+            merges (a target may itself have been absorbed). Never two people seen in one frame, never across
+            distinct_pairs.
+          items: { $ref: "#/components/schemas/PersonMerge" }
 
     # ------------------------------------------------------------------ jobs
     JobType:
@@ -1895,13 +1938,18 @@ components:
         steps: { type: integer, minimum: 10, maximum: 40, default: 26 }
         seed: { type: integer, minimum: -1, maximum: 2147483647, default: -1 }
         mask_normalized: { type: boolean, default: false }
+        strength: { type: number, minimum: 0.2, maximum: 1, default: 0.75 }
+        preserve_body_shape: { type: boolean, default: false }
+        auto_body: { type: boolean, default: false }
+        model: { type: string, enum: [realistic_vision, cyber_realistic, sdxl, sdxl_gguf], default: realistic_vision }
       description:  still-photo background/object edits. The PNG mask matches the EXIF-upright image; with mask_normalized, a preview-sized mask of the same aspect ratio is resized in normalized upright coordinates. Select at most 60 percent and avoid protected people. Pixels outside the selection are preserved.
       allOf:
         - if: { properties: { operation: { const: remove } }, required: [operation] }
-          else:
-            required: [instruction]
+          then:
             properties:
-              instruction: { minLength: 1 }
+              model: { enum: [realistic_vision, cyber_realistic, sdxl] }
+              preserve_body_shape: { const: false }
+              auto_body: { const: false }
 
     JobCreate:
       type: object
@@ -1928,10 +1976,46 @@ components:
               inputs:
                 type: object
                 additionalProperties: false
-                required: [image, mask]
+                required: [image]
                 properties:
                   image: { $ref: "#/components/schemas/Sha256" }
                   mask: { $ref: "#/components/schemas/Sha256" }
+                  refs:
+                    type: array
+                    minItems: 1
+                    maxItems: 3
+                    items: { $ref: "#/components/schemas/Sha256" }
+                    description: Optional visual references for Realistic Vision Replace, in chosen order.
+            allOf:
+              - if:
+                  properties:
+                    params: { properties: { auto_body: { const: true } }, required: [auto_body] }
+                  required: [params]
+                then:
+                  properties:
+                    inputs: { not: { required: [mask] } }
+                    params:
+                      required: [instruction]
+                      properties:
+                        instruction: { minLength: 1 }
+                else:
+                  properties:
+                    inputs: { required: [mask] }
+              - if: { properties: { inputs: { required: [refs] } }, required: [inputs] }
+                then:
+                  properties:
+                    params:
+                      properties:
+                        operation: { const: replace }
+                        model: { const: realistic_vision }
+                else:
+                  properties:
+                    params:
+                      if: { properties: { operation: { const: remove } }, required: [operation] }
+                      else:
+                        required: [instruction]
+                        properties:
+                          instruction: { minLength: 1 }
         - if: { properties: { type: { enum: [reface_image_reference, reface_video_reference] } }, required: [type] }
           then:
             properties:

@@ -1,0 +1,16 @@
+{
+  "client_job_id": "fixture-photo-edit-guided",
+  "type": "edit_image",
+  "params": {
+    "operation": "replace",
+    "seed": 123
+  },
+  "inputs": {
+    "image": "7ab0eae7d3446e8aea299157303a263c426e321b36fc4a0ec1ab13b7a00703ea",
+    "mask": "ccdb4df298a1cc193bf06adb3bd04033f66db67931b7af910355d8c98450490c",
+    "refs": [
+      "0a02a310cdb2e45cb96aaea4bed669274fe3e4c27bded0fa90444f1876e43b4e",
+      "89b35d17057374edf9bc8ae8dd96bb43dc7993d0340e7b41ebece8b338ab43c7"
+    ]
+  }
+}

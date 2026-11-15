@@ -153,11 +153,12 @@ class GroupingPlanRequest {
     this.bodies = const [],
     this.maxSuggestionsPerPerson = 60,
     this.linkAlikePeople = false,
+    this.provisionalPersonIds = const [],
   });
 
   final String mode; // apply | review
   final List<String> stages;
-  final String strictness; // strict | balanced | loose
+  final String strictness; // auto | strict | balanced | loose | character
   final List<GroupingModel> models;
   final List<GroupingFace> pending;
   final List<int> dismissedFaceIds;
@@ -168,6 +169,10 @@ class GroupingPlanRequest {
   /// Unmerged duplicates of one person do not block each other, and a new group that clearly is a
   /// known person joins them (openapi.yaml `link_alike_people`).
   final bool linkAlikePeople;
+
+  /// People the grouping made and the user never named or locked: the `people` stage may merge these
+  /// into the person they clearly are (openapi.yaml `provisional_person_ids`).
+  final List<int> provisionalPersonIds;
 
   Map<String, Object> _wireFields() => {
     'mode': mode,
@@ -180,6 +185,8 @@ class GroupingPlanRequest {
     'bodies': bodies.map((b) => b.toJson()),
     'max_suggestions_per_person': maxSuggestionsPerPerson,
     if (linkAlikePeople) 'link_alike_people': true,
+    if (provisionalPersonIds.isNotEmpty)
+      'provisional_person_ids': provisionalPersonIds,
   };
 
   Map<String, dynamic> toJson() => {
@@ -218,6 +225,13 @@ class GroupingPlanRequest {
         maxSuggestionsPerPerson:
             (json['max_suggestions_per_person'] as int?) ?? 60,
         linkAlikePeople: (json['link_alike_people'] as bool?) ?? false,
+        provisionalPersonIds: [
+          for (final i in list(
+            json['provisional_person_ids'] ?? const [],
+            'provisional_person_ids',
+          ))
+            i as int,
+        ],
       );
 
   /// The request body exactly as it goes on the wire: JSON, gzipped (a first scan is several MB of
@@ -351,6 +365,32 @@ class DuplicatePeople {
   };
 }
 
+/// A provisional person ([absorb]) that clearly is [into]: apply mode's `people` stage.
+class PersonMergePlan {
+  const PersonMergePlan({
+    required this.absorb,
+    required this.into,
+    required this.score,
+  });
+
+  final int absorb;
+  final int into;
+  final double score;
+
+  factory PersonMergePlan.fromJson(Map<String, dynamic> json) =>
+      PersonMergePlan(
+        absorb: integer(json, 'absorb', 'merges[]'),
+        into: integer(json, 'into', 'merges[]'),
+        score: number(json, 'score', 'merges[]'),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'absorb': absorb,
+    'into': into,
+    'score': score,
+  };
+}
+
 class BodyLinkPlan {
   const BodyLinkPlan({
     required this.bodyId,
@@ -393,6 +433,7 @@ class GroupingPlanResponse {
     this.duplicates = const [],
     this.bodyLinks = const [],
     this.unsortedFaceIds = const [],
+    this.merges,
   });
 
   final String mode;
@@ -401,6 +442,9 @@ class GroupingPlanResponse {
   final List<DuplicatePeople> duplicates;
   final List<BodyLinkPlan> bodyLinks;
   final List<int> unsortedFaceIds;
+
+  /// Only when the `people` stage was asked for.
+  final List<PersonMergePlan>? merges;
 
   factory GroupingPlanResponse.fromJson(Map<String, dynamic> json) =>
       GroupingPlanResponse(
@@ -425,6 +469,12 @@ class GroupingPlanResponse {
           for (final i in list(json['unsorted_face_ids'], 'unsorted_face_ids'))
             i as int,
         ],
+        merges: json['merges'] == null
+            ? null
+            : [
+                for (final m in list(json['merges'], 'merges'))
+                  PersonMergePlan.fromJson(map(m, 'merges[]')),
+              ],
       );
 
   Map<String, dynamic> toJson() => {
@@ -434,5 +484,6 @@ class GroupingPlanResponse {
     'duplicates': [for (final d in duplicates) d.toJson()],
     'body_links': [for (final l in bodyLinks) l.toJson()],
     'unsorted_face_ids': unsortedFaceIds,
+    if (merges != null) 'merges': [for (final m in merges!) m.toJson()],
   };
 }

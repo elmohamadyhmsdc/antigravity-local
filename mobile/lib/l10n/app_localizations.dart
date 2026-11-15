@@ -799,7 +799,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsPlaceholder.
   ///
   /// In en, this message translates to:
-  /// **'Pairing, grouping strictness, scan defaults and app lock.'**
+  /// **'Pairing, grouping, scan defaults and app lock.'**
   String get settingsPlaceholder;
 
   /// No description provided for @welcomeTitle.
@@ -2530,41 +2530,11 @@ abstract class AppLocalizations {
   /// **'Sources & scan'**
   String get sourcesTitle;
 
-  /// No description provided for @strictnessBalanced.
+  /// No description provided for @groupingAutomaticHint.
   ///
   /// In en, this message translates to:
-  /// **'Balanced'**
-  String get strictnessBalanced;
-
-  /// No description provided for @strictnessBalancedHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Recommended. Adds a face to a person only when it is clearly them.'**
-  String get strictnessBalancedHint;
-
-  /// No description provided for @strictnessLoose.
-  ///
-  /// In en, this message translates to:
-  /// **'Loose'**
-  String get strictnessLoose;
-
-  /// No description provided for @strictnessLooseHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Groups more faces automatically. Quicker, but may need more corrections.'**
-  String get strictnessLooseHint;
-
-  /// No description provided for @strictnessStrict.
-  ///
-  /// In en, this message translates to:
-  /// **'Strict'**
-  String get strictnessStrict;
-
-  /// No description provided for @strictnessStrictHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Asks you about more faces. Fewer mistakes.'**
-  String get strictnessStrictHint;
+  /// **'Automatic. Thresholds follow your library: stricter when different people look alike, and duplicate people the app made are merged on their own.'**
+  String get groupingAutomaticHint;
 
   /// No description provided for @suggestedFacesTitle.
   ///

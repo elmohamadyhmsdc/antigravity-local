@@ -1,6 +1,7 @@
 """Opt-in real local-model smoke test on an artificial, person-free still life."""
 import argparse
 import json
+import shutil
 import time
 from pathlib import Path
 
@@ -13,8 +14,17 @@ import photo_edit
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--operation',choices=['remove','replace'],default='remove')
+    parser.add_argument('--model', choices=photo_edit.SUPPORTED_MODELS, default=photo_edit.DEFAULT_MODEL)
+    parser.add_argument('--steps', type=int, default=26)
+    parser.add_argument('--reference', action='append', type=Path, default=[])
     args = parser.parse_args()
     root = Path(__file__).resolve().parent/'build/photo-edit-2026-11-09'/args.operation
+    if args.model != photo_edit.DEFAULT_MODEL:
+        root /= args.model
+    if args.reference:
+        if args.operation != 'replace' or args.model != photo_edit.DEFAULT_MODEL or len(args.reference) > photo_edit.MAX_REFERENCES:
+            parser.error('Use up to three references with Realistic Vision Replace.')
+        root /= 'guided'
     root.mkdir(parents=True,exist_ok=True)
     image = Image.new('RGB',(960,640),(195,214,240))
     draw = ImageDraw.Draw(image)
@@ -29,8 +39,11 @@ def main():
     mask.save(root/'input.mask',format='PNG')
     assert photo_edit.ready(), 'Missing local model assets'
     started = time.monotonic()
+    for index, source in enumerate(args.reference):
+        shutil.copyfile(source, root/f'input.refs.{index:04d}')
     meta = photo_edit.edit_photo(dict(type='edit_image',params=dict(operation=args.operation,
-        instruction='a small blue ceramic vase on a blue table' if args.operation == 'replace' else '',seed=123,steps=26)),
+        instruction='a small blue ceramic vase on a blue table' if args.operation == 'replace' else '',
+        seed=123,steps=args.steps,model=args.model), request={'inputs': {'refs': args.reference}}),
         root,lambda p,m:print(f'{p:.0%} {m}',flush=True),lambda:False)
     result = np.asarray(Image.open(root/'result.png').convert('RGBA'))
     original = np.asarray(image.convert('RGBA'))

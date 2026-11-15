@@ -12,15 +12,16 @@ import 'crop_cache.dart';
 Future<Uint8List?> cutCrop(
   Uint8List source,
   CropKind kind,
-  ({double x, double y, double w, double h}) box,
-) async {
+  ({double x, double y, double w, double h}) box, {
+  bool pad = true,
+}) async {
   try {
     final codec = await ui.instantiateImageCodec(source);
     final image = (await codec.getNextFrame()).image;
     codec.dispose();
     ui.Image? out;
     try {
-      final r = cropPixels(kind, box, image.width, image.height);
+      final r = cropPixels(kind, box, image.width, image.height, pad: pad);
       final recorder = ui.PictureRecorder();
       Canvas(recorder).drawImageRect(
         image,

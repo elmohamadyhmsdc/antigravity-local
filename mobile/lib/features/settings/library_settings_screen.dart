@@ -23,7 +23,7 @@ final insightsProvider = StreamProvider.autoDispose<LibraryInsights>(
 );
 
 /// S3 — Library & Scanning settings screen.
-/// Unifies album sources, scan defaults, grouping strictness, insights, and analysis.
+/// Unifies album sources, scan defaults, grouping, insights, and analysis.
 class LibrarySettingsScreen extends ConsumerStatefulWidget {
   const LibrarySettingsScreen({super.key});
 
@@ -53,12 +53,6 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
     final gate = _gateDraft ?? settings.qualityGate;
     final insightsAsync = ref.watch(insightsProvider);
     final sorting = ref.watch(manualSortRunningProvider);
-
-    String strictnessHint(String s) => switch (s) {
-      'strict' => l10n.strictnessStrictHint,
-      'loose' => l10n.strictnessLooseHint,
-      _ => l10n.strictnessBalancedHint,
-    };
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsLibrarySection)),
@@ -116,10 +110,12 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                   }
                   final allAlbum = list.firstWhereOrNull((a) => a.isAll);
                   final individualAlbums = list.where((a) => !a.isAll).toList();
-                  final targetAlbums =
-                      individualAlbums.isNotEmpty ? individualAlbums : list;
+                  final targetAlbums = individualAlbums.isNotEmpty
+                      ? individualAlbums
+                      : list;
                   final targetIds = targetAlbums.map((a) => a.id).toSet();
-                  final isAllSelected = targetIds.isNotEmpty &&
+                  final isAllSelected =
+                      targetIds.isNotEmpty &&
                       targetIds.every(chosen.contains) &&
                       (individualAlbums.isEmpty ||
                           (allAlbum != null
@@ -191,9 +187,9 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                                   key: Key('album-anime-${a.id}'),
                                   contentPadding:
                                       const EdgeInsetsDirectional.only(
-                                    start: 32,
-                                    end: 16,
-                                  ),
+                                        start: 32,
+                                        end: 16,
+                                      ),
                                   title: Text(l10n.charactersAlbumToggle),
                                   value: illustrated.contains(a.id),
                                   onChanged: progress.isActive
@@ -203,8 +199,9 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                                           on
                                               ? next.add(a.id)
                                               : next.remove(a.id);
-                                          settingsStore
-                                              .setCharacterAlbumIds(next);
+                                          settingsStore.setCharacterAlbumIds(
+                                            next,
+                                          );
                                         },
                                 ),
                             ],
@@ -324,29 +321,8 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
             key: const Key('library-matching-section'),
             title: l10n.settingsGrouping,
             icon: Icons.person_search_outlined,
-            subtitle: strictnessHint(settings.strictness),
+            subtitle: l10n.groupingAutomaticHint,
             children: [
-              const SizedBox(height: 8),
-              SegmentedButton<String>(
-                key: const Key('strictness'),
-                segments: [
-                  ButtonSegment(
-                    value: 'strict',
-                    label: Text(l10n.strictnessStrict),
-                  ),
-                  ButtonSegment(
-                    value: 'balanced',
-                    label: Text(l10n.strictnessBalanced),
-                  ),
-                  ButtonSegment(
-                    value: 'loose',
-                    label: Text(l10n.strictnessLoose),
-                  ),
-                ],
-                selected: {settings.strictness},
-                onSelectionChanged: (s) => settingsStore.setStrictness(s.first),
-              ),
-              const SizedBox(height: 6),
               const SizedBox(height: 16),
               Text(l10n.settingsQualityGate, style: text.titleMedium),
               Text(l10n.settingsQualityGateHint, style: text.bodySmall),

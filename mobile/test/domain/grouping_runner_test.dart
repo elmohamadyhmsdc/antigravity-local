@@ -7,12 +7,11 @@ import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
-import 'package:antigravity_mobile/data/repositories/app_settings.dart';
 import 'package:antigravity_mobile/data/repositories/people_repository.dart';
 import 'package:antigravity_mobile/data/repositories/review_repository.dart';
 import 'package:antigravity_mobile/domain/grouping/grouping_runner.dart';
 import 'package:antigravity_mobile/domain/grouping/plan_applier.dart';
-import 'package:drift/drift.dart' show Variable;
+import 'package:drift/drift.dart' show Value, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -72,8 +71,8 @@ void main() {
     runner = GroupingRunner(
       db: db,
       api: () => holder!.api,
-      settings: AppSettings(db),
       review: review,
+      merge: people.mergePeople,
     );
   });
   tearDown(() async {
@@ -229,7 +228,7 @@ void main() {
     expect(
       api.groupingCalls.map((c) => '${c.mode}:${c.stages.join(',')}').toList(),
       [
-        'apply:match,cluster',
+        'apply:match,cluster,people',
         'apply:bodies',
         'review:match,cluster,duplicates,bodies',
       ],
@@ -241,7 +240,7 @@ void main() {
       reason: 'the body round needs no faces',
     );
     expect(api.groupingCalls[1].bodies.length, 2);
-    expect(api.groupingCalls[2].strictness, 'balanced');
+    expect(api.groupingCalls[2].strictness, 'auto');
     expect(api.groupingCalls[2].models.single.pid, sara);
   });
 
@@ -255,12 +254,106 @@ void main() {
     },
   );
 
-  test('the strictness setting is what the PC is asked to use', () async {
-    await AppSettings(db).setStrictness('strict');
-    final sara = await seedPerson(db);
-    await seedFace(db, personId: sara, seed: 1);
-    await runner.run();
-    expect(api.groupingCalls.single.strictness, 'strict');
+  test(
+    'people are grouped with library-derived thresholds, not a setting',
+    () async {
+      final sara = await seedPerson(db);
+      await seedFace(db, personId: sara, seed: 1);
+      await runner.run();
+      expect(api.groupingCalls.single.strictness, 'auto');
+    },
+  );
+
+  group('provisional people the PC says are one person', () {
+    GroupingPlanResponse Function(GroupingPlanRequest) mergeOnce(
+      List<PersonMergePlan> merges,
+    ) {
+      var sent = false;
+      return (r) {
+        if (r.stages.contains('people') && !sent) {
+          sent = true;
+          return GroupingPlanResponse(mode: r.mode, merges: merges);
+        }
+        return GroupingPlanResponse(mode: r.mode, merges: const []);
+      };
+    }
+
+    test(
+      'are merged, and only unnamed ones are offered as provisional',
+      () async {
+        final sara = await seedPerson(db, name: 'Sara');
+        final a = await seedPerson(db);
+        final b = await seedPerson(db);
+        final fa = await seedFace(db, personId: a, seed: 1);
+        final fb = await seedFace(db, personId: b, seed: 2);
+        await seedFace(db, personId: sara, seed: 3);
+        api.groupingHandler = mergeOnce([
+          PersonMergePlan(absorb: b, into: a, score: 0.7),
+        ]);
+
+        final run = await runner.run();
+
+        final first = api.groupingCalls.first;
+        expect(first.stages, contains('people'));
+        expect(first.provisionalPersonIds, [a, b]);
+        expect(run.peopleMerged, 1);
+        expect(await personOf(fa), a);
+        expect(await personOf(fb), a);
+        expect(
+          (await db.select(db.persons).get()).map((p) => p.id),
+          isNot(contains(b)),
+        );
+        expect(
+          api.groupingCalls
+              .where((c) => c.mode == 'apply' && c.stages.contains('people'))
+              .length,
+          2,
+          reason: 'a merge makes a better model: round 1 runs once more',
+        );
+      },
+    );
+
+    test('a person the user named since the plan was made stays', () async {
+      final a = await seedPerson(db);
+      final b = await seedPerson(db);
+      final fb = await seedFace(db, personId: b, seed: 2);
+      await seedFace(db, personId: a, seed: 1);
+      api.groupingHandler = (r) {
+        if (r.stages.contains('people')) {
+          // the user names b while the PC is thinking
+          return (db.update(db.persons)..where((p) => p.id.equals(b)))
+              .write(const PersonsCompanion(name: Value('Omar')))
+              .then(
+                (_) => GroupingPlanResponse(
+                  mode: r.mode,
+                  merges: [PersonMergePlan(absorb: b, into: a, score: 0.7)],
+                ),
+              );
+        }
+        return GroupingPlanResponse(mode: r.mode);
+      };
+
+      final run = await runner.run();
+
+      expect(run.peopleMerged, 0);
+      expect(await personOf(fb), b);
+    });
+
+    test('two people seen in one photo are never merged', () async {
+      final a = await seedPerson(db);
+      final b = await seedPerson(db);
+      final media = await seedMedia(db);
+      await seedFace(db, personId: a, mediaId: media, seed: 1);
+      final fb = await seedFace(db, personId: b, mediaId: media, seed: 2);
+      api.groupingHandler = mergeOnce([
+        PersonMergePlan(absorb: b, into: a, score: 0.9),
+      ]);
+
+      final run = await runner.run();
+
+      expect(run.peopleMerged, 0);
+      expect(await personOf(fb), b);
+    });
   });
 
   test(

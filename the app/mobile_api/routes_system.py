@@ -43,6 +43,7 @@ def build_system_router(ctx, require_device: Callable) -> APIRouter:
             "restorers": snap["restorers"],
             "reface_profiles": snap.get("reface_profiles", {}),
             "lora_base_checkpoints": snap["lora_base_checkpoints"],
+            **({"photo_edit_models": snap["photo_edit_models"]} if "photo_edit_models" in snap else {}),
             "limits": {"max_image_px": ctx.max_image_px,
                        "max_upload_mb": ctx.workspace.max_upload_bytes // (1024 * 1024),
                        "blob_cache_mb": ctx.workspace.blob_cache_bytes // (1024 * 1024)},

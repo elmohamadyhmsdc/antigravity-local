@@ -479,6 +479,38 @@ class GroupingInputs {
     return values.every((v) => v.isFinite && v >= 0) ? values : null;
   }
 
+  /// People the grouping made on its own and the user never took over: no name, not locked, pinned,
+  /// favourite or hidden, no face confirmed by hand, nothing built from them (identity sets, datasets,
+  /// LoRAs). Only these may be merged into another person automatically.
+  Future<List<int>> provisionalPersonIds() async => [
+    for (final r
+        in await _db
+            .customSelect(
+              """
+              SELECT p.id FROM persons p
+              WHERE p.kind = ?1 AND (p.name IS NULL OR TRIM(p.name) = '')
+                AND p.grouping_locked = 0 AND p.pinned = 0 AND p.favorite = 0 AND p.hidden = 0
+                AND NOT EXISTS (SELECT 1 FROM face_confirmations c JOIN faces f ON f.id = c.face_id
+                                WHERE c.person_id = p.id AND f.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM identity_sets s WHERE s.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM datasets d WHERE d.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM loras l WHERE l.person_id = p.id)
+              ORDER BY p.id
+              """,
+              variables: [Variable.withString(kind)],
+              readsFrom: {
+                _db.persons,
+                _db.faceConfirmations,
+                _db.faces,
+                _db.identitySets,
+                _db.datasets,
+                _db.loras,
+              },
+            )
+            .get())
+      r.read<int>('id'),
+  ];
+
   /// A full request for one round.
   Future<GroupingPlanRequest> request({
     required String mode,
@@ -505,6 +537,9 @@ class GroupingInputs {
           : const [],
       maxSuggestionsPerPerson: groupingMaxSuggestionsPerPerson,
       linkAlikePeople: true,
+      provisionalPersonIds: stages.contains('people')
+          ? await provisionalPersonIds()
+          : const [],
     );
   }
 }
