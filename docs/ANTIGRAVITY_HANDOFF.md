@@ -1,5 +1,70 @@
 # Antigravity handoff — 2026-10-19
 
+## Automatic people grouping — 2026-11-15
+
+- User report (Flutter app, 99 photos scanned): many duplicate people although the faces were clear, then 30 review
+  questions about easy cases, and a Strict/Balanced/Loose setting nobody can choose. Causes: (1) the scan groups
+  every 100 faces, so an early round could split one person into two people, and apply mode never merged people
+  (it only asked "same person?"); (2) a split person makes every new face of theirs ambiguous (small lead over the
+  twin) -> match questions; (3) a person seen in only two photos was a 2-face group, never auto-created -> a question.
+- **Server** (`person_linking.py`, `grouping_core.py`): strictness `auto` = `auto_params(negative_similarities)`.
+  Known-different pairs of the request (unsorted faces sharing a `frame_key`, and `distinct_pairs`, which the phone
+  fills with user corrections + people seen in one frame) give a 98th-percentile look-alike level; risk goes from
+  `AUTO_BASE_RISK` 0.35 (balanced-ish, also the floor) to 1 (strict) between 0.22 and 0.40. It never loosens below
+  the base (measured: looser face bars tripled wrong faces for little gain). New `pair_create_cohesion`
+  (auto 0.50..0.68, presets 1.01 = off): a very cohesive 2-face group becomes a person. New apply-only stage `people`
+  + `provisional_person_ids` -> `merges` [{absorb, into, score}]: provisional people (no name, not
+  locked/pinned/favourite/hidden, no confirmed faces, no identity set/dataset/LoRA) that clearly are another person.
+  Bar = `people_merge_threshold`: max(0.28..0.48 by risk, 98th pct of this library's person-pair scores + 0.08,
+  every distinct pair's score + 0.05); pairs must be mutual best matches; never across distinct pairs, never two
+  user-owned people (even through a provisional one). Presets and the PC dashboard are unchanged; `merges` is only
+  emitted when the stage is asked for (old fixtures byte-identical). Contract: openapi `strictness: auto`, stage
+  `people`, `provisional_person_ids`, `PersonMerge`, fixtures `GroupingPlan{Request,Response}.apply_people`.
+- **Phone**: `personStrictness = 'auto'`, `round1Stages = [match, cluster, people]` (incremental too),
+  `GroupingInputs.provisionalPersonIds()`, `GroupingRunner._applyMerges` via the injected
+  `PeopleRepository.mergePeople` (re-checks provisional status and refuses shared frames), round 1 runs once more
+  after merges in a full run. The Settings strictness picker is gone (`groupingAutomaticHint`); the stored
+  `grouping.strictness` key is ignored but kept for backups.
+- **Must deploy together**: restart the PC Mobile API from this tree with the new APK - an older server answers 400
+  to `strictness: auto` / stage `people`, so grouping would fail.
+- **Measured** (`eval_grouping_sim.py`, replays the phone's rounds incl. every-100-faces incremental grouping on
+  LFW faces embedded by `eval_grouping_extract.py` into `D:\AndroidScan\datasets_untrusted\lfw_faces.npz`; 15
+  galleries each; 400 photos, balanced -> auto): plain LFW people 48/62.5 -> 62/62.5, sorted 91% -> 99%, questions
+  14.5 -> 1.5, wrong faces 0.7 -> 1.9 of 446; harder (`--noise 0.6`, same-person similarity ~0.5) questions 11.9 ->
+  4.3, wrong 0.6 -> 1.3; two looks per person (`--split 0.9 --noise 0.3`, recreates split people) duplicate people
+  0.9 -> 0.1, questions 15.6 -> 3.7, wrong 0.3 -> 0.5. 100 photos: questions 2.7 -> 0.1, people 12.4 -> 15.2 of 15.1.
+  Automatic merges: 42 of 45 right; the 3 wrong ones were look-alikes never photographed together (Jeb -> George W
+  Bush, Wen Jiabao -> Hu Jintao); a photo of both raises the library's bar above them. Not measured on the user's
+  own library (not readable from the PC); the 99-photo phone run is the real acceptance.
+- Tests: `test_grouping_core.py` 30/30 (+10), `test_event_linking.py` 12/12, `test_grouping_character.py` OK,
+  `validate_contract.py` passed; Flutter grouping runner/contract/grouping/guards/settings tests 158 pass, analyzer
+  clean on the touched files. Pre-existing, unrelated: `mobile/test/domain/scan_engine_test.dart` "pausing stops
+  after the current photo..." and "maintenance waits for the in-flight photo..." fail on HEAD c7d16fe too;
+  `test_gallery.py` `test_database_batch_writes_once...` is timing-flaky (failed 1 of 4 runs, database.py unchanged).
+- Most of this landed in commit f875c3b (made by a parallel session); the tuning above (`auto` floor, pair rule,
+  library merge bar, mutual best, sim `--noise/--split`, +3 tests) is uncommitted.
+
+## Photo editor: automatic clothing selection (no mask), clothing changes only — 2026-11-15
+
+- Replace with `auto_body: true` takes only an image: the PC traces the person (`body_outline_mask`, RMBG), parses
+  clothes (SegFormer `mattmdjaga/segformer_b2_clothes`, `parse_clothes` task in `photo_edit_worker.py`), keeps the
+  garment the instruction names (`clothing_labels`: shirt/top/jacket -> upper; trousers/jeans/skirt -> lower;
+  dress/suit/outfit/clothes -> all), clips it to the outline and away from the face core, then renders as usual.
+  Capability `engines.photo_edit_auto_body`; the brush and Keep body outline stay available. Phone: "Auto-select
+  clothing" chip in `photo_edit_screen.dart` (no mask is built or uploaded when on).
+- **Policy (deliberate, keep it):** the editor runs on real people from the gallery, so it changes what people wear
+  and never undresses them or makes clothing revealing. `photo_edit.refuse_exposure_request` rejects such
+  instructions (English + Egyptian Arabic, incl. "من غير/بدون + garment", "شيل/اقلع + garment", swimwear/underwear)
+  in `validate_options` (400 before upload work). After compositing, `new_exposure` runs NudeNet
+  (`models/sensitive/640m.onnx`, CPU) on original and result and refuses the result when an exposed region appears
+  inside the edited area that the original did not show there (nothing is written). Worker and ComfyUI negatives
+  carry nude/underwear terms; the removal-oriented Arabic translations and the swimwear examples/fixtures were removed.
+- Validation: `test_photo_edit.py` 34/34 (refusals, accepted clothing edits, garment labels, exposure comparison,
+  an exposing result is not saved, full automatic flow with fakes); `test_mobile_api_contract.py` 32/32,
+  `test_mobile_stateless.py` 5/5, `validate_contract.py` passed; Flutter photo-edit + contract tests pass,
+  `flutter analyze` clean. Real GPU run (public LFW photo, "بدلة كلاسيك كحلي", auto_body): suit recoloured to navy,
+  face untouched, ~100 s on this laptop. Not tried on the phone.
+
 ## Flutter Complete UI/UX Redesign & Overhaul (Phases 1 - 5) — 2026-11-14
 
 - Executed end-to-end redesign of the Flutter mobile application (`mobile/`):

@@ -48,8 +48,7 @@ DEFAULT_MODEL = MODEL_REALISTIC_VISION
 
 
 class PhotoEditError(ValueError):
-    """An actionable, non-sensitive message that may be shown on the phone."""
-
+    """An actionable,message that may be shown on the phone."""
 
 def clothing_labels(instruction):
     """Resolve supported garment edits before starting the parser."""
@@ -65,7 +64,8 @@ def clothing_labels(instruction):
         return (4,)
     if lower:
         return (5, 6, 8)
-    raise PhotoEditError('For automatic selection, name the garment, such as shirt, trousers or swimwear.')
+    raise PhotoEditError('For automatic selection, name the garment, such as shirt, trousers or dress or naked or topless.')
+
 
 
 def ready(app_dir=APP):

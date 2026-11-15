@@ -894,6 +894,43 @@ def test_auto_thresholds_follow_how_alike_different_people_look():
 
 
 @test
+def test_auto_never_groups_more_loosely_than_its_base_and_fixes_two_face_people():
+    unalike = pl.auto_params([0.02] * 50)
+    check(unalike == pl.auto_params([]), "an unalike library gets the base profile, not a looser one")
+    check(unalike.pair_create_cohesion < 1.0, "auto makes very alike 2-face groups people")
+    check(pl.auto_params([0.45] * 50).pair_create_cohesion > unalike.pair_create_cohesion,
+          "...with a higher bar when different people look alike")
+    tight = pl.Cluster([0, 1], cohesion=unalike.pair_create_cohesion + 0.01, quality=0.8)
+    loose = pl.Cluster([0, 1], cohesion=unalike.pair_create_cohesion - 0.05, quality=0.8)
+    check(pl.should_auto_create(tight, unalike) and not pl.should_auto_create(loose, unalike), "pair rule")
+    check(not pl.should_auto_create(tight, pl.params_for("balanced")), "the presets keep their behaviour")
+
+
+@test
+def test_brothers_seen_together_raise_the_merge_bar_for_the_whole_library():
+    rng = np.random.default_rng(11)
+    u = _unit(rng)
+    v = pl.normalize_rows(u + 0.9 * _unit(rng))       # a look-alike: alike, but not the same person
+    e = np.vstack([_faces_near(u, 6, rng, 0.5), _faces_near(v, 6, rng, 0.5)])
+    models = pl.build_person_models(e, [1] * 6 + [2] * 6, [0.8] * 12)
+    score = pl.person_pair_score(models[1], models[2])
+    floor = 0.28
+    check(pl.people_merge_threshold(models, floor) == floor, "two people alone teach nothing")
+    check(pl.people_merge_threshold(models, floor, [(1, 2)]) >= score + 0.0499, "seen together -> bar above them")
+
+
+@test
+def test_a_merge_needs_both_sides_to_be_each_others_best_match():
+    rng = np.random.default_rng(13)
+    u = _unit(rng)
+    halves = np.vstack([_faces_near(u, 6, rng), _faces_near(u, 6, rng)])
+    relative = _faces_near(pl.normalize_rows(u + 0.8 * _unit(rng)), 6, rng)
+    models = pl.build_person_models(np.vstack([halves, relative]), [1] * 6 + [2] * 6 + [3] * 6, [0.8] * 18)
+    merges = pl.auto_merge_people(models, {2, 3}, 0.05)
+    check([(a, b) for a, b, _ in merges] == [(2, 1)], f"the half joins, the relative does not: {merges}")
+
+
+@test
 def test_auto_uses_same_frame_faces_of_the_request():
     rng = np.random.default_rng(5)
     u = _unit(rng)

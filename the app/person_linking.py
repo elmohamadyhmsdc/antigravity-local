@@ -36,6 +36,7 @@ class GroupingParams:
     min_group_size: int = 2         # smallest cluster shown as a group
     auto_create_size: int = 3       # clusters at least this big (and cohesive) become people
     auto_create_cohesion: float = 0.40
+    pair_create_cohesion: float = 1.01  # a 2-face group this alike becomes a person too (1.01 = never; "auto" sets it)
     merge_suggest: float = 0.40     # person-to-person score for "possibly the same person"
     merge_auto: float = 0.60        # new groups this alike are folded together without asking
     people_merge_auto: float = 0.50  # a provisional person this alike another is merged into it (apply "people")
@@ -83,15 +84,26 @@ def params_for(strictness: str) -> GroupingParams:
 # ---------------------------------------------------------------------------
 # The user should not have to know whether their gallery needs "strict" or "loose". What decides it is how
 # alike DIFFERENT people in this library look: a family of brothers needs the strict bars, a gallery of
-# unrelated friends can be grouped loosely. Faces seen together in one photo / frame (and people the user
-# said are different) are known-different pairs, so their high similarities measure exactly that. The
-# risk 0..1 places every threshold on the loose (0) - balanced (0.5) - strict (1) line.
+# unrelated friends does not. Faces seen together in one photo / frame (and people the user said are
+# different) are known-different pairs, so their high similarities measure exactly that.
+#
+# Measured with eval_grouping_sim.py on LFW (2026-11-15): loosening the face-matching bars below balanced
+# never paid off (wrong faces x3, the unalike libraries already sort ~91% at balanced); what the user saw -
+# dozens of questions and duplicate people - came from people seen in only two photos (a 2-face group was
+# never made a person, it became a question) and from split people never being merged. So "auto" starts at
+# balanced and only ever tightens, and fixes those two things instead:
+#   - a 2-face group becomes a person when its two faces are unmistakably alike (pair_create_cohesion);
+#   - a provisional person is merged into the person it clearly is (people_merge_auto, see
+#     people_merge_threshold: never below what different people in this very library score).
 
 AUTO = "auto"
-AUTO_DEFAULT_RISK = 0.35        # no known-different pairs to go on yet
-AUTO_MIN_NEGATIVES = 8          # fewer pairs than this say too little; they only ever raise the risk
-AUTO_LOOKALIKE_LOW = 0.18       # known-different pairs this alike (98th pct) -> risk 0
-AUTO_LOOKALIKE_HIGH = 0.38      # ... and this alike -> risk 1 (strict)
+AUTO_BASE_RISK = 0.35           # balanced-ish; what a library without look-alikes gets, and the floor
+AUTO_DEFAULT_RISK = AUTO_BASE_RISK
+AUTO_MIN_NEGATIVES = 8          # fewer pairs than this say too little (only the max counts, and only to tighten)
+AUTO_LOOKALIKE_LOW = 0.22       # known-different pairs this alike (98th pct) or less -> base risk
+AUTO_LOOKALIKE_HIGH = 0.40      # ... this alike -> risk 1 (strict)
+AUTO_PAIR_COHESION = (0.50, 0.68)       # 2-face groups: bar at base risk .. at risk 1
+AUTO_PEOPLE_MERGE = (0.28, 0.48)        # provisional person merge floor: at base risk .. at risk 1
 STRICTNESS_NAMES = ("strict", "balanced", "loose", "character", AUTO)
 _INT_FIELDS = {"min_group_size", "auto_create_size", "event_window_ms"}
 
@@ -114,21 +126,57 @@ def params_for_risk(risk: float) -> GroupingParams:
 
 
 def lookalike_risk(negative_similarities: Sequence[float]) -> float:
-    """How risky automatic grouping is in this library, from the similarities of known-different pairs."""
+    """How risky automatic grouping is in this library (AUTO_BASE_RISK..1), from the similarities of
+    known-different pairs. It never goes below the base: unalike libraries are not grouped more loosely."""
     s = np.asarray(list(negative_similarities), dtype=np.float32)
     if len(s) == 0:
-        return AUTO_DEFAULT_RISK
-    # with few pairs the max is all we have; it may only make grouping more careful
+        return AUTO_BASE_RISK
+    # with few pairs the max is all we have; it can only make grouping more careful
     hi = float(np.percentile(s, 98)) if len(s) >= AUTO_MIN_NEGATIVES else float(s.max())
-    risk = (hi - AUTO_LOOKALIKE_LOW) / (AUTO_LOOKALIKE_HIGH - AUTO_LOOKALIKE_LOW)
-    risk = float(np.clip(risk, 0.0, 1.0))
-    if len(s) < AUTO_MIN_NEGATIVES:
-        risk = max(risk, AUTO_DEFAULT_RISK)
-    return risk
+    t = float(np.clip((hi - AUTO_LOOKALIKE_LOW) / (AUTO_LOOKALIKE_HIGH - AUTO_LOOKALIKE_LOW), 0.0, 1.0))
+    return AUTO_BASE_RISK + (1.0 - AUTO_BASE_RISK) * t
 
 
 def auto_params(negative_similarities: Sequence[float] = ()) -> GroupingParams:
-    return params_for_risk(lookalike_risk(negative_similarities))
+    risk = lookalike_risk(negative_similarities)
+    t = (risk - AUTO_BASE_RISK) / (1.0 - AUTO_BASE_RISK)
+    lo, hi = AUTO_PAIR_COHESION
+    mlo, mhi = AUTO_PEOPLE_MERGE
+    return replace(params_for_risk(risk), pair_create_cohesion=round(lo + (hi - lo) * t, 4),
+                   people_merge_auto=round(mlo + (mhi - mlo) * t, 4))
+
+
+PEOPLE_MERGE_SAMPLE = 3000      # person pairs scored to learn how alike different people are here
+PEOPLE_MERGE_MARGIN = 0.08      # a merge must clear the library's high different-people score by this
+
+
+def people_merge_threshold(models: Dict[int, PersonModel], floor: float,
+                           distinct: Optional[Iterable[Tuple[int, int]]] = None, seed: int = 0) -> float:
+    """The person-pair score above which two people are one person IN THIS LIBRARY: never below `floor`,
+    and above how alike different people here score - every pair the user marked different (or that
+    appear together) plus a high percentile of all pairs (almost all of which are different people)."""
+    pids = sorted(models)
+    t = floor
+    if len(pids) < 2:
+        return t
+    for a, b in (distinct or ()):
+        if a in models and b in models:
+            t = max(t, person_pair_score(models[a], models[b]) + 0.05)
+    n = len(pids)
+    total = n * (n - 1) // 2
+    rng = np.random.default_rng(seed)
+    if total <= PEOPLE_MERGE_SAMPLE:
+        pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
+    else:
+        ii = rng.integers(0, n, PEOPLE_MERGE_SAMPLE * 2)
+        jj = rng.integers(0, n, PEOPLE_MERGE_SAMPLE * 2)
+        pairs = [(i, j) for i, j in zip(ii.tolist(), jj.tolist()) if i != j][:PEOPLE_MERGE_SAMPLE]
+    if len(pairs) >= 10:
+        scores = np.array([person_pair_score(models[pids[i]], models[pids[j]]) for i, j in pairs])
+        # duplicates are a few pairs out of many: a high percentile is still "different people"
+        q = 98 if len(scores) >= 200 else 90
+        t = max(t, float(np.percentile(scores, q)) + PEOPLE_MERGE_MARGIN)
+    return round(t, 4)
 
 
 # ---------------------------------------------------------------------------
@@ -529,7 +577,11 @@ def _merge_alike_groups(e: np.ndarray, q: np.ndarray, keys, labels: np.ndarray, 
 
 
 def should_auto_create(cluster: Cluster, params: GroupingParams) -> bool:
-    return len(cluster.indices) >= params.auto_create_size and cluster.cohesion >= params.auto_create_cohesion
+    n = len(cluster.indices)
+    if n >= params.auto_create_size and cluster.cohesion >= params.auto_create_cohesion:
+        return True
+    # someone seen in just two photos: only when the two faces are unmistakably one person
+    return n == 2 and cluster.cohesion >= params.pair_create_cohesion
 
 
 # ---------------------------------------------------------------------------
@@ -590,8 +642,16 @@ def auto_merge_people(models: Dict[int, PersonModel], provisional: Iterable[int]
         if (a not in prov and b not in prov) or frozenset((a, b)) in skip:
             continue
         sc = person_pair_score(models[a], models[b])
-        if sc >= threshold:
+        if sc >= threshold - 0.05:
             pairs.append((sc, a, b))
+    # mutual best: each side's most alike person is the other one. A look-alike relative scoring just over
+    # the bar still loses to the half of himself, so it is never pulled in through a third person.
+    best_of: Dict[int, float] = {}
+    for sc, a, b in pairs:
+        best_of[a] = max(best_of.get(a, -1.0), sc)
+        best_of[b] = max(best_of.get(b, -1.0), sc)
+    pairs = [(sc, a, b) for sc, a, b in pairs
+             if sc >= threshold and sc >= best_of[a] and sc >= best_of[b]]
     if not pairs:
         return []
     parent = {p: p for p in pids}

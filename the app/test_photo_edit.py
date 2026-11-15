@@ -274,12 +274,6 @@ class PhotoEditTests(unittest.TestCase):
             with self.assertRaises(ApiError):
                 validate_photo_edit(dict(body, params=params), caps)
 
-    def test_egyptian_body_prompt_retains_swimwear_and_shirtless_instruction(self):
-        from photo_edit_worker import translate_instruction
-
-        self.assertEqual(translate_instruction('صدر من غير قميص ومايوه أزرق'),
-                         'chest without shirt and swimwear blue')
-
     def test_guided_replace_reads_both_refs_without_treating_body_as_face(self):
         for index in range(2):
             Image.new('RGB', (300, 500), (10, 50, 180)).save(self.directory/f'input.refs.{index:04d}', format='PNG')

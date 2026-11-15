@@ -139,6 +139,65 @@ void main() {
     expect(gguf, findsNothing);
   });
 
+  testWidgets(
+    'automatic clothing selection appears only with the PC parser and keeps the body outline',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(411, 891);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final statuses = StreamController<ServerStatus>.broadcast();
+      addTearDown(() => unawaited(statuses.close()));
+      final json =
+          jsonDecode(
+                File(
+                  '../the app/mobile_api/contract/fixtures/Capabilities.photo_edit_models.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            serverStatusProvider.overrideWith((ref) => statuses.stream),
+          ],
+          child: MaterialApp(home: PhotoEditScreen(initialPhotoBytes: tinyPng)),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('op-replace')));
+      await tester.pump();
+      final auto = find.byKey(const Key('auto-clothing-selection'));
+      final outline = find.byKey(const Key('keep-body-outline'));
+
+      (json['engines'] as Map<String, dynamic>)
+        ..['photo_edit_auto_body'] = false
+        ..['photo_edit_body_shape'] = false;
+      statuses.add(ServerReady(Capabilities.fromJson(json)));
+      await tester.pump();
+      await tester.pump();
+      expect(auto, findsNothing);
+
+      (json['engines'] as Map<String, dynamic>)
+        ..['photo_edit_auto_body'] = true
+        ..['photo_edit_body_shape'] = true;
+      statuses.add(ServerReady(Capabilities.fromJson(json)));
+      await tester.pump();
+      await tester.pump();
+      expect(auto, findsOneWidget);
+      await tester.tap(auto);
+      await tester.pump();
+      expect(tester.widget<FilterChip>(auto).selected, isTrue);
+      expect(tester.widget<FilterChip>(outline).selected, isTrue);
+      expect(
+        tester.widget<FilterChip>(outline).onSelected,
+        isNull,
+        reason: 'automatic selection always keeps the outline',
+      );
+      expect(find.textContaining('مايوه'), findsNothing);
+    },
+  );
+
   testWidgets('photo guidance offers person and gallery sources', (
     tester,
   ) async {

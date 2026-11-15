@@ -320,9 +320,12 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
             result.body_links.append(link)
 
     if PEOPLE_STAGE in wanted:
+        distinct = [tuple(p) for p in snapshot.distinct_pairs]
+        bar = params.people_merge_auto
+        if strictness == pl.AUTO and snapshot.provisional_person_ids and len(models) > 1:
+            bar = pl.people_merge_threshold(models, bar, distinct)
         result.merges = [PersonMerge(a, b, s) for a, b, s in
-                         pl.auto_merge_people(models, snapshot.provisional_person_ids, params.people_merge_auto,
-                                              [tuple(p) for p in snapshot.distinct_pairs])]
+                         pl.auto_merge_people(models, snapshot.provisional_person_ids, bar, distinct)]
 
     if review:
         result.unsorted_face_ids = [pending[i].id for i in range(n) if i not in claimed]

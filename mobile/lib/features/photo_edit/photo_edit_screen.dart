@@ -345,10 +345,11 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
             .read(mediaActionSourceProvider)
             .resolve(photo.id, maxSide: 1280);
         bytes = source.photoBytes;
-        if (bytes == null)
+        if (bytes == null) {
           throw const FormatException(
             'This reference photo could not be opened.',
           );
+        }
       } else {
         bytes = await ref.read(photoPickerProvider).pickPhoto();
       }
@@ -385,8 +386,9 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
       await Future<void>.delayed(const Duration(seconds: 1));
       if (!mounted) return;
       final job = await repo.job(jobId);
-      if (job == null)
+      if (job == null) {
         throw const FormatException('This edit is no longer available.');
+      }
 
       if (mounted) {
         setState(() {
@@ -870,10 +872,11 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                         ),
                         side: BorderSide.none,
                         onSelected: (v) {
-                          if (v)
+                          if (v) {
                             setState(
                               () => _operation = PhotoEditOperation.remove,
                             );
+                          }
                         },
                       ),
                     ),
@@ -890,10 +893,11 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                         ),
                         side: BorderSide.none,
                         onSelected: (v) {
-                          if (v)
+                          if (v) {
                             setState(
                               () => _operation = PhotoEditOperation.replace,
                             );
+                          }
                         },
                       ),
                     ),
@@ -1206,8 +1210,8 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                         ? 'Optional description / وصف اختياري'
                         : 'Prompt / الوصف (عربي أو إنجليزي)',
                     hintText: _autoBody
-                        ? 'e.g. بدّل القميص والبنطلون لمايوه أزرق'
-                        : 'e.g. مايوه أزرق / blue swimwear',
+                        ? 'e.g. بدّل القميص والبنطلون لبدلة كحلي'
+                        : 'e.g. جاكيت جلد أسود / black leather jacket',
                     prefixIcon: Icon(
                       Icons.auto_awesome,
                       size: 18,

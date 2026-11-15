@@ -414,12 +414,12 @@ def job_fixtures():
         **edit_image,
         "client_job_id": "fixture-photo-edit-guided",
         "params": {"operation": "replace", "seed": 123},
-        "inputs": dict(edit_image["inputs"], refs=[sha("upper-body-reference"), sha("swimwear-reference")]),
+        "inputs": dict(edit_image["inputs"], refs=[sha("upper-body-reference"), sha("outfit-reference")]),
     })
     write("JobCreate.edit_image_auto_body", {
         "client_job_id": "fixture-photo-edit-auto-body",
         "type": "edit_image",
-        "params": {"operation": "replace", "instruction": "blue swimwear", "auto_body": True, "preserve_body_shape": True, "steps": 26, "seed": 123},
+        "params": {"operation": "replace", "instruction": "navy blue suit", "auto_body": True, "preserve_body_shape": True, "steps": 26, "seed": 123},
         "inputs": {"image": sha("edit-photo")},
     })
     write("JobCreate.reface_image", {**reface_request, "type": "reface_image",

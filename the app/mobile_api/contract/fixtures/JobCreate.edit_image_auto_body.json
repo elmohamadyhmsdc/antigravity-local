@@ -1,0 +1,15 @@
+{
+  "client_job_id": "fixture-photo-edit-auto-body",
+  "type": "edit_image",
+  "params": {
+    "operation": "replace",
+    "instruction": "navy blue suit",
+    "auto_body": true,
+    "preserve_body_shape": true,
+    "steps": 26,
+    "seed": 123
+  },
+  "inputs": {
+    "image": "7ab0eae7d3446e8aea299157303a263c426e321b36fc4a0ec1ab13b7a00703ea"
+  }
+}

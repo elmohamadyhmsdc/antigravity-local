@@ -185,8 +185,27 @@ def score(phone, faces, label):
     return dict(people=len(by_pid), ideal=len(repeat), extra=extra, wrong=wrong, sorted=sorted_share)
 
 
-def simulate(data, photos, galleries, strictness, merge_people, seed=0):
+def simulate(data, photos, galleries, strictness, merge_people, seed=0, noise=0.0, split=0.0):
     emb = pl.normalize_rows(data["embedding"])
+    if split > 0:
+        # two "looks" per person (glasses / age / angle): every photo of a person takes one of two shared offsets,
+        # so their faces form two sub-clusters - what makes a phone split one person into Person 9 and Person 27.
+        r = np.random.default_rng(99)
+        offsets = {}
+        look = r.integers(0, 2, len(emb))
+        extra = np.zeros_like(emb)
+        for i, lab in enumerate(data["label"]):
+            key = (int(lab), int(look[i]))
+            if key not in offsets:
+                v = r.standard_normal(emb.shape[1]).astype(np.float32)
+                offsets[key] = v / np.linalg.norm(v)
+            extra[i] = offsets[key]
+        emb = pl.normalize_rows(emb + split * extra)
+    if noise > 0:
+        # harder than LFW: phone photos (age, blur, angles) give lower same-person similarity. Adding a random
+        # vector of norm `noise` to every face divides every similarity by ~(1 + noise^2).
+        r = np.random.default_rng(1234).standard_normal(emb.shape).astype(np.float32)
+        emb = pl.normalize_rows(emb + noise * pl.normalize_rows(r))
     qual, label, photo = data["quality"], data["label"], data["photo"]
     faces_of = defaultdict(list)
     for i, ph in enumerate(photo):
@@ -220,16 +239,21 @@ def main(argv=None):
     ap.add_argument("--photos", type=int, nargs="+", default=[100, 400])
     ap.add_argument("--galleries", type=int, default=20)
     ap.add_argument("--strictness", nargs="+", default=["balanced", "auto"])
+    ap.add_argument("--split", type=float, default=0.0,
+                    help="two looks per person: 0.8 puts same-look pairs near 0.75 and cross-look pairs near 0.4")
+    ap.add_argument("--noise", type=float, nargs="+", default=[0.0],
+                    help="0 = the set as extracted; 0.6 brings LFW's same-person similarity (~0.67) to ~0.5")
     args = ap.parse_args(argv)
     data = dict(np.load(args.npz))
     print(f"{len(data['embedding'])} faces, {int((data['label'] >= 0).sum())} labelled\n")
     print(f"{'setup':<26}{'photos':>7}{'faces':>7}{'people':>8}{'ideal':>7}{'extra':>7}{'wrong':>7}"
           f"{'sorted':>8}{'questions':>10}")
-    for photos in args.photos:
+    for noise in args.noise:
+      for photos in args.photos:
         for s in args.strictness:
-            for merge in ([False] if s != "auto" else [True]):
-                r = simulate(data, photos, args.galleries, s, merge)
-                name = f"{s}{' +merge' if merge else ''}"
+            for merge in ([False] if s != "auto" else [False, True]):
+                r = simulate(data, photos, args.galleries, s, merge, noise=noise, split=args.split)
+                name = f"{s}{' +merge' if merge else ''}{f' n{noise}' if noise else ''}{f' s{args.split}' if args.split else ''}"
                 print(f"{name:<26}{photos:>7}{r['faces']:>7.0f}{r['people']:>8.1f}{r['ideal']:>7.1f}"
                       f"{r['extra']:>7.1f}{r['wrong']:>7.1f}{r['sorted']:>8.0%}{r['questions']:>10.1f}")
     return 0
