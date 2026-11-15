@@ -50,7 +50,7 @@ class VideoMediaView extends StatefulWidget {
   final bool showFaces;
   final ValueChanged<MediaDetection> onTapBox;
   final bool isActive;
-  final VoidCallback? onOpenNativePlayer;
+  final ValueChanged<int>? onOpenNativePlayer;
   final Widget? loadingPreview;
 
   @override
@@ -64,71 +64,73 @@ class _VideoMediaViewState extends State<VideoMediaView> {
   bool _loading = true;
   bool _error = false;
   bool _muted = true;
+  bool _resolvingSource = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    if (widget.isActive) unawaited(_load());
   }
 
   @override
   void didUpdateWidget(VideoMediaView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.isActive != widget.isActive) {
+    if (oldWidget.isActive == widget.isActive) return;
+    final player = _player;
+    if (player == null && widget.isActive && _loading) {
+      unawaited(_load());
+    } else if (player != null && !_loading) {
       if (widget.isActive) {
-        _player?.play();
+        unawaited(player.play());
       } else {
-        _player?.pause();
+        unawaited(player.pause());
       }
     }
   }
 
   Future<void> _load() async {
-    VideoPlayerController? player;
+    if (_resolvingSource) return;
+    _resolvingSource = true;
     try {
-      final source = widget.library;
-      final String? uri = source is VideoMediaLibrary
-          ? await (source as VideoMediaLibrary).videoUri(widget.assetId)
-          : null;
-      if (uri != null && uri.isNotEmpty) {
-        player = VideoPlayerController.contentUri(Uri.parse(uri));
-      } else {
-        final File? file = source is VideoMediaLibrary
-            ? await (source as VideoMediaLibrary).videoFile(widget.assetId)
-            : null;
-        if (file == null) throw const FileSystemException('Video unavailable');
-        player = VideoPlayerController.file(file);
-      }
+      final uri = await resolveVideoSource(widget.library, widget.assetId);
+      if (!mounted || !widget.isActive) return;
+      if (uri == null) throw StateError('Video unavailable');
+      final player = uri.isScheme('content')
+          ? VideoPlayerController.contentUri(uri)
+          : VideoPlayerController.file(File.fromUri(uri));
+      _player = player;
       await player.initialize();
+      if (!mounted) return;
       await player.setVolume(_muted ? 0.0 : 1.0);
-      if (widget.initialTimestampMs != null) {
+      if (!mounted) return;
+      final initialTimestamp = widget.initialTimestampMs;
+      if (initialTimestamp != null) {
         await player.seekTo(
           Duration(
-            milliseconds: widget.initialTimestampMs!.clamp(
+            milliseconds: initialTimestamp.clamp(
               0,
               player.value.duration.inMilliseconds,
             ),
           ),
         );
       }
-      if (!mounted) {
-        await player.dispose();
-        return;
-      }
-      _player = player;
+      if (!mounted) return;
       player.addListener(_tick);
-      if (widget.isActive) {
+      if (widget.isActive && initialTimestamp == null) {
         unawaited(player.play());
       }
       setState(() => _loading = false);
     } catch (_) {
-      await player?.dispose();
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = true;
-        });
-      }
+      if (!mounted) return;
+      final player = _player;
+      _player = null;
+      unawaited(player?.dispose());
+      setState(() {
+        _loading = false;
+        _error = true;
+      });
+    } finally {
+      _resolvingSource = false;
     }
   }
 
@@ -315,7 +317,16 @@ class _VideoMediaViewState extends State<VideoMediaView> {
                               key: const Key('video-open-native-button'),
                               tooltip: 'Open with native player',
                               icon: const Icon(Icons.smart_display_outlined),
-                              onPressed: widget.onOpenNativePlayer,
+                              onPressed: () async {
+                                await player.pause();
+                                if (!mounted) return;
+                                final currentPosition = await player.position;
+                                if (mounted) {
+                                  widget.onOpenNativePlayer?.call(
+                                    currentPosition?.inMilliseconds ?? position,
+                                  );
+                                }
+                              },
                             ),
                         ],
                       ),

@@ -39,7 +39,6 @@ import '../../ui/sheets/undo_snackbar.dart';
 import 'layers_popover.dart';
 import 'media_chrome.dart';
 import 'media_page_item.dart';
-import 'viewer_image_cache.dart';
 import 'roi_selection_overlay.dart';
 import 'detection_actions.dart';
 
@@ -77,7 +76,8 @@ class MediaViewerScreen extends ConsumerStatefulWidget {
 class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   late List<int> _mediaIds;
   int _currentIndex = 0;
-  PageController? _pageController;
+  late PageController _pageController;
+  var _openingVideo = false;
   Offset? _swipeStart;
   int _pointerCount = 0;
   bool _multiTouch = false;
@@ -99,11 +99,11 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
       _mediaIds = [widget.mediaId];
       _currentIndex = 0;
     }
-    _pageController = PageController(initialPage: _currentIndex);
-    if (widget.collection == null) _loadIds();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_warmNeighbours());
-    });
+    _pageController = PageController(
+      initialPage: _currentIndex,
+      keepPage: false,
+    );
+    if (widget.collection == null) unawaited(_loadIds());
     if (_currentIndex >= _mediaIds.length - 3) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _loadMore();
@@ -116,41 +116,25 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
       final queries = ref.read(mediaQueriesProvider);
       final filter = widget.filter ?? const MediaFilter();
       final list = await queries.ids(filter);
-      if (!mounted || list.isEmpty) return;
+      if (!mounted) return;
       final index = list.indexOf(widget.mediaId);
+      if (index < 0) return;
+      final previousController = _pageController;
       setState(() {
         _mediaIds = list;
-        _currentIndex = index >= 0 ? index : 0;
-        _pageController?.dispose();
-        _pageController = PageController(initialPage: _currentIndex);
-      });
-      unawaited(_warmNeighbours());
-    } catch (_) {}
-  }
-
-  Future<void> _warmNeighbours() async {
-    final index = _currentIndex;
-    final cache = ref.read(viewerImageCacheProvider);
-    final thumbs = ref.read(thumbnailServiceProvider);
-    final repo = ref.read(libraryRepositoryProvider);
-    for (final i in [index, index + 1, index - 1]) {
-      if (!mounted || index != _currentIndex) return;
-      if (i < 0 || i >= _mediaIds.length) continue;
-      final row = await repo.mediaById(_mediaIds[i]);
-      if (!mounted || index != _currentIndex) return;
-      if (row == null) continue;
-      await thumbs.get(row.assetId);
-      if (row.kind == 'photo') {
-        final image = await cache.get(row.assetId);
-        if (!mounted || index != _currentIndex) return;
-        if (image != null) {
-          await precacheImage(
-            MemoryImage(image.bytes),
-            context,
-            onError: (_, _) {},
-          );
+        _currentIndex = index;
+        if (index != 0) {
+          _zoomed = false;
+          _pageController = PageController(initialPage: index, keepPage: false);
         }
+      });
+      if (previousController != _pageController) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          previousController.dispose();
+        });
       }
+    } catch (_) {
+      // The selected item is still available if its collection cannot load.
     }
   }
 
@@ -162,9 +146,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
       final ids = await load();
       if (mounted && ids.isNotEmpty) {
         setState(() {
-          for (final id in ids) {
-            if (!_mediaIds.contains(id)) _mediaIds.add(id);
-          }
+          final seen = _mediaIds.toSet();
+          _mediaIds.addAll(ids.where(seen.add));
         });
       }
     } catch (_) {
@@ -184,7 +167,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
 
   @override
   void dispose() {
-    _pageController?.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -196,45 +179,44 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     );
   }
 
-  Future<void> _openNativeVideoPlayer(
+  Future<void> _playVideo(
     BuildContext context,
-    MediaRow media,
-  ) async {
+    MediaRow media, {
+    bool external = false,
+    int? positionMs,
+  }) async {
+    if (_openingVideo) return;
+    _openingVideo = true;
+    final l10n = AppLocalizations.of(context);
     try {
-      final library = ref.read(mediaLibraryProvider);
-      String? uri;
-      if (library is VideoMediaLibrary) {
-        uri = await (library as VideoMediaLibrary).videoUri(media.assetId);
-      }
-      if (uri == null || uri.isEmpty) {
-        if (library is VideoMediaLibrary) {
-          final file = await (library as VideoMediaLibrary).videoFile(
-            media.assetId,
-          );
-          uri = file?.uri.toString();
-        }
-      }
-      if (uri == null || uri.isEmpty) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Video unavailable to open')),
-        );
+      final uri = await resolveVideoSource(
+        ref.read(mediaLibraryProvider),
+        media.assetId,
+      );
+      if (!context.mounted || !mounted || _mediaIds[_currentIndex] != media.id) {
         return;
       }
-      final launched = await NativeVideoPlayer.openVideo(
-        uri,
-        title: media.assetId,
-      );
-      if (!launched && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open external player')),
-        );
+      if (uri != null) {
+        final launched = external
+            ? await NativeVideoPlayer.openVideo(
+                uri.toString(),
+                title: l10n.videoTitle,
+              )
+            : await NativeVideoPlayer.playVideo(
+                uri.toString(),
+                positionMs: positionMs,
+              );
+        if (launched) return;
       }
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to launch player: $e')));
+    } catch (_) {
+      // A revoked permission or missing player is reported below.
+    } finally {
+      _openingVideo = false;
+    }
+    if (context.mounted && mounted && _mediaIds[_currentIndex] == media.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.videoUnavailable)),
+      );
     }
   }
 
@@ -757,221 +739,215 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
         p.id: p,
     };
 
-    return row.when(
-      loading: () => Scaffold(appBar: AppBar(), body: const LoadingBox()),
-      error: (e, _) => Scaffold(
-        appBar: AppBar(),
-        body: RetryState(
-          onRetry: () => ref.invalidate(mediaRowProvider(activeId)),
-        ),
-      ),
-      data: (media) {
-        if (media == null) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: EmptyState(icon: Icons.photo_outlined, title: l10n.photoGone),
+    final media = row.value;
+    final takenAt = media?.takenAt;
+    final taken = takenAt == null
+        ? null
+        : DateFormat.yMMMd().add_Hm().format(
+            DateTime.fromMillisecondsSinceEpoch(takenAt),
           );
-        }
-        final taken = media.takenAt == null
-            ? null
-            : DateFormat.yMMMd().add_Hm().format(
-                DateTime.fromMillisecondsSinceEpoch(media.takenAt!),
-              );
-        final faces = [
-          for (final d in detections)
-            if (d.isFace) d,
-        ];
-        final bodies = [
-          for (final d in detections)
-            if (d.isBody) d,
-        ];
-        final areas = [
-          for (final d in detections)
-            if (d.isArea) d,
-        ];
-        final equipment = [
-          for (final d in detections)
-            if (d.isEquipment) d,
-        ];
+    final faces = [
+      for (final d in detections)
+        if (d.isFace) d,
+    ];
+    final bodies = [
+      for (final d in detections)
+        if (d.isBody) d,
+    ];
+    final areas = [
+      for (final d in detections)
+        if (d.isArea) d,
+    ];
+    final equipment = [
+      for (final d in detections)
+        if (d.isEquipment) d,
+    ];
 
-        final availability = LayerAvailability(
-          hasFaces: faces.isNotEmpty,
-          hasBodies: bodies.isNotEmpty,
-          hasAreas: areas.isNotEmpty,
-          hasEquipment: equipment.isNotEmpty,
-        );
+    final availability = LayerAvailability(
+      hasFaces: faces.isNotEmpty,
+      hasBodies: bodies.isNotEmpty,
+      hasAreas: areas.isNotEmpty,
+      hasEquipment: equipment.isNotEmpty,
+    );
 
-        return Scaffold(
-          backgroundColor: Colors.black,
-          appBar: PreferredSize(
-            preferredSize: Size.fromHeight(_chromeVisible ? kToolbarHeight : 0),
-            child: MediaChromeTopBar(
-              media: media,
-              title:
-                  taken ??
-                  (media.kind == 'video' ? l10n.videoTitle : l10n.photoTitle),
-              layers: _layers,
-              availability: availability,
-              visible: _chromeVisible,
-              onLayersChanged: (updated) => setState(() => _layers = updated),
-              onOpenNativePlayer: () => _openNativeVideoPlayer(context, media),
-              onRedetect: () => redetectFlow(context, ref, mediaId: media.id),
-              onChangeFileKind: () => _fileKindMenu(context, media),
-              onLens: () => _searchGoogleLens(context, media),
-            ),
-          ),
-          body: Column(
-            children: [
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) => AnimatedPadding(
-                    duration: const Duration(milliseconds: 200),
-                    padding: EdgeInsets.only(
-                      bottom: _detailsOpen
-                          ? (constraints.maxHeight -
-                                    (MediaQuery.sizeOf(context).height * .25 -
-                                        kToolbarHeight))
-                                .clamp(0.0, constraints.maxHeight)
-                          : 0,
-                    ),
-                    child: Listener(
-                      onPointerDown: (event) {
-                        _pointerCount++;
-                        if (_pointerCount == 1) {
-                          _swipeStart = event.position;
-                          _multiTouch = false;
-                        } else {
-                          _multiTouch = true;
-                        }
-                      },
-                      onPointerUp: (event) {
-                        _pointerCount--;
-                        final start = _swipeStart;
-                        if (!_multiTouch &&
-                            !_zoomed &&
-                            media.kind == 'photo' &&
-                            start != null &&
-                            start.dy >
-                                MediaQuery.sizeOf(context).height * .65 &&
-                            start.dy - event.position.dy > 80 &&
-                            (start.dx - event.position.dx).abs() < 60) {
-                          _showDetails(
-                            context,
-                            media,
-                            faces,
-                            bodies,
-                            areas,
-                            equipment,
-                            people,
-                          );
-                        }
-                        if (_pointerCount == 0) _swipeStart = null;
-                      },
-                      onPointerCancel: (_) {
-                        _pointerCount = 0;
-                        _swipeStart = null;
-                        _multiTouch = true;
-                      },
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          PageView.builder(
-                            key: const Key('media-page-view'),
-                            controller: _pageController,
-                            physics: _zoomed
-                                ? const NeverScrollableScrollPhysics()
-                                : null,
-                            itemCount: _mediaIds.length,
-                            onPageChanged: (i) {
-                              setState(() {
-                                _currentIndex = i;
-                                _selectedDetectionId = null;
-                              });
-                              unawaited(_warmNeighbours());
-                              if (i >= _mediaIds.length - 3) _loadMore();
-                            },
-                            itemBuilder: (context, i) {
-                              final itemMediaId = _mediaIds[i];
-                              return MediaPageViewItem(
-                                key: ValueKey(itemMediaId),
-                                mediaId: itemMediaId,
-                                isActive: i == _currentIndex,
-                                layers: _layers,
-                                people: people,
-                                onToggleChrome: () => setState(
-                                  () => _chromeVisible = !_chromeVisible,
-                                ),
-                                onZoomChanged: (zoomed) {
-                                  if (_zoomed != zoomed &&
-                                      itemMediaId == _mediaIds[_currentIndex]) {
-                                    setState(() => _zoomed = zoomed);
-                                  }
-                                },
-                                onTapBox: (d) =>
-                                    _showDetectionActions(context, d, people),
-                                initialTimestampMs:
-                                    (itemMediaId == widget.mediaId)
-                                    ? widget.initialTimestampMs
-                                    : null,
-                                onOpenNativePlayer: () async {
-                                  final row = await ref
-                                      .read(libraryRepositoryProvider)
-                                      .mediaById(itemMediaId);
-                                  if (row != null && context.mounted) {
-                                    _openNativeVideoPlayer(context, row);
-                                  }
-                                },
-                              );
-                            },
-                          ),
-                          if (_activeRoiMode)
-                            LayoutBuilder(
-                              builder: (context, constraints) =>
-                                  RoiSelectionOverlay(
-                                    fittedSize: Size(
-                                      constraints.maxWidth,
-                                      constraints.maxHeight,
-                                    ),
-                                    onChanged: (_) {},
-                                    onConfirm: (bbox) => _submitTargetedDetect(
-                                      media,
-                                      _activeRoiKind,
-                                      bbox,
-                                    ),
-                                    onCancel: () =>
-                                        setState(() => _activeRoiMode = false),
-                                  ),
-                            ),
-                        ],
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(_chromeVisible ? kToolbarHeight : 0),
+        child: media == null
+            ? AppBar(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+              )
+            : MediaChromeTopBar(
+                media: media,
+                title:
+                    taken ??
+                    (media.kind == 'video' ? l10n.videoTitle : l10n.photoTitle),
+                layers: _layers,
+                availability: availability,
+                visible: _chromeVisible,
+                onLayersChanged: (updated) => setState(() => _layers = updated),
+                onOpenNativePlayer: () =>
+                    _playVideo(context, media, external: true),
+                onRedetect: () => redetectFlow(context, ref, mediaId: media.id),
+                onChangeFileKind: () => _fileKindMenu(context, media),
+                onLens: () => _searchGoogleLens(context, media),
+              ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) => AnimatedPadding(
+                duration: const Duration(milliseconds: 200),
+                padding: EdgeInsets.only(
+                  bottom: _detailsOpen
+                      ? (constraints.maxHeight -
+                                (MediaQuery.sizeOf(context).height * .25 -
+                                    kToolbarHeight))
+                            .clamp(0.0, constraints.maxHeight)
+                      : 0,
+                ),
+                child: Listener(
+                  onPointerDown: (event) {
+                    _pointerCount++;
+                    if (_pointerCount == 1) {
+                      _swipeStart = event.position;
+                      _multiTouch = false;
+                    } else {
+                      _multiTouch = true;
+                    }
+                  },
+                  onPointerUp: (event) {
+                    _pointerCount--;
+                    final start = _swipeStart;
+                    if (!_multiTouch &&
+                        !_zoomed &&
+                        media != null &&
+                        media.kind == 'photo' &&
+                        start != null &&
+                        start.dy >
+                            MediaQuery.sizeOf(context).height * .65 &&
+                        start.dy - event.position.dy > 80 &&
+                        (start.dx - event.position.dx).abs() < 60) {
+                      _showDetails(
+                        context,
+                        media,
+                        faces,
+                        bodies,
+                        areas,
+                        equipment,
+                        people,
+                      );
+                    }
+                    if (_pointerCount == 0) _swipeStart = null;
+                  },
+                  onPointerCancel: (_) {
+                    _pointerCount = 0;
+                    _swipeStart = null;
+                    _multiTouch = true;
+                  },
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      KeyedSubtree(
+                        key: ValueKey(_pageController),
+                        child: PageView.builder(
+                          key: const Key('media-page-view'),
+                          controller: _pageController,
+                          allowImplicitScrolling: true,
+                          physics: _zoomed
+                              ? const NeverScrollableScrollPhysics()
+                              : null,
+                          itemCount: _mediaIds.length,
+                          onPageChanged: (i) {
+                            if (i >= _mediaIds.length || i == _currentIndex) {
+                              return;
+                            }
+                            setState(() {
+                              _currentIndex = i;
+                              _selectedDetectionId = null;
+                              _zoomed = false;
+                              _activeRoiMode = false;
+                            });
+                            if (i >= _mediaIds.length - 3) unawaited(_loadMore());
+                          },
+                          itemBuilder: (context, i) {
+                            final itemMediaId = _mediaIds[i];
+                            return MediaPageViewItem(
+                              key: ValueKey(itemMediaId),
+                              mediaId: itemMediaId,
+                              isActive: i == _currentIndex,
+                              layers: _layers,
+                              people: people,
+                              onToggleChrome: () => setState(
+                                () => _chromeVisible = !_chromeVisible,
+                              ),
+                              onZoomChanged: (zoomed) {
+                                if (_zoomed != zoomed &&
+                                    itemMediaId == _mediaIds[_currentIndex]) {
+                                  setState(() => _zoomed = zoomed);
+                                }
+                              },
+                              onTapBox: (d) =>
+                                  _showDetectionActions(context, d, people),
+                              initialTimestampMs: itemMediaId == widget.mediaId
+                                  ? widget.initialTimestampMs
+                                  : null,
+                              onPlayVideo: (row, position) =>
+                                  _playVideo(context, row, positionMs: position),
+                            );
+                          },
+                        ),
                       ),
-                    ),
+                      if (_activeRoiMode && media != null)
+                        LayoutBuilder(
+                          builder: (context, constraints) =>
+                              RoiSelectionOverlay(
+                                fittedSize: Size(
+                                  constraints.maxWidth,
+                                  constraints.maxHeight,
+                                ),
+                                onChanged: (_) {},
+                                onConfirm: (bbox) => _submitTargetedDetect(
+                                  media,
+                                  _activeRoiKind,
+                                  bbox,
+                                ),
+                                onCancel: () =>
+                                    setState(() => _activeRoiMode = false),
+                              ),
+                        ),
+                    ],
                   ),
                 ),
               ),
-              MediaChromeBottomBar(
-                media: media,
-                visible: _chromeVisible,
-                onShare: () => _shareOriginal(context, media),
-                onStudio: () => _showStudioMenu(context, media),
-                onTools: () => _showTools(context, media),
-                onDetect: () => _startTargetedDetect(context, media),
-                onDetails: () => _showDetails(
-                  context,
-                  media,
-                  faces,
-                  bodies,
-                  areas,
-                  equipment,
-                  people,
-                ),
-                onLens: () => _searchGoogleLens(context, media),
-                onOpenNativePlayer: () =>
-                    _openNativeVideoPlayer(context, media),
-              ),
-            ],
+            ),
           ),
-        );
-      },
+          if (media != null)
+            MediaChromeBottomBar(
+              media: media,
+              visible: _chromeVisible,
+              onShare: () => _shareOriginal(context, media),
+              onStudio: () => _showStudioMenu(context, media),
+              onTools: () => _showTools(context, media),
+              onDetect: () => _startTargetedDetect(context, media),
+              onDetails: () => _showDetails(
+                context,
+                media,
+                faces,
+                bodies,
+                areas,
+                equipment,
+                people,
+              ),
+              onLens: () => _searchGoogleLens(context, media),
+              onOpenNativePlayer: () =>
+                  _playVideo(context, media, external: true),
+            ),
+        ],
+      ),
     );
   }
 }

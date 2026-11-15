@@ -105,6 +105,19 @@ abstract interface class VideoMediaLibrary {
   Future<String?> videoUri(String assetId);
 }
 
+Future<Uri?> resolveVideoSource(MediaLibrary library, String assetId) async {
+  if (library is! VideoMediaLibrary) return null;
+  final videos = library as VideoMediaLibrary;
+  final source = await videos.videoUri(assetId);
+  final uri = source == null ? null : Uri.tryParse(source);
+  if (uri != null &&
+      (uri.isScheme('content') || uri.isScheme('file')) &&
+      uri.path.isNotEmpty) {
+    return uri;
+  }
+  return (await videos.videoFile(assetId))?.uri;
+}
+
 /// Optional access to the actual original. Browsing and previews never require it.
 abstract interface class OriginalMediaLibrary {
   Future<File?> originalFile(String assetId);

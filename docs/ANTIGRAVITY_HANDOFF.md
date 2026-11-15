@@ -1,5 +1,38 @@
 # Antigravity handoff — 2026-10-19
 
+## One-tap review and automatic matches — 2026-11-15
+
+- Flutter Quick Review shows a named move action when the identity audit proposes a destination. It moves only the faces shown for that destination, with optional exceptions selected in the batch. Other faces remain open. The repository rechecks the audit row, ownership, recent confirmations and rejections before recording the move as a rejected old assignment and a confirmed new one.
+- Single doubtful faces show the full photo. The review actions explain what they do, including keeping the current assignment, moving to Unsorted and postponing. New groups can become an unnamed person in one tap. The same form still accepts a name or a selected existing person. Ambiguous exact names require choosing the intended person.
+- Auto-sort is visible in Quick Review and Unsorted. At the end of full sorting, the existing guarded face-plan applier consumes matches the PC marked automatic in its review response. When any land, the app refreshes the review once. Scores and automatic matching thresholds use the existing policy. Quick Review links directly to actionable unsorted faces when its queue is empty.
+- Verified 18 SQLite checks using SQL from the changed code and synthetic data, including stale moves, rejected destinations, a same-frame automatic conflict and hidden, dismissed or differently classified faces. Checked all 14 added English localization signatures. Added focused Flutter regressions in the quick-review, stored review and grouping-runner suites. Flutter analysis, tests, APK build and real-library acceptance are pending under the standing terminal rule. Changes are local to source.
+
+From `mobile`, run:
+
+```powershell
+flutter analyze
+flutter test test/features/quick_review_test.dart test/features/review_test.dart test/data/review_backlog_test.dart test/domain/grouping_runner_test.dart
+flutter build apk --debug
+```
+
+## Flutter person galleries and Android video playback — 2026-11-15
+
+- The shared media viewer keeps its pager mounted while row metadata loads. It prepares one page in each direction, reuses photo previews and shows a cached grid thumbnail while the larger photo loads. Video neighbours request a poster without opening a decoder.
+- Person album queries start with indexed face and body assignments. Duplicate media occurrences and face-over-body ownership still determine membership. The viewer carries person, group and media type filters from the grid. Long-press navigation also carries the person's selected media type. The paged grid requests thumbnails near the viewport. The thumbnail service shares in-flight requests and caps retained bytes at 24 MiB.
+- Gallery videos show a poster until Play is pressed. The new Android Activity uses Media3 PlayerView and ExoPlayer 1.9.2, matching Flutter's existing decoder dependency. It opens the MediaStore URI directly and releases the player when backgrounded. Face/body layers and timestamp links still open the annotated view, which can hand the current position to the Android player. The toolbar still opens the system player chooser.
+- Compared the previous and current SQLite statements against 60,000 synthetic media rows. All 21 person and media-type combinations returned the same IDs in the same order. One representative ID lookup averaged 54.1 ms before and 1.0 ms after on the development PC. SQLite used the person and detection indexes. Swipe and video startup latency remain unmeasured on the phone.
+- Added Flutter regression coverage for swiping through a pending media row and dispatching Play to the Android player. Flutter tests, static analysis, APK build and device playback are pending under the standing terminal rule in `the app/.agent/rules/r.md`. No APK was installed. The phone library and PC API were untouched. Android builds may need to fetch Media3 UI 1.9.2 from Google Maven.
+
+From `mobile`, run the focused checks and build:
+
+```powershell
+flutter analyze
+flutter test test/features/viewer_gestures_test.dart test/features/viewer_image_cache_test.dart test/features/media_screen_native_player_test.dart test/features/video_media_view_test.dart test/features/review_viewer_test.dart test/data/native_video_player_test.dart test/data/media_queries_test.dart test/data/thumbnail_service_test.dart
+flutter build apk --debug
+```
+
+On Android, open a large person album, swipe in both directions through photos and videos, then check Play, seek, rotate, back and native playback from a detected frame.
+
 ## Manual sort repairs existing people — 2026-11-15
 
 - Flutter's shared Sort faces now action in Library Settings, Review and Quick Review now asks the PC to verify clear reassignment candidates from the existing identity audit, including faces already grouped under named people. It reuses the current grouping API and the saved face embeddings. The success message reports the number of face assignments corrected.

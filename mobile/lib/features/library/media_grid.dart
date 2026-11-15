@@ -93,20 +93,14 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
     }
   }
 
-  Future<List<MediaListItem>> _page(int page) =>
-      _pages.putIfAbsent(page, () async {
-        final items = await _queries.page(
-          widget.filter,
-          offset: page * _pageSize,
-          limit: _pageSize,
-        );
-        if (items.isNotEmpty) {
-          ref.read(thumbnailServiceProvider).preheat([
-            for (final it in items) it.assetId,
-          ]);
-        }
-        return items;
-      });
+  Future<List<MediaListItem>> _page(int page) => _pages.putIfAbsent(
+    page,
+    () => _queries.page(
+      widget.filter,
+      offset: page * _pageSize,
+      limit: _pageSize,
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +110,7 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
     if (count == 0) return widget.empty;
     return GridView.builder(
       key: const Key('media-grid'),
-      scrollCacheExtent: const ScrollCacheExtent.pixels(1400),
+      scrollCacheExtent: const ScrollCacheExtent.pixels(350),
       padding: const EdgeInsets.all(2),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: widget.columns,
@@ -194,6 +188,7 @@ class MediaTile extends ConsumerWidget {
         final params = <String, String>{};
         if (f != null) {
           if (f.personId != null) params['personId'] = '${f.personId}';
+          if (f.groupId != null) params['groupId'] = '${f.groupId}';
           if (f.scan != ScanFilter.all) params['scan'] = f.scan.name;
           if (f.hasFaces != null) params['hasFaces'] = '${f.hasFaces}';
           if (f.kind != null) params['kind'] = f.kind!;

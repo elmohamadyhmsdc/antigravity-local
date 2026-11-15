@@ -792,6 +792,7 @@ class _PersonMediaState extends ConsumerState<_PersonMedia> {
                       context,
                       person: p,
                       item: item,
+                      mediaKind: _kind,
                     ),
             empty: EmptyState(
               icon: Icons.photo_outlined,

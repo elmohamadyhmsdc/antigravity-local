@@ -3293,6 +3293,77 @@ class AppLocalizationsEn extends AppLocalizations {
       'Saved for later. It comes back when new photos give more evidence.';
 
   @override
+  String get quickAutoSort => 'Auto-sort';
+
+  @override
+  String get quickLater => 'Later';
+
+  @override
+  String quickMoveTo(String name, int count) {
+    return 'Move $count to $name';
+  }
+
+  @override
+  String quickMovedTo(String name, int count) {
+    return 'Moved $count to $name';
+  }
+
+  @override
+  String get quickSuggestionChanged =>
+      'The suggestion changed. Check the updated card.';
+
+  @override
+  String quickNoConfidentMatches(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count faces are still unsorted.',
+      one: 'One face is still unsorted.',
+    );
+    return '$_temp0 Try auto-sort or open Unsorted to place them yourself.';
+  }
+
+  @override
+  String quickCheckPerson(String name) {
+    return 'Are you sure these are $name?';
+  }
+
+  @override
+  String quickCheckPersonCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count faces look different from their other photos',
+      one: 'One face looks different from their other photos',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String quickKeepSelection(int removed, int kept) {
+    return 'Remove $removed, keep $kept';
+  }
+
+  @override
+  String quickKeepWith(String name) {
+    return 'Keep with $name';
+  }
+
+  @override
+  String quickAddTo(String name) {
+    return 'Add to $name';
+  }
+
+  @override
+  String get quickUnassign => 'Send to Unsorted';
+
+  @override
+  String get quickOptionalName => 'Optional · type a name or choose someone';
+
+  @override
+  String get quickChooseName => 'Choose the matching person from the list';
+
+  @override
   String get quickAllDone => 'All caught up';
 
   @override

@@ -57,14 +57,14 @@ def clothing_labels(instruction):
     text = normalize_arabic(instruction.casefold())
     upper = re.search(r'\b(?:shirts?|t-shirts?|tops?|jackets?|coats?|hoodies?|sweaters?|bare chest|shirtless|[وبل]?(?:ال)?(?:قميص|تيشيرت|بلوزه|جاكيت|معطف|صدر))\b', text)
     lower = re.search(r'\b(?:pants|trousers|jeans|shorts|trunks|skirts?|[وبل]?(?:ال)?(?:بنطلون|بنطال|شورت|جينز|جيبه|تنوره))\b', text)
-    outfit = re.search(r'\b(?:swimwear|swimsuits?|outfits?|clothes|dresses?|[وبل]?(?:ال)?(?:مايوه|ملابس|هدوم|فستان|بدله))\b', text)
+    outfit = re.search(r'\b(?:swimwear|swimsuits?|outfits?|clothes|dresses? clothes|[وبل]?(?:ال)?(?:مايوه|ملابس|هدوم|فستان|بدله))\b', text)
     if outfit or (upper and lower):
         return (4, 5, 6, 7, 8, 17)
     if upper:
         return (4,)
     if lower:
         return (5, 6, 8)
-    raise PhotoEditError('For automatic selection, name the garment, such as shirt, trousers or dress or naked or topless.')
+    raise PhotoEditError('For automatic selection, name the garment, such as shirt, trousers or dress .')
 
 
 

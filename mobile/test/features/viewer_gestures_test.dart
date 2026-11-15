@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:antigravity_mobile/app.dart';
+import 'package:antigravity_mobile/data/db/app_database.dart';
+import 'package:antigravity_mobile/features/media/media_page_item.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:antigravity_mobile/library_providers.dart';
 import 'package:antigravity_mobile/providers.dart';
@@ -26,6 +29,52 @@ Future<Uint8List> image(WidgetTester tester) async =>
       return bytes!.buffer.asUint8List();
     }))!;
 void main() {
+  appTest('paging stays mounted while the selected media row is still loading', (
+    tester,
+    env,
+  ) async {
+    final slow = await seedMedia(env.db, asset: 'slow');
+    final first = await seedMedia(env.db, asset: 'first');
+    env.library.bytes['first'] = await image(tester);
+    final slowRow = StreamController<MediaRow?>();
+    addTearDown(() => unawaited(slowRow.close()));
+    await env.pump(
+      tester,
+      settle: false,
+      extra: [
+        initialLocationProvider.overrideWithValue('/media/$first'),
+        mediaRowProvider(slow).overrideWith((ref) => slowRow.stream),
+      ],
+    );
+    await tester.pump();
+    final pages = find.byKey(const Key('media-page-view'));
+    final state = tester.state(pages);
+    final controller = tester.widget<PageView>(pages).controller!;
+    expect(controller.page, 0);
+    expect(
+      tester.widget<PageView>(pages).childrenDelegate.estimatedChildCount,
+      2,
+    );
+    final swipe = Offset(tester.getSize(pages).width * .8, 0);
+    await tester.fling(pages, -swipe, 1600);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(tester.state(pages), same(state));
+    expect(controller.page, closeTo(1, .01));
+    expect(
+      tester
+          .widgetList<MediaPageViewItem>(find.byType(MediaPageViewItem))
+          .singleWhere((page) => page.isActive)
+          .mediaId,
+      slow,
+    );
+    await tester.fling(pages, swipe, 1600);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(tester.state(pages), same(state));
+    expect(controller.page, closeTo(0, .01));
+  }, session: testSession);
+
   appTest('single known person exposes tools in details', (tester, env) async {
     final media = await seedMedia(env.db, asset: 'single');
     final person = await seedPerson(env.db, name: 'Nadia');

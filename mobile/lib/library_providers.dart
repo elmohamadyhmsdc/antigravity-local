@@ -265,6 +265,13 @@ final reviewQuestionsByKindProvider = StreamProvider.autoDispose
           ref.watch(reviewRepositoryByKindProvider(kind)).watchQuestions(),
     );
 
+final reviewUnsortedCountByKindProvider = StreamProvider.autoDispose
+    .family<int, String>(
+      (ref, kind) => ref
+          .watch(peopleRepositoryByKindProvider(kind))
+          .watchUnsortedCount(includeDismissed: false),
+    );
+
 final charactersProvider = StreamProvider.autoDispose<List<PersonSummary>>(
   (ref) => ref.watch(characterPeopleRepositoryProvider).watchPeople(),
 );

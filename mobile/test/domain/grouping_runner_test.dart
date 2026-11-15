@@ -617,6 +617,38 @@ void main() {
     },
   );
 
+  test('a match that becomes automatic in review is applied before asking', () async {
+    final sara = await seedPerson(db, name: 'Sara');
+    final media = await seedMedia(db);
+    await seedFace(db, personId: sara, mediaId: media);
+    final automatic = await seedFace(db, seed: 2);
+    final uncertain = await seedFace(db, seed: 3);
+    final conflicted = await seedFace(db, seed: 4, mediaId: media);
+
+    api.groupingHandler = (r) => r.mode == 'apply'
+        ? _plan('apply')
+        : _plan(
+            'review',
+            assignments: [
+              if (r.pending.any((f) => f.id == automatic))
+                _assign(automatic, sara),
+              _assign(uncertain, sara, decision: 'suggest', score: 0.36),
+              _assign(conflicted, sara),
+            ],
+          );
+
+    final result = await runner.run();
+    expect(result.assigned, 1);
+    expect(await personOf(automatic), sara);
+    expect(await personOf(uncertain), isNull);
+    expect(await personOf(conflicted), isNull);
+    expect(
+      (await review.matches()).single.faces.map((f) => f.faceId),
+      unorderedEquals([uncertain, conflicted]),
+    );
+    expect(api.groupingCalls.where((r) => r.mode == 'review'), hasLength(2));
+  });
+
   test(
     'a suggestion disappears from the Review screen when the user sorts the face',
     () async {

@@ -5314,6 +5314,90 @@ abstract class AppLocalizations {
   /// **'Saved for later. It comes back when new photos give more evidence.'**
   String get quickSnoozed;
 
+  /// No description provided for @quickAutoSort.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-sort'**
+  String get quickAutoSort;
+
+  /// No description provided for @quickLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get quickLater;
+
+  /// No description provided for @quickMoveTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Move {count} to {name}'**
+  String quickMoveTo(String name, int count);
+
+  /// No description provided for @quickMovedTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved {count} to {name}'**
+  String quickMovedTo(String name, int count);
+
+  /// No description provided for @quickSuggestionChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The suggestion changed. Check the updated card.'**
+  String get quickSuggestionChanged;
+
+  /// No description provided for @quickNoConfidentMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{One face is still unsorted.} other{{count} faces are still unsorted.}} Try auto-sort or open Unsorted to place them yourself.'**
+  String quickNoConfidentMatches(int count);
+
+  /// No description provided for @quickCheckPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure these are {name}?'**
+  String quickCheckPerson(String name);
+
+  /// No description provided for @quickCheckPersonCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{One face looks different from their other photos} other{{count} faces look different from their other photos}}'**
+  String quickCheckPersonCount(int count);
+
+  /// No description provided for @quickKeepSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {removed}, keep {kept}'**
+  String quickKeepSelection(int removed, int kept);
+
+  /// No description provided for @quickKeepWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep with {name}'**
+  String quickKeepWith(String name);
+
+  /// No description provided for @quickAddTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to {name}'**
+  String quickAddTo(String name);
+
+  /// No description provided for @quickUnassign.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to Unsorted'**
+  String get quickUnassign;
+
+  /// No description provided for @quickOptionalName.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional · type a name or choose someone'**
+  String get quickOptionalName;
+
+  /// No description provided for @quickChooseName.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the matching person from the list'**
+  String get quickChooseName;
+
   /// No description provided for @quickAllDone.
   ///
   /// In en, this message translates to:

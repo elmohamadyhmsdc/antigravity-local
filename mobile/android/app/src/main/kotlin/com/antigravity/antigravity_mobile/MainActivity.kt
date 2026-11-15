@@ -13,6 +13,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.content.Intent
+import android.net.Uri
+import androidx.core.content.FileProvider
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     companion object {
@@ -68,27 +71,34 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler(wakeLockBridge::handle)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "antigravity/video_player")
             .setMethodCallHandler { call, result ->
-                if (call.method != "openNativePlayer") {
+                val method = call.method
+                if (method != "playNativeVideo" && method != "openNativePlayer") {
                     result.notImplemented()
                     return@setMethodCallHandler
                 }
-                val uriStr = call.argument<String>("uri")
-                if (uriStr == null) {
-                    result.error("no_uri", "Video URI is required", null)
+                val uri = call.argument<String>("uri")?.let(Uri::parse)
+                if (uri == null || uri.scheme !in setOf("content", "file")) {
+                    result.error("no_uri", "A local video URI is required", null)
                     return@setMethodCallHandler
                 }
-                val title = call.argument<String>("title") ?: "Video"
                 try {
-                    val uri = android.net.Uri.parse(uriStr)
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(uri, "video/*")
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    if (method == "playNativeVideo") {
+                        val position = call.argument<Number>("positionMs")?.toLong() ?: 0L
+                        startActivity(NativePlaybackActivity.intent(this, uri, position))
+                    } else {
+                        val sharedUri = if (uri.scheme == "file") {
+                            val path = requireNotNull(uri.path)
+                            FileProvider.getUriForFile(this, "$packageName.fileprovider", File(path))
+                        } else {
+                            uri
+                        }
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(sharedUri, "video/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        val title = call.argument<String>("title") ?: "Video"
+                        startActivity(Intent.createChooser(intent, title))
                     }
-                    val chooser = Intent.createChooser(intent, title).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    startActivity(chooser)
                     result.success(true)
                 } catch (e: Exception) {
                     result.error("launch_failed", e.message, null)

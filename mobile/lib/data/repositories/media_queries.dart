@@ -155,14 +155,34 @@ class MediaQueries {
     if (f.hasFaces == false) {
       clauses.add("m.scan_status = 'done' AND NOT $_hasFace");
     }
-    if (f.personId != null) {
-      clauses.add(
-        "EXISTS (SELECT 1 FROM media_detections d LEFT JOIN faces fa ON d.kind = 'f' AND fa.id = d.ref_id "
-        "LEFT JOIN bodies b ON d.kind = 'b' AND b.id = d.ref_id "
-        'LEFT JOIN faces bf ON bf.id = b.face_id WHERE d.media_id = m.id AND '
-        'COALESCE(fa.person_id, bf.person_id, b.person_id) = ?)',
-      );
-      vars.add(Variable.withInt(f.personId!));
+    if (f.personId case final personId?) {
+      // Start with indexed assignments for this person and keep duplicate
+      // media links from detections on copies of the original.
+      clauses.add('''
+        m.id IN (
+          SELECT d.media_id
+          FROM faces f
+          CROSS JOIN media_detections d ON d.kind = 'f' AND d.ref_id = f.id
+          WHERE f.person_id = ?
+          UNION ALL
+          SELECT d.media_id
+          FROM faces f
+          CROSS JOIN bodies b ON b.face_id = f.id
+          CROSS JOIN media_detections d ON d.kind = 'b' AND d.ref_id = b.id
+          WHERE f.person_id = ?
+          UNION ALL
+          SELECT d.media_id
+          FROM bodies b
+          CROSS JOIN media_detections d ON d.kind = 'b' AND d.ref_id = b.id
+          LEFT JOIN faces f ON f.id = b.face_id
+          WHERE b.person_id = ? AND f.person_id IS NULL
+        )
+      ''');
+      vars.addAll([
+        Variable.withInt(personId),
+        Variable.withInt(personId),
+        Variable.withInt(personId),
+      ]);
     }
     if (f.groupId != null) {
       clauses.add(

@@ -13,7 +13,7 @@ import '../support/seed.dart';
 
 void main() {
   testWidgets(
-    'MediaScreen shows native player button for videos and launches intent',
+    'gallery video can use the in-app Android player or an external player',
     (tester) async {
       final db = AppDatabase(NativeDatabase.memory());
       addTearDown(db.close);
@@ -29,15 +29,20 @@ void main() {
         uris: {'video_asset_1': 'content://media/external/video/media/42'},
       );
 
+      const channel = MethodChannel('antigravity/video_player');
       MethodCall? playerCall;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-            const MethodChannel('antigravity/video_player'),
+            channel,
             (call) async {
               playerCall = call;
               return true;
             },
           );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null),
+      );
 
       await tester.pumpWidget(
         ProviderScope(
@@ -54,6 +59,17 @@ void main() {
 
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
+
+      final play = find.byKey(const Key('media-play-video'));
+      expect(play, findsOneWidget);
+      expect(playerCall, isNull);
+      await tester.tap(play);
+      await tester.pump();
+      expect(playerCall?.method, 'playNativeVideo');
+      expect(
+        playerCall?.arguments['uri'],
+        'content://media/external/video/media/42',
+      );
 
       final playerButton = find.byKey(const Key('media-open-native-player'));
       expect(playerButton, findsOneWidget);

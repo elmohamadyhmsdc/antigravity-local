@@ -86,20 +86,6 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
   /// "Are you sure?" questions: the faces the user tapped as NOT that person, per question.
   final _marked = <String, Set<int>>{};
 
-  /// Questions where the user chose to send the removed faces to the person they look like.
-  final _moveTo = <String>{};
-
-  /// face -> the person the audit found a better home in (only for the faces that have one).
-  Map<int, int> _suggestions(ReviewQuestion q, Iterable<int> faceIds) {
-    if (!_moveTo.contains(q.key)) return const {};
-    final wanted = faceIds.toSet();
-    return {
-      for (final f in q.doubtful!.faces)
-        if (wanted.contains(f.faceId) && f.suggested != null)
-          f.faceId: f.suggested!.id,
-    };
-  }
-
   ReviewRepository get _review => reviewRepositoryFor(ref, widget.kind);
   PeopleRepository get _people => peopleRepositoryFor(ref, widget.kind);
 
@@ -113,6 +99,7 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
       if (await action() && mounted) {
         setState(() {
           _answered++;
+          _marked.remove(q.key);
           _done[q.key] = (q.score, q.evidence);
         });
       }
@@ -176,11 +163,7 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
           await _review.confirmDoubtful(keep, item.person.id);
         }
         if (out.isNotEmpty) {
-          await _review.removeDoubtful(
-            out,
-            item.person.id,
-            moveTo: _suggestions(q, out),
-          );
+          await _review.removeDoubtful(out, item.person.id);
         }
     }
     return true;
@@ -204,11 +187,7 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
       case ReviewQuestionKind.doubtful:
         // none of these is her
         final all = [for (final x in q.doubtful!.faces) x.faceId];
-        await _review.removeDoubtful(
-          all,
-          q.doubtful!.person.id,
-          moveTo: _suggestions(q, all),
-        );
+        await _review.removeDoubtful(all, q.doubtful!.person.id);
     }
     return true;
   });
@@ -282,6 +261,31 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
     return true;
   });
 
+  Future<void> _moveSuggested(
+    ReviewQuestion q,
+    PersonSummary target,
+    List<int> faceIds,
+  ) => _run(q, () async {
+    final l = AppLocalizations.of(context);
+    final moved = await _review.moveSuggestedFaces(
+      faceIds: faceIds,
+      fromPersonId: q.doubtful!.person.id,
+      toPersonId: target.id,
+    );
+    if (mounted) {
+      _toast(
+        ScaffoldMessenger.of(context),
+        moved == 0
+            ? l.quickSuggestionChanged
+            : l.quickMovedTo(personName(l, target), moved),
+      );
+      if (moved == 0) {
+        ref.invalidate(reviewQuestionsByKindProvider(widget.kind));
+      }
+    }
+    return moved > 0;
+  });
+
   Future<void> _group(ReviewQuestion q, String name, PersonSummary? person) =>
       _run(q, () async {
         final ids = [for (final f in q.group!.faces) f.faceId];
@@ -334,16 +338,10 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
       appBar: AppBar(
         title: Text(l.quickReviewTitle),
         actions: [
-          IconButton(
+          TextButton(
             key: const Key('review-sort-now'),
-            tooltip: sorting ? l.sorting : l.sortNow,
-            icon: sorting
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.auto_fix_high),
             onPressed: sorting ? null : () => sortNow(context, ref),
+            child: Text(sorting ? l.sorting : l.quickAutoSort),
           ),
           TextButton(
             key: const Key('quick-see-all'),
@@ -386,13 +384,30 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
                     .value
                     ?.rawTotal ??
                 0;
+            final unsorted =
+                ref
+                    .watch(reviewUnsortedCountByKindProvider(widget.kind))
+                    .value ??
+                0;
             return EmptyState(
               key: const Key('quick-all-done'),
               icon: Icons.task_alt,
               title: l.quickAllDone,
-              body: left > 0 ? l.reviewDeferred(left) : l.quickAllDoneBody,
-              actionLabel: left > 0 ? l.quickSeeAll : null,
-              onAction: left > 0
+              body: left > 0
+                  ? l.reviewDeferred(left)
+                  : unsorted > 0
+                  ? l.quickNoConfidentMatches(unsorted)
+                  : l.quickAllDoneBody,
+              actionLabel: unsorted > 0
+                  ? l.unsortedCardTitle
+                  : left > 0
+                  ? l.quickSeeAll
+                  : null,
+              onAction: unsorted > 0
+                  ? () => context.push(
+                      '${Routes.review}?queue=unsorted&kind=${widget.kind}',
+                    )
+                  : left > 0
                   ? () => openAllReview(context, widget.kind)
                   : null,
             );
@@ -409,6 +424,18 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
             );
           }
           final q = open.first;
+          final marked = _marked[q.key] ?? const <int>{};
+          final candidates = [
+            for (final f in q.doubtful?.faces ?? const <ReviewDoubtfulFace>[])
+              if (f.suggested != null &&
+                  (marked.isEmpty || marked.contains(f.faceId)))
+                f,
+          ];
+          final target = candidates.isEmpty ? null : candidates.first.suggested;
+          final moves = [
+            for (final f in candidates)
+              if (f.suggested?.id == target?.id) f.faceId,
+          ];
           final total =
               sessionAnswered +
               open.length.clamp(0, reviewSessionSize - sessionAnswered);
@@ -421,11 +448,13 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
             advanced: advanced,
             busy: _busy,
             drag: _drag,
-            marked: _marked[q.key] ?? const <int>{},
-            moveToSuggested: _moveTo.contains(q.key),
-            onToggleMove: () => setState(() {
-              if (!_moveTo.remove(q.key)) _moveTo.add(q.key);
-            }),
+            marked: marked,
+            moveLabel: target == null
+                ? null
+                : l.quickMoveTo(personName(l, target), moves.length),
+            onMove: target == null
+                ? null
+                : () => _moveSuggested(q, target, moves),
             onToggle: (faceId) => setState(() {
               final set = _marked.putIfAbsent(q.key, () => <int>{});
               if (!set.remove(faceId)) set.add(faceId);
@@ -476,13 +505,12 @@ class _QuestionView extends ConsumerWidget {
     this.onIgnore,
     required this.marked,
     required this.onToggle,
-    required this.moveToSuggested,
-    required this.onToggleMove,
+    this.moveLabel,
+    this.onMove,
   });
 
-  /// "Move to the person they look like" is on for this question.
-  final bool moveToSuggested;
-  final VoidCallback onToggleMove;
+  final String? moveLabel;
+  final VoidCallback? onMove;
 
   /// Faces of an "are you sure?" question the user tapped as not that person.
   final Set<int> marked;
@@ -542,8 +570,10 @@ class _QuestionView extends ConsumerWidget {
         null,
       ),
       ReviewQuestionKind.doubtful => (
-        'Are you sure these are ${personName(l, q.doubtful!.person)}?',
-        '${q.doubtful!.remaining} of her faces look different from the rest',
+        q.doubtful!.faces.length == 1
+            ? l.reviewMatchQuestion(personName(l, q.doubtful!.person))
+            : l.quickCheckPerson(personName(l, q.doubtful!.person)),
+        l.quickCheckPersonCount(q.doubtful!.remaining),
         q.doubtful!.person,
       ),
     };
@@ -571,11 +601,9 @@ class _QuestionView extends ConsumerWidget {
       ReviewQuestionKind.outfit => _Photo(kind: 'b', id: q.outfit!.bodyId),
       ReviewQuestionKind.duplicate => _Pair(item: q.duplicate!),
       ReviewQuestionKind.group => _Group(item: q.group!),
-      ReviewQuestionKind.doubtful => _Doubtful(
-        item: q.doubtful!,
-        marked: marked,
-        onToggle: onToggle,
-      ),
+      ReviewQuestionKind.doubtful => q.doubtful!.faces.length == 1
+          ? _Photo(kind: 'f', id: q.doubtful!.faces.single.faceId)
+          : _Doubtful(item: q.doubtful!, marked: marked, onToggle: onToggle),
     };
 
     return Column(
@@ -673,7 +701,6 @@ class _QuestionView extends ConsumerWidget {
                     kind: kind,
                     busy: busy,
                     onSave: onGroup,
-                    onNo: onNo,
                     onNotSure: onNotSure,
                     onIgnore: onIgnore,
                   )
@@ -687,13 +714,9 @@ class _QuestionView extends ConsumerWidget {
                         ? q.matchFaces.length
                         : q.doubtful!.faces.length,
                     marked: marked.length,
-                    suggestions: [
-                      for (final f
-                          in q.doubtful?.faces ?? <ReviewDoubtfulFace>[])
-                        if (f.suggested != null) f,
-                    ].length,
-                    move: moveToSuggested,
-                    onMove: onToggleMove,
+                    existingAssignment: q.kind == ReviewQuestionKind.doubtful,
+                    moveLabel: moveLabel,
+                    onMove: onMove,
                     busy: busy,
                     onYes: onYes,
                     onNo: onNo,
@@ -787,7 +810,7 @@ class _YesNoBar extends StatelessWidget {
                 key: const Key('quick-unsure'),
                 style: TextButton.styleFrom(minimumSize: size),
                 onPressed: busy ? null : onNotSure,
-                child: Text(l.quickNotSure, textAlign: TextAlign.center),
+                child: Text(l.quickLater, textAlign: TextAlign.center),
               ),
             ),
             const SizedBox(width: 8),
@@ -821,7 +844,6 @@ class _GroupAnswer extends ConsumerStatefulWidget {
     required this.kind,
     required this.busy,
     required this.onSave,
-    required this.onNo,
     required this.onNotSure,
     this.onIgnore,
   });
@@ -829,7 +851,7 @@ class _GroupAnswer extends ConsumerStatefulWidget {
   final String kind;
   final bool busy;
   final void Function(String name, PersonSummary? person) onSave;
-  final VoidCallback onNo, onNotSure;
+  final VoidCallback onNotSure;
   final VoidCallback? onIgnore;
 
   @override
@@ -875,6 +897,7 @@ class _GroupAnswerState extends ConsumerState<_GroupAnswer> {
         : exact.length == 1
         ? exact.single
         : null;
+    final ambiguous = picked == null && exact.length > 1;
     const size = Size.fromHeight(56);
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -901,7 +924,7 @@ class _GroupAnswerState extends ConsumerState<_GroupAnswer> {
             decoration: InputDecoration(
               border: const OutlineInputBorder(),
               labelText: l.personNameLabel,
-              hintText: l.quickWhoHint,
+              hintText: l.quickOptionalName,
               prefixIcon: picked == null
                   ? const Icon(Icons.person_add_alt_1)
                   : Padding(
@@ -911,8 +934,10 @@ class _GroupAnswerState extends ConsumerState<_GroupAnswer> {
                         radius: 14,
                       ),
                     ),
-              helperText: picked == null
-                  ? l.quickNewPersonHelper
+              helperText: ambiguous
+                  ? l.quickChooseName
+                  : picked == null
+                  ? null
                   : l.quickAddToHelper(personName(l, picked)),
             ),
           ),
@@ -946,45 +971,38 @@ class _GroupAnswerState extends ConsumerState<_GroupAnswer> {
           optionsViewOpenDirection: OptionsViewOpenDirection.up,
         ),
         const SizedBox(height: 10),
+        FilledButton(
+          key: const Key('quick-yes'),
+          style: FilledButton.styleFrom(minimumSize: size),
+          onPressed: widget.busy || ambiguous
+              ? null
+              : () => widget.onSave(_name.text.trim(), picked),
+          child: Text(
+            picked == null
+                ? l.createPerson
+                : l.quickAddTo(personName(l, picked)),
+            textAlign: TextAlign.center,
+          ),
+        ),
         Row(
           children: [
-            Expanded(
-              child: OutlinedButton(
-                key: const Key('quick-no'),
-                style: OutlinedButton.styleFrom(minimumSize: size),
-                onPressed: widget.busy ? null : widget.onNo,
-                child: Text(l.notAPerson, textAlign: TextAlign.center),
+            if (widget.onIgnore != null)
+              Expanded(
+                child: TextButton(
+                  key: const Key('quick-ignore'),
+                  onPressed: widget.busy ? null : widget.onIgnore,
+                  child: Text(l.notAPerson, textAlign: TextAlign.center),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
             Expanded(
               child: TextButton(
                 key: const Key('quick-unsure'),
-                style: TextButton.styleFrom(minimumSize: size),
                 onPressed: widget.busy ? null : widget.onNotSure,
-                child: Text(l.quickNotSure, textAlign: TextAlign.center),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton(
-                key: const Key('quick-yes'),
-                style: FilledButton.styleFrom(minimumSize: size),
-                onPressed: widget.busy
-                    ? null
-                    : () => widget.onSave(_name.text.trim(), picked),
-                child: Text(l.save),
+                child: Text(l.quickLater, textAlign: TextAlign.center),
               ),
             ),
           ],
         ),
-        if (widget.onIgnore != null)
-          TextButton.icon(
-            key: const Key('quick-ignore'),
-            onPressed: widget.busy ? null : widget.onIgnore,
-            icon: const Icon(Icons.visibility_off_outlined, size: 18),
-            label: const Text('Ignore - not important, never show again'),
-          ),
       ],
     );
   }
@@ -1199,9 +1217,9 @@ class _DoubtfulBar extends StatelessWidget {
     required this.name,
     required this.total,
     required this.marked,
-    required this.suggestions,
-    required this.move,
-    required this.onMove,
+    required this.existingAssignment,
+    this.moveLabel,
+    this.onMove,
     required this.busy,
     required this.onYes,
     required this.onNo,
@@ -1209,11 +1227,9 @@ class _DoubtfulBar extends StatelessWidget {
     this.onIgnore,
   });
 
-  /// Faces of this batch the audit found a better home for, and whether the user chose to send the
-  /// removed ones there.
-  final int suggestions;
-  final bool move;
-  final VoidCallback onMove;
+  final bool existingAssignment;
+  final String? moveLabel;
+  final VoidCallback? onMove;
 
   final VoidCallback? onIgnore;
   final String name;
@@ -1229,27 +1245,27 @@ class _DoubtfulBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (suggestions > 0)
-          CheckboxListTile(
+        if (moveLabel != null) ...[
+          FilledButton.tonalIcon(
             key: const Key('quick-doubtful-move'),
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            value: move,
-            onChanged: busy ? null : (_) => onMove(),
-            title: Text(
-              'Move the removed faces to the person they look like ($suggestions have one)',
-            ),
+            style: FilledButton.styleFrom(minimumSize: size),
+            onPressed: busy ? null : onMove,
+            icon: const Icon(Icons.swap_horiz),
+            label: Text(moveLabel!, textAlign: TextAlign.center),
           ),
+          const SizedBox(height: 8),
+        ],
         FilledButton.icon(
           key: const Key('quick-yes'),
           style: FilledButton.styleFrom(minimumSize: size),
           onPressed: busy ? null : onYes,
           icon: Icon(marked == 0 ? Icons.check : Icons.rule),
           label: Text(
-            marked == 0
-                ? 'Yes, all $total are $name'
-                : 'Remove $marked, keep ${total - marked}',
+            marked > 0
+                ? l.quickKeepSelection(marked, total - marked)
+                : existingAssignment
+                ? l.quickKeepWith(name)
+                : l.quickAddTo(name),
             textAlign: TextAlign.center,
           ),
         ),
@@ -1261,7 +1277,10 @@ class _DoubtfulBar extends StatelessWidget {
                 key: const Key('quick-no'),
                 style: OutlinedButton.styleFrom(minimumSize: size),
                 onPressed: busy ? null : onNo,
-                child: Text('None are $name', textAlign: TextAlign.center),
+                child: Text(
+                  existingAssignment ? l.quickUnassign : l.quickNo,
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -1270,7 +1289,7 @@ class _DoubtfulBar extends StatelessWidget {
                 key: const Key('quick-unsure'),
                 style: TextButton.styleFrom(minimumSize: size),
                 onPressed: busy ? null : onNotSure,
-                child: Text(l.quickNotSure, textAlign: TextAlign.center),
+                child: Text(l.quickLater, textAlign: TextAlign.center),
               ),
             ),
           ],

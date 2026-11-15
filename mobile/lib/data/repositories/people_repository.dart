@@ -271,10 +271,14 @@ class PeopleRepository {
     return out;
   }
 
-  Stream<int> watchUnsortedCount() => _db
+  Stream<int> watchUnsortedCount({bool includeDismissed = true}) => _db
       .customSelect(
-        'SELECT COUNT(*) AS n FROM faces WHERE person_id IS NULL AND hidden = 0 AND kind = ?',
-        variables: [Variable.withString(kind)],
+        '''
+        SELECT COUNT(*) AS n FROM faces
+        WHERE person_id IS NULL AND hidden = 0 AND kind = ?
+          AND (? OR (review_dismissed = 0 AND ownership IS NOT 'none'))
+        ''',
+        variables: [Variable.withString(kind), Variable.withBool(includeDismissed)],
         readsFrom: {_db.faces},
       )
       .watchSingle()

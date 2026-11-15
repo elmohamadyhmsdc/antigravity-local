@@ -8,12 +8,19 @@ import 'media_library.dart';
 /// Grid thumbnails of the user's photos, kept in an LRU memory cache
 /// with synchronous peek so scrolling and remounting are instantaneous.
 class ThumbnailService {
-  ThumbnailService(this._library, {this.capacity = 2000});
+  ThumbnailService(
+    this._library, {
+    this.capacity = 2000,
+    this.maxBytes = 24 * 1024 * 1024,
+  });
 
   final MediaLibrary _library;
   final int capacity;
-  final _cache = <String, Future<Uint8List?>>{};
+  final int maxBytes;
+  final _pending = <String, Future<Uint8List?>>{};
   final _syncCache = <String, Uint8List>{};
+  var _bytes = 0;
+  var _generation = 0;
 
   /// Synchronously returns cached bytes if already resolved in memory.
   Uint8List? getSync(String assetId, {int size = 256}) {
@@ -34,44 +41,33 @@ class ThumbnailService {
   }) {
     final key = '$assetId@$size';
 
-    // 1. Check synchronous cache first
     final cached = getSync(assetId, size: size);
-    if (cached != null) {
-      return Future.value(cached);
-    }
+    if (cached != null) return Future.value(cached);
 
-    // 2. Check pending future in cache
-    final hit = _cache.remove(key);
-    if (hit != null) {
-      _cache[key] = hit; // most recently used goes last
-      return hit;
-    }
-
-    // 3. Initiate fetch from library
-    final future = _library
-        .thumbnail(assetId, width: width, height: height, size: size)
-        .then((bytes) {
-          if (bytes != null) {
-            _syncCache.remove(key);
-            _syncCache[key] = bytes;
-            while (_syncCache.length > capacity) {
-              _syncCache.remove(_syncCache.keys.first);
-            }
-          } else {
-            _cache.remove(key);
+    return _pending.putIfAbsent(key, () {
+      final generation = _generation;
+      return Future<Uint8List?>.sync(
+        () => _library.thumbnail(
+          assetId,
+          width: width,
+          height: height,
+          size: size,
+        ),
+      ).catchError((_) => null).then((bytes) {
+        if (generation != _generation) return bytes;
+        _pending.remove(key);
+        if (bytes != null &&
+            bytes.isNotEmpty &&
+            bytes.lengthInBytes <= maxBytes) {
+          _syncCache[key] = bytes;
+          _bytes += bytes.lengthInBytes;
+          while (_bytes > maxBytes || _syncCache.length > capacity) {
+            _bytes -= _syncCache.remove(_syncCache.keys.first)!.lengthInBytes;
           }
-          return bytes;
-        })
-        .catchError((_) {
-          _cache.remove(key);
-          return null;
-        });
-
-    _cache[key] = future;
-    while (_cache.length > capacity) {
-      _cache.remove(_cache.keys.first);
-    }
-    return future;
+        }
+        return bytes == null || bytes.isEmpty ? null : bytes;
+      });
+    });
   }
 
   /// Triggers background preheating of thumbnails on the native platform loader (e.g. Glide).
@@ -103,7 +99,9 @@ class ThumbnailService {
   }
 
   void clear() {
-    _cache.clear();
+    _generation++;
+    _pending.clear();
     _syncCache.clear();
+    _bytes = 0;
   }
 }

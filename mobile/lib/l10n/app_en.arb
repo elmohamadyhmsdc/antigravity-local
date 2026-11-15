@@ -1837,6 +1837,85 @@
   "quickByWeakFace": "Recognised by a small or blurry face",
   "quickByEventOutfit": "Same outfit, same day",
   "quickSnoozed": "Saved for later. It comes back when new photos give more evidence.",
+  "quickAutoSort": "Auto-sort",
+  "quickLater": "Later",
+  "quickMoveTo": "Move {count} to {name}",
+  "@quickMoveTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "quickMovedTo": "Moved {count} to {name}",
+  "@quickMovedTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "quickSuggestionChanged": "The suggestion changed. Check the updated card.",
+  "quickNoConfidentMatches": "{count, plural, =1{One face is still unsorted.} other{{count} faces are still unsorted.}} Try auto-sort or open Unsorted to place them yourself.",
+  "@quickNoConfidentMatches": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "quickCheckPerson": "Are you sure these are {name}?",
+  "@quickCheckPerson": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "quickCheckPersonCount": "{count, plural, =1{One face looks different from their other photos} other{{count} faces look different from their other photos}}",
+  "@quickCheckPersonCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "quickKeepSelection": "Remove {removed}, keep {kept}",
+  "@quickKeepSelection": {
+    "placeholders": {
+      "removed": {
+        "type": "int"
+      },
+      "kept": {
+        "type": "int"
+      }
+    }
+  },
+  "quickKeepWith": "Keep with {name}",
+  "@quickKeepWith": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "quickAddTo": "Add to {name}",
+  "@quickAddTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "quickUnassign": "Send to Unsorted",
+  "quickOptionalName": "Optional · type a name or choose someone",
+  "quickChooseName": "Choose the matching person from the list",
   "quickAllDone": "All caught up",
   "quickAllDoneBody": "New questions appear after the next scan or Sort now.",
   "quickAllDoneSnoozed": "{count, plural, =1{1 answer you weren't sure about is waiting until there is more evidence. See all to decide now.} other{{count} answers you weren't sure about are waiting until there is more evidence. See all to decide now.}}",

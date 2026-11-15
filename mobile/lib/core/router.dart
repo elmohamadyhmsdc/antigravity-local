@@ -237,6 +237,9 @@ GoRouter createRouter({
           final personId = int.tryParse(
             state.uri.queryParameters['personId'] ?? '',
           );
+          final groupId = int.tryParse(
+            state.uri.queryParameters['groupId'] ?? '',
+          );
           final scanName = state.uri.queryParameters['scan'];
           final scan = scanName != null
               ? ScanFilter.values.firstWhere(
@@ -250,11 +253,13 @@ GoRouter createRouter({
           final kind = state.uri.queryParameters['kind'];
           final filter =
               (personId != null ||
+                  groupId != null ||
                   scan != ScanFilter.all ||
                   hasFaces != null ||
                   kind != null)
               ? MediaFilter(
                   personId: personId,
+                  groupId: groupId,
                   scan: scan,
                   hasFaces: hasFaces,
                   kind: kind,

@@ -565,14 +565,28 @@ class ReviewRepository {
     final rows = await _db
         .customSelect(
           '''
-          SELECT d.face_id, d.person_id, d.score, d.suggested_person_id, f.crop_path
+          SELECT d.face_id, d.person_id, d.score, f.crop_path,
+                 t.id AS suggested_person_id
           FROM review_doubtful d JOIN faces f ON f.id = d.face_id
+          LEFT JOIN persons t ON t.id = d.suggested_person_id
+            AND t.id != d.person_id AND t.kind = f.kind
+            AND t.hidden = 0 AND t.grouping_locked = 0
+            AND NOT EXISTS (
+              SELECT 1 FROM face_rejections r
+              WHERE r.face_id = d.face_id AND r.person_id = t.id
+            )
           WHERE f.person_id = d.person_id AND f.hidden = 0 AND f.kind = ?
             AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = f.id AND c.person_id = f.person_id)
           ORDER BY d.person_id, d.score ASC, d.face_id
           ''',
           variables: [Variable.withString(kind)],
-          readsFrom: {_db.reviewDoubtful, _db.faces, _db.faceConfirmations},
+          readsFrom: {
+            _db.reviewDoubtful,
+            _db.faces,
+            _db.faceConfirmations,
+            _db.faceRejections,
+            _db.persons,
+          },
         )
         .get();
     final byPerson = <int, List<ReviewDoubtfulFace>>{};
@@ -639,6 +653,57 @@ class ReviewRepository {
         await _people.assignFaces(e.value, e.key);
       }
     }
+  });
+
+  /// Confirms a shown destination while the audit and face assignment still agree.
+  Future<int> moveSuggestedFaces({
+    required List<int> faceIds,
+    required int fromPersonId,
+    required int toPersonId,
+  }) => _db.transaction(() async {
+    if (faceIds.isEmpty || fromPersonId == toPersonId) return 0;
+    final target = await _people.person(toPersonId);
+    if (target == null ||
+        target.kind != kind ||
+        target.hidden ||
+        target.groupingLocked) {
+      return 0;
+    }
+    final placeholders = List.filled(faceIds.length, '?').join(',');
+    final matches = await _db
+        .customSelect(
+          '''
+          SELECT f.id
+          FROM faces f JOIN review_doubtful d ON d.face_id = f.id
+          WHERE f.id IN ($placeholders)
+            AND f.person_id = ? AND d.person_id = f.person_id
+            AND d.suggested_person_id = ? AND f.kind = ?
+            AND f.hidden = 0 AND f.review_dismissed = 0 AND f.ownership IS NOT 'none'
+            AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = f.id)
+            AND NOT EXISTS (
+              SELECT 1 FROM face_rejections r
+              WHERE r.face_id = f.id AND r.person_id = d.suggested_person_id
+            )
+          ''',
+          variables: [
+            for (final id in faceIds) Variable.withInt(id),
+            Variable.withInt(fromPersonId),
+            Variable.withInt(toPersonId),
+            Variable.withString(kind),
+          ],
+          readsFrom: {
+            _db.faces,
+            _db.reviewDoubtful,
+            _db.faceConfirmations,
+            _db.faceRejections,
+          },
+        )
+        .get();
+    final eligible = [for (final row in matches) row.read<int>('id')];
+    if (eligible.isEmpty) return 0;
+    await _people.rejectFaces(eligible, fromPersonId: fromPersonId);
+    await _people.assignFaces(eligible, toPersonId);
+    return eligible.length;
   });
 
   // ---- quick review ---------------------------------------------------------------

@@ -215,6 +215,36 @@ void main() {
       },
     );
 
+    test('a suggested move respects a newer rejection of its destination', () async {
+      final source = await seedPerson(db);
+      final target = await seedPerson(db);
+      final face = await seedFace(db, personId: source);
+      await db.into(db.reviewDoubtful).insert(
+        ReviewDoubtfulCompanion.insert(
+          faceId: Value(face),
+          personId: source,
+          score: 0.1,
+          suggestedPersonId: Value(target),
+        ),
+      );
+      expect((await review.doubtful()).single.faces.single.suggested?.id, target);
+      await db.into(db.faceRejections).insert(
+        FaceRejectionsCompanion.insert(faceId: face, personId: target),
+      );
+
+      expect((await review.doubtful()).single.faces.single.suggested, isNull);
+      expect(
+        await review.moveSuggestedFaces(
+          faceIds: [face],
+          fromPersonId: source,
+          toPersonId: target,
+        ),
+        0,
+      );
+      expect((await db.select(db.faces).get()).single.personId, source);
+      expect((await db.select(db.faceRejections).get()).single.personId, target);
+    });
+
     test(
       'a stale repair card does not remove a newer identity confirmation',
       () async {

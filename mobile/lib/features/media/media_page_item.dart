@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,7 +35,7 @@ class MediaPageViewItem extends ConsumerStatefulWidget {
     required this.people,
     required this.onTapBox,
     this.initialTimestampMs,
-    required this.onOpenNativePlayer,
+    required this.onPlayVideo,
   });
 
   final int mediaId;
@@ -45,7 +46,7 @@ class MediaPageViewItem extends ConsumerStatefulWidget {
   final Map<int, PersonSummary> people;
   final void Function(MediaDetection) onTapBox;
   final int? initialTimestampMs;
-  final VoidCallback onOpenNativePlayer;
+  final void Function(MediaRow, int?) onPlayVideo;
 
   @override
   ConsumerState<MediaPageViewItem> createState() => _MediaPageViewItemState();
@@ -55,7 +56,8 @@ class _MediaPageViewItemState extends ConsumerState<MediaPageViewItem> {
   final _transform = TransformationController();
   Offset _doubleTap = Offset.zero;
   Future<LoadedImage?>? _image;
-  String? _assetId;
+  Future<Uint8List?>? _thumbnail;
+  (String, String)? _source;
 
   @override
   void initState() {
@@ -79,65 +81,81 @@ class _MediaPageViewItemState extends ConsumerState<MediaPageViewItem> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final row = ref.watch(mediaRowProvider(widget.mediaId));
-    final detections =
-        ref.watch(detectionsProvider(widget.mediaId)).value ??
-        const <MediaDetection>[];
-
     return row.when(
       loading: () => const LoadingBox(),
-      error: (_, _) =>
-          EmptyState(icon: Icons.photo_outlined, title: l10n.photoGone),
+      error: (_, _) => RetryState(
+        onRetry: () => ref.invalidate(mediaRowProvider(widget.mediaId)),
+      ),
       data: (media) {
         if (media == null) {
           return EmptyState(icon: Icons.photo_outlined, title: l10n.photoGone);
         }
+        final source = (media.assetId, media.kind);
+        final thumbs = ref.read(thumbnailServiceProvider);
+        final images = ref.read(viewerImageCacheProvider);
+        if (_source != source) {
+          _source = source;
+          _thumbnail = null;
+          _image = media.kind == 'photo' ? images.get(media.assetId) : null;
+        }
+
+        final detections = widget.isActive
+            ? ref.watch(detectionsProvider(widget.mediaId)).value ??
+                  const <MediaDetection>[]
+            : const <MediaDetection>[];
         if (media.kind == 'video') {
-          return VideoMediaView(
-            key: ValueKey(media.assetId),
-            assetId: media.assetId,
-            initialTimestampMs: widget.initialTimestampMs,
-            library: ref.watch(mediaLibraryProvider),
-            detections: detections,
-            people: widget.people,
-            showBodies: widget.layers.bodies,
-            showFaces: widget.layers.faces,
-            onTapBox: widget.onTapBox,
-            isActive: widget.isActive,
-            loadingPreview: FutureBuilder<Uint8List?>(
-              future: ref.read(thumbnailServiceProvider).get(media.assetId),
-              initialData: ref
-                  .read(thumbnailServiceProvider)
-                  .getSync(media.assetId),
-              builder: (context, preview) => preview.data == null
-                  ? const LoadingBox()
-                  : Center(
-                      child: Image.memory(preview.data!, fit: BoxFit.contain),
-                    ),
-            ),
-            onOpenNativePlayer: widget.onOpenNativePlayer,
+          final poster = _preview(media);
+          final showDetections =
+              widget.initialTimestampMs != null ||
+              widget.layers.faces ||
+              widget.layers.bodies;
+          final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+          if (widget.isActive && (showDetections || !isAndroid)) {
+            return VideoMediaView(
+              key: ValueKey(media.assetId),
+              assetId: media.assetId,
+              initialTimestampMs: widget.initialTimestampMs,
+              library: ref.watch(mediaLibraryProvider),
+              detections: detections,
+              people: widget.people,
+              showBodies: widget.layers.bodies,
+              showFaces: widget.layers.faces,
+              onTapBox: widget.onTapBox,
+              loadingPreview: poster,
+              onOpenNativePlayer: isAndroid
+                  ? (position) => widget.onPlayVideo(media, position)
+                  : null,
+            );
+          }
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              poster,
+              if (widget.isActive)
+                Center(
+                  child: IconButton.filled(
+                    key: const Key('media-play-video'),
+                    tooltip: l10n.videoPlay,
+                    iconSize: 44,
+                    onPressed: () => widget.onPlayVideo(media, null),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                  ),
+                ),
+            ],
           );
         }
-        if (_assetId != media.assetId) {
-          _assetId = media.assetId;
-          _image = ref.read(viewerImageCacheProvider).get(media.assetId);
-        }
+
+        final cached = images.peek(media.assetId);
+        if (cached != null) return _photo(cached, detections);
         return FutureBuilder<LoadedImage?>(
+          key: ValueKey(source),
           future: _image,
-          initialData: ref.read(viewerImageCacheProvider).peek(media.assetId),
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              final preview = ref
-                  .read(thumbnailServiceProvider)
-                  .getSync(media.assetId);
-              return preview == null
-                  ? const LoadingBox()
-                  : Center(
-                      child: Image.memory(
-                        preview,
-                        fit: BoxFit.contain,
-                        gaplessPlayback: true,
-                      ),
-                    );
+              if (widget.isActive || thumbs.getSync(media.assetId) != null) {
+                return _preview(media);
+              }
+              return const LoadingBox();
             }
             final image = snapshot.data;
             if (image == null) {
@@ -147,84 +165,112 @@ class _MediaPageViewItemState extends ConsumerState<MediaPageViewItem> {
                 body: l10n.photoGoneBody,
               );
             }
-            return Stack(
-              children: [
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final fitted = applyBoxFit(
-                      BoxFit.contain,
-                      Size(image.width.toDouble(), image.height.toDouble()),
-                      constraints.biggest,
-                    ).destination;
-                    return Center(
-                      child: GestureDetector(
-                        onTap: widget.onToggleChrome,
-                        onDoubleTapDown: (details) =>
-                            _doubleTap = details.localPosition,
-                        onDoubleTap: () {
-                          _transform.value =
-                              _transform.value.getMaxScaleOnAxis() > 1.01
-                              ? Matrix4.identity()
-                              : (Matrix4.identity()
-                                  ..translateByDouble(
-                                    -_doubleTap.dx * 2,
-                                    -_doubleTap.dy * 2,
-                                    0,
-                                    1,
-                                  )
-                                  ..scaleByDouble(3, 3, 1, 1));
-                        },
-                        child: InteractiveViewer(
-                          transformationController: _transform,
-                          maxScale: 5,
-                          child: SizedBox(
-                            key: const Key('annotated-photo'),
-                            width: fitted.width,
-                            height: fitted.height,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Image.memory(
-                                  image.bytes,
-                                  fit: BoxFit.fill,
-                                  gaplessPlayback: true,
-                                ),
-                                if (!image.fallback)
-                                  DetectionOverlay(
-                                    detections: detections,
-                                    fittedSize: fitted,
-                                    layers: widget.layers,
-                                    people: widget.people,
-                                    onTapDetection: widget.onTapBox,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                if (image.fallback)
-                  const Positioned(
-                    bottom: 8,
-                    left: 8,
-                    child: ColoredBox(
-                      color: Colors.black87,
-                      child: Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Text(
-                          'Preview only · original unavailable',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            );
+            return _photo(image, detections);
           },
         );
       },
+    );
+  }
+
+  Widget _preview(MediaRow media) {
+    final thumbs = ref.read(thumbnailServiceProvider);
+    Widget render(Uint8List? bytes) => bytes == null
+        ? const LoadingBox()
+        : Center(child: Image.memory(bytes, fit: BoxFit.contain));
+
+    final cached = thumbs.getSync(media.assetId);
+    if (cached != null) return render(cached);
+    return FutureBuilder<Uint8List?>(
+      key: ValueKey(media.assetId),
+      future: _thumbnail ??= thumbs.get(media.assetId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.data == null) {
+          return const Center(
+            child: Icon(Icons.hide_image_outlined, color: Colors.white54),
+          );
+        }
+        return render(snapshot.data);
+      },
+    );
+  }
+
+  Widget _photo(LoadedImage image, List<MediaDetection> detections) {
+    return Stack(
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final fitted = applyBoxFit(
+              BoxFit.contain,
+              Size(image.width.toDouble(), image.height.toDouble()),
+              constraints.biggest,
+            ).destination;
+            return Center(
+              child: GestureDetector(
+                onTap: widget.onToggleChrome,
+                onDoubleTapDown: (details) =>
+                    _doubleTap = details.localPosition,
+                onDoubleTap: () {
+                  _transform.value =
+                      _transform.value.getMaxScaleOnAxis() > 1.01
+                      ? Matrix4.identity()
+                      : (Matrix4.identity()
+                          ..translateByDouble(
+                            -_doubleTap.dx * 2,
+                            -_doubleTap.dy * 2,
+                            0,
+                            1,
+                          )
+                          ..scaleByDouble(3, 3, 1, 1));
+                },
+                child: InteractiveViewer(
+                  transformationController: _transform,
+                  maxScale: 5,
+                  panEnabled: _transform.value.getMaxScaleOnAxis() > 1.01,
+                  child: SizedBox(
+                    key: const Key('annotated-photo'),
+                    width: fitted.width,
+                    height: fitted.height,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.memory(
+                          image.bytes,
+                          fit: BoxFit.fill,
+                          gaplessPlayback: true,
+                        ),
+                        if (!image.fallback)
+                          DetectionOverlay(
+                            detections: detections,
+                            fittedSize: fitted,
+                            layers: widget.layers,
+                            people: widget.people,
+                            onTapDetection: widget.onTapBox,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        if (image.fallback)
+          const Positioned(
+            bottom: 8,
+            left: 8,
+            child: ColoredBox(
+              color: Colors.black87,
+              child: Padding(
+                padding: EdgeInsets.all(8),
+                child: Text(
+                  'Preview only · original unavailable',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -288,6 +288,20 @@ void main() {
     }, session: testSession);
 
     appTest(
+      'a face with no suggestion opens Unsorted directly from quick review',
+      (tester, env) async {
+        await seedFace(env.db);
+        await _open(tester, env, '/review');
+
+        expect(find.textContaining('face is still unsorted'), findsOneWidget);
+        await tester.tap(find.widgetWithText(FilledButton, 'Unsorted'));
+        await _settle(tester);
+        expect(find.byKey(const Key('unsorted-auto-sort')), findsOneWidget);
+      },
+      session: testSession,
+    );
+
+    appTest(
       '"Who is this?" adds a group to an existing person or names a new one',
       (tester, env) async {
         final sara = await seedPerson(env.db, name: 'Sara');
@@ -316,6 +330,7 @@ void main() {
         await tester.tap(find.byKey(Key('quick-group-option-$sara')));
         await _settle(tester);
         expect(find.text('Adds these faces to Sara'), findsOneWidget);
+        expect(find.text('Add to Sara'), findsOneWidget);
         await _tap(tester, 'quick-yes');
         final faces = {
           for (final f in await env.db.select(env.db.faces).get())
@@ -688,6 +703,7 @@ void main() {
           isTrue,
         );
         expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
+        expect(find.widgetWithText(FilledButton, 'Unsorted'), findsNothing);
         expect(find.textContaining('Ignored 3 faces'), findsOneWidget);
 
         await tester.tap(find.text('Undo'));
@@ -756,7 +772,7 @@ void main() {
       session: testSession,
     );
     appTest(
-      'a doubtful face that looks like Omar can be sent to Omar with one tick',
+      'one tap moves the suggested face and leaves the other decision open',
       (tester, env) async {
         final sara = await seedPerson(env.db, name: 'Sara');
         final omar = await seedPerson(env.db, name: 'Omar');
@@ -785,9 +801,8 @@ void main() {
         await _open(tester, env, '/review');
         expect(find.byKey(const Key('quick-doubtful-move')), findsOneWidget);
 
-        await tester.tap(find.byKey(const Key('quick-doubtful-move')));
-        await _settle(tester);
-        await _tap(tester, 'quick-no'); // "None are Sara"
+        expect(find.text('Move 1 to Omar'), findsOneWidget);
+        await _tap(tester, 'quick-doubtful-move');
 
         final rows = {
           for (final f in await env.db.select(env.db.faces).get()) f.id: f,
@@ -795,8 +810,18 @@ void main() {
         expect(rows[strayed]!.personId, omar, reason: 'it had a better home');
         expect(
           rows[other]!.personId,
-          isNull,
-          reason: 'no suggestion: unsorted',
+          sara,
+          reason: 'this face is still waiting for a decision',
+        );
+        expect(_question(tester), 'Is this Sara?');
+        expect(find.byKey(const Key('quick-doubtful-move')), findsNothing);
+        expect(
+          (await env.db.select(env.db.faceConfirmations).get()).single.personId,
+          omar,
+        );
+        expect(
+          (await env.db.select(env.db.faceRejections).get()).single.personId,
+          sara,
         );
       },
       session: testSession,

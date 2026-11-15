@@ -73,6 +73,10 @@
                 <data android:scheme="agmobile" android:host="pair"/>
             </intent-filter>
         </activity>
+        <activity
+            android:name=".NativePlaybackActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
         <!-- flutter_foreground_task: the scan's keep-alive service (the scan itself runs in the app isolate) -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"

@@ -211,7 +211,7 @@ class GroupingRunner {
       bodiesLinked = await _applier.applyBodyPlan(plan);
     }
 
-    final review = await api.groupingPlan(
+    Future<GroupingPlanResponse> buildReview() async => api.groupingPlan(
       await _inputs.request(
         mode: 'review',
         stages: round3Stages,
@@ -219,6 +219,24 @@ class GroupingRunner {
         cap: _memberCap,
       ),
     );
+
+    var review = await buildReview();
+    // New or repaired identities can make a match automatic after round 1.
+    // Use the same thresholds and apply-time guards before asking the user.
+    final automatic = review.assignments.where((a) => a.isAuto).toList();
+    if (automatic.isNotEmpty) {
+      final applied = await _applier.applyFacePlan(
+        GroupingPlanResponse(mode: 'apply', assignments: automatic),
+      );
+      if (applied.assigned > 0) {
+        result = FacePlanResult(
+          assigned: result.assigned + applied.assigned,
+          newPeople: result.newPeople,
+          facesInNewPeople: result.facesInNewPeople,
+        );
+        review = await buildReview();
+      }
+    }
     await _review.replaceAll(review);
     // Then everything already sorted, the faces the user named included: which of them do not look like
     // the rest of their person? They come back as "Are you sure these are X?" questions.

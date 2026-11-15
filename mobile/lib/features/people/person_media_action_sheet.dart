@@ -21,13 +21,18 @@ Future<void> showPersonMediaActionSheet(
   BuildContext context, {
   required PersonSummary person,
   required MediaListItem item,
+  String? mediaKind,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     useSafeArea: true,
     isScrollControlled: true,
     showDragHandle: false,
-    builder: (_) => PersonMediaActionSheet(person: person, item: item),
+    builder: (_) => PersonMediaActionSheet(
+      person: person,
+      item: item,
+      mediaKind: mediaKind,
+    ),
   );
 }
 
@@ -36,10 +41,12 @@ class PersonMediaActionSheet extends ConsumerWidget {
     super.key,
     required this.person,
     required this.item,
+    this.mediaKind,
   });
 
   final PersonSummary person;
   final MediaListItem item;
+  final String? mediaKind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -187,9 +194,14 @@ class PersonMediaActionSheet extends ConsumerWidget {
                     title: Text(l10n.viewFullMedia),
                     onTap: () {
                       Navigator.pop(context);
-                      context.push(
-                        '${Routes.media}/${item.id}?personId=${person.id}',
+                      final uri = Uri(
+                        path: '${Routes.media}/${item.id}',
+                        queryParameters: {
+                          'personId': '${person.id}',
+                          if (mediaKind != null) 'kind': mediaKind!,
+                        },
                       );
+                      context.push(uri.toString());
                     },
                   ),
                   ListTile(
