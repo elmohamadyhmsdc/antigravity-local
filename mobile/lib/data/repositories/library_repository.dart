@@ -372,7 +372,9 @@ class LibraryRepository {
   /// never holds up the rest of a large library.
   static final _queueOrder = <OrderClauseGenerator<$MediaTable>>[
     (m) => OrderingTerm.asc(m.kind.equals('video')),
-    (m) => OrderingTerm.desc(const CustomExpression<bool>(VideoScanCoverage.detailedPendingSql)),
+    (m) => OrderingTerm.desc(
+      const CustomExpression<bool>(VideoScanCoverage.detailedPendingSql),
+    ),
     (m) => OrderingTerm.asc(m.durationMs),
     (m) => OrderingTerm.asc(m.id),
   ];

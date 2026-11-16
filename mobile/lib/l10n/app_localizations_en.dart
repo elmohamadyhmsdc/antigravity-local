@@ -463,7 +463,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get videoScanDetailedHint =>
-      'Denser samples for more complete coverage. Takes longer; you can run it later on individual videos.';
+      'New scans use denser samples and take longer. To upgrade a completed quick scan, open the video and choose Run detailed scan.';
 
   @override
   String get videoQuickComplete => 'Quick scan complete';

@@ -9,6 +9,8 @@ import 'dart:typed_data';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/repositories/app_settings.dart';
+import 'package:antigravity_mobile/data/repositories/video_scan_coverage.dart';
+import 'package:antigravity_mobile/data/repositories/library_repository.dart';
 import 'package:antigravity_mobile/data/repositories/artifact_context.dart';
 import 'package:antigravity_mobile/domain/backup/backup_service.dart';
 import 'package:archive/archive.dart';
@@ -288,6 +290,36 @@ void main() {
   );
   late Phone a;
   late Phone b;
+
+  test(
+    'quick coverage and requested detailed upgrades survive a real backup round trip',
+    () async {
+      final id = await seedMedia(a.db, kind: 'video');
+      final media = (await LibraryRepository(a.db).mediaById(id))!;
+      final coverage = VideoScanCoverage(a.db);
+      await coverage.complete(media, VideoScanMode.quick, clean: true);
+      await coverage.requestDetailed(id);
+      await coverage.pinMode(media, VideoScanMode.detailed);
+      await a.db.putSetting('video.job.$id', 'private job');
+      final archive = await a.backup.export(
+        Directory('${a.dir.path}/quick-coverage'),
+      );
+      await b.backup.restore(archive);
+      final restored = (await LibraryRepository(b.db).mediaById(id))!;
+      final restoredCoverage = VideoScanCoverage(b.db);
+      expect(await restoredCoverage.mode(restored), VideoScanMode.quick);
+      expect(
+        await restoredCoverage.requestedMode(restored, VideoScanMode.quick),
+        VideoScanMode.detailed,
+      );
+      expect(
+        await restoredCoverage.activeMode(restored),
+        VideoScanMode.detailed,
+      );
+      expect(restored.scanStatus, 'pending');
+      expect(await b.db.setting('video.job.$id'), isNull);
+    },
+  );
   setUp(() {
     a = Phone('a');
     b = Phone('b');

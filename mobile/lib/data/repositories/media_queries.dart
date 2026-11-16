@@ -277,9 +277,12 @@ class MediaQueries {
           ),
           scanStatus: r.read<String>('scan_status'),
           faceCount: r.read<int>('face_count'),
-          videoScanMode: VideoScanCoverage.decode(r.readNullable<String>('video_coverage'),
-            assetId: r.read<String>('asset_id'), modifiedAt: r.read<int>('modified_at'),
-            durationMs: r.readNullable<int>('duration_ms')),
+          videoScanMode: VideoScanCoverage.decode(
+            r.readNullable<String>('video_coverage'),
+            assetId: r.read<String>('asset_id'),
+            modifiedAt: r.read<int>('modified_at'),
+            durationMs: r.readNullable<int>('duration_ms'),
+          ),
         ),
     ];
   }

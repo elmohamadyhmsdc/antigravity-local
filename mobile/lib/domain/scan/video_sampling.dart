@@ -11,5 +11,7 @@ const quickVideoSampleLimit = 60;
 
 /// Use the actual decoded frame count and round upward, so fractional FPS and
 /// inaccurate Android duration metadata cannot exceed the budget.
-int quickVideoStep(int totalFrames, double fps) =>
-    math.max(1, math.max(fps.ceil(), (totalFrames / quickVideoSampleLimit).ceil()));
+int quickVideoStep(int totalFrames, double fps) => math.max(
+  1,
+  math.max(fps.ceil(), (totalFrames / quickVideoSampleLimit).ceil()),
+);

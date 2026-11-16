@@ -74,8 +74,11 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
           if (counts != null && counts.remaining > 0)
             TextButton.icon(
               key: const Key('scan-continue-queue'),
-              icon: const Icon(Icons.play_arrow), label: Text(l10n.scanContinueQueue),
-              onPressed: progress.isActive ? null : () => startScan(ref, enumerate: false),
+              icon: const Icon(Icons.play_arrow),
+              label: Text(l10n.scanContinueQueue),
+              onPressed: progress.isActive
+                  ? null
+                  : () => startScan(ref, enumerate: false),
             ),
           if (counts != null && counts.total > 0)
             Padding(
@@ -243,9 +246,13 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                           : settingsStore.setScanVideos,
                     ),
                     if (settings.scanVideos)
-                      VideoScanModeSelector(mode: settings.videoScanMode,
-                        enabled: !progress.isActive, onChanged: settingsStore.setVideoScanMode),
-                    if (settings.scanVideos && settings.videoScanMode == VideoScanMode.detailed)
+                      VideoScanModeSelector(
+                        mode: settings.videoScanMode,
+                        enabled: !progress.isActive,
+                        onChanged: settingsStore.setVideoScanMode,
+                      ),
+                    if (settings.scanVideos &&
+                        settings.videoScanMode == VideoScanMode.detailed)
                       SwitchListTile(
                         key: const Key('adaptive-video-sampling'),
                         value: settings.adaptiveVideoSampling,
@@ -255,7 +262,9 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                             ? null
                             : settingsStore.setAdaptiveVideoSampling,
                       ),
-                    if (settings.scanVideos && settings.videoScanMode == VideoScanMode.detailed && !settings.adaptiveVideoSampling)
+                    if (settings.scanVideos &&
+                        settings.videoScanMode == VideoScanMode.detailed &&
+                        !settings.adaptiveVideoSampling)
                       ListTile(
                         title: Text(l10n.videoFrameInterval),
                         trailing: DropdownButton<double>(

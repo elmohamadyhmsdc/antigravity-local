@@ -436,7 +436,9 @@ class ScanEngine {
                     videoProgress!.stage.name,
                     videoProgress!.fraction ?? 0,
                   )),
-        total: counts.remaining,
+        total: counts.remaining < done + failed + (current == null ? 0 : 1)
+            ? done + failed + (current == null ? 0 : 1)
+            : counts.remaining,
         done: done,
         failed: failed,
         facesFound: facesFound,

@@ -262,12 +262,26 @@ class MediaTile extends ConsumerWidget {
               ),
             ),
           if (item.kind == 'video' && item.videoScanMode == VideoScanMode.quick)
-            Positioned(left: 4, top: 4, child: DecoratedBox(
-              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
-              child: Padding(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-                child: Text(AppLocalizations.of(context).videoScanQuick,
-                  style: const TextStyle(color: Colors.white, fontSize: 11))),
-            )),
+            Positioned(
+              left: 4,
+              top: 4,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 3,
+                  ),
+                  child: Text(
+                    AppLocalizations.of(context).videoScanQuick,
+                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                  ),
+                ),
+              ),
+            ),
           if (filter?.scan != null &&
               filter!.scan != ScanFilter.all &&
               item.scanStatus == 'failed')

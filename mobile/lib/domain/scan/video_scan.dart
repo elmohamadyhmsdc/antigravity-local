@@ -242,12 +242,17 @@ class VideoScan {
     var nextFrame =
         (await LibraryRepository(db).mediaById(media.id))?.lastScannedFrame ??
         0;
-    scanMode = await coverage.requestedMode(media,
-      repairCharacters ? VideoScanMode.detailed : prefs.videoScanMode);
+    scanMode = await coverage.requestedMode(
+      media,
+      repairCharacters ? VideoScanMode.detailed : prefs.videoScanMode,
+    );
     if (saved != null) {
-      scanMode = (saved['request'] as Map?)?['params'] is Map &&
-          ((saved['request'] as Map)['params'] as Map)['sampling_mode'] == 'quick'
-          ? VideoScanMode.quick : VideoScanMode.detailed;
+      scanMode =
+          (saved['request'] as Map?)?['params'] is Map &&
+              ((saved['request'] as Map)['params'] as Map)['sampling_mode'] ==
+                  'quick'
+          ? VideoScanMode.quick
+          : VideoScanMode.detailed;
     } else if (nextFrame > 0) {
       scanMode = await coverage.activeMode(media) ?? VideoScanMode.detailed;
     }
@@ -358,7 +363,9 @@ class VideoScan {
         };
         await db.putSetting(gridKey, jsonEncode(grid));
       }
-      scanMode = grid!['mode'] == 'quick' ? VideoScanMode.quick : VideoScanMode.detailed;
+      scanMode = grid!['mode'] == 'quick'
+          ? VideoScanMode.quick
+          : VideoScanMode.detailed;
       await coverage.pinMode(media, scanMode);
       final fps = (grid['fps'] as num).toDouble();
       final step = grid['step'] as int;
@@ -472,7 +479,9 @@ class VideoScan {
         await local.close();
       }
       publish(VideoScanStage.finish);
-      if (skipped > 0) localWarning ??= '$skipped video samples could not be read.';
+      if (skipped > 0) {
+        localWarning ??= '$skipped video samples could not be read.';
+      }
       await db.transaction(() async {
         await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
           MediaCompanion(
@@ -503,11 +512,17 @@ class VideoScan {
     for (var restart = 0; restart < 3; restart++) {
       checkPause();
       if (saved == null) {
-        if (scanMode == VideoScanMode.quick && api is MobileApi &&
-            !(await (api as MobileApi).capabilities()).engines.quickVideoSampling) {
-          throw const ApiException(code: 'engine_unavailable',
-            message: 'Update and restart the PC server to use quick video scanning for this file.',
-            retryable: false);
+        if (scanMode == VideoScanMode.quick &&
+            api is MobileApi &&
+            !(await (api as MobileApi).capabilities())
+                .engines
+                .quickVideoSampling) {
+          throw const ApiException(
+            code: 'engine_unavailable',
+            message:
+                'Update and restart the PC server to use quick video scanning for this file.',
+            retryable: false,
+          );
         }
         await coverage.pinMode(media, scanMode);
         currentJob = null;
@@ -569,7 +584,9 @@ class VideoScan {
               'frame_interval': prefs.adaptiveVideoSampling
                   ? adaptiveVideoInterval(media.durationMs)
                   : prefs.frameInterval,
-              'sampling_mode': scanMode == VideoScanMode.quick ? 'quick' : prefs.adaptiveVideoSampling
+              'sampling_mode': scanMode == VideoScanMode.quick
+                  ? 'quick'
+                  : prefs.adaptiveVideoSampling
                   ? 'adaptive'
                   : 'fixed',
               'min_quality': prefs.qualityGate,
@@ -835,8 +852,11 @@ class VideoScan {
             await CharacterRepair(db).finish(media.id);
             await IdentityRescan(db).finish(media.id);
           }
-          await coverage.complete(media, scanMode,
-            clean: warning == null && (currentJob?.skippedSamples ?? 0) == 0);
+          await coverage.complete(
+            media,
+            scanMode,
+            clean: warning == null && (currentJob?.skippedSamples ?? 0) == 0,
+          );
         });
         // ACK only after every frame committed locally. A failed ACK is safe to retry later.
         try {

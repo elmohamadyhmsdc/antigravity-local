@@ -214,9 +214,19 @@ final videoScanCoverageProvider = Provider<VideoScanCoverage>(
   (ref) => VideoScanCoverage(ref.watch(databaseProvider)),
 );
 
-final videoCoverageModeProvider = StreamProvider.autoDispose.family<VideoScanMode?, MediaRow>(
-  (ref, media) => ref.watch(videoScanCoverageProvider).watch(media),
-);
+final videoCoverageModeProvider = StreamProvider.autoDispose
+    .family<VideoScanMode?, MediaRow>(
+      (ref, media) => ref.watch(videoScanCoverageProvider).watch(media),
+    );
+
+// Refresh the native gallery's badges once per completed file, rather than
+// adding a database subscription per visible tile or per analyzed frame.
+final quickVideoAssetsProvider = FutureProvider.autoDispose<Set<String>>((ref) {
+  ref.watch(
+    scanProgressProvider.select((p) => (p.value?.done, p.value?.phase)),
+  );
+  return ref.watch(videoScanCoverageProvider).quickAssets();
+});
 
 final characterRepositoryProvider = Provider<CharacterRepository>(
   (ref) => CharacterRepository(
@@ -640,7 +650,8 @@ final dynamicAutoOrganizerProvider = Provider<DynamicAutoOrganizer>((ref) {
   return DynamicAutoOrganizer(
     db: ref.watch(databaseProvider),
     organizer: ref.watch(personMediaOrganizerProvider),
-    enabled: () async => (await ref.read(appSettingsProvider).load()).autoOrganizeEnabled,
+    enabled: () async =>
+        (await ref.read(appSettingsProvider).load()).autoOrganizeEnabled,
   );
 });
 

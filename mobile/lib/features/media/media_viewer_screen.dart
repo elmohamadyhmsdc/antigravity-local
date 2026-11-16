@@ -194,7 +194,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
         ref.read(mediaLibraryProvider),
         media.assetId,
       );
-      if (!context.mounted || !mounted || _mediaIds[_currentIndex] != media.id) {
+      if (!context.mounted ||
+          !mounted ||
+          _mediaIds[_currentIndex] != media.id) {
         return;
       }
       if (uri != null) {
@@ -215,9 +217,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
       _openingVideo = false;
     }
     if (context.mounted && mounted && _mediaIds[_currentIndex] == media.id) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.videoUnavailable)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.videoUnavailable)));
     }
   }
 
@@ -236,23 +238,36 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     }
   }
 
-  Future<void> _requestDetailedScan(BuildContext context, MediaRow media) async {
+  Future<void> _requestDetailedScan(
+    BuildContext context,
+    MediaRow media,
+  ) async {
     final l = AppLocalizations.of(context);
     if (ref.read(mobileApiProvider) == null) {
       context.push(Routes.connection);
       return;
     }
     try {
-      final queued = await ref.read(videoScanCoverageProvider).requestDetailed(media.id);
+      final queued = await ref
+          .read(videoScanCoverageProvider)
+          .requestDetailed(media.id);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(queued ? l.videoDetailedQueued : l.videoDetailedAlready)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            queued ? l.videoDetailedQueued : l.videoDetailedAlready,
+          ),
+        ),
+      );
       if (queued && !ref.read(scanEngineProvider).isRunning) {
         await startScan(ref, enumerate: false, resumeRepairs: false);
       }
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l.peopleActionError('$e'))));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l.peopleActionError('$e'))));
+      }
     }
   }
 
@@ -343,7 +358,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                     icon: Icons.auto_fix_high,
                     accentColor: const Color(0xFF8B5CF6),
                     title: 'AI Edit (تعديل بالذكاء الاصطناعي)',
-                    subtitle: 'Erase or replace objects and clothing with a prompt',
+                    subtitle:
+                        'Erase or replace objects and clothing with a prompt',
                     onTap: () {
                       Navigator.pop(sheetContext);
                       context.push('${Routes.photoEdit}?media=${media.id}');
@@ -357,7 +373,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                   subtitle: 'Seamless face swap with high identity fidelity',
                   onTap: () {
                     Navigator.pop(sheetContext);
-                    context.push('${Routes.studioReface}?target=media:${media.id}');
+                    context.push(
+                      '${Routes.studioReface}?target=media:${media.id}',
+                    );
                   },
                 ),
                 if (media.kind == 'photo') ...[
@@ -365,7 +383,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                     icon: Icons.checkroom_outlined,
                     accentColor: const Color(0xFFF59E0B),
                     title: 'Restyle',
-                    subtitle: 'Transform outfits and generate styled fashion shots',
+                    subtitle:
+                        'Transform outfits and generate styled fashion shots',
                     onTap: () {
                       Navigator.pop(sheetContext);
                       context.push('${Routes.restyle}?media=${media.id}');
@@ -378,7 +397,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                     subtitle: 'Add as a LoRA model training reference',
                     onTap: () {
                       Navigator.pop(sheetContext);
-                      context.push('${Routes.studioDatasetsNew}?media=${media.id}');
+                      context.push(
+                        '${Routes.studioDatasetsNew}?media=${media.id}',
+                      );
                     },
                   ),
                   _StudioToolTile(
@@ -388,7 +409,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                     subtitle: 'Use as inspiration for new image generation',
                     onTap: () {
                       Navigator.pop(sheetContext);
-                      context.push('${Routes.studioGenerate}?media=${media.id}');
+                      context.push(
+                        '${Routes.studioGenerate}?media=${media.id}',
+                      );
                     },
                   ),
                 ],
@@ -762,7 +785,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
 
     final media = row.value;
     final videoCoverage = media?.kind == 'video'
-        ? ref.watch(videoCoverageModeProvider(media!)).value : null;
+        ? ref.watch(videoCoverageModeProvider(media!)).value
+        : null;
     final takenAt = media?.takenAt;
     final taken = takenAt == null
         ? null
@@ -817,8 +841,11 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                 onChangeFileKind: () => _fileKindMenu(context, media),
                 onLens: () => _searchGoogleLens(context, media),
                 onDetailedScan: () => _requestDetailedScan(context, media),
-                videoScanLabel: videoCoverage == VideoScanMode.quick ? l10n.videoQuickComplete
-                    : videoCoverage == VideoScanMode.detailed ? l10n.videoDetailedComplete : null,
+                videoScanLabel: videoCoverage == VideoScanMode.quick
+                    ? l10n.videoQuickComplete
+                    : videoCoverage == VideoScanMode.detailed
+                    ? l10n.videoDetailedComplete
+                    : null,
               ),
       ),
       body: Column(
@@ -853,8 +880,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                         media != null &&
                         media.kind == 'photo' &&
                         start != null &&
-                        start.dy >
-                            MediaQuery.sizeOf(context).height * .65 &&
+                        start.dy > MediaQuery.sizeOf(context).height * .65 &&
                         start.dy - event.position.dy > 80 &&
                         (start.dx - event.position.dx).abs() < 60) {
                       _showDetails(
@@ -897,7 +923,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                               _zoomed = false;
                               _activeRoiMode = false;
                             });
-                            if (i >= _mediaIds.length - 3) unawaited(_loadMore());
+                            if (i >= _mediaIds.length - 3) {
+                              unawaited(_loadMore());
+                            }
                           },
                           itemBuilder: (context, i) {
                             final itemMediaId = _mediaIds[i];
@@ -921,8 +949,11 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                               initialTimestampMs: itemMediaId == widget.mediaId
                                   ? widget.initialTimestampMs
                                   : null,
-                              onPlayVideo: (row, position) =>
-                                  _playVideo(context, row, positionMs: position),
+                              onPlayVideo: (row, position) => _playVideo(
+                                context,
+                                row,
+                                positionMs: position,
+                              ),
                             );
                           },
                         ),
@@ -1052,7 +1083,9 @@ class _StudioToolTile extends StatelessWidget {
                 ),
                 Icon(
                   Icons.chevron_right,
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.6,
+                  ),
                   size: 20,
                 ),
               ],

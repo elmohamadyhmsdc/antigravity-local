@@ -72,7 +72,10 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   child: Row(
                     children: [
                       _GlassIconButton(
@@ -100,6 +103,8 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
                             if (media.kind == 'video')
                               Text(
                                 videoScanLabel ?? l10n.videoTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.65),
                                   fontSize: 12,
@@ -113,7 +118,11 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
                         key: const Key('media-layers-toggle'),
                         tooltip: 'Layers',
                         icon: Icons.layers_outlined,
-                        isActive: layers.faces || layers.bodies || layers.areas || layers.equipment,
+                        isActive:
+                            layers.faces ||
+                            layers.bodies ||
+                            layers.areas ||
+                            layers.equipment,
                         onPressed: () => LayersPopover.show(
                           context: context,
                           layers: layers,
@@ -136,47 +145,73 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
                           color: Colors.white.withValues(alpha: 0.12),
                           child: PopupMenuButton<String>(
                             key: const Key('media-more-menu'),
-                            icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
+                            icon: const Icon(
+                              Icons.more_vert,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                             tooltip: 'More options',
                             color: const Color(0xFF1B1F27),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
-                              side: BorderSide(color: Colors.white.withValues(alpha: 0.12), width: 0.8),
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                width: 0.8,
+                              ),
                             ),
                             onSelected: (value) {
                               if (value == 'redetect') onRedetect();
                               if (value == 'kind') onChangeFileKind();
-                              if (value == 'detailed-scan') onDetailedScan?.call();
+                              if (value == 'detailed-scan') {
+                                onDetailedScan?.call();
+                              }
                               if (value == 'toggle-faces') {
-                                onLayersChanged(layers.copyWith(faces: !layers.faces));
+                                onLayersChanged(
+                                  layers.copyWith(faces: !layers.faces),
+                                );
                               }
                               if (value == 'toggle-bodies') {
-                                onLayersChanged(layers.copyWith(bodies: !layers.bodies));
+                                onLayersChanged(
+                                  layers.copyWith(bodies: !layers.bodies),
+                                );
                               }
                               if (value == 'lens') {
                                 onLens?.call();
                               }
                             },
                             itemBuilder: (_) => [
-                              if (media.kind == 'video' && onDetailedScan != null)
+                              if (media.kind == 'video' &&
+                                  onDetailedScan != null)
                                 PopupMenuItem(
-                                  key: const Key('media-detailed-scan'), value: 'detailed-scan',
-                                  child: _MenuRow(icon: Icons.manage_search, text: l10n.videoDetailedRequest),
+                                  key: const Key('media-detailed-scan'),
+                                  value: 'detailed-scan',
+                                  child: _MenuRow(
+                                    icon: Icons.manage_search,
+                                    text: l10n.videoDetailedRequest,
+                                  ),
                                 ),
                               PopupMenuItem(
                                 key: const Key('toggle-faces'),
                                 value: 'toggle-faces',
                                 child: _MenuRow(
-                                  icon: layers.faces ? Icons.visibility_off_outlined : Icons.face_outlined,
-                                  text: layers.faces ? 'Hide faces' : 'Show faces',
+                                  icon: layers.faces
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.face_outlined,
+                                  text: layers.faces
+                                      ? 'Hide faces'
+                                      : 'Show faces',
                                 ),
                               ),
                               PopupMenuItem(
                                 key: const Key('toggle-bodies'),
                                 value: 'toggle-bodies',
                                 child: _MenuRow(
-                                  icon: layers.bodies ? Icons.visibility_off_outlined : Icons.accessibility_new_outlined,
-                                  text: layers.bodies ? 'Hide bodies' : 'Show bodies',
+                                  icon: layers.bodies
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.accessibility_new_outlined,
+                                  text: layers.bodies
+                                      ? 'Hide bodies'
+                                      : 'Show bodies',
                                 ),
                               ),
                               if (media.kind == 'photo' && onLens != null)
@@ -264,7 +299,10 @@ class MediaChromeBottomBar extends StatelessWidget {
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xCC11141A),
                         borderRadius: BorderRadius.circular(24),

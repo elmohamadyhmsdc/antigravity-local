@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
+import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/api/dtos/system.dart';
 import 'package:antigravity_mobile/data/api/mobile_api.dart';
@@ -22,12 +23,14 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/seed.dart';
+import '../support/fixtures.dart';
 import 'video_scan_test.dart' show VideoLibrary, VideoPc;
 
 /// A PC that analyses single frames (the phone-side path) and still accepts uploads (fallback).
 class FramePc extends VideoPc implements MobileApi {
   final analyzed = <int>[];
   void Function()? afterAnalyze;
+  bool quickSupported = true;
 
   @override
   Future<AnalyzeImageResponse> analyzeImage(
@@ -77,7 +80,12 @@ class FramePc extends VideoPc implements MobileApi {
   ) => throw UnimplementedError();
 
   @override
-  Future<Capabilities> capabilities() => throw UnimplementedError();
+  Future<Capabilities> capabilities() async {
+    final json = fixture('Capabilities.idle');
+    (json['engines'] as Map)['quick_video_sampling'] = quickSupported;
+    return Capabilities.fromJson(json);
+  }
+
   @override
   Future<Health> health() => throw UnimplementedError();
   @override
@@ -161,7 +169,9 @@ void main() {
 
   Future<StoreOutcome> run({
     void Function(VideoScanProgress)? onProgress,
-    SettingsSnapshot prefs = const SettingsSnapshot(videoScanMode: VideoScanMode.detailed),
+    SettingsSnapshot prefs = const SettingsSnapshot(
+      videoScanMode: VideoScanMode.detailed,
+    ),
     bool Function()? paused,
   }) async {
     final library = VideoLibrary(
@@ -199,53 +209,95 @@ void main() {
     }
   });
 
-  test('quick scan caps actual decoded long videos and marks their coverage', () async {
-    frames = FakeFrames(durationMs: 1800000);
-    final updates = <VideoScanProgress>[];
-    await run(prefs: const SettingsSnapshot(), onProgress: updates.add);
-    expect(frames.requested, hasLength(60));
-    expect(pc.analyzed, hasLength(60));
-    expect(frames.requested.first, 0);
-    expect(frames.requested.last, 1770000);
-    expect(await VideoScanCoverage(db).mode(row), VideoScanMode.quick);
-    expect(updates.last.scanMode, VideoScanMode.quick);
-    expect(pc.uploaded, isEmpty);
-  });
+  test(
+    'quick scan caps actual decoded long videos and marks their coverage',
+    () async {
+      frames = FakeFrames(durationMs: 1800000);
+      final updates = <VideoScanProgress>[];
+      await run(prefs: const SettingsSnapshot(), onProgress: updates.add);
+      expect(frames.requested, hasLength(60));
+      expect(pc.analyzed, hasLength(60));
+      expect(frames.requested.first, 0);
+      expect(frames.requested.last, 1770000);
+      expect(await VideoScanCoverage(db).mode(row), VideoScanMode.quick);
+      expect(updates.last.scanMode, VideoScanMode.quick);
+      expect(pc.uploaded, isEmpty);
+    },
+  );
 
-  test('interrupted quick scan keeps its grid after switching preferences', () async {
-    frames = FakeFrames(durationMs: 600000);
-    var pause = false;
-    pc.afterAnalyze = () => pause = true;
-    await expectLater(run(prefs: const SettingsSnapshot(), paused: () => pause),
-      throwsA(isA<VideoScanPaused>()));
-    final committed = (await db.select(db.media).get()).single.lastScannedFrame;
-    expect(committed, greaterThan(0));
-    pc.afterAnalyze = null;
-    pause = false;
-    await run(); // detailed preference, but the interrupted quick grid wins
-    expect(pc.analyzed, hasLength(60));
-    expect(pc.analyzed.toSet(), hasLength(60));
-    expect(await VideoScanCoverage(db).mode(row), VideoScanMode.quick);
-  });
+  test(
+    'interrupted quick scan keeps its grid after switching preferences',
+    () async {
+      frames = FakeFrames(durationMs: 600000);
+      var pause = false;
+      pc.afterAnalyze = () => pause = true;
+      await expectLater(
+        run(prefs: const SettingsSnapshot(), paused: () => pause),
+        throwsA(isA<VideoScanPaused>()),
+      );
+      final committed =
+          (await db.select(db.media).get()).single.lastScannedFrame;
+      expect(committed, greaterThan(0));
+      pc.afterAnalyze = null;
+      pause = false;
+      await run(); // detailed preference, but the interrupted quick grid wins
+      expect(pc.analyzed, hasLength(60));
+      expect(pc.analyzed.toSet(), hasLength(60));
+      expect(await VideoScanCoverage(db).mode(row), VideoScanMode.quick);
+    },
+  );
 
-  test('legacy checkpoint remains detailed even with the new quick preference', () async {
-    await (db.update(db.media)..where((m) => m.id.equals(row.id))).write(
-      const MediaCompanion(lastScannedFrame: Value(31)));
-    await run(prefs: const SettingsSnapshot());
-    expect(frames.requested, [1500, 2000, 2500]);
-    expect(await VideoScanCoverage(db).mode(row), VideoScanMode.detailed);
-  });
+  test(
+    'legacy checkpoint remains detailed even with the new quick preference',
+    () async {
+      await (db.update(db.media)..where((m) => m.id.equals(row.id))).write(
+        const MediaCompanion(lastScannedFrame: Value(31)),
+      );
+      await run(prefs: const SettingsSnapshot());
+      expect(frames.requested, [1500, 2000, 2500]);
+      expect(await VideoScanCoverage(db).mode(row), VideoScanMode.detailed);
+    },
+  );
 
-  test('detailed upgrade starts from zero and keeps quick observations', () async {
-    await run(prefs: const SettingsSnapshot());
-    final original = (await db.select(db.faces).get()).map((d) => d.id).toSet();
-    expect(await VideoScanCoverage(db).requestDetailed(row.id), isTrue);
-    frames.requested.clear();
-    await run(prefs: const SettingsSnapshot());
-    expect(frames.requested, [0, 500, 1000, 1500, 2000, 2500]);
-    expect(await VideoScanCoverage(db).mode(row), VideoScanMode.detailed);
-    expect((await db.select(db.faces).get()).map((d) => d.id).toSet(), containsAll(original));
-  });
+  test(
+    'detailed upgrade starts from zero and keeps quick observations',
+    () async {
+      await run(prefs: const SettingsSnapshot());
+      final original = (await db.select(db.faces).get())
+          .map((d) => d.id)
+          .toSet();
+      expect(await VideoScanCoverage(db).requestDetailed(row.id), isTrue);
+      frames.requested.clear();
+      await run(prefs: const SettingsSnapshot());
+      expect(frames.requested, [0, 500, 1000, 1500, 2000, 2500]);
+      expect(await VideoScanCoverage(db).mode(row), VideoScanMode.detailed);
+      expect(
+        (await db.select(db.faces).get()).map((d) => d.id).toSet(),
+        containsAll(original),
+      );
+    },
+  );
+
+  test(
+    'older upload servers pause quick scanning before uploading any bytes',
+    () async {
+      pc.quickSupported = false;
+      frames = FakeFrames(durationMs: 10000, readable: false);
+      await expectLater(
+        run(prefs: const SettingsSnapshot()),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.code,
+            'code',
+            'engine_unavailable',
+          ),
+        ),
+      );
+      expect(pc.uploaded, isEmpty);
+      expect(pc.requests, isEmpty);
+      expect(await VideoScanCoverage(db).mode(row), isNull);
+    },
+  );
 
   test(
     'the phone decodes the sampled frames and never uploads the video',

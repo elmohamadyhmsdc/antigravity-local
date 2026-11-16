@@ -12,6 +12,7 @@ import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:antigravity_mobile/data/repositories/app_settings.dart';
 import 'package:antigravity_mobile/data/repositories/insights_repository.dart';
 import 'package:antigravity_mobile/data/repositories/library_repository.dart';
+import 'package:antigravity_mobile/data/repositories/video_scan_coverage.dart';
 import 'package:antigravity_mobile/data/repositories/media_queries.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
 import 'package:antigravity_mobile/domain/scan/video_scan.dart';
@@ -264,6 +265,32 @@ void main() {
       expect((pc.requests.single['params'] as Map)['detect_bodies'], isTrue);
       expect((await db.select(db.media).get()).single.scanStatus, 'done');
       expect(pc.deleted, 1);
+    },
+  );
+
+  test(
+    'a quick upload request survives a lost response and a preference change',
+    () async {
+      pc.loseCreateResponse = true;
+      await expectLater(
+        scanner.run(
+          row,
+          api: pc,
+          library: library,
+          prefs: const SettingsSnapshot(),
+          paused: () => false,
+          report: (_, _) {},
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      expect((pc.requests.first['params'] as Map)['sampling_mode'], 'quick');
+      await run(); // now detailed, but the persisted quick job must keep its mode
+      expect((pc.requests.last['params'] as Map)['sampling_mode'], 'quick');
+      expect(
+        pc.requests.last['client_job_id'],
+        pc.requests.first['client_job_id'],
+      );
+      expect(await VideoScanCoverage(db).mode(row), VideoScanMode.quick);
     },
   );
 

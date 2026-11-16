@@ -235,7 +235,7 @@
   "videoScanQuick": "Quick scan",
   "videoScanDetailed": "Detailed scan",
   "videoScanQuickHint": "Up to 60 samples spread across each video. Faster indexing, but brief appearances may be missed. Videos already in progress keep their saved sampling plan.",
-  "videoScanDetailedHint": "Denser samples for more complete coverage. Takes longer; you can run it later on individual videos.",
+  "videoScanDetailedHint": "New scans use denser samples and take longer. To upgrade a completed quick scan, open the video and choose Run detailed scan.",
   "videoQuickComplete": "Quick scan complete",
   "videoDetailedComplete": "Detailed scan complete",
   "videoDetailedRequest": "Run detailed scan",

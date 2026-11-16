@@ -60,7 +60,9 @@ class SourcesScreen extends ConsumerWidget {
               key: const Key('scan-continue-queue'),
               icon: const Icon(Icons.play_arrow),
               label: Text(l10n.scanContinueQueue),
-              onPressed: progress.isActive ? null : () => startScan(ref, enumerate: false),
+              onPressed: progress.isActive
+                  ? null
+                  : () => startScan(ref, enumerate: false),
             ),
           if (counts != null && counts.total > 0)
             Padding(
@@ -163,9 +165,13 @@ class SourcesScreen extends ConsumerWidget {
                       : settingsStore.setScanVideos,
                 ),
                 if (settings.scanVideos)
-                  VideoScanModeSelector(mode: settings.videoScanMode,
-                    enabled: !progress.isActive, onChanged: settingsStore.setVideoScanMode),
-                if (settings.scanVideos && settings.videoScanMode == VideoScanMode.detailed)
+                  VideoScanModeSelector(
+                    mode: settings.videoScanMode,
+                    enabled: !progress.isActive,
+                    onChanged: settingsStore.setVideoScanMode,
+                  ),
+                if (settings.scanVideos &&
+                    settings.videoScanMode == VideoScanMode.detailed)
                   SwitchListTile(
                     key: const Key('adaptive-video-sampling'),
                     value: settings.adaptiveVideoSampling,
@@ -175,7 +181,9 @@ class SourcesScreen extends ConsumerWidget {
                         ? null
                         : settingsStore.setAdaptiveVideoSampling,
                   ),
-                if (settings.scanVideos && settings.videoScanMode == VideoScanMode.detailed && !settings.adaptiveVideoSampling)
+                if (settings.scanVideos &&
+                    settings.videoScanMode == VideoScanMode.detailed &&
+                    !settings.adaptiveVideoSampling)
                   ListTile(
                     title: Text(l10n.videoFrameInterval),
                     trailing: DropdownButton<double>(

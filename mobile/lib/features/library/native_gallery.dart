@@ -10,6 +10,8 @@ import '../../core/router.dart';
 import '../../data/media/media_library.dart';
 import '../../domain/scan/scan_state.dart';
 import '../../library_providers.dart';
+import '../../l10n/app_localizations.dart';
+import '../../data/repositories/video_scan_coverage.dart';
 import '../../providers.dart';
 import '../scan/scan_progress_card.dart';
 import '../media/media_screen.dart';
@@ -500,6 +502,35 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
       fit: StackFit.expand,
       children: [
         _AssetThumbnail(asset: asset),
+        if (asset.kind == 'video' &&
+            (ref
+                    .watch(quickVideoAssetsProvider)
+                    .value
+                    ?.contains(
+                      VideoScanCoverage.assetKey(
+                        asset.id,
+                        asset.modifiedAt,
+                        asset.durationMs,
+                      ),
+                    ) ??
+                false))
+          Positioned(
+            left: 4,
+            top: 4,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                child: Text(
+                  AppLocalizations.of(context).videoScanQuick,
+                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                ),
+              ),
+            ),
+          ),
         if (asset.kind == 'video')
           Positioned(
             right: 4,

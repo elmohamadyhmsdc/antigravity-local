@@ -70,6 +70,47 @@ class VideoTests(unittest.TestCase):
         self.assertEqual([json.loads(x)['frame_number'] for x in path.read_bytes().splitlines()],
                          list(range(0, 54000, 900)))
 
+    def test_quick_budget_and_grid_survive_a_server_restart(self):
+        entered, release = threading.Event(), threading.Event()
+        class LongCapture(Capture):
+            def get(self, prop):
+                return 30 if prop == cv2.CAP_PROP_FPS else 54000
+            def read(self):
+                return True, np.full((480, 640, 3), self.position % 256, np.uint8)
+        original = self.ctx.engines.analyze
+        def gated(img, opts):
+            entered.set()
+            release.wait(10)
+            return original(img, opts)
+        self.ctx.video_jobs.capture = LongCapture
+        self.ctx.engines.analyze = gated
+        job_id = self.create({**self.body, 'params': {'sampling_mode': 'quick'}})
+        self.assertTrue(entered.wait(10))
+        try:
+            self.client.post(f'/v1/jobs/{job_id}/stop', headers=self.headers)
+        finally:
+            release.set()
+        self.assertEqual(self.wait(job_id, ('paused', 'failed'))['status'], 'paused')
+        self.ctx.video_jobs.close()
+        self.ctx.engines.analyze = original
+        self.ctx = replace(self.ctx)
+        self.client.close()
+        self.app = create_app(self.ctx)
+        class ChangedMetadata(LongCapture):
+            def get(self, prop):
+                return 60 if prop == cv2.CAP_PROP_FPS else 108000
+        self.ctx.video_jobs.capture = ChangedMetadata
+        self.client = TestClient(self.app)
+        self.client.post(f'/v1/jobs/{job_id}/resume', headers=self.headers)
+        status = self.wait(job_id)
+        self.assertEqual(status['status'], 'completed', status)
+        self.assertEqual(status['details']['fps'], 30)
+        self.assertEqual(status['details']['sampling_end_frame'], 54000)
+        self.ctx.video_jobs.threads[job_id].join(5)
+        path = self.ctx.workspace.job_dir(job_id) / 'detections.ndjson'
+        self.assertEqual([json.loads(x)['frame_number'] for x in path.read_bytes().splitlines()],
+                         list(range(0, 54000, 900)))
+
     def test_duration_aware_sampling_keeps_short_clips_dense_and_long_videos_sparse(self):
         self.assertEqual(adaptive_interval(20), 0.5)
         self.assertEqual(adaptive_interval(60), 0.5)

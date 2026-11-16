@@ -115,7 +115,8 @@ class SettingsSnapshot {
       scanVideos: (m[SettingKeys.scanVideos] ?? '1') != '0',
       adaptiveVideoSampling: m[SettingKeys.adaptiveVideoSampling] != '0',
       videoScanMode: m[SettingKeys.videoScanMode] == 'detailed'
-          ? VideoScanMode.detailed : VideoScanMode.quick,
+          ? VideoScanMode.detailed
+          : VideoScanMode.quick,
       frameInterval:
           (double.tryParse(m[SettingKeys.frameInterval] ?? '') ?? 1.0).clamp(
             0.25,

@@ -142,7 +142,11 @@ class _VideoScanDetailsState extends State<VideoScanDetails> {
       key: const Key('video-scan-details'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(v.scanMode == VideoScanMode.quick ? l10n.videoScanQuick : l10n.videoScanDetailed),
+        Text(
+          v.scanMode == VideoScanMode.quick
+              ? l10n.videoScanQuick
+              : l10n.videoScanDetailed,
+        ),
         Wrap(
           spacing: 12,
           runSpacing: 8,

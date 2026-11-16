@@ -1,7 +1,7 @@
-/// Measurements for the current video. Percentages belong to one stage only;
-/// waiting and verification deliberately have no invented percentage or ETA.
 import '../../data/repositories/app_settings.dart';
 
+/// Measurements for the current video. Percentages belong to one stage only;
+/// waiting and verification deliberately have no invented percentage or ETA.
 enum VideoScanStage {
   prepare,
   upload,
