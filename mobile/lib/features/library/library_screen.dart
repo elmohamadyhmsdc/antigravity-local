@@ -164,7 +164,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               title: l.filterPerson,
                             );
                             if (choice?.personId != null && mounted) {
-                              update(_filter.copyWith(personId: choice!.personId));
+                              update(
+                                _filter.copyWith(personId: choice!.personId),
+                              );
                             }
                           },
                         )
@@ -303,41 +305,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ),
           Expanded(
-            child: IndexedStack(
-              index: _tab,
-              children: [
-                IndexedStack(
-                  index: _filter.isDefault ? 0 : 1,
-                  children: [
-                    const NativeGallery(),
-                    MediaGrid(
-                      columns: density,
-                      filter: _filter,
-                      empty: _filter.isDefault
-                          ? EmptyState(
-                              icon: Icons.photo_library_outlined,
-                              title: l10n.libraryEmptyTitle,
-                              body: l10n.libraryEmptyBody,
-                              actionLabel: l10n.chooseAlbums,
-                              onAction: () =>
-                                  context.push(Routes.settingsLibrary),
-                            )
-                          : EmptyState(
-                              icon: Icons.filter_alt_off_outlined,
-                              title: l10n.noPhotosMatch,
-                              actionLabel: l10n.clearFilters,
-                              onAction: () =>
-                                  setState(() => _filter = const MediaFilter()),
-                            ),
+            child: _tab == 1
+                ? const GalleryFolders()
+                : _filter.isDefault
+                ? const NativeGallery()
+                : MediaGrid(
+                    columns: density,
+                    filter: _filter,
+                    empty: EmptyState(
+                      icon: Icons.filter_alt_off_outlined,
+                      title: l10n.noPhotosMatch,
+                      actionLabel: l10n.clearFilters,
+                      onAction: () =>
+                          setState(() => _filter = const MediaFilter()),
                     ),
-                  ],
-                ),
-                if (_tab == 1)
-                  const GalleryFolders()
-                else
-                  const SizedBox.shrink(),
-              ],
-            ),
+                  ),
           ),
         ],
       ),

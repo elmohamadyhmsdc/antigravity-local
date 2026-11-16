@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -201,6 +202,41 @@ class ReviewRepository {
       )
       .map((_) {});
 
+  // Subscribe before the first read. Updates arriving during a read collapse into
+  // one fresh read, instead of queuing a full backlog reload for every event.
+  Stream<T> _watch<T>(Future<T> Function() read) => Stream<T>.multi((sink) {
+    var active = true;
+    var reading = false;
+    var dirty = true;
+    Future<void> refresh() async {
+      if (reading) return;
+      reading = true;
+      try {
+        while (active && dirty) {
+          dirty = false;
+          try {
+            final value = await read();
+            if (active) sink.add(value);
+          } catch (error, stack) {
+            if (active) sink.addError(error, stack);
+          }
+        }
+      } finally {
+        reading = false;
+      }
+    }
+
+    final subscription = _changes().listen((_) {
+      dirty = true;
+      unawaited(refresh());
+    });
+    sink.onCancel = () {
+      active = false;
+      return subscription.cancel();
+    };
+    unawaited(refresh());
+  });
+
   /// Replaces the stored suggestions (one transaction). Suggestions about things that no longer
   /// exist (a face assigned meanwhile, a deleted person) are dropped.
   Future<void> replaceAll(
@@ -345,30 +381,32 @@ class ReviewRepository {
     );
   }
 
-  Stream<ReviewCounts> watchCounts() async* {
-    yield await counts();
-    yield* _changes().asyncMap((_) => counts());
-  }
+  Stream<ReviewCounts> watchCounts() => _watch(() => counts());
 
-  Stream<List<ReviewMatchGroup>> watchMatches() async* {
-    yield await matches();
-    yield* _changes().asyncMap((_) => matches());
-  }
+  Stream<List<ReviewMatchGroup>> watchMatches() => _watch(() => matches());
 
-  Future<List<ReviewMatchGroup>> matches() async {
-    final people = {for (final p in await _people.people()) p.id: p};
+  Future<List<ReviewMatchGroup>> matches({
+    Map<int, PersonSummary>? peopleById,
+    int? personId,
+  }) async {
+    final people =
+        peopleById ?? {for (final p in await _people.people()) p.id: p};
     final rows = await _db
         .customSelect(
           '''
           SELECT m.face_id, m.person_id, m.score, m.margin, m.decision, f.quality_score, f.crop_path, f.track_id
           FROM review_matches m JOIN faces f ON f.id = m.face_id
           WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND f.kind = ?
+            ${personId == null ? '' : 'AND m.person_id = ?'}
             AND f.hidden = 0 AND (f.ownership IS NULL OR f.ownership != 'none')
             AND EXISTS (SELECT 1 FROM persons p WHERE p.id = m.person_id AND p.hidden = 0 AND p.grouping_locked = 0)
             AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)
           ORDER BY m.person_id, m.score DESC
           ''',
-          variables: [Variable.withString(kind)],
+          variables: [
+            Variable.withString(kind),
+            if (personId != null) Variable.withInt(personId),
+          ],
           readsFrom: {_db.reviewMatches, _db.faces, _db.faceRejections},
         )
         .get();
@@ -401,10 +439,7 @@ class ReviewRepository {
     return out;
   }
 
-  Stream<List<ReviewGroupItem>> watchGroups() async* {
-    yield await groupItems();
-    yield* _changes().asyncMap((_) => groupItems());
-  }
+  Stream<List<ReviewGroupItem>> watchGroups() => _watch(() => groupItems());
 
   /// Groups whose faces are still unsorted (a face sorted since the plan was made drops out).
   Future<List<ReviewGroupItem>> groupItems() async {
@@ -456,13 +491,14 @@ class ReviewRepository {
     return out;
   }
 
-  Stream<List<ReviewDuplicateItem>> watchDuplicates() async* {
-    yield await duplicates();
-    yield* _changes().asyncMap((_) => duplicates());
-  }
+  Stream<List<ReviewDuplicateItem>> watchDuplicates() =>
+      _watch(() => duplicates());
 
-  Future<List<ReviewDuplicateItem>> duplicates() async {
-    final people = {for (final p in await _people.people()) p.id: p};
+  Future<List<ReviewDuplicateItem>> duplicates({
+    Map<int, PersonSummary>? peopleById,
+  }) async {
+    final people =
+        peopleById ?? {for (final p in await _people.people()) p.id: p};
     final distinct = {
       for (final row in await _db.select(_db.personDistinct).get())
         (row.personA, row.personB),
@@ -495,13 +531,15 @@ class ReviewRepository {
     return row?.score;
   }
 
-  Stream<List<ReviewBodyLinkItem>> watchBodyLinks() async* {
-    yield await bodyLinks();
-    yield* _changes().asyncMap((_) => bodyLinks());
-  }
+  Stream<List<ReviewBodyLinkItem>> watchBodyLinks() =>
+      _watch(() => bodyLinks());
 
-  Future<List<ReviewBodyLinkItem>> bodyLinks() async {
-    final people = {for (final p in await _people.people()) p.id: p};
+  Future<List<ReviewBodyLinkItem>> bodyLinks({
+    Map<int, PersonSummary>? peopleById,
+    int? personId,
+  }) async {
+    final people =
+        peopleById ?? {for (final p in await _people.people()) p.id: p};
     final rows = await _db
         .customSelect(
           '''
@@ -509,12 +547,16 @@ class ReviewRepository {
           FROM review_body_links l JOIN bodies b ON b.id = l.body_id
           LEFT JOIN faces f ON f.id = b.face_id
           WHERE f.person_id IS NULL AND b.person_id IS NULL AND b.kind = ?
+            ${personId == null ? '' : 'AND l.person_id = ?'}
             AND l.method NOT IN ('appearance', 'event_outfit')
             AND b.hidden = 0 AND (b.ownership IS NULL OR b.ownership != 'none')
             AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = l.person_id)
           ORDER BY l.confidence DESC
           ''',
-          variables: [Variable.withString(kind)],
+          variables: [
+            Variable.withString(kind),
+            if (personId != null) Variable.withInt(personId),
+          ],
           readsFrom: {_db.reviewBodyLinks, _db.bodies, _db.faces},
         )
         .get();
@@ -539,29 +581,37 @@ class ReviewRepository {
 
   /// Match suggestions for one person (the Suggestions tab of their page).
   Future<List<ReviewMatchFace>> matchesFor(int personId) async {
-    final all = await matches();
-    for (final g in all) {
-      if (g.person.id == personId) return g.faces;
-    }
-    return const [];
+    final person = await _people.person(personId);
+    if (person == null || person.kind != kind) return const [];
+    final groups = await matches(
+      peopleById: {personId: person},
+      personId: personId,
+    );
+    return groups.isEmpty ? const [] : groups.single.faces;
   }
 
-  Stream<List<ReviewMatchFace>> watchMatchesFor(int personId) async* {
-    yield await matchesFor(personId);
-    yield* _changes().asyncMap((_) => matchesFor(personId));
-  }
+  Stream<List<ReviewMatchFace>> watchMatchesFor(int personId) =>
+      _watch(() => matchesFor(personId));
+
+  Stream<List<ReviewBodyLinkItem>> watchBodyLinksFor(int personId) => _watch(
+    () async {
+      final person = await _people.person(personId);
+      if (person == null || person.kind != kind) return <ReviewBodyLinkItem>[];
+      return bodyLinks(peopleById: {personId: person}, personId: personId);
+    },
+  );
 
   // ---- "are you sure?" ------------------------------------------------------------
 
-  Stream<List<ReviewDoubtfulItem>> watchDoubtful() async* {
-    yield await doubtful();
-    yield* _changes().asyncMap((_) => doubtful());
-  }
+  Stream<List<ReviewDoubtfulItem>> watchDoubtful() => _watch(() => doubtful());
 
   /// Faces on a person that the audit doubts, per person, worst first, in batches of
   /// [ReviewDoubtfulItem.chunkSize]. A face answered since (confirmed, moved, rejected, hidden) is gone.
-  Future<List<ReviewDoubtfulItem>> doubtful() async {
-    final people = {for (final p in await _people.people()) p.id: p};
+  Future<List<ReviewDoubtfulItem>> doubtful({
+    Map<int, PersonSummary>? peopleById,
+  }) async {
+    final people =
+        peopleById ?? {for (final p in await _people.people()) p.id: p};
     final rows = await _db
         .customSelect(
           '''
@@ -722,14 +772,17 @@ class ReviewRepository {
   Future<_ReviewLists> _readLists() =>
       _reading ??= _loadLists().whenComplete(() => _reading = null);
 
-  Future<_ReviewLists> _loadLists() async => (
-    matches: await matches(),
-    groups: await groupItems(),
-    duplicates: await duplicates(),
-    outfits: await bodyLinks(),
-    doubtful: await doubtful(),
-    snoozes: await _snoozes(),
-  );
+  Future<_ReviewLists> _loadLists() async {
+    final people = {for (final p in await _people.people()) p.id: p};
+    return (
+      matches: await matches(peopleById: people),
+      groups: await groupItems(),
+      duplicates: await duplicates(peopleById: people),
+      outfits: await bodyLinks(peopleById: people),
+      doubtful: await doubtful(peopleById: people),
+      snoozes: await _snoozes(),
+    );
+  }
 
   List<ReviewQuestion> _questionsFrom(
     _ReviewLists lists, {
@@ -749,10 +802,7 @@ class ReviewRepository {
   }) async =>
       _questionsFrom(await _readLists(), includeDeferred: includeDeferred);
 
-  Stream<List<ReviewQuestion>> watchQuestions() async* {
-    yield await questions();
-    yield* _changes().asyncMap((_) => questions());
-  }
+  Stream<List<ReviewQuestion>> watchQuestions() => _watch(() => questions());
 
   // Park the actual members, so regrouping cannot bring the same unresolved
   // matches back under a different batch key. Undo uses the same members.
@@ -785,8 +835,8 @@ class ReviewRepository {
 
   // ---- decisions ------------------------------------------------------------------
 
-  /// Applies only the visible batch. A stale card never moves a face the user
-  /// has assigned elsewhere in the meantime. Selected exceptions are rejected.
+  /// Resolves the visible appearances and their video tracks together. A stale
+  /// card preserves newer assignments; explicit checkbox exceptions win.
   Future<void> answerMatchBatch(
     List<int> faceIds,
     int personId, {
@@ -799,35 +849,116 @@ class ReviewRepository {
         target.groupingLocked) {
       return;
     }
-    final rejected = {
-      for (final r
-          in await (_db.select(_db.faceRejections)..where(
-                (r) => r.faceId.isIn(faceIds) & r.personId.equals(personId),
-              ))
-              .get())
-        r.faceId,
-    };
-    final current =
-        await (_db.select(_db.faces)..where(
-              (f) =>
-                  f.id.isIn(faceIds) &
-                  f.personId.isNull() &
-                  f.hidden.not() &
-                  f.reviewDismissed.not() &
-                  f.kind.equals(kind),
-            ))
-            .get();
-    final eligible = current
-        .where((f) => f.ownership != 'none' && !rejected.contains(f.id))
-        .map((f) => f.id)
-        .toSet();
+    final skipped = excluded.intersection(faceIds.toSet());
+    final selected = faceIds.toSet().difference(skipped);
+    final rejectIds = (await expandTracks(
+      skipped,
+    )).toSet().difference(selected);
+    final keepIds = (await expandTracks(
+      selected,
+      notRejectedBy: personId,
+    )).toSet().difference(rejectIds);
+    final eligible = await _availableForReview({
+      ...keepIds,
+      ...rejectIds,
+    }, personId);
     // Never expand across a selected exception sharing a track with a kept face.
-    final keep = eligible.difference(excluded);
-    final reject = eligible.intersection(excluded);
+    final keep = eligible.intersection(keepIds);
+    final reject = eligible.intersection(rejectIds);
     if (reject.isNotEmpty) {
       await _people.rejectFaces(reject, fromPersonId: personId);
     }
     if (keep.isNotEmpty) await _people.assignFaces(keep, personId);
+  });
+
+  Future<Set<int>> _availableForReview(Set<int> ids, int? personId) async {
+    final result = <int>{};
+    final list = ids.toList();
+    for (var i = 0; i < list.length; i += 500) {
+      final chunk = list.sublist(i, math.min(i + 500, list.length));
+      final rows =
+          await (_db.select(_db.faces)..where(
+                (f) =>
+                    f.id.isIn(chunk) &
+                    f.personId.isNull() &
+                    f.hidden.not() &
+                    f.reviewDismissed.not() &
+                    f.kind.equals(kind) &
+                    (f.ownership.isNull() | f.ownership.equals('none').not()),
+              ))
+              .get();
+      final rejected = personId == null
+          ? <int>{}
+          : {
+              for (final row
+                  in await (_db.select(_db.faceRejections)..where(
+                        (r) =>
+                            r.faceId.isIn(chunk) & r.personId.equals(personId),
+                      ))
+                      .get())
+                row.faceId,
+            };
+      result.addAll(
+        rows.where((f) => !rejected.contains(f.id)).map((f) => f.id),
+      );
+    }
+    return result;
+  }
+
+  /// One commit for the checked and unchecked suggestions in an album.
+  Future<void> answerAlbum({
+    required int personId,
+    required List<int> faceIds,
+    required Set<int> excludedFaces,
+    required List<int> bodyIds,
+    required Set<int> excludedBodies,
+  }) => _db.transaction(() async {
+    await answerMatchBatch(faceIds, personId, excluded: excludedFaces);
+    for (final id in bodyIds.where(excludedBodies.contains)) {
+      await rejectBodyLink(id, personId);
+    }
+    for (final id in bodyIds.where((id) => !excludedBodies.contains(id))) {
+      await acceptBodyLink(id, personId);
+    }
+  });
+
+  /// Unticked faces are remembered as not this identity, including for new groups.
+  Future<int> answerGroup({
+    required int groupId,
+    required List<int> faceIds,
+    Set<int> excluded = const {},
+    String? name,
+    int? personId,
+  }) => _db.transaction(() async {
+    final skipped = excluded.intersection(faceIds.toSet());
+    final selected = faceIds.toSet().difference(skipped);
+    if (selected.isEmpty) throw StateError('Select at least one face');
+    final rejected = (await expandTracks(
+      skipped,
+    )).toSet().difference(selected);
+    final kept = (await expandTracks(
+      selected,
+      notRejectedBy: personId,
+    )).toSet().difference(rejected);
+    final available = await _availableForReview({
+      ...kept,
+      ...rejected,
+    }, personId);
+    kept.retainAll(available);
+    rejected.retainAll(available);
+    if (kept.isEmpty) {
+      throw StateError(
+        'These suggestions have changed. Review the remaining faces.',
+      );
+    }
+    final target =
+        personId ?? await _people.createPerson(name: name, faceIds: kept);
+    if (rejected.isNotEmpty) {
+      await _people.rejectFaces(rejected, fromPersonId: target);
+    }
+    await _people.assignFaces(kept, target);
+    await forgetGroup(groupId);
+    return target;
   });
 
   /// "Add these faces to the person" for a whole Matches card.

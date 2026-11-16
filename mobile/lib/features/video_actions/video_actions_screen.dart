@@ -1,3 +1,6 @@
+import '../../providers.dart';
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -89,48 +92,74 @@ class VideoActionsScreen extends ConsumerWidget {
             return const Center(child: CircularProgressIndicator());
           }
           final actions = snapshot.data!;
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              const Text(
-                'Name an activity in an analyzed photo or video, then compare other media. Suggestions are for you to review.',
+          return SelectionCollection<VideoAction>(
+            name: 'video-actions',
+            items: actions,
+            idOf: (a) => a.id,
+            actions: (_) => [
+              CollectionAction<VideoAction>(
+                id: 'delete',
+                label: 'Delete selected activities',
+                icon: Icons.delete_outline,
+                destructive: true,
+                confirmation:
+                    'Remove the selected named activities, examples and activity suggestions. Original media and people are kept.',
+                run: (context, actions) async {
+                  await ref.read(databaseProvider).transaction(() async {
+                    for (final action in actions) {
+                      await repo.deleteAction(action.id);
+                    }
+                  });
+                  return true;
+                },
               ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const ActionExampleScreen(),
-                  ),
+            ],
+            builder: (context, selection) => ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                const Text(
+                  'Name an activity in an analyzed photo or video, then compare other media. Suggestions are for you to review.',
                 ),
-                icon: const Icon(Icons.add),
-                label: const Text('Add an example'),
-              ),
-              if (actions.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                    'No actions yet. Choose a photo or video segment to create one.',
-                  ),
-                ),
-              for (final action in actions)
-                ListTile(
-                  key: Key('action-${action.id}'),
-                  leading: const Icon(Icons.motion_photos_on_outlined),
-                  title: Text(action.name),
-                  subtitle: Text(
-                    '${action.examples.length} ${action.examples.length == 1 ? 'example' : 'examples'}',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => VideoActionDetailScreen(
-                        actionId: action.id,
-                        personId: personId,
+                      builder: (_) => const ActionExampleScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add an example'),
+                ),
+                if (actions.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'No actions yet. Choose a photo or video segment to create one.',
+                    ),
+                  ),
+                for (final action in actions)
+                  selection.tile(
+                    action,
+                    child: ListTile(
+                      key: Key('action-${action.id}'),
+                      leading: const Icon(Icons.motion_photos_on_outlined),
+                      title: Text(action.name),
+                      subtitle: Text(
+                        '${action.examples.length} ${action.examples.length == 1 ? 'example' : 'examples'}',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => VideoActionDetailScreen(
+                            actionId: action.id,
+                            personId: personId,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -561,28 +590,71 @@ class _VideoActionDetailScreenState
                     const Text(
                       'Examples describe activity in media, not a person.',
                     ),
-                    for (final example in action.examples)
-                      ListTile(
-                        title: _MediaIdLabel(
-                          example.mediaId,
-                          suffix: example.kind == 'video'
-                              ? ' · ${videoTime(example.startMs)}–${videoTime(example.endMs)}'
-                              : '',
-                        ),
-                        subtitle: Text(
-                          '${example.kind == 'video' ? '${example.frameCount} sampled frames · ' : ''}${example.participantIds.length} ${example.participantIds.length == 1 ? 'participant' : 'participants'}',
-                        ),
-                        onTap: () => context.push(
-                          '${Routes.media}/${example.mediaId}?at=${example.startMs}',
-                        ),
-                        trailing: IconButton(
-                          tooltip: 'Remove example',
-                          icon: const Icon(Icons.close),
-                          onPressed: () async {
-                            await repo.removeExample(action.id, example.id);
+                    SelectionCollection<ActionExample>(
+                      name: 'activity-examples',
+                      embedded: true,
+                      items: action.examples,
+                      idOf: (e) => e.id,
+                      actions: (_) => [
+                        CollectionAction<ActionExample>(
+                          id: 'remove',
+                          label: 'Remove selected examples',
+                          icon: Icons.remove_circle_outline,
+                          run: (context, examples) async {
+                            await ref.read(databaseProvider).transaction(
+                              () async {
+                                for (final example in examples) {
+                                  await repo.removeExample(
+                                    action.id,
+                                    example.id,
+                                  );
+                                }
+                              },
+                            );
+                            return true;
                           },
                         ),
+                        ...mediaCollectionActions<ActionExample>(
+                          ref,
+                          (examples) => selectedMedia(
+                            ref,
+                            examples.map((e) => e.mediaId),
+                          ),
+                        ),
+                      ],
+                      builder: (context, exampleSelection) => Column(
+                        children: [
+                          for (final example in action.examples)
+                            exampleSelection.tile(
+                              example,
+                              child: ListTile(
+                                title: _MediaIdLabel(
+                                  example.mediaId,
+                                  suffix: example.kind == 'video'
+                                      ? ' · ${videoTime(example.startMs)}–${videoTime(example.endMs)}'
+                                      : '',
+                                ),
+                                subtitle: Text(
+                                  '${example.kind == 'video' ? '${example.frameCount} sampled frames · ' : ''}${example.participantIds.length} ${example.participantIds.length == 1 ? 'participant' : 'participants'}',
+                                ),
+                                onTap: () => context.push(
+                                  '${Routes.media}/${example.mediaId}?at=${example.startMs}',
+                                ),
+                                trailing: IconButton(
+                                  tooltip: 'Remove example',
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () async {
+                                    await repo.removeExample(
+                                      action.id,
+                                      example.id,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
+                    ),
                     OutlinedButton.icon(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
@@ -721,91 +793,124 @@ class _VideoActionDetailScreenState
                                       m.participantIds.contains(_personId)),
                             )
                             .toList();
-                        return Column(
-                          children: [
-                            DropdownButtonFormField<int?>(
-                              isExpanded: true,
-                              initialValue: people.contains(_personId)
-                                  ? _personId
-                                  : null,
-                              decoration: const InputDecoration(
-                                labelText: 'Participant',
-                              ),
-                              items: [
-                                const DropdownMenuItem<int?>(
-                                  value: null,
-                                  child: Text('All participants'),
-                                ),
-                                for (final id in people)
-                                  DropdownMenuItem(
-                                    value: id,
-                                    child: Text(() {
-                                      final person =
-                                          (ref.watch(peopleProvider).value ??
-                                                  const [])
-                                              .where((p) => p.id == id)
-                                              .firstOrNull;
-                                      return person == null
-                                          ? 'Person $id'
-                                          : personName(
-                                              AppLocalizations.of(context),
-                                              person,
-                                            );
-                                    }()),
-                                  ),
-                              ],
-                              onChanged: (value) =>
-                                  setState(() => _personId = value),
-                            ),
-                            if (matches.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.all(16),
-                                child: Text('No matches for these filters.'),
-                              ),
-                            for (final match in matches)
-                              Card(
-                                child: Column(
-                                  children: [
-                                    ListTile(
-                                      title: _MediaIdLabel(
-                                        match.mediaId,
-                                        suffix: match.kind == 'video'
-                                            ? ' · ${videoTime(match.startMs)}–${videoTime(match.endMs)}'
-                                            : '',
-                                      ),
-                                      subtitle: Text(
-                                        '${(match.similarity * 100).round()}% ${match.kind == 'photo' ? 'configuration' : 'motion'} similarity · ${match.state} · ${match.participantIds.length} ${match.participantIds.length == 1 ? 'participant' : 'participants'}',
-                                      ),
-                                      trailing: Icon(
-                                        match.kind == 'photo'
-                                            ? Icons.photo_outlined
-                                            : Icons.play_circle_outline,
-                                      ),
-                                      onTap: () => context.push(
-                                        '${Routes.media}/${match.mediaId}?at=${match.startMs}',
-                                      ),
-                                    ),
-                                    if (match.state == 'suggested')
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.end,
-                                        children: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                _review(match, false),
-                                            child: const Text('Reject'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () =>
-                                                _review(match, true),
-                                            child: const Text('Accept'),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
-                                ),
+                        return SelectionCollection<VideoActionMatch>(
+                          name: 'activity-matches',
+                          embedded: true,
+                          items: matches,
+                          idOf: (m) => m.id,
+                          actions: (_) => [
+                            for (final accepted in [true, false])
+                              CollectionAction<VideoActionMatch>(
+                                id: accepted ? 'accept' : 'reject',
+                                label: accepted
+                                    ? 'Accept selected matches'
+                                    : 'Reject selected matches',
+                                icon: accepted ? Icons.check : Icons.close,
+                                run: (context, selected) async {
+                                  await ref.read(databaseProvider).transaction(
+                                    () async {
+                                      for (final match in selected) {
+                                        await repo.reviewMatch(
+                                          widget.actionId,
+                                          match.id,
+                                          accepted: accepted,
+                                        );
+                                      }
+                                    },
+                                  );
+                                  return true;
+                                },
                               ),
                           ],
+                          builder: (context, matchSelection) => Column(
+                            children: [
+                              DropdownButtonFormField<int?>(
+                                isExpanded: true,
+                                initialValue: people.contains(_personId)
+                                    ? _personId
+                                    : null,
+                                decoration: const InputDecoration(
+                                  labelText: 'Participant',
+                                ),
+                                items: [
+                                  const DropdownMenuItem<int?>(
+                                    value: null,
+                                    child: Text('All participants'),
+                                  ),
+                                  for (final id in people)
+                                    DropdownMenuItem(
+                                      value: id,
+                                      child: Text(() {
+                                        final person =
+                                            (ref.watch(peopleProvider).value ??
+                                                    const [])
+                                                .where((p) => p.id == id)
+                                                .firstOrNull;
+                                        return person == null
+                                            ? 'Person $id'
+                                            : personName(
+                                                AppLocalizations.of(context),
+                                                person,
+                                              );
+                                      }()),
+                                    ),
+                                ],
+                                onChanged: (value) =>
+                                    setState(() => _personId = value),
+                              ),
+                              if (matches.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Text('No matches for these filters.'),
+                                ),
+                              for (final match in matches)
+                                matchSelection.tile(
+                                  match,
+                                  child: Card(
+                                    child: Column(
+                                      children: [
+                                        ListTile(
+                                          title: _MediaIdLabel(
+                                            match.mediaId,
+                                            suffix: match.kind == 'video'
+                                                ? ' · ${videoTime(match.startMs)}–${videoTime(match.endMs)}'
+                                                : '',
+                                          ),
+                                          subtitle: Text(
+                                            '${(match.similarity * 100).round()}% ${match.kind == 'photo' ? 'configuration' : 'motion'} similarity · ${match.state} · ${match.participantIds.length} ${match.participantIds.length == 1 ? 'participant' : 'participants'}',
+                                          ),
+                                          trailing: Icon(
+                                            match.kind == 'photo'
+                                                ? Icons.photo_outlined
+                                                : Icons.play_circle_outline,
+                                          ),
+                                          onTap: () => context.push(
+                                            '${Routes.media}/${match.mediaId}?at=${match.startMs}',
+                                          ),
+                                        ),
+                                        if (match.state == 'suggested')
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.end,
+                                            children: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    _review(match, false),
+                                                child: const Text('Reject'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () =>
+                                                    _review(match, true),
+                                                child: const Text('Accept'),
+                                              ),
+                                            ],
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         );
                       },
                     ),

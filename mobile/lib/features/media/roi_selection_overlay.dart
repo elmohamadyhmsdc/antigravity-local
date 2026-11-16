@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../data/api/dtos/analyze.dart';
 
@@ -7,12 +8,14 @@ class RoiSelectionOverlay extends StatefulWidget {
     super.key,
     required this.fittedSize,
     this.initialBBox,
+    this.showActions = true,
     required this.onChanged,
     required this.onConfirm,
     required this.onCancel,
   });
 
   final Size fittedSize;
+  final bool showActions;
   final BBox? initialBBox;
   final ValueChanged<BBox> onChanged;
   final ValueChanged<BBox> onConfirm;
@@ -57,7 +60,7 @@ class _RoiSelectionOverlayState extends State<RoiSelectionOverlay> {
   }
 
   void _updateRect(Rect next) {
-    const minSize = 24.0;
+    final minSize = math.min(24.0, math.min(widget.fittedSize.width, widget.fittedSize.height));
     final clamped = Rect.fromLTRB(
       next.left.clamp(0.0, widget.fittedSize.width - minSize),
       next.top.clamp(0.0, widget.fittedSize.height - minSize),
@@ -262,7 +265,7 @@ class _RoiSelectionOverlayState extends State<RoiSelectionOverlay> {
         ),
 
         // Bottom action buttons
-        Positioned(
+        if (widget.showActions) Positioned(
           left: 12,
           right: 12,
           bottom: 16,

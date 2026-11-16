@@ -1,4 +1,16 @@
 {
+  "bulkOpen": "Open",
+  "bulkActions": "Actions ({count})",
+  "@bulkActions": {"placeholders": {"count": {"type": "int"}}},
+  "bulkCompleted": "Completed for {count} selected items",
+  "@bulkCompleted": {"placeholders": {"count": {"type": "int"}}},
+  "bulkSelectLoaded": "Select loaded items ({count})",
+  "@bulkSelectLoaded": {"placeholders": {"count": {"type": "int"}}},
+
+  "reviewSaving": "Saving decisions…",
+  "reviewSelectionOutcome": "{added} selected · {rejected} marked as someone else",
+  "@reviewSelectionOutcome": {"placeholders": {"added": {"type": "int"}, "rejected": {"type": "int"}}},
+  "peopleFilters": "Filters",
   "imageExpand": "Expand image",
   "imagePreviewTitle": "Image preview",
   "imageResetZoom": "Fit image to screen",

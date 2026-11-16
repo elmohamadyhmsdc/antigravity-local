@@ -54,6 +54,9 @@ class CharacterRepository {
         if (b.track != null) b.track!,
     };
 
+    final explicitFaces = await (db.select(db.kindOverrides)
+          ..where((o) => o.assetId.equals(media.assetId) &
+              o.kind.equals('character') & o.part.equals('face'))).get();
     final overrides = await (db.select(
       db.bodyOverrides,
     )..where((o) => o.assetId.equals(media.assetId))).get();
@@ -72,7 +75,10 @@ class CharacterRepository {
         for (final f in facesHere) {
           if (!usedFaces.contains(f.id) &&
               f.frame == frameNumber &&
-              iou(box, f.box) >= .65) {
+              (iou(box, f.box) >= .65 ||
+                  (sameDetectionBox(box, f.box, 'face') &&
+                      explicitFaces.any((o) => o.x != null && o.y != null && o.w != null && o.h != null &&
+                          sameDetectionBox(f.box, (x: o.x!, y: o.y!, w: o.w!, h: o.h!), 'face'))))) {
             same = f;
             break;
           }

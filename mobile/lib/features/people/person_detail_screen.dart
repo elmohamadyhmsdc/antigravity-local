@@ -1,3 +1,5 @@
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +12,7 @@ import '../../data/repositories/review_questions.dart';
 import '../../data/repositories/review_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
+import '../../providers.dart';
 import '../../studio_providers.dart';
 import '../library/media_grid.dart';
 import '../jobs/jobs_screen.dart' show jobStatusLabel, jobTypeLabel;
@@ -17,6 +20,7 @@ import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../review/album_review_screen.dart';
 import '../review/review_banner.dart';
+import '../review/review_action_scope.dart';
 import '../review/review_words.dart';
 import '../shared/person_picker.dart';
 import 'face_grid.dart';
@@ -45,6 +49,14 @@ final personMatchesProvider = StreamProvider.autoDispose
     });
 
 /// Possible duplicate people / outfit links of one kind ('person' | 'character').
+final personBodyLinksProvider = StreamProvider.autoDispose
+    .family<List<ReviewBodyLinkItem>, int>((ref, id) {
+      final kind = ref.watch(personProvider(id)).value?.kind ?? 'person';
+      return ref
+          .watch(reviewRepositoryByKindProvider(kind))
+          .watchBodyLinksFor(id);
+    });
+
 final reviewDuplicatesProvider = StreamProvider.autoDispose
     .family<List<ReviewDuplicateItem>, String>(
       (ref, kind) =>
@@ -442,69 +454,82 @@ class _BodiesTab extends ConsumerWidget {
             body: l10n.noBodiesBody,
           );
         }
-        return GridView.builder(
-          key: const Key('body-grid'),
-          padding: const EdgeInsets.all(4),
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 130,
-            childAspectRatio: 0.62,
-            mainAxisSpacing: 4,
-            crossAxisSpacing: 4,
+        return SelectionCollection<BodyItem>(
+          name: 'person-bodies',
+          items: items,
+          idOf: (b) => b.id,
+          actions: (_) => mapCollectionActions<BodyItem, int>(
+            bodyCollectionActions(ref, personId: personId),
+            (b) => b.id,
           ),
-          itemCount: items.length,
-          itemBuilder: (context, i) {
-            final b = items[i];
-            return GestureDetector(
-              key: Key('body-${b.id}'),
-              onTap: () {
-                if (b.mediaId != null) {
-                  context.push(
-                    '${Routes.media}/${b.mediaId}?personId=$personId',
-                  );
-                }
-              },
-              onLongPress: () => _bodyMenu(context, ref, b),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CropImage(
-                      path: b.cropPath,
-                      cacheWidth: 300,
-                      placeholderIcon: Icons.accessibility_new,
-                    ),
-                    if (b.linkMethod != null)
-                      Positioned(
-                        left: 4,
-                        bottom: 4,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            child: Text(
-                              b.linkMethod == 'manual'
-                                  ? l10n.linkManual
-                                  : l10n.linkOutfit,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
+          builder: (context, selection) => GridView.builder(
+            key: const Key('body-grid'),
+            padding: const EdgeInsets.all(4),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 130,
+              childAspectRatio: 0.62,
+              mainAxisSpacing: 4,
+              crossAxisSpacing: 4,
+            ),
+            itemCount: items.length,
+            itemBuilder: (context, i) {
+              final b = items[i];
+              return selection.tile(
+                b,
+                child: GestureDetector(
+                  key: Key('body-${b.id}'),
+                  onTap: () {
+                    if (b.mediaId != null) {
+                      context.push(
+                        '${Routes.media}/${b.mediaId}?personId=$personId',
+                      );
+                    }
+                  },
+                  onLongPress: () =>
+                      _bodyMenu(context, ref, b, () => selection.start(b)),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CropImage(
+                          path: b.cropPath,
+                          cacheWidth: 300,
+                          placeholderIcon: Icons.accessibility_new,
+                        ),
+                        if (b.linkMethod != null)
+                          Positioned(
+                            left: 4,
+                            bottom: 4,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                child: Text(
+                                  b.linkMethod == 'manual'
+                                      ? l10n.linkManual
+                                      : l10n.linkOutfit,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
@@ -514,6 +539,7 @@ class _BodiesTab extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     BodyItem b,
+    VoidCallback onSelectMultiple,
   ) async {
     final l10n = AppLocalizations.of(context);
     final action = await showModalBottomSheet<String>(
@@ -522,6 +548,12 @@ class _BodiesTab extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ListTile(
+              key: const Key('body-select-multiple'),
+              leading: const Icon(Icons.checklist),
+              title: Text(l10n.peopleAction('selection')),
+              onTap: () => Navigator.pop(context, 'select'),
+            ),
             ListTile(
               key: const Key('body-not-this-person'),
               leading: const Icon(Icons.person_off_outlined),
@@ -541,6 +573,10 @@ class _BodiesTab extends ConsumerWidget {
       ),
     );
     if (!context.mounted) return;
+    if (action == 'select') {
+      onSelectMultiple();
+      return;
+    }
     if (action == 'reject') {
       await ref
           .read(peopleRepositoryProvider)
@@ -568,19 +604,30 @@ class _SuggestionsTabState extends ConsumerState<_SuggestionsTab> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final p = widget.person;
-    final matches =
-        ref.watch(personMatchesProvider(p.id)).value ??
-        const <ReviewMatchFace>[];
+    final matchState = ref.watch(personMatchesProvider(p.id));
+    final duplicateState = ref.watch(reviewDuplicatesProvider(p.kind));
+    final bodyState = ref.watch(personBodyLinksProvider(p.id));
+    if (matchState.isLoading ||
+        duplicateState.isLoading ||
+        bodyState.isLoading) {
+      return const LoadingBox();
+    }
+    if (matchState.hasError || duplicateState.hasError || bodyState.hasError) {
+      return RetryState(
+        onRetry: () {
+          ref.invalidate(personMatchesProvider(p.id));
+          ref.invalidate(reviewDuplicatesProvider(p.kind));
+          ref.invalidate(personBodyLinksProvider(p.id));
+        },
+      );
+    }
+    final matches = matchState.value ?? const <ReviewMatchFace>[];
     final duplicates = [
-      for (final d
-          in ref.watch(reviewDuplicatesProvider(p.kind)).value ??
-              const <ReviewDuplicateItem>[])
+      for (final d in duplicateState.value ?? const <ReviewDuplicateItem>[])
         if (d.a.id == p.id || d.b.id == p.id) d,
     ];
     final links = [
-      for (final l
-          in ref.watch(reviewBodyLinksProvider(p.kind)).value ??
-              const <ReviewBodyLinkItem>[])
+      for (final l in bodyState.value ?? const <ReviewBodyLinkItem>[])
         if (l.person.id == p.id) l,
     ];
     if (matches.isEmpty && duplicates.isEmpty && links.isEmpty) {
@@ -596,117 +643,133 @@ class _SuggestionsTabState extends ConsumerState<_SuggestionsTab> {
     ];
     final repo = reviewRepositoryFor(ref, p.kind);
 
-    return ListView(
-      key: const Key('suggestions-list'),
-      padding: const EdgeInsets.all(12),
-      children: [
-        if (matches.isNotEmpty) ...[
-          Text(
-            l10n.suggestedFacesTitle(personName(l10n, p), matches.length),
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final m in matches)
-                GestureDetector(
-                  key: Key('suggested-${m.faceId}'),
-                  onTap: () => setState(() {
-                    if (!_deselected.remove(m.faceId)) {
-                      _deselected.add(m.faceId);
-                    }
-                  }),
-                  child: SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CropImage(path: m.cropPath),
-                          if (_deselected.contains(m.faceId))
-                            const ColoredBox(color: Colors.black54),
-                          Positioned(
-                            right: 3,
-                            top: 3,
-                            child: Icon(
-                              _deselected.contains(m.faceId)
-                                  ? Icons.radio_button_unchecked
-                                  : Icons.check_circle,
-                              size: 18,
-                              color: Colors.white,
-                            ),
+    return ReviewActionScope(
+      child: Builder(
+        builder: (context) => ListView(
+          key: const Key('suggestions-list'),
+          padding: const EdgeInsets.all(12),
+          children: [
+            if (matches.isNotEmpty) ...[
+              Text(
+                l10n.suggestedFacesTitle(personName(l10n, p), matches.length),
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final m in matches)
+                    GestureDetector(
+                      key: Key('suggested-${m.faceId}'),
+                      onTap: () => setState(() {
+                        if (!_deselected.remove(m.faceId)) {
+                          _deselected.add(m.faceId);
+                        }
+                      }),
+                      child: SizedBox(
+                        width: 72,
+                        height: 72,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CropImage(path: m.cropPath),
+                              if (_deselected.contains(m.faceId))
+                                const ColoredBox(color: Colors.black54),
+                              Positioned(
+                                right: 3,
+                                top: 3,
+                                child: Icon(
+                                  _deselected.contains(m.faceId)
+                                      ? Icons.radio_button_unchecked
+                                      : Icons.check_circle,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton(
+                    key: const Key('accept-suggested'),
+                    onPressed: () => ReviewActionScope.run(
+                      context,
+                      () => repo.answerMatchBatch(
+                        [for (final m in matches) m.faceId],
+                        p.id,
+                        excluded: {..._deselected},
+                      ),
+                    ),
+                    child: Text(
+                      chosen.isEmpty
+                          ? l10n.notThem(matches.length)
+                          : l10n.addFacesTo(chosen.length),
+                    ),
+                  ),
+                  OutlinedButton(
+                    key: const Key('reject-suggested'),
+                    onPressed: chosen.isEmpty
+                        ? null
+                        : () => ReviewActionScope.run(
+                            context,
+                            () => repo.rejectMatches(chosen, p.id),
+                          ),
+                    child: Text(l10n.notThem(chosen.length)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
+            if (duplicates.isNotEmpty) ...[
+              Text(
+                l10n.possibleSamePerson,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              for (final d in duplicates)
+                ListTile(
+                  key: Key('duplicate-${d.a.id}-${d.b.id}'),
+                  contentPadding: EdgeInsets.zero,
+                  leading: PersonAvatar(
+                    cropPath: (d.a.id == p.id ? d.b : d.a).avatarCropPath,
+                    radius: 22,
+                  ),
+                  title: Text(personName(l10n, d.a.id == p.id ? d.b : d.a)),
+                  subtitle: Text(
+                    scoreLabel(
+                      l10n,
+                      advanced: ref.watch(reviewAdvancedProvider),
+                      kind: ReviewQuestionKind.duplicate,
+                      score: d.score,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push(
+                    '${Routes.merge}/${p.id}/${d.a.id == p.id ? d.b.id : d.a.id}',
                   ),
                 ),
+              const SizedBox(height: 12),
             ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilledButton(
-                key: const Key('accept-suggested'),
-                onPressed: chosen.isEmpty
-                    ? null
-                    : () => repo.acceptMatches(chosen, p.id),
-                child: Text(l10n.addFacesTo(chosen.length)),
+            if (links.isNotEmpty) ...[
+              Text(
+                l10n.outfitMatchesTitle,
+                style: Theme.of(context).textTheme.titleSmall,
               ),
-              OutlinedButton(
-                key: const Key('reject-suggested'),
-                onPressed: chosen.isEmpty
-                    ? null
-                    : () => repo.rejectMatches(chosen, p.id),
-                child: Text(l10n.notThem(chosen.length)),
-              ),
+              for (final l in links) _BodyLinkTile(link: l),
             ],
-          ),
-          const SizedBox(height: 20),
-        ],
-        if (duplicates.isNotEmpty) ...[
-          Text(
-            l10n.possibleSamePerson,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          for (final d in duplicates)
-            ListTile(
-              key: Key('duplicate-${d.a.id}-${d.b.id}'),
-              contentPadding: EdgeInsets.zero,
-              leading: PersonAvatar(
-                cropPath: (d.a.id == p.id ? d.b : d.a).avatarCropPath,
-                radius: 22,
-              ),
-              title: Text(personName(l10n, d.a.id == p.id ? d.b : d.a)),
-              subtitle: Text(
-                scoreLabel(
-                  l10n,
-                  advanced: ref.watch(reviewAdvancedProvider),
-                  kind: ReviewQuestionKind.duplicate,
-                  score: d.score,
-                ),
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push(
-                '${Routes.merge}/${p.id}/${d.a.id == p.id ? d.b.id : d.a.id}',
-              ),
-            ),
-          const SizedBox(height: 12),
-        ],
-        if (links.isNotEmpty) ...[
-          Text(
-            l10n.outfitMatchesTitle,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          for (final l in links) _BodyLinkTile(link: l),
-        ],
-      ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -750,12 +813,18 @@ class _BodyLinkTile extends ConsumerWidget {
           IconButton(
             tooltip: l10n.accept,
             icon: const Icon(Icons.check),
-            onPressed: () => repo.acceptBodyLink(link.bodyId, link.person.id),
+            onPressed: () => ReviewActionScope.run(
+              context,
+              () => repo.acceptBodyLink(link.bodyId, link.person.id),
+            ),
           ),
           IconButton(
             tooltip: l10n.reject,
             icon: const Icon(Icons.close),
-            onPressed: () => repo.rejectBodyLink(link.bodyId, link.person.id),
+            onPressed: () => ReviewActionScope.run(
+              context,
+              () => repo.rejectBodyLink(link.bodyId, link.person.id),
+            ),
           ),
         ],
       ),
@@ -798,13 +867,14 @@ class _PersonMediaState extends ConsumerState<_PersonMedia> {
           child: MediaGrid(
             columns: 4,
             filter: MediaFilter(personId: widget.personId, kind: _kind),
-            onLongPress: p == null
+            onContextMenu: p == null
                 ? null
-                : (item) => showPersonMediaActionSheet(
+                : (item, select) => showPersonMediaActionSheet(
                     context,
                     person: p,
                     item: item,
                     mediaKind: _kind,
+                    onSelectMultiple: select,
                   ),
             empty: EmptyState(
               icon: Icons.photo_outlined,
@@ -857,28 +927,48 @@ class _PersonModels extends ConsumerWidget {
               'No trained models yet. Prepare training to create one.',
             ),
           ),
-        for (final model in ownedModels)
-          FutureBuilder<bool>(
-            future: ref.read(fileStoreProvider).resolve(model.path).exists(),
-            builder: (context, snapshot) {
-              final ready = snapshot.data == true;
-              return ListTile(
-                leading: PersonAvatar(
-                  cropPath: avatarPath,
-                  radius: 20,
-                  expandable: false,
+        SelectionCollection<LoraRow>(
+          name: 'person-models',
+          embedded: true,
+          items: ownedModels,
+          idOf: (m) => m.id,
+          actions: (_) => modelCollectionActions(ref),
+          builder: (context, modelSelection) => Column(
+            children: [
+              for (final model in ownedModels)
+                modelSelection.tile(
+                  model,
+                  child: FutureBuilder<bool>(
+                    future: ref
+                        .read(fileStoreProvider)
+                        .resolve(model.path)
+                        .exists(),
+                    builder: (context, snapshot) {
+                      final ready = snapshot.data == true;
+                      return ListTile(
+                        leading: PersonAvatar(
+                          cropPath: avatarPath,
+                          radius: 20,
+                          expandable: false,
+                        ),
+                        title: Text(model.triggerWord),
+                        subtitle: Text(
+                          snapshot.connectionState == ConnectionState.done
+                              ? (ready
+                                    ? 'Ready on this phone'
+                                    : 'File unavailable')
+                              : 'Checking file',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () =>
+                            context.push('${Routes.lora}/model/${model.id}'),
+                      );
+                    },
+                  ),
                 ),
-                title: Text(model.triggerWord),
-                subtitle: Text(
-                  snapshot.connectionState == ConnectionState.done
-                      ? (ready ? 'Ready on this phone' : 'File unavailable')
-                      : 'Checking file',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('${Routes.lora}/model/${model.id}'),
-              );
-            },
+            ],
           ),
+        ),
         if (jobs.isLoading || jobs.hasError || ownedJobs.isNotEmpty) ...[
           const SizedBox(height: 20),
           Text(
@@ -888,14 +978,31 @@ class _PersonModels extends ConsumerWidget {
           if (jobs.isLoading) const LoadingBox(),
           if (jobs.hasError)
             RetryState(onRetry: () => ref.invalidate(jobsProvider)),
-          for (final job in ownedJobs)
-            ListTile(
-              title: Text(
-                jobStatusLabel(AppLocalizations.of(context), job.status),
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('${Routes.jobs}/${job.id}'),
+          SelectionCollection<JobRow>(
+            name: 'person-jobs',
+            embedded: true,
+            items: ownedJobs,
+            idOf: (item) => item.id,
+            actions: (selected) => jobCollectionActions(ref, selected),
+            builder: (context, sectionSelection) => Column(
+              children: [
+                for (final job in ownedJobs)
+                  sectionSelection.tile(
+                    job,
+                    child: ListTile(
+                      title: Text(
+                        jobStatusLabel(
+                          AppLocalizations.of(context),
+                          job.status,
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.push('${Routes.jobs}/${job.id}'),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
         if (datasets.isLoading ||
             datasets.hasError ||
@@ -905,12 +1012,27 @@ class _PersonModels extends ConsumerWidget {
           if (datasets.isLoading) const LoadingBox(),
           if (datasets.hasError)
             RetryState(onRetry: () => ref.invalidate(datasetsProvider)),
-          for (final dataset in ownedDatasets)
-            ListTile(
-              title: Text(dataset.triggerWord),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('${Routes.datasets}/${dataset.id}'),
+          SelectionCollection<DatasetRow>(
+            name: 'person-datasets',
+            embedded: true,
+            items: ownedDatasets,
+            idOf: (item) => item.id,
+            actions: (selected) => datasetCollectionActions(ref),
+            builder: (context, sectionSelection) => Column(
+              children: [
+                for (final dataset in ownedDatasets)
+                  sectionSelection.tile(
+                    dataset,
+                    child: ListTile(
+                      title: Text(dataset.triggerWord),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () =>
+                          context.push('${Routes.datasets}/${dataset.id}'),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
         if (ownedResults.isNotEmpty) ...[
           const SizedBox(height: 20),
@@ -918,14 +1040,29 @@ class _PersonModels extends ConsumerWidget {
             'Related results',
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          for (final result in ownedResults)
-            ListTile(
-              leading: const Icon(Icons.photo_outlined),
-              title: Text(
-                jobTypeLabel(AppLocalizations.of(context), result.type),
-              ),
-              onTap: () => context.push('${Routes.results}/${result.id}'),
+          SelectionCollection<ResultRow>(
+            name: 'person-results',
+            embedded: true,
+            items: ownedResults,
+            idOf: (item) => item.id,
+            actions: (selected) => resultCollectionActions(ref, selected),
+            builder: (context, sectionSelection) => Column(
+              children: [
+                for (final result in ownedResults)
+                  sectionSelection.tile(
+                    result,
+                    child: ListTile(
+                      leading: const Icon(Icons.photo_outlined),
+                      title: Text(
+                        jobTypeLabel(AppLocalizations.of(context), result.type),
+                      ),
+                      onTap: () =>
+                          context.push('${Routes.results}/${result.id}'),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
         FilledButton.tonalIcon(
           onPressed: () => context.push('${Routes.studioCuration}/$personId'),
@@ -953,29 +1090,55 @@ class _SavedIdentities extends ConsumerWidget {
         if (owned.isEmpty) {
           return const Center(child: Text('No saved identities'));
         }
-        return ListView(
-          children: [
-            for (final item in owned)
-              ListTile(
-                leading: const Icon(Icons.bookmark_outline),
-                title: Text(item.name),
-                subtitle: const Text('Saved source identity'),
-                trailing: IconButton(
-                  tooltip: 'Edit identity',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => _IdentitySetEditor(item: item),
+        return SelectionCollection<IdentitySetRow>(
+          name: 'saved-identities',
+          items: owned,
+          idOf: (i) => i.id,
+          actions: (_) => [
+            CollectionAction<IdentitySetRow>(
+              id: 'delete',
+              label: 'Remove saved identities',
+              icon: Icons.delete_outline,
+              destructive: true,
+              confirmation:
+                  'Remove these saved source sets. People, face assignments, models and original photos are kept.',
+              run: (context, selected) async {
+                await ref.read(databaseProvider).transaction(() async {
+                  for (final item in selected) {
+                    await ref.read(identityRepositoryProvider).delete(item.id);
+                  }
+                });
+                return true;
+              },
+            ),
+          ],
+          builder: (context, selection) => ListView(
+            children: [
+              for (final item in owned)
+                selection.tile(
+                  item,
+                  child: ListTile(
+                    leading: const Icon(Icons.bookmark_outline),
+                    title: Text(item.name),
+                    subtitle: const Text('Saved source identity'),
+                    trailing: IconButton(
+                      tooltip: 'Edit identity',
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _IdentitySetEditor(item: item),
+                        ),
+                      ),
                     ),
+                    onTap: !allowStudio
+                        ? null
+                        : () => context.push(
+                            '${Routes.reface}?person=$personId&identity=${item.id}',
+                          ),
                   ),
                 ),
-                onTap: !allowStudio
-                    ? null
-                    : () => context.push(
-                        '${Routes.reface}?person=$personId&identity=${item.id}',
-                      ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );

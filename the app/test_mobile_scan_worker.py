@@ -42,6 +42,29 @@ class WorkerTests(unittest.TestCase):
                 process = engines._scan_worker.process
             self.assertIsNotNone(process.poll(),'Server shutdown must stop its worker')
 
+    def test_anime_recovery_uses_worker_and_preserves_structured_errors(self):
+        from mobile_api.errors import ApiError
+        fixture = json.loads((Path(__file__).parent / 'mobile_api' / 'contract' / 'fixtures' /
+                              'TargetedAnalysisResponse.anime_face.json').read_text())['detections']
+        script = ("import sys,json\nfor i,line in enumerate(sys.stdin):\n "
+                  "request=json.loads(line)\n "
+                  "assert request['type']=='anime_face'\n "
+                  "reply={'api_error':{'status':503,'code':'model_missing','message':'Fixture model missing'}} if i==0 else "
+                  + repr({'detections': fixture}) + "\n print(" + repr(PREFIX) + "+json.dumps(reply),flush=True)")
+        # repr(None/True) is valid Python; this script never imports inference models.
+        worker = ScanWorker(command=[sys.executable, '-u', '-c', script], timeout=5)
+        self.addCleanup(worker.close)
+        engines = InsightEngines()
+        engines._scan_worker = worker
+        image = np.zeros((64, 64, 3), np.uint8)
+        with self.assertRaises(ApiError) as error:
+            engines.targeted_analyze(image, 'anime_face', dict(x=.1, y=.1, w=.5, h=.5))
+        self.assertEqual(error.exception.code, 'model_missing')
+        process = worker.process
+        result = engines.targeted_analyze(image, 'anime_face')
+        self.assertEqual(result, fixture)
+        self.assertIs(worker.process, process)
+
     def test_json_transport_preserves_analysis_and_crops(self):
         from mobile_api.schemas import analysis_to_response, AnalyzeRequestOptions
         image = np.zeros((480,640,3),np.uint8)

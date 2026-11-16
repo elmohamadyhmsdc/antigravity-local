@@ -675,5 +675,8 @@ final correctionsQueriesProvider = Provider<CorrectionsQueries>((ref) {
 final targetedDetectionServiceProvider = Provider<TargetedDetectionService>((
   ref,
 ) {
-  return TargetedDetectionService(db: ref.watch(databaseProvider));
+  return TargetedDetectionService(
+    db: ref.watch(databaseProvider),
+    files: ref.watch(fileStoreProvider),
+  );
 });

@@ -1,5 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:antigravity_mobile/data/api/dtos/embedding.dart';
+
+import 'package:antigravity_mobile/data/api/dtos/targeted.dart';
+import 'package:antigravity_mobile/domain/corrections/targeted_detection_service.dart';
 
 import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
@@ -87,6 +93,38 @@ void main() {
 
   Future<List<FaceRow>> faces() => db.select(db.faces).get();
   Future<List<BodyRow>> bodies() => db.select(db.bodies).get();
+
+  test('an explicit anime face survives a miss and is reused when detection returns', () async {
+    final mediaId = await db.into(db.media).insert(
+      MediaCompanion.insert(assetId: 'manual-anime-photo', kind: 'photo'),
+    );
+    final wire = jsonDecode(File('../the app/mobile_api/contract/fixtures/TargetedAnalysisResponse.anime_face.json')
+        .readAsStringSync()) as Map<String, dynamic>;
+    final face = TargetedAnalysisResponse.fromJson(wire).detections.single;
+    final manual = TargetedDetectionService(db: db, files: redetector.files);
+    final saved = await manual.apply(TargetedEntry(
+      mediaId: mediaId, kind: 'anime_face', bbox: face.bbox, label: 'Mira',
+      embedding: face.embedding, embeddingModelId: face.embeddingModelId,
+      cropJpeg: face.cropJpeg, score: face.score, facePx: face.facePx!, manual: true,
+    ));
+    api.analyzeResult = AnalyzeImageResponse.fromJson({
+      'model_id': 'buffalo_l@1', 'image_w': 800, 'image_h': 400,
+      'faces': [], 'bodies': [], 'pairs': [], 'characters': [],
+    });
+    await redetector.photo(mediaId, RedetectPart.both);
+    expect((await faces()).single.id, saved.insertedId);
+    expect((await db.select(db.mediaDetections).getSingle()).refId, saved.insertedId);
+    final charWire = jsonDecode(File('../the app/mobile_api/contract/fixtures/AnalyzeImageResponse.character_face_body.json')
+        .readAsStringSync()) as Map<String, dynamic>;
+    charWire['characters'][0]['face']['bbox'] = {'x': 40, 'y': 56.32, 'w': 38.4, 'h': 81.92};
+    charWire['characters'][0]['face']['embedding'] = encodeVector(Float32List(768)..[1] = 1);
+    // A smaller refined box has IoU < .65 but agrees with the explicit face region.
+    api.analyzeResult = AnalyzeImageResponse.fromJson(charWire);
+    await redetector.photo(mediaId, RedetectPart.faces);
+    expect((await faces()).single.id, saved.insertedId);
+    expect((await faces()).single.kind, 'character');
+    expect(await db.select(db.persons).get(), hasLength(1));
+  });
 
   test('rescans cannot restore a body rejected from a face owner', () async {
     final m = await photo('rejected-body');

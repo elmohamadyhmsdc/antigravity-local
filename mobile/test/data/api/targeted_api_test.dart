@@ -1,8 +1,27 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:antigravity_mobile/data/api/dtos/targeted.dart';
 
 void main() {
   group('TargetedAnalysisResponse DTO', () {
+    test('parses the shared anime identity and manual recovery fixture', () {
+      final json = jsonDecode(File('../the app/mobile_api/contract/fixtures/TargetedAnalysisResponse.anime_face.json')
+          .readAsStringSync()) as Map<String, dynamic>;
+      final result = TargetedAnalysisResponse.fromJson(json);
+      expect(result.targetKind, 'anime_face');
+      final face = result.detections.single;
+      expect(face.embeddingModelId, 'ccip-caformer24@1');
+      expect(face.embedding, hasLength(768));
+      expect(face.cropJpeg, isNotEmpty);
+      expect(face.manual, isTrue);
+      expect(face.score, 0);
+      expect(face.facePx, 128);
+      (json['detections'] as List).first['embedding_model_id'] = 'buffalo_l@1';
+      expect(() => TargetedAnalysisResponse.fromJson(json), throwsFormatException);
+    });
+
     test(
       'parses targeted response with bounding box, outline, and keypoints',
       () {

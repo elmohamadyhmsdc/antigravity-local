@@ -121,7 +121,7 @@ void main() {
         tester
             .widget<FilledButton>(find.byKey(Key('match-accept-$person')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
       expect(
         (await env.db.select(env.db.faces).get()).where(
@@ -129,6 +129,13 @@ void main() {
         ),
         isEmpty,
       );
+      await tester.tap(find.byKey(Key('match-accept-$person')));
+      await tester.pumpAndSettle();
+      expect(
+        (await env.db.select(env.db.faceRejections).get()).single.faceId,
+        face,
+      );
+      expect(find.byKey(Key('match-card-$person')), findsNothing);
     },
     session: testSession,
   );
@@ -172,7 +179,10 @@ void main() {
       await tester.tap(find.byKey(const Key('review-viewer-include')));
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(find.text('21 selected'), findsOneWidget);
+      expect(
+        find.text('21 selected · 1 marked as someone else'),
+        findsOneWidget,
+      );
       await tester.ensureVisible(find.byKey(Key('group-create-$group')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key('group-create-$group')));
@@ -180,6 +190,10 @@ void main() {
       final saved = await env.db.select(env.db.faces).get();
       expect(saved.where((f) => f.personId != null), hasLength(21));
       expect(saved.firstWhere((f) => f.id == faces[20]).personId, isNull);
+      expect(
+        (await env.db.select(env.db.faceRejections).get()).single.faceId,
+        faces[20],
+      );
     },
     session: testSession,
   );

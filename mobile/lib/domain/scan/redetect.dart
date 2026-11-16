@@ -115,9 +115,20 @@ class Redetector {
     final redoBodies = part != RedetectPart.faces;
     final oldFaces = await _oldFaces(mediaId);
     final oldBodies = await _oldBodies(mediaId);
+    // An explicitly marked face remains even if the full-image detector misses it.
+    final protectedFaces = {
+      for (final face in oldFaces)
+        if (corrections.overrides.any((o) =>
+            o.part == 'face' && o.kind == face.kind &&
+            o.x != null && o.y != null && o.w != null && o.h != null &&
+            sameDetectionBox(face.box, (x: o.x!, y: o.y!, w: o.w!, h: o.h!), 'face')))
+          face.id,
+    };
     final removed = await _removeHere(
       mediaId,
-      faceIds: redoFaces ? [for (final f in oldFaces) f.id] : const [],
+      faceIds: redoFaces
+          ? [for (final f in oldFaces) if (!protectedFaces.contains(f.id)) f.id]
+          : const [],
       bodyIds: redoBodies ? [for (final b in oldBodies) b.id] : const [],
     );
     final fresh = await _media(mediaId);

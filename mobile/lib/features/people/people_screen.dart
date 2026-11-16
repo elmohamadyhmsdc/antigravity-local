@@ -48,6 +48,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
   late String _kind = widget.kind;
   late int? _groupId = widget.initialGroupId;
   bool _selecting = false;
+  bool _filtersExpanded = false;
   final _selected = <int>{};
 
   void _startSelection(int id) {
@@ -234,9 +235,11 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   subtitle: l10n.organizeNaming,
                   onTap: () {
                     Navigator.pop(ctx);
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => const OrganizePersonMediaScreen(),
-                    ));
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const OrganizePersonMediaScreen(),
+                      ),
+                    );
                   },
                 ),
               ],
@@ -252,6 +255,29 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   _openReview();
                 },
               ),
+              if (characters)
+                _ToolsSheetTile(
+                  key: const Key('repair-mixed-characters'),
+                  icon: Icons.auto_fix_high_outlined,
+                  title: l10n.repairMixedCharacters,
+                  subtitle: l10n.charactersEmptyHint,
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    if (ref.read(scanProgressProvider).value?.isActive ??
+                        false) {
+                      return;
+                    }
+                    await startScan(
+                      ref,
+                      enumerate: false,
+                      repairCharacters: true,
+                    );
+                    if (context.mounted &&
+                        ref.read(scanEngineProvider).isRunning) {
+                      context.push(Routes.runningScan);
+                    }
+                  },
+                ),
               const SizedBox(height: 6),
               _ToolsSheetTile(
                 key: const Key('test-character-photo'),
@@ -285,8 +311,6 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final characters = _kind == 'character';
-    final scanRunning =
-        characters && (ref.watch(scanProgressProvider).value?.isActive ?? false);
     final allKinds = _kind == 'all';
     final listProvider = allKinds
         ? _allIdentitiesProvider
@@ -350,7 +374,8 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   (p.groupName?.toLowerCase().contains(q) ?? false)),
         )
         .toList();
-    _selected.removeWhere((id) => !allPeople.any((p) => p.id == id));
+    final existingIds = allPeople.map((p) => p.id).toSet();
+    _selected.removeWhere((id) => !existingIds.contains(id));
 
     final selectedPeople = allPeople
         .where((p) => _selected.contains(p.id))
@@ -448,7 +473,9 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                     color: Theme.of(context).colorScheme.surfaceContainerHigh,
                     border: Border(
                       top: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.25),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outlineVariant.withValues(alpha: 0.25),
                         width: 0.8,
                       ),
                     ),
@@ -590,7 +617,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                         key: const Key('open-all-types'),
                         visualDensity: VisualDensity.compact,
                         labelPadding: EdgeInsets.zero,
-                        label: const Text('All types'),
+                        label: Text(l10n.peopleAction('all')),
                         selected: allKinds,
                         showCheckmark: false,
                         onSelected: (_) => setState(() {
@@ -641,31 +668,6 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   ),
                 ),
               ),
-            if (characters && !_selecting)
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: TextButton.icon(
-                    key: const Key('repair-mixed-characters'),
-                    icon: const Icon(Icons.auto_fix_high_outlined),
-                    label: Text(l10n.repairMixedCharacters),
-                    onPressed: scanRunning
-                        ? null
-                        : () async {
-                            await startScan(
-                              ref,
-                              enumerate: false,
-                              repairCharacters: true,
-                            );
-                            if (context.mounted &&
-                                ref.read(scanEngineProvider).isRunning) {
-                              context.push(Routes.runningScan);
-                            }
-                          },
-                  ),
-                ),
-              ),
             Expanded(
               child: people.when(
                 loading: () => const LoadingBox(),
@@ -693,7 +695,9 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                   }
                   final shown = [...visible];
                   shown.sort((a, b) {
-                    final named = (b.isNamed ? 1 : 0).compareTo(a.isNamed ? 1 : 0);
+                    final named = (b.isNamed ? 1 : 0).compareTo(
+                      a.isNamed ? 1 : 0,
+                    );
                     if (named != 0) return named;
                     final pin = (b.pinned ? 1 : 0).compareTo(a.pinned ? 1 : 0);
                     if (pin != 0) return pin;
@@ -721,7 +725,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                                 key: const Key('people-review-banner'),
                                 icon: Icons.swipe_outlined,
                                 title: l10n.peopleReviewBanner(questions),
-                                body: l10n.peopleReviewBannerBody,
+                                compact: true,
                                 onTap: () => _openReview(quick: true),
                               ),
                             Padding(
@@ -730,6 +734,10 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                                 key: const Key('people-search'),
                                 controller: _search,
                                 decoration: InputDecoration(
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   prefixIcon: const Icon(Icons.search_rounded),
                                   suffixIcon: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -741,6 +749,21 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                                           onPressed: _clearSearch,
                                           icon: const Icon(Icons.close_rounded),
                                         ),
+                                      IconButton(
+                                        key: const Key('people-filters'),
+                                        tooltip: l10n.peopleFilters,
+                                        isSelected: _filtersExpanded,
+                                        icon: Badge(
+                                          isLabelVisible:
+                                              _filter != 'all' ||
+                                              groupId != null,
+                                          child: const Icon(Icons.tune_rounded),
+                                        ),
+                                        onPressed: () => setState(
+                                          () => _filtersExpanded =
+                                              !_filtersExpanded,
+                                        ),
+                                      ),
                                       PopupMenuButton<PeopleSort>(
                                         key: const Key('people-sort'),
                                         tooltip: l10n.sortBy,
@@ -781,126 +804,159 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                                 onChanged: (v) => setState(() => _query = v),
                               ),
                             ),
-                            if (groups.isNotEmpty)
+                            if (!_filtersExpanded &&
+                                (_filter != 'all' || groupId != null))
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  14,
-                                  4,
-                                  14,
-                                  8,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: DropdownButtonFormField<int>(
-                                        key: ValueKey(
-                                          'people-group-filter-$groupId',
-                                        ),
-                                        initialValue: groupId ?? 0,
-                                        isExpanded: true,
-                                        decoration: InputDecoration(
-                                          labelText: l10n.identityGroupsTitle,
-                                        ),
-                                        items: [
-                                          DropdownMenuItem(
-                                            value: 0,
-                                            child: Text(l10n.identityGroupAll),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: -1,
-                                            child: Text(
-                                              l10n.identityGroupUngrouped,
-                                            ),
-                                          ),
-                                          for (final group in groups)
-                                            DropdownMenuItem(
-                                              value: group.id,
-                                              child: Text(
-                                                group.name,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                        ],
-                                        onChanged: (id) => setState(() {
-                                          _groupId = id == 0 ? null : id;
-                                          _selected.clear();
-                                        }),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      key: const Key('people-manage-groups'),
-                                      tooltip: l10n.identityGroupsTitle,
-                                      onPressed: () =>
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute<void>(
-                                              builder: (_) =>
-                                                  IdentityGroupsScreen(
-                                                    kind: scopedKind,
-                                                  ),
-                                            ),
-                                          ),
-                                      icon: const Icon(
-                                        Icons.create_new_folder_outlined,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 14,
                                 ),
-                                child: Row(
-                                  children: [
-                                    for (final filter in [
-                                      'all',
-                                      'favorites',
-                                      'pinned',
-                                      'hidden',
-                                    ])
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 8,
-                                        ),
-                                        child: ChoiceChip(
-                                          key: Key('people-filter-$filter'),
-                                          avatar: switch (filter) {
-                                            'favorites' => const Icon(
-                                              Icons.star_rounded,
-                                              size: 16,
-                                            ),
-                                            'pinned' => const Icon(
-                                              Icons.push_pin_rounded,
-                                              size: 16,
-                                            ),
-                                            'hidden' => const Icon(
-                                              Icons.visibility_off_rounded,
-                                              size: 16,
-                                            ),
-                                            _ => null,
-                                          },
-                                          label: Text(
-                                            l10n.peopleAction(filter),
-                                          ),
-                                          selected: _filter == filter,
-                                          onSelected: (_) => setState(() {
-                                            _filter = filter;
-                                            _selected.clear();
-                                          }),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
+                                child: Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: InputChip(
+                                    label: Text(
+                                      [
+                                        if (_filter != 'all')
+                                          l10n.peopleAction(_filter),
+                                        if (groupId == -1)
+                                          l10n.identityGroupUngrouped,
+                                        for (final group in groups)
+                                          if (group.id == groupId) group.name,
+                                      ].join(' · '),
+                                    ),
+                                    onDeleted: () => setState(() {
+                                      _filter = 'all';
+                                      _groupId = null;
+                                    }),
+                                  ),
                                 ),
                               ),
-                            ),
+                            if (_filtersExpanded) ...[
+                              if (groups.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    14,
+                                    4,
+                                    14,
+                                    8,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: DropdownButtonFormField<int>(
+                                          key: ValueKey(
+                                            'people-group-filter-$groupId',
+                                          ),
+                                          initialValue: groupId ?? 0,
+                                          isExpanded: true,
+                                          decoration: InputDecoration(
+                                            labelText: l10n.identityGroupsTitle,
+                                          ),
+                                          items: [
+                                            DropdownMenuItem(
+                                              value: 0,
+                                              child: Text(
+                                                l10n.identityGroupAll,
+                                              ),
+                                            ),
+                                            DropdownMenuItem(
+                                              value: -1,
+                                              child: Text(
+                                                l10n.identityGroupUngrouped,
+                                              ),
+                                            ),
+                                            for (final group in groups)
+                                              DropdownMenuItem(
+                                                value: group.id,
+                                                child: Text(
+                                                  group.name,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                          ],
+                                          onChanged: (id) => setState(() {
+                                            _groupId = id == 0 ? null : id;
+                                            _selected.clear();
+                                          }),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        key: const Key('people-manage-groups'),
+                                        tooltip: l10n.identityGroupsTitle,
+                                        onPressed: () =>
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute<void>(
+                                                builder: (_) =>
+                                                    IdentityGroupsScreen(
+                                                      kind: scopedKind,
+                                                    ),
+                                              ),
+                                            ),
+                                        icon: const Icon(
+                                          Icons.create_new_folder_outlined,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      for (final filter in [
+                                        'all',
+                                        'favorites',
+                                        'pinned',
+                                        'hidden',
+                                      ])
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: ChoiceChip(
+                                            key: Key('people-filter-$filter'),
+                                            avatar: switch (filter) {
+                                              'favorites' => const Icon(
+                                                Icons.star_rounded,
+                                                size: 16,
+                                              ),
+                                              'pinned' => const Icon(
+                                                Icons.push_pin_rounded,
+                                                size: 16,
+                                              ),
+                                              'hidden' => const Icon(
+                                                Icons.visibility_off_rounded,
+                                                size: 16,
+                                              ),
+                                              _ => null,
+                                            },
+                                            label: Text(
+                                              l10n.peopleAction(filter),
+                                            ),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            showCheckmark: false,
+                                            selected: _filter == filter,
+                                            onSelected: (_) => setState(() {
+                                              _filter = filter;
+                                              _selected.clear();
+                                            }),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -982,50 +1038,78 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                                       mainAxisSpacing: mainAxisSpacing,
                                       mainAxisExtent: mainAxisExtent,
                                     ),
-                                delegate: SliverChildListDelegate([
-                                  if ((allKinds ? humanUnsorted : unsorted) >
-                                          0 &&
-                                      q.isEmpty &&
-                                      _filter == 'all' &&
-                                      groupId == null &&
-                                      !_selecting)
-                                    _UnsortedCard(
-                                      count: allKinds
-                                          ? humanUnsorted
-                                          : unsorted,
-                                      avatarRadius: avatarRadius,
-                                      kind: scopedKind,
-                                    ),
-                                  if (allKinds &&
-                                      characterUnsorted > 0 &&
-                                      q.isEmpty &&
-                                      _filter == 'all' &&
-                                      groupId == null &&
-                                      !_selecting)
-                                    _UnsortedCard(
-                                      count: characterUnsorted,
-                                      avatarRadius: avatarRadius,
-                                      kind: 'character',
-                                    ),
-                                  if (_kind == 'group')
-                                    for (final g in groups)
-                                      _GroupCard(
-                                        group: g,
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) {
+                                    final showUnsorted =
+                                        q.isEmpty &&
+                                        _filter == 'all' &&
+                                        groupId == null &&
+                                        !_selecting;
+                                    final kinds = <(String, int)>[
+                                      if (showUnsorted &&
+                                          (allKinds
+                                                  ? humanUnsorted
+                                                  : unsorted) >
+                                              0)
+                                        (
+                                          scopedKind,
+                                          allKinds ? humanUnsorted : unsorted,
+                                        ),
+                                      if (showUnsorted &&
+                                          allKinds &&
+                                          characterUnsorted > 0)
+                                        ('character', characterUnsorted),
+                                    ];
+                                    if (index < kinds.length) {
+                                      return _UnsortedCard(
+                                        count: kinds[index].$2,
+                                        kind: kinds[index].$1,
                                         avatarRadius: avatarRadius,
-                                      )
-                                  else
-                                    for (final p in shown)
-                                      _PersonCard(
-                                        person: p,
-                                        selecting: _selecting,
-                                        selected: _selected.contains(p.id),
-                                        onToggle: () => _toggle(p.id),
-                                        onStartSelection: () =>
-                                            _startSelection(p.id),
-                                        onMenu: () => _menu([p]),
+                                      );
+                                    }
+                                    final item = index - kinds.length;
+                                    if (_kind == 'group') {
+                                      return _GroupCard(
+                                        key: ValueKey(
+                                          'group-${groups[item].id}',
+                                        ),
+                                        group: groups[item],
                                         avatarRadius: avatarRadius,
-                                      ),
-                                ]),
+                                      );
+                                    }
+                                    final p = shown[item];
+                                    return _PersonCard(
+                                      key: ValueKey(p.id),
+                                      person: p,
+                                      selecting: _selecting,
+                                      selected: _selected.contains(p.id),
+                                      onToggle: () => _toggle(p.id),
+                                      onStartSelection: () =>
+                                          _startSelection(p.id),
+                                      onMenu: () => _menu([p]),
+                                      avatarRadius: avatarRadius,
+                                    );
+                                  },
+                                  childCount:
+                                      (_kind == 'group'
+                                          ? groups.length
+                                          : shown.length) +
+                                      (q.isEmpty &&
+                                              _filter == 'all' &&
+                                              groupId == null &&
+                                              !_selecting
+                                          ? ((allKinds
+                                                            ? humanUnsorted
+                                                            : unsorted) >
+                                                        0
+                                                    ? 1
+                                                    : 0) +
+                                                (allKinds &&
+                                                        characterUnsorted > 0
+                                                    ? 1
+                                                    : 0)
+                                          : 0),
+                                ),
                               ),
                             );
                           },
@@ -1044,6 +1128,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
 
 class _PersonCard extends StatelessWidget {
   const _PersonCard({
+    super.key,
     required this.person,
     required this.selecting,
     required this.selected,
@@ -1394,7 +1479,7 @@ class _UnsortedCard extends StatelessWidget {
 }
 
 class _GroupCard extends StatelessWidget {
-  const _GroupCard({required this.group, this.avatarRadius = 34});
+  const _GroupCard({super.key, required this.group, this.avatarRadius = 34});
 
   final IdentityGroupSummary group;
   final double avatarRadius;

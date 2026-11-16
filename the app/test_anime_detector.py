@@ -67,6 +67,67 @@ class TestAnimeDetector(unittest.TestCase):
         # [x1, y1, x2, y2] = [320 - 50, 320 - 50, 320 + 50, 320 + 50]
         self.assertEqual(boxes[0], [270.0, 270.0, 370.0, 370.0])
 
+    def test_detail_windows_recover_small_faces_and_merge_overlaps(self):
+        img = np.zeros((1200, 1600, 3), np.uint8)
+        face = np.array([700, 450, 780, 530], dtype=float)
+        thresholds, calls = [], []
+        detector = object.__new__(AnimeFaceDetector)
+
+        def detect(view, score_thresh, iou_thresh):
+            thresholds.append(score_thresh)
+            calls.append(view.shape)
+            offset = (view.__array_interface__['data'][0] - img.__array_interface__['data'][0]) // 3
+            x, y = offset % 1600, offset // 1600
+            local = face - [x, y, x, y]
+            h, w = view.shape[:2]
+            if (min(local[:2]) >= 0 and local[2] <= w and local[3] <= h
+                    and min(local[2:] - local[:2]) * 640 / max(h, w) >= 40):
+                return [dict(bbox=local.tolist(), score=.9)]
+            return []
+
+        detector.detect = detect
+        found = detector.detect_multiscale(img, score_thresh=.7)
+        self.assertEqual(len(found), 1)
+        np.testing.assert_allclose(found[0]['bbox'], face)
+        self.assertTrue(all(value == .7 for value in thresholds))
+        self.assertLessEqual(len(calls), 10)
+
+    def test_small_images_keep_one_pass_and_large_images_have_a_fixed_budget(self):
+        detector = object.__new__(AnimeFaceDetector)
+        calls = []
+        detector.detect = lambda view, **kw: calls.append(view.shape) or []
+        detector.detect_multiscale(np.zeros((640, 960, 3), np.uint8))
+        self.assertEqual(len(calls), 1)
+        calls.clear()
+        detector.detect_multiscale(np.zeros((2560, 2560, 3), np.uint8))
+        self.assertLessEqual(len(calls), 10)
+
+    def test_internal_tile_edge_fragments_are_rejected(self):
+        detector = object.__new__(AnimeFaceDetector)
+        img = np.zeros((640, 1600, 3), np.uint8)
+        def detect(view, **kw):
+            if view.shape[1] == 960 and view.__array_interface__['data'][0] == img.__array_interface__['data'][0]:
+                return [dict(bbox=[930, 100, 960, 150], score=.9)]
+            return []
+        detector.detect = detect
+        self.assertEqual(detector.detect_multiscale(img), [])
+
+    def test_a_detail_pass_failure_preserves_the_successful_full_view(self):
+        detector = object.__new__(AnimeFaceDetector)
+        baseline = [dict(bbox=[400, 100, 600, 300], score=.9)]
+        def detect(view, **kw):
+            if view.shape[1] == 1600:
+                return baseline
+            raise RuntimeError('Fixture detail failure')
+        detector.detect = detect
+        result = detector.detect_multiscale(np.zeros((640, 1600, 3), np.uint8))
+        self.assertEqual(result, baseline)
+
+    def test_nonfinite_predictions_cannot_become_faces(self):
+        mat = np.array([[320, 320, 100, 100, np.nan],
+                        [np.inf, 320, 100, 100, .9]], np.float32)
+        self.assertEqual(decode_yolo(mat), ([], []))
+
     def test_detector_with_model(self):
         model_path = os.path.join(os.path.dirname(__file__), "models", "anime_face_detect.onnx")
         if not os.path.exists(model_path):

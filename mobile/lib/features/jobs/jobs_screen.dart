@@ -1,3 +1,5 @@
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -65,7 +67,9 @@ class JobsScreen extends ConsumerWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(
-                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withValues(alpha: 0.3),
                   width: 0.8,
                 ),
               ),
@@ -75,7 +79,9 @@ class JobsScreen extends ConsumerWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   alignment: Alignment.center,
@@ -85,7 +91,10 @@ class JobsScreen extends ConsumerWidget {
                     size: 20,
                   ),
                 ),
-                title: const Text('Library analysis', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: const Text(
+                  'Library analysis',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
                 subtitle: scan == null || scan.phase == ScanPhase.idle
                     ? const Text('No active scan')
                     : Text(
@@ -116,38 +125,50 @@ class JobsScreen extends ConsumerWidget {
                           actionLabel: l10n.refaceTitle,
                           onAction: () => context.push(Routes.reface),
                         )
-                      : ListView(
-                          padding: const EdgeInsets.all(16),
-                          children: [
-                            for (final states in const [
-                              ['uploading', 'running', 'downloading'],
-                              ['queued'],
-                              ['paused'],
-                              ['failed', 'lost'],
-                              ['completed'],
-                            ])
-                              if (jobs.any(
-                                (j) => states.contains(j.status),
-                              )) ...[
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  child: Text(
-                                    states.first == 'uploading'
-                                        ? l10n.jobsInProgress
-                                        : jobStatusLabel(l10n, states.first),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                ),
-                                for (final job in jobs.where(
+                      : SelectionCollection<JobRow>(
+                          name: 'jobs',
+                          items: jobs,
+                          idOf: (j) => j.id,
+                          actions: (items) => jobCollectionActions(ref, items),
+                          builder: (context, selection) => ListView(
+                            padding: const EdgeInsets.all(16),
+                            children: [
+                              for (final states in const [
+                                ['uploading', 'running', 'downloading'],
+                                ['queued'],
+                                ['paused'],
+                                ['failed', 'lost'],
+                                ['completed'],
+                              ])
+                                if (jobs.any(
                                   (j) => states.contains(j.status),
-                                ))
-                                  _JobTile(job: job),
-                              ],
-                          ],
+                                )) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    child: Text(
+                                      states.first == 'uploading'
+                                          ? l10n.jobsInProgress
+                                          : jobStatusLabel(l10n, states.first),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                  ),
+                                  for (final job in jobs.where(
+                                    (j) => states.contains(j.status),
+                                  ))
+                                    selection.tile(
+                                      job,
+                                      onOpen: () => context.push(
+                                        '${Routes.jobs}/${job.id}',
+                                      ),
+                                      child: _JobTile(job: job),
+                                    ),
+                                ],
+                            ],
+                          ),
                         ),
                 ),
           ),
@@ -187,7 +208,10 @@ class _JobTile extends StatelessWidget {
         ),
         child: ListTile(
           key: Key('job-${job.id}'),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 6,
+          ),
           leading: Container(
             width: 40,
             height: 40,

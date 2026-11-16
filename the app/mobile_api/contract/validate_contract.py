@@ -173,6 +173,10 @@ must_fail("AnalyzeImageResponse", "character_no_face", lambda d: d["characters"]
           "a human embedding model in a character detection")
 must_fail("AnalyzeOutlinesResponse", "two_targets", lambda d: d["outlines"].append([[1.0, 2.0]]),
           "an outline with only 1 point")
+must_fail("TargetedAnalysisResponse", "anime_face", lambda d: d['detections'][0].pop('embedding'),
+          "an anime face without a CCIP identity")
+must_fail("TargetedAnalysisResponse", "anime_face", lambda d: d['detections'][0].__setitem__('embedding_model_id', 'buffalo_l@1'),
+          "a human model on a targeted anime face")
 must_fail("TargetedAnalysisResponse", "body", lambda d: d.__setitem__("target_kind", "invalid"), "an unknown targeted kind")
 must_fail("OutlineTarget", "face", lambda d: d.__setitem__("kind", "z"), "an unknown target kind")
 must_fail("SensitiveRegion", "chest", lambda d: d.__setitem__("score", 1.5), "a sensitive region score above 1")

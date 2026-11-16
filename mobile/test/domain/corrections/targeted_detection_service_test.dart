@@ -1,3 +1,8 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:antigravity_mobile/data/api/dtos/embedding.dart';
+import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,15 +15,91 @@ import '../../support/seed.dart';
 void main() {
   late AppDatabase db;
   late TargetedDetectionService service;
+  late Directory temporary;
+  late FileStore files;
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
-    service = TargetedDetectionService(db: db);
+    temporary = await Directory.systemTemp.createTemp('anime-targeted-');
+    files = FileStore(temporary);
+    service = TargetedDetectionService(db: db, files: files);
   });
 
-  tearDown(() async => db.close());
+  tearDown(() async {
+    await db.close();
+    await temporary.delete(recursive: true);
+  });
+
+  TargetedEntry animeEntry(int mediaId, {String name = '', int? personId}) => TargetedEntry(
+    mediaId: mediaId, kind: 'anime_face',
+    bbox: const BBox(x: .2, y: .3, w: .3, h: .4),
+    label: name, personId: personId,
+    embeddingModelId: characterEmbeddingModelId,
+    embedding: Float32List(characterEmbeddingDim)..[0] = 1,
+    cropJpeg: Uint8List.fromList([255, 216, 255, 217]),
+    score: 0, manual: true, facePx: 128,
+  );
 
   group('TargetedDetectionService', () {
+    test('anime face saves CCIP, crop, named character and correction; undo removes them', () async {
+      final media = await seedMedia(db, asset: 'anime-photo');
+      final result = await service.apply(animeEntry(media, name: 'Mira'));
+      final face = await db.select(db.faces).getSingle();
+      expect(face.kind, 'character');
+      expect(face.modelId, characterEmbeddingModelId);
+      expect(vectorFromBlob(face.embedding).length, characterEmbeddingDim);
+      expect(face.detScore, 0);
+      expect(face.facePx, 128);
+      final owner = await db.select(db.persons).getSingle();
+      expect(owner.kind, 'character');
+      expect(owner.name, 'Mira');
+      expect(owner.avatarFaceId, face.id);
+      expect(face.personId, owner.id);
+      expect(await files.resolve(face.cropPath!).readAsBytes(), [255, 216, 255, 217]);
+      final detection = await db.select(db.mediaDetections).getSingle();
+      expect(detection.refId, face.id);
+      final correction = await db.select(db.kindOverrides).getSingle();
+      expect(correction.kind, 'character');
+      expect(correction.part, 'face');
+      expect(correction.assetId, 'anime-photo');
+      await service.undo(result.undoToken);
+      expect(await db.select(db.faces).get(), isEmpty);
+      expect(await db.select(db.persons).get(), isEmpty);
+      expect(await db.select(db.mediaDetections).get(), isEmpty);
+      expect(await db.select(db.kindOverrides).get(), isEmpty);
+      expect(await files.allFiles(), isEmpty);
+    });
+
+    test('same-box recovery refuses duplicates without changing saved evidence', () async {
+      final media = await seedMedia(db, asset: 'same-anime');
+      await service.apply(animeEntry(media));
+      await expectLater(service.apply(animeEntry(media)), throwsStateError);
+      expect(await db.select(db.faces).get(), hasLength(1));
+      expect(await db.select(db.mediaDetections).get(), hasLength(1));
+      expect(await db.select(db.kindOverrides).get(), hasLength(1));
+      expect(await files.allFiles(), hasLength(1));
+    });
+
+    test('failed anime save rolls back the identity, face, correction and crop', () async {
+      final media = await seedMedia(db, asset: 'rollback-anime');
+      await db.customStatement('CREATE TRIGGER reject_detection BEFORE INSERT ON media_detections '
+          "BEGIN SELECT RAISE(ABORT, 'fixture failure'); END");
+      await expectLater(service.apply(animeEntry(media, name: 'Transient')), throwsA(anything));
+      expect(await db.select(db.faces).get(), isEmpty);
+      expect(await db.select(db.persons).get(), isEmpty);
+      expect(await db.select(db.kindOverrides).get(), isEmpty);
+      expect(await files.allFiles(), isEmpty);
+    });
+
+    test('anime faces cannot be assigned to human identities', () async {
+      final media = await seedMedia(db, asset: 'protected-person');
+      final human = await seedPerson(db, name: 'Human');
+      await expectLater(service.apply(animeEntry(media, personId: human)), throwsStateError);
+      expect(await db.select(db.faces).get(), isEmpty);
+      expect(await db.select(db.kindOverrides).get(), isEmpty);
+      expect((await db.select(db.persons).getSingle()).kind, 'person');
+    });
+
     test(
       'applies targeted body and persists in db and body_overrides',
       () async {

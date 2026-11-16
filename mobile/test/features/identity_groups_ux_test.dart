@@ -95,6 +95,8 @@ void main() {
         tester,
         extra: [initialLocationProvider.overrideWithValue('/characters')],
       );
+      await tester.tap(find.byKey(const Key('people-filters')));
+      await tester.pumpAndSettle();
       final filter = find.byKey(const ValueKey('people-group-filter-null'));
       await tester.ensureVisible(filter);
       await tester.pumpAndSettle();
@@ -209,6 +211,8 @@ void main() {
           initialLocationProvider.overrideWithValue('/people'),
         ],
       );
+      await tester.tap(find.byKey(const Key('people-filters')));
+      await tester.pumpAndSettle();
       final filter = find.byKey(const ValueKey('people-group-filter-null'));
       await tester.ensureVisible(filter);
       await tester.pumpAndSettle();

@@ -12,6 +12,8 @@ import '../../data/repositories/app_settings.dart';
 import '../../library_providers.dart';
 import '../../l10n/app_localizations.dart';
 import '../shared/empty_state.dart';
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import '../media/video_media_view.dart';
 
 /// A paged grid of the user's photos. Rows come from the database a page at a time (a library can
@@ -24,6 +26,7 @@ class MediaGrid extends ConsumerStatefulWidget {
     this.columns = 3,
     this.onSelect,
     this.onLongPress,
+    this.onContextMenu,
   });
 
   final MediaFilter filter;
@@ -31,6 +34,7 @@ class MediaGrid extends ConsumerStatefulWidget {
   final int columns;
   final ValueChanged<MediaListItem>? onSelect;
   final ValueChanged<MediaListItem>? onLongPress;
+  final Future<void> Function(MediaListItem, VoidCallback)? onContextMenu;
 
   @override
   ConsumerState<MediaGrid> createState() => _MediaGridState();
@@ -41,8 +45,11 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
 
   int? _count;
   var _failed = false;
+  var _selectionActive = false;
+  var _refreshPending = false;
   var _loadGeneration = 0;
   final _pages = <int, Future<List<MediaListItem>>>{};
+  final _loaded = <int, MediaListItem>{};
   StreamSubscription<void>? _changes;
   Timer? _debounce;
 
@@ -61,7 +68,11 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
   @override
   void didUpdateWidget(MediaGrid old) {
     super.didUpdateWidget(old);
-    if (old.filter != widget.filter) _reload();
+    if (old.filter != widget.filter) {
+      _selectionActive = false;
+      _refreshPending = false;
+      _reload();
+    }
   }
 
   @override
@@ -72,6 +83,10 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
   }
 
   Future<void> _reload() async {
+    if (_selectionActive) {
+      _refreshPending = true;
+      return;
+    }
     final generation = ++_loadGeneration;
     if (_failed && mounted) {
       setState(() {
@@ -86,6 +101,7 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
         _failed = false;
         _count = count;
         _pages.clear();
+        _loaded.clear();
       });
     } catch (_) {
       if (mounted && generation == _loadGeneration) {
@@ -94,14 +110,21 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
     }
   }
 
-  Future<List<MediaListItem>> _page(int page) => _pages.putIfAbsent(
-    page,
-    () => _queries.page(
-      widget.filter,
-      offset: page * _pageSize,
-      limit: _pageSize,
-    ),
-  );
+  Future<List<MediaListItem>> _page(int page) => _pages.putIfAbsent(page, () {
+    final generation = _loadGeneration;
+    return _queries
+        .page(widget.filter, offset: page * _pageSize, limit: _pageSize)
+        .then((rows) {
+          if (mounted && generation == _loadGeneration) {
+            setState(() {
+              for (final row in rows) {
+                _loaded[row.id] = row;
+              }
+            });
+          }
+          return rows;
+        });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -109,41 +132,77 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
     if (_failed) return RetryState(onRetry: _reload);
     if (count == null) return const LoadingBox();
     if (count == 0) return widget.empty;
-    return GridView.builder(
-      key: const Key('media-grid'),
-      scrollCacheExtent: const ScrollCacheExtent.pixels(350),
-      padding: const EdgeInsets.all(2),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: widget.columns,
-        mainAxisSpacing: 2,
-        crossAxisSpacing: 2,
+    return SelectionCollection<MediaListItem>(
+      key: ValueKey(widget.filter),
+      name: 'media',
+      onSelectionChanged: (active) {
+        _selectionActive = active;
+        if (!active && _refreshPending) {
+          _refreshPending = false;
+          _reload();
+        }
+      },
+      items: _loaded.values.toList(),
+      idOf: (m) => m.id,
+      partial: _loaded.length < count,
+      actions: (_) => mediaCollectionActions<MediaListItem>(
+        ref,
+        (items) => selectedMedia(ref, items.map((m) => m.id)),
+        personId: widget.filter.personId,
       ),
-      itemCount: count,
-      itemBuilder: (context, index) => FutureBuilder<List<MediaListItem>>(
-        future: _page(index ~/ _pageSize),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return IconButton(
-              tooltip: AppLocalizations.of(context).retry,
-              onPressed: () =>
-                  setState(() => _pages.remove(index ~/ _pageSize)),
-              icon: const Icon(Icons.refresh),
+      builder: (context, selection) => GridView.builder(
+        key: const Key('media-grid'),
+        scrollCacheExtent: const ScrollCacheExtent.pixels(350),
+        padding: const EdgeInsets.all(2),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: widget.columns,
+          mainAxisSpacing: 2,
+          crossAxisSpacing: 2,
+        ),
+        itemCount: count,
+        itemBuilder: (context, index) => FutureBuilder<List<MediaListItem>>(
+          future: _page(index ~/ _pageSize),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return IconButton(
+                tooltip: AppLocalizations.of(context).retry,
+                onPressed: () =>
+                    setState(() => _pages.remove(index ~/ _pageSize)),
+                icon: const Icon(Icons.refresh),
+              );
+            }
+            final items = snapshot.data;
+            final at = index % _pageSize;
+            if (items == null || at >= items.length) {
+              return ColoredBox(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              );
+            }
+            final item = items[at];
+            final tile = MediaTile(
+              item: item,
+              filter: widget.filter,
+              onSelect: widget.onSelect,
+              onLongPress: (item) {
+                if (selection.active) {
+                  selection.toggle(item);
+                  return;
+                }
+                if (widget.onContextMenu != null) {
+                  widget.onContextMenu!(item, () => selection.start(item));
+                } else {
+                  selection.menu(
+                    item,
+                    onMore: widget.onLongPress == null
+                        ? null
+                        : () => widget.onLongPress!(item),
+                  );
+                }
+              },
             );
-          }
-          final items = snapshot.data;
-          final at = index % _pageSize;
-          if (items == null || at >= items.length) {
-            return ColoredBox(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            );
-          }
-          return MediaTile(
-            item: items[at],
-            filter: widget.filter,
-            onSelect: widget.onSelect,
-            onLongPress: widget.onLongPress,
-          );
-        },
+            return selection.tile(item, child: tile);
+          },
+        ),
       ),
     );
   }

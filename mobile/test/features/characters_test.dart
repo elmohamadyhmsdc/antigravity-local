@@ -179,6 +179,8 @@ void main() {
       expect(find.text('No characters yet'), findsOneWidget);
       await tester.tap(find.byKey(const Key('people-tools')));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('test-character-photo')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('test-character-photo')));
       await tester.pumpAndSettle();
       expect(find.text('Test a character photo'), findsOneWidget);

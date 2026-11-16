@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 from typing import Callable
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
@@ -307,7 +308,7 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
         high_res: bool = Form(default=True),
         _: dict = Depends(require_device),
     ):
-        valid_kinds = {"area", "body", "face", "object"}
+        valid_kinds = {"area", "body", "face", "anime_face", "object"}
         if target_kind not in valid_kinds:
             raise bad_request(f"target_kind must be one of {sorted(valid_kinds)}", code="bad_request")
 
@@ -323,8 +324,14 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
                     "w": float(raw_roi["w"]),
                     "h": float(raw_roi["h"]),
                 }
+                if (not all(math.isfinite(v) for v in parsed_roi.values())
+                        or parsed_roi["x"] < 0 or parsed_roi["y"] < 0
+                        or parsed_roi["w"] <= 0 or parsed_roi["h"] <= 0
+                        or parsed_roi["x"] + parsed_roi["w"] > 1.000001
+                        or parsed_roi["y"] + parsed_roi["h"] > 1.000001):
+                    raise ValueError()
             except Exception as e:
-                raise bad_request("roi must be a JSON object with numeric x, y, w, h", code="bad_request") from e
+                raise bad_request("roi must be a finite normalized box within the image", code="bad_request") from e
 
         data = await image.read(ctx.max_image_upload_bytes + 1)
         await image.close()
@@ -346,7 +353,7 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
             log.exception("targeted analyze failed")
             raise ApiError(500, "internal", "Targeted analysis failed.", retryable=True)
 
-        if not detections and parsed_roi is not None:
+        if not detections and parsed_roi is not None and target_kind != "anime_face":
             detections = [
                 {
                     "bbox": parsed_roi,

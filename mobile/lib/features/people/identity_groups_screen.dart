@@ -1,3 +1,5 @@
+import '../../ui/selection/selection_collection.dart';
+import '../../data/repositories/identity_groups.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -174,150 +176,193 @@ class IdentityGroupsScreen extends ConsumerWidget {
                 actionLabel: l.identityGroupCreate,
                 onAction: create,
               )
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                children: [
-                  Text(l.identityGroupsIntro),
-                  const SizedBox(height: 16),
-                  for (final group in rows)
-                    Card(
-                      key: Key('identity-group-${group.id}'),
-                      child: Column(
-                        children: [
-                          ListTile(
-                            leading: const Icon(Icons.folder_outlined),
-                            title: Text(group.name),
-                            subtitle: Text(
-                              l.identityGroupMembers(
-                                group.people + group.characters,
-                              ),
-                            ),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => PeopleScreen(
-                                  kind: kind,
-                                  initialGroupId: group.id,
-                                ),
-                              ),
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              key: Key('identity-group-menu-${group.id}'),
-                              onSelected: (action) async {
-                                final repository = ref.read(
-                                  identityGroupsRepositoryProvider,
-                                );
-                                if (action == 'rename') {
-                                  final name = await _askGroupName(
-                                    context,
-                                    initial: group.name,
-                                  );
-                                  if (name == null || !context.mounted) return;
-                                  try {
-                                    await repository.rename(group.id, name);
-                                  } catch (_) {
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            l.identityGroupNameExists,
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  }
-                                } else {
-                                  await repository.delete(group.id);
-                                }
-                              },
-                              itemBuilder: (_) => [
-                                PopupMenuItem(
-                                  value: 'rename',
-                                  child: Text(l.rename),
-                                ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text(l.identityGroupDelete),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Wrap(
-                              spacing: 8,
-                              children: [
-                                TextButton.icon(
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => PeopleScreen(
-                                        kind: 'person',
-                                        initialGroupId: group.id,
-                                      ),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.people_outline),
-                                  label: Text(l.navPeople),
-                                ),
-                                TextButton.icon(
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => PeopleScreen(
-                                        kind: 'character',
-                                        initialGroupId: group.id,
-                                      ),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.auto_awesome_outlined),
-                                  label: Text(l.peopleCharacters),
-                                ),
-                                TextButton.icon(
-                                  key: Key('identity-group-media-${group.id}'),
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) =>
-                                          _GroupMediaScreen(groupId: group.id),
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.perm_media_outlined),
-                                  label: Text(l.tabMedia),
-                                ),
-                                TextButton.icon(
-                                  key: Key(
-                                    'identity-group-organize-${group.id}',
-                                  ),
-                                  icon: const Icon(
-                                    Icons.drive_file_move_outlined,
-                                  ),
-                                  label: Text(l.organizeTitle),
-                                  onPressed: () async {
-                                    final db = ref.read(databaseProvider);
-                                    final members =
-                                        await (db.select(db.persons)..where(
-                                              (p) => p.groupId.equals(group.id),
-                                            ))
-                                            .get();
-                                    if (!context.mounted) return;
-                                    await Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) =>
-                                            OrganizePersonMediaScreen(
-                                              personIds: members
-                                                  .map((p) => p.id)
-                                                  .toSet(),
-                                            ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+            : SelectionCollection<IdentityGroupSummary>(
+                name: 'identity-groups',
+                items: rows,
+                idOf: (g) => g.id,
+                actions: (_) => [
+                  CollectionAction<IdentityGroupSummary>(
+                    id: 'delete',
+                    label: l.delete,
+                    icon: Icons.delete_outline,
+                    destructive: true,
+                    confirmation:
+                        'Remove the selected group labels. People, characters and original files are kept.',
+                    run: (context, selected) async {
+                      await ref.read(databaseProvider).transaction(() async {
+                        for (final group in selected) {
+                          await ref
+                              .read(identityGroupsRepositoryProvider)
+                              .delete(group.id);
+                        }
+                      });
+                      return true;
+                    },
+                  ),
                 ],
+                builder: (context, selection) => ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                  children: [
+                    Text(l.identityGroupsIntro),
+                    const SizedBox(height: 16),
+                    for (final group in rows)
+                      selection.tile(
+                        group,
+                        child: Card(
+                          key: Key('identity-group-${group.id}'),
+                          child: Column(
+                            children: [
+                              ListTile(
+                                leading: const Icon(Icons.folder_outlined),
+                                title: Text(group.name),
+                                subtitle: Text(
+                                  l.identityGroupMembers(
+                                    group.people + group.characters,
+                                  ),
+                                ),
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => PeopleScreen(
+                                      kind: kind,
+                                      initialGroupId: group.id,
+                                    ),
+                                  ),
+                                ),
+                                trailing: PopupMenuButton<String>(
+                                  key: Key('identity-group-menu-${group.id}'),
+                                  onSelected: (action) async {
+                                    final repository = ref.read(
+                                      identityGroupsRepositoryProvider,
+                                    );
+                                    if (action == 'rename') {
+                                      final name = await _askGroupName(
+                                        context,
+                                        initial: group.name,
+                                      );
+                                      if (name == null || !context.mounted)
+                                        return;
+                                      try {
+                                        await repository.rename(group.id, name);
+                                      } catch (_) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                l.identityGroupNameExists,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    } else {
+                                      await repository.delete(group.id);
+                                    }
+                                  },
+                                  itemBuilder: (_) => [
+                                    PopupMenuItem(
+                                      value: 'rename',
+                                      child: Text(l.rename),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text(l.identityGroupDelete),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    TextButton.icon(
+                                      onPressed: () =>
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute<void>(
+                                              builder: (_) => PeopleScreen(
+                                                kind: 'person',
+                                                initialGroupId: group.id,
+                                              ),
+                                            ),
+                                          ),
+                                      icon: const Icon(Icons.people_outline),
+                                      label: Text(l.navPeople),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () =>
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute<void>(
+                                              builder: (_) => PeopleScreen(
+                                                kind: 'character',
+                                                initialGroupId: group.id,
+                                              ),
+                                            ),
+                                          ),
+                                      icon: const Icon(
+                                        Icons.auto_awesome_outlined,
+                                      ),
+                                      label: Text(l.peopleCharacters),
+                                    ),
+                                    TextButton.icon(
+                                      key: Key(
+                                        'identity-group-media-${group.id}',
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute<void>(
+                                              builder: (_) => _GroupMediaScreen(
+                                                groupId: group.id,
+                                              ),
+                                            ),
+                                          ),
+                                      icon: const Icon(
+                                        Icons.perm_media_outlined,
+                                      ),
+                                      label: Text(l.tabMedia),
+                                    ),
+                                    TextButton.icon(
+                                      key: Key(
+                                        'identity-group-organize-${group.id}',
+                                      ),
+                                      icon: const Icon(
+                                        Icons.drive_file_move_outlined,
+                                      ),
+                                      label: Text(l.organizeTitle),
+                                      onPressed: () async {
+                                        final db = ref.read(databaseProvider);
+                                        final members =
+                                            await (db.select(db.persons)..where(
+                                                  (p) => p.groupId.equals(
+                                                    group.id,
+                                                  ),
+                                                ))
+                                                .get();
+                                        if (!context.mounted) return;
+                                        await Navigator.of(context).push(
+                                          MaterialPageRoute<void>(
+                                            builder: (_) =>
+                                                OrganizePersonMediaScreen(
+                                                  personIds: members
+                                                      .map((p) => p.id)
+                                                      .toSet(),
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
       ),
     );

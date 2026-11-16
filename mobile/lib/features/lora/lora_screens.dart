@@ -1,3 +1,5 @@
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import '../shared/image_preview.dart';
 import 'dart:io';
 import 'dart:math' as math;
@@ -89,6 +91,8 @@ String datasetIdentityAnchor(List<FaceRow> faces, String modelId) {
   return encodeVector(mean);
 }
 
+typedef _LibraryArtifact = ({String id, bool model});
+
 class LoraScreen extends ConsumerWidget {
   const LoraScreen({super.key});
   @override
@@ -105,100 +109,152 @@ class LoraScreen extends ConsumerWidget {
     ];
     return Scaffold(
       appBar: AppBar(title: Text(l.loraTitle)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          ScreenIntro(title: l.studioLoraAction, body: l.studioLoraDescription),
-          FilledButton.icon(
-            key: const Key('lora-build'),
-            onPressed: () async {
-              final chosen = await pickPerson(
-                context,
-                allowNew: false,
-                kind: 'all',
-              );
-              if (chosen?.personId != null && context.mounted) {
-                final people = [
-                  ...ref.read(peopleProvider).value ?? const [],
-                  ...ref.read(charactersProvider).value ?? const [],
-                ];
-                final name = people
-                    .where((p) => p.id == chosen!.personId)
-                    .firstOrNull
-                    ?.name;
-                context.push(
-                  '${Routes.studioCuration}/${chosen!.personId}?name=${Uri.encodeComponent(name ?? 'person')}',
-                );
-              } else if (context.mounted) {
-                context.push(Routes.loraBuild);
-              }
-            },
-            icon: const Icon(Icons.add_photo_alternate_outlined),
-            label: Text(l.loraDatasetBuild),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            l.loraDatasetTitle,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          if (datasetState.isLoading) const LoadingBox(),
-          if (datasetState.hasError)
-            RetryState(onRetry: () => ref.invalidate(datasetsProvider)),
-          if (!datasetState.isLoading &&
-              !datasetState.hasError &&
-              datasets.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(l.loraNoDatasets),
-            ),
-          for (final dataset in datasets)
-            Card(
-              child: ListTile(
-                title: Text(dataset.triggerWord),
-                subtitle: StreamBuilder<List<DatasetItemRow>>(
-                  stream: ref
-                      .read(loraRepositoryProvider)
-                      .watchItems(dataset.id),
-                  builder: (context, snapshot) {
-                    final owner = people
-                        .where((p) => p.id == dataset.personId)
-                        .firstOrNull;
-                    final count = snapshot.data?.length;
-                    return Text(
-                      '${owner == null ? 'No person assigned' : personName(l, owner)} · ${count == null ? 'Loading images' : '$count images'}',
-                    );
-                  },
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('${Routes.datasets}/${dataset.id}'),
-              ),
-            ),
-          const SizedBox(height: 24),
-          Text(l.loraModel, style: Theme.of(context).textTheme.titleLarge),
-          if (modelState.isLoading) const LoadingBox(),
-          if (modelState.hasError)
-            RetryState(onRetry: () => ref.invalidate(lorasProvider)),
-          if (!modelState.isLoading && !modelState.hasError && models.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(l.loraNoModels),
-            ),
-          for (final model in models) _ModelRow(model: model),
-          const SizedBox(height: 24),
-          Text('Training tasks', style: Theme.of(context).textTheme.titleLarge),
-          if (trainingState.isLoading) const LoadingBox(),
-          if (trainingState.hasError)
-            RetryState(onRetry: () => ref.invalidate(jobsProvider)),
-          for (final job in trainingState.value ?? const [])
-            if (job.type == 'train_lora' && job.status != 'completed')
-              ListTile(
-                leading: const Icon(Icons.pending_actions_outlined),
-                title: Text(jobStatusLabel(l, job.status)),
-                subtitle: Text(job.message ?? ''),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('${Routes.jobs}/${job.id}'),
-              ),
+      body: SelectionCollection<_LibraryArtifact>(
+        name: 'lora-library',
+        items: [
+          for (final d in datasets) (id: d.id, model: false),
+          for (final m in models) (id: m.id, model: true),
         ],
+        idOf: (item) => '${item.model}:${item.id}',
+        actions: (_) => [
+          CollectionAction<_LibraryArtifact>(
+            id: 'export',
+            label: l.loraExport,
+            icon: Icons.share_outlined,
+            run: (context, selected) async {
+              final files = <File>[];
+              for (final item in selected) {
+                if (item.model) {
+                  final model = ref
+                      .read(lorasProvider)
+                      .value
+                      ?.where((m) => m.id == item.id)
+                      .firstOrNull;
+                  if (model == null)
+                    throw StateError('A selected model is unavailable');
+                  files.add(ref.read(fileStoreProvider).resolve(model.path));
+                } else {
+                  files.add(
+                    await ref
+                        .read(loraRepositoryProvider)
+                        .exportDataset(item.id),
+                  );
+                }
+              }
+              await ref.read(collectionShareProvider)(files);
+              return true;
+            },
+          ),
+        ],
+        builder: (context, selection) => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            ScreenIntro(
+              title: l.studioLoraAction,
+              body: l.studioLoraDescription,
+            ),
+            FilledButton.icon(
+              key: const Key('lora-build'),
+              onPressed: () async {
+                final chosen = await pickPerson(
+                  context,
+                  allowNew: false,
+                  kind: 'all',
+                );
+                if (chosen?.personId != null && context.mounted) {
+                  final people = [
+                    ...ref.read(peopleProvider).value ?? const [],
+                    ...ref.read(charactersProvider).value ?? const [],
+                  ];
+                  final name = people
+                      .where((p) => p.id == chosen!.personId)
+                      .firstOrNull
+                      ?.name;
+                  context.push(
+                    '${Routes.studioCuration}/${chosen!.personId}?name=${Uri.encodeComponent(name ?? 'person')}',
+                  );
+                } else if (context.mounted) {
+                  context.push(Routes.loraBuild);
+                }
+              },
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: Text(l.loraDatasetBuild),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              l.loraDatasetTitle,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            if (datasetState.isLoading) const LoadingBox(),
+            if (datasetState.hasError)
+              RetryState(onRetry: () => ref.invalidate(datasetsProvider)),
+            if (!datasetState.isLoading &&
+                !datasetState.hasError &&
+                datasets.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(l.loraNoDatasets),
+              ),
+            for (final dataset in datasets)
+              selection.tile(
+                (id: dataset.id, model: false),
+                child: Card(
+                  child: ListTile(
+                    title: Text(dataset.triggerWord),
+                    subtitle: StreamBuilder<List<DatasetItemRow>>(
+                      stream: ref
+                          .read(loraRepositoryProvider)
+                          .watchItems(dataset.id),
+                      builder: (context, snapshot) {
+                        final owner = people
+                            .where((p) => p.id == dataset.personId)
+                            .firstOrNull;
+                        final count = snapshot.data?.length;
+                        return Text(
+                          '${owner == null ? 'No person assigned' : personName(l, owner)} · ${count == null ? 'Loading images' : '$count images'}',
+                        );
+                      },
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () =>
+                        context.push('${Routes.datasets}/${dataset.id}'),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 24),
+            Text(l.loraModel, style: Theme.of(context).textTheme.titleLarge),
+            if (modelState.isLoading) const LoadingBox(),
+            if (modelState.hasError)
+              RetryState(onRetry: () => ref.invalidate(lorasProvider)),
+            if (!modelState.isLoading && !modelState.hasError && models.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(l.loraNoModels),
+              ),
+            for (final model in models)
+              selection.tile((
+                id: model.id,
+                model: true,
+              ), child: _ModelRow(model: model)),
+            const SizedBox(height: 24),
+            Text(
+              'Training tasks',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            if (trainingState.isLoading) const LoadingBox(),
+            if (trainingState.hasError)
+              RetryState(onRetry: () => ref.invalidate(jobsProvider)),
+            for (final job in trainingState.value ?? const [])
+              if (job.type == 'train_lora' && job.status != 'completed')
+                ListTile(
+                  leading: const Icon(Icons.pending_actions_outlined),
+                  title: Text(jobStatusLabel(l, job.status)),
+                  subtitle: Text(job.message ?? ''),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('${Routes.jobs}/${job.id}'),
+                ),
+          ],
+        ),
       ),
     );
   }
@@ -849,93 +905,137 @@ class DatasetScreen extends ConsumerWidget {
               title: l.loraNoDatasets,
             );
           }
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              ScreenIntro(
-                title: l.datasetEditorIntro,
-                body: l.datasetEditorHint,
-              ),
-              SurfaceSection(
-                child: Text(
-                  '${items.where((i) => i.included).length}/${items.length} · ${l.loraIncluded}',
-                  style: Theme.of(context).textTheme.titleMedium,
+          return SelectionCollection<DatasetItemRow>(
+            name: 'dataset-items',
+            items: items,
+            idOf: (i) => i.id,
+            actions: (_) => [
+              for (final included in [true, false])
+                CollectionAction<DatasetItemRow>(
+                  id: included ? 'include' : 'exclude',
+                  label: included
+                      ? 'Include in training'
+                      : 'Exclude from training',
+                  icon: included
+                      ? Icons.check_circle_outline
+                      : Icons.remove_circle_outline,
+                  run: (context, selected) async {
+                    await ref.read(databaseProvider).transaction(() async {
+                      for (final item in selected) {
+                        await ref
+                            .read(loraRepositoryProvider)
+                            .updateItem(item, included: included);
+                      }
+                    });
+                    return true;
+                  },
                 ),
+              CollectionAction<DatasetItemRow>(
+                id: 'share',
+                label: 'Share selected training images',
+                icon: Icons.share_outlined,
+                run: (context, selected) async {
+                  await ref.read(collectionShareProvider)([
+                    for (final item in selected)
+                      ref.read(fileStoreProvider).resolve(item.path),
+                  ]);
+                  return true;
+                },
               ),
-              const SizedBox(height: 16),
-              for (final item in items)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
+            ],
+            builder: (context, selection) => ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                ScreenIntro(
+                  title: l.datasetEditorIntro,
+                  body: l.datasetEditorHint,
+                ),
+                SurfaceSection(
+                  child: Text(
+                    '${items.where((i) => i.included).length}/${items.length} · ${l.loraIncluded}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                for (final item in items)
+                  selection.tile(
+                    item,
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            PreviewImage.file(
-                              ref.read(fileStoreProvider).resolve(item.path),
-                              width: 112,
-                              height: 112,
-                              fit: BoxFit.cover,
-                              cacheWidth: 224,
+                            Row(
+                              children: [
+                                PreviewImage.file(
+                                  ref
+                                      .read(fileStoreProvider)
+                                      .resolve(item.path),
+                                  width: 112,
+                                  height: 112,
+                                  fit: BoxFit.cover,
+                                  cacheWidth: 224,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: CheckboxListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(l.loraIncluded),
+                                    value: item.included,
+                                    onChanged: (v) => ref
+                                        .read(loraRepositoryProvider)
+                                        .updateItem(item, included: v),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: CheckboxListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(l.loraIncluded),
-                                value: item.included,
-                                onChanged: (v) => ref
-                                    .read(loraRepositoryProvider)
-                                    .updateItem(item, included: v),
+                            TextButton(
+                              onPressed: () async {
+                                var caption = item.caption;
+                                final saved = await showDialog<String>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: Text(l.loraCaption),
+                                    content: TextFormField(
+                                      initialValue: caption,
+                                      maxLines: 6,
+                                      maxLength: 8192,
+                                      onChanged: (v) => caption = v,
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: Text(l.cancel),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, caption),
+                                        child: Text(l.save),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (saved != null && saved.trim().isNotEmpty) {
+                                  await ref
+                                      .read(loraRepositoryProvider)
+                                      .updateItem(item, caption: saved.trim());
+                                }
+                              },
+                              child: Text(
+                                item.caption,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.start,
                               ),
                             ),
                           ],
                         ),
-                        TextButton(
-                          onPressed: () async {
-                            var caption = item.caption;
-                            final saved = await showDialog<String>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text(l.loraCaption),
-                                content: TextFormField(
-                                  initialValue: caption,
-                                  maxLines: 6,
-                                  maxLength: 8192,
-                                  onChanged: (v) => caption = v,
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: Text(l.cancel),
-                                  ),
-                                  FilledButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, caption),
-                                    child: Text(l.save),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (saved != null && saved.trim().isNotEmpty) {
-                              await ref
-                                  .read(loraRepositoryProvider)
-                                  .updateItem(item, caption: saved.trim());
-                            }
-                          },
-                          child: Text(
-                            item.caption,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.start,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           );
         },
       ),

@@ -82,7 +82,7 @@ def decode_yolo(output: Any, score_thresh: float = DEFAULT_CONF) -> Tuple[List[L
             for c in range(5, channels):
                 s = max(s, float(mat[j, c]))
 
-        if s < score_thresh:
+        if not np.isfinite(s) or s < score_thresh:
             continue
 
         if channel_major:
@@ -96,7 +96,7 @@ def decode_yolo(output: Any, score_thresh: float = DEFAULT_CONF) -> Tuple[List[L
             w = float(mat[j, 2])
             h = float(mat[j, 3])
 
-        if w <= 0.0 or h <= 0.0:
+        if not np.isfinite([cx, cy, w, h]).all() or w <= 0.0 or h <= 0.0:
             continue
 
         # Face-plausibility gate: drawn faces are roughly square.
@@ -198,3 +198,62 @@ class AnimeFaceDetector:
                 })
 
         return results
+
+
+    def detect_multiscale(self, img, score_thresh=DEFAULT_CONF, iou_thresh=DEFAULT_IOU):
+        """Keep the full view and inspect up to nine overlapping detail windows.
+
+        Confidence and geometry gates stay unchanged. Windows only improve the
+        input scale; clipped faces at internal tile edges cannot create new hits.
+        Call this for illustrated sources, not as a relaxed photo classifier.
+        """
+        h, w = img.shape[:2]
+        baseline = list(self.detect(img, score_thresh=score_thresh, iou_thresh=iou_thresh))
+        found = list(baseline)
+        if max(h, w) <= 960:
+            return found
+        # At most 3 x 3 windows, also for unusually large API uploads.
+        side = max(960, int(np.ceil(max(h, w) / 2.5)))
+
+        def starts(length):
+            if length <= side:
+                return [0]
+            count = min(3, int(np.ceil((length - side) / (side * .75))) + 1)
+            return sorted(set(int(round(v)) for v in np.linspace(0, length - side, count)))
+
+        for y in starts(h):
+            for x in starts(w):
+                tile = img[y:min(y + side, h), x:min(x + side, w)]
+                th, tw = tile.shape[:2]
+                try:
+                    hits = self.detect(tile, score_thresh=score_thresh, iou_thresh=iou_thresh)
+                except Exception:
+                    # Optional detail recovery must not discard a successful full pass.
+                    return baseline
+                for hit in hits:
+                    box = np.asarray(hit['bbox'], dtype=float)
+                    if box.shape != (4,) or not np.isfinite(box).all():
+                        continue
+                    # A neighbouring window/full view handles faces cut by this edge.
+                    if ((x > 0 and box[0] <= 2) or (y > 0 and box[1] <= 2)
+                            or (x + tw < w and box[2] >= tw - 2)
+                            or (y + th < h and box[3] >= th - 2)):
+                        continue
+                    box += [x, y, x, y]
+                    found.append(dict(hit, bbox=box.tolist()))
+        kept = []
+        for hit in sorted(found, key=lambda item: -item['score']):
+            box = np.asarray(hit['bbox'], dtype=float)
+            area = max(0, box[2] - box[0]) * max(0, box[3] - box[1])
+            duplicate = False
+            for other in kept:
+                b = np.asarray(other['bbox'], dtype=float)
+                intersection = np.maximum(0, np.minimum(box[2:], b[2:]) - np.maximum(box[:2], b[:2])).prod()
+                other_area = (b[2] - b[0]) * (b[3] - b[1])
+                union = area + other_area - intersection
+                if union > 0 and intersection / union >= iou_thresh:
+                    duplicate = True
+                    break
+            if not duplicate:
+                kept.append(hit)
+        return kept

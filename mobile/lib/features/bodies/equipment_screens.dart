@@ -1,3 +1,5 @@
+import '../../ui/selection/selection_collection.dart';
+import 'body_naming.dart';
 import 'package:drift/drift.dart'
     show Variable, OrderingTerm, BooleanExpressionOperators;
 import 'package:flutter/material.dart';
@@ -13,6 +15,58 @@ import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import 'pose_visuals.dart';
 import 'discovery_widgets.dart';
+
+List<CollectionAction<EquipmentObjectRow>> _equipmentActions(WidgetRef ref) => [
+  CollectionAction(
+    id: 'confirm',
+    label: 'Confirm selected equipment',
+    icon: Icons.check,
+    run: (context, objects) async {
+      await ref.read(databaseProvider).transaction(() async {
+        for (final object in objects) {
+          await ref
+              .read(equipmentLibraryProvider)
+              .correct(object, object.label, object.bodyId);
+        }
+      });
+      return true;
+    },
+  ),
+  CollectionAction(
+    id: 'label',
+    label: 'Label selected equipment',
+    icon: Icons.edit_outlined,
+    run: (context, objects) async {
+      final name = await promptRenameDialog(
+        context,
+        title: 'Label selected equipment',
+        initialName: '',
+      );
+      if (name == null || name.trim().isEmpty) return false;
+      await ref.read(databaseProvider).transaction(() async {
+        for (final object in objects) {
+          await ref
+              .read(equipmentLibraryProvider)
+              .correct(object, name, object.bodyId);
+        }
+      });
+      return true;
+    },
+  ),
+  CollectionAction(
+    id: 'reject',
+    label: 'Reject selected equipment',
+    icon: Icons.close,
+    run: (context, objects) async {
+      await ref.read(databaseProvider).transaction(() async {
+        for (final object in objects) {
+          await ref.read(equipmentLibraryProvider).reject(object);
+        }
+      });
+      return true;
+    },
+  ),
+];
 
 class EquipmentTab extends ConsumerStatefulWidget {
   const EquipmentTab({super.key, this.personId});
@@ -122,89 +176,111 @@ class _EquipmentTabState extends ConsumerState<EquipmentTab>
               o.label.toLowerCase().contains(search),
         )
         .toList();
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        DiscoveryIntro(
-          title: l.bodiesTabEquipment,
-          description: l.equipmentIntro,
-          icon: Icons.sports_tennis_outlined,
-          count: objects.length,
-        ),
-        DiscoverySearch(
-          hint: l.discoverySearchEquipment,
-          onChanged: (value) => setState(() => search = value),
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: FilledButton.tonalIcon(
-            key: const Key('equipment-detect-pending'),
-            onPressed: busy || !canDetect ? null : detectPending,
-            icon: const Icon(Icons.image_search_outlined),
-            label: Text(l.equipmentDetectPending),
-          ),
-        ),
-        if (!canDetect)
-          Text(
-            l.equipmentConnect,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        if (busy) const LinearProgressIndicator(),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (final name in {
-              for (final o in objects) o.label,
-            }.toList()..sort())
-              FilterChip(
-                key: Key('equipment-filter-$name'),
-                label: Text(name),
-                selected: label == name,
-                onSelected: (on) => setState(() => label = on ? name : null),
-              ),
-          ],
-        ),
-        if (shown.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Text(l.equipmentEmpty),
-          ),
-        for (final mediaId in {for (final o in shown) o.mediaId})
-          Card(
-            key: Key('equipment-photo-$mediaId'),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (photos[mediaId] case final photo?)
-                  SizedBox(
-                    height: 160,
-                    child: GroupPhotoPreview(assetId: photo.assetId),
-                  ),
-                ListTile(
-                  key: Key('equipment-review-$mediaId'),
-                  title: Text(
-                    {
-                      for (final o in shown)
-                        if (o.mediaId == mediaId) o.label,
-                    }.join(' · '),
-                  ),
-                  subtitle: Text(l.equipmentReviewHint),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => EquipmentPhotoScreen(mediaId: mediaId),
-                      ),
-                    );
-                    await load();
-                  },
-                ),
-              ],
+    return SelectionCollection<int>(
+      name: 'equipment-photos',
+      items: {for (final o in shown) o.mediaId}.toList(),
+      idOf: (id) => id,
+      onCompleted: load,
+      actions: (_) => [
+        for (final action in _equipmentActions(ref))
+          CollectionAction<int>(
+            id: action.id,
+            label: action.label,
+            icon: action.icon,
+            run: (context, ids) => action.run(
+              context,
+              shown.where((o) => ids.contains(o.mediaId)).toList(),
             ),
           ),
       ],
+      builder: (context, selection) => ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          DiscoveryIntro(
+            title: l.bodiesTabEquipment,
+            description: l.equipmentIntro,
+            icon: Icons.sports_tennis_outlined,
+            count: objects.length,
+          ),
+          DiscoverySearch(
+            hint: l.discoverySearchEquipment,
+            onChanged: (value) => setState(() => search = value),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FilledButton.tonalIcon(
+              key: const Key('equipment-detect-pending'),
+              onPressed: busy || !canDetect ? null : detectPending,
+              icon: const Icon(Icons.image_search_outlined),
+              label: Text(l.equipmentDetectPending),
+            ),
+          ),
+          if (!canDetect)
+            Text(
+              l.equipmentConnect,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          if (busy) const LinearProgressIndicator(),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final name in {
+                for (final o in objects) o.label,
+              }.toList()..sort())
+                FilterChip(
+                  key: Key('equipment-filter-$name'),
+                  label: Text(name),
+                  selected: label == name,
+                  onSelected: (on) => setState(() => label = on ? name : null),
+                ),
+            ],
+          ),
+          if (shown.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(l.equipmentEmpty),
+            ),
+          for (final mediaId in {for (final o in shown) o.mediaId})
+            selection.tile(
+              mediaId,
+              child: Card(
+                key: Key('equipment-photo-$mediaId'),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (photos[mediaId] case final photo?)
+                      SizedBox(
+                        height: 160,
+                        child: GroupPhotoPreview(assetId: photo.assetId),
+                      ),
+                    ListTile(
+                      key: Key('equipment-review-$mediaId'),
+                      title: Text(
+                        {
+                          for (final o in shown)
+                            if (o.mediaId == mediaId) o.label,
+                        }.join(' · '),
+                      ),
+                      subtitle: Text(l.equipmentReviewHint),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                EquipmentPhotoScreen(mediaId: mediaId),
+                          ),
+                        );
+                        await load();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -329,105 +405,115 @@ class _EquipmentPhotoState extends ConsumerState<EquipmentPhotoScreen> {
       ),
       body: !loaded
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (photo case final p?)
-                  SizedBox(
-                    height: 240,
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: (p.width ?? 1) / (p.height ?? 1),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            GroupPhotoPreview(assetId: p.assetId),
-                            IgnorePointer(
-                              child: CustomPaint(
-                                painter: _EquipmentBoxes(
-                                  objects,
-                                  Theme.of(context).colorScheme.primary,
+          : SelectionCollection<EquipmentObjectRow>(
+              name: 'equipment-objects',
+              items: objects,
+              idOf: (o) => o.id,
+              actions: (_) => _equipmentActions(ref),
+              onCompleted: load,
+              builder: (context, selection) => ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (photo case final p?)
+                    SizedBox(
+                      height: 240,
+                      child: Center(
+                        child: AspectRatio(
+                          aspectRatio: (p.width ?? 1) / (p.height ?? 1),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              GroupPhotoPreview(assetId: p.assetId),
+                              IgnorePointer(
+                                child: CustomPaint(
+                                  painter: _EquipmentBoxes(
+                                    objects,
+                                    Theme.of(context).colorScheme.primary,
+                                  ),
                                 ),
                               ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Text(l.equipmentIntro),
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(
+                    key: const Key('equipment-detect-photo'),
+                    onPressed: busy || !canDetect ? null : detect,
+                    icon: const Icon(Icons.image_search),
+                    label: Text(l.equipmentDetectPhoto),
+                  ),
+                  TextButton.icon(
+                    key: const Key('equipment-add'),
+                    onPressed: busy ? null : add,
+                    icon: const Icon(Icons.add),
+                    label: Text(l.equipmentAdd),
+                  ),
+                  if (!canDetect) Text(l.equipmentConnect),
+                  if (busy) ...[
+                    const LinearProgressIndicator(),
+                    Text(l.equipmentDetecting),
+                  ],
+                  if (message != null)
+                    Text(
+                      message!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  if (!busy && objects.isEmpty) Text(l.equipmentEmpty),
+                  for (final object in objects)
+                    selection.tile(
+                      object,
+                      child: ListTile(
+                        key: Key('equipment-object-${object.id}'),
+                        contentPadding: EdgeInsets.zero,
+                        leading: object.bodyId == null
+                            ? const Icon(Icons.groups_outlined)
+                            : SizedBox(
+                                width: 48,
+                                height: 64,
+                                child: CropImage(
+                                  path: bodies
+                                      .where((b) => b.id == object.bodyId)
+                                      .firstOrNull
+                                      ?.cropPath,
+                                  placeholderIcon: Icons.accessibility_new,
+                                ),
+                              ),
+                        title: Text(object.label),
+                        subtitle: Text(
+                          '${object.state == 'confirmed' ? l.equipmentConfirmed : l.equipmentSuggested} · ${object.bodyId == null ? l.equipmentShared : l.equipmentPerson(bodies.indexWhere((b) => b.id == object.bodyId) + 1)}',
+                        ),
+                        onTap: () => edit(object),
+                        trailing: Wrap(
+                          children: [
+                            IconButton(
+                              key: Key('equipment-edit-${object.id}'),
+                              tooltip: l.equipmentEdit,
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () => edit(object),
+                            ),
+                            IconButton(
+                              key: Key('equipment-reject-${object.id}'),
+                              tooltip: l.equipmentReject,
+                              icon: const Icon(Icons.close),
+                              onPressed: () async {
+                                await ref
+                                    .read(equipmentLibraryProvider)
+                                    .reject(object);
+                                await load();
+                              },
                             ),
                           ],
                         ),
                       ),
                     ),
-                  ),
-                const SizedBox(height: 12),
-                Text(l.equipmentIntro),
-                const SizedBox(height: 8),
-                FilledButton.tonalIcon(
-                  key: const Key('equipment-detect-photo'),
-                  onPressed: busy || !canDetect ? null : detect,
-                  icon: const Icon(Icons.image_search),
-                  label: Text(l.equipmentDetectPhoto),
-                ),
-                TextButton.icon(
-                  key: const Key('equipment-add'),
-                  onPressed: busy ? null : add,
-                  icon: const Icon(Icons.add),
-                  label: Text(l.equipmentAdd),
-                ),
-                if (!canDetect) Text(l.equipmentConnect),
-                if (busy) ...[
-                  const LinearProgressIndicator(),
-                  Text(l.equipmentDetecting),
                 ],
-                if (message != null)
-                  Text(
-                    message!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                if (!busy && objects.isEmpty) Text(l.equipmentEmpty),
-                for (final object in objects)
-                  ListTile(
-                    key: Key('equipment-object-${object.id}'),
-                    contentPadding: EdgeInsets.zero,
-                    leading: object.bodyId == null
-                        ? const Icon(Icons.groups_outlined)
-                        : SizedBox(
-                            width: 48,
-                            height: 64,
-                            child: CropImage(
-                              path: bodies
-                                  .where((b) => b.id == object.bodyId)
-                                  .firstOrNull
-                                  ?.cropPath,
-                              placeholderIcon: Icons.accessibility_new,
-                            ),
-                          ),
-                    title: Text(object.label),
-                    subtitle: Text(
-                      '${object.state == 'confirmed' ? l.equipmentConfirmed : l.equipmentSuggested} · ${object.bodyId == null ? l.equipmentShared : l.equipmentPerson(bodies.indexWhere((b) => b.id == object.bodyId) + 1)}',
-                    ),
-                    onTap: () => edit(object),
-                    trailing: Wrap(
-                      children: [
-                        IconButton(
-                          key: Key('equipment-edit-${object.id}'),
-                          tooltip: l.equipmentEdit,
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () => edit(object),
-                        ),
-                        IconButton(
-                          key: Key('equipment-reject-${object.id}'),
-                          tooltip: l.equipmentReject,
-                          icon: const Icon(Icons.close),
-                          onPressed: () async {
-                            await ref
-                                .read(equipmentLibraryProvider)
-                                .reject(object);
-                            await load();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+              ),
             ),
     );
   }

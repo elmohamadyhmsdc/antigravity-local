@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui';
+import 'embedding.dart';
 import 'analyze.dart';
 import 'json_util.dart';
 
@@ -10,6 +13,11 @@ class TargetedDetectionItem {
     required this.label,
     this.outline,
     this.keypoints,
+    this.embedding,
+    this.embeddingModelId,
+    this.cropJpeg,
+    this.facePx,
+    this.manual = false,
   });
 
   final BBox bbox;
@@ -17,6 +25,11 @@ class TargetedDetectionItem {
   final String label;
   final List<Offset>? outline;
   final List<List<double>>? keypoints;
+  final Float32List? embedding;
+  final String? embeddingModelId;
+  final Uint8List? cropJpeg;
+  final double? facePx;
+  final bool manual;
 
   factory TargetedDetectionItem.fromJson(Map<String, dynamic> json) {
     List<Offset>? parsedOutline;
@@ -36,12 +49,26 @@ class TargetedDetectionItem {
       ];
     }
 
+    final modelId = json['embedding_model_id'] as String?;
+    final encoded = json['embedding'];
+    if (encoded != null && modelId != characterEmbeddingModelId) {
+      throw const FormatException('Unsupported targeted character model');
+    }
     return TargetedDetectionItem(
       bbox: BBox.fromJson(map(json['bbox'], 'bbox')),
       score: number(json, 'score', 'score'),
       label: field<String>(json, 'label'),
       outline: parsedOutline,
       keypoints: parsedKpts,
+      embeddingModelId: modelId,
+      embedding: encoded is String
+          ? decodeVector(encoded, characterEmbeddingDim)
+          : null,
+      cropJpeg: json['crop_jpeg'] is String
+          ? base64Decode(json['crop_jpeg'] as String)
+          : null,
+      facePx: (json['face_px'] as num?)?.toDouble(),
+      manual: json['manual'] == true,
     );
   }
 }

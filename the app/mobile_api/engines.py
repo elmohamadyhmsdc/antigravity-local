@@ -236,6 +236,12 @@ class InsightEngines:
 
     def targeted_analyze(self, img, target_kind: str, roi=None, prompt: str = "", high_res: bool = True) -> list:
         with self._lock:
+            if target_kind == "anime_face":
+                worker = self._get_scan_worker()
+                if worker is not None:
+                    return worker.anime_face(img, roi, high_res)
+                from .targeted_anime import analyze_anime_face
+                return analyze_anime_face(img, roi, high_res)
             h, w = img.shape[:2]
             if roi is not None:
                 rx = max(0, int(roi['x'] * w))

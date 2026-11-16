@@ -13,6 +13,7 @@ import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import 'highlighted_photo.dart';
 import 'review_media_viewer.dart';
+import 'review_action_scope.dart';
 import 'review_screen.dart';
 import 'review_words.dart';
 
@@ -81,6 +82,7 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
   /// up, but shown again when a parked question comes back with new evidence.
   final _done = <String, (double, int)>{};
   var _busy = false;
+  ReviewQuestion? _savingQuestion;
   var _drag = 0.0;
 
   /// "Are you sure?" questions: the faces the user tapped as NOT that person, per question.
@@ -93,9 +95,12 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
     if (_busy) return;
     setState(() {
       _busy = true;
+      _savingQuestion = q;
       _drag = 0;
     });
     try {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
       if (await action() && mounted) {
         setState(() {
           _answered++;
@@ -111,7 +116,12 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _savingQuestion = null;
+        });
+      }
     }
   }
 
@@ -288,13 +298,13 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
 
   Future<void> _group(ReviewQuestion q, String name, PersonSummary? person) =>
       _run(q, () async {
-        final ids = [for (final f in q.group!.faces) f.faceId];
-        if (person != null) {
-          await _review.assignGroup(ids, person.id);
-        } else {
-          await _review.createPersonFromGroup(name: name, faceIds: ids);
-        }
-        await _review.forgetGroup(q.group!.id);
+        await _review.answerGroup(
+          groupId: q.group!.id,
+          faceIds: [for (final f in q.group!.faces) f.faceId],
+          excluded: {...?_marked[q.key]},
+          name: name,
+          personId: person?.id,
+        );
         return true;
       });
 
@@ -338,153 +348,163 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
     final questions = ref.watch(reviewQuestionsByKindProvider(widget.kind));
     final advanced = ref.watch(reviewAdvancedProvider);
     final sorting = ref.watch(manualSortRunningProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l.quickReviewTitle),
-        actions: [
-          TextButton(
-            key: const Key('review-sort-now'),
-            onPressed: sorting ? null : () => sortNow(context, ref),
-            child: Text(sorting ? l.sorting : l.quickAutoSort),
-          ),
-          TextButton(
-            key: const Key('quick-see-all'),
-            onPressed: () => openAllReview(context, widget.kind),
-            child: Text(l.quickSeeAll),
-          ),
-          PopupMenuButton<String>(
-            key: const Key('quick-menu'),
-            onSelected: (v) {
-              if (v == 'advanced') {
-                ref.read(appSettingsProvider).setReviewAdvanced(!advanced);
-              }
-            },
-            itemBuilder: (context) => [
-              CheckedPopupMenuItem(
-                key: const Key('quick-advanced'),
-                value: 'advanced',
-                checked: advanced,
-                child: Text(l.reviewAdvancedTitle),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: questions.when(
-        loading: () => const LoadingBox(),
-        error: (_, _) => RetryState(
-          onRetry: () =>
-              ref.invalidate(reviewQuestionsByKindProvider(widget.kind)),
+    return PopScope(
+      canPop: !_busy,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(l.quickReviewTitle),
+          actions: [
+            TextButton(
+              key: const Key('review-sort-now'),
+              onPressed: sorting || _busy ? null : () => sortNow(context, ref),
+              child: Text(sorting ? l.sorting : l.quickAutoSort),
+            ),
+            TextButton(
+              key: const Key('quick-see-all'),
+              onPressed: _busy
+                  ? null
+                  : () => openAllReview(context, widget.kind),
+              child: Text(l.quickSeeAll),
+            ),
+            PopupMenuButton<String>(
+              key: const Key('quick-menu'),
+              onSelected: (v) {
+                if (v == 'advanced') {
+                  ref.read(appSettingsProvider).setReviewAdvanced(!advanced);
+                }
+              },
+              itemBuilder: (context) => [
+                CheckedPopupMenuItem(
+                  key: const Key('quick-advanced'),
+                  value: 'advanced',
+                  checked: advanced,
+                  child: Text(l.reviewAdvancedTitle),
+                ),
+              ],
+            ),
+          ],
         ),
-        data: (all) {
-          final open = [
-            for (final q in all)
-              if (_done[q.key] != (q.score, q.evidence)) q,
-          ];
-          if (open.isEmpty) {
-            final left =
-                ref
-                    .watch(reviewCountsByKindProvider(widget.kind))
-                    .value
-                    ?.rawTotal ??
-                0;
-            final unsorted =
-                ref
-                    .watch(reviewUnsortedCountByKindProvider(widget.kind))
-                    .value ??
-                0;
-            return EmptyState(
-              key: const Key('quick-all-done'),
-              icon: Icons.task_alt,
-              title: l.quickAllDone,
-              body: left > 0
-                  ? l.reviewDeferred(left)
-                  : unsorted > 0
-                  ? l.quickNoConfidentMatches(unsorted)
-                  : l.quickAllDoneBody,
-              actionLabel: unsorted > 0
-                  ? l.unsortedCardTitle
-                  : left > 0
-                  ? l.quickSeeAll
-                  : null,
-              onAction: unsorted > 0
-                  ? () => context.push(
-                      '${Routes.review}?queue=unsorted&kind=${widget.kind}',
-                    )
-                  : left > 0
-                  ? () => openAllReview(context, widget.kind)
-                  : null,
+        body: questions.when(
+          loading: () => const LoadingBox(),
+          error: (_, _) => RetryState(
+            onRetry: () =>
+                ref.invalidate(reviewQuestionsByKindProvider(widget.kind)),
+          ),
+          data: (all) {
+            final open = [
+              for (final q in all)
+                if (_done[q.key] != (q.score, q.evidence)) q,
+            ];
+            if (open.isEmpty && !_busy) {
+              final left =
+                  ref
+                      .watch(reviewCountsByKindProvider(widget.kind))
+                      .value
+                      ?.rawTotal ??
+                  0;
+              final unsorted =
+                  ref
+                      .watch(reviewUnsortedCountByKindProvider(widget.kind))
+                      .value ??
+                  0;
+              return EmptyState(
+                key: const Key('quick-all-done'),
+                icon: Icons.task_alt,
+                title: l.quickAllDone,
+                body: left > 0
+                    ? l.reviewDeferred(left)
+                    : unsorted > 0
+                    ? l.quickNoConfidentMatches(unsorted)
+                    : l.quickAllDoneBody,
+                actionLabel: unsorted > 0
+                    ? l.unsortedCardTitle
+                    : left > 0
+                    ? l.quickSeeAll
+                    : null,
+                onAction: unsorted > 0
+                    ? () => context.push(
+                        '${Routes.review}?queue=unsorted&kind=${widget.kind}',
+                      )
+                    : left > 0
+                    ? () => openAllReview(context, widget.kind)
+                    : null,
+              );
+            }
+            final sessionAnswered = _answered - _sessionStart;
+            if (sessionAnswered >= reviewSessionSize && !_busy) {
+              return EmptyState(
+                key: const Key('quick-session-done'),
+                icon: Icons.task_alt,
+                title: l.reviewSessionDone,
+                body: l.reviewSessionRemaining(open.length),
+                actionLabel: l.reviewNextSession,
+                onAction: () => setState(() => _sessionStart = _answered),
+              );
+            }
+            final q = _savingQuestion ?? open.first;
+            final marked = _marked[q.key] ?? const <int>{};
+            final candidates = [
+              for (final f in q.doubtful?.faces ?? const <ReviewDoubtfulFace>[])
+                if (f.suggested != null &&
+                    (marked.isEmpty || marked.contains(f.faceId)))
+                  f,
+            ];
+            final target = candidates.isEmpty
+                ? null
+                : candidates.first.suggested;
+            final moves = [
+              for (final f in candidates)
+                if (f.suggested?.id == target?.id) f.faceId,
+            ];
+            final total =
+                sessionAnswered +
+                open.length.clamp(0, reviewSessionSize - sessionAnswered);
+            return _QuestionView(
+              key: ValueKey(q.key),
+              question: q,
+              kind: widget.kind,
+              position: sessionAnswered + 1,
+              total: total,
+              advanced: advanced,
+              busy: _busy,
+              drag: _drag,
+              marked: marked,
+              moveLabel: target == null
+                  ? null
+                  : l.quickMoveTo(personName(l, target), moves.length),
+              onMove: target == null
+                  ? null
+                  : () => _moveSuggested(q, target, moves),
+              onToggle: (faceId) {
+                if (_busy) return;
+                setState(() {
+                  final set = _marked.putIfAbsent(q.key, () => <int>{});
+                  if (!set.remove(faceId)) set.add(faceId);
+                });
+              },
+              onDrag:
+                  q.isMatchBatch ||
+                      q.kind == ReviewQuestionKind.group ||
+                      q.kind == ReviewQuestionKind.doubtful
+                  ? null
+                  : (dx) => setState(() => _drag += dx),
+              onDragEnd: (velocity) {
+                if (_drag > 120 || velocity > 800) {
+                  _yes(q);
+                } else if (_drag < -120 || velocity < -800) {
+                  _no(q);
+                } else {
+                  setState(() => _drag = 0);
+                }
+              },
+              onYes: () => _yes(q),
+              onNo: () => _no(q),
+              onNotSure: () => _notSure(q),
+              onIgnore: _ignorable(q) ? () => _ignore(q) : null,
+              onGroup: (name, person) => _group(q, name, person),
             );
-          }
-          final sessionAnswered = _answered - _sessionStart;
-          if (sessionAnswered >= reviewSessionSize) {
-            return EmptyState(
-              key: const Key('quick-session-done'),
-              icon: Icons.task_alt,
-              title: l.reviewSessionDone,
-              body: l.reviewSessionRemaining(open.length),
-              actionLabel: l.reviewNextSession,
-              onAction: () => setState(() => _sessionStart = _answered),
-            );
-          }
-          final q = open.first;
-          final marked = _marked[q.key] ?? const <int>{};
-          final candidates = [
-            for (final f in q.doubtful?.faces ?? const <ReviewDoubtfulFace>[])
-              if (f.suggested != null &&
-                  (marked.isEmpty || marked.contains(f.faceId)))
-                f,
-          ];
-          final target = candidates.isEmpty ? null : candidates.first.suggested;
-          final moves = [
-            for (final f in candidates)
-              if (f.suggested?.id == target?.id) f.faceId,
-          ];
-          final total =
-              sessionAnswered +
-              open.length.clamp(0, reviewSessionSize - sessionAnswered);
-          return _QuestionView(
-            key: ValueKey(q.key),
-            question: q,
-            kind: widget.kind,
-            position: sessionAnswered + 1,
-            total: total,
-            advanced: advanced,
-            busy: _busy,
-            drag: _drag,
-            marked: marked,
-            moveLabel: target == null
-                ? null
-                : l.quickMoveTo(personName(l, target), moves.length),
-            onMove: target == null
-                ? null
-                : () => _moveSuggested(q, target, moves),
-            onToggle: (faceId) => setState(() {
-              final set = _marked.putIfAbsent(q.key, () => <int>{});
-              if (!set.remove(faceId)) set.add(faceId);
-            }),
-            onDrag:
-                q.isMatchBatch ||
-                    q.kind == ReviewQuestionKind.group ||
-                    q.kind == ReviewQuestionKind.doubtful
-                ? null
-                : (dx) => setState(() => _drag += dx),
-            onDragEnd: (velocity) {
-              if (_drag > 120 || velocity > 800) {
-                _yes(q);
-              } else if (_drag < -120 || velocity < -800) {
-                _no(q);
-              } else {
-                setState(() => _drag = 0);
-              }
-            },
-            onYes: () => _yes(q),
-            onNo: () => _no(q),
-            onNotSure: () => _notSure(q),
-            onIgnore: _ignorable(q) ? () => _ignore(q) : null,
-            onGroup: (name, person) => _group(q, name, person),
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -586,29 +606,44 @@ class _QuestionView extends ConsumerWidget {
       ReviewQuestionKind.match =>
         q.isMatchBatch
             ? _Doubtful(
-                item: ReviewDoubtfulItem(
-                  person: q.match!.person,
-                  faces: [
-                    for (final f in q.matchFaces)
-                      ReviewDoubtfulFace(
-                        faceId: f.faceId,
-                        cropPath: f.cropPath,
-                        score: f.score,
-                      ),
-                  ],
-                  remaining: q.matchFaces.length,
-                ),
+                faces: [
+                  for (final f in q.matchFaces)
+                    ReviewDoubtfulFace(
+                      faceId: f.faceId,
+                      cropPath: f.cropPath,
+                      score: f.score,
+                    ),
+                ],
+                help: l.reviewMatchHelp,
                 marked: marked,
                 onToggle: onToggle,
               )
             : _Photo(kind: 'f', id: q.face!.faceId),
       ReviewQuestionKind.outfit => _Photo(kind: 'b', id: q.outfit!.bodyId),
       ReviewQuestionKind.duplicate => _Pair(item: q.duplicate!),
-      ReviewQuestionKind.group => _Group(item: q.group!),
+      ReviewQuestionKind.group => _Doubtful(
+        faces: [
+          for (final f in q.group!.faces)
+            ReviewDoubtfulFace(
+              faceId: f.faceId,
+              cropPath: f.cropPath,
+              score: 0,
+            ),
+        ],
+        help: l.reviewGroupHelp,
+        group: true,
+        marked: marked,
+        onToggle: onToggle,
+      ),
       ReviewQuestionKind.doubtful =>
         q.doubtful!.faces.length == 1
             ? _Photo(kind: 'f', id: q.doubtful!.faces.single.faceId)
-            : _Doubtful(item: q.doubtful!, marked: marked, onToggle: onToggle),
+            : _Doubtful(
+                faces: q.doubtful!.faces,
+                help: l.quickCheckPerson(personName(l, q.doubtful!.person)),
+                marked: marked,
+                onToggle: onToggle,
+              ),
     };
 
     return Column(
@@ -681,9 +716,13 @@ class _QuestionView extends ConsumerWidget {
                     Positioned.fill(
                       child: Padding(
                         padding: const EdgeInsets.all(12),
-                        child: media,
+                        child: AbsorbPointer(absorbing: busy, child: media),
                       ),
                     ),
+                    if (busy)
+                      const Positioned.fill(
+                        child: Center(child: ReviewSavingIndicator()),
+                      ),
                     if (drag.abs() > 24)
                       Positioned(
                         top: 24,
@@ -702,12 +741,26 @@ class _QuestionView extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             child: q.kind == ReviewQuestionKind.group
-                ? _GroupAnswer(
-                    kind: kind,
-                    busy: busy,
-                    onSave: onGroup,
-                    onNotSure: onNotSure,
-                    onIgnore: onIgnore,
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        l.reviewSelectionOutcome(
+                          q.group!.faces.length - marked.length,
+                          marked.length,
+                        ),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 8),
+                      _GroupAnswer(
+                        kind: kind,
+                        busy: busy,
+                        canSave: marked.length < q.group!.faces.length,
+                        onSave: onGroup,
+                        onNotSure: onNotSure,
+                        onIgnore: onIgnore,
+                      ),
+                    ],
                   )
                 : q.kind == ReviewQuestionKind.doubtful || q.isMatchBatch
                 ? _DoubtfulBar(
@@ -848,6 +901,7 @@ class _GroupAnswer extends ConsumerStatefulWidget {
   const _GroupAnswer({
     required this.kind,
     required this.busy,
+    this.canSave = true,
     required this.onSave,
     required this.onNotSure,
     this.onIgnore,
@@ -855,6 +909,7 @@ class _GroupAnswer extends ConsumerStatefulWidget {
 
   final String kind;
   final bool busy;
+  final bool canSave;
   final void Function(String name, PersonSummary? person) onSave;
   final VoidCallback onNotSure;
   final VoidCallback? onIgnore;
@@ -922,6 +977,7 @@ class _GroupAnswerState extends ConsumerState<_GroupAnswer> {
           onSelected: (p) => setState(() => _picked = p),
           fieldViewBuilder: (context, controller, focus, onSubmit) => TextField(
             key: const Key('quick-group-name'),
+            enabled: !widget.busy,
             controller: controller,
             focusNode: focus,
             textCapitalization: TextCapitalization.words,
@@ -979,7 +1035,7 @@ class _GroupAnswerState extends ConsumerState<_GroupAnswer> {
         FilledButton(
           key: const Key('quick-yes'),
           style: FilledButton.styleFrom(minimumSize: size),
-          onPressed: widget.busy || ambiguous
+          onPressed: widget.busy || !widget.canSave || ambiguous
               ? null
               : () => widget.onSave(_name.text.trim(), picked),
           child: Text(
@@ -1074,59 +1130,18 @@ class _Pair extends ConsumerWidget {
   }
 }
 
-class _Group extends StatelessWidget {
-  const _Group({required this.item});
-
-  final ReviewGroupItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final best = item.faces.reduce((a, b) => b.quality > a.quality ? b : a);
-    return Column(
-      children: [
-        Expanded(
-          child: _Photo(kind: 'f', id: best.faceId),
-        ),
-        if (item.faces.length > 1) ...[
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 64,
-            child: ListView.separated(
-              key: const Key('quick-group-faces'),
-              scrollDirection: Axis.horizontal,
-              itemCount: item.faces.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 6),
-              itemBuilder: (context, i) => InkWell(
-                onTap: () => openReviewMedia(context, [
-                  for (final f in item.faces) ReviewTarget('f', f.faceId),
-                ], initialTarget: i),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SizedBox(
-                    width: 64,
-                    child: CropImage(path: item.faces[i].cropPath),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// "Tap the faces that are NOT her": a grid of the person's most doubtful faces (worst first). A
-/// tapped face is marked for removal; long-press opens it in its photo. A caption shows the other
-/// person a face looks more like, when there is one.
 class _Doubtful extends StatelessWidget {
   const _Doubtful({
-    required this.item,
+    required this.faces,
+    required this.help,
+    this.group = false,
     required this.marked,
     required this.onToggle,
   });
 
-  final ReviewDoubtfulItem item;
+  final List<ReviewDoubtfulFace> faces;
+  final String help;
+  final bool group;
   final Set<int> marked;
   final ValueChanged<int> onToggle;
 
@@ -1134,40 +1149,92 @@ class _Doubtful extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final name = personName(l, item.person);
     return Column(
       children: [
         Text(
-          'Tap the ones that are NOT $name. Long-press to see the photo.',
+          help,
           style: theme.textTheme.bodyMedium,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Expanded(
           child: GridView.builder(
-            key: const Key('quick-doubtful-faces'),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
+            key: Key(group ? 'quick-group-faces' : 'quick-doubtful-faces'),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 160,
               mainAxisSpacing: 6,
               crossAxisSpacing: 6,
             ),
-            itemCount: item.faces.length,
+            itemCount: faces.length,
             itemBuilder: (context, i) {
-              final face = item.faces[i];
+              final face = faces[i];
               final out = marked.contains(face.faceId);
+              void open() => openReviewMedia(
+                context,
+                [for (final f in faces) ReviewTarget('f', f.faceId)],
+                initialTarget: i,
+                selectedFaceIds: {
+                  for (final f in faces)
+                    if (!marked.contains(f.faceId)) f.faceId,
+                },
+                onSelectionChanged: (selected) {
+                  for (final f in faces) {
+                    if (selected.contains(f.faceId) ==
+                        marked.contains(f.faceId)) {
+                      onToggle(f.faceId);
+                    }
+                  }
+                },
+              );
               return InkWell(
-                key: Key('quick-doubtful-${face.faceId}'),
+                key: Key(
+                  group
+                      ? 'quick-group-face-${face.faceId}'
+                      : 'quick-doubtful-${face.faceId}',
+                ),
                 borderRadius: BorderRadius.circular(8),
                 onTap: () => onToggle(face.faceId),
-                onLongPress: () => openReviewMedia(context, [
-                  for (final f in item.faces) ReviewTarget('f', f.faceId),
-                ], initialTarget: i),
+                onLongPress: open,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: CropImage(path: face.cropPath),
+                    ),
+                    PositionedDirectional(
+                      top: 2,
+                      end: 2,
+                      child: Semantics(
+                        checked: !out,
+                        label: l.reviewIncludeFace,
+                        child: Icon(
+                          out
+                              ? Icons.radio_button_unchecked
+                              : Icons.check_circle,
+                          color: out ? Colors.white : theme.colorScheme.primary,
+                          size: 22,
+                          shadows: const [
+                            Shadow(color: Colors.black54, blurRadius: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+                    PositionedDirectional(
+                      bottom: 0,
+                      end: 0,
+                      child: IconButton(
+                        tooltip: l.reviewFullPhoto,
+                        onPressed: open,
+                        icon: const Icon(
+                          Icons.zoom_in,
+                          size: 20,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(color: Colors.black54, blurRadius: 4),
+                          ],
+                        ),
+                      ),
                     ),
                     if (out)
                       DecoratedBox(

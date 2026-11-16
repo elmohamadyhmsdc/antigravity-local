@@ -1,3 +1,4 @@
+import '../../ui/selection/selection_collection.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -590,144 +591,171 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                 Expanded(
                   child: items.isEmpty
                       ? const Center(child: Text('لا توجد صور في هذا القسم'))
-                      : GridView.builder(
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
-                                childAspectRatio: 0.8,
-                              ),
-                          itemCount: items.length,
-                          itemBuilder: (ctx, idx) {
-                            final c = items[idx];
-                            return Stack(
-                              key: Key('curation-card-${c.detectionId}'),
-                              children: [
-                                Positioned.fill(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: theme
-                                            .colorScheme
-                                            .surfaceContainerHighest,
+                      : SelectionCollection<CurationCandidate>(
+                          name: 'curation',
+                          items: items,
+                          idOf: (c) => '${c.category.name}:${c.detectionId}',
+                          actions: (_) => [
+                            CollectionAction<CurationCandidate>(
+                              id: 'exclude',
+                              label: 'استبعاد المحدد من التدريب',
+                              icon: Icons.remove_circle_outline,
+                              run: (context, selected) async {
+                                final controller = ref.read(
+                                  curationControllerProvider.notifier,
+                                );
+                                for (final candidate in selected) {
+                                  controller.removeItem(candidate);
+                                }
+                                return true;
+                              },
+                            ),
+                          ],
+                          builder: (context, selection) => GridView.builder(
+                            padding: const EdgeInsets.all(16),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                  childAspectRatio: 0.8,
+                                ),
+                            itemCount: items.length,
+                            itemBuilder: (ctx, idx) {
+                              final c = items[idx];
+                              return selection.tile(
+                                c,
+                                child: Stack(
+                                  key: Key('curation-card-${c.detectionId}'),
+                                  children: [
+                                    Positioned.fill(
+                                      child: ClipRRect(
                                         borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: theme.dividerColor,
-                                        ),
-                                      ),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          key: Key(
-                                            'curation-preview-${c.detectionId}',
-                                          ),
-                                          onTap: () {
-                                            context.push(
-                                              '${Routes.media}/${c.mediaId}?personId=${widget.personId}',
-                                            );
-                                          },
-                                          child: _CandidateThumbnail(
-                                            candidate: c,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                // Delete Action
-                                Positioned(
-                                  top: 4,
-                                  left: 4,
-                                  child: GestureDetector(
-                                    key: Key(
-                                      'curation-delete-${c.detectionId}',
-                                    ),
-                                    onTap: () => _deleteItem(c),
-                                    child: Container(
-                                      width: 24,
-                                      height: 24,
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.7,
-                                        ),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.close,
-                                        size: 14,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                // Badges
-                                Positioned(
-                                  bottom: 4,
-                                  right: 4,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      if (c.hasExposedRegion)
-                                        Container(
-                                          key: Key(
-                                            'badge-exposed-${c.detectionId}',
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 2,
-                                          ),
-                                          margin: const EdgeInsets.only(
-                                            bottom: 2,
-                                          ),
+                                        child: Container(
                                           decoration: BoxDecoration(
-                                            color: Colors.red.shade700,
+                                            color: theme
+                                                .colorScheme
+                                                .surfaceContainerHighest,
                                             borderRadius: BorderRadius.circular(
-                                              6,
+                                              16,
+                                            ),
+                                            border: Border.all(
+                                              color: theme.dividerColor,
                                             ),
                                           ),
-                                          child: const Text(
-                                            'كشف عالي',
-                                            style: TextStyle(
-                                              fontSize: 9,
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              key: Key(
+                                                'curation-preview-${c.detectionId}',
+                                              ),
+                                              onTap: () {
+                                                context.push(
+                                                  '${Routes.media}/${c.mediaId}?personId=${widget.personId}',
+                                                );
+                                              },
+                                              child: _CandidateThumbnail(
+                                                candidate: c,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      if (c.isVideo)
-                                        Container(
-                                          key: Key(
-                                            'badge-video-${c.detectionId}',
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 2,
-                                          ),
+                                      ),
+                                    ),
+                                    // Delete Action
+                                    Positioned(
+                                      top: 4,
+                                      left: 4,
+                                      child: GestureDetector(
+                                        key: Key(
+                                          'curation-delete-${c.detectionId}',
+                                        ),
+                                        onTap: () => _deleteItem(c),
+                                        child: Container(
+                                          width: 24,
+                                          height: 24,
                                           decoration: BoxDecoration(
                                             color: Colors.black.withValues(
-                                              alpha: 0.8,
+                                              alpha: 0.7,
                                             ),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
+                                            shape: BoxShape.circle,
                                           ),
-                                          child: Text(
-                                            '🎬 ${_formatTime(c.timestampMs)}',
-                                            style: const TextStyle(
-                                              fontSize: 9,
-                                              color: Colors.white,
-                                            ),
+                                          child: const Icon(
+                                            Icons.close,
+                                            size: 14,
+                                            color: Colors.white,
                                           ),
                                         ),
-                                    ],
-                                  ),
+                                      ),
+                                    ),
+                                    // Badges
+                                    Positioned(
+                                      bottom: 4,
+                                      right: 4,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          if (c.hasExposedRegion)
+                                            Container(
+                                              key: Key(
+                                                'badge-exposed-${c.detectionId}',
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                    vertical: 2,
+                                                  ),
+                                              margin: const EdgeInsets.only(
+                                                bottom: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red.shade700,
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: const Text(
+                                                'كشف عالي',
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          if (c.isVideo)
+                                            Container(
+                                              key: Key(
+                                                'badge-video-${c.detectionId}',
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                    vertical: 2,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.8,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                '🎬 ${_formatTime(c.timestampMs)}',
+                                                style: const TextStyle(
+                                                  fontSize: 9,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
                 ),
               ],

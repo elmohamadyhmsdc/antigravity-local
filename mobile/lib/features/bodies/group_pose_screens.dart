@@ -1,3 +1,6 @@
+import '../../providers.dart';
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -185,155 +188,213 @@ class _GroupPosesTabState extends ConsumerState<GroupPosesTab>
         onAction: load,
       );
     }
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        DiscoveryIntro(
-          title: l.groupPoseTab,
-          description: l.groupPoseIntro,
-          icon: Icons.groups_outlined,
-          count: photos.length,
-        ),
-        if (saved.isNotEmpty)
-          DiscoverySearch(
-            hint: l.discoverySearchSaved,
-            onChanged: (value) => setState(() => search = value),
+    return SelectionCollection<GroupPosePhoto>(
+      name: 'group-photos',
+      partial: true,
+      items: photos
+          .where((p) => count == null || p.bodies.length == count)
+          .take(200)
+          .toList(),
+      idOf: (p) => p.mediaId,
+      actions: (_) => mediaCollectionActions<GroupPosePhoto>(
+        ref,
+        (photos) => selectedMedia(ref, photos.map((p) => p.mediaId)),
+      ),
+      builder: (context, selection) => ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          DiscoveryIntro(
+            title: l.groupPoseTab,
+            description: l.groupPoseIntro,
+            icon: Icons.groups_outlined,
+            count: photos.length,
           ),
-        const SizedBox(height: 16),
-        if (saved.isNotEmpty) ...[
-          Text(
-            l.groupPoseSaved,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          for (final category in saved.where(
-            (c) => c.name.toLowerCase().contains(search),
-          ))
-            ListTile(
-              key: Key('group-category-${category.id}'),
-              contentPadding: EdgeInsets.zero,
-              leading: SizedBox(
-                width: 72,
-                height: 64,
-                child: PoseDiagram(
-                  group: GroupPoseFeature.decode(category.exemplarFeature),
-                ),
-              ),
-              title: Text(category.name),
-              subtitle: Text(l.groupPosePeople(category.exemplarMask)),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => openSaved(category),
+          if (saved.isNotEmpty)
+            DiscoverySearch(
+              hint: l.discoverySearchSaved,
+              onChanged: (value) => setState(() => search = value),
             ),
           const SizedBox(height: 16),
-        ],
-        Text(
-          l.groupPoseChooseExample,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: FilterChip(
-                  label: Text(l.bodiesTabAll),
-                  selected: count == null,
-                  onSelected: (_) => setState(() => count = null),
+          if (saved.isNotEmpty) ...[
+            Text(
+              l.groupPoseSaved,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            SelectionCollection<PoseCategoryRow>(
+              name: 'saved-group-poses',
+              embedded: true,
+              items: saved
+                  .where((c) => c.name.toLowerCase().contains(search))
+                  .toList(),
+              idOf: (c) => c.id,
+              onCompleted: load,
+              actions: (_) => [
+                CollectionAction<PoseCategoryRow>(
+                  id: 'delete',
+                  label: l.categoryDelete,
+                  icon: Icons.delete_outline,
+                  destructive: true,
+                  confirmation:
+                      'Remove the selected saved group poses. Original photos and detections are kept.',
+                  run: (context, categories) async {
+                    await ref.read(databaseProvider).transaction(() async {
+                      for (final category in categories) {
+                        await ref
+                            .read(bodyCategoriesProvider)
+                            .deletePose(category.id);
+                      }
+                    });
+                    return true;
+                  },
                 ),
+              ],
+              builder: (context, categorySelection) => Column(
+                children: [
+                  for (final category in saved.where(
+                    (c) => c.name.toLowerCase().contains(search),
+                  ))
+                    categorySelection.tile(
+                      category,
+                      child: ListTile(
+                        key: Key('group-category-${category.id}'),
+                        contentPadding: EdgeInsets.zero,
+                        leading: SizedBox(
+                          width: 72,
+                          height: 64,
+                          child: PoseDiagram(
+                            group: GroupPoseFeature.decode(
+                              category.exemplarFeature,
+                            ),
+                          ),
+                        ),
+                        title: Text(category.name),
+                        subtitle: Text(
+                          l.groupPosePeople(category.exemplarMask),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => openSaved(category),
+                      ),
+                    ),
+                ],
               ),
-              for (final n in {
-                for (final p in photos) p.bodies.length,
-              }.toList()..sort())
+            ),
+            const SizedBox(height: 16),
+          ],
+          Text(
+            l.groupPoseChooseExample,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: FilterChip(
-                    key: Key('group-count-$n'),
-                    label: Text(l.groupPosePeople(n)),
-                    selected: count == n,
-                    onSelected: (on) => setState(() => count = on ? n : null),
+                    label: Text(l.bodiesTabAll),
+                    selected: count == null,
+                    onSelected: (_) => setState(() => count = null),
                   ),
                 ),
-            ],
-          ),
-        ),
-        if (photos.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: Text(l.groupPoseEmpty),
-          ),
-        for (final photo
-            in photos
-                .where((p) => count == null || p.bodies.length == count)
-                .take(200))
-          Card(
-            key: Key('group-photo-${photo.mediaId}'),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  height: 180,
-                  child: GroupPhotoPreview(
-                    assetId: photo.assetId,
-                    feature: photo.feature,
+                for (final n in {
+                  for (final p in photos) p.bodies.length,
+                }.toList()..sort())
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      key: Key('group-count-$n'),
+                      label: Text(l.groupPosePeople(n)),
+                      selected: count == n,
+                      onSelected: (on) => setState(() => count = on ? n : null),
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l.groupPosePeople(photo.bodies.length),
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      if (photo.feature == null) Text(l.groupPoseCannotMeasure),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          TextButton.icon(
-                            key: Key('group-similar-${photo.mediaId}'),
-                            onPressed: photo.feature == null
-                                ? null
-                                : () async {
-                                    await Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => GroupPoseResultsScreen(
-                                          feature: photo.feature!,
-                                          source: photo,
-                                          personId: widget.personId,
-                                        ),
-                                      ),
-                                    );
-                                    await load();
-                                  },
-                            icon: const Icon(Icons.manage_search),
-                            label: Text(l.groupPoseSimilar),
-                          ),
-                          TextButton.icon(
-                            key: Key('group-name-${photo.mediaId}'),
-                            onPressed: photo.feature == null
-                                ? null
-                                : () async {
-                                    await nameGroupPose(
-                                      context,
-                                      ref,
-                                      photo.mediaId,
-                                    );
-                                    await load();
-                                  },
-                            icon: const Icon(Icons.bookmark_add_outlined),
-                            label: Text(l.groupPoseName),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
-      ],
+          if (photos.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Text(l.groupPoseEmpty),
+            ),
+          for (final photo
+              in photos
+                  .where((p) => count == null || p.bodies.length == count)
+                  .take(200))
+            selection.tile(
+              photo,
+              child: Card(
+                key: Key('group-photo-${photo.mediaId}'),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: 180,
+                      child: GroupPhotoPreview(
+                        assetId: photo.assetId,
+                        feature: photo.feature,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l.groupPosePeople(photo.bodies.length),
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          if (photo.feature == null)
+                            Text(l.groupPoseCannotMeasure),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              TextButton.icon(
+                                key: Key('group-similar-${photo.mediaId}'),
+                                onPressed: photo.feature == null
+                                    ? null
+                                    : () async {
+                                        await Navigator.of(context).push(
+                                          MaterialPageRoute<void>(
+                                            builder: (_) =>
+                                                GroupPoseResultsScreen(
+                                                  feature: photo.feature!,
+                                                  source: photo,
+                                                  personId: widget.personId,
+                                                ),
+                                          ),
+                                        );
+                                        await load();
+                                      },
+                                icon: const Icon(Icons.manage_search),
+                                label: Text(l.groupPoseSimilar),
+                              ),
+                              TextButton.icon(
+                                key: Key('group-name-${photo.mediaId}'),
+                                onPressed: photo.feature == null
+                                    ? null
+                                    : () async {
+                                        await nameGroupPose(
+                                          context,
+                                          ref,
+                                          photo.mediaId,
+                                        );
+                                        await load();
+                                      },
+                                icon: const Icon(Icons.bookmark_add_outlined),
+                                label: Text(l.groupPoseName),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -438,102 +499,141 @@ class _GroupPoseResultsState extends ConsumerState<GroupPoseResultsScreen> {
               actionLabel: l.bodiesRetry,
               onAction: load,
             )
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text(
-                  l.groupPoseReference,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                SizedBox(
-                  height: 160,
-                  child: widget.source == null
-                      ? PoseDiagram(group: widget.feature)
-                      : GroupPhotoPreview(
-                          assetId: widget.source!.assetId,
-                          feature: widget.feature,
-                        ),
-                ),
-                Text(l.groupPosePeople(widget.feature.members.length)),
-                Text(
-                  l.groupPoseResultsNote,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (widget.source != null && widget.categoryId == null)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton.icon(
-                      onPressed: () =>
-                          nameGroupPose(context, ref, widget.source!.mediaId),
-                      icon: const Icon(Icons.bookmark_add_outlined),
-                      label: Text(l.groupPoseName),
-                    ),
+          : SelectionCollection<GroupPoseResult>(
+              name: 'group-results',
+              items: shown,
+              idOf: (m) => m.photo.mediaId,
+              onCompleted: load,
+              actions: (_) => [
+                if (widget.categoryId != null)
+                  CollectionAction<GroupPoseResult>(
+                    id: 'reject',
+                    label: l.categoryRemoveBody,
+                    icon: Icons.remove_circle_outline,
+                    run: (context, matches) async {
+                      await ref.read(databaseProvider).transaction(() async {
+                        for (final match in matches) {
+                          await ref
+                              .read(groupPoseMatcherProvider)
+                              .reject(widget.categoryId!, match.photo);
+                        }
+                      });
+                      return true;
+                    },
                   ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final label in {
-                      for (final m in matches)
-                        ...equipment[m.photo.mediaId] ?? <String>{},
-                    }.toList()..sort())
-                      FilterChip(
-                        key: Key('group-equipment-$label'),
-                        label: Text(label),
-                        selected: tool == label,
-                        onSelected: (on) =>
-                            setState(() => tool = on ? label : null),
-                      ),
-                  ],
+                ...mediaCollectionActions<GroupPoseResult>(
+                  ref,
+                  (matches) =>
+                      selectedMedia(ref, matches.map((m) => m.photo.mediaId)),
                 ),
-                const SizedBox(height: 12),
-                if (shown.isEmpty) Text(l.bodiesNothingMatches),
-                for (final match in shown)
-                  Card(
-                    key: Key('group-match-${match.photo.mediaId}'),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: 180,
-                          child: GroupPhotoPreview(
-                            assetId: match.photo.assetId,
-                            feature: match.photo.feature,
-                          ),
-                        ),
-                        ListTile(
-                          title: Text(
-                            l.groupPosePeople(match.photo.bodies.length),
-                          ),
-                          subtitle: Text(
-                            (equipment[match.photo.mediaId] ?? {}).join(' · '),
-                          ),
-                          trailing: IconButton(
-                            tooltip: l.bodyActionOpenPhoto,
-                            icon: const Icon(Icons.open_in_new),
-                            onPressed: () => context.push(
-                              '${Routes.media}/${match.photo.mediaId}',
-                            ),
-                          ),
-                        ),
-                        if (widget.categoryId != null)
-                          Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: TextButton.icon(
-                              key: Key('group-reject-${match.photo.mediaId}'),
-                              icon: const Icon(Icons.remove_circle_outline),
-                              label: Text(l.categoryRemoveBody),
-                              onPressed: () async {
-                                await ref
-                                    .read(groupPoseMatcherProvider)
-                                    .reject(widget.categoryId!, match.photo);
-                                await load();
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
               ],
+              builder: (context, selection) => ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(
+                    l.groupPoseReference,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  SizedBox(
+                    height: 160,
+                    child: widget.source == null
+                        ? PoseDiagram(group: widget.feature)
+                        : GroupPhotoPreview(
+                            assetId: widget.source!.assetId,
+                            feature: widget.feature,
+                          ),
+                  ),
+                  Text(l.groupPosePeople(widget.feature.members.length)),
+                  Text(
+                    l.groupPoseResultsNote,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  if (widget.source != null && widget.categoryId == null)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            nameGroupPose(context, ref, widget.source!.mediaId),
+                        icon: const Icon(Icons.bookmark_add_outlined),
+                        label: Text(l.groupPoseName),
+                      ),
+                    ),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final label in {
+                        for (final m in matches)
+                          ...equipment[m.photo.mediaId] ?? <String>{},
+                      }.toList()..sort())
+                        FilterChip(
+                          key: Key('group-equipment-$label'),
+                          label: Text(label),
+                          selected: tool == label,
+                          onSelected: (on) =>
+                              setState(() => tool = on ? label : null),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (shown.isEmpty) Text(l.bodiesNothingMatches),
+                  for (final match in shown)
+                    selection.tile(
+                      match,
+                      child: Card(
+                        key: Key('group-match-${match.photo.mediaId}'),
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              height: 180,
+                              child: GroupPhotoPreview(
+                                assetId: match.photo.assetId,
+                                feature: match.photo.feature,
+                              ),
+                            ),
+                            ListTile(
+                              title: Text(
+                                l.groupPosePeople(match.photo.bodies.length),
+                              ),
+                              subtitle: Text(
+                                (equipment[match.photo.mediaId] ?? {}).join(
+                                  ' · ',
+                                ),
+                              ),
+                              trailing: IconButton(
+                                tooltip: l.bodyActionOpenPhoto,
+                                icon: const Icon(Icons.open_in_new),
+                                onPressed: () => context.push(
+                                  '${Routes.media}/${match.photo.mediaId}',
+                                ),
+                              ),
+                            ),
+                            if (widget.categoryId != null)
+                              Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: TextButton.icon(
+                                  key: Key(
+                                    'group-reject-${match.photo.mediaId}',
+                                  ),
+                                  icon: const Icon(Icons.remove_circle_outline),
+                                  label: Text(l.categoryRemoveBody),
+                                  onPressed: () async {
+                                    await ref
+                                        .read(groupPoseMatcherProvider)
+                                        .reject(
+                                          widget.categoryId!,
+                                          match.photo,
+                                        );
+                                    await load();
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
     );
   }

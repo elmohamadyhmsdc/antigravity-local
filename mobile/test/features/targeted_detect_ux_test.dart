@@ -1,10 +1,78 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:antigravity_mobile/features/media/targeted_region_screen.dart';
+import 'package:antigravity_mobile/features/media/roi_selection_overlay.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
 import 'package:antigravity_mobile/features/inspector/targeted_detect_sheet.dart';
 
 void main() {
   group('TargetedDetectSheet & Naming', () {
+    testWidgets('anime faces always open a manual region selection', (tester) async {
+      String? kind;
+      bool? roi;
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: TargetedDetectSheet(
+        onStart: (value, selected) { kind = value; roi = selected; },
+      ))));
+      await tester.tap(find.byKey(const Key('target-kind-anime-face')));
+      await tester.pump();
+      expect(find.byKey(const Key('target-mode-full')), findsNothing);
+      await tester.ensureVisible(find.byKey(const Key('target-start-detect')));
+      await tester.tap(find.byKey(const Key('target-start-detect')));
+      await tester.pump();
+      expect(kind, 'anime_face');
+      expect(roi, isTrue);
+    });
+
+    testWidgets('anime recovery explains a missed detection and retains failed saves', (tester) async {
+      final pending = Completer<void>();
+      var saves = 0;
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: TargetedNameSheet(
+        kind: 'anime_face', bbox: const BBox(x: .2, y: .2, w: .3, h: .3),
+        manual: true,
+        onSave: (_, _, _) { saves++; return pending.future; },
+      ))));
+      expect(find.textContaining('The detector missed this face.'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('target-save')));
+      await tester.pump();
+      expect(find.text('Saving...'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('target-save')));
+      expect(saves, 1);
+      pending.completeError(StateError('Fixture save failed'));
+      await tester.pump();
+      expect(find.textContaining('Fixture save failed'), findsOneWidget);
+      expect(find.text('Save & Apply'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('region selection uses fitted image dimensions and preserves normalized bounds', (tester) async {
+      final fixture = jsonDecode(File('../the app/mobile_api/contract/fixtures/TargetedAnalysisResponse.anime_face.json')
+          .readAsStringSync()) as Map<String, dynamic>;
+      final bytes = base64Decode((fixture['detections'] as List).first['crop_jpeg'] as String);
+      BBox? selected;
+      await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+        body: TextButton(onPressed: () async {
+          selected = await Navigator.of(context).push<BBox>(MaterialPageRoute(
+            builder: (_) => TargetedRegionScreen(bytes: bytes, kind: 'anime_face')));
+        }, child: const Text('Open selection')),
+      ))));
+      await tester.tap(find.text('Open selection'));
+      await tester.pumpAndSettle();
+      final overlay = tester.widget<RoiSelectionOverlay>(find.byType(RoiSelectionOverlay));
+      // The shared crop is square; the available viewer body is rectangular.
+      expect(overlay.fittedSize.width, closeTo(overlay.fittedSize.height, .01));
+      await tester.tap(find.byKey(const Key('target-region-scan')));
+      await tester.pumpAndSettle();
+      expect(selected?.x, .25);
+      expect(selected?.y, .25);
+      expect(selected?.w, .5);
+      expect(selected?.h, .5);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('selects target kind and mode', (tester) async {
       String? selectedKind;
       bool? isRoiMode;

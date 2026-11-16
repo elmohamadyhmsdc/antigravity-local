@@ -1,3 +1,6 @@
+import 'package:drift/drift.dart' show Value;
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -144,147 +147,161 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     final theme = Theme.of(context);
     final engine = ref.read(scanEngineProvider);
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        // 1. Library scan progress card
-        if (isScanActive) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Text(
-              'Library Scan',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ),
-          ProgressCard(
-            data: ProgressCardData(
-              type: ProgressCardType.scan,
-              title: scan.grouping
-                  ? l10n.scanSorting
-                  : 'Library Face & Pose Analysis',
-              subtitle:
-                  '${scan.done + scan.failed} of ${scan.total} items scanned (${scan.facesFound} faces, ${scan.bodiesFound} bodies)',
-              progress: scan.fraction,
-              isPaused: scan.phase == ScanPhase.paused,
-              onPause: scan.phase == ScanPhase.running ? engine.pause : null,
-              onResume: scan.phase == ScanPhase.paused
-                  ? () => engine.start(enumerate: false)
-                  : null,
-              onTap: () => context.push(Routes.settingsLibrary),
-            ),
-          ),
-          if (scan.phase == ScanPhase.paused)
+    return SelectionCollection<JobRow>(
+      name: 'active-jobs',
+      items: activeJobs,
+      idOf: (j) => j.id,
+      actions: (items) => jobCollectionActions(ref, items),
+      builder: (context, selection) => ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          // 1. Library scan progress card
+          if (isScanActive) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Text(
-                scan.pauseReason == PauseReason.user
-                    ? 'You paused the scan.'
-                    : (scan.pauseReason?.name ?? 'Scan paused'),
-                style: theme.textTheme.bodyMedium,
+                'Library Scan',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
-          StreamBuilder<List<MediaRow>>(
-            stream: ref.watch(libraryRepositoryProvider).watchFailedMedia(),
-            builder: (context, snapshot) {
-              final failed = snapshot.data ?? const [];
-              if (failed.isEmpty) return const SizedBox.shrink();
-              return Padding(
+            ProgressCard(
+              data: ProgressCardData(
+                type: ProgressCardType.scan,
+                title: scan.grouping
+                    ? l10n.scanSorting
+                    : 'Library Face & Pose Analysis',
+                subtitle:
+                    '${scan.done + scan.failed} of ${scan.total} items scanned (${scan.facesFound} faces, ${scan.bodiesFound} bodies)',
+                progress: scan.fraction,
+                isPaused: scan.phase == ScanPhase.paused,
+                onPause: scan.phase == ScanPhase.running ? engine.pause : null,
+                onResume: scan.phase == ScanPhase.paused
+                    ? () => engine.start(enumerate: false)
+                    : null,
+                onTap: () => context.push(Routes.settingsLibrary),
+              ),
+            ),
+            if (scan.phase == ScanPhase.paused)
+              Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 4,
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${failed.length} failed files',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        await ref
-                            .read(libraryRepositoryProvider)
-                            .requeueFailed();
-                      },
-                      child: const Text('Retry all'),
-                    ),
-                  ],
+                child: Text(
+                  scan.pauseReason == PauseReason.user
+                      ? 'You paused the scan.'
+                      : (scan.pauseReason?.name ?? 'Scan paused'),
+                  style: theme.textTheme.bodyMedium,
                 ),
-              );
-            },
-          ),
-          if (scan.failed > 0)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.warning_amber_rounded),
-                label: Text('${scan.failed} files could not be scanned'),
-                onPressed: () {
-                  SheetScaffold.show(
-                    context: context,
-                    builder: (_) => FailedItemsSheet(failedCount: scan.failed),
-                  );
-                },
               ),
+            StreamBuilder<List<MediaRow>>(
+              stream: ref.watch(libraryRepositoryProvider).watchFailedMedia(),
+              builder: (context, snapshot) {
+                final failed = snapshot.data ?? const [];
+                if (failed.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${failed.length} failed files',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          await ref
+                              .read(libraryRepositoryProvider)
+                              .requeueFailed();
+                        },
+                        child: const Text('Retry all'),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-          const SizedBox(height: 16),
-        ],
+            if (scan.failed > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.warning_amber_rounded),
+                  label: Text('${scan.failed} files could not be scanned'),
+                  onPressed: () {
+                    SheetScaffold.show(
+                      context: context,
+                      builder: (_) =>
+                          FailedItemsSheet(failedCount: scan.failed),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 16),
+          ],
 
-        // 2. Active Background AI Tasks
-        if (activeJobs.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Text(
-              'Active Tasks (${activeJobs.length})',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.primary,
+          // 2. Active Background AI Tasks
+          if (activeJobs.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Text(
+                'Active Tasks (${activeJobs.length})',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ),
-          ),
-          for (final job in activeJobs)
-            ProgressCard(
-              data: ProgressCardData(
-                type: ProgressCardType.job,
-                title: jobTypeLabel(l10n, job.type),
-                subtitle: jobStatusLabel(l10n, job.status),
-                progress: job.progress,
-                isPaused: job.status == 'paused',
-                onResume: job.status == 'paused'
-                    ? () => ref.read(jobTrackerProvider).resume(job)
-                    : null,
-                onPause:
-                    const [
-                      'uploading',
-                      'running',
-                      'downloading',
-                    ].contains(job.status)
-                    ? () => ref.read(jobTrackerProvider).pause(job)
-                    : null,
-                onTap: () => context.push('${Routes.activity}/${job.id}'),
-                onCancel: () async {
-                  final confirmed = await ConfirmSheet.show(
-                    context: context,
-                    title: 'Cancel Task',
-                    message:
-                        'Are you sure you want to cancel this ${jobTypeLabel(l10n, job.type)} task?',
-                    confirmLabel: 'Cancel Task',
-                    isDanger: true,
-                  );
-                  if (confirmed == true) {
-                    final tracker = ref.read(jobTrackerProvider);
-                    await tracker.pause(job);
-                    await tracker.remove(job);
-                  }
-                },
+            for (final job in activeJobs)
+              selection.tile(
+                job,
+                onOpen: () => context.push('${Routes.activity}/${job.id}'),
+                child: ProgressCard(
+                  data: ProgressCardData(
+                    type: ProgressCardType.job,
+                    title: jobTypeLabel(l10n, job.type),
+                    subtitle: jobStatusLabel(l10n, job.status),
+                    progress: job.progress,
+                    isPaused: job.status == 'paused',
+                    onResume: job.status == 'paused'
+                        ? () => ref.read(jobTrackerProvider).resume(job)
+                        : null,
+                    onPause:
+                        const [
+                          'uploading',
+                          'running',
+                          'downloading',
+                        ].contains(job.status)
+                        ? () => ref.read(jobTrackerProvider).pause(job)
+                        : null,
+                    onTap: () => context.push('${Routes.activity}/${job.id}'),
+                    onCancel: () async {
+                      final confirmed = await ConfirmSheet.show(
+                        context: context,
+                        title: 'Cancel Task',
+                        message:
+                            'Are you sure you want to cancel this ${jobTypeLabel(l10n, job.type)} task?',
+                        confirmLabel: 'Cancel Task',
+                        isDanger: true,
+                      );
+                      if (confirmed == true) {
+                        final tracker = ref.read(jobTrackerProvider);
+                        await tracker.pause(job);
+                        await tracker.remove(job);
+                      }
+                    },
+                  ),
+                ),
               ),
-            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -328,63 +345,76 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                     subtitle: 'Finished and failed tasks will appear here.',
                   ),
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: finishedJobs.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final job = finishedJobs[index];
-                    final isFailed =
-                        job.status == 'failed' || job.status == 'lost';
-                    final isCompleted = job.status == 'completed';
+              : SelectionCollection<JobRow>(
+                  name: 'history-jobs',
+                  items: finishedJobs,
+                  idOf: (j) => j.id,
+                  actions: (items) => jobCollectionActions(ref, items),
+                  builder: (context, selection) => ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: finishedJobs.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final job = finishedJobs[index];
+                      final isFailed =
+                          job.status == 'failed' || job.status == 'lost';
+                      final isCompleted = job.status == 'completed';
 
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      leading: CircleAvatar(
-                        backgroundColor: isFailed
-                            ? theme.colorScheme.errorContainer
-                            : theme.colorScheme.surfaceContainerHighest,
-                        child: Icon(
-                          isFailed
-                              ? Icons.error_outline
-                              : (isCompleted
-                                    ? Icons.check
-                                    : Icons.hourglass_empty),
-                          color: isFailed
-                              ? theme.colorScheme.error
-                              : theme.colorScheme.primary,
-                        ),
-                      ),
-                      title: Text(jobTypeLabel(l10n, job.type)),
-                      subtitle: Text(
-                        '${jobStatusLabel(l10n, job.status)}${job.error != null ? ' · ${job.error}' : ''}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isFailed)
-                            IconButton(
-                              icon: const Icon(Icons.refresh),
-                              tooltip: 'Retry',
-                              onPressed: () async {
-                                await ref.read(jobTrackerProvider).resume(job);
-                              },
-                            ),
-                          IconButton(
-                            icon: const Icon(Icons.chevron_right),
-                            onPressed: () {
-                              context.push('${Routes.activity}/${job.id}');
-                            },
+                      return selection.tile(
+                        job,
+                        onOpen: () =>
+                            context.push('${Routes.activity}/${job.id}'),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                        ],
-                      ),
-                    );
-                  },
+                          leading: CircleAvatar(
+                            backgroundColor: isFailed
+                                ? theme.colorScheme.errorContainer
+                                : theme.colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              isFailed
+                                  ? Icons.error_outline
+                                  : (isCompleted
+                                        ? Icons.check
+                                        : Icons.hourglass_empty),
+                              color: isFailed
+                                  ? theme.colorScheme.error
+                                  : theme.colorScheme.primary,
+                            ),
+                          ),
+                          title: Text(jobTypeLabel(l10n, job.type)),
+                          subtitle: Text(
+                            '${jobStatusLabel(l10n, job.status)}${job.error != null ? ' · ${job.error}' : ''}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isFailed)
+                                IconButton(
+                                  icon: const Icon(Icons.refresh),
+                                  tooltip: 'Retry',
+                                  onPressed: () async {
+                                    await ref
+                                        .read(jobTrackerProvider)
+                                        .resume(job);
+                                  },
+                                ),
+                              IconButton(
+                                icon: const Icon(Icons.chevron_right),
+                                onPressed: () {
+                                  context.push('${Routes.activity}/${job.id}');
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
         ),
       ],
@@ -414,12 +444,12 @@ class FailedItemsSheet extends ConsumerWidget {
           child: const Text('Retry scan'),
         ),
       ],
-      child: FutureBuilder<List<MediaRow>>(
-        future:
+      child: StreamBuilder<List<MediaRow>>(
+        stream:
             (db.select(db.media)
                   ..where((m) => m.scanStatus.equals('failed'))
                   ..limit(50))
-                .get(),
+                .watch(),
         builder: (context, snapshot) {
           final items = snapshot.data ?? const [];
           if (items.isEmpty) {
@@ -431,27 +461,68 @@ class FailedItemsSheet extends ConsumerWidget {
               ),
             );
           }
-          return ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: items.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final media = items[index];
-              return ListTile(
-                leading: const Icon(Icons.broken_image_outlined),
-                title: Text(
-                  media.assetId,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  media.scanError ?? 'Scan failed',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              );
-            },
+          return SelectionCollection<MediaRow>(
+            name: 'failed-media',
+            embedded: true,
+            partial: items.length >= 50,
+            items: items,
+            idOf: (m) => m.id,
+            actions: (_) => [
+              CollectionAction<MediaRow>(
+                id: 'retry',
+                label: 'Queue selected files for retry',
+                icon: Icons.refresh,
+                run: (context, selected) async {
+                  await ref
+                      .read(libraryRepositoryProvider)
+                      .requeueFailed(mediaIds: selected.map((m) => m.id));
+                  return true;
+                },
+              ),
+              CollectionAction<MediaRow>(
+                id: 'skip',
+                label: 'Skip selected failed files',
+                icon: Icons.skip_next,
+                run: (context, selected) async {
+                  await (db.update(db.media)..where((m) => m.scanStatus.equals('failed'))..where(
+                        (m) => m.id.isIn(
+                          selected
+                              .where((row) => row.scanStatus == 'failed')
+                              .map((row) => row.id),
+                        ),
+                      ))
+                      .write(
+                        const MediaCompanion(scanStatus: Value('skipped')),
+                      );
+                  return true;
+                },
+              ),
+            ],
+            builder: (context, selection) => ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: items.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final media = items[index];
+                return selection.tile(
+                  media,
+                  child: ListTile(
+                    leading: const Icon(Icons.broken_image_outlined),
+                    title: Text(
+                      media.assetId,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      media.scanError ?? 'Scan failed',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                );
+              },
+            ),
           );
         },
       ),

@@ -361,7 +361,9 @@ def analyze_frame(face_app, body, img, options,
         raw_anime = []
         if ad is not None:
             try:
-                raw_anime = ad.detect(img, score_thresh=ANIME_CANDIDATE_SCORE)
+                detect_anime = (ad.detect_multiscale if illustrated_source and hasattr(ad, "detect_multiscale")
+                                else ad.detect)
+                raw_anime = detect_anime(img, score_thresh=ANIME_CANDIDATE_SCORE)
             except Exception:
                 pass
         alone_score = ANIME_ILLUSTRATED_SCORE if illustrated_source else ANIME_ALONE_SCORE

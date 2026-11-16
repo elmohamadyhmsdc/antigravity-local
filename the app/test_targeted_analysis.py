@@ -49,6 +49,30 @@ class TargetedTests(unittest.TestCase):
             self.assertEqual(body['detections'][0]['label'], 'person')
             self.assertIn('bbox', body['detections'][0])
 
+    def test_anime_target_is_accepted_and_does_not_get_a_fake_generic_fallback(self):
+        with contract.Env() as env:
+            env.ctx.engines.compute_targeted = lambda img, kind, roi, prompt: []
+            res = env.client.post('/v1/analyze/targeted',
+                files={'image': ('photo.jpg', contract.jpeg_bytes(), 'image/jpeg')},
+                data={'target_kind': 'anime_face', 'roi': json.dumps(dict(x=.2, y=.2, w=.3, h=.3))},
+                headers=env.auth)
+            self.assertEqual(res.status_code, 200, res.text)
+            self.assertEqual(res.json()['target_kind'], 'anime_face')
+            self.assertEqual(res.json()['detections'], [])
+
+    def test_invalid_regions_are_rejected_before_inference(self):
+        with contract.Env() as env:
+            def unexpected(*args):
+                self.fail('Invalid ROI reached inference')
+            env.ctx.engines.compute_targeted = unexpected
+            for roi in (dict(x=-.1, y=0, w=.2, h=.2), dict(x=.9, y=0, w=.2, h=.2),
+                        dict(x=0, y=0, w=0, h=.2), dict(x=float('nan'), y=0, w=.2, h=.2)):
+                with self.subTest(roi=roi):
+                    res = env.client.post('/v1/analyze/targeted',
+                        files={'image': ('photo.jpg', contract.jpeg_bytes(), 'image/jpeg')},
+                        data={'target_kind': 'anime_face', 'roi': json.dumps(roi)}, headers=env.auth)
+                    self.assertEqual(res.status_code, 400, res.text)
+
     def test_targeted_with_roi_fallback(self):
         with contract.Env() as env:
             # When compute_targeted returns empty, the endpoint returns the fallback container for the ROI

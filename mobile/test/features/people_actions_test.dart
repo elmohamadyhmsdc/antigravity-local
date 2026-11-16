@@ -47,6 +47,8 @@ void main() {
       await action(tester, 'hide');
       expect(find.byKey(Key('person-$id')), findsNothing);
       expect((await env.db.select(env.db.persons).get()).single.hidden, isTrue);
+      await tester.tap(find.byKey(const Key('people-filters')));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const Key('people-filter-hidden')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('people-filter-hidden')));

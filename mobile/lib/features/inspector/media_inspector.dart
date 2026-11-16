@@ -17,6 +17,7 @@ import '../../domain/organization/master_person_resolver.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../ui/actions/entity_action_sheet.dart';
+import '../../ui/selection/selection_collection.dart';
 import '../../ui/sheets/undo_snackbar.dart';
 import '../bodies/group_pose_screens.dart';
 import '../marks/mark_tattoo.dart';
@@ -395,6 +396,28 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
     );
   }
 
+  final _bulkHidden = <String>{};
+  String _detectionKey(MediaDetection detection) =>
+      '${detection.kind}:${detection.refId}';
+
+  CorrectionTarget _bulkTarget(MediaDetection d) {
+    if (d.isFace) {
+      return FaceLinkTarget(
+        faceId: d.refId, mediaId: widget.media.id, personId: d.personId,
+      );
+    }
+    if (d.isBody) {
+      return BodyLinkTarget(
+        bodyId: d.refId, mediaId: widget.media.id,
+        personId: d.personId, linkMethod: d.linkMethod,
+      );
+    }
+    if (d.isArea) {
+      return SensitiveRegionTarget(regionId: d.refId, mediaId: widget.media.id);
+    }
+    return EquipmentOwnerTarget(objectId: d.refId, mediaId: widget.media.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -403,7 +426,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
       ...widget.bodies,
       ...widget.areas,
       ...widget.equipment,
-    ];
+    ].where((d) => !_bulkHidden.contains(_detectionKey(d))).toList();
     final isVideo = widget.media.kind == 'video';
 
     final groupedByPerson = <int, List<MediaDetection>>{};
@@ -608,7 +631,34 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Text('No detections in this media'),
           )
-        else ...[
+        else
+          SelectionCollection<MediaDetection>(
+            name: 'inspector-detections',
+            embedded: true,
+            items: allDetections,
+            idOf: _detectionKey,
+            onCompleted: _loadLinks,
+            actions: (_) => [
+              CollectionAction(
+                id: 'false-detections',
+                label: 'Hide false detections',
+                icon: Icons.visibility_off_outlined,
+                destructive: true,
+                confirmation: 'Mark the selected detections as false positives? Original photos and videos are kept.',
+                run: (context, selected) async {
+                  final service = ref.read(correctionServiceProvider);
+                  await performBatch(selected, _detectionKey, (d) async {
+                    await service.apply(_bulkTarget(d), CorrectionVerb.notARealThing,
+                        scope: CorrectionScope.single);
+                    if (mounted) setState(() => _bulkHidden.add(_detectionKey(d)));
+                  });
+                  return true;
+                },
+              ),
+            ],
+            builder: (context, selection) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
           // Persons groups
           () {
             final faceBoxes = <int, List<double>>{
@@ -752,7 +802,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                                 _showDetectionMenu(context, primaryDetection),
                           ),
                           for (final d in entry.value)
-                            ListTile(
+                            selection.tile(d, child: ListTile(
                               key: Key('inspector-detection-${d.id}'),
                               leading: SizedBox(
                                 width: 40,
@@ -813,7 +863,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                                 ],
                               ),
                               onTap: () => widget.onSelectDetection?.call(d),
-                            ),
+                            )),
                         ],
                       );
                     },
@@ -842,7 +892,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
               ),
               children: [
                 for (final d in unassigned)
-                  ListTile(
+                  selection.tile(d, child: ListTile(
                     key: Key('inspector-detection-${d.id}'),
                     leading: SizedBox(
                       width: 40,
@@ -897,10 +947,12 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                       ],
                     ),
                     onTap: () => widget.onSelectDetection?.call(d),
-                  ),
+                  )),
               ],
             ),
-        ],
+              ],
+            ),
+          ),
 
         const Divider(),
 

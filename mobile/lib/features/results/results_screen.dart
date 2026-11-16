@@ -14,6 +14,8 @@ import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
 import '../../studio_providers.dart';
 import '../../ui/cards/entity_card.dart';
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import '../jobs/jobs_screen.dart';
 import '../shared/empty_state.dart';
 import '../shared/screen_layout.dart';
@@ -42,116 +44,137 @@ class _ResultsCollectionState extends ConsumerState<ResultsCollection> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return CustomScrollView(
-      key: const PageStorageKey('results-collection'),
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text(l10n.resultsBrowseHint),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                FilterChip(
-                  label: Text(l10n.favouriteResults),
-                  selected: _favourites,
-                  onSelected: (v) => setState(() => _favourites = v),
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  label: Text(l10n.resultPhoto),
-                  selected: _kind == 'image',
-                  onSelected: (v) => setState(() => _kind = v ? 'image' : null),
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  label: Text(l10n.resultVideo),
-                  selected: _kind == 'video',
-                  onSelected: (v) => setState(() => _kind = v ? 'video' : null),
-                ),
-              ],
+    final selectable = (ref.watch(resultsProvider).value ?? const <ResultRow>[])
+        .where(
+          (r) =>
+              (!_favourites || r.favourite) &&
+              (_kind == null || r.mime.startsWith('$_kind/')),
+        )
+        .toList();
+    return SelectionCollection<ResultRow>(
+      name: 'results',
+      items: selectable,
+      idOf: (r) => r.id,
+      actions: (items) => resultCollectionActions(ref, items),
+      builder: (context, selection) => CustomScrollView(
+        key: const PageStorageKey('results-collection'),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(l10n.resultsBrowseHint),
             ),
           ),
-        ),
-        ref
-            .watch(resultsProvider)
-            .when(
-              loading: () => const SliverFillRemaining(child: LoadingBox()),
-              error: (_, _) => SliverFillRemaining(
-                child: RetryState(
-                  onRetry: () => ref.invalidate(resultsProvider),
-                ),
+          SliverToBoxAdapter(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  FilterChip(
+                    label: Text(l10n.favouriteResults),
+                    selected: _favourites,
+                    onSelected: (v) => setState(() => _favourites = v),
+                  ),
+                  const SizedBox(width: 8),
+                  FilterChip(
+                    label: Text(l10n.resultPhoto),
+                    selected: _kind == 'image',
+                    onSelected: (v) =>
+                        setState(() => _kind = v ? 'image' : null),
+                  ),
+                  const SizedBox(width: 8),
+                  FilterChip(
+                    label: Text(l10n.resultVideo),
+                    selected: _kind == 'video',
+                    onSelected: (v) =>
+                        setState(() => _kind = v ? 'video' : null),
+                  ),
+                ],
               ),
-              data: (results) {
-                final shown = results
-                    .where(
-                      (r) =>
-                          (!_favourites || r.favourite) &&
-                          (_kind == null || r.mime.startsWith('$_kind/')),
-                    )
-                    .toList();
-                if (shown.isEmpty) {
-                  return SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyState(
-                      icon: Icons.photo_library_outlined,
-                      title: results.isEmpty
-                          ? l10n.resultEmpty
-                          : l10n.resultsNoMatches,
-                      body: results.isEmpty ? l10n.resultEmptyHint : null,
-                      actionLabel: results.isEmpty
-                          ? l10n.navStudio
-                          : l10n.clearFilters,
-                      onAction: results.isEmpty
-                          ? widget.onCreate ?? () => context.go(Routes.studio)
-                          : () => setState(() {
-                              _kind = null;
-                              _favourites = false;
-                            }),
+            ),
+          ),
+          ref
+              .watch(resultsProvider)
+              .when(
+                loading: () => const SliverFillRemaining(child: LoadingBox()),
+                error: (_, _) => SliverFillRemaining(
+                  child: RetryState(
+                    onRetry: () => ref.invalidate(resultsProvider),
+                  ),
+                ),
+                data: (results) {
+                  final shown = results
+                      .where(
+                        (r) =>
+                            (!_favourites || r.favourite) &&
+                            (_kind == null || r.mime.startsWith('$_kind/')),
+                      )
+                      .toList();
+                  if (shown.isEmpty) {
+                    return SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: EmptyState(
+                        icon: Icons.photo_library_outlined,
+                        title: results.isEmpty
+                            ? l10n.resultEmpty
+                            : l10n.resultsNoMatches,
+                        body: results.isEmpty ? l10n.resultEmptyHint : null,
+                        actionLabel: results.isEmpty
+                            ? l10n.navStudio
+                            : l10n.clearFilters,
+                        onAction: results.isEmpty
+                            ? widget.onCreate ?? () => context.go(Routes.studio)
+                            : () => setState(() {
+                                _kind = null;
+                                _favourites = false;
+                              }),
+                      ),
+                    );
+                  }
+                  return SliverPadding(
+                    padding: const EdgeInsets.all(16),
+                    sliver: SliverGrid.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 240,
+                            childAspectRatio: .8,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                      itemCount: shown.length,
+                      itemBuilder: (context, index) {
+                        final r = shown[index];
+                        final filePath = ref
+                            .read(fileStoreProvider)
+                            .resolve(r.path)
+                            .path;
+                        final visual = r.mime == 'video/mp4'
+                            ? ThumbVisual(filePath: filePath, isVideo: true)
+                            : !r.mime.startsWith('image/')
+                            ? const IconVisual(Icons.inventory_2_outlined)
+                            : ThumbVisual(filePath: filePath);
+
+                        return selection.tile(
+                          r,
+                          onOpen: () =>
+                              context.push('${Routes.results}/${r.id}'),
+                          child: EntityCard(
+                            key: Key('result-${r.id}'),
+                            visual: visual,
+                            title:
+                                '${jobTypeLabel(l10n, r.type)}${r.favourite ? ' ★' : ''}',
+                            onTap: () =>
+                                context.push('${Routes.results}/${r.id}'),
+                          ),
+                        );
+                      },
                     ),
                   );
-                }
-                return SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverGrid.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 240,
-                          childAspectRatio: .8,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
-                    itemCount: shown.length,
-                    itemBuilder: (context, index) {
-                      final r = shown[index];
-                      final filePath = ref
-                          .read(fileStoreProvider)
-                          .resolve(r.path)
-                          .path;
-                      final visual = r.mime == 'video/mp4'
-                          ? ThumbVisual(filePath: filePath, isVideo: true)
-                          : !r.mime.startsWith('image/')
-                          ? const IconVisual(Icons.inventory_2_outlined)
-                          : ThumbVisual(filePath: filePath);
-
-                      return EntityCard(
-                        key: Key('result-${r.id}'),
-                        visual: visual,
-                        title:
-                            '${jobTypeLabel(l10n, r.type)}${r.favourite ? ' ★' : ''}',
-                        onTap: () => context.push('${Routes.results}/${r.id}'),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-      ],
+                },
+              ),
+        ],
+      ),
     );
   }
 }

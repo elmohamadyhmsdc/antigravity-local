@@ -1,3 +1,5 @@
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/router.dart';
@@ -202,260 +204,321 @@ class _BodyAreasTabState extends ConsumerState<BodyAreasTab>
     final personOf = {
       for (final c in _clusters) c.cluster.id: c.cluster.personId,
     };
-    return ListView(
-      key: const PageStorageKey('area-groups'),
-      padding: const EdgeInsets.all(16),
-      children: [
-        DiscoveryIntro(
-          title: l.bodiesTabAreas,
-          description: l.discoveryAreaIntro,
-          icon: Icons.highlight_alt,
-          count: _clusters.length,
-        ),
-        Text(
-          l.discoveryAreaPrecision,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 16),
-        DiscoverySearch(
-          hint: l.discoverySearchAreas,
-          onChanged: (value) => setState(() => _search = value),
-        ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ChoiceChip(
-              label: Text(l.discoveryAreaAll),
-              selected: _kind == null,
-              onSelected: (_) => setState(() => _kind = null),
-            ),
-            for (final kind in ExposedKind.values)
-              ChoiceChip(
-                label: Text(
-                  kind == ExposedKind.chest
-                      ? l.equipmentAreaChest
-                      : l.equipmentAreaLower,
-                ),
-                selected: _kind == kind,
-                onSelected: (_) => setState(() => _kind = kind),
-              ),
-          ],
-        ),
-        if (_bridges.isNotEmpty)
-          Card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Text(
-                    l.clusterBridgeTitle,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                ),
-                for (final b in _bridges)
-                  ListTile(
-                    key: Key('bridge-${b.fromCluster}-${b.toCluster}'),
-                    title: Text(l.clusterBridgeAction(b.toCluster, b.bridges)),
-                    trailing: const Icon(Icons.check),
-                    onTap: () =>
-                        _assign(b.toCluster, personId: personOf[b.fromCluster]),
-                  ),
-              ],
-            ),
-          ),
-        for (final entry in _clusters.where(
+    final visible = _clusters
+        .where(
           (entry) =>
               (_kind == null || entry.cluster.clusterType == _kind!.name) &&
               ('${_customNames[entry.cluster.id] ?? ''} ${_people[entry.cluster.personId] ?? ''} ${entry.cluster.clusterType}')
                   .toLowerCase()
                   .contains(_search),
-        ))
-          Card(
-            key: Key('cluster-${entry.cluster.id}'),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
+        )
+        .toList();
+    return SelectionCollection<int>(
+      name: 'area-groups',
+      items: visible.map((e) => e.cluster.id).toList(),
+      idOf: (id) => id,
+      onCompleted: _load,
+      actions: (_) => [
+        CollectionAction<int>(
+          id: 'assign',
+          label: l.clusterAssign,
+          icon: Icons.person_add_alt,
+          run: (context, ids) async {
+            final choice = await pickPerson(context, allowNew: false);
+            if (choice?.personId == null) return false;
+            await ref.read(databaseProvider).transaction(() async {
+              for (final id in ids) {
+                await ref
+                    .read(exposedClustersProvider)
+                    .assign(id, choice!.personId!);
+              }
+            });
+            return true;
+          },
+        ),
+        CollectionAction<int>(
+          id: 'share',
+          label: 'Share selected group crops',
+          icon: Icons.share_outlined,
+          run: (context, ids) async {
+            final bodies = {
+              for (final entry in visible)
+                if (ids.contains(entry.cluster.id)) ...entry.bodyIds,
+            }.toList();
+            return bodyCollectionActions(
+              ref,
+            ).firstWhere((a) => a.id == 'share').run(context, bodies);
+          },
+        ),
+      ],
+      builder: (context, selection) => ListView(
+        key: const PageStorageKey('area-groups'),
+        padding: const EdgeInsets.all(16),
+        children: [
+          DiscoveryIntro(
+            title: l.bodiesTabAreas,
+            description: l.discoveryAreaIntro,
+            icon: Icons.highlight_alt,
+            count: _clusters.length,
+          ),
+          Text(
+            l.discoveryAreaPrecision,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 16),
+          DiscoverySearch(
+            hint: l.discoverySearchAreas,
+            onChanged: (value) => setState(() => _search = value),
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: Text(l.discoveryAreaAll),
+                selected: _kind == null,
+                onSelected: (_) => setState(() => _kind = null),
+              ),
+              for (final kind in ExposedKind.values)
+                ChoiceChip(
+                  label: Text(
+                    kind == ExposedKind.chest
+                        ? l.equipmentAreaChest
+                        : l.equipmentAreaLower,
+                  ),
+                  selected: _kind == kind,
+                  onSelected: (_) => setState(() => _kind = kind),
+                ),
+            ],
+          ),
+          if (_bridges.isNotEmpty)
+            Card(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    height: 64,
-                    width: 48,
-                    child: PoseDiagram(
-                      area: entry.cluster.clusterType == 'buttocks'
-                          ? 'lower'
-                          : 'chest',
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Text(
+                      l.clusterBridgeTitle,
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _customNames[entry.cluster.id] ??
-                              (entry.cluster.clusterType == 'buttocks'
-                                  ? l.clusterTitleButtocks(entry.cluster.id)
-                                  : l.clusterTitleChest(entry.cluster.id)),
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
+                  for (final b in _bridges)
+                    ListTile(
+                      key: Key('bridge-${b.fromCluster}-${b.toCluster}'),
+                      title: Text(
+                        l.clusterBridgeAction(b.toCluster, b.bridges),
                       ),
-                      IconButton(
-                        key: Key('rename-cluster-${entry.cluster.id}'),
-                        icon: const Icon(Icons.edit_outlined, size: 18),
-                        visualDensity: VisualDensity.compact,
-                        tooltip: 'Rename Area',
-                        onPressed: () => _rename(
-                          entry.cluster.id,
-                          _customNames[entry.cluster.id] ??
-                              (entry.cluster.clusterType == 'buttocks'
-                                  ? l.clusterTitleButtocks(entry.cluster.id)
-                                  : l.clusterTitleChest(entry.cluster.id)),
-                        ),
+                      trailing: const Icon(Icons.check),
+                      onTap: () => _assign(
+                        b.toCluster,
+                        personId: personOf[b.fromCluster],
                       ),
-                    ],
-                  ),
-                  Text(l.categoryBodyCount(entry.bodyIds.length)),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 96,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        for (final id in entry.bodyIds.take(6))
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: SizedBox(
-                              width: 60,
-                              child: InkWell(
-                                key: Key('cluster-body-$id'),
-                                borderRadius: BorderRadius.circular(6),
-                                onTap: () =>
-                                    _inspectBody(id, entry.cluster.clusterType),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: CropImage(
-                                    expandable: false,
-                                    path: _tiles[id]?.cropPath,
-                                    placeholderIcon: Icons.accessibility_new,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    key: Key('cluster-review-${entry.cluster.id}'),
-                    onPressed: () async {
-                      setState(() {
-                        if (!_expanded.add(entry.cluster.id)) {
-                          _expanded.remove(entry.cluster.id);
-                        }
-                      });
-                      await _load();
-                    },
-                    icon: Icon(
-                      _expanded.contains(entry.cluster.id)
-                          ? Icons.expand_less
-                          : Icons.expand_more,
-                    ),
-                    label: Text(l.discoveryAreaMembers),
-                  ),
-                  if (_expanded.contains(entry.cluster.id))
-                    for (final id in entry.bodyIds)
-                      ListTile(
-                        key: Key('area-member-$id'),
-                        contentPadding: EdgeInsets.zero,
-                        leading: SizedBox(
-                          width: 48,
-                          height: 64,
-                          child: CropImage(
-                            path: _tiles[id]?.cropPath,
-                            expandable: false,
-                            placeholderIcon: Icons.accessibility_new,
-                          ),
-                        ),
-                        title: Text(l.discoveryCompare),
-                        onTap: () async {
-                          final action = await showModalBottomSheet<String>(
-                            context: context,
-                            isScrollControlled: true,
-                            builder: (_) => BodyComparisonSheet(
-                              referenceId: entry.bodyIds.first,
-                              candidateId: id,
-                              title: l.bodiesTabAreas,
-                              area: entry.cluster.clusterType,
-                            ),
-                          );
-                          if (action == 'inspect' && mounted) {
-                            await _inspectBody(id, entry.cluster.clusterType);
-                          }
-                        },
-                        trailing: IconButton(
-                          key: Key('area-reject-$id'),
-                          tooltip: l.discoveryRemoveMatch,
-                          icon: const Icon(Icons.remove_circle_outline),
-                          onPressed: () async {
-                            await ref
-                                .read(exposedClustersProvider)
-                                .rejectMember(
-                                  id,
-                                  ExposedKind.values.byName(
-                                    entry.cluster.clusterType,
-                                  ),
-                                );
-                            await _load();
-                          },
-                        ),
-                      ),
-                  if (entry.bodyIds.isNotEmpty)
-                    TextButton.icon(
-                      key: Key('cluster-similar-${entry.cluster.id}'),
-                      onPressed: () => widget.onSimilar?.call(
-                        entry.bodyIds.first,
-                        entry.cluster.clusterType == 'buttocks'
-                            ? ExposedKind.buttocks
-                            : ExposedKind.chest,
-                      ),
-                      icon: const Icon(Icons.image_search_outlined),
-                      label: Text(
-                        entry.cluster.clusterType == 'buttocks'
-                            ? l.equipmentAreaLowerSimilar
-                            : l.equipmentAreaChestSimilar,
-                      ),
-                    ),
-                  if (entry.cluster.personId != null)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            l.clusterBelongsTo(
-                              _people[entry.cluster.personId] ??
-                                  '#${entry.cluster.personId}',
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.swap_horiz, size: 18),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'Change person',
-                          onPressed: () => _assign(entry.cluster.id),
-                        ),
-                      ],
-                    )
-                  else
-                    FilledButton.tonal(
-                      key: Key('cluster-assign-${entry.cluster.id}'),
-                      onPressed: () => _assign(entry.cluster.id),
-                      child: Text(l.clusterAssign),
                     ),
                 ],
               ),
             ),
-          ),
-      ],
+          for (final entry in _clusters.where(
+            (entry) =>
+                (_kind == null || entry.cluster.clusterType == _kind!.name) &&
+                ('${_customNames[entry.cluster.id] ?? ''} ${_people[entry.cluster.personId] ?? ''} ${entry.cluster.clusterType}')
+                    .toLowerCase()
+                    .contains(_search),
+          ))
+            selection.tile(
+              entry.cluster.id,
+              child: Card(
+                key: Key('cluster-${entry.cluster.id}'),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: 64,
+                        width: 48,
+                        child: PoseDiagram(
+                          area: entry.cluster.clusterType == 'buttocks'
+                              ? 'lower'
+                              : 'chest',
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _customNames[entry.cluster.id] ??
+                                  (entry.cluster.clusterType == 'buttocks'
+                                      ? l.clusterTitleButtocks(entry.cluster.id)
+                                      : l.clusterTitleChest(entry.cluster.id)),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          IconButton(
+                            key: Key('rename-cluster-${entry.cluster.id}'),
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            visualDensity: VisualDensity.compact,
+                            tooltip: 'Rename Area',
+                            onPressed: () => _rename(
+                              entry.cluster.id,
+                              _customNames[entry.cluster.id] ??
+                                  (entry.cluster.clusterType == 'buttocks'
+                                      ? l.clusterTitleButtocks(entry.cluster.id)
+                                      : l.clusterTitleChest(entry.cluster.id)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(l.categoryBodyCount(entry.bodyIds.length)),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 96,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            for (final id in entry.bodyIds.take(6))
+                              Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: SizedBox(
+                                  width: 60,
+                                  child: InkWell(
+                                    key: Key('cluster-body-$id'),
+                                    borderRadius: BorderRadius.circular(6),
+                                    onTap: () => _inspectBody(
+                                      id,
+                                      entry.cluster.clusterType,
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: CropImage(
+                                        expandable: false,
+                                        path: _tiles[id]?.cropPath,
+                                        placeholderIcon:
+                                            Icons.accessibility_new,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        key: Key('cluster-review-${entry.cluster.id}'),
+                        onPressed: () async {
+                          setState(() {
+                            if (!_expanded.add(entry.cluster.id)) {
+                              _expanded.remove(entry.cluster.id);
+                            }
+                          });
+                          await _load();
+                        },
+                        icon: Icon(
+                          _expanded.contains(entry.cluster.id)
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                        ),
+                        label: Text(l.discoveryAreaMembers),
+                      ),
+                      if (_expanded.contains(entry.cluster.id))
+                        for (final id in entry.bodyIds)
+                          ListTile(
+                            key: Key('area-member-$id'),
+                            contentPadding: EdgeInsets.zero,
+                            leading: SizedBox(
+                              width: 48,
+                              height: 64,
+                              child: CropImage(
+                                path: _tiles[id]?.cropPath,
+                                expandable: false,
+                                placeholderIcon: Icons.accessibility_new,
+                              ),
+                            ),
+                            title: Text(l.discoveryCompare),
+                            onTap: () async {
+                              final action = await showModalBottomSheet<String>(
+                                context: context,
+                                isScrollControlled: true,
+                                builder: (_) => BodyComparisonSheet(
+                                  referenceId: entry.bodyIds.first,
+                                  candidateId: id,
+                                  title: l.bodiesTabAreas,
+                                  area: entry.cluster.clusterType,
+                                ),
+                              );
+                              if (action == 'inspect' && mounted) {
+                                await _inspectBody(
+                                  id,
+                                  entry.cluster.clusterType,
+                                );
+                              }
+                            },
+                            trailing: IconButton(
+                              key: Key('area-reject-$id'),
+                              tooltip: l.discoveryRemoveMatch,
+                              icon: const Icon(Icons.remove_circle_outline),
+                              onPressed: () async {
+                                await ref
+                                    .read(exposedClustersProvider)
+                                    .rejectMember(
+                                      id,
+                                      ExposedKind.values.byName(
+                                        entry.cluster.clusterType,
+                                      ),
+                                    );
+                                await _load();
+                              },
+                            ),
+                          ),
+                      if (entry.bodyIds.isNotEmpty)
+                        TextButton.icon(
+                          key: Key('cluster-similar-${entry.cluster.id}'),
+                          onPressed: () => widget.onSimilar?.call(
+                            entry.bodyIds.first,
+                            entry.cluster.clusterType == 'buttocks'
+                                ? ExposedKind.buttocks
+                                : ExposedKind.chest,
+                          ),
+                          icon: const Icon(Icons.image_search_outlined),
+                          label: Text(
+                            entry.cluster.clusterType == 'buttocks'
+                                ? l.equipmentAreaLowerSimilar
+                                : l.equipmentAreaChestSimilar,
+                          ),
+                        ),
+                      if (entry.cluster.personId != null)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                l.clusterBelongsTo(
+                                  _people[entry.cluster.personId] ??
+                                      '#${entry.cluster.personId}',
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.swap_horiz, size: 18),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Change person',
+                              onPressed: () => _assign(entry.cluster.id),
+                            ),
+                          ],
+                        )
+                      else
+                        FilledButton.tonal(
+                          key: Key('cluster-assign-${entry.cluster.id}'),
+                          onPressed: () => _assign(entry.cluster.id),
+                          child: Text(l.clusterAssign),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

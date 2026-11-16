@@ -1,0 +1,5 @@
+cd D:\AndroidScan\gallary\mobile
+flutter build apk --release
+adb -s R58R30QA3KZ install -r build\app\outputs\flutter-apk\app-release.apk
+
+  

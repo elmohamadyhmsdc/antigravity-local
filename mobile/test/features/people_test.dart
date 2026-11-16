@@ -50,7 +50,9 @@ void main() {
           name: null,
           createdAt: 3,
         ); // unnamed -> "Person 3"
-        await env.db.customUpdate('UPDATE persons SET pinned = 1 WHERE id = $unnamed');
+        await env.db.customUpdate(
+          'UPDATE persons SET pinned = 1 WHERE id = $unnamed',
+        );
         for (var i = 0; i < 3; i++) {
           await seedFace(env.db, personId: sara, seed: i + 1);
         }
@@ -239,7 +241,14 @@ void main() {
             f.id: f.personId,
         };
         expect(faces[a], sara);
-        expect(faces[b], isNull, reason: 'the unticked one was left alone');
+        expect(faces[b], isNull);
+        expect(
+          (await env.db.select(env.db.faceRejections).get()).map(
+            (r) => (r.faceId, r.personId),
+          ),
+          [(b, sara)],
+        );
+        expect(find.byKey(const Key('accept-suggested')), findsNothing);
       },
       session: testSession,
     );

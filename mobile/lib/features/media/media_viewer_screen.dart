@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -40,7 +41,7 @@ import '../../ui/sheets/undo_snackbar.dart';
 import 'layers_popover.dart';
 import 'media_chrome.dart';
 import 'media_page_item.dart';
-import 'roi_selection_overlay.dart';
+import 'targeted_region_screen.dart';
 import 'detection_actions.dart';
 
 class MediaCollectionContext {
@@ -88,8 +89,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   var _detailsOpen = false;
   var _zoomed = false;
   var _layers = const ViewerLayers(faces: false, bodies: false);
-  var _activeRoiMode = false;
-  var _activeRoiKind = 'area';
+  var _targetedBusy = false;
 
   @override
   void initState() {
@@ -660,109 +660,117 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   }
 
   void _startTargetedDetect(BuildContext context, MediaRow media) {
+    if (_targetedBusy) return;
     TargetedDetectSheet.show(
       context: context,
-      onStart: (kind, isRoiMode) {
-        if (isRoiMode) {
-          setState(() {
-            _activeRoiKind = kind;
-            _activeRoiMode = true;
-          });
-        } else {
-          _submitTargetedDetect(media, kind, null);
-        }
-      },
+      allowAnimeFaces: media.kind == 'photo',
+      onStart: (kind, isRoiMode) => _prepareTargetedDetect(media, kind, isRoiMode),
     );
+  }
+
+  Future<void> _prepareTargetedDetect(MediaRow media, String kind, bool selectArea) async {
+    if (_targetedBusy) return;
+    setState(() => _targetedBusy = true);
+    try {
+      final bytes = await ref.read(mediaLibraryProvider).viewerImage(media.assetId, maxSide: 2560);
+      if (!mounted) return;
+      if (bytes == null) throw StateError('Could not open this photo.');
+      BBox? roi;
+      if (selectArea) {
+        roi = await Navigator.of(context).push<BBox>(MaterialPageRoute(
+          builder: (_) => TargetedRegionScreen(bytes: bytes, kind: kind),
+        ));
+        if (roi == null || !mounted) return;
+      }
+      await _submitTargetedDetect(media, kind, roi, bytes);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not scan this area: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _targetedBusy = false);
+    }
   }
 
   Future<void> _submitTargetedDetect(
     MediaRow media,
     String kind,
     BBox? roi,
+    Uint8List bytes,
   ) async {
-    setState(() => _activeRoiMode = false);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Analyzing with high accuracy...'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-
-    try {
-      final bytes = await ref
-          .read(mediaLibraryProvider)
-          .viewerImage(media.assetId);
-      if (bytes == null || !mounted) return;
-      final api = ref.read(mobileApiProvider);
-      if (api == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Connect to your PC first to run AI detection'),
-          ),
-        );
-        return;
-      }
-      final response = await api.analyzeTargeted(
-        bytes,
-        targetKind: kind,
-        roi: roi,
+    final api = ref.read(mobileApiProvider);
+    if (api == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to your PC first to run AI detection')),
       );
-
-      if (!mounted) return;
-      final first = response.detections.isNotEmpty
-          ? response.detections.first
-          : null;
-      final targetBBox =
-          first?.bbox ?? roi ?? const BBox(x: 0.25, y: 0.25, w: 0.5, h: 0.5);
-
-      TargetedNameSheet.show(
-        context: context,
-        kind: kind,
-        bbox: targetBBox,
-        initialName: first?.label ?? '',
-        isVideo: media.kind == 'video',
-        onSave: (name, personId, scope) async {
-          final entry = TargetedEntry(
-            mediaId: media.id,
-            kind: kind,
-            bbox: targetBBox,
-            label: name.isNotEmpty ? name : (first?.label ?? 'custom'),
-            personId: personId,
-            outline: first?.outline,
-            keypoints: first?.keypoints,
-            scope: scope,
-          );
-          final res = await ref
-              .read(targetedDetectionServiceProvider)
-              .apply(entry);
-          if (!mounted) return;
-          setState(() {
-            if (kind == 'area') {
-              _layers = _layers.copyWith(areas: true);
-            } else if (kind == 'object') {
-              _layers = _layers.copyWith(equipment: true);
-            } else if (kind == 'body') {
-              _layers = _layers.copyWith(bodies: true);
-            } else if (kind == 'face') {
-              _layers = _layers.copyWith(faces: true);
-            }
-          });
-          UndoSnackbar.show(
-            context: context,
-            message: 'Saved $kind detection',
-            onUndo: () =>
-                ref.read(targetedDetectionServiceProvider).undo(res.undoToken),
-          );
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Targeted detection failed: $e')));
+      return;
     }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Scanning selected area...'), duration: Duration(days: 1)),
+    );
+    final response = await api.analyzeTargeted(bytes, targetKind: kind, roi: roi);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (_mediaIds[_currentIndex] != media.id) return;
+    final first = response.detections.firstOrNull;
+    if (kind == 'anime_face' && (first?.embedding == null || first?.cropJpeg == null)) {
+      throw StateError('The PC returned no character identity. Update the PC server and retry.');
+    }
+    final targetBBox = first?.bbox ?? roi;
+    if (targetBBox == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No detection found. Try selecting a smaller area.')),
+      );
+      return;
+    }
+    await TargetedNameSheet.show(
+      context: context,
+      kind: kind,
+      bbox: targetBBox,
+      initialName: kind == 'anime_face' ? '' : (first?.label ?? ''),
+      cropJpeg: first?.cropJpeg,
+      manual: first?.manual ?? false,
+      isVideo: media.kind == 'video',
+      onSave: (name, personId, scope) async {
+        final entry = TargetedEntry(
+          mediaId: media.id,
+          kind: kind,
+          bbox: targetBBox,
+          label: kind == 'anime_face' ? name : (name.isNotEmpty ? name : (first?.label ?? 'custom')),
+          personId: personId,
+          outline: first?.outline,
+          keypoints: first?.keypoints,
+          embedding: first?.embedding,
+          embeddingModelId: first?.embeddingModelId,
+          cropJpeg: first?.cropJpeg,
+          score: first?.score ?? 1.0,
+          facePx: first?.facePx ?? 100.0,
+          manual: first?.manual ?? false,
+          scope: scope,
+        );
+        final res = await ref.read(targetedDetectionServiceProvider).apply(entry);
+        if (!mounted) return;
+        setState(() {
+          if (kind == 'area') {
+            _layers = _layers.copyWith(areas: true);
+          } else if (kind == 'object') {
+            _layers = _layers.copyWith(equipment: true);
+          } else if (kind == 'body') {
+            _layers = _layers.copyWith(bodies: true);
+          } else if (kind == 'face' || kind == 'anime_face') {
+            _layers = _layers.copyWith(faces: true);
+          }
+        });
+        UndoSnackbar.show(
+          context: context,
+          message: kind == 'anime_face' ? 'Saved anime face' : 'Saved detection',
+          onUndo: () => ref.read(targetedDetectionServiceProvider).undo(res.undoToken),
+        );
+      },
+    );
   }
 
   @override
@@ -921,7 +929,6 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                               _currentIndex = i;
                               _selectedDetectionId = null;
                               _zoomed = false;
-                              _activeRoiMode = false;
                             });
                             if (i >= _mediaIds.length - 3) {
                               unawaited(_loadMore());
@@ -958,24 +965,6 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                           },
                         ),
                       ),
-                      if (_activeRoiMode && media != null)
-                        LayoutBuilder(
-                          builder: (context, constraints) =>
-                              RoiSelectionOverlay(
-                                fittedSize: Size(
-                                  constraints.maxWidth,
-                                  constraints.maxHeight,
-                                ),
-                                onChanged: (_) {},
-                                onConfirm: (bbox) => _submitTargetedDetect(
-                                  media,
-                                  _activeRoiKind,
-                                  bbox,
-                                ),
-                                onCancel: () =>
-                                    setState(() => _activeRoiMode = false),
-                              ),
-                        ),
                     ],
                   ),
                 ),

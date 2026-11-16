@@ -352,7 +352,7 @@ paths:
                 image: { type: string, format: binary }
                 target_kind:
                   type: string
-                  enum: [area, body, face, object]
+                  enum: [area, body, face, anime_face, object]
                 roi:
                   type: string
                   description: Optional JSON-encoded ROI {x, y, w, h}
@@ -1031,6 +1031,13 @@ components:
         bbox: { $ref: "#/components/schemas/BBox" }
         score: { type: number, minimum: 0, maximum: 1 }
         label: { type: string }
+        embedding_model_id: { type: string, enum: [ccip-caformer24@1] }
+        embedding: { $ref: "#/components/schemas/CharacterEmbedding" }
+        crop_jpeg: { type: string, contentEncoding: base64 }
+        face_px: { type: number, minimum: 8 }
+        manual:
+          type: boolean
+          description: True when an explicitly selected anime face box was confirmed without a detector hit. Score is then zero.
         outline:
           description: Contour coordinates as list of [x, y] points
           type: [array, "null"]
@@ -1054,10 +1061,19 @@ components:
       properties:
         target_kind:
           type: string
-          enum: [area, body, face, object]
+          enum: [area, body, face, anime_face, object]
         detections:
           type: array
           items: { $ref: "#/components/schemas/TargetedDetectionItem" }
+      allOf:
+        - if: { properties: { target_kind: { const: anime_face } } }
+          then:
+            properties:
+              detections:
+                items:
+                  required: [embedding_model_id, embedding, crop_jpeg, face_px, manual]
+                  properties:
+                    label: { const: anime_face }
 
     KindOverride:
       type: object

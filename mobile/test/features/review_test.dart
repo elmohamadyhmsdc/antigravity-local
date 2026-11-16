@@ -93,22 +93,23 @@ Future<void> _open(WidgetTester tester, TestEnv env, String location) async {
 
 void main() {
   group('Review', () {
-    appTest('the header counts grouped decisions and the tabs count items', (
-      tester,
-      env,
-    ) async {
-      await _seed(env);
-      await _open(tester, env, '/review?view=all');
-      expect(
-        find.text('Review (5)'),
-        findsOneWidget,
-        reason: '2 match batches + 1 group + 1 duplicate + 1 body link',
-      );
-      expect(find.text('Faces (3)'), findsOneWidget);
-      expect(find.text('New people (1)'), findsOneWidget);
-      expect(find.text('Same person? (1)'), findsOneWidget);
-      expect(find.text('Bodies (1)'), findsOneWidget);
-    }, session: testSession);
+    appTest(
+      'the header counts grouped decisions and the tabs count items',
+      (tester, env) async {
+        await _seed(env);
+        await _open(tester, env, '/review?view=all');
+        expect(
+          find.text('Review (5)'),
+          findsOneWidget,
+          reason: '2 match batches + 1 group + 1 duplicate + 1 body link',
+        );
+        expect(find.text('Faces (3)'), findsOneWidget);
+        expect(find.text('New people (1)'), findsOneWidget);
+        expect(find.text('Same person? (1)'), findsOneWidget);
+        expect(find.text('Bodies (1)'), findsOneWidget);
+      },
+      session: testSession,
+    );
 
     appTest('an empty review says there is nothing to do', (tester, env) async {
       await _open(tester, env, '/review?view=all');
@@ -157,7 +158,14 @@ void main() {
         };
         expect(owner[l.f1], l.sara);
         expect(owner[l.f2], isNull);
-        expect(find.text('Faces (2)'), findsOneWidget);
+        expect(find.text('Faces (1)'), findsOneWidget);
+        expect(find.byKey(Key('match-card-${l.sara}')), findsNothing);
+        expect(
+          (await env.db.select(env.db.faceRejections).get()).map(
+            (r) => (r.faceId, r.personId),
+          ),
+          [(l.f2, l.sara)],
+        );
       }, session: testSession);
 
       appTest(

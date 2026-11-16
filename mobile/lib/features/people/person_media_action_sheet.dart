@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +21,7 @@ Future<void> showPersonMediaActionSheet(
   required PersonSummary person,
   required MediaListItem item,
   String? mediaKind,
+  VoidCallback? onSelectMultiple,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -32,6 +32,7 @@ Future<void> showPersonMediaActionSheet(
       person: person,
       item: item,
       mediaKind: mediaKind,
+      onSelectMultiple: onSelectMultiple,
     ),
   );
 }
@@ -42,11 +43,13 @@ class PersonMediaActionSheet extends ConsumerWidget {
     required this.person,
     required this.item,
     this.mediaKind,
+    this.onSelectMultiple,
   });
 
   final PersonSummary person;
   final MediaListItem item;
   final String? mediaKind;
+  final VoidCallback? onSelectMultiple;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,10 +61,12 @@ class PersonMediaActionSheet extends ConsumerWidget {
       stream: queries.watchDetections(item.id),
       builder: (context, snapshot) {
         final detections = snapshot.data ?? const <MediaDetection>[];
-        final personFaces =
-            detections.where((d) => d.isFace && d.personId == person.id).toList();
-        final personBodies =
-            detections.where((d) => d.isBody && d.personId == person.id).toList();
+        final personFaces = detections
+            .where((d) => d.isFace && d.personId == person.id)
+            .toList();
+        final personBodies = detections
+            .where((d) => d.isBody && d.personId == person.id)
+            .toList();
         final hasFace = personFaces.isNotEmpty;
         final hasBody = personBodies.isNotEmpty;
 
@@ -76,10 +81,10 @@ class PersonMediaActionSheet extends ConsumerWidget {
           subtitle: hasFace && hasBody
               ? l10n.linkedByFaceAndBody
               : hasFace
-                  ? l10n.linkedByFaceOnly
-                  : hasBody
-                      ? l10n.linkedByBodyOnly
-                      : l10n.noPhotosOfPerson,
+              ? l10n.linkedByFaceOnly
+              : hasBody
+              ? l10n.linkedByBodyOnly
+              : l10n.noPhotosOfPerson,
           leading: PersonAvatar(cropPath: person.avatarCropPath, radius: 24),
           trailing: IconButton(
             key: const Key('person-media-actions-close'),
@@ -91,6 +96,16 @@ class PersonMediaActionSheet extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (onSelectMultiple != null)
+                ListTile(
+                  key: const Key('person-media-select-multiple'),
+                  leading: const Icon(Icons.checklist),
+                  title: Text(l10n.peopleAction('selection')),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onSelectMultiple!();
+                  },
+                ),
               // 1. Hero Detection Card: shows visual evidence of why this photo is here
               _HeroDetectionCard(
                 item: item,
@@ -119,7 +134,9 @@ class PersonMediaActionSheet extends ConsumerWidget {
                         l10n.notThisPerson,
                         style: TextStyle(color: theme.colorScheme.error),
                       ),
-                      subtitle: const Text('Unlink and reject face from this person'),
+                      subtitle: const Text(
+                        'Unlink and reject face from this person',
+                      ),
                       onTap: () => _rejectFace(context, ref, personFaces),
                     ),
                   if (hasBody)
@@ -133,7 +150,9 @@ class PersonMediaActionSheet extends ConsumerWidget {
                         l10n.notThisBody,
                         style: TextStyle(color: theme.colorScheme.error),
                       ),
-                      subtitle: const Text('Unlink outfit and body from this person'),
+                      subtitle: const Text(
+                        'Unlink outfit and body from this person',
+                      ),
                       onTap: () => _rejectBody(context, ref, personBodies),
                     ),
                   ListTile(
@@ -143,7 +162,9 @@ class PersonMediaActionSheet extends ConsumerWidget {
                       color: theme.colorScheme.primary,
                     ),
                     title: Text(l10n.reassignToOtherPerson),
-                    subtitle: const Text('Move photo to someone else and open their album'),
+                    subtitle: const Text(
+                      'Move photo to someone else and open their album',
+                    ),
                     onTap: () => _reassignAndNavigate(
                       context,
                       ref,
@@ -170,7 +191,8 @@ class PersonMediaActionSheet extends ConsumerWidget {
                           ? l10n.peopleAction('toCharacters')
                           : l10n.peopleAction('toPeople'),
                     ),
-                    onTap: () => _changeKind(context, ref, personFaces, personBodies),
+                    onTap: () =>
+                        _changeKind(context, ref, personFaces, personBodies),
                   ),
                 ],
               ),
@@ -247,10 +269,9 @@ class PersonMediaActionSheet extends ConsumerWidget {
     List<MediaDetection> faces,
   ) async {
     final ids = faces.map((f) => f.refId).toList();
-    await ref.read(peopleRepositoryProvider).rejectFaces(
-      ids,
-      fromPersonId: person.id,
-    );
+    await ref
+        .read(peopleRepositoryProvider)
+        .rejectFaces(ids, fromPersonId: person.id);
     if (!context.mounted) return;
     Navigator.pop(context);
     peopleUpdated(context);
@@ -372,9 +393,9 @@ class PersonMediaActionSheet extends ConsumerWidget {
     await ref.read(peopleRepositoryProvider).setAvatar(person.id, face.refId);
     if (!context.mounted) return;
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.coverChanged)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.coverChanged)));
   }
 
   Future<void> _shareMedia(BuildContext context, WidgetRef ref) async {
@@ -446,12 +467,13 @@ class _HeroDetectionCard extends ConsumerWidget {
                           cacheHeight: 160,
                         )
                       : FutureBuilder(
-                          future: thumbs.get(item.assetId, width: 160, height: 160),
+                          future: thumbs.get(
+                            item.assetId,
+                            width: 160,
+                            height: 160,
+                          ),
                           builder: (context, snap) => snap.data != null
-                              ? Image.memory(
-                                  snap.data!,
-                                  fit: BoxFit.cover,
-                                )
+                              ? Image.memory(snap.data!, fit: BoxFit.cover)
                               : ColoredBox(
                                   color: scheme.surfaceContainerHighest,
                                   child: const Icon(Icons.photo_outlined),
@@ -536,29 +558,29 @@ class _StatusBadge extends StatelessWidget {
       hasBody,
     )) {
       (true, true) => (
-          Icons.people_alt,
-          l10n.linkedByFaceAndBody,
-          scheme.primaryContainer,
-          scheme.onPrimaryContainer,
-        ),
+        Icons.people_alt,
+        l10n.linkedByFaceAndBody,
+        scheme.primaryContainer,
+        scheme.onPrimaryContainer,
+      ),
       (true, false) => (
-          Icons.face,
-          l10n.linkedByFaceOnly,
-          scheme.secondaryContainer,
-          scheme.onSecondaryContainer,
-        ),
+        Icons.face,
+        l10n.linkedByFaceOnly,
+        scheme.secondaryContainer,
+        scheme.onSecondaryContainer,
+      ),
       (false, true) => (
-          Icons.accessibility_new,
-          l10n.linkedByBodyOnly,
-          scheme.tertiaryContainer,
-          scheme.onTertiaryContainer,
-        ),
+        Icons.accessibility_new,
+        l10n.linkedByBodyOnly,
+        scheme.tertiaryContainer,
+        scheme.onTertiaryContainer,
+      ),
       (false, false) => (
-          Icons.help_outline,
-          'No active detections',
-          scheme.surfaceContainerHighest,
-          scheme.onSurfaceVariant,
-        ),
+        Icons.help_outline,
+        'No active detections',
+        scheme.surfaceContainerHighest,
+        scheme.onSurfaceVariant,
+      ),
     };
 
     return Container(
@@ -673,7 +695,10 @@ class _CoOccurringPeopleRow extends ConsumerWidget {
                     final p = snap.data;
                     if (p == null) return const SizedBox.shrink();
                     return ActionChip(
-                      avatar: PersonAvatar(cropPath: p.avatarCropPath, radius: 12),
+                      avatar: PersonAvatar(
+                        cropPath: p.avatarCropPath,
+                        radius: 12,
+                      ),
                       label: Text(
                         personName(AppLocalizations.of(context), p),
                         style: const TextStyle(fontSize: 12),

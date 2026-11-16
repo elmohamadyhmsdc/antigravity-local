@@ -8,12 +8,14 @@ class ReviewBanner extends StatelessWidget {
     required this.icon,
     required this.title,
     this.body,
+    this.compact = false,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String? body;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
@@ -36,12 +38,17 @@ class ReviewBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            padding: EdgeInsets.fromLTRB(
+              14,
+              compact ? 6 : 12,
+              12,
+              compact ? 6 : 12,
+            ),
             child: Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: compact ? 28 : 38,
+                  height: compact ? 28 : 38,
                   decoration: BoxDecoration(
                     color: scheme.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),

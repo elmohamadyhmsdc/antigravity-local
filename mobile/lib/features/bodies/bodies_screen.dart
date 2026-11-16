@@ -1,3 +1,5 @@
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import 'package:drift/drift.dart' show Variable, BooleanExpressionOperators;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -438,162 +440,171 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
         _tag != null ||
         _color != null ||
         _groupTag != null;
-    return RefreshIndicator(
-      onRefresh: _prepare,
-      child: CustomScrollView(
-        key: const PageStorageKey('body-results'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_preparing || _loading) const LinearProgressIndicator(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: DiscoveryIntro(
-                    title: reference == null
-                        ? l.bodiesTabAll
-                        : l.discoveryCompare,
-                    description: reference == null
-                        ? l.discoveryAllIntro
-                        : _exposedKind != null
-                        ? l.discoveryAreaPrecision
-                        : _colourTwinOf != null
-                        ? l.discoveryOutfitIntro
-                        : l.discoveryPosePrecision,
-                    icon: reference == null
-                        ? Icons.photo_library_outlined
-                        : Icons.compare_outlined,
-                    count: _loading ? null : _ids.length,
-                  ),
-                ),
-                if (reference != null || _groupTag != null)
+    return SelectionCollection<int>(
+      name: 'bodies',
+      partial: true,
+      items: _ids,
+      idOf: (id) => id,
+      actions: (_) => bodyCollectionActions(ref, personId: widget.personId),
+      onCompleted: _reload,
+      builder: (context, selection) => RefreshIndicator(
+        onRefresh: _prepare,
+        child: CustomScrollView(
+          key: const PageStorageKey('body-results'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_preparing || _loading) const LinearProgressIndicator(),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: InputChip(
-                        key: const Key('bodies-similar-chip'),
-                        label: Text(
-                          _groupTag != null
-                              ? _groupLabel(l, _groupTag!)
-                              : _colourTwinOf != null
-                              ? l.bodiesSimilarColoursTitle
-                              : _exposedKind == null
-                              ? l.bodiesSimilarTitle
-                              : _exposedKind == ExposedKind.chest
-                              ? l.equipmentAreaChestSimilar
-                              : l.equipmentAreaLowerSimilar,
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: DiscoveryIntro(
+                      title: reference == null
+                          ? l.bodiesTabAll
+                          : l.discoveryCompare,
+                      description: reference == null
+                          ? l.discoveryAllIntro
+                          : _exposedKind != null
+                          ? l.discoveryAreaPrecision
+                          : _colourTwinOf != null
+                          ? l.discoveryOutfitIntro
+                          : l.discoveryPosePrecision,
+                      icon: reference == null
+                          ? Icons.photo_library_outlined
+                          : Icons.compare_outlined,
+                      count: _loading ? null : _ids.length,
+                    ),
+                  ),
+                  if (reference != null || _groupTag != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: InputChip(
+                          key: const Key('bodies-similar-chip'),
+                          label: Text(
+                            _groupTag != null
+                                ? _groupLabel(l, _groupTag!)
+                                : _colourTwinOf != null
+                                ? l.bodiesSimilarColoursTitle
+                                : _exposedKind == null
+                                ? l.bodiesSimilarTitle
+                                : _exposedKind == ExposedKind.chest
+                                ? l.equipmentAreaChestSimilar
+                                : l.equipmentAreaLowerSimilar,
+                          ),
+                          onDeleted: () => _filter(),
+                          deleteButtonTooltipMessage: l.bodiesClearFilter,
                         ),
-                        onDeleted: () => _filter(),
-                        deleteButtonTooltipMessage: l.bodiesClearFilter,
                       ),
                     ),
-                  ),
-                if (reference != null)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 64,
-                          height: 88,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: CropImage(
-                              path: _rows[reference]?.cropPath,
-                              fit: BoxFit.contain,
-                              placeholderIcon: Icons.accessibility_new,
+                  if (reference != null)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 64,
+                            height: 88,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: CropImage(
+                                path: _rows[reference]?.cropPath,
+                                fit: BoxFit.contain,
+                                placeholderIcon: Icons.accessibility_new,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l.groupPoseReference,
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                              Text(
-                                l.discoveryCompareHint,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  l.groupPoseReference,
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                Text(
+                                  l.discoveryCompareHint,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ExpansionTile(
-                  key: const Key('bodies-filters'),
-                  initiallyExpanded: reference == null,
-                  title: Text(l.discoveryBrowse),
-                  leading: const Icon(Icons.tune),
-                  children: [
-                    _filterRow([
-                      if (widget.personId == null)
-                        for (final tag in GroupTag.all)
-                          if ((_groupCounts[tag] ?? 0) > 0)
+                  ExpansionTile(
+                    key: const Key('bodies-filters'),
+                    initiallyExpanded: reference == null,
+                    title: Text(l.discoveryBrowse),
+                    leading: const Icon(Icons.tune),
+                    children: [
+                      _filterRow([
+                        if (widget.personId == null)
+                          for (final tag in GroupTag.all)
+                            if ((_groupCounts[tag] ?? 0) > 0)
+                              FilterChip(
+                                key: Key('group-chip-$tag'),
+                                label: Text(
+                                  '${_groupLabel(l, tag)} · ${_groupCounts[tag]}',
+                                ),
+                                selected: _groupTag == tag,
+                                onSelected: (on) =>
+                                    _filter(group: on ? tag : null),
+                              ),
+                        for (final tag in PoseTag.all)
+                          if ((_counts[tag] ?? 0) > 0)
                             FilterChip(
-                              key: Key('group-chip-$tag'),
+                              key: Key('pose-chip-$tag'),
                               label: Text(
-                                '${_groupLabel(l, tag)} · ${_groupCounts[tag]}',
+                                '${_tagLabel(l, tag)} · ${_counts[tag]}',
                               ),
-                              selected: _groupTag == tag,
-                              onSelected: (on) =>
-                                  _filter(group: on ? tag : null),
+                              selected: _tag == tag,
+                              onSelected: (on) => _filter(tag: on ? tag : null),
                             ),
-                      for (final tag in PoseTag.all)
-                        if ((_counts[tag] ?? 0) > 0)
+                      ]),
+                      _filterRow([
+                        for (final color in OutfitColor.values)
                           FilterChip(
-                            key: Key('pose-chip-$tag'),
-                            label: Text(
-                              '${_tagLabel(l, tag)} · ${_counts[tag]}',
-                            ),
-                            selected: _tag == tag,
-                            onSelected: (on) => _filter(tag: on ? tag : null),
+                            key: Key('color-chip-${color.name}'),
+                            label: Text(_colorLabel(l, color)),
+                            selected: _color == color,
+                            onSelected: (on) =>
+                                _filter(color: on ? color : null),
                           ),
-                    ]),
-                    _filterRow([
-                      for (final color in OutfitColor.values)
-                        FilterChip(
-                          key: Key('color-chip-${color.name}'),
-                          label: Text(_colorLabel(l, color)),
-                          selected: _color == color,
-                          onSelected: (on) => _filter(color: on ? color : null),
-                        ),
-                    ]),
-                  ],
-                ),
-                if (filtered && reference == null)
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton.icon(
-                      onPressed: () => _filter(),
-                      icon: const Icon(Icons.close),
-                      label: Text(l.bodiesClearFilter),
-                    ),
+                      ]),
+                    ],
                   ),
-              ],
-            ),
-          ),
-          if (_ids.isEmpty && !_loading && !_preparing)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: EmptyState(
-                icon: Icons.accessibility_new,
-                title: filtered ? l.bodiesNothingMatches : l.bodiesEmpty,
+                  if (filtered && reference == null)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton.icon(
+                        onPressed: () => _filter(),
+                        icon: const Icon(Icons.close),
+                        label: Text(l.bodiesClearFilter),
+                      ),
+                    ),
+                ],
               ),
-            )
-          else
-            _grid(
-              _ids,
-              (id) => reference == null ? _openActions(id) : _compare(id),
             ),
-        ],
+            if (_ids.isEmpty && !_loading && !_preparing)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: EmptyState(
+                  icon: Icons.accessibility_new,
+                  title: filtered ? l.bodiesNothingMatches : l.bodiesEmpty,
+                ),
+              )
+            else
+              _grid(
+                _ids,
+                (id) => reference == null ? _openActions(id) : _compare(id),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -625,38 +636,43 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
       itemBuilder: (context, i) {
         final id = ids[i];
         final score = _matches[id];
-        return Material(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(16),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            key: Key('body-$id'),
-            onTap: () => onTap(id),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: CropImage(
-                    path: _rows[id]?.cropPath,
-                    fit: BoxFit.contain,
-                    expandable: false,
-                    placeholderIcon: Icons.accessibility_new,
-                    cacheWidth: 384,
-                  ),
-                ),
-                if (score != null)
-                  Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Text(
-                      AppLocalizations.of(
-                        context,
-                      ).discoverySimilarity((score.similarity * 100).round()),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelMedium,
+        final selection = SelectionCollection.of<int>(context);
+        return selection.tile(
+          id,
+          onOpen: () => onTap(id),
+          child: Material(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              key: Key('body-$id'),
+              onTap: () => onTap(id),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: CropImage(
+                      path: _rows[id]?.cropPath,
+                      fit: BoxFit.contain,
+                      expandable: false,
+                      placeholderIcon: Icons.accessibility_new,
+                      cacheWidth: 384,
                     ),
                   ),
-              ],
+                  if (score != null)
+                    Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Text(
+                        AppLocalizations.of(
+                          context,
+                        ).discoverySimilarity((score.similarity * 100).round()),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );
@@ -857,165 +873,222 @@ class _CategoryListState extends ConsumerState<_CategoryList>
     super.build(context);
     final l = AppLocalizations.of(context);
     if (!_loaded) return const Center(child: CircularProgressIndicator());
-    return ListView(
-      key: PageStorageKey(widget.pose ? 'saved-poses' : 'saved-outfits'),
-      padding: const EdgeInsets.all(16),
-      children: [
-        DiscoveryIntro(
-          title: widget.pose ? l.bodiesTabPoses : l.bodiesTabOutfits,
-          description: widget.pose
-              ? l.discoveryPoseIntro
-              : l.discoveryOutfitIntro,
-          icon: widget.pose
-              ? Icons.accessibility_new
-              : Icons.checkroom_outlined,
-          count: _items.isEmpty ? null : _items.length,
+    final selectable = _items
+        .where((item) => item.name.toLowerCase().contains(_search))
+        .map((item) => item.id)
+        .toList();
+    return SelectionCollection<int>(
+      name: widget.pose ? 'saved-poses' : 'saved-outfits',
+      items: selectable,
+      idOf: (id) => id,
+      onCompleted: _load,
+      actions: (_) => [
+        CollectionAction<int>(
+          id: 'refresh',
+          label: 'Refresh selected matches',
+          icon: Icons.refresh,
+          run: (context, ids) async {
+            final categories = ref.read(bodyCategoriesProvider);
+            for (final id in ids) {
+              if (widget.pose) {
+                await categories.rescorePose(id);
+              } else {
+                await categories.rescoreOutfit(id);
+              }
+            }
+            return true;
+          },
         ),
-        if (_items.isNotEmpty)
-          DiscoverySearch(
-            key: ValueKey('saved-search-${widget.pose}'),
-            hint: l.discoverySearchSaved,
-            onChanged: (value) => setState(() => _search = value),
+        CollectionAction<int>(
+          id: 'delete',
+          label: l.categoryDelete,
+          icon: Icons.delete_outline,
+          destructive: true,
+          confirmation:
+              'Remove the selected saved categories. Body detections and original media are kept.',
+          run: (context, ids) async {
+            await ref.read(databaseProvider).transaction(() async {
+              for (final id in ids) {
+                if (widget.pose) {
+                  await ref.read(bodyCategoriesProvider).deletePose(id);
+                } else {
+                  await ref.read(bodyCategoriesProvider).deleteOutfit(id);
+                }
+              }
+            });
+            return true;
+          },
+        ),
+      ],
+      builder: (context, selection) => ListView(
+        key: PageStorageKey(widget.pose ? 'saved-poses' : 'saved-outfits'),
+        padding: const EdgeInsets.all(16),
+        children: [
+          DiscoveryIntro(
+            title: widget.pose ? l.bodiesTabPoses : l.bodiesTabOutfits,
+            description: widget.pose
+                ? l.discoveryPoseIntro
+                : l.discoveryOutfitIntro,
+            icon: widget.pose
+                ? Icons.accessibility_new
+                : Icons.checkroom_outlined,
+            count: _items.isEmpty ? null : _items.length,
           ),
-        if (_search.isNotEmpty &&
-            !_items.any((item) => item.name.toLowerCase().contains(_search)))
-          Text(l.discoveryNoSearch),
-
-        if (_items.isNotEmpty && widget.pose)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              l.poseSavedTitle,
-              style: Theme.of(context).textTheme.titleMedium,
+          if (_items.isNotEmpty)
+            DiscoverySearch(
+              key: ValueKey('saved-search-${widget.pose}'),
+              hint: l.discoverySearchSaved,
+              onChanged: (value) => setState(() => _search = value),
             ),
-          ),
-        for (final item in _items.where(
-          (item) => item.name.toLowerCase().contains(_search),
-        ))
-          ListTile(
-            key: Key('category-${widget.pose ? 'pose' : 'outfit'}-${item.id}'),
-            leading: SizedBox(
-              width: 56,
-              height: 72,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CropImage(
-                  path: item.cropPath,
-                  fit: BoxFit.contain,
-                  placeholderIcon: widget.pose
-                      ? Icons.accessibility_new
-                      : Icons.checkroom_outlined,
-                ),
+          if (_search.isNotEmpty &&
+              !_items.any((item) => item.name.toLowerCase().contains(_search)))
+            Text(l.discoveryNoSearch),
+
+          if (_items.isNotEmpty && widget.pose)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                l.poseSavedTitle,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
-            title: Text(item.name),
-            subtitle: Text(l.categoryBodyCount(item.count)),
-            trailing: IconButton(
-              key: Key('rename-${widget.pose ? 'pose' : 'outfit'}-${item.id}'),
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Rename',
-              onPressed: () async {
-                final newName = await promptRenameDialog(
-                  context,
-                  title: widget.pose ? 'Rename Pose' : 'Rename Outfit',
-                  initialName: item.name,
-                );
-                if (newName == null || !context.mounted) return;
-                final db = ref.read(databaseProvider);
-                if (widget.pose) {
-                  await renamePoseCategory(db, item.id, newName);
-                } else {
-                  await renameOutfitCategory(db, item.id, newName);
-                }
-                await _load();
-              },
-            ),
-            onTap: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _CategoryBodies(
-                    pose: widget.pose,
-                    id: item.id,
-                    name: item.name,
+          for (final item in _items.where(
+            (item) => item.name.toLowerCase().contains(_search),
+          ))
+            selection.tile(
+              item.id,
+              child: ListTile(
+                key: Key(
+                  'category-${widget.pose ? 'pose' : 'outfit'}-${item.id}',
+                ),
+                leading: SizedBox(
+                  width: 56,
+                  height: 72,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CropImage(
+                      path: item.cropPath,
+                      fit: BoxFit.contain,
+                      placeholderIcon: widget.pose
+                          ? Icons.accessibility_new
+                          : Icons.checkroom_outlined,
+                    ),
                   ),
                 ),
-              );
-              if (mounted) _load();
-            },
-          ),
-
-        if (widget.pose) ...[
-          for (final section in [
-            (l.posePostureTitle, PoseTag.posture),
-            (l.poseArmsTitle, PoseTag.arms),
-            (l.poseDirectionTitle, PoseTag.orientation),
-          ]) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                section.$1,
-                style: Theme.of(context).textTheme.titleSmall,
+                title: Text(item.name),
+                subtitle: Text(l.categoryBodyCount(item.count)),
+                trailing: IconButton(
+                  key: Key(
+                    'rename-${widget.pose ? 'pose' : 'outfit'}-${item.id}',
+                  ),
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Rename',
+                  onPressed: () async {
+                    final newName = await promptRenameDialog(
+                      context,
+                      title: widget.pose ? 'Rename Pose' : 'Rename Outfit',
+                      initialName: item.name,
+                    );
+                    if (newName == null || !context.mounted) return;
+                    final db = ref.read(databaseProvider);
+                    if (widget.pose) {
+                      await renamePoseCategory(db, item.id, newName);
+                    } else {
+                      await renameOutfitCategory(db, item.id, newName);
+                    }
+                    await _load();
+                  },
+                ),
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _CategoryBodies(
+                        pose: widget.pose,
+                        id: item.id,
+                        name: item.name,
+                      ),
+                    ),
+                  );
+                  if (mounted) _load();
+                },
               ),
             ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final tag in section.$2)
-                  SizedBox(
-                    width: 140,
-                    child: Material(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        key: Key('pose-visual-$tag'),
+
+          if (widget.pose) ...[
+            for (final section in [
+              (l.posePostureTitle, PoseTag.posture),
+              (l.poseArmsTitle, PoseTag.arms),
+              (l.poseDirectionTitle, PoseTag.orientation),
+            ]) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  section.$1,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final tag in section.$2)
+                    SizedBox(
+                      width: 140,
+                      child: Material(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(12),
-                        onTap: (widget.counts[tag] ?? 0) == 0
-                            ? null
-                            : () => widget.onTag?.call(tag),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                height: 72,
-                                width: 104,
-                                child: PoseDiagram(tag: tag),
-                              ),
-                              Text(
-                                poseLabel(l, tag),
-                                textAlign: TextAlign.center,
-                              ),
-                              Text(
-                                l.categoryBodyCount(widget.counts[tag] ?? 0),
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
+                        child: InkWell(
+                          key: Key('pose-visual-$tag'),
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: (widget.counts[tag] ?? 0) == 0
+                              ? null
+                              : () => widget.onTag?.call(tag),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              children: [
+                                SizedBox(
+                                  height: 72,
+                                  width: 104,
+                                  child: PoseDiagram(tag: tag),
+                                ),
+                                Text(
+                                  poseLabel(l, tag),
+                                  textAlign: TextAlign.center,
+                                ),
+                                Text(
+                                  l.categoryBodyCount(widget.counts[tag] ?? 0),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
-        ],
-        if (widget.onChooseExample != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: FilledButton.tonalIcon(
-              key: Key('choose-${widget.pose ? 'pose' : 'outfit'}-example'),
-              onPressed: widget.onChooseExample,
-              icon: const Icon(Icons.add_photo_alternate_outlined),
-              label: Text(l.groupPoseChooseExample),
+          if (widget.onChooseExample != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: FilledButton.tonalIcon(
+                key: Key('choose-${widget.pose ? 'pose' : 'outfit'}-example'),
+                onPressed: widget.onChooseExample,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: Text(l.groupPoseChooseExample),
+              ),
             ),
-          ),
-        if (_items.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(l.categoryNone),
-          ),
-      ],
+          if (_items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(l.categoryNone),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1058,7 +1131,7 @@ class _CategoryBodiesState extends ConsumerState<_CategoryBodies> {
             for (final r
                 in await db
                     .customSelect(
-                      'SELECT id, crop_path, media_id FROM bodies WHERE id IN (${List.filled(shown.length, '?').join(',')})',
+                      'SELECT id, crop_path, media_id FROM bodies WHERE hidden = 0 AND id IN (${List.filled(shown.length, '?').join(',')})',
                       variables: [for (final id in shown) Variable.withInt(id)],
                       readsFrom: {db.bodies},
                     )
@@ -1071,7 +1144,7 @@ class _CategoryBodiesState extends ConsumerState<_CategoryBodies> {
           };
     if (mounted) {
       setState(() {
-        _ids = shown;
+        _ids = shown.where(rows.containsKey).toList();
         _rows = rows;
       });
     }
@@ -1100,71 +1173,93 @@ class _CategoryBodiesState extends ConsumerState<_CategoryBodies> {
           ),
         ],
       ),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(8),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 120,
-          mainAxisSpacing: 6,
-          crossAxisSpacing: 6,
-          childAspectRatio: 0.62,
+      body: SelectionCollection<int>(
+        name: 'category-bodies',
+        partial: true,
+        items: _ids,
+        idOf: (id) => id,
+        onCompleted: _load,
+        actions: (_) => [
+          CollectionAction<int>(
+            id: 'remove-match',
+            label: l.discoveryRemoveMatch,
+            icon: Icons.remove_circle_outline,
+            run: (context, ids) async {
+              await ref.read(databaseProvider).transaction(() async {
+                for (final id in ids) {
+                  if (widget.pose) {
+                    await categories.setPoseState(widget.id, id, 'rejected');
+                  } else {
+                    await categories.setOutfitState(widget.id, id, 'rejected');
+                  }
+                }
+              });
+              return true;
+            },
+          ),
+          ...bodyCollectionActions(ref),
+        ],
+        builder: (context, selection) => GridView.builder(
+          padding: const EdgeInsets.all(8),
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 120,
+            mainAxisSpacing: 6,
+            crossAxisSpacing: 6,
+            childAspectRatio: 0.62,
+          ),
+          itemCount: _ids.length,
+          itemBuilder: (context, i) {
+            final id = _ids[i];
+            return selection.tile(
+              id,
+              child: InkWell(
+                key: Key('category-body-$id'),
+                onTap: () {
+                  final media = _rows[id]?.mediaId;
+                  if (media != null) context.push('${Routes.media}/$media');
+                },
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CropImage(
+                        path: _rows[id]?.cropPath,
+                        expandable: false,
+                        placeholderIcon: Icons.accessibility_new,
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: IconButton.filledTonal(
+                        key: Key('category-remove-$id'),
+                        tooltip: l.discoveryRemoveMatch,
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: () async {
+                          if (widget.pose) {
+                            await categories.setPoseState(
+                              widget.id,
+                              id,
+                              'rejected',
+                            );
+                          } else {
+                            await categories.setOutfitState(
+                              widget.id,
+                              id,
+                              'rejected',
+                            );
+                          }
+                          await _load();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
-        itemCount: _ids.length,
-        itemBuilder: (context, i) {
-          final id = _ids[i];
-          return InkWell(
-            key: Key('category-body-$id'),
-            onTap: () {
-              final media = _rows[id]?.mediaId;
-              if (media != null) context.push('${Routes.media}/$media');
-            },
-            onLongPress: () async {
-              if (widget.pose) {
-                await categories.setPoseState(widget.id, id, 'rejected');
-              } else {
-                await categories.setOutfitState(widget.id, id, 'rejected');
-              }
-              await _load();
-            },
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CropImage(
-                    path: _rows[id]?.cropPath,
-                    expandable: false,
-                    placeholderIcon: Icons.accessibility_new,
-                  ),
-                ),
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: IconButton.filledTonal(
-                    key: Key('category-remove-$id'),
-                    tooltip: l.discoveryRemoveMatch,
-                    icon: const Icon(Icons.remove_circle_outline),
-                    onPressed: () async {
-                      if (widget.pose) {
-                        await categories.setPoseState(
-                          widget.id,
-                          id,
-                          'rejected',
-                        );
-                      } else {
-                        await categories.setOutfitState(
-                          widget.id,
-                          id,
-                          'rejected',
-                        );
-                      }
-                      await _load();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
       ),
     );
   }

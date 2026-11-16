@@ -554,6 +554,15 @@ def operation_parity_fixtures():
     write('Capabilities.operation_support',caps)
 
 
+def targeted_anime_fixture():
+    saved = json.loads((OUT / 'AnalyzeImageResponse.character_face_body.json').read_text(encoding='utf-8'))
+    human = json.loads((OUT / 'AnalyzeImageResponse.two_faces_one_body.json').read_text(encoding='utf-8'))
+    write('TargetedAnalysisResponse.anime_face', dict(target_kind='anime_face', detections=[dict(
+        bbox=dict(x=.25, y=.2, w=.3, h=.4), score=0, label='anime_face',
+        embedding_model_id='ccip-caformer24@1', embedding=saved['characters'][0]['face']['embedding'],
+        crop_jpeg=human['faces'][0]['crop_jpeg'], face_px=128, manual=True, outline=None, keypoints=None)]))
+
+
 if __name__ == "__main__":
     write("EquipmentResponse.racket", {"model_version": 1, "objects": [
         {"object_key": "racket:10:20:30:40", "label": "tennis racket", "body_index": 0,
@@ -563,4 +572,5 @@ if __name__ == "__main__":
     grouping_fixtures()
     job_fixtures()
     operation_parity_fixtures()
+    targeted_anime_fixture()
     print("done ->", OUT)

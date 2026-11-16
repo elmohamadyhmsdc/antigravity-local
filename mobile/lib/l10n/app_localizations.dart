@@ -94,6 +94,48 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[Locale('en')];
 
+  /// No description provided for @bulkOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get bulkOpen;
+
+  /// No description provided for @bulkActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions ({count})'**
+  String bulkActions(int count);
+
+  /// No description provided for @bulkCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed for {count} selected items'**
+  String bulkCompleted(int count);
+
+  /// No description provided for @bulkSelectLoaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Select loaded items ({count})'**
+  String bulkSelectLoaded(int count);
+
+  /// No description provided for @reviewSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving decisions…'**
+  String get reviewSaving;
+
+  /// No description provided for @reviewSelectionOutcome.
+  ///
+  /// In en, this message translates to:
+  /// **'{added} selected · {rejected} marked as someone else'**
+  String reviewSelectionOutcome(int added, int rejected);
+
+  /// No description provided for @peopleFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get peopleFilters;
+
   /// No description provided for @imageExpand.
   ///
   /// In en, this message translates to:

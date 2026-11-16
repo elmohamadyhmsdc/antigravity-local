@@ -17,7 +17,7 @@ import 'review_media_viewer.dart';
 int albumReviewCount(WidgetRef ref, int personId, [String kind = 'person']) {
   final faces = ref.watch(personMatchesProvider(personId)).value?.length ?? 0;
   final bodies =
-      (ref.watch(reviewBodyLinksProvider(kind)).value ??
+      (ref.watch(personBodyLinksProvider(personId)).value ??
               const <ReviewBodyLinkItem>[])
           .where((l) => l.person.id == personId)
           .length;
@@ -45,32 +45,37 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
   var _saving = false;
 
   Future<void> _done(List<ReviewTarget> items) async {
+    if (_saving) return;
     final l = AppLocalizations.of(context);
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final review = reviewRepositoryFor(ref, widget.person.kind);
     final id = widget.person.id;
-    bool on(ReviewTarget t) => !_off.contains('${t.kind}:${t.id}');
+    final excluded = {..._off};
+    bool on(ReviewTarget t) => !excluded.contains('${t.kind}:${t.id}');
     setState(() => _saving = true);
     try {
-      final faces = items.where((t) => t.kind == 'f');
-      final yes = [
-        for (final t in faces)
-          if (on(t)) t.id,
-      ];
-      final no = [
-        for (final t in faces)
-          if (!on(t)) t.id,
-      ];
-      if (yes.isNotEmpty) await review.acceptMatches(yes, id);
-      if (no.isNotEmpty) await review.rejectMatches(no, id);
-      for (final t in items.where((t) => t.kind == 'b')) {
-        if (on(t)) {
-          await review.acceptBodyLink(t.id, id);
-        } else {
-          await review.rejectBodyLink(t.id, id);
-        }
-      }
+      await WidgetsBinding.instance.endOfFrame;
+      await review.answerAlbum(
+        personId: id,
+        faceIds: [
+          for (final t in items)
+            if (t.kind == 'f') t.id,
+        ],
+        excludedFaces: {
+          for (final t in items)
+            if (t.kind == 'f' && !on(t)) t.id,
+        },
+        bodyIds: [
+          for (final t in items)
+            if (t.kind == 'b') t.id,
+        ],
+        excludedBodies: {
+          for (final t in items)
+            if (t.kind == 'b' && !on(t)) t.id,
+        },
+      );
+      if (!mounted) return;
       final added = items.where(on).length;
       messenger.showSnackBar(
         SnackBar(
@@ -94,9 +99,20 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
     final id = widget.person.id;
     final name = personName(l, widget.person);
     final faces = ref.watch(personMatchesProvider(id));
-    final links = ref.watch(reviewBodyLinksProvider(widget.person.kind));
+    final links = ref.watch(personBodyLinksProvider(id));
     if (faces.isLoading || links.isLoading) {
       return Scaffold(appBar: AppBar(), body: const LoadingBox());
+    }
+    if (faces.hasError || links.hasError) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l.albumReviewTitle(name))),
+        body: RetryState(
+          onRetry: () {
+            ref.invalidate(personMatchesProvider(id));
+            ref.invalidate(personBodyLinksProvider(id));
+          },
+        ),
+      );
     }
     final items = [
       for (final f in faces.value ?? const <ReviewMatchFace>[])
@@ -107,92 +123,124 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
     final keys = {for (final t in items) '${t.kind}:${t.id}'};
     _off.removeWhere((k) => !keys.contains(k));
     final kept = items.length - _off.length;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l.albumReviewTitle(name)),
-        actions: [
-          if (items.isNotEmpty)
-            TextButton(
-              key: const Key('album-review-toggle-all'),
-              onPressed: () => setState(() {
-                if (_off.isEmpty) {
-                  _off.addAll(keys);
-                } else {
-                  _off.clear();
-                }
-              }),
-              child: Text(_off.isEmpty ? l.albumReviewNone : l.selectAll),
-            ),
-        ],
-      ),
-      bottomNavigationBar: items.isEmpty
-          ? null
-          : StickyActionBar(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    l.albumReviewSummary(kept, _off.length),
-                    key: const Key('album-review-summary'),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton.icon(
-                    key: const Key('album-review-done'),
-                    icon: const Icon(Icons.done),
-                    onPressed: _saving ? null : () => _done(items),
-                    label: Text(l.peopleAction('done')),
-                  ),
-                ],
+    return PopScope(
+      canPop: !_saving,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(l.albumReviewTitle(name)),
+          actions: [
+            if (items.isNotEmpty)
+              TextButton(
+                key: const Key('album-review-toggle-all'),
+                onPressed: _saving
+                    ? null
+                    : () => setState(() {
+                        if (_off.isEmpty) {
+                          _off.addAll(keys);
+                        } else {
+                          _off.clear();
+                        }
+                      }),
+                child: Text(_off.isEmpty ? l.albumReviewNone : l.selectAll),
               ),
-            ),
-      body: items.isEmpty
-          ? EmptyState(
-              icon: Icons.task_alt,
-              title: l.noSuggestionsTitle,
-              body: l.noSuggestionsBody,
-            )
-          : CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  sliver: SliverToBoxAdapter(
-                    child: Text(l.albumReviewHelp(name)),
-                  ),
+          ],
+        ),
+        bottomNavigationBar: items.isEmpty
+            ? null
+            : StickyActionBar(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      l.albumReviewSummary(kept, _off.length),
+                      key: const Key('album-review-summary'),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      key: const Key('album-review-done'),
+                      icon: _saving
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.done),
+                      onPressed: _saving ? null : () => _done(items),
+                      label: Text(
+                        _saving ? l.reviewSaving : l.peopleAction('done'),
+                      ),
+                    ),
+                  ],
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.all(4),
-                  sliver: SliverGrid.builder(
-                    key: const Key('album-review-grid'),
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 170,
-                          mainAxisSpacing: 4,
-                          crossAxisSpacing: 4,
-                        ),
-                    itemCount: items.length,
-                    itemBuilder: (context, i) {
-                      final t = items[i];
-                      final key = '${t.kind}:${t.id}';
-                      return _Tile(
-                        target: t,
-                        ticked: !_off.contains(key),
-                        onTap: () => setState(() {
-                          if (!_off.remove(key)) _off.add(key);
-                        }),
-                        onOpen: () => openReviewMedia(
-                          context,
-                          items,
-                          initialTarget: i,
-                          title: name,
-                        ),
-                      );
-                    },
-                  ),
+              ),
+        body: AbsorbPointer(
+          absorbing: _saving,
+          child: items.isEmpty
+              ? EmptyState(
+                  icon: Icons.task_alt,
+                  title: l.noSuggestionsTitle,
+                  body: l.noSuggestionsBody,
+                )
+              : CustomScrollView(
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      sliver: SliverToBoxAdapter(
+                        child: Text(l.albumReviewHelp(name)),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.all(4),
+                      sliver: SliverGrid.builder(
+                        key: const Key('album-review-grid'),
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 170,
+                              mainAxisSpacing: 4,
+                              crossAxisSpacing: 4,
+                            ),
+                        itemCount: items.length,
+                        itemBuilder: (context, i) {
+                          final t = items[i];
+                          final key = '${t.kind}:${t.id}';
+                          return _Tile(
+                            target: t,
+                            ticked: !_off.contains(key),
+                            onTap: () => setState(() {
+                              if (!_off.remove(key)) _off.add(key);
+                            }),
+                            onOpen: () => openReviewMedia(
+                              context,
+                              items,
+                              initialTarget: i,
+                              title: name,
+                              selectedFaceIds: {
+                                for (final t in items)
+                                  if (t.kind == 'f' &&
+                                      !_off.contains('f:${t.id}'))
+                                    t.id,
+                              },
+                              onSelectionChanged: (selected) => setState(() {
+                                for (final t in items.where(
+                                  (t) => t.kind == 'f',
+                                )) {
+                                  if (selected.contains(t.id)) {
+                                    _off.remove('f:${t.id}');
+                                  } else {
+                                    _off.add('f:${t.id}');
+                                  }
+                                }
+                              }),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+        ),
+      ),
     );
   }
 }

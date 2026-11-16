@@ -94,6 +94,8 @@ void main() {
       tester,
       extra: [initialLocationProvider.overrideWithValue('/people')],
     );
+    await tester.tap(find.byKey(const Key('people-filters')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('people-filter-favorites')));
     await tester.pumpAndSettle();
     expect(find.byKey(Key('person-$sara')), findsNothing);

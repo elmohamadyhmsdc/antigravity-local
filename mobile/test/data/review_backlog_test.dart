@@ -158,6 +158,92 @@ void main() {
     );
 
     test(
+      'video decisions resolve the rest of each appearance without undoing exceptions',
+      () async {
+        final p = await seedPerson(db);
+        final ids = [for (var i = 0; i < 5; i++) await seedFace(db, seed: i)];
+        for (var i = 0; i < ids.length; i++) {
+          await (db.update(db.faces)..where((f) => f.id.equals(ids[i]))).write(
+            FacesCompanion(trackId: Value(i < 2 ? 100 : 200)),
+          );
+        }
+        await review.answerMatchBatch(
+          [ids[0], ids[2], ids[3]],
+          p,
+          excluded: {ids[2]},
+        );
+        final owners = {
+          for (final f in await db.select(db.faces).get()) f.id: f.personId,
+        };
+        expect(ids.map((id) => owners[id]), [p, p, null, p, null]);
+        expect(
+          (await db.select(db.faceRejections).get())
+              .map((r) => r.faceId)
+              .toSet(),
+          {ids[2], ids[4]},
+        );
+      },
+    );
+
+    test(
+      'creating a selected group remembers the unchecked faces and keeps a cover',
+      () async {
+        final ids = [for (var i = 0; i < 3; i++) await seedFace(db, seed: i)];
+        final group = await db
+            .into(db.reviewGroups)
+            .insert(
+              ReviewGroupsCompanion.insert(
+                faceIds: '[${ids.join(',')}]',
+                cohesion: .6,
+                quality: .8,
+              ),
+            );
+        final person = await review.answerGroup(
+          groupId: group,
+          faceIds: ids,
+          excluded: {ids.last},
+          name: 'Sara',
+        );
+        final row = await (db.select(
+          db.persons,
+        )..where((p) => p.id.equals(person))).getSingle();
+        expect(row.avatarFaceId, isNotNull);
+        expect(
+          (await db.select(db.faceRejections).get()).map(
+            (r) => (r.faceId, r.personId),
+          ),
+          [(ids.last, person)],
+        );
+        await match(ids.last, person, .9);
+        expect(await review.matchesFor(person), isEmpty);
+        expect(await db.select(db.reviewGroups).get(), isEmpty);
+      },
+    );
+
+    test('an album failure rolls back both acceptance and rejection', () async {
+      final person = await seedPerson(db);
+      final yes = await seedFace(db, seed: 1), no = await seedFace(db, seed: 2);
+      await db.customStatement(
+        "CREATE TRIGGER fail_review BEFORE UPDATE OF person_id ON faces WHEN NEW.person_id IS NOT NULL BEGIN SELECT RAISE(ABORT, 'save failed'); END",
+      );
+      await expectLater(
+        review.answerAlbum(
+          personId: person,
+          faceIds: [yes, no],
+          excludedFaces: {no},
+          bodyIds: [],
+          excludedBodies: {},
+        ),
+        throwsA(anything),
+      );
+      expect(
+        (await db.select(db.faces).get()).every((f) => f.personId == null),
+        isTrue,
+      );
+      expect(await db.select(db.faceRejections).get(), isEmpty);
+    });
+
+    test(
       'snoozing a batch parks its members across changing batch boundaries',
       () async {
         final p = await seedPerson(db);
@@ -215,35 +301,48 @@ void main() {
       },
     );
 
-    test('a suggested move respects a newer rejection of its destination', () async {
-      final source = await seedPerson(db);
-      final target = await seedPerson(db);
-      final face = await seedFace(db, personId: source);
-      await db.into(db.reviewDoubtful).insert(
-        ReviewDoubtfulCompanion.insert(
-          faceId: Value(face),
-          personId: source,
-          score: 0.1,
-          suggestedPersonId: Value(target),
-        ),
-      );
-      expect((await review.doubtful()).single.faces.single.suggested?.id, target);
-      await db.into(db.faceRejections).insert(
-        FaceRejectionsCompanion.insert(faceId: face, personId: target),
-      );
+    test(
+      'a suggested move respects a newer rejection of its destination',
+      () async {
+        final source = await seedPerson(db);
+        final target = await seedPerson(db);
+        final face = await seedFace(db, personId: source);
+        await db
+            .into(db.reviewDoubtful)
+            .insert(
+              ReviewDoubtfulCompanion.insert(
+                faceId: Value(face),
+                personId: source,
+                score: 0.1,
+                suggestedPersonId: Value(target),
+              ),
+            );
+        expect(
+          (await review.doubtful()).single.faces.single.suggested?.id,
+          target,
+        );
+        await db
+            .into(db.faceRejections)
+            .insert(
+              FaceRejectionsCompanion.insert(faceId: face, personId: target),
+            );
 
-      expect((await review.doubtful()).single.faces.single.suggested, isNull);
-      expect(
-        await review.moveSuggestedFaces(
-          faceIds: [face],
-          fromPersonId: source,
-          toPersonId: target,
-        ),
-        0,
-      );
-      expect((await db.select(db.faces).get()).single.personId, source);
-      expect((await db.select(db.faceRejections).get()).single.personId, target);
-    });
+        expect((await review.doubtful()).single.faces.single.suggested, isNull);
+        expect(
+          await review.moveSuggestedFaces(
+            faceIds: [face],
+            fromPersonId: source,
+            toPersonId: target,
+          ),
+          0,
+        );
+        expect((await db.select(db.faces).get()).single.personId, source);
+        expect(
+          (await db.select(db.faceRejections).get()).single.personId,
+          target,
+        );
+      },
+    );
 
     test(
       'a stale repair card does not remove a newer identity confirmation',

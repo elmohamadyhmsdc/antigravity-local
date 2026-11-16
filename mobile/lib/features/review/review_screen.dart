@@ -1,3 +1,5 @@
+import '../../ui/selection/selection_collection.dart';
+import '../../providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +17,7 @@ import '../shared/crop_image.dart';
 import '../shared/empty_state.dart';
 import '../shared/person_picker.dart';
 import 'review_media_viewer.dart';
+import 'review_action_scope.dart';
 import 'review_photo_tile.dart';
 import 'review_words.dart';
 
@@ -57,83 +60,85 @@ class ReviewScreen extends ConsumerWidget {
     return DefaultTabController(
       length: 5,
       initialIndex: initialTab.clamp(0, 4),
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            counts.total == 0
-                ? l10n.reviewTitle
-                : l10n.reviewTitleCount(counts.total),
+      child: ReviewActionScope(
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(
+              counts.total == 0
+                  ? l10n.reviewTitle
+                  : l10n.reviewTitleCount(counts.total),
+            ),
+            actions: [
+              IconButton(
+                key: const Key('review-open-quick'),
+                tooltip: l10n.quickReviewTitle,
+                icon: const Icon(Icons.swipe_outlined),
+                onPressed: () => context.push(
+                  '${Routes.review}?view=quick${kind == 'character' ? '&kind=character' : ''}',
+                ),
+              ),
+              IconButton(
+                key: const Key('review-sort-now'),
+                tooltip: sorting ? l10n.sorting : l10n.sortNow,
+                icon: sorting
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_fix_high),
+                onPressed: sorting ? null : () => sortNow(context, ref),
+              ),
+            ],
+            bottom: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: [
+                Tab(
+                  key: const Key('review-tab-matches'),
+                  text: l10n.reviewTabMatches(counts.matches),
+                ),
+                Tab(
+                  key: const Key('review-tab-groups'),
+                  text: l10n.reviewTabGroups(counts.groups),
+                ),
+                Tab(
+                  key: const Key('review-tab-duplicates'),
+                  text: l10n.reviewTabDuplicates(counts.duplicates),
+                ),
+                Tab(
+                  key: const Key('review-tab-outfits'),
+                  text: l10n.reviewTabOutfits(counts.bodyLinks),
+                ),
+                Tab(
+                  key: const Key('review-tab-doubtful'),
+                  text: 'Sure? (${counts.doubtful})',
+                ),
+              ],
+            ),
           ),
-          actions: [
-            IconButton(
-              key: const Key('review-open-quick'),
-              tooltip: l10n.quickReviewTitle,
-              icon: const Icon(Icons.swipe_outlined),
-              onPressed: () => context.push(
-                '${Routes.review}?view=quick${kind == 'character' ? '&kind=character' : ''}',
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                child: Text(
+                  l10n.reviewIntro,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ),
-            ),
-            IconButton(
-              key: const Key('review-sort-now'),
-              tooltip: sorting ? l10n.sorting : l10n.sortNow,
-              icon: sorting
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_fix_high),
-              onPressed: sorting ? null : () => sortNow(context, ref),
-            ),
-          ],
-          bottom: TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: [
-              Tab(
-                key: const Key('review-tab-matches'),
-                text: l10n.reviewTabMatches(counts.matches),
-              ),
-              Tab(
-                key: const Key('review-tab-groups'),
-                text: l10n.reviewTabGroups(counts.groups),
-              ),
-              Tab(
-                key: const Key('review-tab-duplicates'),
-                text: l10n.reviewTabDuplicates(counts.duplicates),
-              ),
-              Tab(
-                key: const Key('review-tab-outfits'),
-                text: l10n.reviewTabOutfits(counts.bodyLinks),
-              ),
-              Tab(
-                key: const Key('review-tab-doubtful'),
-                text: 'Sure? (${counts.doubtful})',
+              if (kind == 'person') const _CompactVideosBanner(),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _MatchesTab(kind: kind),
+                    _GroupsTab(kind: kind),
+                    _DuplicatesTab(kind: kind),
+                    _OutfitsTab(kind: kind),
+                    _DoubtfulTab(kind: kind),
+                  ],
+                ),
               ),
             ],
           ),
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-              child: Text(
-                l10n.reviewIntro,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-            if (kind == 'person') const _CompactVideosBanner(),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _MatchesTab(kind: kind),
-                  _GroupsTab(kind: kind),
-                  _DuplicatesTab(kind: kind),
-                  _OutfitsTab(kind: kind),
-                  _DoubtfulTab(kind: kind),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -305,35 +310,43 @@ class _MatchesTab extends ConsumerWidget {
           );
         }
         final total = items.fold<int>(0, (sum, g) => sum + g.faces.length);
-        return ListView(
+        return ListView.builder(
           key: const Key('review-matches'),
-          padding: const EdgeInsets.all(20),
-          children: [
-            FilledButton.tonalIcon(
-              key: const Key('accept-all-matches'),
-              icon: const Icon(Icons.done_all),
-              label: Text(l10n.acceptAllMatches(total)),
-              onPressed: () async {
-                final ok = await confirm(
-                  context,
-                  title: l10n.acceptAllMatches(total),
-                  body: l10n.acceptAllMatchesBody,
-                  confirmLabel: l10n.accept,
-                  cancelLabel: l10n.cancel,
-                );
-                if (!ok) return;
-                final repo = reviewRepositoryFor(ref, kind);
-                for (final g in items) {
-                  await repo.acceptMatches([
-                    for (final f in g.faces) f.faceId,
-                  ], g.person.id);
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-            for (final g in items)
-              _MatchCard(key: ValueKey(g.person.id), group: g),
-          ],
+          padding: const EdgeInsets.all(12),
+          itemCount: items.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: FilledButton.tonalIcon(
+                  key: const Key('accept-all-matches'),
+                  icon: const Icon(Icons.done_all),
+                  label: Text(l10n.acceptAllMatches(total)),
+                  onPressed: () async {
+                    final ok = await confirm(
+                      context,
+                      title: l10n.acceptAllMatches(total),
+                      body: l10n.acceptAllMatchesBody,
+                      confirmLabel: l10n.accept,
+                      cancelLabel: l10n.cancel,
+                    );
+                    if (!ok) return;
+                    final repo = reviewRepositoryFor(ref, kind);
+                    if (!context.mounted) return;
+                    await ReviewActionScope.run(context, () async {
+                      for (final g in items) {
+                        await repo.acceptMatches([
+                          for (final f in g.faces) f.faceId,
+                        ], g.person.id);
+                      }
+                    });
+                  },
+                ),
+              );
+            }
+            final g = items[index - 1];
+            return _MatchCard(key: ValueKey(g.person.id), group: g);
+          },
         );
       },
     );
@@ -455,6 +468,13 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
               label: Text(l10n.reviewViewAll(g.faces.length)),
               onPressed: _openPhotos,
             ),
+            Text(
+              l10n.reviewSelectionOutcome(
+                chosen.length,
+                g.faces.length - chosen.length,
+              ),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
@@ -462,16 +482,28 @@ class _MatchCardState extends ConsumerState<_MatchCard> {
               children: [
                 FilledButton(
                   key: Key('match-accept-${g.person.id}'),
-                  onPressed: chosen.isEmpty
-                      ? null
-                      : () => repo.acceptMatches(chosen, g.person.id),
-                  child: Text(l10n.addFacesTo(chosen.length)),
+                  onPressed: () => ReviewActionScope.run(
+                    context,
+                    () => repo.answerMatchBatch(
+                      [for (final f in g.faces) f.faceId],
+                      g.person.id,
+                      excluded: {..._off},
+                    ),
+                  ),
+                  child: Text(
+                    chosen.isEmpty
+                        ? l10n.notThem(g.faces.length)
+                        : l10n.addFacesTo(chosen.length),
+                  ),
                 ),
                 OutlinedButton(
                   key: Key('match-reject-${g.person.id}'),
                   onPressed: chosen.isEmpty
                       ? null
-                      : () => repo.rejectMatches(chosen, g.person.id),
+                      : () => ReviewActionScope.run(
+                          context,
+                          () => repo.rejectMatches(chosen, g.person.id),
+                        ),
                   child: Text(l10n.notThem(chosen.length)),
                 ),
               ],
@@ -505,28 +537,33 @@ class _GroupsTab extends ConsumerWidget {
             title: l10n.reviewGroupsEmpty,
           );
         }
-        return ListView(
+        return ListView.builder(
           key: const Key('review-groups'),
-          padding: const EdgeInsets.all(20),
-          children: [
-            FilledButton.tonalIcon(
-              key: const Key('create-all-groups'),
-              icon: const Icon(Icons.group_add_outlined),
-              label: Text(l10n.createAllGroups(items.length)),
-              onPressed: () async {
-                final review = reviewRepositoryFor(ref, kind);
-                for (final g in items) {
-                  await review.createPersonFromGroup(
-                    faceIds: [for (final f in g.faces) f.faceId],
-                  );
-                  await review.forgetGroup(g.id);
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-            for (final g in items)
-              _GroupCard(key: ValueKey(g.id), group: g, kind: kind),
-          ],
+          padding: const EdgeInsets.all(12),
+          itemCount: items.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: FilledButton.tonalIcon(
+                  key: const Key('create-all-groups'),
+                  icon: const Icon(Icons.group_add_outlined),
+                  label: Text(l10n.createAllGroups(items.length)),
+                  onPressed: () => ReviewActionScope.run(context, () async {
+                    final review = reviewRepositoryFor(ref, kind);
+                    for (final g in items) {
+                      await review.createPersonFromGroup(
+                        faceIds: [for (final f in g.faces) f.faceId],
+                      );
+                      await review.forgetGroup(g.id);
+                    }
+                  }),
+                ),
+              );
+            }
+            final g = items[index - 1];
+            return _GroupCard(key: ValueKey(g.id), group: g, kind: kind);
+          },
         );
       },
     );
@@ -633,7 +670,12 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
               label: Text(l10n.reviewViewAll(g.faces.length)),
               onPressed: _openPhotos,
             ),
-            Text(l10n.selectedCount(ids.length)),
+            Text(
+              l10n.reviewSelectionOutcome(
+                ids.length,
+                g.faces.length - ids.length,
+              ),
+            ),
             const SizedBox(height: 10),
             TextField(
               key: Key('group-name-${g.id}'),
@@ -655,14 +697,17 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
                   key: Key('group-create-${g.id}'),
                   onPressed: ids.isEmpty
                       ? null
-                      : () async {
-                          final review = reviewRepositoryFor(ref, widget.kind);
-                          await review.createPersonFromGroup(
+                      : () => ReviewActionScope.run(context, () async {
+                          await reviewRepositoryFor(
+                            ref,
+                            widget.kind,
+                          ).answerGroup(
+                            groupId: g.id,
+                            faceIds: [for (final f in g.faces) f.faceId],
+                            excluded: {..._off},
                             name: _name.text,
-                            faceIds: ids,
                           );
-                          await review.forgetGroup(g.id);
-                        },
+                        }),
                   child: Text(l10n.createPerson),
                 ),
                 OutlinedButton(
@@ -678,15 +723,26 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
                           );
                           if (choice?.personId == null) return;
                           final review = reviewRepositoryFor(ref, widget.kind);
-                          await review.assignGroup(ids, choice!.personId!);
-                          await review.forgetGroup(g.id);
+                          if (!context.mounted) return;
+                          await ReviewActionScope.run(context, () async {
+                            await review.answerGroup(
+                              groupId: g.id,
+                              faceIds: [for (final f in g.faces) f.faceId],
+                              excluded: {..._off},
+                              personId: choice!.personId!,
+                            );
+                          });
                         },
                   child: Text(l10n.addToPerson),
                 ),
                 TextButton(
                   key: Key('group-dismiss-${g.id}'),
-                  onPressed: () =>
-                      reviewRepositoryFor(ref, widget.kind).dismissGroup(g.id),
+                  onPressed: () => ReviewActionScope.run(context, () async {
+                    await reviewRepositoryFor(
+                      ref,
+                      widget.kind,
+                    ).dismissGroup(g.id);
+                  }),
                   child: Text(l10n.notAPerson),
                 ),
               ],
@@ -721,59 +777,90 @@ class _DuplicatesTab extends ConsumerWidget {
             title: l10n.reviewDuplicatesEmpty,
           );
         }
-        return ListView(
-          key: const Key('review-duplicates'),
-          padding: const EdgeInsets.all(20),
-          children: [
-            for (final d in pairs)
-              Card(
-                key: Key('dup-card-${d.a.id}-${d.b.id}'),
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: _PersonChip(person: d.a)),
-                          const Icon(Icons.compare_arrows),
-                          Expanded(child: _PersonChip(person: d.b)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        scoreLabel(
-                          l10n,
-                          advanced: ref.watch(reviewAdvancedProvider),
-                          kind: ReviewQuestionKind.duplicate,
-                          score: d.score,
+        return SelectionCollection<ReviewDuplicateItem>(
+          name: 'review-pairs',
+          items: pairs,
+          idOf: (d) => '${d.a.id}:${d.b.id}',
+          actions: (_) => [
+            CollectionAction<ReviewDuplicateItem>(
+              id: 'distinct',
+              label: l10n.differentPeople,
+              icon: Icons.person_off_outlined,
+              run: (context, selected) async {
+                await ref.read(databaseProvider).transaction(() async {
+                  for (final pair in selected) {
+                    await peopleRepositoryFor(
+                      ref,
+                      kind,
+                    ).markDistinct(pair.a.id, pair.b.id);
+                  }
+                });
+                return true;
+              },
+            ),
+          ],
+          builder: (context, selection) => ListView.builder(
+            key: const Key('review-duplicates'),
+            padding: const EdgeInsets.all(12),
+            itemCount: pairs.length,
+            itemBuilder: (context, index) {
+              final d = pairs[index];
+              return selection.tile(
+                d,
+                child: Card(
+                  key: Key('dup-card-${d.a.id}-${d.b.id}'),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: _PersonChip(person: d.a)),
+                            const Icon(Icons.compare_arrows),
+                            Expanded(child: _PersonChip(person: d.b)),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          FilledButton(
-                            key: Key('dup-compare-${d.a.id}-${d.b.id}'),
-                            onPressed: () => context.push(
-                              '${Routes.merge}/${d.a.id}/${d.b.id}',
+                        const SizedBox(height: 6),
+                        Text(
+                          scoreLabel(
+                            l10n,
+                            advanced: ref.watch(reviewAdvancedProvider),
+                            kind: ReviewQuestionKind.duplicate,
+                            score: d.score,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            FilledButton(
+                              key: Key('dup-compare-${d.a.id}-${d.b.id}'),
+                              onPressed: () => context.push(
+                                '${Routes.merge}/${d.a.id}/${d.b.id}',
+                              ),
+                              child: Text(l10n.compare),
                             ),
-                            child: Text(l10n.compare),
-                          ),
-                          OutlinedButton(
-                            key: Key('dup-distinct-${d.a.id}-${d.b.id}'),
-                            onPressed: () => ref
-                                .read(peopleRepositoryProvider)
-                                .markDistinct(d.a.id, d.b.id),
-                            child: Text(l10n.differentPeople),
-                          ),
-                        ],
-                      ),
-                    ],
+                            OutlinedButton(
+                              key: Key('dup-distinct-${d.a.id}-${d.b.id}'),
+                              onPressed: () => ReviewActionScope.run(
+                                context,
+                                () => peopleRepositoryFor(
+                                  ref,
+                                  kind,
+                                ).markDistinct(d.a.id, d.b.id),
+                              ),
+                              child: Text(l10n.differentPeople),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-          ],
+              );
+            },
+          ),
         );
       },
     );
@@ -842,86 +929,130 @@ class _DoubtfulTab extends ConsumerWidget {
           );
         }
         final repo = reviewRepositoryFor(ref, kind);
-        return ListView(
-          key: const Key('review-doubtful'),
-          padding: const EdgeInsets.all(20),
-          children: [
-            for (final b in batches)
-              Card(
-                key: Key('doubtful-${b.person.id}-${b.faces.first.faceId}'),
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          PersonAvatar(
-                            cropPath: b.person.avatarCropPath,
-                            radius: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Are you sure these are ${personName(AppLocalizations.of(context), b.person)}? '
-                              '(${b.faces.length} of ${b.remaining})',
-                              style: Theme.of(context).textTheme.titleMedium,
+        return SelectionCollection<ReviewDoubtfulItem>(
+          name: 'review-doubtful-batches',
+          items: batches,
+          idOf: (b) => '${b.person.id}:${b.faces.first.faceId}',
+          actions: (_) => [
+            for (final accepted in [true, false])
+              CollectionAction<ReviewDoubtfulItem>(
+                id: accepted ? 'confirm' : 'remove',
+                label: accepted
+                    ? 'Confirm selected batches'
+                    : 'Remove selected wrong assignments',
+                icon: accepted ? Icons.check : Icons.person_off_outlined,
+                run: (context, selected) async {
+                  await ref.read(databaseProvider).transaction(() async {
+                    for (final batch in selected) {
+                      final ids = batch.faces.map((f) => f.faceId);
+                      if (accepted) {
+                        await repo.confirmDoubtful(ids, batch.person.id);
+                      } else {
+                        await repo.removeDoubtful(ids, batch.person.id);
+                      }
+                    }
+                  });
+                  return true;
+                },
+              ),
+          ],
+          builder: (context, selection) => ListView.builder(
+            key: const Key('review-doubtful'),
+            padding: const EdgeInsets.all(12),
+            itemCount: batches.length,
+            itemBuilder: (context, index) {
+              final b = batches[index];
+              return selection.tile(
+                b,
+                child: Card(
+                  key: Key('doubtful-${b.person.id}-${b.faces.first.faceId}'),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            PersonAvatar(
+                              cropPath: b.person.avatarCropPath,
+                              radius: 20,
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (var i = 0; i < b.faces.length; i++)
-                            InkWell(
-                              onTap: () => openReviewMedia(context, [
-                                for (final f in b.faces)
-                                  ReviewTarget('f', f.faceId),
-                              ], initialTarget: i),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: SizedBox(
-                                  width: 64,
-                                  height: 64,
-                                  child: CropImage(path: b.faces[i].cropPath),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Are you sure these are ${personName(AppLocalizations.of(context), b.person)}? '
+                                '(${b.faces.length} of ${b.remaining})',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (var i = 0; i < b.faces.length; i++)
+                              InkWell(
+                                onTap: () => openReviewMedia(context, [
+                                  for (final f in b.faces)
+                                    ReviewTarget('f', f.faceId),
+                                ], initialTarget: i),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 64,
+                                    height: 64,
+                                    child: CropImage(path: b.faces[i].cropPath),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                key: Key('doubtful-remove-${b.person.id}'),
+                                onPressed: () => ReviewActionScope.run(
+                                  context,
+                                  () => repo.removeDoubtful([
+                                    for (final f in b.faces) f.faceId,
+                                  ], b.person.id),
+                                ),
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  ).notThem(b.faces.length),
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              key: Key('doubtful-remove-${b.person.id}'),
-                              onPressed: () => repo.removeDoubtful([
-                                for (final f in b.faces) f.faceId,
-                              ], b.person.id),
-                              child: const Text('None are her'),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: FilledButton(
+                                key: Key('doubtful-confirm-${b.person.id}'),
+                                onPressed: () => ReviewActionScope.run(
+                                  context,
+                                  () => repo.confirmDoubtful([
+                                    for (final f in b.faces) f.faceId,
+                                  ], b.person.id),
+                                ),
+                                child: Text(
+                                  AppLocalizations.of(context).accept,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: FilledButton(
-                              key: Key('doubtful-confirm-${b.person.id}'),
-                              onPressed: () => repo.confirmDoubtful([
-                                for (final f in b.faces) f.faceId,
-                              ], b.person.id),
-                              child: const Text('Yes, all are her'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-          ],
+              );
+            },
+          ),
         );
       },
     );
@@ -950,23 +1081,56 @@ class _OutfitsTab extends ConsumerWidget {
           );
         }
         final repo = reviewRepositoryFor(ref, kind);
-        return ListView(
-          key: const Key('review-outfits'),
-          padding: const EdgeInsets.all(20),
-          children: [
-            FilledButton.tonalIcon(
-              key: const Key('accept-all-outfits'),
-              icon: const Icon(Icons.done_all),
-              label: Text(l10n.acceptAllOutfits(links.length)),
-              onPressed: () async {
-                for (final l in links) {
-                  await repo.acceptBodyLink(l.bodyId, l.person.id);
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-            for (final l in links) _OutfitCard(link: l),
+        return SelectionCollection<ReviewBodyLinkItem>(
+          name: 'review-body-links',
+          items: links,
+          idOf: (l) => l.bodyId,
+          actions: (_) => [
+            for (final accepted in [true, false])
+              CollectionAction<ReviewBodyLinkItem>(
+                id: accepted ? 'accept' : 'reject',
+                label: accepted
+                    ? 'Accept selected links'
+                    : 'Reject selected links',
+                icon: accepted ? Icons.check : Icons.close,
+                run: (context, selected) async {
+                  await ref.read(databaseProvider).transaction(() async {
+                    for (final link in selected) {
+                      if (accepted) {
+                        await repo.acceptBodyLink(link.bodyId, link.person.id);
+                      } else {
+                        await repo.rejectBodyLink(link.bodyId, link.person.id);
+                      }
+                    }
+                  });
+                  return true;
+                },
+              ),
           ],
+          builder: (context, selection) => ListView.builder(
+            key: const Key('review-outfits'),
+            padding: const EdgeInsets.all(12),
+            itemCount: links.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: FilledButton.tonalIcon(
+                    key: const Key('accept-all-outfits'),
+                    icon: const Icon(Icons.done_all),
+                    label: Text(l10n.acceptAllOutfits(links.length)),
+                    onPressed: () => ReviewActionScope.run(context, () async {
+                      for (final l in links) {
+                        await repo.acceptBodyLink(l.bodyId, l.person.id);
+                      }
+                    }),
+                  ),
+                );
+              }
+              final l = links[index - 1];
+              return selection.tile(l, child: _OutfitCard(link: l));
+            },
+          ),
         );
       },
     );
@@ -1070,14 +1234,18 @@ class _OutfitCard extends ConsumerWidget {
               children: [
                 FilledButton(
                   key: Key('outfit-accept-${link.bodyId}'),
-                  onPressed: () =>
-                      repo.acceptBodyLink(link.bodyId, link.person.id),
+                  onPressed: () => ReviewActionScope.run(
+                    context,
+                    () => repo.acceptBodyLink(link.bodyId, link.person.id),
+                  ),
                   child: Text(l.reviewYesPerson(name)),
                 ),
                 OutlinedButton(
                   key: Key('outfit-reject-${link.bodyId}'),
-                  onPressed: () =>
-                      repo.rejectBodyLink(link.bodyId, link.person.id),
+                  onPressed: () => ReviewActionScope.run(
+                    context,
+                    () => repo.rejectBodyLink(link.bodyId, link.person.id),
+                  ),
                   child: Text(l.reviewNotPerson),
                 ),
               ],

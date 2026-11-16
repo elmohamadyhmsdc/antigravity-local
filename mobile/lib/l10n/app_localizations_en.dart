@@ -9,6 +9,35 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get bulkOpen => 'Open';
+
+  @override
+  String bulkActions(int count) {
+    return 'Actions ($count)';
+  }
+
+  @override
+  String bulkCompleted(int count) {
+    return 'Completed for $count selected items';
+  }
+
+  @override
+  String bulkSelectLoaded(int count) {
+    return 'Select loaded items ($count)';
+  }
+
+  @override
+  String get reviewSaving => 'Saving decisions…';
+
+  @override
+  String reviewSelectionOutcome(int added, int rejected) {
+    return '$added selected · $rejected marked as someone else';
+  }
+
+  @override
+  String get peopleFilters => 'Filters';
+
+  @override
   String get imageExpand => 'Expand image';
 
   @override

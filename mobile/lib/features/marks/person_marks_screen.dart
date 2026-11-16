@@ -1,3 +1,5 @@
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 import '../shared/image_preview.dart';
 import 'dart:io';
 
@@ -135,9 +137,48 @@ class _PersonMarksScreenState extends ConsumerState<PersonMarksScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _marks.isEmpty
           ? EmptyState(icon: Icons.draw_outlined, title: l.marksNone)
-          : ListView(
-              padding: const EdgeInsets.all(12),
-              children: [for (final mark in _marks) _card(l, mark)],
+          : SelectionCollection<BodyMarkRow>(
+              name: 'marks',
+              items: _marks,
+              idOf: (m) => m.id,
+              onCompleted: _load,
+              actions: (_) => [
+                CollectionAction<BodyMarkRow>(
+                  id: 'share',
+                  label: 'Share selected mark crops',
+                  icon: Icons.share_outlined,
+                  run: (context, marks) async {
+                    await ref.read(collectionShareProvider)([
+                      for (final mark in marks)
+                        ref.read(fileStoreProvider).resolve(mark.patchPath),
+                    ]);
+                    return true;
+                  },
+                ),
+                CollectionAction<BodyMarkRow>(
+                  id: 'delete',
+                  label: l.marksDelete,
+                  icon: Icons.delete_outline,
+                  destructive: true,
+                  confirmation:
+                      'Remove the selected saved marks and their private patches. People and original photos are kept.',
+                  run: (context, marks) async {
+                    await performBatch(
+                      marks,
+                      (m) => m.id,
+                      (mark) => ref.read(bodyMarkStoreProvider).delete(mark.id),
+                    );
+                    return true;
+                  },
+                ),
+              ],
+              builder: (context, selection) => ListView(
+                padding: const EdgeInsets.all(12),
+                children: [
+                  for (final mark in _marks)
+                    selection.tile(mark, child: _card(l, mark)),
+                ],
+              ),
             ),
     );
   }
@@ -210,50 +251,101 @@ class _PersonMarksScreenState extends ConsumerState<PersonMarksScreen> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(l.marksNoHits),
               ),
-            if (showing)
-              for (final hit in _hits)
-                ListTile(
-                  key: Key('hit-${hit.bodyId}'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: SizedBox(
-                    width: 56,
-                    child: InkWell(
-                      onTap: hit.mediaId == null
-                          ? null
-                          : () =>
-                                context.push('${Routes.media}/${hit.mediaId}'),
-                      child: CropImage(
-                        path: _crops[hit.bodyId],
-                        placeholderIcon: Icons.accessibility_new,
-                      ),
+            if (showing && _hits.isNotEmpty)
+              SelectionCollection<MarkHit>(
+                name: 'mark-hits',
+                embedded: true,
+                items: _hits,
+                idOf: (h) => h.bodyId,
+                actions: (_) => [
+                  for (final accepted in [true, false])
+                    CollectionAction<MarkHit>(
+                      id: accepted ? 'accept' : 'reject',
+                      label: accepted ? l.marksYes : l.marksNo,
+                      icon: accepted ? Icons.check : Icons.close,
+                      run: (context, hits) async {
+                        await ref.read(databaseProvider).transaction(() async {
+                          final people = ref.read(peopleRepositoryProvider);
+                          for (final hit in hits) {
+                            if (accepted) {
+                              await people.linkBody(
+                                hit.bodyId,
+                                widget.personId,
+                              );
+                            } else {
+                              await people.rejectBody(
+                                hit.bodyId,
+                                personId: widget.personId,
+                              );
+                            }
+                          }
+                        });
+                        if (mounted)
+                          setState(
+                            () => _hits = _hits
+                                .where(
+                                  (hit) => !hits.any(
+                                    (selected) => selected.bodyId == hit.bodyId,
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        return true;
+                      },
                     ),
-                  ),
-                  title: Text(
-                    hit.evidence == MarkEvidence.strong
-                        ? l.marksStrong
-                        : l.marksWeak,
-                  ),
-                  subtitle: Text(
-                    '${hit.inliers} / ${(hit.inlierRatio * 100).round()}%',
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        key: Key('hit-yes-${hit.bodyId}'),
-                        tooltip: l.marksYes,
-                        icon: const Icon(Icons.check_circle_outline),
-                        onPressed: () => _decide(hit, true),
+                ],
+                builder: (context, hitSelection) => Column(
+                  children: [
+                    for (final hit in _hits)
+                      hitSelection.tile(
+                        hit,
+                        child: ListTile(
+                          key: Key('hit-${hit.bodyId}'),
+                          contentPadding: EdgeInsets.zero,
+                          leading: SizedBox(
+                            width: 56,
+                            child: InkWell(
+                              onTap: hit.mediaId == null
+                                  ? null
+                                  : () => context.push(
+                                      '${Routes.media}/${hit.mediaId}',
+                                    ),
+                              child: CropImage(
+                                path: _crops[hit.bodyId],
+                                placeholderIcon: Icons.accessibility_new,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            hit.evidence == MarkEvidence.strong
+                                ? l.marksStrong
+                                : l.marksWeak,
+                          ),
+                          subtitle: Text(
+                            '${hit.inliers} / ${(hit.inlierRatio * 100).round()}%',
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                key: Key('hit-yes-${hit.bodyId}'),
+                                tooltip: l.marksYes,
+                                icon: const Icon(Icons.check_circle_outline),
+                                onPressed: () => _decide(hit, true),
+                              ),
+                              IconButton(
+                                key: Key('hit-no-${hit.bodyId}'),
+                                tooltip: l.marksNo,
+                                icon: const Icon(Icons.cancel_outlined),
+                                onPressed: () => _decide(hit, false),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      IconButton(
-                        key: Key('hit-no-${hit.bodyId}'),
-                        tooltip: l.marksNo,
-                        icon: const Icon(Icons.cancel_outlined),
-                        onPressed: () => _decide(hit, false),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
+              ),
           ],
         ),
       ),

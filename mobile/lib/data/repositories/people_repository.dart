@@ -668,39 +668,54 @@ class PeopleRepository {
 
   /// "This is not that person": the face leaves the person and auto-grouping never puts it back.
   /// `fromPersonId` null = whoever it is assigned to now.
-  Future<void> rejectFaces(Iterable<int> faceIds, {int? fromPersonId}) =>
-      _db.transaction(() async {
-        for (final face in await facesByIds(faceIds)) {
-          final pid = fromPersonId ?? face.personId;
-          if (pid == null) continue;
-          await _db
-              .into(_db.faceRejections)
-              .insert(
-                FaceRejectionsCompanion.insert(faceId: face.id, personId: pid),
-                mode: InsertMode.insertOrIgnore,
-              );
-          if (face.personId == pid) {
-            await _clearDerivedBodyLinks([face.id]);
-            await (_db.update(_db.faces)..where((f) => f.id.equals(face.id)))
-                .write(const FacesCompanion(personId: Value(null)));
-          }
-          await _db.customUpdate(
-            'DELETE FROM review_matches WHERE face_id = ? AND person_id = ?',
-            variables: [Variable.withInt(face.id), Variable.withInt(pid)],
-            updates: {_db.reviewMatches},
-          );
-          await _db.customUpdate(
-            'DELETE FROM face_confirmations WHERE face_id = ?',
-            variables: [Variable.withInt(face.id)],
-            updates: {_db.faceConfirmations},
-          );
-          await _db.customUpdate(
-            'DELETE FROM review_doubtful WHERE face_id = ?',
-            variables: [Variable.withInt(face.id)],
-            updates: {_db.reviewDoubtful},
-          );
-        }
-      });
+  Future<void> rejectFaces(
+    Iterable<int> faceIds, {
+    int? fromPersonId,
+  }) => _db.transaction(() async {
+    final byPerson = <int, List<FaceItem>>{};
+    for (final face in await facesByIds(faceIds)) {
+      final pid = fromPersonId ?? face.personId;
+      if (pid != null) byPerson.putIfAbsent(pid, () => []).add(face);
+    }
+    for (final entry in byPerson.entries) {
+      final pid = entry.key;
+      final ownedIds = {
+        for (final face in entry.value)
+          if (face.personId == pid) face.id,
+      };
+      for (final chunk in _chunks(entry.value.map((f) => f.id))) {
+        final marks = _marks(chunk.length);
+        final vars = [for (final id in chunk) Variable.withInt(id)];
+        await _db.customUpdate(
+          'INSERT OR IGNORE INTO face_rejections (face_id, person_id) SELECT id, ? FROM faces WHERE id IN ($marks)',
+          variables: [Variable.withInt(pid), ...vars],
+          updates: {_db.faceRejections},
+        );
+        final owned = chunk.where(ownedIds.contains).toList();
+        if (owned.isNotEmpty) await _clearDerivedBodyLinks(owned);
+        await _db.customUpdate(
+          'UPDATE faces SET person_id = NULL WHERE person_id = ? AND id IN ($marks)',
+          variables: [Variable.withInt(pid), ...vars],
+          updates: {_db.faces},
+        );
+        await _db.customUpdate(
+          'DELETE FROM review_matches WHERE person_id = ? AND face_id IN ($marks)',
+          variables: [Variable.withInt(pid), ...vars],
+          updates: {_db.reviewMatches},
+        );
+        await _db.customUpdate(
+          'DELETE FROM face_confirmations WHERE person_id = ? AND face_id IN ($marks)',
+          variables: [Variable.withInt(pid), ...vars],
+          updates: {_db.faceConfirmations},
+        );
+        await _db.customUpdate(
+          'DELETE FROM review_doubtful WHERE person_id = ? AND face_id IN ($marks)',
+          variables: [Variable.withInt(pid), ...vars],
+          updates: {_db.reviewDoubtful},
+        );
+      }
+    }
+  });
 
   /// Removes faces/crops and remembers their occurrences so rescanning cannot recreate them.
   Future<void> deleteFaces(Iterable<int> faceIds) async {

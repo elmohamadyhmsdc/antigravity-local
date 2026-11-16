@@ -11,6 +11,7 @@ import '../../providers.dart';
 import '../media/video_media_view.dart';
 import '../shared/crop_image.dart';
 import '../shared/image_preview.dart';
+import 'review_action_scope.dart';
 
 Future<void> openReviewMedia(
   BuildContext context,
@@ -263,6 +264,11 @@ class _ReviewMediaViewerState extends ConsumerState<ReviewMediaViewer> {
                           widget.onSelectionChanged!({...selected});
                         }),
                       ),
+                    if (deciding)
+                      const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: ReviewSavingIndicator(),
+                      ),
                     if (widget.onBodyDecision != null)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -326,8 +332,11 @@ class _ReviewMediaViewerState extends ConsumerState<ReviewMediaViewer> {
   }
 
   Future<void> _decide(bool yes) async {
+    if (deciding) return;
     setState(() => deciding = true);
     try {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
       await widget.onBodyDecision!(yes);
       if (mounted) Navigator.pop(context);
     } catch (e) {

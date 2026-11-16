@@ -172,6 +172,35 @@ class ScanWorker:
                     'The image analysis worker stopped. The server is online; retry this image.',
                     retryable=True, headers={'Retry-After': '2'}) from error
 
+    def anime_face(self, img, roi=None, high_res=True):
+        with self._lock:
+            self._start()
+            message = json.dumps({'type': 'anime_face',
+                'shape': list(img.shape),
+                'pixels': base64.b64encode(np.ascontiguousarray(img, dtype=np.uint8)).decode('ascii'),
+                'roi': roi, 'high_res': bool(high_res)}, separators=(',', ':')).encode('utf-8') + b'\n'
+            try:
+                self.process.stdin.write(message)
+                self.process.stdin.flush()
+                raw = self.responses.get(timeout=self.timeout)
+                if raw is None:
+                    self.process.wait(timeout=5)
+                    raise RuntimeError(f'inference process exited with code {self.process.returncode} '
+                                       f'(0x{self.process.returncode & 0xffffffff:08X})')
+                response = json.loads(raw)
+                if response.get('error'): raise RuntimeError(response['error'])
+                if response.get('api_error'):
+                    error = response['api_error']
+                    raise ApiError(error['status'], error['code'], error['message'],
+                                   retryable=error.get('retryable', False))
+                return response['detections']
+            except (OSError, ValueError, RuntimeError, queue.Empty, subprocess.TimeoutExpired) as error:
+                self.log(f'[scan worker] anime face failed: {error}')
+                self.close()
+                raise ApiError(503, 'engine_unavailable',
+                    'The image analysis worker stopped. The server is online; retry this image.',
+                    retryable=True, headers={'Retry-After': '2'}) from error
+
     def sensitive(self, img, bodies, embeddings=False):
         """Roadmap section 8 backfill: regions for `bodies` (dicts: bbox xyxy px, kpts, kpt_scores)."""
         from .schemas import py
@@ -234,6 +263,9 @@ def main():
             if request.get('type') == 'outlines':
                 outlines = engines.compute_outlines(image, request.get('targets', []))
                 response = {'outlines': outlines}
+            elif request.get('type') == 'anime_face':
+                response = {'detections': engines.targeted_analyze(
+                    image, 'anime_face', request.get('roi'), high_res=bool(request.get('high_res', True)))}
             elif request.get('type') == 'sensitive':
                 bodies = [{'bbox': b['bbox'], 'kpts': b.get('kpts'), 'kpt_scores': b.get('kpt_scores')}
                           for b in request.get('bodies', [])]
@@ -241,6 +273,12 @@ def main():
             else:
                 result = engines.analyze(image, AnalyzeOptions(**request['options']))
                 response = {'result': encode_result(result)}
+        except ApiError as error:
+            if request.get('type') == 'anime_face':
+                response = {'api_error': dict(status=error.status, code=error.code,
+                                              message=error.message, retryable=error.retryable)}
+            else:
+                response = {'error': str(error)}
         except Exception as error:
             traceback.print_exc()
             response = {'error': str(error)}

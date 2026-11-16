@@ -306,6 +306,19 @@ class KindCorrectionTests(unittest.TestCase):
         return analyze_frame(None, bodies, drawing(), options, detect=lambda _: list(faces),
                              assess=lambda img, f: {"quality_score": quality})
 
+    def test_detail_windows_are_only_used_for_illustrated_sources(self):
+        calls = []
+        self.analysis._anime_detector = SimpleNamespace(
+            detect=lambda img, **kwargs: calls.append('single') or [],
+            detect_multiscale=lambda img, **kwargs: calls.append('detail') or [])
+        self.run_frame([], self.bodies(), faceless_characters=True)
+        self.assertEqual(calls, ['detail'])
+        calls.clear()
+        result = self.run_frame([self.face()], self.bodies((0, 0, 128, 256)), faceless_characters=False)
+        self.assertEqual(calls, ['single'])
+        self.assertEqual(len(result.faces), 1)
+        self.assertEqual(result.characters, [])
+
     def test_a_real_face_called_a_character_becomes_the_characters_face(self):
         box = (40 / 128, 10 / 256, 88 / 128, 72 / 256)
         res = self.run_frame([self.face()], self.bodies((0, 0, 128, 256)),

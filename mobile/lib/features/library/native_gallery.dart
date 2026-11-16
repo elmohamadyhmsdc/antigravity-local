@@ -17,6 +17,8 @@ import '../scan/scan_progress_card.dart';
 import '../media/media_screen.dart';
 import '../media/video_media_view.dart';
 import '../shared/empty_state.dart';
+import '../../ui/selection/selection_collection.dart';
+import '../../ui/selection/collection_actions.dart';
 
 /// Browses MediaStore independently of analysis; only loaded assets are registered.
 class NativeGalleryState {
@@ -411,87 +413,103 @@ class _NativeGalleryState extends ConsumerState<NativeGallery> {
             );
       groups.putIfAbsent(date, () => []).add(asset);
     }
-    return Column(
-      children: [
-        if (gallery.limited)
-          ListTile(
-            title: const Text('Limited photo access'),
-            subtitle: const Text(
-              'Only selected photos and videos are visible.',
+    return SelectionCollection<AssetInfo>(
+      key: ValueKey('${widget.album?.id}-${widget.kind}'),
+      name: 'gallery',
+      items: visible,
+      idOf: (a) => a.id,
+      partial: gallery.more,
+      actions: (_) => mediaCollectionActions<AssetInfo>(
+        ref,
+        (assets) =>
+            ref.read(libraryRepositoryProvider).ensureBrowsableAssets(assets),
+      ),
+      builder: (context, selection) => Column(
+        children: [
+          if (gallery.limited)
+            ListTile(
+              title: const Text('Limited photo access'),
+              subtitle: const Text(
+                'Only selected photos and videos are visible.',
+              ),
+              trailing: TextButton(
+                onPressed: () async {
+                  await PhotoManager.presentLimited(type: RequestType.common);
+                  ref
+                      .read(nativeGalleryProvider.notifier)
+                      .refresh(album: widget.album);
+                },
+                child: const Text('Manage access'),
+              ),
             ),
-            trailing: TextButton(
-              onPressed: () async {
-                await PhotoManager.presentLimited(type: RequestType.common);
-                ref
-                    .read(nativeGalleryProvider.notifier)
-                    .refresh(album: widget.album);
+          Expanded(
+            child: GestureDetector(
+              onScaleUpdate: (details) {
+                if (details.scale > 1.35) {
+                  ref.read(galleryDensityProvider.notifier).zoomIn();
+                } else if (details.scale < 0.75) {
+                  ref.read(galleryDensityProvider.notifier).zoomOut();
+                }
               },
-              child: const Text('Manage access'),
-            ),
-          ),
-        Expanded(
-          child: GestureDetector(
-            onScaleUpdate: (details) {
-              if (details.scale > 1.35) {
-                ref.read(galleryDensityProvider.notifier).zoomIn();
-              } else if (details.scale < 0.75) {
-                ref.read(galleryDensityProvider.notifier).zoomOut();
-              }
-            },
-            child: CustomScrollView(
-              key: const Key('native-gallery-grid'),
-              controller: _scroll,
-              scrollCacheExtent: const ScrollCacheExtent.pixels(1400),
-              slivers: [
-                for (final group in groups.entries) ...[
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                      child: Text(
-                        group.key,
-                        style: Theme.of(context).textTheme.labelLarge,
+              child: CustomScrollView(
+                key: const Key('native-gallery-grid'),
+                controller: _scroll,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(1400),
+                slivers: [
+                  for (final group in groups.entries) ...[
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                        child: Text(
+                          group.key,
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
                       ),
                     ),
-                  ),
-                  SliverGrid(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _tile(group.value[index]),
-                      childCount: group.value.length,
+                    SliverGrid(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => selection.tile(
+                          group.value[index],
+                          onOpen: () => _openAsset(group.value[index]),
+                          child: _tile(group.value[index]),
+                        ),
+                        childCount: group.value.length,
+                      ),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: ref
+                            .watch(galleryDensityProvider)
+                            .clamp(3, 5),
+                        mainAxisSpacing: 2,
+                        crossAxisSpacing: 2,
+                      ),
                     ),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: ref
-                          .watch(galleryDensityProvider)
-                          .clamp(3, 5),
-                      mainAxisSpacing: 2,
-                      crossAxisSpacing: 2,
+                  ],
+                  if (gallery.error != null)
+                    SliverToBoxAdapter(
+                      child: Center(
+                        child: TextButton(
+                          onPressed: () {
+                            ref
+                                .read(nativeGalleryProvider.notifier)
+                                .refresh(album: widget.album);
+                          },
+                          child: const Text('Retry loading photos'),
+                        ),
+                      ),
+                    )
+                  else if (gallery.more && gallery.loading)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
                     ),
-                  ),
                 ],
-                if (gallery.error != null)
-                  SliverToBoxAdapter(
-                    child: Center(
-                      child: TextButton(
-                        onPressed: () {
-                          ref
-                              .read(nativeGalleryProvider.notifier)
-                              .refresh(album: widget.album);
-                        },
-                        child: const Text('Retry loading photos'),
-                      ),
-                    ),
-                  )
-                else if (gallery.more && gallery.loading)
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -616,56 +634,82 @@ class GalleryFolders extends ConsumerWidget {
           if (folders.isEmpty) {
             return const Center(child: Text('No folders available'));
           }
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final width = (constraints.maxWidth - 52) / 2;
-              final textHeight = MediaQuery.textScalerOf(context).scale(64);
-              return GridView.builder(
-                key: const PageStorageKey('gallery-folders'),
-                padding: const EdgeInsets.all(20),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  mainAxisExtent: width * .75 + textHeight + 8,
-                ),
-                itemCount: folders.length,
-                itemBuilder: (context, index) {
-                  final folder = folders[index];
-                  return InkWell(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => FolderScreen(album: folder),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: _FolderCover(album: folder),
-                            ),
+          return SelectionCollection<AlbumInfo>(
+            name: 'gallery-folders',
+            items: folders,
+            idOf: (a) => a.id,
+            actions: (_) => [
+              CollectionAction<AlbumInfo>(
+                id: 'scan',
+                label: 'Scan selected folders',
+                icon: Icons.document_scanner_outlined,
+                run: (context, selected) async {
+                  if (ref.read(scanEngineProvider).isRunning)
+                    throw StateError(
+                      'Finish or pause the current scan before scanning a different folder selection',
+                    );
+                  await startScan(
+                    ref,
+                    albumIds: selected.map((a) => a.id).toSet(),
+                  );
+                  return ref.read(scanEngineProvider).isRunning;
+                },
+              ),
+            ],
+            builder: (context, selection) => LayoutBuilder(
+              builder: (context, constraints) {
+                final width = (constraints.maxWidth - 52) / 2;
+                final textHeight = MediaQuery.textScalerOf(context).scale(64);
+                return GridView.builder(
+                  key: const PageStorageKey('gallery-folders'),
+                  padding: const EdgeInsets.all(20),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    mainAxisExtent: width * .75 + textHeight + 8,
+                  ),
+                  itemCount: folders.length,
+                  itemBuilder: (context, index) {
+                    final folder = folders[index];
+                    return selection.tile(
+                      folder,
+                      child: InkWell(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => FolderScreen(album: folder),
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          folder.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: _FolderCover(album: folder),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              folder.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              folder.count.toString(),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                         ),
-                        Text(
-                          folder.count.toString(),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           );
         },
       );
