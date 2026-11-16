@@ -208,6 +208,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
   void didUpdateWidget(MediaInspectorContent oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.media.id != widget.media.id) {
+      _bulkHidden.clear();
       _loadLinks();
     }
   }
@@ -403,13 +404,17 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
   CorrectionTarget _bulkTarget(MediaDetection d) {
     if (d.isFace) {
       return FaceLinkTarget(
-        faceId: d.refId, mediaId: widget.media.id, personId: d.personId,
+        faceId: d.refId,
+        mediaId: widget.media.id,
+        personId: d.personId,
       );
     }
     if (d.isBody) {
       return BodyLinkTarget(
-        bodyId: d.refId, mediaId: widget.media.id,
-        personId: d.personId, linkMethod: d.linkMethod,
+        bodyId: d.refId,
+        mediaId: widget.media.id,
+        personId: d.personId,
+        linkMethod: d.linkMethod,
       );
     }
     if (d.isArea) {
@@ -633,6 +638,7 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
           )
         else
           SelectionCollection<MediaDetection>(
+            key: ValueKey(widget.media.id),
             name: 'inspector-detections',
             embedded: true,
             items: allDetections,
@@ -644,13 +650,19 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
                 label: 'Hide false detections',
                 icon: Icons.visibility_off_outlined,
                 destructive: true,
-                confirmation: 'Mark the selected detections as false positives? Original photos and videos are kept.',
+                confirmation:
+                    'Mark the selected detections as false positives? Original photos and videos are kept.',
                 run: (context, selected) async {
                   final service = ref.read(correctionServiceProvider);
                   await performBatch(selected, _detectionKey, (d) async {
-                    await service.apply(_bulkTarget(d), CorrectionVerb.notARealThing,
-                        scope: CorrectionScope.single);
-                    if (mounted) setState(() => _bulkHidden.add(_detectionKey(d)));
+                    await service.apply(
+                      _bulkTarget(d),
+                      CorrectionVerb.notARealThing,
+                      scope: CorrectionScope.single,
+                    );
+                    if (mounted) {
+                      setState(() => _bulkHidden.add(_detectionKey(d)));
+                    }
                   });
                   return true;
                 },
@@ -659,297 +671,337 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
             builder: (context, selection) => Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-          // Persons groups
-          () {
-            final faceBoxes = <int, List<double>>{
-              for (final f in widget.faces)
-                if (f.personId != null) f.personId!: [f.x, f.y, f.w, f.h],
-            };
-            final candidates = <PersonRow>[
-              for (final pId in groupedByPerson.keys)
-                PersonRow(
-                  id: pId,
-                  name: widget.people[pId]?.name,
-                  groupId: widget.people[pId]?.groupId,
-                  kind: widget.people[pId]?.kind ?? 'person',
-                  createdAt: 0,
-                  hidden: false,
-                  favorite: false,
-                  pinned: false,
-                  groupingLocked: false,
-                ),
-            ];
-            final resolvedMaster = const MasterPersonResolver()
-                .resolveMasterByBbox(
-                  candidates: candidates,
-                  faceBoxes: faceBoxes,
-                  explicitChoice: _explicitMasterId,
-                );
-            final masterPersonId = resolvedMaster?.id;
+                // Persons groups
+                () {
+                  final faceBoxes = <int, List<double>>{
+                    for (final f in widget.faces)
+                      if (f.personId != null) f.personId!: [f.x, f.y, f.w, f.h],
+                  };
+                  final candidates = <PersonRow>[
+                    for (final pId in groupedByPerson.keys)
+                      PersonRow(
+                        id: pId,
+                        name: widget.people[pId]?.name,
+                        groupId: widget.people[pId]?.groupId,
+                        kind: widget.people[pId]?.kind ?? 'person',
+                        createdAt: 0,
+                        hidden: false,
+                        favorite: false,
+                        pinned: false,
+                        groupingLocked: false,
+                      ),
+                  ];
+                  final resolvedMaster = const MasterPersonResolver()
+                      .resolveMasterByBbox(
+                        candidates: candidates,
+                        faceBoxes: faceBoxes,
+                        explicitChoice: _explicitMasterId,
+                      );
+                  final masterPersonId = resolvedMaster?.id;
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final entry in groupedByPerson.entries)
-                  Builder(
-                    builder: (context) {
-                      final person = widget.people[entry.key];
-                      final name = person?.name ?? 'Person #${entry.key}';
-                      final primaryDetection = entry.value.first;
-                      final isMaster = masterPersonId == entry.key;
-                      final l10n = AppLocalizations.of(context);
-                      return ExpansionTile(
-                        key: Key('inspector-person-${entry.key}'),
-                        initiallyExpanded: true,
-                        leading: CircleAvatar(
-                          radius: 16,
-                          child: Text(name.isNotEmpty ? name[0] : '?'),
-                        ),
-                        title: Row(
-                          children: [
-                            Text(
-                              name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final entry in groupedByPerson.entries)
+                        Builder(
+                          builder: (context) {
+                            final person = widget.people[entry.key];
+                            final name = person?.name ?? 'Person #${entry.key}';
+                            final primaryDetection = entry.value.first;
+                            final isMaster = masterPersonId == entry.key;
+                            final l10n = AppLocalizations.of(context);
+                            return ExpansionTile(
+                              key: Key('inspector-person-${entry.key}'),
+                              initiallyExpanded: true,
+                              leading: CircleAvatar(
+                                radius: 16,
+                                child: Text(name.isNotEmpty ? name[0] : '?'),
                               ),
-                            ),
-                            if (isMaster) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                key: Key('master-badge-${entry.key}'),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.primaryContainer,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.star,
-                                      size: 12,
-                                      color: theme.colorScheme.primary,
+                              title: Row(
+                                children: [
+                                  Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      l10n.masterOwner,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.colorScheme.primary,
+                                  ),
+                                  if (isMaster) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      key: Key('master-badge-${entry.key}'),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            theme.colorScheme.primaryContainer,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.star,
+                                            size: 12,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            l10n.masterOwner,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
-                                ),
+                                ],
                               ),
-                            ],
-                          ],
-                        ),
-                        children: [
-                          if (!isMaster && person?.kind == 'person' && person?.isNamed == true)
-                            ListTile(
-                              key: Key('who-set-master-${entry.key}'),
-                              leading: const Icon(
-                                Icons.star_outline,
-                                color: Colors.amber,
-                              ),
-                              title: Text(l10n.setAsMasterOwner),
-                              subtitle: Text(l10n.setAsMasterOwnerSubtitle),
-                              onTap: () async {
-                                final autoOrganizer = ref.read(
-                                  dynamicAutoOrganizerProvider,
-                                );
-                                final result = await autoOrganizer.setMasterPerson(
-                                  widget.media.id,
-                                  entry.key,
-                                );
-                                if (context.mounted) {
-                                  if (result?.moved == true) {
-                                    setState(() => _explicitMasterId = entry.key);
-                                  }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        result?.moved == true
-                                            ? '$name is now the primary file owner'
-                                            : l10n.organizeStatus(result?.status ?? 'other'),
-                                      ),
-                                      duration: const Duration(seconds: 2),
+                              children: [
+                                if (!isMaster &&
+                                    person?.kind == 'person' &&
+                                    person?.isNamed == true)
+                                  ListTile(
+                                    key: Key('who-set-master-${entry.key}'),
+                                    leading: const Icon(
+                                      Icons.star_outline,
+                                      color: Colors.amber,
                                     ),
-                                  );
-                                }
-                              },
-                            ),
-                          ListTile(
-                            leading: const Icon(Icons.person_outline),
-                            title: const Text('Open person'),
-                            trailing: IconButton(
-                              tooltip: 'Select for actions',
-                              icon: const Icon(Icons.more_horiz),
-                              onPressed: () =>
-                                  _showDetectionMenu(context, primaryDetection),
-                            ),
-                            onTap: () =>
-                                context.push('${Routes.people}/${entry.key}'),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.build_outlined),
-                            title: const Text('Person tools'),
-                            onTap: () =>
-                                _showDetectionMenu(context, primaryDetection),
-                          ),
-                          for (final d in entry.value)
-                            selection.tile(d, child: ListTile(
-                              key: Key('inspector-detection-${d.id}'),
-                              leading: SizedBox(
-                                width: 40,
-                                height: 40,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: CropImage(
-                                    path: d.cropPath,
-                                    placeholderIcon: d.isFace
-                                        ? Icons.face_outlined
-                                        : d.isArea
-                                        ? Icons.crop_square_outlined
-                                        : d.isEquipment
-                                        ? Icons.sports_tennis_outlined
-                                        : Icons.accessibility_new,
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                d.isFace
-                                    ? 'Face'
-                                    : d.isArea
-                                    ? (d.label ?? 'Area')
-                                    : d.isEquipment
-                                    ? (d.label ?? 'Equipment')
-                                    : 'Body',
-                              ),
-                              subtitle: Text(
-                                d.linkMethod != null
-                                    ? 'Via ${d.linkMethod}'
-                                    : (d.isFace ? 'Direct match' : 'Auto'),
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    key: Key(
-                                      d.isFace
-                                          ? 'who-edit-${d.refId}'
-                                          : 'inspect-correct-${d.id}',
+                                    title: Text(l10n.setAsMasterOwner),
+                                    subtitle: Text(
+                                      l10n.setAsMasterOwnerSubtitle,
                                     ),
-                                    icon: const Icon(Icons.edit_note, size: 20),
-                                    tooltip: 'Correct',
-                                    onPressed: () {
-                                      if (d.isFace) {
-                                        _reassignFaceDirect(context, d);
-                                      } else {
-                                        _openCorrectionSheet(context, d);
+                                    onTap: () async {
+                                      final autoOrganizer = ref.read(
+                                        dynamicAutoOrganizerProvider,
+                                      );
+                                      final result = await autoOrganizer
+                                          .setMasterPerson(
+                                            widget.media.id,
+                                            entry.key,
+                                          );
+                                      if (context.mounted) {
+                                        if (result?.moved == true) {
+                                          setState(
+                                            () => _explicitMasterId = entry.key,
+                                          );
+                                        }
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              result?.moved == true
+                                                  ? '$name is now the primary file owner'
+                                                  : l10n.organizeStatus(
+                                                      result?.status ?? 'other',
+                                                    ),
+                                            ),
+                                            duration: const Duration(
+                                              seconds: 2,
+                                            ),
+                                          ),
+                                        );
                                       }
                                     },
                                   ),
-                                  IconButton(
-                                    key: Key('inspect-more-${d.id}'),
-                                    icon: const Icon(Icons.more_vert, size: 20),
-                                    onPressed: () =>
-                                        _showDetectionMenu(context, d),
+                                ListTile(
+                                  leading: const Icon(Icons.person_outline),
+                                  title: const Text('Open person'),
+                                  trailing: IconButton(
+                                    tooltip: 'Select for actions',
+                                    icon: const Icon(Icons.more_horiz),
+                                    onPressed: () => _showDetectionMenu(
+                                      context,
+                                      primaryDetection,
+                                    ),
                                   ),
-                                ],
-                              ),
-                              onTap: () => widget.onSelectDetection?.call(d),
-                            )),
-                        ],
-                      );
-                    },
-                  ),
-              ],
-            );
-          }(),
-
-          // Unassigned detections
-          if (unassigned.isNotEmpty)
-            ExpansionTile(
-              key: const Key('inspector-unassigned-group'),
-              initiallyExpanded: true,
-              leading: const CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.amber,
-                child: Icon(
-                  Icons.help_outline,
-                  color: Colors.black87,
-                  size: 18,
-                ),
-              ),
-              title: const Text(
-                'Unassigned',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              children: [
-                for (final d in unassigned)
-                  selection.tile(d, child: ListTile(
-                    key: Key('inspector-detection-${d.id}'),
-                    leading: SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: CropImage(
-                          path: d.cropPath,
-                          placeholderIcon: d.isFace
-                              ? Icons.face_outlined
-                              : d.isArea
-                              ? Icons.crop_square_outlined
-                              : d.isEquipment
-                              ? Icons.sports_tennis_outlined
-                              : Icons.accessibility_new,
+                                  onTap: () => context.push(
+                                    '${Routes.people}/${entry.key}',
+                                  ),
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.build_outlined),
+                                  title: const Text('Person tools'),
+                                  onTap: () => _showDetectionMenu(
+                                    context,
+                                    primaryDetection,
+                                  ),
+                                ),
+                                for (final d in entry.value)
+                                  selection.tile(
+                                    d,
+                                    child: ListTile(
+                                      key: Key('inspector-detection-${d.id}'),
+                                      leading: SizedBox(
+                                        width: 40,
+                                        height: 40,
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          child: CropImage(
+                                            path: d.cropPath,
+                                            placeholderIcon: d.isFace
+                                                ? Icons.face_outlined
+                                                : d.isArea
+                                                ? Icons.crop_square_outlined
+                                                : d.isEquipment
+                                                ? Icons.sports_tennis_outlined
+                                                : Icons.accessibility_new,
+                                          ),
+                                        ),
+                                      ),
+                                      title: Text(
+                                        d.isFace
+                                            ? 'Face'
+                                            : d.isArea
+                                            ? (d.label ?? 'Area')
+                                            : d.isEquipment
+                                            ? (d.label ?? 'Equipment')
+                                            : 'Body',
+                                      ),
+                                      subtitle: Text(
+                                        d.linkMethod != null
+                                            ? 'Via ${d.linkMethod}'
+                                            : (d.isFace
+                                                  ? 'Direct match'
+                                                  : 'Auto'),
+                                      ),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            key: Key(
+                                              d.isFace
+                                                  ? 'who-edit-${d.refId}'
+                                                  : 'inspect-correct-${d.id}',
+                                            ),
+                                            icon: const Icon(
+                                              Icons.edit_note,
+                                              size: 20,
+                                            ),
+                                            tooltip: 'Correct',
+                                            onPressed: () {
+                                              if (d.isFace) {
+                                                _reassignFaceDirect(context, d);
+                                              } else {
+                                                _openCorrectionSheet(
+                                                  context,
+                                                  d,
+                                                );
+                                              }
+                                            },
+                                          ),
+                                          IconButton(
+                                            key: Key('inspect-more-${d.id}'),
+                                            icon: const Icon(
+                                              Icons.more_vert,
+                                              size: 20,
+                                            ),
+                                            onPressed: () =>
+                                                _showDetectionMenu(context, d),
+                                          ),
+                                        ],
+                                      ),
+                                      onTap: () =>
+                                          widget.onSelectDetection?.call(d),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
+                    ],
+                  );
+                }(),
+
+                // Unassigned detections
+                if (unassigned.isNotEmpty)
+                  ExpansionTile(
+                    key: const Key('inspector-unassigned-group'),
+                    initiallyExpanded: true,
+                    leading: const CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.amber,
+                      child: Icon(
+                        Icons.help_outline,
+                        color: Colors.black87,
+                        size: 18,
                       ),
                     ),
-                    title: Text(
-                      d.isFace
-                          ? 'Unassigned face'
-                          : d.isArea
-                          ? (d.label ?? 'Area')
-                          : d.isEquipment
-                          ? (d.label ?? 'Equipment')
-                          : 'Unassigned body',
+                    title: const Text(
+                      'Unassigned',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: const Text('Needs decision'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        FilledButton.tonal(
-                          key: Key(
-                            d.isFace
-                                ? 'who-edit-${d.refId}'
-                                : 'inspect-correct-${d.id}',
+                    children: [
+                      for (final d in unassigned)
+                        selection.tile(
+                          d,
+                          child: ListTile(
+                            key: Key('inspector-detection-${d.id}'),
+                            leading: SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: CropImage(
+                                  path: d.cropPath,
+                                  placeholderIcon: d.isFace
+                                      ? Icons.face_outlined
+                                      : d.isArea
+                                      ? Icons.crop_square_outlined
+                                      : d.isEquipment
+                                      ? Icons.sports_tennis_outlined
+                                      : Icons.accessibility_new,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              d.isFace
+                                  ? 'Unassigned face'
+                                  : d.isArea
+                                  ? (d.label ?? 'Area')
+                                  : d.isEquipment
+                                  ? (d.label ?? 'Equipment')
+                                  : 'Unassigned body',
+                            ),
+                            subtitle: const Text('Needs decision'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                FilledButton.tonal(
+                                  key: Key(
+                                    d.isFace
+                                        ? 'who-edit-${d.refId}'
+                                        : 'inspect-correct-${d.id}',
+                                  ),
+                                  onPressed: () {
+                                    if (d.isFace) {
+                                      _reassignFaceDirect(context, d);
+                                    } else {
+                                      _openCorrectionSheet(context, d);
+                                    }
+                                  },
+                                  child: const Text('Assign'),
+                                ),
+                                IconButton(
+                                  key: Key('inspect-more-${d.id}'),
+                                  icon: const Icon(Icons.more_vert, size: 20),
+                                  onPressed: () =>
+                                      _showDetectionMenu(context, d),
+                                ),
+                              ],
+                            ),
+                            onTap: () => widget.onSelectDetection?.call(d),
                           ),
-                          onPressed: () {
-                            if (d.isFace) {
-                              _reassignFaceDirect(context, d);
-                            } else {
-                              _openCorrectionSheet(context, d);
-                            }
-                          },
-                          child: const Text('Assign'),
                         ),
-                        IconButton(
-                          key: Key('inspect-more-${d.id}'),
-                          icon: const Icon(Icons.more_vert, size: 20),
-                          onPressed: () => _showDetectionMenu(context, d),
-                        ),
-                      ],
-                    ),
-                    onTap: () => widget.onSelectDetection?.call(d),
-                  )),
-              ],
-            ),
+                    ],
+                  ),
               ],
             ),
           ),

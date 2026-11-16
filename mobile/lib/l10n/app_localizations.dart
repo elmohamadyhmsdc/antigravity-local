@@ -94,6 +94,24 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[Locale('en')];
 
+  /// No description provided for @scanPhotoActionWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the current scan item to finish…'**
+  String get scanPhotoActionWaiting;
+
+  /// No description provided for @scanPhotoActionRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Applying photo action…'**
+  String get scanPhotoActionRunning;
+
+  /// No description provided for @redetectCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Detection cancelled.'**
+  String get redetectCancelled;
+
   /// No description provided for @bulkOpen.
   ///
   /// In en, this message translates to:

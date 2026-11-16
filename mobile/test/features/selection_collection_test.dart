@@ -190,7 +190,7 @@ void main() {
   });
 
   testWidgets('filtered-out records leave the selection', (tester) async {
-    Future<bool> run(BuildContext _, List<int> __) async => true;
+    Future<bool> run(BuildContext _, List<int> _) async => true;
     await mount(tester, run: run);
     await startFromLongPress(tester);
     await tester.tap(find.byKey(const Key('test-item-2')));

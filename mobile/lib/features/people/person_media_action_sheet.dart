@@ -220,7 +220,7 @@ class PersonMediaActionSheet extends ConsumerWidget {
                         path: '${Routes.media}/${item.id}',
                         queryParameters: {
                           'personId': '${person.id}',
-                          if (mediaKind != null) 'kind': mediaKind!,
+                          'kind': ?mediaKind,
                         },
                       );
                       context.push(uri.toString());
@@ -403,7 +403,7 @@ class PersonMediaActionSheet extends ConsumerWidget {
       final asset = await AssetEntity.fromId(item.assetId);
       final file = await asset?.file;
       if (file != null) {
-        await Share.shareXFiles([XFile(file.path)]);
+        await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
       }
     } catch (e) {
       if (context.mounted) peopleError(context, e);

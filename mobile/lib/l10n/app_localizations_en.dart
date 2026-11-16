@@ -9,6 +9,16 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get scanPhotoActionWaiting =>
+      'Waiting for the current scan item to finish…';
+
+  @override
+  String get scanPhotoActionRunning => 'Applying photo action…';
+
+  @override
+  String get redetectCancelled => 'Detection cancelled.';
+
+  @override
   String get bulkOpen => 'Open';
 
   @override

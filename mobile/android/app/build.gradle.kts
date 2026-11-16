@@ -23,7 +23,7 @@ gradle.taskGraph.whenReady {
 
 android {
     namespace = "com.antigravity.antigravity_mobile"
-    // permission_handler_android needs API 37; AGP 9.0.1 only recommends up to 36, hence the suppress flag in gradle.properties.
+    // permission_handler_android requires API 37.
     compileSdk = 37
     ndkVersion = flutter.ndkVersion
 

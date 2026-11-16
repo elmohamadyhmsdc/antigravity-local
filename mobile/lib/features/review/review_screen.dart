@@ -261,9 +261,10 @@ Future<void> sortNow(BuildContext context, WidgetRef ref) async {
   if (!status.begin()) return;
   var message = l10n.sortFailed;
   try {
+    final grouping = ref.read(groupingRunnerProvider);
     final run = await ref
-        .read(groupingRunnerProvider)
-        .run(repairExisting: true);
+        .read(scanEngineProvider)
+        .runLibraryAction(() => grouping.run(repairExisting: true));
     message = run.skipped
         ? l10n.sortNeedsPc
         : l10n.sortDone(

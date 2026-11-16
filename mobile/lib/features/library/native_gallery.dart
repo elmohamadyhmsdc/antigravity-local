@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -644,10 +643,11 @@ class GalleryFolders extends ConsumerWidget {
                 label: 'Scan selected folders',
                 icon: Icons.document_scanner_outlined,
                 run: (context, selected) async {
-                  if (ref.read(scanEngineProvider).isRunning)
+                  if (ref.read(scanEngineProvider).isRunning) {
                     throw StateError(
                       'Finish or pause the current scan before scanning a different folder selection',
                     );
+                  }
                   await startScan(
                     ref,
                     albumIds: selected.map((a) => a.id).toSet(),

@@ -484,13 +484,15 @@ class FailedItemsSheet extends ConsumerWidget {
                 label: 'Skip selected failed files',
                 icon: Icons.skip_next,
                 run: (context, selected) async {
-                  await (db.update(db.media)..where((m) => m.scanStatus.equals('failed'))..where(
-                        (m) => m.id.isIn(
-                          selected
-                              .where((row) => row.scanStatus == 'failed')
-                              .map((row) => row.id),
-                        ),
-                      ))
+                  await (db.update(db.media)
+                        ..where((m) => m.scanStatus.equals('failed'))
+                        ..where(
+                          (m) => m.id.isIn(
+                            selected
+                                .where((row) => row.scanStatus == 'failed')
+                                .map((row) => row.id),
+                          ),
+                        ))
                       .write(
                         const MediaCompanion(scanStatus: Value('skipped')),
                       );

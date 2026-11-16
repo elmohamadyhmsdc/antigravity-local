@@ -1,4 +1,7 @@
 {
+  "scanPhotoActionWaiting": "Waiting for the current scan item to finish…",
+  "scanPhotoActionRunning": "Applying photo action…",
+  "redetectCancelled": "Detection cancelled.",
   "bulkOpen": "Open",
   "bulkActions": "Actions ({count})",
   "@bulkActions": {"placeholders": {"count": {"type": "int"}}},

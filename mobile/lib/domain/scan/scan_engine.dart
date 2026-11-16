@@ -63,6 +63,7 @@ class ScanEngine {
     Future<void> Function(Duration)? delay,
     String Function(ScanProgress)? describe,
     String keepAliveTitle = 'Scanning your photos',
+    this._photoActionMessage = 'Applying photo action…',
     this._afterRun,
   }) : _repo = library,
        _clock = clock ?? DateTime.now,
@@ -88,6 +89,7 @@ class ScanEngine {
   final Future<void> Function(Duration) _delay;
   final String Function(ScanProgress) _describe;
   final String _title;
+  final String _photoActionMessage;
   final VideoScan? _videoScan;
   final String Function(String, double) _describeVideo;
 
@@ -121,6 +123,83 @@ class ScanEngine {
   /// Original-file organization holds this while MediaStore paths are changing.
   bool mediaOrganizationActive = false;
 
+  static const _inLibraryActionKey = #agLibraryAction;
+  final _libraryActions = Queue<_LibraryAction>();
+  Future<void>? _libraryActionDrain;
+  int _libraryActionVersion = 0;
+  Object? _scanZoneToken;
+  Object? _libraryActionToken;
+  final _inFlight = <Future<void>>{};
+
+  /// Scan-owned work and nested photo actions already hold the library boundary.
+  bool get hasLibraryAccess =>
+      (_active &&
+          _scanZoneToken != null &&
+          identical(Zone.current[_inScanKey], _scanZoneToken)) ||
+      (_libraryActionToken != null &&
+          identical(Zone.current[_inLibraryActionKey], _libraryActionToken));
+
+  void deferOrganization(Iterable<int> mediaIds) =>
+      _store.pendingOrganize.addAll(mediaIds);
+
+  /// Run a foreground photo operation between complete scan items. The current
+  /// upload/store finishes first; the same scan and foreground service continue
+  /// afterwards. Failure belongs to the action, never to the scan queue.
+  Future<T> runLibraryAction<T>(Future<T> Function() work) {
+    if (hasLibraryAccess) return work();
+    final action = _PendingLibraryAction(work);
+    _libraryActions.add(action);
+    if (!_active) unawaited(_drainLibraryActions());
+    return action.result.future;
+  }
+
+  Future<void> _drainLibraryActions() {
+    final running = _libraryActionDrain;
+    if (running != null) return running;
+    if (_libraryActions.isEmpty) return Future<void>.value();
+    final settled = Completer<void>();
+    _libraryActionDrain = settled.future;
+    () async {
+      final before = _progress;
+      final showWaiting = _active && before.isActive;
+      try {
+        if (showWaiting) {
+          _emit(
+            before.copyWith(
+              phase: ScanPhase.waiting,
+              message: _photoActionMessage,
+              clearEta: true,
+            ),
+          );
+        }
+        while (_libraryActions.isNotEmpty) {
+          await _preparedPhoto;
+          // Pause may abandon an upload/grouping future. A foreground action
+          // still waits for that request to finish before using the PC/library.
+          await Future.wait(_inFlight.toList());
+          final action = _libraryActions.removeFirst();
+          final token = _libraryActionToken = Object();
+          try {
+            await runZoned(
+              action.execute,
+              zoneValues: {_inScanKey: null, _inLibraryActionKey: token},
+            );
+          } finally {
+            _libraryActionToken = null;
+          }
+          _libraryActionVersion++;
+        }
+      } finally {
+        if (showWaiting && _active) {
+          _emit(before.copyWith(pausing: _pauseRequested));
+        }
+        _libraryActionDrain = null;
+        settled.complete();
+      }
+    }();
+    return settled.future;
+  }
+
   void _emit(ScanProgress next) {
     _progress = next;
     if (!_controller.isClosed) _controller.add(next);
@@ -148,6 +227,12 @@ class ScanEngine {
   /// Awaits [work] but gives up (null) the moment the user pauses, so a slow or hung request
   /// cannot keep the scan "running" after Pause. The abandoned call finishes (or fails) unobserved.
   Future<T?> _orPause<T>(Future<T> work) {
+    final pending = work.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    _inFlight.add(pending);
+    unawaited(pending.whenComplete(() => _inFlight.remove(pending)));
     final guarded = work.then<T?>((v) => v);
     guarded.ignore();
     return Future.any<T?>([guarded, _pauseSignal.future.then<T?>((_) => null)]);
@@ -159,9 +244,10 @@ class ScanEngine {
     // Called from the scan's own work (the auto-organizer runs inside the photo store): the scan is
     // already serial and cannot settle until this returns, so pausing + waiting would deadlock it
     // (and flip the card to "Pausing..." by itself).
-    if (Zone.current[_inScanKey] == true) return;
+    if (hasLibraryAccess) return;
     pause();
     await _settled?.future;
+    await _drainLibraryActions();
   }
 
   /// Hides the summary of a finished scan (the progress card goes away).
@@ -278,7 +364,9 @@ class ScanEngine {
     final settled = _settled = Completer<void>();
     _pauseRequested = false;
     _pauseSignal = Completer<void>();
+    final scanToken = _scanZoneToken = Object();
     try {
+      await _drainLibraryActions();
       var listAlbums = enumerate;
       var repairLibrary = repairCharacters;
       var resume = resumeRepairs;
@@ -290,7 +378,7 @@ class ScanEngine {
             repairCharacters: repairLibrary,
             resumeRepairs: resume,
           ),
-          zoneValues: {_inScanKey: true},
+          zoneValues: {_inScanKey: scanToken},
         );
         if (_pauseRequested ||
             _progress.phase != ScanPhase.completed ||
@@ -319,8 +407,12 @@ class ScanEngine {
         }
       } finally {
         _active = false;
+        _scanZoneToken = null;
         _settled = null;
         settled.complete();
+        // Also release actions queued during preparation, an error, Pause or
+        // foreground-service shutdown, when no next scan iteration will run.
+        await _drainLibraryActions();
       }
     }
   }
@@ -489,6 +581,22 @@ class ScanEngine {
     Uint8List? previewBytes;
     int? previewTimestampMs;
     VideoScanProgress? videoProgress;
+    var total = counts.remaining;
+    var knownActions = _libraryActionVersion;
+
+    Future<void> drainActions() async {
+      await _drainLibraryActions();
+      if (knownActions != _libraryActionVersion) {
+        // Redetect can finish an item still pending in this scan. Keep the
+        // progress denominator consistent with the queue after foreground work.
+        final remaining = await _repo.scanCounts(
+          characterRepairOnly: repairOnly,
+          identityRescanOnly: rescanOnly,
+        );
+        total = done + failed + remaining.remaining;
+        knownActions = _libraryActionVersion;
+      }
+    }
 
     void prepareNextPhoto() {
       _preparedPhoto = () async {
@@ -523,8 +631,7 @@ class ScanEngine {
       if (durations.isNotEmpty) {
         final avg = durations.reduce((a, b) => a + b) / durations.length;
         eta = Duration(
-          seconds: (avg * (counts.remaining - done - failed).clamp(0, 1 << 30))
-              .round(),
+          seconds: (avg * (total - done - failed).clamp(0, 1 << 30)).round(),
         );
       }
       return ScanProgress(
@@ -538,9 +645,9 @@ class ScanEngine {
                     videoProgress!.stage.name,
                     videoProgress!.fraction ?? 0,
                   )),
-        total: counts.remaining < done + failed + (current == null ? 0 : 1)
+        total: total < done + failed + (current == null ? 0 : 1)
             ? done + failed + (current == null ? 0 : 1)
-            : counts.remaining,
+            : total,
         done: done,
         failed: failed,
         facesFound: facesFound,
@@ -570,6 +677,8 @@ class ScanEngine {
     }
 
     Future<bool> groupNow({bool incremental = false}) async {
+      await drainActions();
+      if (_pauseRequested) return false;
       if (_api() == null) return false;
       _emit(_progress.copyWith(grouping: true));
       var succeeded = false;
@@ -597,6 +706,7 @@ class ScanEngine {
     }
 
     while (true) {
+      await drainActions();
       if (_pauseRequested) {
         // Pause stops now. Grouping is repeatable (the end of the scan, Sort now) and used to be awaited
         // here, so Pause waited for a whole grouping round - network, maths and all.
@@ -690,6 +800,7 @@ class ScanEngine {
     }
 
     final grouped = await groupNow();
+    await drainActions();
     if (_pauseRequested) {
       await _pause(PauseReason.user);
       return;
@@ -835,11 +946,15 @@ class ScanEngine {
             ),
           ),
         );
-        if (response == null) return _stop(row.id, PauseReason.user);
+        if (response == null) return await _stop(row.id, PauseReason.user);
         // Illustrated files only carry face vectors when a real face was found.
         final faceModel = !isCharScan || response.faces.isNotEmpty;
         if (faceModel && modelId != null && response.modelId != modelId) {
-          return _stop(row.id, PauseReason.modelMismatch, response.modelId);
+          return await _stop(
+            row.id,
+            PauseReason.modelMismatch,
+            response.modelId,
+          );
         }
         if (faceModel && modelId == null) {
           await _settings.setModelId(response.modelId);
@@ -930,6 +1045,25 @@ class ScanEngine {
       left -= step;
     }
     return !_pauseRequested;
+  }
+}
+
+abstract class _LibraryAction {
+  Future<void> execute();
+}
+
+class _PendingLibraryAction<T> implements _LibraryAction {
+  _PendingLibraryAction(this.work);
+  final Future<T> Function() work;
+  final result = Completer<T>();
+
+  @override
+  Future<void> execute() async {
+    try {
+      result.complete(await work());
+    } catch (error, stack) {
+      result.completeError(error, stack);
+    }
   }
 }
 

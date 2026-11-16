@@ -45,6 +45,7 @@ import 'domain/grouping/grouping_runner.dart';
 import 'domain/scan/drawn_face_sweep.dart';
 import 'domain/scan/outline_backfill.dart';
 import 'domain/scan/redetect.dart';
+import 'domain/library_action.dart';
 import 'domain/scan/photo_result_store.dart';
 import 'domain/scan/video_compactor.dart';
 import 'domain/marks/body_marks.dart';
@@ -385,6 +386,7 @@ final redetectorProvider = Provider<Redetector>(
     media: ref.watch(mediaLibraryProvider),
     settings: ref.watch(appSettingsProvider),
     api: () => ref.read(mobileApiProvider),
+    runExclusive: _libraryActionRunner(ref),
   ),
 );
 
@@ -437,6 +439,7 @@ final Provider<ScanEngine> scanEngineProvider = Provider<ScanEngine>((ref) {
     },
     keepAlive: ref.watch(scanKeepAliveProvider),
     keepAliveTitle: _en.scanNotificationTitle,
+    photoActionMessage: _en.scanPhotoActionRunning,
     describe: (p) => p.video != null
         ? '${p.message ?? _en.scanRunning} · ${_en.scanNotificationText(p.done + p.failed, p.total, p.facesFound + p.video!.facesFound)}'
         : _en.scanNotificationText(p.done + p.failed, p.total, p.facesFound),
@@ -608,10 +611,16 @@ final scanEngineLinkProvider = Provider<ScanEngineLink>(
   (ref) => ScanEngineLink(),
 );
 
+LibraryActionRunner _libraryActionRunner(Ref ref) => <T>(work) {
+  final engine = ref.read(scanEngineLinkProvider).engine;
+  return engine?.runLibraryAction(work) ?? work();
+};
+
 final personMediaOrganizerProvider = Provider<PersonMediaOrganizer>(
   (ref) => PersonMediaOrganizer(
     db: ref.watch(databaseProvider),
     bridge: ref.watch(mediaOrganizerBridgeProvider),
+    runExclusive: _libraryActionRunner(ref),
     beforeMove: () async {
       // not ref.read(scanEngineProvider): the engine depends on this organizer (through the result store),
       // and Riverpod refuses that read as a cycle in debug builds - every move then failed with
@@ -619,15 +628,19 @@ final personMediaOrganizerProvider = Provider<PersonMediaOrganizer>(
       final engine = ref.read(scanEngineLinkProvider).engine;
       if (engine != null) {
         engine.mediaOrganizationActive = true;
-        await engine.pauseAndWait();
       }
     },
-    afterMove: () {
-      ref.read(scanEngineLinkProvider).engine?.mediaOrganizationActive = false;
-      ref.read(thumbnailServiceProvider).clear();
-      unawaited(
-        ref.read(mediaLibraryProvider).clearCache().catchError((Object _) {}),
-      );
+    afterMove: () async {
+      try {
+        ref.read(thumbnailServiceProvider).clear();
+        await ref
+            .read(mediaLibraryProvider)
+            .clearCache()
+            .catchError((Object _) {});
+      } finally {
+        ref.read(scanEngineLinkProvider).engine?.mediaOrganizationActive =
+            false;
+      }
     },
     rootFolder: () async {
       final bridge = ref.read(mediaOrganizerBridgeProvider);
@@ -652,6 +665,16 @@ final dynamicAutoOrganizerProvider = Provider<DynamicAutoOrganizer>((ref) {
     organizer: ref.watch(personMediaOrganizerProvider),
     enabled: () async =>
         (await ref.read(appSettingsProvider).load()).autoOrganizeEnabled,
+    deferWhileScanning: (ids) {
+      final scan = ref.read(scanEngineLinkProvider).engine;
+      if (scan == null || !scan.isRunning || scan.hasLibraryAccess) {
+        return false;
+      }
+      // Identity edits can run inside an existing database transaction. Never
+      // wait there for the scan's store transaction: defer only the file moves.
+      scan.deferOrganization(ids);
+      return true;
+    },
   );
 });
 

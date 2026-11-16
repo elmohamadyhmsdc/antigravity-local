@@ -46,7 +46,7 @@ class SpyAutoOrganizer extends DynamicAutoOrganizer {
     String? rootDirectory,
   }) async {
     lastExplicitMasterId = personId;
-    return null;
+    return const OriginalMoveResult(assetId: 'asset_multi_1', status: 'moved');
   }
 }
 
@@ -191,6 +191,8 @@ void main() {
       expect(setMasterFinder, findsOneWidget);
 
       // Tap set as primary owner on Zoro
+      await tester.ensureVisible(setMasterFinder);
+      await tester.pumpAndSettle();
       await tester.tap(setMasterFinder);
       await tester.pumpAndSettle();
 

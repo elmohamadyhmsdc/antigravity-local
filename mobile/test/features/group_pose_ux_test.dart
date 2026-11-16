@@ -189,6 +189,17 @@ void main() {
         extra: [initialLocationProvider.overrideWithValue('/bodies')],
       );
       await _tab(tester, 'groups');
+      await revealForTap(
+        tester,
+        find.byKey(Key('group-photo-$source')),
+        scrollable: find
+            .byWidgetPredicate(
+              (widget) =>
+                  widget is Scrollable &&
+                  widget.axisDirection == AxisDirection.down,
+            )
+            .last,
+      );
       expect(find.byKey(Key('group-photo-$source')), findsOneWidget);
       final name = find.byKey(Key('group-name-$source'));
       await tester.ensureVisible(name);
@@ -257,6 +268,7 @@ void main() {
       await _tab(tester, 'equipment');
       await tester.tap(find.byKey(const Key('equipment-filter-racket')));
       await tester.pumpAndSettle();
+      await revealForTap(tester, find.byKey(Key('equipment-review-$media')));
       await tester.tap(find.byKey(Key('equipment-review-$media')));
       await _settle(tester);
       final object = (await service.objects()).single;
@@ -288,41 +300,40 @@ void main() {
     session: testSession,
   );
 
-  appTest(
-    'visual pose browsing works with large text on a small phone',
-    (tester, env) async {
-      tester.view.physicalSize = const Size(320, 640);
-      tester.view.devicePixelRatio = 1;
-      tester.platformDispatcher.textScaleFactorTestValue = 1.8;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-      await _photo(env.db, 'poses');
-      await tester.runAsync(() => PoseIndex(env.db).rebuild());
-      await env.pump(
-        tester,
-        extra: [initialLocationProvider.overrideWithValue('/bodies')],
-      );
-      await _tab(tester, 'poses');
-      await _preview(tester, 'visual-pose-browser');
-      final standing = find.byKey(const Key('pose-visual-standing'));
-      await tester.scrollUntilVisible(
-        standing,
-        180,
-        scrollable: find
-            .descendant(
-              of: find.byKey(const PageStorageKey('saved-poses')),
-              matching: find.byType(Scrollable),
-            )
-            .first,
-      );
-      await tester.ensureVisible(standing);
-      await tester.pumpAndSettle();
-      await tester.tap(standing);
-      await _settle(tester);
-      expect(find.text('Standing · 2'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-    session: testSession,
-  );
+  appTest('visual pose browsing works with large text on a small phone', (
+    tester,
+    env,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.8;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _photo(env.db, 'poses');
+    await tester.runAsync(() => PoseIndex(env.db).rebuild());
+    await env.pump(
+      tester,
+      extra: [initialLocationProvider.overrideWithValue('/bodies')],
+    );
+    await _tab(tester, 'poses');
+    await _preview(tester, 'visual-pose-browser');
+    final standing = find.byKey(const Key('pose-visual-standing'));
+    await tester.scrollUntilVisible(
+      standing,
+      180,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const PageStorageKey('saved-poses')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.ensureVisible(standing);
+    await tester.pumpAndSettle();
+    await tester.tap(standing);
+    await _settle(tester);
+    expect(find.text('Standing · 2'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, session: testSession);
 }

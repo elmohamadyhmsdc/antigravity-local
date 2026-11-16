@@ -18,6 +18,7 @@ class DynamicAutoOrganizer {
     this.sidecarStorage = const SidecarStorage(),
     this.masterResolver = const MasterPersonResolver(),
     this.enabled,
+    this.deferWhileScanning,
   });
 
   final AppDatabase db;
@@ -25,6 +26,7 @@ class DynamicAutoOrganizer {
   final SidecarStorage sidecarStorage;
   final MasterPersonResolver masterResolver;
   final Future<bool> Function()? enabled;
+  final bool Function(Iterable<int> mediaIds)? deferWhileScanning;
 
   /// Syncs one media item and its sidecar to its target folder.
   Future<OriginalMoveResult?> syncMedia(
@@ -58,8 +60,10 @@ class DynamicAutoOrganizer {
     Map<int, int> explicitMasters = const {},
   }) async {
     if (!(await enabled?.call() ?? true)) return {};
+    final ids = mediaIds.toSet();
+    if (deferWhileScanning?.call(ids) ?? false) return {};
     return _syncBatch(
-      mediaIds,
+      ids,
       rootDirectory: rootDirectory,
       explicitMasters: explicitMasters,
     );
@@ -108,20 +112,33 @@ class DynamicAutoOrganizer {
     )..where((m) => m.id.equals(mediaId))).getSingleOrNull();
     if (media == null) return null;
 
-    final detections = await (db.select(db.mediaDetections)
-      ..where((d) => d.mediaId.equals(mediaId))).get();
-    final faceRefs = [for (final d in detections) if (d.kind == 'f') d.refId];
-    final bodyRefs = [for (final d in detections) if (d.kind == 'b') d.refId];
-    final faces = await (db.select(db.faces)..where(
-      (f) => (f.mediaId.equals(mediaId) | f.id.isIn(faceRefs)) &
-          f.hidden.not() &
-          (f.ownership.isNull() | f.ownership.equals('none').not()),
-    )).get();
-    final bodies = await (db.select(db.bodies)..where(
-      (b) => (b.mediaId.equals(mediaId) | b.id.isIn(bodyRefs)) &
-          b.hidden.not() &
-          (b.ownership.isNull() | b.ownership.equals('none').not()),
-    )).get();
+    final detections = await (db.select(
+      db.mediaDetections,
+    )..where((d) => d.mediaId.equals(mediaId))).get();
+    final faceRefs = [
+      for (final d in detections)
+        if (d.kind == 'f') d.refId,
+    ];
+    final bodyRefs = [
+      for (final d in detections)
+        if (d.kind == 'b') d.refId,
+    ];
+    final faces =
+        await (db.select(db.faces)..where(
+              (f) =>
+                  (f.mediaId.equals(mediaId) | f.id.isIn(faceRefs)) &
+                  f.hidden.not() &
+                  (f.ownership.isNull() | f.ownership.equals('none').not()),
+            ))
+            .get();
+    final bodies =
+        await (db.select(db.bodies)..where(
+              (b) =>
+                  (b.mediaId.equals(mediaId) | b.id.isIn(bodyRefs)) &
+                  b.hidden.not() &
+                  (b.ownership.isNull() | b.ownership.equals('none').not()),
+            ))
+            .get();
     final ownerIds = (await organizer.ownersForMedia([mediaId]))[mediaId];
     if (ownerIds == null || ownerIds.isEmpty) return null;
     if (explicitMasterId != null && !ownerIds.contains(explicitMasterId)) {
@@ -134,13 +151,20 @@ class DynamicAutoOrganizer {
     if (candidates.isEmpty) return null;
 
     final faceBoxes = <int, List<double>>{};
-    final occurrences = {for (final d in detections) if (d.kind == 'f') d.refId: d};
+    final occurrences = {
+      for (final d in detections)
+        if (d.kind == 'f') d.refId: d,
+    };
     for (final face in faces) {
       final owner = face.personId;
       if (owner == null) continue;
       final d = occurrences[face.id];
-      final box = [d?.x ?? face.bboxX, d?.y ?? face.bboxY,
-        d?.w ?? face.bboxW, d?.h ?? face.bboxH];
+      final box = [
+        d?.x ?? face.bboxX,
+        d?.y ?? face.bboxY,
+        d?.w ?? face.bboxW,
+        d?.h ?? face.bboxH,
+      ];
       final prior = faceBoxes[owner];
       if (prior == null || box[2] * box[3] > prior[2] * prior[3]) {
         faceBoxes[owner] = box;
@@ -328,7 +352,9 @@ class DynamicAutoOrganizer {
   }) async {
     try {
       final named = await organizer.namedPersonIds();
-      final ids = await organizer.mediaForPeople(personIds.where(named.contains));
+      final ids = await organizer.mediaForPeople(
+        personIds.where(named.contains),
+      );
       final results = await syncBatch(ids, rootDirectory: rootDirectory);
       return results.values.toList();
     } catch (_) {

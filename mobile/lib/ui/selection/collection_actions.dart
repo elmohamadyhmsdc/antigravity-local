@@ -20,8 +20,9 @@ final collectionShareProvider = Provider<Future<void> Function(List<File>)>(
   (_) => (files) async {
     if (files.isEmpty) throw StateError('No readable files selected');
     for (final file in files) {
-      if (!await file.exists())
+      if (!await file.exists()) {
         throw StateError('A selected file is unavailable');
+      }
     }
     await SharePlus.instance.share(
       ShareParams(files: [for (final file in files) XFile(file.path)]),
@@ -40,8 +41,9 @@ Future<List<MediaRow>> selectedMedia(WidgetRef ref, Iterable<int> ids) async {
       )..where((m) => m.id.isIn(all.skip(i).take(400)))).get(),
     );
   }
-  if (rows.length != all.length)
+  if (rows.length != all.length) {
     throw StateError('Some selected media is no longer available');
+  }
   return rows;
 }
 
@@ -56,8 +58,9 @@ List<CollectionAction<T>> mediaCollectionActions<T>(
     icon: Icons.share_outlined,
     run: (context, items) async {
       final library = ref.read(mediaLibraryProvider);
-      if (library is! OriginalMediaLibrary)
+      if (library is! OriginalMediaLibrary) {
         throw StateError('Original files are unavailable');
+      }
       final files = <File>[];
       for (final row in await resolve(items)) {
         final file = await (library as OriginalMediaLibrary).originalFile(
@@ -76,8 +79,9 @@ List<CollectionAction<T>> mediaCollectionActions<T>(
     icon: Icons.document_scanner_outlined,
     run: (context, items) async {
       final rows = await resolve(items);
-      if (rows.any((row) => row.scanStatus == 'scanning'))
+      if (rows.any((row) => row.scanStatus == 'scanning')) {
         throw StateError('Wait for the selected file currently being scanned');
+      }
       final db = ref.read(databaseProvider);
       await db.transaction(() async {
         for (final row in rows) {
@@ -137,8 +141,9 @@ List<CollectionAction<int>> bodyCollectionActions(
         db.bodies,
       )..where((b) => b.id.isIn(ids))).get();
       final kinds = rows.map((row) => row.kind).toSet();
-      if (kinds.length != 1)
+      if (kinds.length != 1) {
         throw StateError('Select bodies of one identity type at a time');
+      }
       if (!context.mounted) return false;
       final choice = await pickPerson(
         context,
@@ -193,8 +198,9 @@ List<CollectionAction<int>> bodyCollectionActions(
         db.bodies,
       )..where((b) => b.id.isIn(ids))).get();
       final files = ref.read(fileStoreProvider);
-      if (rows.length != ids.length || rows.any((row) => row.cropPath == null))
+      if (rows.length != ids.length || rows.any((row) => row.cropPath == null)) {
         throw StateError('Some body crops are unavailable');
+      }
       await ref.read(collectionShareProvider)([
         for (final row in rows) files.resolve(row.cropPath!),
       ]);
@@ -312,8 +318,9 @@ List<CollectionAction<JobRow>> jobCollectionActions(
             final current = await ref
                 .read(studioRepositoryProvider)
                 .job(row.id);
-            if (current != null && running.contains(current.status))
+            if (current != null && running.contains(current.status)) {
               await ref.read(jobTrackerProvider).pause(current);
+            }
           });
           return true;
         },
@@ -328,8 +335,9 @@ List<CollectionAction<JobRow>> jobCollectionActions(
             final current = await ref
                 .read(studioRepositoryProvider)
                 .job(row.id);
-            if (current != null && resumable.contains(current.status))
+            if (current != null && resumable.contains(current.status)) {
               await ref.read(jobTrackerProvider).resume(current);
+            }
           });
           return true;
         },
@@ -350,8 +358,9 @@ List<CollectionAction<JobRow>> jobCollectionActions(
             await ref.read(jobTrackerProvider).pause(current);
             current = await repo.job(row.id);
           }
-          if (current != null)
+          if (current != null) {
             await ref.read(jobTrackerProvider).remove(current);
+          }
         });
         return true;
       },

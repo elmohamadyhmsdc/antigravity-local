@@ -280,7 +280,7 @@ class _PersonMarksScreenState extends ConsumerState<PersonMarksScreen> {
                             }
                           }
                         });
-                        if (mounted)
+                        if (mounted) {
                           setState(
                             () => _hits = _hits
                                 .where(
@@ -290,6 +290,7 @@ class _PersonMarksScreenState extends ConsumerState<PersonMarksScreen> {
                                 )
                                 .toList(),
                           );
+                        }
                         return true;
                       },
                     ),

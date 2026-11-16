@@ -11,6 +11,7 @@ import '../../data/repositories/kind_corrections.dart';
 import '../../data/repositories/library_repository.dart';
 import 'photo_result_store.dart';
 import 'scan_math.dart';
+import '../library_action.dart';
 
 typedef _Box = ({double x, double y, double w, double h});
 
@@ -63,6 +64,7 @@ class Redetector {
     required this.media,
     required this.settings,
     required this._api,
+    this.runExclusive,
   });
 
   final AppDatabase db;
@@ -72,9 +74,13 @@ class Redetector {
   final MediaLibrary media;
   final AppSettings settings;
   final MobileApi? Function() _api;
+  final LibraryActionRunner? runExclusive;
 
   /// Re-detects one photo. Null when it is not a photo (videos are skipped) or gone.
-  Future<RedetectOutcome?> photo(int mediaId, RedetectPart part) async {
+  Future<RedetectOutcome?> photo(int mediaId, RedetectPart part) =>
+      runExclusive?.call(() => _photo(mediaId, part)) ?? _photo(mediaId, part);
+
+  Future<RedetectOutcome?> _photo(int mediaId, RedetectPart part) async {
     final api = _api();
     if (api == null) throw StateError('Pair with the PC first.');
     final row = await _media(mediaId);
@@ -118,16 +124,30 @@ class Redetector {
     // An explicitly marked face remains even if the full-image detector misses it.
     final protectedFaces = {
       for (final face in oldFaces)
-        if (corrections.overrides.any((o) =>
-            o.part == 'face' && o.kind == face.kind &&
-            o.x != null && o.y != null && o.w != null && o.h != null &&
-            sameDetectionBox(face.box, (x: o.x!, y: o.y!, w: o.w!, h: o.h!), 'face')))
+        if (corrections.overrides.any(
+          (o) =>
+              o.part == 'face' &&
+              o.kind == face.kind &&
+              o.x != null &&
+              o.y != null &&
+              o.w != null &&
+              o.h != null &&
+              sameDetectionBox(face.box, (
+                x: o.x!,
+                y: o.y!,
+                w: o.w!,
+                h: o.h!,
+              ), 'face'),
+        ))
           face.id,
     };
     final removed = await _removeHere(
       mediaId,
       faceIds: redoFaces
-          ? [for (final f in oldFaces) if (!protectedFaces.contains(f.id)) f.id]
+          ? [
+              for (final f in oldFaces)
+                if (!protectedFaces.contains(f.id)) f.id,
+            ]
           : const [],
       bodyIds: redoBodies ? [for (final b in oldBodies) b.id] : const [],
     );

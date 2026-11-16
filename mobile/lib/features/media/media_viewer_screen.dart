@@ -708,10 +708,24 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Scanning selected area...'), duration: Duration(days: 1)),
-    );
-    final response = await api.analyzeTargeted(bytes, targetKind: kind, roi: roi);
+    final engine = ref.read(scanEngineProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(
+      content: Text(engine.isRunning
+          ? AppLocalizations.of(context).scanPhotoActionWaiting
+          : 'Scanning selected area...'),
+      duration: const Duration(days: 1),
+    ));
+    final response = await engine.runLibraryAction(() async {
+      if (mounted) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Scanning selected area...'),
+          duration: Duration(days: 1),
+        ));
+      }
+      return api.analyzeTargeted(bytes, targetKind: kind, roi: roi);
+    });
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     if (_mediaIds[_currentIndex] != media.id) return;
@@ -751,7 +765,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
           manual: first?.manual ?? false,
           scope: scope,
         );
-        final res = await ref.read(targetedDetectionServiceProvider).apply(entry);
+        final service = ref.read(targetedDetectionServiceProvider);
+        final res = await ref.read(scanEngineProvider).runLibraryAction(() => service.apply(entry));
         if (!mounted) return;
         setState(() {
           if (kind == 'area') {
@@ -767,7 +782,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
         UndoSnackbar.show(
           context: context,
           message: kind == 'anime_face' ? 'Saved anime face' : 'Saved detection',
-          onUndo: () => ref.read(targetedDetectionServiceProvider).undo(res.undoToken),
+          onUndo: () => engine.runLibraryAction(() => service.undo(res.undoToken)),
         );
       },
     );

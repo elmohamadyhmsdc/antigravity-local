@@ -214,8 +214,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.byKey(Key('category-body-$alike')),
+        findsOneWidget,
+        reason: 'long press only opens actions',
+      );
+      await tester.tap(
+        find.byKey(const Key('category-bodies-action-remove-match')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(Key('category-body-$alike')),
         findsNothing,
-        reason: 'long-press takes a body out',
+        reason: 'explicit remove action takes the body out',
       );
       await tester.tap(find.byKey(const Key('category-delete')));
       await tester.pumpAndSettle();
@@ -271,6 +280,8 @@ void main() {
         extra: [initialLocationProvider.overrideWithValue('/people')],
       );
       await tester.tap(find.byKey(const Key('people-tools')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('open-bodies')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('open-bodies')));
       await tester.pumpAndSettle();
@@ -437,50 +448,47 @@ void main() {
     session: testSession,
   );
 
-  appTest(
-    'similar colours ranks by outfit and a deep link starts there',
-    (tester, env) async {
-      final media = await seedMedia(
-        env.db,
-        asset: 'c',
-        width: 1000,
-        height: 1500,
-      );
-      final base = outfit(1);
-      final q = await seedBody(
-        env.db,
-        mediaId: media,
-        appearance: base,
-        cropPath: 'bodies/x.jpg',
-      );
-      final twin = await seedBody(
-        env.db,
-        mediaId: media,
-        appearance: base,
-        cropPath: 'bodies/x.jpg',
-      );
-      final other = await seedBody(
-        env.db,
-        mediaId: media,
-        appearance: outfit(9),
-        cropPath: 'bodies/x.jpg',
-      );
-      await env.pump(
-        tester,
-        extra: [
-          initialLocationProvider.overrideWithValue('/bodies?colours=$q'),
-        ],
-        settle: false,
-      );
-      await _settleReal(tester);
-      expect(find.byKey(const Key('bodies-similar-chip')), findsOneWidget);
-      expect(find.text('Similar colours'), findsOneWidget);
-      expect(find.byKey(Key('body-$twin')), findsOneWidget);
-      expect(find.byKey(Key('body-$other')), findsNothing);
-      expect(find.byKey(Key('body-$q')), findsNothing);
-    },
-    session: testSession,
-  );
+  appTest('similar colours ranks by outfit and a deep link starts there', (
+    tester,
+    env,
+  ) async {
+    final media = await seedMedia(
+      env.db,
+      asset: 'c',
+      width: 1000,
+      height: 1500,
+    );
+    final base = outfit(1);
+    final q = await seedBody(
+      env.db,
+      mediaId: media,
+      appearance: base,
+      cropPath: 'bodies/x.jpg',
+    );
+    final twin = await seedBody(
+      env.db,
+      mediaId: media,
+      appearance: base,
+      cropPath: 'bodies/x.jpg',
+    );
+    final other = await seedBody(
+      env.db,
+      mediaId: media,
+      appearance: outfit(9),
+      cropPath: 'bodies/x.jpg',
+    );
+    await env.pump(
+      tester,
+      extra: [initialLocationProvider.overrideWithValue('/bodies?colours=$q')],
+      settle: false,
+    );
+    await _settleReal(tester);
+    expect(find.byKey(const Key('bodies-similar-chip')), findsOneWidget);
+    expect(find.text('Similar colours'), findsOneWidget);
+    expect(find.byKey(Key('body-$twin')), findsOneWidget);
+    expect(find.byKey(Key('body-$other')), findsNothing);
+    expect(find.byKey(Key('body-$q')), findsNothing);
+  }, session: testSession);
 
   appTest('group photo chips list photos with several people', (
     tester,

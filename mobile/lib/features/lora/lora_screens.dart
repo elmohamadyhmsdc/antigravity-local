@@ -130,8 +130,9 @@ class LoraScreen extends ConsumerWidget {
                       .value
                       ?.where((m) => m.id == item.id)
                       .firstOrNull;
-                  if (model == null)
+                  if (model == null) {
                     throw StateError('A selected model is unavailable');
+                  }
                   files.add(ref.read(fileStoreProvider).resolve(model.path));
                 } else {
                   files.add(

@@ -239,8 +239,9 @@ class IdentityGroupsScreen extends ConsumerWidget {
                                         context,
                                         initial: group.name,
                                       );
-                                      if (name == null || !context.mounted)
+                                      if (name == null || !context.mounted) {
                                         return;
+                                      }
                                       try {
                                         await repository.rename(group.id, name);
                                       } catch (_) {

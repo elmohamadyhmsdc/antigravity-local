@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
 import '../../data/db/app_database.dart';
 import '../../data/platform/media_organizer.dart';
+import '../library_action.dart';
 
 /// A readable, portable single path component; never accepts a path supplied as a name.
 String organizationSegment(String name, {String fallback = 'Unnamed'}) {
@@ -58,9 +60,11 @@ class PersonMediaOrganizer {
     this.beforeMove,
     this.afterMove,
     this.rootFolder,
+    this.runExclusive,
   });
   final AppDatabase db;
   final MediaOrganizerBridge bridge;
+  final LibraryActionRunner? runExclusive;
 
   /// Where the person folders go, ending in '/': the top-level 'Your Gallery/' when the app has
   /// "All files access", else [dcimRoot] (Android only lets MediaStore put photos under DCIM/Pictures).
@@ -68,7 +72,7 @@ class PersonMediaOrganizer {
   static const dcimRoot = 'DCIM/Your Gallery/';
   static const topRoot = 'Your Gallery/';
   final Future<void> Function()? beforeMove;
-  final void Function()? afterMove;
+  final FutureOr<void> Function()? afterMove;
   bool _busy = false;
   bool get isRunning => _busy;
 
@@ -94,11 +98,15 @@ class PersonMediaOrganizer {
     for (var i = 0; i < keys.length; i += 300) {
       final chunk = keys.skip(i).take(300).toList();
       final placeholders = List.filled(chunk.length, '?').join(',');
-      result.addAll(await db.customSelect(
-        'SELECT * FROM ($_links) WHERE $column IN ($placeholders)',
-        variables: [for (final id in chunk) Variable.withInt(id)],
-        readsFrom: {db.mediaDetections, db.faces, db.bodies},
-      ).get());
+      result.addAll(
+        await db
+            .customSelect(
+              'SELECT * FROM ($_links) WHERE $column IN ($placeholders)',
+              variables: [for (final id in chunk) Variable.withInt(id)],
+              readsFrom: {db.mediaDetections, db.faces, db.bodies},
+            )
+            .get(),
+      );
     }
     return result;
   }
@@ -115,7 +123,8 @@ class PersonMediaOrganizer {
   }
 
   Future<Set<int>> mediaForPeople(Iterable<int> personIds) async => {
-    for (final row in await _linksFor('person_id', personIds)) row.read<int>('media_id'),
+    for (final row in await _linksFor('person_id', personIds))
+      row.read<int>('media_id'),
   };
 
   Future<Set<int>> namedPersonIds() async => {
@@ -178,7 +187,8 @@ class PersonMediaOrganizer {
     final oldByMedia = {for (final j in journal) j.mediaId: j};
     final pendingOwners = await ownersForMedia([
       for (final j in journal)
-        if (j.state == 'pending' && ownersByMedia.containsKey(j.mediaId)) j.mediaId,
+        if (j.state == 'pending' && ownersByMedia.containsKey(j.mediaId))
+          j.mediaId,
     ]);
     final next = <String, int>{};
     for (final j in journal) {
@@ -209,7 +219,12 @@ class PersonMediaOrganizer {
       if (prior != null &&
           prior.state == 'pending' &&
           pendingOwners[m.id]?.contains(prior.personId) == true &&
-          layout.accepts(prior.personId, prior.mediaKind, prior.targetPath, prior.targetName)) {
+          layout.accepts(
+            prior.personId,
+            prior.mediaKind,
+            prior.targetPath,
+            prior.targetName,
+          )) {
         status = 'pending';
       }
       var sequence = 0;
@@ -243,8 +258,7 @@ class PersonMediaOrganizer {
         }
         final path = layout.path(selected);
         final prefix = layout.filePrefix(selected, m.kind);
-        var name =
-            '$prefix${sequence.toString().padLeft(4, '0')}.$extension';
+        var name = '$prefix${sequence.toString().padLeft(4, '0')}.$extension';
         if (prior != null &&
             prior.targetPath == path &&
             source.name == prior.targetName &&
@@ -422,6 +436,13 @@ class PersonMediaOrganizer {
   Future<List<OriginalMoveResult>> apply(
     List<PersonOrganizeItem> items, {
     void Function(int, int)? onProgress,
+  }) =>
+      runExclusive?.call(() => _apply(items, onProgress: onProgress)) ??
+      _apply(items, onProgress: onProgress);
+
+  Future<List<OriginalMoveResult>> _apply(
+    List<PersonOrganizeItem> items, {
+    void Function(int, int)? onProgress,
   }) async {
     if (_busy) throw StateError('A media move is already running');
     final approved = items.where((i) => i.canApply).toList();
@@ -431,18 +452,27 @@ class PersonMediaOrganizer {
     try {
       await beforeMove?.call();
       final layout = await _folders();
-      final owners = await ownersForMedia(approved.map((item) => item.media.id));
+      final owners = await ownersForMedia(
+        approved.map((item) => item.media.id),
+      );
       final selected = <PersonOrganizeItem>[];
       for (final item in approved) {
         final request = item.request!;
         if (owners[item.media.id]?.contains(item.ownerId) == true &&
-            layout.accepts(item.ownerId, item.media.kind, request.targetPath, request.targetName)) {
+            layout.accepts(
+              item.ownerId,
+              item.media.kind,
+              request.targetPath,
+              request.targetName,
+            )) {
           selected.add(item);
         } else {
-          results.add(OriginalMoveResult(
-            assetId: item.media.assetId,
-            status: 'stale_owner',
-          ));
+          results.add(
+            OriginalMoveResult(
+              assetId: item.media.assetId,
+              status: 'stale_owner',
+            ),
+          );
         }
       }
       if (selected.isEmpty) return results;
@@ -548,16 +578,22 @@ class PersonMediaOrganizer {
       }
     } finally {
       _busy = false;
-      afterMove?.call();
+      await afterMove?.call();
     }
     return results;
   }
 }
 
 class _FolderIndex {
-  _FolderIndex(this.root, List<IdentityGroupRow> groupRows, List<PersonRow> rows)
-    : groups = {for (final group in groupRows) group.id: group},
-      people = {for (final row in rows) if (canOrganizePerson(row)) row.id: row};
+  _FolderIndex(
+    this.root,
+    List<IdentityGroupRow> groupRows,
+    List<PersonRow> rows,
+  ) : groups = {for (final group in groupRows) group.id: group},
+      people = {
+        for (final row in rows)
+          if (canOrganizePerson(row)) row.id: row,
+      };
 
   final String root;
   final Map<int, IdentityGroupRow> groups;
@@ -571,14 +607,17 @@ class _FolderIndex {
     if (group != null) {
       final base = organizationSegment(group.name);
       final duplicate = groups.values.any(
-        (g) => g.id != group.id &&
+        (g) =>
+            g.id != group.id &&
             organizationSegment(g.name).toLowerCase() == base.toLowerCase(),
       );
       category = duplicate ? '${base}_${group.id}/' : '$base/';
     }
     final base = organizationSegment(person.name!);
     final duplicate = people.values.any(
-      (p) => p.id != person.id && p.groupId == person.groupId &&
+      (p) =>
+          p.id != person.id &&
+          p.groupId == person.groupId &&
           organizationSegment(p.name!).toLowerCase() == base.toLowerCase(),
     );
     final folder = duplicate ? '${base}_${person.id}' : base;
@@ -590,9 +629,15 @@ class _FolderIndex {
     return '${name}_${kind == 'video' ? 'video' : 'image'}_';
   }
 
-  bool accepts(int? ownerId, String kind, String targetPath, String targetName) {
+  bool accepts(
+    int? ownerId,
+    String kind,
+    String targetPath,
+    String targetName,
+  ) {
     final owner = people[ownerId];
-    return owner != null && path(owner) == targetPath &&
+    return owner != null &&
+        path(owner) == targetPath &&
         targetName.startsWith(filePrefix(owner, kind));
   }
 }

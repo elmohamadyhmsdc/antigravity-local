@@ -60,6 +60,12 @@ void main() {
         }, child: const Text('Open selection')),
       ))));
       await tester.tap(find.text('Open selection'));
+      await tester.pump();
+      // Native codec completion needs real event-loop time in a widget test.
+      for (var attempt = 0; attempt < 20 && find.byType(RoiSelectionOverlay).evaluate().isEmpty; attempt++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 25)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       await tester.pumpAndSettle();
       final overlay = tester.widget<RoiSelectionOverlay>(find.byType(RoiSelectionOverlay));
       // The shared crop is square; the available viewer body is rectangular.

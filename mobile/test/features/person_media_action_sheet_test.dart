@@ -1,5 +1,4 @@
 import 'package:antigravity_mobile/app.dart';
-import 'package:antigravity_mobile/data/repositories/people_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,8 +18,18 @@ void main() {
       (tester, env) async {
         final sara = await seedPerson(env.db, name: 'Sara', createdAt: 1);
         final mediaId = await seedMedia(env.db, asset: 'asset-sara-1');
-        final faceId = await seedFace(env.db, mediaId: mediaId, personId: sara, seed: 1);
-        await seedBody(env.db, mediaId: mediaId, faceId: faceId, personId: sara);
+        final faceId = await seedFace(
+          env.db,
+          mediaId: mediaId,
+          personId: sara,
+          seed: 1,
+        );
+        await seedBody(
+          env.db,
+          mediaId: mediaId,
+          faceId: faceId,
+          personId: sara,
+        );
 
         await env.pump(
           tester,
@@ -34,6 +43,7 @@ void main() {
         // Long press on the media item
         await tester.longPress(find.byKey(Key('media-$mediaId')));
         await _settle(tester);
+        await expandActionSections(tester);
 
         // Verify PersonMediaActionSheet is open with Hero Card and badges
         expect(find.text('Sara'), findsWidgets);
@@ -62,6 +72,7 @@ void main() {
 
         await tester.longPress(find.byKey(Key('media-$mediaId')));
         await _settle(tester);
+        await expandActionSections(tester);
 
         expect(find.text('Linked by face only'), findsWidgets);
         expect(find.byKey(const Key('action-not-this-person')), findsOneWidget);
@@ -90,6 +101,7 @@ void main() {
 
         await tester.longPress(find.byKey(Key('media-$mediaId')));
         await _settle(tester);
+        await expandActionSections(tester);
 
         expect(find.text('Linked by body only'), findsWidgets);
         expect(find.byKey(const Key('action-not-this-person')), findsNothing);
@@ -98,88 +110,108 @@ void main() {
       session: testSession,
     );
 
-    appTest(
-      'Tapping "Not this person" unlinks and rejects face',
-      (tester, env) async {
-        final adam = await seedPerson(env.db, name: 'Adam', createdAt: 4);
-        final mediaId = await seedMedia(env.db, asset: 'asset-adam-1');
-        final faceId = await seedFace(env.db, mediaId: mediaId, personId: adam, seed: 4);
+    appTest('Tapping "Not this person" unlinks and rejects face', (
+      tester,
+      env,
+    ) async {
+      final adam = await seedPerson(env.db, name: 'Adam', createdAt: 4);
+      final mediaId = await seedMedia(env.db, asset: 'asset-adam-1');
+      final faceId = await seedFace(
+        env.db,
+        mediaId: mediaId,
+        personId: adam,
+        seed: 4,
+      );
 
-        await env.pump(
-          tester,
-          extra: [initialLocationProvider.overrideWithValue('/people/$adam')],
-        );
-        await _settle(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/people/$adam')],
+      );
+      await _settle(tester);
 
-        await tester.longPress(find.byKey(Key('media-$mediaId')));
-        await _settle(tester);
+      await tester.longPress(find.byKey(Key('media-$mediaId')));
+      await _settle(tester);
+      await expandActionSections(tester);
 
-        await tester.tap(find.byKey(const Key('action-not-this-person')));
-        await _settle(tester);
+      await tester.ensureVisible(
+        find.byKey(const Key('action-not-this-person')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('action-not-this-person')));
+      await _settle(tester);
 
-        // Verify face is rejected from Adam
-        final rejections = await env.db.select(env.db.faceRejections).get();
-        expect(rejections.any((r) => r.faceId == faceId && r.personId == adam), isTrue);
-      },
-      session: testSession,
-    );
+      // Verify face is rejected from Adam
+      final rejections = await env.db.select(env.db.faceRejections).get();
+      expect(
+        rejections.any((r) => r.faceId == faceId && r.personId == adam),
+        isTrue,
+      );
+    }, session: testSession);
 
-    appTest(
-      'Tapping "Not this body" rejects body link',
-      (tester, env) async {
-        final noor = await seedPerson(env.db, name: 'Noor', createdAt: 5);
-        final mediaId = await seedMedia(env.db, asset: 'asset-noor-1');
-        final bodyId = await seedBody(
-          env.db,
-          mediaId: mediaId,
-          personId: noor,
-          linkMethod: 'outfit',
-        );
+    appTest('Tapping "Not this body" rejects body link', (tester, env) async {
+      final noor = await seedPerson(env.db, name: 'Noor', createdAt: 5);
+      final mediaId = await seedMedia(env.db, asset: 'asset-noor-1');
+      final bodyId = await seedBody(
+        env.db,
+        mediaId: mediaId,
+        personId: noor,
+        linkMethod: 'outfit',
+      );
 
-        await env.pump(
-          tester,
-          extra: [initialLocationProvider.overrideWithValue('/people/$noor')],
-        );
-        await _settle(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/people/$noor')],
+      );
+      await _settle(tester);
 
-        await tester.longPress(find.byKey(Key('media-$mediaId')));
-        await _settle(tester);
+      await tester.longPress(find.byKey(Key('media-$mediaId')));
+      await _settle(tester);
+      await expandActionSections(tester);
 
-        await tester.tap(find.byKey(const Key('action-not-this-body')));
-        await _settle(tester);
+      await tester.ensureVisible(find.byKey(const Key('action-not-this-body')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('action-not-this-body')));
+      await _settle(tester);
 
-        // Verify body link is cleared/rejected for Noor
-        final body = (await env.db.select(env.db.bodies).get())
-            .firstWhere((b) => b.id == bodyId);
-        expect(body.personId, isNull);
-      },
-      session: testSession,
-    );
+      // Verify body link is cleared/rejected for Noor
+      final body = (await env.db.select(env.db.bodies).get()).firstWhere(
+        (b) => b.id == bodyId,
+      );
+      expect(body.personId, isNull);
+    }, session: testSession);
 
-    appTest(
-      'Tapping "Set as cover photo" sets avatarFaceId for person',
-      (tester, env) async {
-        final maya = await seedPerson(env.db, name: 'Maya', createdAt: 6);
-        final mediaId = await seedMedia(env.db, asset: 'asset-maya-1');
-        final faceId = await seedFace(env.db, mediaId: mediaId, personId: maya, seed: 6);
+    appTest('Tapping "Set as cover photo" sets avatarFaceId for person', (
+      tester,
+      env,
+    ) async {
+      final maya = await seedPerson(env.db, name: 'Maya', createdAt: 6);
+      final mediaId = await seedMedia(env.db, asset: 'asset-maya-1');
+      final faceId = await seedFace(
+        env.db,
+        mediaId: mediaId,
+        personId: maya,
+        seed: 6,
+      );
 
-        await env.pump(
-          tester,
-          extra: [initialLocationProvider.overrideWithValue('/people/$maya')],
-        );
-        await _settle(tester);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/people/$maya')],
+      );
+      await _settle(tester);
 
-        await tester.longPress(find.byKey(Key('media-$mediaId')));
-        await _settle(tester);
+      await tester.longPress(find.byKey(Key('media-$mediaId')));
+      await _settle(tester);
+      await expandActionSections(tester);
 
-        await tester.tap(find.byKey(const Key('action-set-cover')));
-        await _settle(tester);
+      await tester.ensureVisible(find.byKey(const Key('action-set-cover')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('action-set-cover')));
+      await _settle(tester);
 
-        final updated = (await env.db.select(env.db.persons).get())
-            .firstWhere((p) => p.id == maya);
-        expect(updated.avatarFaceId, faceId);
-      },
-      session: testSession,
-    );
+      final updated = (await env.db.select(env.db.persons).get()).firstWhere(
+        (p) => p.id == maya,
+      );
+      expect(updated.avatarFaceId, faceId);
+    }, session: testSession);
   });
 }

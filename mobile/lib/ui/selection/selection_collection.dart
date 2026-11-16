@@ -124,13 +124,18 @@ class CollectionSelection<T> {
     T item, {
     required Widget child,
     VoidCallback? onOpen,
+    VoidCallback? onLongPress,
   }) => Semantics(
     selected: active ? selected(item) : null,
     child: GestureDetector(
       key: Key('${_state.widget.name}-item-${_state.widget.idOf(item)}'),
       behavior: HitTestBehavior.opaque,
       onTap: active ? () => toggle(item) : null,
-      onLongPress: () => active ? toggle(item) : menu(item, onOpen: onOpen),
+      onLongPress: () => active
+          ? toggle(item)
+          : onLongPress != null
+          ? onLongPress()
+          : menu(item, onOpen: onOpen),
       child: Stack(
         children: [
           IgnorePointer(ignoring: active, child: child),
@@ -258,12 +263,19 @@ class _SelectionCollectionState<T> extends State<SelectionCollection<T>> {
     } catch (error) {
       if (mounted) {
         if (error is BatchActionFailure) {
+          try {
+            await widget.onCompleted?.call();
+          } catch (_) {
+            // Keep the actionable failures even when refreshing also fails.
+          }
+          if (!mounted) return;
           setState(() {
             _active = true;
             _ids
               ..clear()
               ..addAll(error.failedIds);
           });
+          widget.onSelectionChanged?.call(true);
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -274,11 +286,12 @@ class _SelectionCollectionState<T> extends State<SelectionCollection<T>> {
         );
       }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _busy = false;
           _running = null;
         });
+      }
     }
   }
 
@@ -292,6 +305,7 @@ class _SelectionCollectionState<T> extends State<SelectionCollection<T>> {
     final available = widget.actions(items);
     final choice = await showModalBottomSheet<String>(
       context: context,
+      showDragHandle: false,
       useSafeArea: true,
       isScrollControlled: true,
       builder: (_) => SheetScaffold(
@@ -377,7 +391,13 @@ class _SelectionCollectionState<T> extends State<SelectionCollection<T>> {
                         onPressed: _busy ? null : _close,
                         icon: const Icon(Icons.close),
                       ),
-                      Expanded(child: Text(l.selectedCount(_ids.length))),
+                      Expanded(
+                        child: Text(
+                          l.selectedCount(_ids.length),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       PopupMenuButton<String>(
                         key: Key('${widget.name}-selection-options'),
                         enabled: !_busy,
@@ -416,11 +436,17 @@ class _SelectionCollectionState<T> extends State<SelectionCollection<T>> {
                       ),
                     ] else ...[
                       const Spacer(),
-                      TextButton.icon(
-                        key: Key('${widget.name}-select'),
-                        onPressed: _enter,
-                        icon: const Icon(Icons.checklist, size: 18),
-                        label: Text(l.peopleAction('selection')),
+                      Flexible(
+                        child: TextButton.icon(
+                          key: Key('${widget.name}-select'),
+                          onPressed: _enter,
+                          icon: const Icon(Icons.checklist, size: 18),
+                          label: Text(
+                            l.peopleAction('selection'),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ),
                     ],
                   ],

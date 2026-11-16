@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -200,7 +199,16 @@ class _MediaGridState extends ConsumerState<MediaGrid> {
                 }
               },
             );
-            return selection.tile(item, child: tile);
+            return selection.tile(
+              item,
+              onLongPress: widget.onContextMenu == null
+                  ? null
+                  : () => widget.onContextMenu!(
+                      item,
+                      () => selection.start(item),
+                    ),
+              child: tile,
+            );
           },
         ),
       ),
