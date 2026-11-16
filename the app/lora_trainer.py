@@ -335,6 +335,8 @@ def build_training_args(dataset_dir: str, output_dir: str, output_name: str, bas
         "--save_last_n_epochs_state", "1",
         "--save_model_as", "safetensors",
     ]
+    if any(Path(dataset_dir).glob('*_body_weighted.png')):
+        args.append('--alpha_mask')
     if resume_state:
         # Name the epoch explicitly rather than trusting the step count sd-scripts keeps in the
         # state: that count restarts from 0 after a resume, so a second resume would repeat an epoch.

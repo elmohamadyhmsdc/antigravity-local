@@ -19,6 +19,7 @@ import 'package:drift/drift.dart';
 import '../../data/api/dtos/analyze.dart' show patchEmbeddingDim;
 import '../../data/api/dtos/embedding.dart';
 import '../../data/db/app_database.dart';
+import '../grouping/identity_constraints.dart';
 
 enum ExposedKind {
   chest('chest_embedding', 'chest_cluster_id'),
@@ -77,6 +78,11 @@ List<int> dbscan(
   int minPoints = 2,
 }) {
   final n = vectors.length;
+  if (!eps.isFinite || eps < 0 || eps > 2 || minPoints < 1) {
+    throw ArgumentError(
+      'Expected finite cosine distance 0..2 and minPoints >= 1',
+    );
+  }
   final label = List<int>.filled(n, -2); // -2 unvisited, -1 noise
   List<int> neighbours(int i) => [
     for (var j = 0; j < n; j++)
@@ -92,13 +98,18 @@ List<int> dbscan(
     }
     label[i] = cluster;
     final queue = [...seeds];
+    final queued = seeds.toSet();
     for (var k = 0; k < queue.length; k++) {
       final j = queue[k];
       if (label[j] == -1) label[j] = cluster; // noise becomes a border point
       if (label[j] != -2) continue;
       label[j] = cluster;
       final more = neighbours(j);
-      if (more.length >= minPoints) queue.addAll(more);
+      if (more.length >= minPoints) {
+        for (final neighbour in more) {
+          if (queued.add(neighbour)) queue.add(neighbour);
+        }
+      }
     }
     cluster++;
   }
@@ -117,21 +128,43 @@ Future<List<int>> _dbscanIsolated(
   List<Uint8List> blobs,
   double eps,
   int minPoints,
+  List<int?> owners,
+  Set<(int, int)> distinct,
 ) => Isolate.run(() {
   final vectors = [for (final b in blobs) _floats(b)];
   final density = dbscan(vectors, eps: eps, minPoints: minPoints);
   final groups = <List<int>>[];
   // Density chains can connect A to C through B even when A and C differ.
   // Every member of an area group must agree with every other member.
-  for (var i = 0; i < vectors.length; i++) {
+  final order = [
+    for (var i = 0; i < owners.length; i++)
+      if (owners[i] != null) i,
+    for (var i = 0; i < owners.length; i++)
+      if (owners[i] == null) i,
+  ];
+  for (final i in order) {
     if (density[i] < 0) continue;
-    final group = groups
+    final compatible = groups
         .where(
           (g) =>
               density[g.first] == density[i] &&
-              g.every((j) => 1 - _dot(vectors[i], vectors[j]) <= eps),
+              g.every(
+                (j) =>
+                    (owners[i] == null ||
+                        owners[j] == null ||
+                        owners[i] == owners[j]) &&
+                    !distinct.contains((math.min(i, j), math.max(i, j))) &&
+                    1 - _dot(vectors[i], vectors[j]) <= eps,
+              ),
         )
-        .firstOrNull;
+        .toList();
+    // If this region fits two different known people, input order cannot
+    // resolve it. Keep the observation out of both identity suggestions.
+    if (compatible.map((g) => owners[g.first]).whereType<int>().toSet().length >
+        1) {
+      continue;
+    }
+    final group = compatible.firstOrNull;
     if (group == null) {
       groups.add([i]);
     } else {
@@ -232,6 +265,15 @@ class ExposedClusters {
 
   final AppDatabase _db;
 
+  // A questionable face or an old outfit-derived link is not an identity
+  // reference. Manual body links remain valid when no usable face owns it.
+  static const _owner = '''COALESCE(
+    CASE WHEN f.hidden = 0 AND (f.ownership IS NULL OR f.ownership != 'none')
+      AND f.kind = 'person' AND NOT EXISTS (
+        SELECT 1 FROM review_doubtful d WHERE d.face_id = f.id AND d.person_id = f.person_id
+      ) THEN f.person_id END,
+    CASE WHEN b.link_method = 'manual' THEN b.person_id END)''';
+
   /// Settings key; absent / anything but 'true' = OFF.
   static const enabledKey = 'body_clusters_enabled';
 
@@ -241,8 +283,15 @@ class ExposedClusters {
 
   Future<bool> get enabled async => await _db.setting(enabledKey) == 'true';
 
-  Future<void> setEnabled(bool on) =>
-      _db.putSetting(enabledKey, on ? 'true' : 'false');
+  Future<void> setEnabled(bool on) => _db.transaction(() async {
+    await _db.putSetting(enabledKey, on ? 'true' : 'false');
+    if (!on) {
+      await _db.customUpdate(
+        "DELETE FROM review_body_links WHERE method = 'cluster'",
+        updates: {_db.reviewBodyLinks},
+      );
+    }
+  });
 
   /// Re-clusters one half. Returns the number of clusters, or null when the feature is off. A person already
   /// assigned to a cluster keeps it (the cluster's `person_id` is a cache of the bodies' own links).
@@ -254,14 +303,26 @@ class ExposedClusters {
     if (!await enabled) return null;
     final rows = await _db
         .customSelect(
-          'SELECT id, ${kind.column} AS e FROM bodies WHERE hidden = 0 AND ${kind.column} IS NOT NULL AND kind = \'person\' '
-          "AND NOT EXISTS (SELECT 1 FROM settings s WHERE s.key = 'area.rejected.${kind.name}.' || bodies.id AND s.value = 'true') ORDER BY id",
-          readsFrom: {_db.bodies},
+          'SELECT b.id, b.${kind.column} AS e, $_owner AS owner FROM bodies b LEFT JOIN faces f ON f.id = b.face_id '
+          'WHERE b.hidden = 0 AND b.${kind.column} IS NOT NULL AND b.kind = \'person\' '
+          "AND (b.ownership IS NULL OR b.ownership != 'none') "
+          "AND NOT EXISTS (SELECT 1 FROM settings s WHERE s.key = 'area.rejected.${kind.name}.' || b.id AND s.value = 'true') ORDER BY b.id",
+          readsFrom: {_db.bodies, _db.faces, _db.reviewDoubtful, _db.settings},
         )
         .get();
     final ids = [for (final r in rows) r.read<int>('id')];
     final blobs = [for (final r in rows) r.read<Uint8List>('e')];
-    final labels = await _dbscanIsolated(blobs, eps, minPoints);
+    final positions = {for (var i = 0; i < ids.length; i++) ids[i]: i};
+    final distinct = <(int, int)>{};
+    for (final r in await _db.select(_db.bodyDistinct).get()) {
+      final a = positions[r.bodyA], b = positions[r.bodyB];
+      if (a != null && b != null) {
+        distinct.add((math.min(a, b), math.max(a, b)));
+      }
+    }
+    final labels = await _dbscanIsolated(blobs, eps, minPoints, [
+      for (final r in rows) r.readNullable<int>('owner'),
+    ], distinct);
     final members = <int, List<int>>{};
     for (var i = 0; i < ids.length; i++) {
       if (labels[i] >= 0) members.putIfAbsent(labels[i], () => []).add(i);
@@ -314,7 +375,7 @@ class ExposedClusters {
                 clusterType: kind.name,
                 centroidEmbedding: packFloat32(centroid),
                 bodyCount: Value(group.length),
-                personId: Value(retained?.personId),
+                personId: const Value(null),
                 createdAt: retained?.createdAt ?? now,
               ),
             );
@@ -323,24 +384,9 @@ class ExposedClusters {
           variables: [Variable.withInt(clusterId)],
           updates: {_db.bodies},
         );
-        // the cluster is a cache of the bodies' own links: the person most of its members already belong to
-        final owners = await _db
-            .customSelect(
-              "SELECT COALESCE(f.person_id, b.person_id) AS p, COUNT(*) AS n FROM bodies b LEFT JOIN faces f ON f.id = b.face_id "
-              "WHERE b.${kind.clusterColumn} = ? AND COALESCE(f.person_id, b.person_id) IS NOT NULL GROUP BY p ORDER BY n DESC LIMIT 1",
-              variables: [Variable.withInt(clusterId)],
-              readsFrom: {_db.bodies, _db.faces},
-            )
-            .get();
-        if (owners.isNotEmpty && retained?.personId == null) {
-          await (_db.update(
-            _db.bodyClusters,
-          )..where((c) => c.id.equals(clusterId))).write(
-            BodyClustersCompanion(personId: Value(owners.first.read<int>('p'))),
-          );
-        }
       }
     });
+    await _refreshOwners(includeUnowned: true);
     await publishSuggestions();
     return members.length;
   }
@@ -352,6 +398,10 @@ class ExposedClusters {
       _db.bodyClusters,
     )..where((c) => c.id.equals(clusterId))).getSingleOrNull();
     if (cluster == null) return 0;
+    final person = await (_db.select(
+      _db.persons,
+    )..where((p) => p.id.equals(personId))).getSingleOrNull();
+    if (person == null || person.kind != 'person') return 0;
     final column = cluster.clusterType == 'buttocks'
         ? 'buttocks_cluster_id'
         : 'chest_cluster_id';
@@ -359,7 +409,8 @@ class ExposedClusters {
       'UPDATE bodies SET person_id = ?, link_method = \'manual\', link_confidence = 1 '
       'WHERE $column = ? AND person_id IS NULL AND (ownership IS NULL OR ownership != \'none\') AND hidden = 0 '
       'AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.id = bodies.face_id AND f.person_id IS NOT NULL) '
-      'AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = bodies.id AND r.person_id = ?)',
+      'AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = bodies.id AND r.person_id = ?3) '
+      "AND bodies.kind = 'person' AND NOT ${bodyConflictWithPerson('bodies.id', '?3')}",
       variables: [
         Variable.withInt(personId),
         Variable.withInt(clusterId),
@@ -369,6 +420,7 @@ class ExposedClusters {
     );
     await (_db.update(_db.bodyClusters)..where((c) => c.id.equals(clusterId)))
         .write(BodyClustersCompanion(personId: Value(personId)));
+    await publishSuggestions();
     return linked;
   });
 
@@ -409,21 +461,49 @@ class ExposedClusters {
     return out;
   }
 
-  /// Quick Review "one tap": the bodies nobody has claimed in a cluster that belongs to a person become
-  /// `cluster` suggestions for that person (confidence 0.85). Never an automatic link; the review tables are
-  /// replaced by each grouping run, so this is repeated by [rebuild] / [assign]. Returns how many were queued.
-  Future<int> publishSuggestions() async {
+  Future<void> _refreshOwners({bool includeUnowned = false}) async {
+    // Recompute from current members, so corrections and rejected references
+    // invalidate the cache. A majority can never erase a conflicting identity.
+    await _db.customUpdate(
+      '''
+      UPDATE body_clusters SET person_id = (
+        SELECT MIN($_owner) FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
+        WHERE b.hidden = 0 AND b.kind = 'person'
+          AND (b.ownership IS NULL OR b.ownership != 'none')
+          AND (b.chest_cluster_id = body_clusters.id OR b.buttocks_cluster_id = body_clusters.id)
+        HAVING COUNT(DISTINCT $_owner) = 1
+      ) ${includeUnowned ? '' : 'WHERE person_id IS NOT NULL'}
+    ''',
+      updates: {_db.bodyClusters},
+    );
+  }
+
+  /// Refresh review-only regional candidates. Conflicting regions stay unknown;
+  /// stronger face/mark suggestions already in the queue are never replaced.
+  Future<int> publishSuggestions() => _db.transaction(() async {
+    await _db.customUpdate(
+      "DELETE FROM review_body_links WHERE method = 'cluster'",
+      updates: {_db.reviewBodyLinks},
+    );
     if (!await enabled) return 0;
+    await _refreshOwners();
     return _db.customUpdate(
-      '''INSERT OR REPLACE INTO review_body_links (body_id, person_id, method, confidence)
-         SELECT b.id, c.person_id, 'cluster', 0.85 FROM bodies b
+      '''WITH candidates AS (
+         SELECT b.id AS body_id, MIN(c.person_id) AS person_id FROM bodies b
          JOIN body_clusters c ON c.id = b.chest_cluster_id OR c.id = b.buttocks_cluster_id
          WHERE c.person_id IS NOT NULL AND b.person_id IS NULL AND b.face_id IS NULL AND b.kind = 'person'
            AND (b.ownership IS NULL OR b.ownership != 'none') AND b.hidden = 0
-           AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = c.person_id)''',
+         GROUP BY b.id
+         HAVING COUNT(DISTINCT c.person_id) = 1
+         )
+         INSERT OR IGNORE INTO review_body_links (body_id, person_id, method, confidence)
+         SELECT q.body_id, q.person_id, 'cluster', 0.85 FROM candidates q
+         JOIN persons p ON p.id = q.person_id AND p.kind = 'person' AND p.grouping_locked = 0
+         WHERE NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = q.body_id AND r.person_id = q.person_id)
+           AND NOT ${bodyConflictWithPerson('q.body_id', 'q.person_id')}''',
       updates: {_db.reviewBodyLinks},
     );
-  }
+  });
 
   /// Bridge photos (a body in both a chest and a buttocks cluster): the OTHER cluster is only SUGGESTED, never
   /// assigned automatically, and only with at least [minBridges] independent bridge photos.

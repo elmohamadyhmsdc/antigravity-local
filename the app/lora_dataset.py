@@ -85,7 +85,10 @@ def classify_shot_type(bbox, image_shape) -> str:
         return "close-up portrait"
 
 
-def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[FaceRestorer] = None) -> Dict:
+_DEFAULT_RESTORER = object()
+
+
+def extract_face_and_body_crop(face_record: Dict, face_app, restorer=_DEFAULT_RESTORER) -> Dict:
     """
     Given one face record (as stored in database.py's faces.json) and an
     insightface FaceAnalysis instance, return:
@@ -132,7 +135,7 @@ def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[F
             result['body_shot_type'] = classify_shot_type(face_record['body_bbox'], (h, w))
         return result
 
-    if restorer is None:
+    if restorer is _DEFAULT_RESTORER:
         restorer = FaceRestorer(model_name="codeformer", weight=0.5)
 
     source_path = face_record.get("source_path", "")
@@ -157,32 +160,44 @@ def extract_face_and_body_crop(face_record: Dict, face_app, restorer: Optional[F
             face_crop = cv2.imread(saved_crop_path)
         else:
             face_crop = None
-        if face_crop is not None and quality_score < QUALITY_THRESHOLD:
+        if face_crop is not None and restorer is not None and quality_score < QUALITY_THRESHOLD:
             face_crop = restorer.enhance(face_crop)
             result["restored"] = restorer.available
         result["face_crop"] = face_crop
         return result
 
     h, w = source_image.shape[:2]
+    view = face_record.get('training_view')
+    if view in ('body', 'confirmed_body'):
+        result.update(body_crop=source_image, skipped_body=False,
+                      body_shot_type=face_record.get('body_shot_type', 'body shot'))
+        return result
     bx, by = int(face_record.get("bbox_x") or 0), int(face_record.get("bbox_y") or 0)
     bw, bh = int(face_record.get("bbox_width") or 0), int(face_record.get("bbox_height") or 0)
     x1, y1 = max(0, bx), max(0, by)
     x2, y2 = min(w, bx + bw), min(h, by + bh)
 
     face_crop = source_image[y1:y2, x1:x2].copy() if x2 > x1 and y2 > y1 else None
-    if face_crop is not None and quality_score < QUALITY_THRESHOLD:
+    if view == 'portrait':
+        face_crop = source_image
+    if face_crop is not None and restorer is not None and quality_score < QUALITY_THRESHOLD:
         face_crop = restorer.enhance(face_crop)
         result["restored"] = restorer.available
     result["face_crop"] = face_crop
+    if view == 'portrait':
+        return result
 
-    person_bbox = get_person_bbox(source_image, face_app)
+    # An identity-matched frame must never fall back to a whole-image person
+    # detector, which might choose the larger bystander in a group photo.
+    person_bbox = (face_record['body_bbox'] if 'body_bbox' in face_record
+                   else get_person_bbox(source_image, face_app))
     if person_bbox is not None:
         px1, py1, px2, py2 = person_bbox
         body_crop = source_image[py1:py2, px1:px2].copy() if px2 > px1 and py2 > py1 else None
         if body_crop is not None:
             result["body_crop"] = body_crop
             result["skipped_body"] = False
-            result["body_shot_type"] = classify_shot_type(person_bbox, (h, w))
+            result["body_shot_type"] = face_record.get('body_shot_type') or classify_shot_type(person_bbox, (h, w))
 
     return result
 
@@ -254,6 +269,7 @@ def build_caption(
     captioner=None,
     description: Optional[str] = None,
     shot_type: Optional[str] = None,
+    observation_tags=(),
 ) -> str:
     """
     Builds the caption using the idea.txt trick: trigger word + class first,
@@ -267,6 +283,8 @@ def build_caption(
         parts = [f"{shot_type} of {trigger_word} person"]
     else:
         parts = [f"{trigger_word} person"]
+
+    parts.extend(observation_tags)
 
     if description:
         parts.append(description)
@@ -315,6 +333,23 @@ def _get_or_create_trigger_word(person_id: int) -> str:
     return trigger
 
 
+def _weighted_body_image(crop, outline):
+    if outline is None:
+        return None
+    h, w = crop.shape[:2]
+    points = np.asarray(outline, dtype=np.float64).reshape(-1, 2)
+    polygon = np.rint(points * [w - 1, h - 1]).astype(np.int32)
+    area = cv2.contourArea(polygon) / (w * h)
+    if not 0.08 <= area <= 0.98:
+        return None
+    # Keep RGB intact. sd-scripts reads alpha separately as the loss weight.
+    # Retain background supervision at 25% as these outlines are approximate.
+    alpha = np.full((h, w), 64, np.uint8)
+    cv2.fillPoly(alpha, [polygon], 255, lineType=cv2.LINE_AA)
+    alpha = cv2.GaussianBlur(alpha, (0, 0), max(1.0, min(h, w) / 200))
+    return np.dstack((crop, alpha))
+
+
 def _write_dataset_records(face_records, trigger_word: str, slug: str, output_root: Path, repeats: int,
                             face_app, restorer: FaceRestorer, tagger: "WD14Tagger", progress=None,
                             captioner=None) -> Dict:
@@ -345,10 +380,13 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
             if crop is None:
                 continue
             stem = f"{slug}_{i:04d}_{kind}"
-            img_path = dataset_dir / f"{stem}.jpg"
-            cv2.imwrite(str(img_path), crop)
+            weighted = _weighted_body_image(crop, face.get('training_outline')) if kind == 'body' else None
+            img_path = dataset_dir / (f"{stem}_weighted.png" if weighted is not None else f"{stem}.jpg")
+            if not cv2.imwrite(str(img_path), weighted if weighted is not None else crop):
+                raise OSError('Could not write the training crop.')
             shot_type = extracted.get(f"{kind}_shot_type") or ("close-up portrait" if kind == "face" else "upper body shot")
-            written.append((img_path, float(face.get("quality_score", 0.0)), shot_type))
+            tags = face.get(f'{kind}_tags', ())
+            written.append((img_path, float(face.get("quality_score", 0.0)), shot_type, tags))
 
     descriptions = {}
     if captioner is None and written:
@@ -361,14 +399,14 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
             progress=(lambda done, total: progress(0.8 + 0.1 * done / total,
                                                    f"Describing {done}/{total} (Florence-2)")) if progress else None)
 
-    for n, (img_path, quality, shot_type) in enumerate(written):
+    for n, (img_path, quality, shot_type, tags) in enumerate(written):
         if progress:
             progress(0.9 + 0.1 * n / len(written), f"Captioning {n + 1}/{len(written)}")
         crop = cv2.imread(str(img_path))
         caption = build_caption(crop, trigger_word=trigger_word, quality_score=quality,
                                 tagger=tagger, captioner=captioner,
                                 description=descriptions.get(str(img_path)),
-                                shot_type=shot_type)
+                                shot_type=shot_type, observation_tags=tags)
         img_path.with_suffix(".txt").write_text(caption, encoding="utf-8")
         image_count += 1
 
@@ -382,6 +420,8 @@ def _write_dataset_records(face_records, trigger_word: str, slug: str, output_ro
 
     return {
         "dataset_dir": str(dataset_dir),
+        "dataset_files": [name for image, *_ in written
+                          for name in (image.name, image.with_suffix(".txt").name)],
         "image_count": image_count,
         "skipped_body_count": skipped_body_count,
         "warning": warning,
@@ -415,7 +455,40 @@ def build_dataset(person_id: int, person_name: str, face_app, output_root: Path 
                                  captioner=captioner)
 
 
-def detect_face_record_from_image(image_path: str, face_app, anchor_embedding=None) -> Optional[Dict]:
+def _body_evidence(body, image_shape):
+    """Describe visible anatomy/pose from this crop, in pixel coordinates. No physical measurements."""
+    from person_linking import body_extent
+    points = np.asarray(body.kpts, dtype=float)
+    scores = np.asarray(body.kpt_scores, dtype=float)
+    if points.shape != (17, 2) or scores.shape != (17,):
+        return 'body shot', []
+    h, w = image_shape[:2]
+    visible = (np.isfinite(scores) & (scores >= 0.5) & np.isfinite(points).all(axis=1)
+               & (points[:, 0] >= 0) & (points[:, 0] < w) & (points[:, 1] >= 0) & (points[:, 1] < h))
+    shot = 'body shot'
+    if visible[5:7].any():
+        extent = body_extent(visible.astype(float))
+        # A clipped torso or a detached ankle does not establish full framing.
+        if extent in ('full', 'knee') and not visible[11:13].any():
+            extent = None
+        shot = {'full': 'full length shot', 'knee': 'knee-up shot', 'upper': 'upper body shot',
+                'head': 'head and shoulders shot'}.get(extent, shot)
+    tags = []
+    for label, joints in [('bent arm', [(5, 7, 9), (6, 8, 10)]),
+                          ('bent knee', [(11, 13, 15), (12, 14, 16)])]:
+        for a, b, c in joints:
+            if not all(visible[[a, b, c]]):
+                continue
+            v, z = points[a] - points[b], points[c] - points[b]
+            nv, nz = np.linalg.norm(v), np.linalg.norm(z)
+            if min(nv, nz) >= 8 and np.dot(v, z) / (nv * nz) > -0.5:
+                tags.append(label)
+                break
+    return shot, tags
+
+
+def detect_face_record_from_image(image_path: str, face_app, anchor_embedding=None, *,
+                                  body_analyzer=None, training_view='original') -> Optional[Dict]:
     """
     Runs face detection directly on an image that was NOT pre-mined into the
     gallery database (e.g. freshly uploaded, like Reface V2's "Upload New"
@@ -429,15 +502,25 @@ def detect_face_record_from_image(image_path: str, face_app, anchor_embedding=No
     if image is None:
         return None
     faces = face_app.get(image)
-    if not faces:
+    body_view = training_view in ('body', 'confirmed_body')
+    if not faces and training_view == 'confirmed_body':
+        bodies = body_analyzer.analyze(image) if body_analyzer is not None else []
+        if len(bodies) > 1:
+            return None
+        shot, tags = _body_evidence(bodies[0], image.shape) if bodies else ('body shot', [])
+        return {'source_path': image_path, 'training_view': training_view,
+                'body_shot_type': shot, 'body_tags': tags, 'quality_score': 1.0}
+    if not faces or (training_view != 'original' and len(faces) != 1):
         return None
 
     if anchor_embedding is not None:
         anchor = np.asarray(anchor_embedding, dtype=np.float32)
         anchor = anchor / max(float(np.linalg.norm(anchor)), 1e-8)
-        scores = [float(np.dot(anchor, f.normed_embedding)) for f in faces]
+        scores = np.asarray([float(np.dot(anchor, f.normed_embedding)) for f in faces])
+        if not np.isfinite(scores).all():
+            return None
         best = int(np.argmax(scores))
-        if scores[best] < 0.4:
+        if scores[best] < 0.4 or (len(scores) > 1 and scores[best] - np.partition(scores, -2)[-2] < 0.05):
             return None
         main_face = faces[best]
     else:
@@ -450,12 +533,38 @@ def detect_face_record_from_image(image_path: str, face_app, anchor_embedding=No
     size_ratio = (width * height) / img_area if img_area > 0 else 0
     quality_score = min(confidence * (1 + size_ratio * 2), 1.0)
 
-    return {
+    record = {
         "source_path": image_path,
         "bbox_x": int(x1), "bbox_y": int(y1), "bbox_width": width, "bbox_height": height,
         "quality_score": quality_score,
         "image_path": image_path,
     }
+    if anchor_embedding is None:
+        return record
+    record.update(training_view=training_view, body_bbox=None, body_shot_type='body shot')
+    pose = getattr(main_face, 'pose', None)
+    if pose is not None and len(pose) >= 2 and np.isfinite(pose[1]) and abs(pose[1]) <= 90:
+        yaw = abs(pose[1])
+        record['face_tags'] = ['profile view' if yaw >= 55 else 'three-quarter view' if yaw >= 25 else 'front view']
+    if training_view == 'portrait':
+        return record
+    from person_linking import associate_faces_bodies
+    bodies = body_analyzer.analyze(image) if body_analyzer is not None else []
+    if body_view and len(bodies) > 1:
+        return None
+    pairs = associate_faces_bodies([f.bbox for f in faces], bodies, [getattr(f, 'kps', None) for f in faces])
+    bi = next((b for f, b, _ in pairs if f == best), None)
+    if bi is None:
+        return None if body_view and bodies else record
+    body = bodies[bi]
+    h, w = image.shape[:2]
+    x1, y1, x2, y2 = np.clip(np.rint(body.bbox), [0, 0, 0, 0], [w, h, w, h]).astype(int)
+    if any((x1 <= (f.bbox[0] + f.bbox[2])/2 < x2 and y1 <= (f.bbox[1] + f.bbox[3])/2 < y2)
+           for i, f in enumerate(faces) if i != best):
+        return record
+    record['body_bbox'] = (x1, y1, x2, y2)
+    record['body_shot_type'], record['body_tags'] = _body_evidence(body, image.shape)
+    return record
 
 
 def detect_character_record_from_image(image_path, detector, embedder, body_analyzer, anchor_embedding):

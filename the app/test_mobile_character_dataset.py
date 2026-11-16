@@ -89,7 +89,7 @@ class CharacterDatasetTest(unittest.TestCase):
             self.assertIsNone(restorer)
             folder = root / 'dataset'; folder.mkdir(parents=True)
             (folder / 'image.jpg').write_bytes(b'image')
-            return {'blocked':False, 'dataset_dir':str(folder), 'image_count':1}
+            return {'blocked':False, 'dataset_dir':str(folder), 'dataset_files':['image.jpg'], 'image_count':1}
         with patch.object(analysis, 'get_anime_detector', return_value=self.detector), patch.object(analysis, 'get_ccip_embedder', return_value=self.embedder), patch('lora_dataset._write_dataset_records', side_effect=writer), patch('lora_dataset.WD14Tagger'):
             result = run_artifact(job, self.root, lambda *a, **k: None, lambda: False, SimpleNamespace(engines=engines))
         self.assertEqual(calls, [{'faces':False}])

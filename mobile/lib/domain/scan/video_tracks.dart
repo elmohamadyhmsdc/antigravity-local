@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'scan_math.dart';
+import 'track_assignment.dart';
 
 /// Phone-only video tracking. A person who stays in a video for minutes used to become one face
 /// row (and one review item) per sampled frame. A track is that continuous appearance: a few
@@ -13,6 +14,7 @@ const trackIdentityCosine = 0.65;
 const trackMotionCosine = 0.40;
 const trackMotionIou = 0.3;
 const trackMotionGapMs = 4000;
+const trackAssignmentMargin = 0.03;
 
 /// A track keeps at most this many face rows: each a view unlike the others or clearly sharper.
 const maxFacesPerTrack = 5;
@@ -53,12 +55,17 @@ class Track<V> {
   NormBox? lastBox;
   int? lastTimestampMs;
 
+  bool isRecent(int? timestampMs) {
+    if (lastBox == null) return false;
+    // Legacy rows without timestamps can only use spatial continuity.
+    if (timestampMs == null && lastTimestampMs == null) return true;
+    if (timestampMs == null || lastTimestampMs == null) return false;
+    final gap = timestampMs - lastTimestampMs!;
+    return gap > 0 && gap <= trackMotionGapMs;
+  }
+
   bool isNear(NormBox box, int? timestampMs) =>
-      lastBox != null &&
-      (timestampMs == null ||
-          lastTimestampMs == null ||
-          (timestampMs - lastTimestampMs!).abs() <= trackMotionGapMs) &&
-      iou(box, lastBox!) >= trackMotionIou;
+      isRecent(timestampMs) && iou(box, lastBox!) >= trackMotionIou;
 
   (TrackView<V>?, double) closest(V value, double Function(V, V) similarity) {
     TrackView<V>? best;
@@ -74,8 +81,9 @@ class Track<V> {
   }
 }
 
-/// Greedy one-to-one assignment of one frame's detections to tracks (a person is in a frame
-/// once). Entry i is the track for detection i, or null for a new track.
+/// Jointly assign a frame, with an unmatched option and an ambiguity margin.
+/// A reappearance after a gap starts a new track; identity grouping can still
+/// connect its faces later. Clothing requires spatial continuity as well.
 List<Track<V>?> assignTracks<V>({
   required List<V> values,
   required List<NormBox> boxes,
@@ -84,25 +92,43 @@ List<Track<V>?> assignTracks<V>({
   required double Function(V, V) similarity,
   required double identity,
   required double motion,
+  bool requireMotion = false,
 }) {
-  final pairs = <(double, int, Track<V>)>[];
+  final out = List<Track<V>?>.filled(values.length, null);
+  if (values.isEmpty) return out;
+  final active =
+      tracks
+          .where((t) => t.views.isNotEmpty && t.isRecent(timestampMs))
+          .toList()
+        ..sort((a, b) => a.id.compareTo(b.id));
+  if (active.isEmpty) return out;
+  final weights = List.generate(
+    values.length,
+    (_) => List<double>.filled(active.length, 0),
+  );
   for (var i = 0; i < values.length; i++) {
-    for (final t in tracks) {
-      if (t.views.isEmpty) continue;
+    for (var j = 0; j < active.length; j++) {
+      final t = active[j];
       final (_, sim) = t.closest(values[i], similarity);
       final near = t.isNear(boxes[i], timestampMs);
+      if (!sim.isFinite || ((requireMotion || timestampMs == null) && !near)) {
+        continue;
+      }
       if (sim >= identity || (near && sim >= motion)) {
-        pairs.add((sim + (near ? 0.2 : 0), i, t));
+        weights[i][j] = sim + (near ? 0.2 : 0);
       }
     }
   }
-  pairs.sort((a, b) => b.$1.compareTo(a.$1));
-  final out = List<Track<V>?>.filled(values.length, null);
-  final used = <int>{};
-  for (final (_, i, t) in pairs) {
-    if (out[i] != null || used.contains(t.id)) continue;
-    out[i] = t;
-    used.add(t.id);
+  final best = maximumTrackAssignment(weights);
+  for (var i = 0; i < values.length; i++) {
+    final j = best.columns[i];
+    if (j == null) continue;
+    if (weights[i].where((w) => w > 0).length > 1 ||
+        weights.where((row) => row[j] > 0).length > 1) {
+      final alternative = maximumTrackAssignment(weights, forbidden: (i, j));
+      if (best.score - alternative.score <= trackAssignmentMargin) continue;
+    }
+    out[i] = active[j];
   }
   return out;
 }

@@ -22,6 +22,10 @@ class CurationCandidate {
     this.pitch,
     this.boxW,
     this.boxH,
+    this.boxX,
+    this.boxY,
+    this.manualBody = false,
+    this.outline,
     this.refId,
     this.appearance,
     this.facePx,
@@ -41,6 +45,9 @@ class CurationCandidate {
   final int? frameNumber;
   final double? yaw, pitch;
   final double? boxW, boxH;
+  final double? boxX, boxY;
+  final bool manualBody;
+  final String? outline;
 
   /// The face / body row behind the detection. A face seen again in other photos (a near-duplicate,
   /// cosine >= 0.95) has one row and several detections: only one of them is worth training on.
@@ -121,7 +128,8 @@ class AutoDatasetCurator {
         return (c.quality * 50.0) + (angleWeight * 30.0) + (size * 20.0);
 
       case CurationCategory.upper:
-        return (c.quality * 40.0) + (c.skinRatio * 30.0) + (c.boxArea * 30.0);
+        final exposureBonus = preferExposed && c.hasExposedRegion ? 21.0 : 0.0;
+        return (c.quality * 40.0) + exposureBonus + (c.boxArea * 30.0);
 
       case CurationCategory.body:
         double score = c.quality * 20.0;

@@ -289,6 +289,7 @@ class PhotoResultStore {
         }
         final hit = hits[k];
         if (!rescanned &&
+            !video &&
             track == null &&
             hit != null &&
             hit.cosine >= duplicateCosine &&
@@ -405,6 +406,38 @@ class PhotoResultStore {
             int,
             int
           >{}; // analysis body index -> bodies.id (for sensitive regions)
+      // Resolve all faceless bodies together. Iterating one body at a time lets
+      // detector order steal another body's only viable track in a crowd.
+      final openBodies = <int>[
+        if (video)
+          for (var bi = 0; bi < analysis.bodies.length; bi++)
+            if (!drawn.contains(faceOfBody[bi]) &&
+                faceDbId[faceOfBody[bi]] == null &&
+                !existingBodies.any(
+                  (e) =>
+                      iou(_box(analysis.bodies[bi].bbox, w, h), e.box) >=
+                      sameBoxIou,
+                ))
+              bi,
+      ];
+      final assignedBodies = assignTracks<List<double>?>(
+        values: [for (final bi in openBodies) analysis.bodies[bi].appearance],
+        boxes: [
+          for (final bi in openBodies) _box(analysis.bodies[bi].bbox, w, h),
+        ],
+        timestampMs: timestampMs,
+        tracks: bodyTracks.values.where(
+          (t) => t.faceTrack == null && !usedTracks.contains(t.id),
+        ),
+        similarity: outfitSimilarity,
+        identity: sameOutfitSimilarity,
+        motion: trackMotionOutfit,
+        requireMotion: true,
+      );
+      final facelessTrackOf = {
+        for (var i = 0; i < openBodies.length; i++)
+          openBodies[i]: assignedBodies[i],
+      };
       for (var bi = 0; bi < analysis.bodies.length; bi++) {
         final body = analysis.bodies[bi];
         final fi = faceOfBody[bi];
@@ -478,17 +511,7 @@ class PhotoResultStore {
                 )
                 .firstOrNull;
           } else if (faceId == null) {
-            bodyTrack = assignTracks<List<double>?>(
-              values: [body.appearance],
-              boxes: [box],
-              timestampMs: timestampMs,
-              tracks: bodyTracks.values.where(
-                (t) => t.faceTrack == null && !usedTracks.contains(t.id),
-              ),
-              similarity: outfitSimilarity,
-              identity: sameOutfitSimilarity,
-              motion: trackMotionOutfit,
-            ).single;
+            bodyTrack = facelessTrackOf[bi];
           }
           if (bodyTrack != null) {
             usedTracks.add(bodyTrack.id);

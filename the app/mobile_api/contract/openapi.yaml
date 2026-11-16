@@ -729,6 +729,7 @@ components:
             character_detection: { type: boolean, default: false }
             character_library_repair: { type: boolean, default: false }
             quick_video_sampling: { type: boolean, default: false }
+            lora_training_views: { type: boolean, default: false }
             sensitive_detection:
               type: boolean
               default: false
@@ -1875,6 +1876,21 @@ components:
         repeats: { type: integer, default: 20, minimum: 1, maximum: 100 }
         max_frames_per_video: { type: integer, default: 12, minimum: 1, maximum: 24 }
         enable_face_detailer: { type: boolean, default: true, description: "Restore each real face crop (GPEN) while building the dataset. Off keeps the crops as photographed. Not applied to drawn characters." }
+        training_views:
+          type: array
+          minItems: 1
+          maxItems: 64
+          items: { type: string, enum: [original, portrait, body, confirmed_body] }
+          description: Ordered one per images input for human identities. Crops contain a single selected photo or video observation. Only a manually confirmed body crop may be used without a visible face.
+        training_outlines:
+          type: array
+          minItems: 1
+          maxItems: 64
+          description: Optional aligned list of body silhouettes in the supplied crop coordinates. Each polygon has 3 to 96 ordered x,y pairs. Null indicates no silhouette.
+          items:
+            oneOf:
+              - { type: 'null' }
+              - { type: array, minItems: 6, maxItems: 192, items: { type: number, minimum: 0, maximum: 1 } }
         resolution_mode: { type: string, enum: ['512x768', '512x512'], description: "Accepted and ignored: older phone builds sent the training resolution with this job (it is a training setting, max_resolution)." }
 
       allOf:

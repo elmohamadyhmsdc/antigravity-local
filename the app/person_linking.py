@@ -742,9 +742,16 @@ def face_body_score(face_box, body_box, face_kps=None, body_kpts=None, body_kpt_
 
 
 def associate_faces_bodies(face_boxes: Sequence, bodies: Sequence, face_kps: Optional[Sequence] = None,
-                           min_score: float = 0.35) -> List[Tuple[int, int, float]]:
+                           min_score: float = 0.35,
+                           min_margin: float = 0.05) -> List[Tuple[int, int, float]]:
     """One-to-one (face index, body index, score) pairs. `bodies` items need
-    .bbox and optionally .kpts / .kpt_scores (body_detector.Body)."""
+    .bbox and optionally .kpts / .kpt_scores (body_detector.Body).
+
+    Ambiguous competing assignments stay unlinked. The margin compares the
+    whole frame against its best alternative without each selected edge; a
+    locally second-best edge can still be globally unambiguous. Scores are
+    geometric plausibility, not identity probabilities.
+    """
     from scipy.optimize import linear_sum_assignment
     if not len(face_boxes) or not len(bodies):
         return []
@@ -753,9 +760,24 @@ def associate_faces_bodies(face_boxes: Sequence, bodies: Sequence, face_kps: Opt
         fk = face_kps[i] if face_kps is not None else None
         for j, b in enumerate(bodies):
             m[i, j] = face_body_score(fb, b.bbox, fk, getattr(b, "kpts", None), getattr(b, "kpt_scores", None))
-    eligible = m >= min_score
-    rows, cols = linear_sum_assignment(-np.where(eligible, m, 0.0))
-    return [(int(r), int(c), float(m[r, c])) for r, c in zip(rows, cols) if eligible[r, c]]
+    eligible = np.isfinite(m) & (m >= min_score)
+    # One dummy per face makes unmatched explicit, including crowded frames
+    # with more faces than bodies. Invalid edges cannot consume a real body.
+    weights = np.pad(np.where(eligible, m, 0.0), ((0, 0), (0, len(face_boxes))))
+    rows, cols = linear_sum_assignment(-weights)
+    best = float(weights[rows, cols].sum(dtype=np.float64))
+    pairs = []
+    for r, c in zip(rows, cols):
+        if c >= len(bodies) or not eligible[r, c]:
+            continue
+        alternative = weights.copy()
+        alternative[r, c] = 0.0
+        ar, ac = linear_sum_assignment(-alternative)
+        gap = best - float(alternative[ar, ac].sum(dtype=np.float64))
+        if gap <= min_margin:
+            continue
+        pairs.append((int(r), int(c), float(m[r, c])))
+    return pairs
 
 
 EXTENT_LABELS = {"full": "Full body", "knee": "Knee-up", "upper": "Upper body", "head": "Head & shoulders"}

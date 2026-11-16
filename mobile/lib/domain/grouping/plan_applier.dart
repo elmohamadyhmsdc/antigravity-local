@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../data/api/dtos/grouping.dart';
 import '../../data/db/app_database.dart';
 import 'identity_evidence.dart';
+import 'identity_constraints.dart';
 
 class FacePlanResult {
   const FacePlanResult({
@@ -43,7 +44,7 @@ class PlanApplier {
       if (!a.isAuto || !people.contains(a.personId)) continue;
       assigned += await _db.customUpdate(
         // the last NOT EXISTS is the one-person-per-frame rule against faces the person already has
-        "UPDATE faces SET person_id = ? WHERE id = ? AND person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id = ?) AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ? AND p.grouping_locked = 0) AND (faces.media_id IS NULL OR NOT EXISTS (SELECT 1 FROM faces o WHERE o.person_id = ? AND o.media_id = faces.media_id AND o.frame_number IS faces.frame_number)) AND faces.hidden = 0 AND (faces.ownership IS NULL OR faces.ownership != 'none') AND faces.kind = ?",
+        "UPDATE faces SET person_id = ?1 WHERE id = ?2 AND person_id IS NULL AND review_dismissed = 0 AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = faces.id AND r.person_id = ?3) AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ?4 AND p.grouping_locked = 0) AND NOT ${faceConflictWithPerson('faces.id', '?5')} AND faces.hidden = 0 AND (faces.ownership IS NULL OR faces.ownership != 'none') AND faces.kind = ?6",
         variables: [
           Variable.withInt(a.personId),
           Variable.withInt(a.faceId),
@@ -74,6 +75,7 @@ class PlanApplier {
       if (await _fromOneFile(g.faceIds)) {
         continue; // one appearance in one video is not a person yet (Review still offers it)
       }
+      if (await _groupHasConflict(g.faceIds)) continue;
       final quality = {
         for (final r in rows)
           r.read<int>('id'): r.read<double>('quality_score'),
@@ -113,14 +115,19 @@ class PlanApplier {
       WITH owner AS (
         SELECT track_id, MIN(person_id) AS pid FROM faces
         WHERE track_id IS NOT NULL AND person_id IS NOT NULL AND hidden = 0
+          AND kind = ?1 AND (ownership IS NULL OR ownership != 'none')
           AND NOT EXISTS (SELECT 1 FROM review_doubtful d WHERE d.face_id = faces.id AND d.person_id = faces.person_id)
         GROUP BY track_id HAVING COUNT(DISTINCT person_id) = 1
       )
       UPDATE faces SET person_id = (SELECT pid FROM owner WHERE owner.track_id = faces.track_id)
-      WHERE person_id IS NULL AND review_dismissed = 0 AND hidden = 0 AND kind = ?
+      WHERE person_id IS NULL AND review_dismissed = 0 AND hidden = 0 AND kind = ?1
         AND (ownership IS NULL OR ownership != 'none')
         AND NOT EXISTS (SELECT 1 FROM faces suspect JOIN review_doubtful d ON d.face_id = suspect.id AND d.person_id = suspect.person_id WHERE suspect.track_id = faces.track_id)
         AND track_id IN (SELECT track_id FROM owner)
+        AND NOT ${faceConflictWithPerson('faces.id', '(SELECT pid FROM owner WHERE owner.track_id = faces.track_id)')}
+        AND NOT EXISTS (
+          SELECT 1 FROM faces incompatible WHERE incompatible.track_id = faces.track_id
+            AND (incompatible.kind != faces.kind OR incompatible.model_id != faces.model_id))
         AND NOT EXISTS (
           SELECT 1 FROM face_rejections r JOIN owner o ON o.pid = r.person_id
           WHERE r.face_id = faces.id AND o.track_id = faces.track_id)
@@ -153,11 +160,14 @@ class PlanApplier {
     for (final l in plan.bodyLinks) {
       if (!l.isAuto ||
           !people.contains(l.personId) ||
+          !l.confidence.isFinite ||
+          l.confidence < 0 ||
+          l.confidence > 1 ||
           isClothingOnlyLink(l.method)) {
         continue;
       }
       linked += await _db.customUpdate(
-        "UPDATE bodies SET person_id = ?, link_method = ?, link_confidence = ? WHERE id = ? AND person_id IS NULL AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = bodies.id AND r.person_id = ?) AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.id = bodies.face_id AND f.person_id IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM body_distinct d JOIN bodies o ON (o.id = CASE WHEN d.body_a = bodies.id THEN d.body_b ELSE d.body_a END) WHERE (d.body_a = bodies.id OR d.body_b = bodies.id) AND o.person_id = ?)",
+        "UPDATE bodies SET person_id = ?1, link_method = ?2, link_confidence = ?3 WHERE id = ?4 AND person_id IS NULL AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = bodies.id AND r.person_id = ?5) AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.id = bodies.face_id AND f.person_id IS NOT NULL) AND NOT ${bodyConflictWithPerson('bodies.id', '?6')} AND bodies.kind = ?7",
         variables: [
           Variable.withInt(l.personId),
           Variable.withString(l.method),
@@ -165,12 +175,36 @@ class PlanApplier {
           Variable.withInt(l.bodyId),
           Variable.withInt(l.personId),
           Variable.withInt(l.personId),
+          Variable.withString(kind),
         ],
         updates: {_db.bodies},
       );
     }
     return linked;
   });
+
+  Future<bool> _groupHasConflict(List<int> ids) async {
+    final marks = List.filled(ids.length, '?').join(',');
+    final conflicts = await _db
+        .customSelect(
+          '''
+      WITH members AS (SELECT id FROM faces WHERE id IN ($marks)),
+      occurrences AS (
+        SELECT f.id, f.media_id, f.frame_number FROM faces f JOIN members x ON x.id = f.id
+        WHERE f.media_id IS NOT NULL
+        UNION
+        SELECT d.ref_id, d.media_id, d.frame_number FROM media_detections d
+        JOIN members x ON x.id = d.ref_id JOIN media m ON m.id = d.media_id
+        WHERE d.kind = 'f' AND (m.kind = 'photo' OR d.frame_number IS NOT NULL)
+      )
+      SELECT 1 FROM occurrences GROUP BY media_id, frame_number
+      HAVING COUNT(DISTINCT id) > 1 LIMIT 1
+    ''',
+          variables: [for (final id in ids) Variable.withInt(id)],
+        )
+        .get();
+    return conflicts.isNotEmpty;
+  }
 
   /// True when every face of the group comes from the same file. A photo cannot give two faces of
   /// one person, so this is a video: one stranger passing through it yields several views and would

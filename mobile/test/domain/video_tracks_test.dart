@@ -80,6 +80,25 @@ void main() {
 
   group('scanning a video', () {
     test(
+      'a distant reappearance retains a separate occurrence track',
+      () async {
+        final media = await video();
+        for (final time in [0, 500, 12000]) {
+          await store.store(
+            media,
+            analysis(faces: [faceJson(unitVec(1))]),
+            frameNumber: time ~/ 10,
+            timestampMs: time,
+            complete: false,
+          );
+        }
+        final faces = await db.select(db.faces).get();
+        expect(faces.map((f) => f.trackId).toSet(), hasLength(2));
+        expect(await db.select(db.mediaDetections).get(), hasLength(3));
+      },
+    );
+
+    test(
       'one person over 30 frames keeps at most a few varied faces and one body, all frames still recorded',
       () async {
         final media = await video();

@@ -103,7 +103,24 @@ def validate_artifact(body, caps):
         bounded(params, 'top_k', 20, 1, 100, True)
     elif kind == 'build_lora_dataset':
         allowed_params = {'trigger_word', 'repeats', 'anchor_embedding', 'identity_model_id', 'max_frames_per_video',
-                          'enable_face_detailer', 'resolution_mode'}
+                          'enable_face_detailer', 'resolution_mode', 'training_views', 'training_outlines'}
+        if 'training_views' in params:
+            views = params['training_views']
+            if (params.get('identity_model_id', EMBEDDING_MODEL_ID) != EMBEDDING_MODEL_ID
+                    or not isinstance(views, list) or len(views) != len(inputs['images'])
+                    or any(v not in ('original', 'portrait', 'body', 'confirmed_body') for v in views)):
+                raise bad_request('Provide one supported training view per human dataset input.')
+        if 'training_outlines' in params:
+            outlines, views = params['training_outlines'], params.get('training_views')
+            if not isinstance(outlines, list) or views is None or len(outlines) != len(views):
+                raise bad_request('Training outlines must align with training views.')
+            for view, outline in zip(views, outlines):
+                if outline is None:
+                    continue
+                if (view not in ('body', 'confirmed_body') or not isinstance(outline, list)
+                        or not 6 <= len(outline) <= 192 or len(outline) % 2
+                        or any(type(v) not in (int, float) or not 0 <= v <= 1 for v in outline)):
+                    raise bad_request('Use a normalized body polygon with 3 to 96 points.')
         if 'enable_face_detailer' in params and not isinstance(params['enable_face_detailer'], bool):
             raise bad_request('enable_face_detailer must be true or false.')
         # Older phone builds sent the training resolution with the dataset job, and a failed job that is
@@ -289,8 +306,11 @@ def run_artifact(job, directory, report, stopped, ctx):
             if stopped(): return None
             report(index/max(len(inputs),1)*.4,'Finding the selected identity')
             image = cv2.imread(str(source))
+            view = params['training_views'][index] if 'training_views' in params else 'original'
             photo = directory/f'photo_{index}.jpg'
             if image is None:
+                if view != 'original':
+                    raise ValueError('A selected training crop must contain one readable image.')
                 frames=sample_video_frames(str(source),directory/'frames'/str(index),max_frames=params.get('max_frames_per_video',12))
                 if not frames: raise ValueError('A dataset input is not a readable photo or video.')
             else:
@@ -302,8 +322,12 @@ def run_artifact(job, directory, report, stopped, ctx):
                 if stopped():return None
                 record = (detect_character_record_from_image(frame, detector, embedder, ctx.engines._body, anchor)
                           if identity_model == CHARACTER_FACE_MODEL_ID else
-                          detect_face_record_from_image(frame,ctx.engines._face_app,anchor))
-                if record is not None: records.append(record)
+                          detect_face_record_from_image(frame,ctx.engines._face_app,anchor,
+                            body_analyzer=getattr(ctx.engines, '_body', None), training_view=view))
+                if record is not None:
+                    if 'training_outlines' in params:
+                        record['training_outline'] = params['training_outlines'][index]
+                    records.append(record)
         def crop_progress(fraction,message):
             if stopped(): raise InterruptedError()
             report(.4+.5*fraction,message)
@@ -318,7 +342,8 @@ def run_artifact(job, directory, report, stopped, ctx):
         if result['blocked']: raise ValueError(result['warning'])
         folder = Path(result['dataset_dir'])
         with zipfile.ZipFile(directory/'dataset.zip','w',compression=zipfile.ZIP_STORED) as bundle:
-            for path in sorted(folder.iterdir()): bundle.write(path,f'{folder.name}/{path.name}')
+            for name in result['dataset_files']:
+                bundle.write(folder / name, f'{folder.name}/{name}')
         return {'trigger_word':params['trigger_word'],'image_count':result['image_count'], 'identity_model_id':identity_model,
                 'face_detailer': identity_model != CHARACTER_FACE_MODEL_ID and params.get('enable_face_detailer', True) is not False}
     if kind == 'train_lora':

@@ -516,6 +516,10 @@ def operation_parity_fixtures():
     dataset = saved('JobCreate.build_lora_dataset')
     dataset['params'].update(identity_model_id='ccip-caformer24@1', anchor_embedding=character)
     write('JobCreate.build_character_dataset', dataset)
+    curated = saved('JobCreate.build_lora_dataset')
+    curated['params'].update(training_views=['portrait', 'body', 'confirmed_body'],
+                             training_outlines=[None, [.1, .2, .9, .2, .8, .95, .2, .95], None])
+    write('JobCreate.build_curated_lora_dataset', curated)
     for video in (False, True):
         params = dict(source_kind='character',target_kind='character',seed=18472,steps=20,experimental_acknowledged=True)
         if video: params.update(target_identity=dict(model_id='ccip-caformer24@1',embedding=character),start_time=0,end_time=.6)

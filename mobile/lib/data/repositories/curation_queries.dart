@@ -39,6 +39,7 @@ class CurationQueries {
           'JOIN faces f ON f.id = md.ref_id '
           'JOIN media m ON m.id = md.media_id '
           "WHERE md.kind = 'f' AND f.person_id = ? AND f.hidden = 0 AND (f.ownership IS NULL OR f.ownership != 'none') "
+          'AND NOT EXISTS (SELECT 1 FROM review_doubtful d WHERE d.face_id = f.id AND d.person_id = f.person_id) '
           "AND f.face_px >= CASE WHEN f.kind = 'character' THEN ? ELSE ? END",
           variables: [
             Variable.withInt(personId),
@@ -62,6 +63,8 @@ class CurationQueries {
           frameNumber: r.readNullable<int>('frame_number'),
           timestampMs: r.readNullable<int>('timestamp_ms'),
           boxW: r.read<double>('w'),
+          boxX: r.read<double>('x'),
+          boxY: r.read<double>('y'),
           boxH: r.read<double>('h'),
           refId: r.read<int>('ref_id'),
           facePx: r.read<double>('face_px'),
@@ -97,16 +100,18 @@ class CurationQueries {
     final bodyRows = await db
         .customSelect(
           'SELECT md.id AS det, md.media_id, md.ref_id, md.x, md.y, md.w, md.h, '
-          'md.frame_number, md.timestamp_ms, b.score AS q, b.extent, b.appearance, b.face_id, '
-          'm.asset_id, m.kind, m.height AS media_h, '
-          '(SELECT COUNT(*) FROM sensitive_regions sr WHERE sr.body_id = b.id AND sr.exposed = 1) AS exposed_count '
+          'md.frame_number, md.timestamp_ms, md.outline, b.score AS q, b.extent, b.appearance, b.face_id, b.link_method, '
+          'b.person_id AS body_owner, m.asset_id, m.kind, m.height AS media_h, '
+          "(SELECT COUNT(*) FROM sensitive_regions sr WHERE sr.body_id = b.id AND sr.media_id = md.media_id AND sr.frame_number IS md.frame_number AND sr.exposed = 1 AND (sr.user_state IS NULL OR sr.user_state != 'dismissed')) AS exposed_count "
           'FROM media_detections md '
           'JOIN bodies b ON b.id = md.ref_id '
           'LEFT JOIN faces f ON f.id = b.face_id '
           'JOIN media m ON m.id = md.media_id '
           "WHERE md.kind = 'b' AND b.hidden = 0 AND (b.ownership IS NULL OR b.ownership != 'none') "
           "AND (b.extent IS NULL OR b.extent != 'head') AND "
-          "((b.person_id = ? AND (b.link_method IS NULL OR b.link_method = 'manual')) OR "
+          'NOT EXISTS (SELECT 1 FROM review_doubtful d WHERE d.face_id = f.id AND d.person_id = f.person_id) AND '
+          'NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = b.id AND r.person_id = ?1) AND '
+          "((b.person_id = ?1 AND (f.person_id IS NULL OR f.person_id = ?1) AND (b.link_method IS NULL OR b.link_method = 'manual')) OR "
           "(b.person_id IS NULL AND f.person_id = ? AND f.hidden = 0 AND (f.ownership IS NULL OR f.ownership != 'none')))",
           variables: [Variable.withInt(personId), Variable.withInt(personId)],
         )
@@ -136,8 +141,6 @@ class CurationQueries {
           quality: r.readNullable<double>('q') ?? 0.5,
           extent: ext,
           hasExposedRegion: hasExposed,
-          // measured nowhere: an exposed region is the only skin evidence there is
-          skinRatio: hasExposed ? 0.7 : 0.0,
           frameNumber: r.readNullable<int>('frame_number'),
           timestampMs: r.readNullable<int>('timestamp_ms'),
           boxW: r.read<double>('w'),
@@ -146,6 +149,11 @@ class CurationQueries {
           appearance: appearance == null || appearance.isEmpty
               ? null
               : appearanceFromBlob(appearance),
+          boxX: r.read<double>('x'),
+          boxY: r.read<double>('y'),
+          manualBody: r.readNullable<int>('body_owner') == personId &&
+              r.readNullable<String>('link_method') == 'manual',
+          outline: r.readNullable<String>('outline'),
         ),
       );
     }

@@ -200,7 +200,11 @@ void main() {
           isNull,
           reason: 'the user said not her',
         );
-        expect((await db.select(db.bodyClusters).getSingle()).personId, lina);
+        expect(
+          (await db.select(db.bodyClusters).getSingle()).personId,
+          isNull,
+          reason: 'a mixed cluster must not advertise either identity',
+        );
       },
     );
 
@@ -253,6 +257,176 @@ void main() {
   });
 
   group('cluster UI support', () {
+    test(
+      'a region fitting two known owners stays out of both groups',
+      () async {
+        final a = await seedPerson(db), b = await seedPerson(db);
+        final base = unit384(299);
+        final query = await body(base);
+        for (final p in [a, b, a, b]) {
+          await body(base, person: p, link: 'manual');
+        }
+        final clusters = ExposedClusters(db);
+        await clusters.setEnabled(true);
+        expect(await clusters.rebuild(ExposedKind.chest), 2);
+        expect(
+          (await clusters.clusters()).expand((g) => g.bodyIds),
+          isNot(contains(query)),
+        );
+        expect(await db.select(db.reviewBodyLinks).get(), isEmpty);
+      },
+    );
+
+    test('two regions proposing different people stay unresolved', () async {
+      final a = await seedPerson(db), b = await seedPerson(db);
+      final chest = unit384(301), lower = unit384(302);
+      await body(chest, person: a, link: 'manual');
+      await body(null, buttocks: lower, person: b, link: 'manual');
+      final query = await body(chest, buttocks: lower);
+      final clusters = ExposedClusters(db);
+      await clusters.setEnabled(true);
+      await clusters.rebuild(ExposedKind.chest);
+      expect((await db.select(db.reviewBodyLinks).get()).single.bodyId, query);
+      await clusters.rebuild(ExposedKind.buttocks);
+      expect(await db.select(db.reviewBodyLinks).get(), isEmpty);
+      expect(
+        (await (db.select(
+          db.bodies,
+        )..where((b) => b.id.equals(query))).getSingle()).personId,
+        isNull,
+      );
+    });
+
+    test(
+      'regional refresh preserves face evidence and clears stale candidates',
+      () async {
+        final person = await seedPerson(db);
+        final base = unit384(310);
+        final anchor = await body(base, person: person, link: 'manual');
+        final query = await body(base);
+        final other = await body(base);
+        final clusters = ExposedClusters(db);
+        await clusters.setEnabled(true);
+        await clusters.rebuild(ExposedKind.chest);
+        await (db.delete(
+          db.reviewBodyLinks,
+        )..where((r) => r.bodyId.equals(query))).go();
+        await db
+            .into(db.reviewBodyLinks)
+            .insert(
+              ReviewBodyLinksCompanion.insert(
+                bodyId: Value(query),
+                personId: person,
+                method: 'weak_face',
+                confidence: 0.94,
+              ),
+            );
+        await clusters.publishSuggestions();
+        expect(
+          (await (db.select(
+            db.reviewBodyLinks,
+          )..where((r) => r.bodyId.equals(query))).getSingle()).method,
+          'weak_face',
+        );
+        await (db.update(db.bodies)..where((b) => b.id.equals(anchor))).write(
+          const BodiesCompanion(personId: Value(null), linkMethod: Value(null)),
+        );
+        await clusters.publishSuggestions();
+        expect(
+          (await db.select(db.reviewBodyLinks).get()).map((r) => r.bodyId),
+          [query],
+        );
+        expect(
+          await (db.select(
+            db.reviewBodyLinks,
+          )..where((r) => r.bodyId.equals(other))).get(),
+          isEmpty,
+        );
+        expect((await db.select(db.bodyClusters).getSingle()).personId, isNull);
+      },
+    );
+
+    test(
+      'known different owners and explicit distinct bodies never cluster',
+      () async {
+        final a = await seedPerson(db), b = await seedPerson(db);
+        final base = unit384(320);
+        final a1 = await body(base, person: a, link: 'manual');
+        final a2 = await body(base, person: a, link: 'manual');
+        final b1 = await body(base, person: b, link: 'manual');
+        final b2 = await body(base, person: b, link: 'manual');
+        final clusters = ExposedClusters(db);
+        await clusters.setEnabled(true);
+        expect(await clusters.rebuild(ExposedKind.chest), 2);
+        final groups = await clusters.clusters();
+        expect(
+          groups.map((g) => g.bodyIds),
+          containsAll([
+            [a1, a2],
+            [b1, b2],
+          ]),
+        );
+        await db
+            .into(db.bodyDistinct)
+            .insert(BodyDistinctCompanion.insert(bodyA: a1, bodyB: a2));
+        expect(await clusters.rebuild(ExposedKind.chest), 1);
+        expect((await clusters.clusters()).single.bodyIds, [b1, b2]);
+      },
+    );
+
+    test('bulk assignment respects a newly distinct face-owned body', () async {
+      final person = await seedPerson(db);
+      final face = await seedFace(db, personId: person);
+      final anchor = await seedBody(db, faceId: face);
+      final base = unit384(330);
+      final rejected = await body(base), free = await body(base);
+      final clusters = ExposedClusters(db);
+      await clusters.setEnabled(true);
+      await clusters.rebuild(ExposedKind.chest);
+      await db
+          .into(db.bodyDistinct)
+          .insert(BodyDistinctCompanion.insert(bodyA: anchor, bodyB: rejected));
+      final cluster = (await clusters.clusters()).single.cluster.id;
+      expect(await clusters.assign(cluster, person), 1);
+      expect(
+        (await (db.select(
+          db.bodies,
+        )..where((b) => b.id.equals(free))).getSingle()).personId,
+        person,
+      );
+      expect(
+        (await (db.select(
+          db.bodies,
+        )..where((b) => b.id.equals(rejected))).getSingle()).personId,
+        isNull,
+      );
+      expect(await db.select(db.reviewBodyLinks).get(), isEmpty);
+    });
+
+    test(
+      'ownership exclusions and disabled clusters cannot leave suggestions',
+      () async {
+        final person = await seedPerson(db);
+        final base = unit384(340);
+        await body(base, person: person, link: 'manual');
+        final free = await body(base);
+        final excluded = await body(base);
+        await (db.update(db.bodies)..where((b) => b.id.equals(excluded))).write(
+          const BodiesCompanion(ownership: Value('none')),
+        );
+        final clusters = ExposedClusters(db);
+        await clusters.setEnabled(true);
+        await clusters.rebuild(ExposedKind.chest);
+        expect(
+          (await clusters.clusters()).single.bodyIds,
+          isNot(contains(excluded)),
+        );
+        expect((await db.select(db.reviewBodyLinks).get()).single.bodyId, free);
+        await clusters.setEnabled(false);
+        expect(await db.select(db.reviewBodyLinks).get(), isEmpty);
+      },
+    );
+
     test(
       'clusters() lists members; a rebuilt cluster keeps the majority person; suggestions are queued only while on',
       () async {

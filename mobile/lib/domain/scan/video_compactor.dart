@@ -324,6 +324,7 @@ class VideoCompactor {
         boxes: [for (final i in loose) items[i].$1.box],
         timestampMs: timestamp,
         tracks: tracks.where((t) => !used.contains(t) && t.faceTrack == null),
+        requireMotion: faceTrackOf != null,
         similarity: similarity,
         identity: identity,
         motion: motion,

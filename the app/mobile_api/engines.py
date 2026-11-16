@@ -447,6 +447,7 @@ class CapabilityProbe:
                               and self._has("models", "body", "rtmpose_m_body7.onnx"),
             "character_detection": self._has("models", "body", "yolox_m_humanart.onnx"),
             "quick_video_sampling": True,
+            "lora_training_views": True,
             "character_library_repair": face_ready and character_ready
                                         and self._has("models", "body", "yolox_m_humanart.onnx")
                                         and self._has("models", "body", "rtmpose_m_body7.onnx"),

@@ -9,8 +9,11 @@ import '../../core/router.dart';
 import '../../data/api/dtos/embedding.dart';
 import '../../data/media/media_library.dart';
 import '../../data/repositories/artifact_context.dart';
+import '../../data/repositories/curation_queries.dart';
 import '../../data/repositories/media_queries.dart';
 import '../../domain/curation/auto_dataset_curator.dart';
+import '../../domain/curation/training_view.dart';
+import '../people/training_export_controller.dart' show cropSourceProvider;
 import '../../features/settings/background_screen.dart';
 import '../../features/studio/studio_helpers.dart';
 import '../../library_providers.dart';
@@ -144,26 +147,74 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
     }
 
     setState(() => _isSubmitting = true);
+    final temporary = <File>[];
     try {
       final mediaLib = ref.read(mediaLibraryProvider);
       final photos = <File>[];
-
-      for (final c in state.all) {
-        File? file;
-        if (mediaLib is OriginalMediaLibrary) {
-          file = await (mediaLib as OriginalMediaLibrary).originalFile(
-            c.assetId,
-          );
-        }
-        if (file == null || !await file.exists()) {
-          final bytes = await mediaLib.viewerImage(c.assetId);
-          if (bytes != null) {
-            file = await privatePickedPhoto(ref, bytes);
+      final views = <String>[];
+      final outlines = <List<double>?>[];
+      final db = ref.read(databaseProvider);
+      final person = await (db.select(
+        db.persons,
+      )..where((p) => p.id.equals(widget.personId))).getSingleOrNull();
+      if (person == null) {
+        throw const FormatException('الشخص المختار لم يعد موجوداً');
+      }
+      final isCharacter = person.kind == 'character';
+      final useViews = !isCharacter && caps.engines.loraTrainingViews;
+      final fresh = useViews
+          ? {
+              for (final c
+                  in await ref
+                      .read(curationQueriesProvider)
+                      .loadCandidatesForPerson(widget.personId))
+                c.detectionId: c,
+            }
+          : const <int, CurationCandidate>{};
+      final source = ref.read(cropSourceProvider);
+      var openedSource = false;
+      try {
+        for (final c in state.all) {
+          if (useViews && c.refId != null) {
+            final current = fresh[c.detectionId];
+            if (current == null ||
+                current.refId != c.refId ||
+                current.assetId != c.assetId ||
+                current.category != c.category ||
+                current.timestampMs != c.timestampMs) {
+              continue;
+            }
+            openedSource = true;
+            final selected = await readTrainingView(source, current);
+            if (selected == null) continue;
+            final file = await privatePickedPhoto(ref, selected.jpeg);
+            temporary.add(file);
+            photos.add(file);
+            views.add(selected.view);
+            outlines.add(selected.outline);
+            continue;
+          }
+          File? file;
+          if (mediaLib is OriginalMediaLibrary) {
+            file = await (mediaLib as OriginalMediaLibrary).originalFile(
+              c.assetId,
+            );
+          }
+          if (file == null || !await file.exists()) {
+            final bytes = await mediaLib.viewerImage(c.assetId);
+            if (bytes != null) {
+              file = await privatePickedPhoto(ref, bytes);
+              temporary.add(file);
+            }
+          }
+          if (file != null && await file.exists()) {
+            photos.add(file);
+            views.add('original');
+            outlines.add(null);
           }
         }
-        if (file != null && await file.exists()) {
-          photos.add(file);
-        }
+      } finally {
+        if (openedSource) await source.close();
       }
 
       if (photos.length < 5) {
@@ -175,17 +226,6 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
       final faces = await ref
           .read(studioRepositoryProvider)
           .sourceFaces(widget.personId);
-      final db = ref.read(databaseProvider);
-      final person = await (db.select(
-        db.persons,
-      )..where((r) => r.id.equals(widget.personId))).getSingleOrNull();
-      if (person == null) {
-        throw const FormatException(
-          'الشخص المختار لم يعد موجوداً في قاعدة البيانات',
-        );
-      }
-
-      final isCharacter = person.kind == 'character';
       final identityModel = isCharacter
           ? characterEmbeddingModelId
           : 'buffalo_l@1';
@@ -208,6 +248,9 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
               'trigger_word': state.triggerWord.trim(),
               'repeats': 20,
               'anchor_embedding': anchor,
+              if (useViews) 'training_views': views,
+              if (useViews && outlines.any((o) => o != null))
+                'training_outlines': outlines,
               // sent only when turned OFF: the default is on everywhere, so a PC that predates the option still
               // accepts the job (an unknown option is a 400 there). The resolution choice is a training
               // setting (max_resolution), not a dataset one, so it is not sent here.
@@ -229,6 +272,13 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
         ).showSnackBar(SnackBar(content: Text('فشل بدء التدريب: $e')));
       }
     } finally {
+      for (final file in temporary) {
+        try {
+          await file.delete();
+        } on FileSystemException {
+          /* cache cleanup can retry */
+        }
+      }
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
@@ -806,8 +856,6 @@ class _PersonMediaPickerSheetState
         isVideo: asset.kind == 'video',
         category: currentCat,
         quality: 0.85,
-        hasExposedRegion: currentCat == CurationCategory.body,
-        skinRatio: currentCat == CurationCategory.body ? 0.5 : 0.0,
       );
     }).toList();
 
@@ -833,8 +881,6 @@ class _PersonMediaPickerSheetState
             isVideo: item.kind == 'video',
             category: currentCat,
             quality: 0.85,
-            hasExposedRegion: currentCat == CurationCategory.body,
-            skinRatio: currentCat == CurationCategory.body ? 0.5 : 0.0,
           ),
         );
       }

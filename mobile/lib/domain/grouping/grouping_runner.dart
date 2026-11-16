@@ -7,6 +7,7 @@ import '../../data/repositories/people_repository.dart';
 import '../../data/repositories/review_repository.dart';
 import 'grouping_config.dart';
 import '../identity/doubt_audit.dart';
+import '../pose/exposed_matching.dart';
 import 'grouping_inputs.dart';
 import 'plan_applier.dart';
 
@@ -264,6 +265,7 @@ class GroupingRunner {
     if (result.changedAnything || merged > 0 || repaired > 0) {
       await _audit.run();
     }
+    if (kind == 'person') await ExposedClusters(_db).publishSuggestions();
 
     return GroupingRun(
       assigned: result.assigned,
