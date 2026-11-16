@@ -3,6 +3,8 @@ import 'package:drift/drift.dart';
 import '../../domain/geometry/outline.dart';
 
 import '../db/app_database.dart';
+import 'app_settings.dart';
+import 'video_scan_coverage.dart';
 
 enum ScanFilter { all, scanned, unscanned, failed }
 
@@ -71,6 +73,7 @@ class MediaListItem {
     required this.faceCount,
     this.kind = 'photo',
     this.durationMs,
+    this.videoScanMode,
   });
 
   final int id;
@@ -82,6 +85,7 @@ class MediaListItem {
   final int faceCount;
   final String kind;
   final int? durationMs;
+  final VideoScanMode? videoScanMode;
 }
 
 /// One face or body box inside a photo (normalised 0..1), with whoever it belongs to.
@@ -205,6 +209,7 @@ class MediaQueries {
           _db.bodies,
           _db.mediaDetections,
           _db.persons,
+          _db.settings,
         ]),
       )
       .map((_) {});
@@ -237,7 +242,8 @@ class MediaQueries {
         .customSelect(
           '''
           SELECT m.id, m.asset_id, m.kind, m.duration_ms, m.width, m.height, m.taken_at, m.modified_at, m.scan_status,
-            (SELECT COUNT(*) FROM media_detections d WHERE d.media_id = m.id AND d.kind = 'f') AS face_count
+            (SELECT COUNT(*) FROM media_detections d WHERE d.media_id = m.id AND d.kind = 'f') AS face_count,
+            (SELECT value FROM settings WHERE key = '${VideoScanCoverage.prefix}' || m.id) AS video_coverage
           FROM media m WHERE $where
           ORDER BY COALESCE(m.taken_at, m.modified_at) DESC, m.id DESC
           LIMIT ? OFFSET ?
@@ -271,6 +277,9 @@ class MediaQueries {
           ),
           scanStatus: r.read<String>('scan_status'),
           faceCount: r.read<int>('face_count'),
+          videoScanMode: VideoScanCoverage.decode(r.readNullable<String>('video_coverage'),
+            assetId: r.read<String>('asset_id'), modifiedAt: r.read<int>('modified_at'),
+            durationMs: r.readNullable<int>('duration_ms')),
         ),
     ];
   }

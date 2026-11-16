@@ -15,6 +15,7 @@ abstract final class SettingKeys {
   static const scanVideos = 'scan.videos';
   static const frameInterval = 'scan.frame_interval';
   static const adaptiveVideoSampling = 'scan.adaptive_video_sampling';
+  static const videoScanMode = 'scan.video_mode';
   static const maxSide = 'scan.max_side';
   static const scanActive = 'scan.active';
   static const scanScopeAlbumIds = 'scan.scope_albums';
@@ -38,6 +39,7 @@ abstract final class SettingKeys {
     scanVideos,
     frameInterval,
     adaptiveVideoSampling,
+    videoScanMode,
     maxSide,
     modelId,
     autoOrganizeEnabled,
@@ -48,6 +50,8 @@ abstract final class SettingKeys {
       backedUp.contains(key) ||
       key.startsWith(artifactContextPrefix) ||
       key.startsWith(actionCatalogPrefix) ||
+      key.startsWith('video.coverage.') ||
+      key.startsWith('video.detail.') ||
       key.startsWith(actionFramePrefix);
 }
 
@@ -58,6 +62,8 @@ const maxQualityGate = 0.80;
 const defaultQualityGate = 0.40; // face_quality.DEFAULT_MIN_QUALITY on the PC
 const defaultMaxSide = 2560;
 const maxSideChoices = [1600, 2048, 2560, 3072];
+
+enum VideoScanMode { quick, detailed }
 
 /// Everything the user can tune, read as one immutable snapshot.
 class SettingsSnapshot {
@@ -70,6 +76,7 @@ class SettingsSnapshot {
     this.scanVideos = true,
     this.frameInterval = 1.0,
     this.adaptiveVideoSampling = true,
+    this.videoScanMode = VideoScanMode.quick,
     this.maxSide = defaultMaxSide,
     this.scanActive = false,
     this.scanScopeAlbumIds = const [],
@@ -107,6 +114,8 @@ class SettingsSnapshot {
       characterAlbumIds: ids(SettingKeys.characterAlbumIds),
       scanVideos: (m[SettingKeys.scanVideos] ?? '1') != '0',
       adaptiveVideoSampling: m[SettingKeys.adaptiveVideoSampling] != '0',
+      videoScanMode: m[SettingKeys.videoScanMode] == 'detailed'
+          ? VideoScanMode.detailed : VideoScanMode.quick,
       frameInterval:
           (double.tryParse(m[SettingKeys.frameInterval] ?? '') ?? 1.0).clamp(
             0.25,
@@ -136,6 +145,7 @@ class SettingsSnapshot {
   final bool scanVideos;
   final double frameInterval;
   final bool adaptiveVideoSampling;
+  final VideoScanMode videoScanMode;
   final int maxSide; // long side of the picture sent to the PC
   final bool
   scanActive; // a scan was started and not finished/paused: resume it after a restart
@@ -223,6 +233,9 @@ class AppSettings {
 
   Future<void> setAdaptiveVideoSampling(bool value) =>
       _put(SettingKeys.adaptiveVideoSampling, value ? '1' : '0');
+
+  Future<void> setVideoScanMode(VideoScanMode value) =>
+      _put(SettingKeys.videoScanMode, value.name);
 
   Future<void> setMaxSide(int value) => _put(SettingKeys.maxSide, '$value');
 

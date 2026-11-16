@@ -169,7 +169,11 @@ class _MergeScreenState extends ConsumerState<MergeScreen> {
     try {
       await ref
           .read(peopleRepositoryProvider)
-          .mergePeople(sourceId: drop.id, targetId: keep.id);
+          .mergePeople(
+            sourceId: drop.id,
+            targetId: keep.id,
+            allowSharedFrames: true,
+          );
     } on MergeBlockedException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
       return;

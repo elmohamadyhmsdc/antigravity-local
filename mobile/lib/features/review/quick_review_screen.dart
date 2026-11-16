@@ -317,7 +317,11 @@ class _QuickReviewScreenState extends ConsumerState<QuickReviewScreen> {
     final drop = keepA ? d.b : d.a;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await _people.mergePeople(sourceId: drop.id, targetId: keep.id);
+      await _people.mergePeople(
+        sourceId: drop.id,
+        targetId: keep.id,
+        allowSharedFrames: true,
+      );
     } on MergeBlockedException catch (e) {
       _toast(messenger, e.message);
       return false;
@@ -601,9 +605,10 @@ class _QuestionView extends ConsumerWidget {
       ReviewQuestionKind.outfit => _Photo(kind: 'b', id: q.outfit!.bodyId),
       ReviewQuestionKind.duplicate => _Pair(item: q.duplicate!),
       ReviewQuestionKind.group => _Group(item: q.group!),
-      ReviewQuestionKind.doubtful => q.doubtful!.faces.length == 1
-          ? _Photo(kind: 'f', id: q.doubtful!.faces.single.faceId)
-          : _Doubtful(item: q.doubtful!, marked: marked, onToggle: onToggle),
+      ReviewQuestionKind.doubtful =>
+        q.doubtful!.faces.length == 1
+            ? _Photo(kind: 'f', id: q.doubtful!.faces.single.faceId)
+            : _Doubtful(item: q.doubtful!, marked: marked, onToggle: onToggle),
     };
 
     return Column(

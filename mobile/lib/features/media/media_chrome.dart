@@ -18,6 +18,8 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onRedetect,
     required this.onChangeFileKind,
     this.onLens,
+    this.onDetailedScan,
+    this.videoScanLabel,
     this.visible = true,
   });
 
@@ -30,6 +32,8 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onRedetect;
   final VoidCallback onChangeFileKind;
   final VoidCallback? onLens;
+  final VoidCallback? onDetailedScan;
+  final String? videoScanLabel;
   final bool visible;
 
   @override
@@ -95,7 +99,7 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
                             ),
                             if (media.kind == 'video')
                               Text(
-                                l10n.videoTitle,
+                                videoScanLabel ?? l10n.videoTitle,
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.65),
                                   fontSize: 12,
@@ -142,6 +146,7 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
                             onSelected: (value) {
                               if (value == 'redetect') onRedetect();
                               if (value == 'kind') onChangeFileKind();
+                              if (value == 'detailed-scan') onDetailedScan?.call();
                               if (value == 'toggle-faces') {
                                 onLayersChanged(layers.copyWith(faces: !layers.faces));
                               }
@@ -153,6 +158,11 @@ class MediaChromeTopBar extends StatelessWidget implements PreferredSizeWidget {
                               }
                             },
                             itemBuilder: (_) => [
+                              if (media.kind == 'video' && onDetailedScan != null)
+                                PopupMenuItem(
+                                  key: const Key('media-detailed-scan'), value: 'detailed-scan',
+                                  child: _MenuRow(icon: Icons.manage_search, text: l10n.videoDetailedRequest),
+                                ),
                               PopupMenuItem(
                                 key: const Key('toggle-faces'),
                                 value: 'toggle-faces',

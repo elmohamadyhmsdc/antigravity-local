@@ -384,6 +384,8 @@ Future<void> startScan(
   bool enumerate = true,
   Set<String>? albumIds,
   bool repairCharacters = false,
+  int? repairPersonId,
+  bool resumeRepairs = true,
 }) async {
   final engine = ref.read(scanEngineProvider);
   if (engine.isRunning) return;
@@ -393,11 +395,15 @@ Future<void> startScan(
   }
   await prepareBackgroundForWork(ref.context, ref);
   if (!ref.context.mounted) return;
-  unawaited(engine.start(
-    enumerate: enumerate,
-    albumIds: albumIds,
-    repairCharacters: repairCharacters,
-  ));
+  unawaited(
+    engine.start(
+      enumerate: enumerate,
+      albumIds: albumIds,
+      repairCharacters: repairCharacters,
+      repairPersonId: repairPersonId,
+      resumeRepairs: resumeRepairs,
+    ),
+  );
 }
 
 /// A dedicated view of the live analysis, including video stages and controls.

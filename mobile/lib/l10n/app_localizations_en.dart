@@ -449,6 +449,43 @@ class AppLocalizationsEn extends AppLocalizations {
   String get videoAdaptiveSampling => 'Automatic video sampling';
 
   @override
+  String get videoScanModeTitle => 'Video scanning';
+
+  @override
+  String get videoScanQuick => 'Quick scan';
+
+  @override
+  String get videoScanDetailed => 'Detailed scan';
+
+  @override
+  String get videoScanQuickHint =>
+      'Up to 60 samples spread across each video. Faster indexing, but brief appearances may be missed. Videos already in progress keep their saved sampling plan.';
+
+  @override
+  String get videoScanDetailedHint =>
+      'Denser samples for more complete coverage. Takes longer; you can run it later on individual videos.';
+
+  @override
+  String get videoQuickComplete => 'Quick scan complete';
+
+  @override
+  String get videoDetailedComplete => 'Detailed scan complete';
+
+  @override
+  String get videoDetailedRequest => 'Run detailed scan';
+
+  @override
+  String get videoDetailedQueued =>
+      'Detailed scan queued. An active video finishes its current pass first.';
+
+  @override
+  String get videoDetailedAlready =>
+      'This video already has detailed scan coverage.';
+
+  @override
+  String get scanContinueQueue => 'Continue remaining items';
+
+  @override
   String get videoAdaptiveSamplingHint =>
       'Short clips use closer samples; longer videos use wider intervals. About 0.5 s for a short clip and 5 s for a 40-minute video.';
 
@@ -3250,6 +3287,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get repairMixedCharacters => 'Repair mixed characters';
+
+  @override
+  String get identityRescanTitle => 'Re-scan and repair';
+
+  @override
+  String get identityRescanHint =>
+      'Recheck this identity\'s photos and videos on the PC, correct People / Characters classification and separate clearly different faces. The current cover and confirmed faces guide the grouping. Manual corrections and original files are kept. Uncertain matches appear in Review.';
+
+  @override
+  String get identityRescanStart => 'Start re-scan';
+
+  @override
+  String get mergeRepeatedAppearancesHint =>
+      'These identities appear in the same photo or video frame. Collages, reflections and repeated boxes can show the same person more than once. You can still confirm this merge; all detections are kept.';
 
   @override
   String get quickReviewTitle => 'Quick review';

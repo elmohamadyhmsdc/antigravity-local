@@ -11,6 +11,7 @@ import '../../data/db/app_database.dart';
 import '../../data/media/media_library.dart';
 import '../../data/platform/native_video_player.dart';
 import '../../data/repositories/media_queries.dart';
+import '../../data/repositories/app_settings.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../domain/actions/action_context.dart';
 import '../../domain/actions/action_id.dart';
@@ -232,6 +233,26 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
+    }
+  }
+
+  Future<void> _requestDetailedScan(BuildContext context, MediaRow media) async {
+    final l = AppLocalizations.of(context);
+    if (ref.read(mobileApiProvider) == null) {
+      context.push(Routes.connection);
+      return;
+    }
+    try {
+      final queued = await ref.read(videoScanCoverageProvider).requestDetailed(media.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(queued ? l.videoDetailedQueued : l.videoDetailedAlready)));
+      if (queued && !ref.read(scanEngineProvider).isRunning) {
+        await startScan(ref, enumerate: false, resumeRepairs: false);
+      }
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l.peopleActionError('$e'))));
     }
   }
 
@@ -740,6 +761,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     };
 
     final media = row.value;
+    final videoCoverage = media?.kind == 'video'
+        ? ref.watch(videoCoverageModeProvider(media!)).value : null;
     final takenAt = media?.takenAt;
     final taken = takenAt == null
         ? null
@@ -793,6 +816,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                 onRedetect: () => redetectFlow(context, ref, mediaId: media.id),
                 onChangeFileKind: () => _fileKindMenu(context, media),
                 onLens: () => _searchGoogleLens(context, media),
+                onDetailedScan: () => _requestDetailedScan(context, media),
+                videoScanLabel: videoCoverage == VideoScanMode.quick ? l10n.videoQuickComplete
+                    : videoCoverage == VideoScanMode.detailed ? l10n.videoDetailedComplete : null,
               ),
       ),
       body: Column(

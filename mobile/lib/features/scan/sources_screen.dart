@@ -11,6 +11,7 @@ import '../../library_providers.dart';
 import '../shared/empty_state.dart';
 import '../shared/screen_layout.dart';
 import 'scan_progress_card.dart';
+import 'video_scan_mode_selector.dart';
 
 /// S05 - choose which albums to scan, the scan options, start / pause / resume, and watch progress.
 class SourcesScreen extends ConsumerWidget {
@@ -54,6 +55,13 @@ class SourcesScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           const ScanProgressCard(),
+          if (counts != null && counts.remaining > 0)
+            TextButton.icon(
+              key: const Key('scan-continue-queue'),
+              icon: const Icon(Icons.play_arrow),
+              label: Text(l10n.scanContinueQueue),
+              onPressed: progress.isActive ? null : () => startScan(ref, enumerate: false),
+            ),
           if (counts != null && counts.total > 0)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
@@ -155,6 +163,9 @@ class SourcesScreen extends ConsumerWidget {
                       : settingsStore.setScanVideos,
                 ),
                 if (settings.scanVideos)
+                  VideoScanModeSelector(mode: settings.videoScanMode,
+                    enabled: !progress.isActive, onChanged: settingsStore.setVideoScanMode),
+                if (settings.scanVideos && settings.videoScanMode == VideoScanMode.detailed)
                   SwitchListTile(
                     key: const Key('adaptive-video-sampling'),
                     value: settings.adaptiveVideoSampling,
@@ -164,7 +175,7 @@ class SourcesScreen extends ConsumerWidget {
                         ? null
                         : settingsStore.setAdaptiveVideoSampling,
                   ),
-                if (settings.scanVideos && !settings.adaptiveVideoSampling)
+                if (settings.scanVideos && settings.videoScanMode == VideoScanMode.detailed && !settings.adaptiveVideoSampling)
                   ListTile(
                     title: Text(l10n.videoFrameInterval),
                     trailing: DropdownButton<double>(

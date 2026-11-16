@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from mobile_api.app import create_app
 from mobile_api.testing import make_test_context
 from mobile_api.media_decode import IsolatedCapture
-from mobile_api.video_sampling import adaptive_interval
+from mobile_api.video_sampling import adaptive_interval, quick_sample_step
 from mobile_api.workspace import Workspace
 
 
@@ -43,6 +43,33 @@ class Capture:
 
 
 class VideoTests(unittest.TestCase):
+    def test_quick_sampling_is_bounded_with_fractional_fps_and_long_videos(self):
+        import math
+        for fps in (1, 23.976, 29.97, 30, 59.94, 120):
+            for duration in (6, 30, 300, 1800, 7200):
+                total = math.ceil(fps * duration)
+                step = quick_sample_step(total, fps)
+                self.assertLessEqual(math.ceil(total / step), 60)
+                self.assertGreaterEqual(step / fps, 1)
+
+    def test_quick_job_uses_decoded_frame_count_and_retains_sampling_metadata(self):
+        class LongCapture(Capture):
+            def get(self, prop):
+                return 30 if prop == cv2.CAP_PROP_FPS else 54000
+            def read(self):
+                return True, np.full((480, 640, 3), self.position % 256, np.uint8)
+        self.ctx.video_jobs.capture = LongCapture
+        job_id = self.create({**self.body, 'params': {'sampling_mode': 'quick'}})
+        status = self.wait(job_id)
+        self.assertEqual(status['status'], 'completed', status)
+        self.assertEqual(status['details']['total_samples'], 60)
+        self.assertEqual(status['details']['sample_step'], 900)
+        self.assertEqual(status['details']['sampling_mode'], 'quick')
+        self.ctx.video_jobs.threads[job_id].join(5)
+        path = self.ctx.workspace.job_dir(job_id) / 'detections.ndjson'
+        self.assertEqual([json.loads(x)['frame_number'] for x in path.read_bytes().splitlines()],
+                         list(range(0, 54000, 900)))
+
     def test_duration_aware_sampling_keeps_short_clips_dense_and_long_videos_sparse(self):
         self.assertEqual(adaptive_interval(20), 0.5)
         self.assertEqual(adaptive_interval(60), 0.5)

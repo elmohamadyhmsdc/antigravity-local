@@ -200,6 +200,8 @@ class ScanEngine {
     bool enumerate = true,
     Set<String>? albumIds,
     bool repairCharacters = false,
+    int? repairPersonId,
+    bool resumeRepairs = true,
   }) async {
     if (_active || mediaOrganizationActive) return;
     _allowReconnectResume = true;
@@ -209,7 +211,13 @@ class ScanEngine {
     _pauseSignal = Completer<void>();
     try {
       await runZoned(
-        () => _run(enumerate, albumIds: albumIds, repairCharacters: repairCharacters),
+        () => _run(
+          repairPersonId == null && enumerate,
+          albumIds: albumIds,
+          repairCharacters: repairCharacters,
+          repairPersonId: repairPersonId,
+          resumeRepairs: resumeRepairs,
+        ),
         zoneValues: {_inScanKey: true},
       );
     } catch (e) {
@@ -254,6 +262,8 @@ class ScanEngine {
     bool enumerate, {
     Set<String>? albumIds,
     required bool repairCharacters,
+    int? repairPersonId,
+    bool resumeRepairs = true,
   }) async {
     final api = _api();
     if (api == null) {
@@ -272,19 +282,35 @@ class ScanEngine {
     _canDetectCharacters = caps.engines.characterDetection;
     _canRepairCharacters = caps.engines.characterLibraryRepair;
     final repair = _repo.characterRepair;
-    final repairOnly = repairCharacters || (!enumerate && await repair.sessionActive());
-    if (repairOnly && !_canRepairCharacters) {
-      await _pause(PauseReason.error,
-          'Update the PC server and check its face and character models to repair existing characters.');
+    final rescan = _repo.identityRescan;
+    if (!resumeRepairs) {
+      await repair.setSessionActive(false);
+      await rescan.endSession();
+    }
+    final rescanPersonId =
+        repairPersonId ??
+        (!enumerate && !repairCharacters ? await rescan.personId() : null);
+    final rescanOnly = rescanPersonId != null;
+    final repairOnly =
+        !rescanOnly &&
+        (repairCharacters || (!enumerate && await repair.sessionActive()));
+    if ((repairOnly || rescanOnly) && !_canRepairCharacters) {
+      await _pause(
+        PauseReason.error,
+        'Update the PC server and check its face and character models to rescan and repair identities.',
+      );
       return;
     }
-    if (enumerate && !repairCharacters) await repair.setSessionActive(false);
+    if (enumerate && !repairCharacters) {
+      await repair.setSessionActive(false);
+      await rescan.endSession();
+    }
     _canDetectSensitive = caps.engines.sensitiveDetection;
     _canEmbedBodies = caps.engines.bodyEmbeddings;
     final characterAlbums = prefs.characterAlbumIds.toSet().intersection(
       selectedAlbums,
     );
-    if (characterAlbums.isNotEmpty && !_canDetectCharacters) {
+    if (!rescanOnly && characterAlbums.isNotEmpty && !_canDetectCharacters) {
       await _pause(
         PauseReason.error,
         'Character detection is unavailable. Update the PC server and check its body models.',
@@ -335,11 +361,17 @@ class ScanEngine {
       }
     }
     if (repairCharacters) {
+      await rescan.endSession();
       await repair.enqueue();
       await repair.setSessionActive(true);
     }
+    if (repairPersonId != null) await rescan.enqueue(repairPersonId);
+    if (rescanOnly && repairPersonId == null) await rescan.retryIncomplete();
     await _repo.resetScanning();
-    final counts = await _repo.scanCounts(characterRepairOnly: repairOnly);
+    final counts = await _repo.scanCounts(
+      characterRepairOnly: repairOnly,
+      identityRescanOnly: rescanOnly,
+    );
 
     var modelId = prefs.modelId;
     final started = _clock();
@@ -359,7 +391,10 @@ class ScanEngine {
     void prepareNextPhoto() {
       _preparedPhoto = () async {
         try {
-          final next = await _repo.nextPending(characterRepairOnly: repairOnly);
+          final next = await _repo.nextPending(
+            characterRepairOnly: repairOnly,
+            identityRescanOnly: rescanOnly,
+          );
           if (next == null || next.kind != 'photo' || _pauseRequested) {
             return null;
           }
@@ -430,11 +465,19 @@ class ScanEngine {
       await _keepAlive.update(_describe(_progress));
     }
 
-    Future<void> groupNow({bool incremental = false}) async {
-      if (_api() == null) return;
+    Future<bool> groupNow({bool incremental = false}) async {
+      if (_api() == null) return false;
       _emit(_progress.copyWith(grouping: true));
+      var succeeded = false;
       try {
-        await _orPause(_grouping.run(incremental: incremental));
+        final result = await _orPause(
+          _grouping.run(
+            incremental: incremental,
+            repairExisting: rescanOnly && !incremental,
+            repairPersonId: incremental ? null : rescanPersonId,
+          ),
+        );
+        succeeded = !_pauseRequested && result != null && !result.skipped;
       } on ApiException catch (e) {
         // grouping is repeatable at any time (Review has a "Sort now" button): never fail the scan for it
         _emit(_progress.copyWith(message: e.message));
@@ -446,6 +489,7 @@ class ScanEngine {
       }
       sinceGroupingPhotos = 0;
       sinceGroupingFaces = 0;
+      return succeeded;
     }
 
     while (true) {
@@ -463,7 +507,10 @@ class ScanEngine {
         await _pause(PauseReason.user);
         return;
       }
-      final row = await _repo.claimNext(characterRepairOnly: repairOnly);
+      final row = await _repo.claimNext(
+        characterRepairOnly: repairOnly,
+        identityRescanOnly: rescanOnly,
+      );
       if (row == null) break;
       current = row;
       previewBytes = null;
@@ -538,13 +585,13 @@ class ScanEngine {
       }
     }
 
-    await groupNow();
+    final grouped = await groupNow();
     if (_pauseRequested) {
       await _pause(PauseReason.user);
       return;
     }
     await _media.clearCache();
-    if (!repairOnly) {
+    if (!repairOnly && !rescanOnly) {
       await _store.flushOrganization(shouldStop: () => _pauseRequested);
     }
     try {
@@ -553,6 +600,9 @@ class ScanEngine {
       // housekeeping only (thumbnail trim): never fails a finished scan
     }
     if (repairOnly) await repair.setSessionActive(false);
+    if (rescanOnly && grouped && !await rescan.hasPending()) {
+      await rescan.endSession();
+    }
     await _settings.setScanActive(false);
     _emit(
       snapshot(
@@ -572,9 +622,15 @@ class ScanEngine {
     Uint8List? preparedPhoto,
     required void Function() prepareNextPhoto,
   }) async {
-    final repairing = await _repo.characterRepair.pending(row.id);
+    final repairing =
+        await _repo.characterRepair.pending(row.id) ||
+        await _repo.identityRescan.pending(row.id);
     if (repairing && !_canRepairCharacters) {
-      return _stop(row.id, PauseReason.error, 'Restart the updated PC server to continue character repair.');
+      return _stop(
+        row.id,
+        PauseReason.error,
+        'Restart the updated PC server to continue character repair.',
+      );
     }
     Uint8List? bytes;
     try {

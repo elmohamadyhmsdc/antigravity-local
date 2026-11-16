@@ -231,6 +231,17 @@
     }
   },
   "videoAdaptiveSampling": "Automatic video sampling",
+  "videoScanModeTitle": "Video scanning",
+  "videoScanQuick": "Quick scan",
+  "videoScanDetailed": "Detailed scan",
+  "videoScanQuickHint": "Up to 60 samples spread across each video. Faster indexing, but brief appearances may be missed. Videos already in progress keep their saved sampling plan.",
+  "videoScanDetailedHint": "Denser samples for more complete coverage. Takes longer; you can run it later on individual videos.",
+  "videoQuickComplete": "Quick scan complete",
+  "videoDetailedComplete": "Detailed scan complete",
+  "videoDetailedRequest": "Run detailed scan",
+  "videoDetailedQueued": "Detailed scan queued. An active video finishes its current pass first.",
+  "videoDetailedAlready": "This video already has detailed scan coverage.",
+  "scanContinueQueue": "Continue remaining items",
   "videoAdaptiveSamplingHint": "Short clips use closer samples; longer videos use wider intervals. About 0.5 s for a short clip and 5 s for a 40-minute video.",
   "scanCurrentPhoto": "Current photo",
   "scanCurrentVideo": "Current video frame",
@@ -1803,6 +1814,10 @@
     }
   },
   "repairMixedCharacters": "Repair mixed characters",
+  "identityRescanTitle": "Re-scan and repair",
+  "identityRescanHint": "Recheck this identity's photos and videos on the PC, correct People / Characters classification and separate clearly different faces. The current cover and confirmed faces guide the grouping. Manual corrections and original files are kept. Uncertain matches appear in Review.",
+  "identityRescanStart": "Start re-scan",
+  "mergeRepeatedAppearancesHint": "These identities appear in the same photo or video frame. Collages, reflections and repeated boxes can show the same person more than once. You can still confirm this merge; all detections are kept.",
   "quickReviewTitle": "Quick review",
   "quickReviewProgress": "{current} of {total}",
   "@quickReviewProgress": {

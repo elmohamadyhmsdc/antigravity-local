@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import '../scan/video_scan_mode_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -70,6 +71,12 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           const ScanProgressCard(),
+          if (counts != null && counts.remaining > 0)
+            TextButton.icon(
+              key: const Key('scan-continue-queue'),
+              icon: const Icon(Icons.play_arrow), label: Text(l10n.scanContinueQueue),
+              onPressed: progress.isActive ? null : () => startScan(ref, enumerate: false),
+            ),
           if (counts != null && counts.total > 0)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
@@ -236,6 +243,9 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                           : settingsStore.setScanVideos,
                     ),
                     if (settings.scanVideos)
+                      VideoScanModeSelector(mode: settings.videoScanMode,
+                        enabled: !progress.isActive, onChanged: settingsStore.setVideoScanMode),
+                    if (settings.scanVideos && settings.videoScanMode == VideoScanMode.detailed)
                       SwitchListTile(
                         key: const Key('adaptive-video-sampling'),
                         value: settings.adaptiveVideoSampling,
@@ -245,7 +255,7 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                             ? null
                             : settingsStore.setAdaptiveVideoSampling,
                       ),
-                    if (settings.scanVideos && !settings.adaptiveVideoSampling)
+                    if (settings.scanVideos && settings.videoScanMode == VideoScanMode.detailed && !settings.adaptiveVideoSampling)
                       ListTile(
                         title: Text(l10n.videoFrameInterval),
                         trailing: DropdownButton<double>(

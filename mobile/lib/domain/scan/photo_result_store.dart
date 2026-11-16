@@ -13,6 +13,7 @@ import '../../data/repositories/library_repository.dart';
 import '../../data/repositories/action_frames.dart';
 import '../../data/repositories/character_repository.dart';
 import '../../data/repositories/character_repair.dart';
+import '../../data/repositories/identity_rescan.dart';
 import '../../data/repositories/kind_corrections.dart';
 import '../../data/repositories/face_suppression_store.dart';
 import '../../data/repositories/sensitive_store.dart';
@@ -147,6 +148,7 @@ class PhotoResultStore {
     final newIds = <int>[];
     final newVectors = <(int, Float32List)>[];
     final replaced = <(int, Float32List)>[];
+    final removed = <int>{};
     var linked = 0, newBodies = 0, newCharacters = 0;
 
     await _db.transaction(() async {
@@ -673,14 +675,19 @@ class PhotoResultStore {
 
       if (repairCharacters) {
         final repair = CharacterRepair(_db);
-        await repair.reconcile(
-          media,
-          analysis,
-          humanFaces: faceDbId.keys.toSet(),
-          frameNumber: frameNumber,
-          timestampMs: timestampMs,
+        final rescan = IdentityRescan(_db);
+        removed.addAll(
+          await repair.reconcile(
+            media,
+            analysis,
+            humanFaces: faceDbId.keys.toSet(),
+            frameNumber: frameNumber,
+            timestampMs: timestampMs,
+            bothKinds: await rescan.pending(media.id),
+          ),
         );
         if (complete) await repair.finish(media.id);
+        if (complete) await rescan.finish(media.id);
       }
 
       // Detections the user moved to a person or character join it.
@@ -711,13 +718,15 @@ class PhotoResultStore {
       );
     });
 
-    if (replaced.isNotEmpty) {
-      await _index.remove([for (final (id, _) in replaced) id]);
+    if (replaced.isNotEmpty || removed.isNotEmpty) {
+      await _index.remove([...removed, for (final (id, _) in replaced) id]);
     }
     await _index.addAll([...newVectors, ...replaced]);
     // Not moved now: a photo moved right after its scan has usually no person yet (grouping runs later), and a
     // move per photo means a system sheet per photo. The scan moves them all, in chunks, once it has grouped.
-    if (!repairCharacters && autoOrganizer != null) pendingOrganize.add(media.id);
+    if (!repairCharacters && autoOrganizer != null) {
+      pendingOrganize.add(media.id);
+    }
     return StoreOutcome(
       facesSeen: gated.length,
       newFaceIds: newIds,

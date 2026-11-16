@@ -79,11 +79,13 @@ class GroupingRunner {
 
   Future<GroupingRun>? _running;
   _GroupingPass? _runningPass;
+  int? _runningPersonId;
 
   /// Join a pass that already covers the work, or follow it with a broader one.
   Future<GroupingRun> run({
     bool incremental = false,
     bool repairExisting = false,
+    int? repairPersonId,
   }) {
     final pass = repairExisting
         ? _GroupingPass.repair
@@ -92,32 +94,48 @@ class GroupingRunner {
         : _GroupingPass.full;
     final running = _running;
     if (running != null) {
-      if (pass.index <= _runningPass!.index) return running;
-      Future<GroupingRun> follow() =>
-          run(incremental: incremental, repairExisting: repairExisting);
+      if (pass.index <= _runningPass!.index &&
+          (repairPersonId == null || repairPersonId == _runningPersonId)) {
+        return running;
+      }
+      Future<GroupingRun> follow() => run(
+        incremental: incremental,
+        repairExisting: repairExisting,
+        repairPersonId: repairPersonId,
+      );
       return running.then((_) => follow(), onError: (_) => follow());
     }
     _runningPass = pass;
-    return _running = _runBoth(pass).whenComplete(() {
-      _running = null;
-      _runningPass = null;
-    });
+    _runningPersonId = repairPersonId;
+    return _running = _runBoth(pass, repairPersonId: repairPersonId)
+        .whenComplete(() {
+          _running = null;
+          _runningPass = null;
+          _runningPersonId = null;
+        });
   }
 
   /// This kind, then the kind that follows it: the follower runs even if this one failed (the
   /// first error is still reported).
-  Future<GroupingRun> _runBoth(_GroupingPass pass) async {
+  Future<GroupingRun> _runBoth(
+    _GroupingPass pass, {
+    int? repairPersonId,
+  }) async {
     GroupingRun? result;
     Object? error;
     StackTrace? trace;
     try {
-      result = await _run(pass);
+      result = await _run(pass, repairPersonId: repairPersonId);
     } catch (e, s) {
       error = e;
       trace = s;
     }
     try {
-      await _then?.run(incremental: pass == _GroupingPass.incremental);
+      await _then?.run(
+        incremental: pass == _GroupingPass.incremental,
+        repairExisting: pass == _GroupingPass.repair,
+        repairPersonId: repairPersonId,
+      );
     } catch (e, s) {
       if (error == null) {
         error = e;
@@ -131,21 +149,24 @@ class GroupingRunner {
   Future<int> _count(String sql) async =>
       (await _db.customSelect(sql).getSingle()).read<int>('n');
 
-  Future<GroupingRun> _run(_GroupingPass pass) async {
+  Future<GroupingRun> _run(_GroupingPass pass, {int? repairPersonId}) async {
     final incremental = pass == _GroupingPass.incremental;
     // Repair evidence must exist before a contaminated identity is used as a
     // model. It also remains available when the PC's grouping request fails.
-    if (!incremental) await _audit.run();
+    if (!incremental) await _audit.run(anchorPersonId: repairPersonId);
     final api = _api();
     if (api == null) {
       // the PC is the only thing missing: the audit of faces already on people is local
       return GroupingRun(skipped: true, review: await _review.counts());
     }
+    if (repairPersonId != null) {
+      await _people?.regroupDoubtfulFaces(repairPersonId);
+    }
     final strictness = kind == 'character'
         ? characterStrictness
         : personStrictness;
     final repaired = pass == _GroupingPass.repair
-        ? await _repairFaces(api, strictness)
+        ? await _repairFaces(api, strictness, sourceId: repairPersonId)
         : 0;
 
     var result = const FacePlanResult();
@@ -240,7 +261,9 @@ class GroupingRunner {
     await _review.replaceAll(review);
     // Then everything already sorted, the faces the user named included: which of them do not look like
     // the rest of their person? They come back as "Are you sure these are X?" questions.
-    if (result.changedAnything || merged > 0 || repaired > 0) await _audit.run();
+    if (result.changedAnything || merged > 0 || repaired > 0) {
+      await _audit.run();
+    }
 
     return GroupingRun(
       assigned: result.assigned,
@@ -253,12 +276,20 @@ class GroupingRunner {
     );
   }
 
-  Future<int> _repairFaces(MobileApi api, String strictness) async {
+  Future<int> _repairFaces(
+    MobileApi api,
+    String strictness, {
+    int? sourceId,
+  }) async {
     final people = _people;
     if (people == null) return 0;
     List<(int, int)>? distinctPairs;
     var repaired = 0;
-    await for (final page in _inputs.repairCandidates()) {
+    await for (final candidatesPage in _inputs.repairCandidates()) {
+      final page = candidatesPage
+          .where((c) => sourceId == null || c.sourceId == sourceId)
+          .toList();
+      if (page.isEmpty) continue;
       final models = await _inputs.models(
         cap: math.min(_memberCap, 24),
         onlyPeople: {
@@ -283,7 +314,8 @@ class GroupingRunner {
           pending: [for (final c in candidates.values) c.face],
           distinctPairs: [
             for (final pair in pairs)
-              if (modelIds.contains(pair.$1) && modelIds.contains(pair.$2)) pair,
+              if (modelIds.contains(pair.$1) && modelIds.contains(pair.$2))
+                pair,
           ],
         ),
       );

@@ -24,6 +24,8 @@ import 'data/repositories/media_queries.dart';
 import 'data/repositories/media_action_source.dart';
 import 'data/repositories/video_actions_repository.dart';
 import 'data/repositories/people_repository.dart';
+import 'data/repositories/video_scan_coverage.dart';
+import 'data/db/app_database.dart' show MediaRow;
 import 'data/repositories/identity_groups.dart';
 import 'data/platform/media_organizer.dart';
 import 'domain/organization/person_media_organizer.dart';
@@ -206,6 +208,14 @@ final peopleRepositoryProvider = Provider<PeopleRepository>(
     index: ref.watch(embeddingIndexProvider),
     autoOrganizer: ref.watch(dynamicAutoOrganizerProvider),
   ),
+);
+
+final videoScanCoverageProvider = Provider<VideoScanCoverage>(
+  (ref) => VideoScanCoverage(ref.watch(databaseProvider)),
+);
+
+final videoCoverageModeProvider = StreamProvider.autoDispose.family<VideoScanMode?, MediaRow>(
+  (ref, media) => ref.watch(videoScanCoverageProvider).watch(media),
 );
 
 final characterRepositoryProvider = Provider<CharacterRepository>(

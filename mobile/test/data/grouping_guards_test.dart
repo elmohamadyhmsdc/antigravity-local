@@ -210,6 +210,70 @@ void main() {
       expect(await personOf(bFace), a);
     });
 
+    for (final kind in ['person', 'character']) {
+      test(
+        'manual $kind merge keeps repeated collage boxes and all occurrences',
+        () async {
+          final a = await seedPerson(db),
+              b = await seedPerson(db),
+              c = await seedPerson(db);
+          await (db.update(db.persons)..where((p) => p.id.isIn([a, b, c])))
+              .write(PersonsCompanion(kind: Value(kind)));
+          final photo = await seedMedia(db);
+          final faces = [
+            for (final p in [a, b, c])
+              await seedFace(db, mediaId: photo, personId: p, seed: 1),
+          ];
+          await repo.markDistinct(a, b);
+          expect(await repo.sharedFramesAmong([a, b, c]), 1);
+          await repo.mergeMany([a, b, c], a, allowSharedFrames: true);
+          expect((await db.select(db.persons).get()).single.id, a);
+          expect((await db.select(db.faces).get()).map((f) => f.id), faces);
+          expect(
+            (await db.select(db.faces).get()).every((f) => f.personId == a),
+            isTrue,
+          );
+          expect(await db.select(db.mediaDetections).get(), hasLength(3));
+          expect(await db.select(db.personDistinct).get(), isEmpty);
+        },
+      );
+    }
+
+    test(
+      'automatic merge also checks shared duplicate-media occurrences',
+      () async {
+        final a = await seedPerson(db), b = await seedPerson(db);
+        final photo = await seedMedia(db),
+            copy = await seedMedia(db, asset: 'copy');
+        final face = await seedFace(db, mediaId: photo, personId: a);
+        await seedFace(db, mediaId: copy, personId: b);
+        await db
+            .into(db.mediaDetections)
+            .insert(
+              MediaDetectionsCompanion.insert(
+                mediaId: copy,
+                kind: 'f',
+                refId: face,
+                x: .1,
+                y: .1,
+                w: .2,
+                h: .2,
+              ),
+            );
+        expect(await repo.sharedFrames(a, b), 1);
+        await expectLater(
+          repo.mergePeople(sourceId: b, targetId: a),
+          throwsA(isA<MergeBlockedException>()),
+        );
+        await repo.mergePeople(
+          sourceId: b,
+          targetId: a,
+          allowSharedFrames: true,
+        );
+        expect((await db.select(db.persons).get()).single.id, a);
+      },
+    );
+
     test('a person and a character are never merged', () async {
       final a = await seedPerson(db);
       final c = await db
@@ -223,6 +287,10 @@ void main() {
 
       await expectLater(
         repo.mergePeople(sourceId: c, targetId: a),
+        throwsA(isA<MergeBlockedException>()),
+      );
+      await expectLater(
+        repo.mergePeople(sourceId: c, targetId: a, allowSharedFrames: true),
         throwsA(isA<MergeBlockedException>()),
       );
     });

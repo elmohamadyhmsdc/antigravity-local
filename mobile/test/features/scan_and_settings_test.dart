@@ -7,6 +7,7 @@ import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
+import 'package:antigravity_mobile/data/repositories/app_settings.dart';
 import 'package:antigravity_mobile/data/media/media_library.dart';
 import 'package:antigravity_mobile/domain/scan/scan_state.dart';
 import 'package:antigravity_mobile/library_providers.dart';
@@ -489,6 +490,7 @@ void main() {
     appTest(
       'adaptive video sampling is enabled by default and manual sampling is optional',
       (tester, env) async {
+        await env.db.putSetting(SettingKeys.videoScanMode, 'detailed');
         await _open(tester, env, '/sources');
         expect((await env.settingsSnapshot()).adaptiveVideoSampling, isTrue);
         expect(find.byKey(const Key('video-frame-interval')), findsNothing);

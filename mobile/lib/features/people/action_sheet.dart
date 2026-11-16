@@ -38,7 +38,9 @@ Future<String?> showPeopleActionSheet(
       ),
       title: Text(
         a.label ??
-            (a.id == 'setGroup'
+            (a.id == 'rescan'
+                ? l.identityRescanTitle
+                : a.id == 'setGroup'
                 ? l.identityGroupAssign
                 : a.id == 'organizeMedia'
                 ? l.organizeTitle
@@ -84,6 +86,7 @@ Future<String?> showPeopleActionSheet(
       'lock',
       'unlock',
       'redetect',
+      'rescan',
       'toCharacters',
       'toPeople',
       'reject',

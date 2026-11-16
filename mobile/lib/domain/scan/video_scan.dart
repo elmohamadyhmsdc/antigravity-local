@@ -17,6 +17,8 @@ import '../../data/platform/video_frames.dart';
 import '../../data/repositories/app_settings.dart';
 import '../../data/repositories/library_repository.dart';
 import '../../data/repositories/character_repair.dart';
+import '../../data/repositories/identity_rescan.dart';
+import '../../data/repositories/video_scan_coverage.dart';
 import 'photo_result_store.dart';
 import 'video_hash.dart';
 import 'video_sampling.dart';
@@ -86,6 +88,8 @@ class VideoScan {
     VideoJobStatus? currentJob;
     DateTime? serverUpdatedAt;
     var outcome = const StoreOutcome();
+    var scanMode = prefs.videoScanMode;
+    final coverage = VideoScanCoverage(db);
 
     void publish(VideoScanStage stage, [double? fraction]) {
       final now = DateTime.now();
@@ -166,6 +170,7 @@ class VideoScan {
           warning: currentJob?.warning,
           serverUpdatedAt: serverUpdatedAt,
           incrementalResults: currentJob?.incrementalResults ?? false,
+          scanMode: scanMode,
         ),
       );
     }
@@ -237,6 +242,15 @@ class VideoScan {
     var nextFrame =
         (await LibraryRepository(db).mediaById(media.id))?.lastScannedFrame ??
         0;
+    scanMode = await coverage.requestedMode(media,
+      repairCharacters ? VideoScanMode.detailed : prefs.videoScanMode);
+    if (saved != null) {
+      scanMode = (saved['request'] as Map?)?['params'] is Map &&
+          ((saved['request'] as Map)['params'] as Map)['sampling_mode'] == 'quick'
+          ? VideoScanMode.quick : VideoScanMode.detailed;
+    } else if (nextFrame > 0) {
+      scanMode = await coverage.activeMode(media) ?? VideoScanMode.detailed;
+    }
     Future<void> commitFrame(
       AnalyzeImageResponse analysis,
       int frame,
@@ -336,12 +350,17 @@ class VideoScan {
           'modified': media.modifiedAt,
           'duration': media.durationMs,
           'fps': probe.fps,
-          'step': max(1, (probe.fps * interval).round()),
+          'step': scanMode == VideoScanMode.quick
+              ? quickVideoStep(probe.totalFrames, probe.fps)
+              : max(1, (probe.fps * interval).round()),
           'total': probe.totalFrames,
+          'mode': scanMode.name,
         };
         await db.putSetting(gridKey, jsonEncode(grid));
       }
-      final fps = (grid!['fps'] as num).toDouble();
+      scanMode = grid!['mode'] == 'quick' ? VideoScanMode.quick : VideoScanMode.detailed;
+      await coverage.pinMode(media, scanMode);
+      final fps = (grid['fps'] as num).toDouble();
       final step = grid['step'] as int;
       final total = grid['total'] as int;
       if (total <= 0) return false;
@@ -453,6 +472,7 @@ class VideoScan {
         await local.close();
       }
       publish(VideoScanStage.finish);
+      if (skipped > 0) localWarning ??= '$skipped video samples could not be read.';
       await db.transaction(() async {
         await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
           MediaCompanion(
@@ -462,10 +482,14 @@ class VideoScan {
             scanError: Value(localWarning),
           ),
         );
-        await (db.delete(db.settings)..where((s) => s.key.equals(gridKey))).go();
+        await (db.delete(
+          db.settings,
+        )..where((s) => s.key.equals(gridKey))).go();
         if (repairCharacters && localWarning == null) {
           await CharacterRepair(db).finish(media.id);
+          await IdentityRescan(db).finish(media.id);
         }
+        await coverage.complete(media, scanMode, clean: localWarning == null);
       });
       return true;
     }
@@ -479,6 +503,13 @@ class VideoScan {
     for (var restart = 0; restart < 3; restart++) {
       checkPause();
       if (saved == null) {
+        if (scanMode == VideoScanMode.quick && api is MobileApi &&
+            !(await (api as MobileApi).capabilities()).engines.quickVideoSampling) {
+          throw const ApiException(code: 'engine_unavailable',
+            message: 'Update and restart the PC server to use quick video scanning for this file.',
+            retryable: false);
+        }
+        await coverage.pinMode(media, scanMode);
         currentJob = null;
         serverUpdatedAt = null;
         processedBytes = null;
@@ -538,7 +569,7 @@ class VideoScan {
               'frame_interval': prefs.adaptiveVideoSampling
                   ? adaptiveVideoInterval(media.durationMs)
                   : prefs.frameInterval,
-              'sampling_mode': prefs.adaptiveVideoSampling
+              'sampling_mode': scanMode == VideoScanMode.quick ? 'quick' : prefs.adaptiveVideoSampling
                   ? 'adaptive'
                   : 'fixed',
               'min_quality': prefs.qualityGate,
@@ -788,7 +819,9 @@ class VideoScan {
         }
         publish(VideoScanStage.finish);
         await db.transaction(() async {
-          await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
+          await (db.update(
+            db.media,
+          )..where((m) => m.id.equals(media.id))).write(
             MediaCompanion(
               scanStatus: const Value('done'),
               scanVersion: const Value(scanVersion),
@@ -796,9 +829,14 @@ class VideoScan {
               scanError: Value(warning),
             ),
           );
-          if (repairCharacters && warning == null && (currentJob?.skippedSamples ?? 0) == 0) {
+          if (repairCharacters &&
+              warning == null &&
+              (currentJob?.skippedSamples ?? 0) == 0) {
             await CharacterRepair(db).finish(media.id);
+            await IdentityRescan(db).finish(media.id);
           }
+          await coverage.complete(media, scanMode,
+            clean: warning == null && (currentJob?.skippedSamples ?? 0) == 0);
         });
         // ACK only after every frame committed locally. A failed ACK is safe to retry later.
         try {

@@ -226,11 +226,45 @@ void main() {
     row,
     api: pc,
     library: library,
-    prefs: const SettingsSnapshot(),
+    prefs: const SettingsSnapshot(videoScanMode: VideoScanMode.detailed),
     paused: paused ?? () => false,
     report: report ?? (_, _) {},
     onPreview: onPreview,
     onProgress: onProgress,
+  );
+
+  test(
+    'identity repair imports video frames and finishes its durable marker',
+    () async {
+      final p = await seedPerson(db);
+      await seedFace(
+        db,
+        mediaId: row.id,
+        personId: p,
+        frameNumber: 0,
+        seed: 100,
+      );
+      final repair = LibraryRepository(db).identityRescan;
+      await repair.enqueue(p);
+      await scanner.run(
+        (await LibraryRepository(db).mediaById(row.id))!,
+        api: pc,
+        library: library,
+        prefs: const SettingsSnapshot(scanVideos: false),
+        paused: () => false,
+        report: (_, _) {},
+        characterScan: true,
+        repairCharacters: true,
+      );
+      expect(await repair.pending(row.id), isFalse);
+      expect(
+        (pc.requests.single['params'] as Map)['detect_characters'],
+        isTrue,
+      );
+      expect((pc.requests.single['params'] as Map)['detect_bodies'], isTrue);
+      expect((await db.select(db.media).get()).single.scanStatus, 'done');
+      expect(pc.deleted, 1);
+    },
   );
 
   test(

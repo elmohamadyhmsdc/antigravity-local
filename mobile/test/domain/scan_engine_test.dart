@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:antigravity_mobile/data/api/api_exception.dart';
+import 'package:antigravity_mobile/data/api/dtos/system.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/index/embedding_index.dart';
@@ -23,6 +24,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
+import '../support/fixtures.dart';
 import '../support/seed.dart';
 
 class Rig {
@@ -101,6 +103,60 @@ void main() {
     rig.pc = rig.api;
   });
   tearDown(() => rig.dispose());
+
+  test(
+    'identity rescan scans only its saved files, preserves sources and resumes after offline',
+    () async {
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['character_library_repair'] = true;
+      rig.api.capabilities_ = Capabilities.fromJson(caps);
+      await rig.choose(['cam']);
+      final p = await seedPerson(rig.db, name: 'Sara');
+      final chosen = await seedMedia(rig.db, asset: 'asset-1');
+      final unrelated = await seedMedia(
+        rig.db,
+        asset: 'asset-2',
+        status: 'pending',
+      );
+      await seedFace(rig.db, mediaId: chosen, personId: p);
+      rig.api.analyzeError = ApiException.network('offline');
+      final engine = rig.engine(policy: const ScanPolicy(offlineRetries: 0));
+      await engine.start(repairPersonId: p);
+      expect(engine.progress.phase, ScanPhase.paused);
+      expect(await rig.repo.identityRescan.personId(), p);
+      rig.api.analyzeError = null;
+      rig.api.analyzeResult = analysis(faces: []);
+      await engine.start(enumerate: false);
+      expect(engine.progress.phase, ScanPhase.completed);
+      expect(rig.api.analyzeCalls, hasLength(2));
+      expect(
+        rig.api.analyzeOptions.every(
+          (o) => o.detectCharacters && o.detectBodies,
+        ),
+        isTrue,
+      );
+      expect((await rig.repo.mediaById(unrelated))!.scanStatus, 'pending');
+      expect((await rig.settings.load()).albumIds, ['cam']);
+      expect(await rig.repo.identityRescan.personId(), isNull);
+      await engine.dispose();
+    },
+  );
+
+  test(
+    'unsupported PC refuses identity repair before changing the queue',
+    () async {
+      final p = await seedPerson(rig.db);
+      final m = await seedMedia(rig.db);
+      await seedFace(rig.db, mediaId: m, personId: p);
+      final engine = rig.engine();
+      await engine.start(repairPersonId: p);
+      expect(engine.progress.phase, ScanPhase.paused);
+      expect((await rig.repo.mediaById(m))!.scanStatus, 'done');
+      expect(await rig.repo.identityRescan.personId(), isNull);
+      expect(rig.api.analyzeCalls, isEmpty);
+      await engine.dispose();
+    },
+  );
 
   test('a folder scan does not overwrite the saved source selection', () async {
     await rig.choose(['cam']);

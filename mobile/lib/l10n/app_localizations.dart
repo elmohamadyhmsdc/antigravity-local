@@ -682,6 +682,72 @@ abstract class AppLocalizations {
   /// **'Automatic video sampling'**
   String get videoAdaptiveSampling;
 
+  /// No description provided for @videoScanModeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Video scanning'**
+  String get videoScanModeTitle;
+
+  /// No description provided for @videoScanQuick.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick scan'**
+  String get videoScanQuick;
+
+  /// No description provided for @videoScanDetailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Detailed scan'**
+  String get videoScanDetailed;
+
+  /// No description provided for @videoScanQuickHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to 60 samples spread across each video. Faster indexing, but brief appearances may be missed. Videos already in progress keep their saved sampling plan.'**
+  String get videoScanQuickHint;
+
+  /// No description provided for @videoScanDetailedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Denser samples for more complete coverage. Takes longer; you can run it later on individual videos.'**
+  String get videoScanDetailedHint;
+
+  /// No description provided for @videoQuickComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick scan complete'**
+  String get videoQuickComplete;
+
+  /// No description provided for @videoDetailedComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Detailed scan complete'**
+  String get videoDetailedComplete;
+
+  /// No description provided for @videoDetailedRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Run detailed scan'**
+  String get videoDetailedRequest;
+
+  /// No description provided for @videoDetailedQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Detailed scan queued. An active video finishes its current pass first.'**
+  String get videoDetailedQueued;
+
+  /// No description provided for @videoDetailedAlready.
+  ///
+  /// In en, this message translates to:
+  /// **'This video already has detailed scan coverage.'**
+  String get videoDetailedAlready;
+
+  /// No description provided for @scanContinueQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue remaining items'**
+  String get scanContinueQueue;
+
   /// No description provided for @videoAdaptiveSamplingHint.
   ///
   /// In en, this message translates to:
@@ -5253,6 +5319,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Repair mixed characters'**
   String get repairMixedCharacters;
+
+  /// No description provided for @identityRescanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-scan and repair'**
+  String get identityRescanTitle;
+
+  /// No description provided for @identityRescanHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Recheck this identity\'s photos and videos on the PC, correct People / Characters classification and separate clearly different faces. The current cover and confirmed faces guide the grouping. Manual corrections and original files are kept. Uncertain matches appear in Review.'**
+  String get identityRescanHint;
+
+  /// No description provided for @identityRescanStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start re-scan'**
+  String get identityRescanStart;
+
+  /// No description provided for @mergeRepeatedAppearancesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These identities appear in the same photo or video frame. Collages, reflections and repeated boxes can show the same person more than once. You can still confirm this merge; all detections are kept.'**
+  String get mergeRepeatedAppearancesHint;
 
   /// No description provided for @quickReviewTitle.
   ///

@@ -23,7 +23,7 @@ from .gpu_guard import Busy
 from .schemas import analysis_to_response, parse_analyze_options
 from .media_decode import IsolatedCapture
 from . import video_journal
-from .video_sampling import adaptive_interval
+from .video_sampling import adaptive_interval, quick_sample_step
 
 log = logging.getLogger("mobile_api")
 
@@ -78,8 +78,8 @@ class VideoJobs:
         start = params.get("start_frame", 0)
         start_time = params.get("start_time", 0)
         sampling_mode = params.get('sampling_mode', 'fixed')
-        if sampling_mode not in ('fixed', 'adaptive'):
-            raise bad_request('sampling_mode must be fixed or adaptive.')
+        if sampling_mode not in ('fixed', 'adaptive', 'quick'):
+            raise bad_request('sampling_mode must be fixed, adaptive or quick.')
         if isinstance(interval, bool) or not isinstance(interval, (float, int)) or not 0.25 <= interval <= 60:
             raise bad_request("frame_interval must be between 0.25 and 60 seconds.")
         if type(start) is not int or not 0 <= start <= 2**31 - 1:
@@ -170,7 +170,11 @@ class VideoJobs:
             fps = job['details'].get('fps', fps)
             interval = (adaptive_interval(total / fps) if params.get('sampling_mode') == 'adaptive'
                         else params.get('frame_interval', 1.0))
-            step = job['details'].get('sample_step', max(1, round(fps * interval)))
+            step = job['details'].get('sample_step',
+                quick_sample_step(total, fps) if params.get('sampling_mode') == 'quick'
+                else max(1, round(fps * interval)))
+            if params.get('sampling_mode') == 'quick':
+                total = min(total, job['details'].get('sampling_end_frame', total))
             origin = round(params.get("start_time", 0) * fps)
             lower_bound = max(job["_next_frame"], origin)
             # start_frame is the phone's first uncommitted frame, not a new sampling
@@ -186,7 +190,8 @@ class VideoJobs:
                                                 "frame_interval": step / fps, 'sample_step': step,
                                                 'total_samples': max(0, (total - first_sample + step - 1) // step),
                                                 'stage': 'decode',
-                                                'sampling_mode': params.get('sampling_mode', 'fixed')})
+                                                'sampling_mode': params.get('sampling_mode', 'fixed'),
+                                                'sampling_end_frame': total})
             consecutive_errors = 0
             with open(directory / "detections.ndjson", "ab") as out:
                 while frame_no < total:

@@ -14,7 +14,8 @@ class CharacterRepair {
   static const settingPrefix = 'scan.character_repair.v1.';
   static const _sessionKey = 'scan.character_repair_active';
 
-  static const pendingSql = "EXISTS (SELECT 1 FROM settings s "
+  static const pendingSql =
+      "EXISTS (SELECT 1 FROM settings s "
       "WHERE s.key = '$settingPrefix' || media.id AND s.value = 'pending')";
 
   Future<bool> sessionActive() async => await db.setting(_sessionKey) == '1';
@@ -24,7 +25,8 @@ class CharacterRepair {
   Future<bool> pending(int mediaId) async =>
       await db.setting('$settingPrefix$mediaId') == 'pending';
 
-  Future<void> finish(int mediaId) => db.putSetting('$settingPrefix$mediaId', 'done');
+  Future<void> finish(int mediaId) =>
+      db.putSetting('$settingPrefix$mediaId', 'done');
 
   /// Only queue already catalogued media that actually contains character
   /// detections. A retry preserves the checkpoint of a failed repair.
@@ -85,32 +87,35 @@ class CharacterRepair {
 
   /// Remove only observations positively matched to an eligible human face.
   /// Called within the transaction that stores the new human detections.
-  Future<void> reconcile(
+  Future<Set<int>> reconcile(
     MediaRow media,
     AnalyzeImageResponse analysis, {
     required Set<int> humanFaces,
     required int? frameNumber,
     required int? timestampMs,
+    bool bothKinds = false,
   }) async {
+    final removed = <int>{};
     final verified = {
       for (final i in humanFaces)
-        if (analysis.faces[i].detScore >= .75 && analysis.faces[i].quality.facePx >= 48)
+        if (analysis.faces[i].detScore >= .75 &&
+            analysis.faces[i].quality.facePx >= 48)
           i,
     };
-    if (verified.isEmpty) return;
     final corrections = await KindOverrideStore(db).forAsset(media.assetId);
-    if (corrections.forceKind == 'character') return;
     final explicit = corrections.dtos(timestampMs: timestampMs);
 
     _Box box(BBox value) {
       final b = value.normalized(analysis.imageW, analysis.imageH);
       return (x: b.x, y: b.y, w: b.w, h: b.h);
     }
+
     final realFaces = [for (final i in verified) box(analysis.faces[i].bbox)];
     final realBodies = [
       for (final pair in analysis.pairs)
         if (verified.contains(pair.faceIndex) &&
-            pair.bodyIndex >= 0 && pair.bodyIndex < analysis.bodies.length)
+            pair.bodyIndex >= 0 &&
+            pair.bodyIndex < analysis.bodies.length)
           box(analysis.bodies[pair.bodyIndex].bbox),
     ];
     final newFaces = [
@@ -125,8 +130,76 @@ class CharacterRepair {
           box(c.bbox),
     ];
 
-    final observations = await db.customSelect(
-      '''
+    if (verified.isNotEmpty && corrections.forceKind != 'character') {
+      removed.addAll(
+        await _reconcileKind(
+          media,
+          oldKind: 'character',
+          frameNumber: frameNumber,
+          timestampMs: timestampMs,
+          replacementFaces: realFaces,
+          replacementBodies: realBodies,
+          survivingFaces: newFaces,
+          survivingBodies: newBodies,
+          explicit: explicit,
+        ),
+      );
+    }
+    if (!bothKinds || corrections.forceKind == 'person') return removed;
+    // A drawn face must actually have been stored with its identity vector.
+    // A body-only or low-confidence cartoon hypothesis cannot erase a human.
+    final characters = [
+      for (final c in analysis.characters)
+        if (c.score >= .75 &&
+            c.face != null &&
+            c.face!.score >= .75 &&
+            c.face!.embedding != null &&
+            c.face!.bbox.w >= 32 &&
+            c.face!.bbox.h >= 32)
+          c,
+    ];
+    if (characters.isEmpty) return removed;
+    removed.addAll(
+      await _reconcileKind(
+        media,
+        oldKind: 'person',
+        frameNumber: frameNumber,
+        timestampMs: timestampMs,
+        replacementFaces: [for (final c in characters) box(c.face!.bbox)],
+        replacementBodies: [
+          for (final c in characters)
+            if (c.body != null) box(c.body!.bbox),
+        ],
+        survivingFaces: [
+          for (final i in humanFaces) box(analysis.faces[i].bbox),
+        ],
+        survivingBodies: [
+          for (final pair in analysis.pairs)
+            if (humanFaces.contains(pair.faceIndex) &&
+                pair.bodyIndex >= 0 &&
+                pair.bodyIndex < analysis.bodies.length)
+              box(analysis.bodies[pair.bodyIndex].bbox),
+        ],
+        explicit: explicit,
+      ),
+    );
+    return removed;
+  }
+
+  Future<Set<int>> _reconcileKind(
+    MediaRow media, {
+    required String oldKind,
+    required int? frameNumber,
+    required int? timestampMs,
+    required List<_Box> replacementFaces,
+    required List<_Box> replacementBodies,
+    required List<_Box> survivingFaces,
+    required List<_Box> survivingBodies,
+    required List<KindOverrideDto> explicit,
+  }) async {
+    final observations = await db
+        .customSelect(
+          '''
       WITH current_media AS (
         SELECT * FROM media_detections
         WHERE media_id = ?1 AND (
@@ -142,7 +215,7 @@ class CharacterRepair {
       )
       SELECT d.id, d.kind, d.ref_id, d.x, d.y, d.w, d.h, f.person_id, NULL AS face_id
       FROM current_media d JOIN faces f ON d.kind = 'f' AND f.id = d.ref_id
-      WHERE f.kind = 'character' AND f.hidden = 0 AND f.review_dismissed = 0
+      WHERE f.kind = ?4 AND f.hidden = 0 AND f.review_dismissed = 0
         AND f.ownership IS NULL
         AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM identity_set_faces i WHERE i.face_id = f.id)
@@ -153,9 +226,10 @@ class CharacterRepair {
       UNION ALL
       SELECT d.id, d.kind, d.ref_id, d.x, d.y, d.w, d.h, b.person_id, b.face_id
       FROM current_media d JOIN bodies b ON d.kind = 'b' AND b.id = d.ref_id
-      WHERE b.kind = 'character' AND b.hidden = 0 AND b.ownership IS NULL
+      WHERE b.kind = ?4 AND b.hidden = 0 AND b.ownership IS NULL
         AND b.link_method IS NOT 'manual'
         AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = b.face_id)
+        AND NOT EXISTS (SELECT 1 FROM identity_set_faces i WHERE i.face_id = b.face_id)
         AND NOT EXISTS (
           SELECT 1 FROM persons p
           WHERE p.grouping_locked = 1 AND (
@@ -163,50 +237,65 @@ class CharacterRepair {
           )
         )
       ''',
-      variables: [
-        Variable.withInt(media.id),
-        Variable<int>(frameNumber),
-        Variable<int>(timestampMs),
-      ],
-      readsFrom: {
-        db.mediaDetections, db.faces, db.bodies, db.persons,
-        db.faceConfirmations, db.identitySetFaces,
-      },
-    ).get();
+          variables: [
+            Variable.withInt(media.id),
+            Variable<int>(frameNumber),
+            Variable<int>(timestampMs),
+            Variable.withString(oldKind),
+          ],
+          readsFrom: {
+            db.mediaDetections,
+            db.faces,
+            db.bodies,
+            db.persons,
+            db.faceConfirmations,
+            db.identitySetFaces,
+          },
+        )
+        .get();
 
     _Box fromRow(QueryRow row) => (
-      x: row.read<double>('x'), y: row.read<double>('y'),
-      w: row.read<double>('w'), h: row.read<double>('h'),
+      x: row.read<double>('x'),
+      y: row.read<double>('y'),
+      w: row.read<double>('w'),
+      h: row.read<double>('h'),
     );
-    bool matches(QueryRow row, Iterable<_Box> boxes, String part) =>
-        boxes.any((candidate) => sameDetectionBox(fromRow(row), candidate, part));
-    bool explicitlyCharacter(QueryRow row, String part) => explicit.any(
-      (o) => o.kind == 'character' && o.part == part &&
+    bool matches(QueryRow row, Iterable<_Box> boxes, String part) => boxes.any(
+      (candidate) => sameDetectionBox(fromRow(row), candidate, part),
+    );
+    bool explicitlyKept(QueryRow row, String part) => explicit.any(
+      (o) =>
+          o.kind == oldKind &&
+          o.part == part &&
           sameDetectionBox(fromRow(row), o.box, part),
     );
 
     final faces = [
       for (final d in observations)
-        if (d.read<String>('kind') == 'f' && !explicitlyCharacter(d, 'face') &&
-            !matches(d, newFaces, 'face') && matches(d, realFaces, 'face'))
+        if (d.read<String>('kind') == 'f' &&
+            !explicitlyKept(d, 'face') &&
+            !matches(d, survivingFaces, 'face') &&
+            matches(d, replacementFaces, 'face'))
           d,
     ];
     final faceIds = {for (final row in faces) row.read<int>('ref_id')};
     final bodies = [
       for (final d in observations)
-        if (d.read<String>('kind') == 'b' && !explicitlyCharacter(d, 'body') &&
-            !matches(d, newBodies, 'body') &&
+        if (d.read<String>('kind') == 'b' &&
+            !explicitlyKept(d, 'body') &&
+            !matches(d, survivingBodies, 'body') &&
             (faceIds.contains(d.readNullable<int>('face_id')) ||
-                matches(d, realBodies, 'body')))
+                matches(d, replacementBodies, 'body')))
           d,
     ];
-    if (faces.isEmpty && bodies.isEmpty) return;
+    if (faces.isEmpty && bodies.isEmpty) return {};
     final people = <int>{};
     for (final row in [...faces, ...bodies]) {
       final pid = row.readNullable<int>('person_id');
       if (pid != null) people.add(pid);
-      await (db.delete(db.mediaDetections)
-        ..where((d) => d.id.equals(row.read<int>('id')))).go();
+      await (db.delete(
+        db.mediaDetections,
+      )..where((d) => d.id.equals(row.read<int>('id')))).go();
     }
 
     // A character track can still have confirmed appearances at other times.
@@ -218,26 +307,29 @@ class CharacterRepair {
         updates: {db.bodies},
       );
     }
+    final removed = <int>{};
     for (final id in faceIds) {
-      await db.customUpdate(
+      final deleted = await db.customUpdate(
         "DELETE FROM faces WHERE id = ? AND NOT EXISTS "
         "(SELECT 1 FROM media_detections WHERE kind = 'f' AND ref_id = faces.id)",
         variables: [Variable.withInt(id)],
         updates: {db.faces},
       );
+      if (deleted > 0) removed.add(id);
     }
     for (final id in people) {
       await db.customUpdate(
         '''
         UPDATE persons SET hidden = 1, avatar_face_id = NULL
-        WHERE id = ? AND kind = 'character' AND COALESCE(TRIM(name), '') = ''
+        WHERE id = ? AND kind = ? AND COALESCE(TRIM(name), '') = ''
           AND grouping_locked = 0 AND pinned = 0 AND favorite = 0 AND group_id IS NULL
           AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.person_id = persons.id)
           AND NOT EXISTS (SELECT 1 FROM bodies b WHERE b.person_id = persons.id)
         ''',
-        variables: [Variable.withInt(id)],
+        variables: [Variable.withInt(id), Variable.withString(oldKind)],
         updates: {db.persons},
       );
     }
+    return removed;
   }
 }

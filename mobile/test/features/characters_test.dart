@@ -12,6 +12,34 @@ import '../support/harness.dart';
 import '../support/seed.dart';
 
 void main() {
+  for (final kind in ['person', 'character']) {
+    appTest(
+      '$kind detail offers re-scan and explains the repair before starting',
+      (tester, env) async {
+        final p = await seedPerson(env.db, name: 'Identity');
+        await (env.db.update(env.db.persons)..where((row) => row.id.equals(p)))
+            .write(PersonsCompanion(kind: Value(kind)));
+        await env.pump(
+          tester,
+          extra: [initialLocationProvider.overrideWithValue('/people/$p')],
+        );
+        final button = find.byKey(const Key('person-rescan'));
+        expect(button, findsOneWidget);
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        expect(find.text('Start re-scan'), findsOneWidget);
+        expect(
+          find.textContaining('photos and videos on the PC'),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(env.api.analyzeCalls, isEmpty);
+      },
+      session: testSession,
+    );
+  }
+
   appTest('mixed types share bulk flags without cross-kind merge', (
     tester,
     env,

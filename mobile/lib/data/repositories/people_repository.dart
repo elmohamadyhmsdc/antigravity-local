@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:drift/drift.dart';
 
@@ -9,6 +8,7 @@ import '../db/app_database.dart';
 import '../files/file_store.dart';
 import '../index/embedding_index.dart';
 import '../api/dtos/embedding.dart';
+import 'identity_rescan.dart';
 import 'face_suppression_store.dart';
 import 'artifact_context.dart';
 import 'action_frames.dart';
@@ -278,7 +278,10 @@ class PeopleRepository {
         WHERE person_id IS NULL AND hidden = 0 AND kind = ?
           AND (? OR (review_dismissed = 0 AND ownership IS NOT 'none'))
         ''',
-        variables: [Variable.withString(kind), Variable.withBool(includeDismissed)],
+        variables: [
+          Variable.withString(kind),
+          Variable.withBool(includeDismissed),
+        ],
         readsFrom: {_db.faces},
       )
       .watchSingle()
@@ -359,8 +362,10 @@ class PeopleRepository {
   Future<bool> _writePersonName(int id, String? name) async {
     final trimmed = name?.trim();
     final saved = trimmed == null || trimmed.isEmpty ? null : trimmed;
-    final renamed = await (_db.update(_db.persons)..where((p) => p.id.equals(id)))
-        .write(PersonsCompanion(name: Value(saved)));
+    final renamed =
+        await (_db.update(_db.persons)..where((p) => p.id.equals(id))).write(
+          PersonsCompanion(name: Value(saved)),
+        );
     return renamed > 0 && saved != null;
   }
 
@@ -530,6 +535,78 @@ class PeopleRepository {
   Future<void> assignFaces(Iterable<int> faceIds, int personId) =>
       _db.transaction(() => _assign(faceIds, personId));
 
+  /// An explicit rescan may release clear identity outliers to be clustered
+  /// again, even when the second person has no existing identity yet.
+  Future<int> regroupDoubtfulFaces(int personId) => _db.transaction(() async {
+    final rows = await _db
+        .customSelect(
+          '''SELECT f.id FROM faces f
+      JOIN review_doubtful d ON d.face_id = f.id AND d.person_id = f.person_id
+      JOIN persons p ON p.id = f.person_id
+      WHERE p.id = ? AND p.kind = ? AND p.grouping_locked = 0
+        AND f.kind = p.kind AND p.avatar_face_id IS NOT f.id
+        AND f.hidden = 0 AND f.review_dismissed = 0 AND f.ownership IS NULL
+        AND d.score < ?
+        AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM identity_set_faces i WHERE i.face_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM bodies b WHERE b.face_id = f.id AND b.link_method = 'manual')
+        AND NOT EXISTS (SELECT 1 FROM kind_overrides k WHERE k.target_person_id = p.id)
+        AND NOT EXISTS (SELECT 1 FROM faces sibling WHERE sibling.track_id = f.track_id
+          AND sibling.id != f.id AND (sibling.person_id IS NOT f.person_id OR
+            sibling.id = p.avatar_face_id OR sibling.ownership IS NOT NULL OR
+            EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = sibling.id) OR
+            EXISTS (SELECT 1 FROM identity_set_faces i WHERE i.face_id = sibling.id) OR
+            EXISTS (SELECT 1 FROM bodies b WHERE b.face_id = sibling.id AND b.link_method = 'manual') OR
+            NOT EXISTS (SELECT 1 FROM review_doubtful sd
+              WHERE sd.face_id = sibling.id AND sd.person_id = p.id AND sd.score < ?)))
+      ORDER BY f.id''',
+          variables: [
+            Variable.withInt(personId),
+            Variable.withString(kind),
+            Variable.withReal(kind == 'character' ? .70 : .35),
+            Variable.withReal(kind == 'character' ? .70 : .35),
+          ],
+          readsFrom: {
+            _db.faces,
+            _db.persons,
+            _db.reviewDoubtful,
+            _db.faceConfirmations,
+            _db.identitySetFaces,
+            _db.bodies,
+            _db.kindOverrides,
+          },
+        )
+        .get();
+    final ids = [for (final row in rows) row.read<int>('id')];
+    for (final chunk in _chunks(ids)) {
+      final marks = _marks(chunk.length);
+      final vars = [for (final id in chunk) Variable.withInt(id)];
+      await _clearDerivedBodyLinks(chunk);
+      await _db.customUpdate(
+        '''INSERT OR IGNORE INTO face_rejections (face_id, person_id)
+        SELECT id, person_id FROM faces WHERE id IN ($marks)''',
+        variables: vars,
+        updates: {_db.faceRejections},
+      );
+      await _db.customUpdate(
+        'UPDATE faces SET person_id = NULL, review_dismissed = 0 WHERE id IN ($marks)',
+        variables: vars,
+        updates: {_db.faces},
+      );
+      await _db.customUpdate(
+        'DELETE FROM review_doubtful WHERE face_id IN ($marks)',
+        variables: vars,
+        updates: {_db.reviewDoubtful},
+      );
+      await _db.customUpdate(
+        'DELETE FROM review_matches WHERE face_id IN ($marks)',
+        variables: vars,
+        updates: {_db.reviewMatches},
+      );
+    }
+    return ids.length;
+  });
+
   /// Applies a PC-confirmed audit suggestion while its input still holds.
   Future<bool> applyFaceRepair({
     required int faceId,
@@ -580,10 +657,12 @@ class PeopleRepository {
     );
     if (changed == 0) return false;
     await _clearDerivedBodyLinks([faceId]);
-    await (_db.delete(_db.reviewDoubtful)..where((d) => d.faceId.equals(faceId)))
-        .go();
-    await (_db.delete(_db.reviewMatches)..where((r) => r.faceId.equals(faceId)))
-        .go();
+    await (_db.delete(
+      _db.reviewDoubtful,
+    )..where((d) => d.faceId.equals(faceId))).go();
+    await (_db.delete(
+      _db.reviewMatches,
+    )..where((r) => r.faceId.equals(faceId))).go();
     return true;
   });
 
@@ -741,32 +820,56 @@ class PeopleRepository {
     };
   }
 
-  /// How many photos / video frames hold a face of [a] AND a face of [b]. One person cannot be
-  /// twice in a frame, so more than zero means they are two people (or a face is on the wrong one).
-  Future<int> sharedFrames(int a, int b) async =>
-      (await _db
-              .customSelect(
-                'SELECT COUNT(*) AS n FROM faces x JOIN faces y ON y.media_id = x.media_id AND y.frame_number IS x.frame_number WHERE x.person_id = ? AND y.person_id = ?',
-                variables: [Variable.withInt(a), Variable.withInt(b)],
-                readsFrom: {_db.faces},
-              )
-              .getSingle())
-          .read<int>('n');
+  /// Co-occurrence is evidence against automatic merging. Collages, mirrors
+  /// and duplicate boxes can repeat one person, so a manual merge may override it.
+  Future<int> sharedFrames(int a, int b) => sharedFramesAmong([a, b]);
 
-  /// Throws [MergeBlockedException] when merging [sourceId] into [targetId] would put two faces of
-  /// the same frame on one person, or mix a real person with a drawn character (their embeddings
-  /// have different sizes, which would break grouping for that kind altogether).
-  Future<void> _checkMergeable(PersonRow source, PersonRow target) async {
+  Future<int> sharedFramesAmong(Iterable<int> personIds) async {
+    final ids = personIds.toSet().toList();
+    if (ids.length < 2) return 0;
+    final marks = _marks(ids.length);
+    return (await _db
+            .customSelect(
+              '''WITH appearances AS (
+        SELECT media_id, frame_number, person_id FROM faces
+          WHERE media_id IS NOT NULL AND person_id IN ($marks)
+        UNION
+        SELECT d.media_id, COALESCE(d.frame_number, f.frame_number), f.person_id FROM media_detections d
+          JOIN faces f ON d.kind = 'f' AND f.id = d.ref_id
+          WHERE f.person_id IN ($marks)
+      )
+      SELECT COUNT(*) AS n FROM (
+        SELECT media_id, frame_number FROM appearances
+        GROUP BY media_id, frame_number HAVING COUNT(DISTINCT person_id) > 1
+      )''',
+              variables: [
+                for (var copy = 0; copy < 2; copy++)
+                  for (final id in ids) Variable.withInt(id),
+              ],
+              readsFrom: {_db.faces, _db.mediaDetections},
+            )
+            .getSingle())
+        .read<int>('n');
+  }
+
+  /// Automatic merges respect co-occurrence. User-confirmed merges can keep
+  /// repeated appearances, while incompatible identity kinds are always refused.
+  Future<void> _checkMergeable(
+    PersonRow source,
+    PersonRow target, {
+    required bool allowSharedFrames,
+  }) async {
     if (source.kind != target.kind) {
       throw const MergeBlockedException(
         'A person and a drawn character cannot be merged.',
       );
     }
+    if (allowSharedFrames) return;
     final shared = await sharedFrames(source.id, target.id);
     if (shared > 0) {
       throw MergeBlockedException(
-        'These two appear together in $shared photo/video frame(s), so they cannot be the same person. '
-        'Move or reject the wrong face first, or mark them as different people.',
+        'These identities share $shared photo/video frame(s). Automatic merging was skipped. '
+        'Use Merge manually if this is a collage, reflection or repeated detection of the same person.',
       );
     }
   }
@@ -774,15 +877,21 @@ class PeopleRepository {
   Future<void> mergePeople({
     required int sourceId,
     required int targetId,
+    bool allowSharedFrames = false,
   }) async {
     if (sourceId == targetId) return;
-    await _mergePeople(sourceId: sourceId, targetId: targetId);
+    await _mergePeople(
+      sourceId: sourceId,
+      targetId: targetId,
+      allowSharedFrames: allowSharedFrames,
+    );
     await autoOrganizer?.syncPersonGroup(targetId);
   }
 
   Future<void> _mergePeople({
     required int sourceId,
     required int targetId,
+    bool allowSharedFrames = false,
   }) async {
     await _db.transaction(() async {
       final source = await (_db.select(
@@ -792,9 +901,15 @@ class PeopleRepository {
         _db.persons,
       )..where((p) => p.id.equals(targetId))).getSingleOrNull();
       if (source == null || target == null) return;
-      await _checkMergeable(source, target);
+      await _checkMergeable(
+        source,
+        target,
+        allowSharedFrames: allowSharedFrames,
+      );
       final s = Variable.withInt(sourceId);
       final t = Variable.withInt(targetId);
+
+      await IdentityRescan(_db).retarget(sourceId, targetId);
 
       await mergeActionPersonReferences(_db, sourceId, targetId);
 
@@ -1144,6 +1259,7 @@ class PeopleRepository {
     int targetId, {
     String? name,
     int? coverFaceId,
+    bool allowSharedFrames = false,
   }) async {
     final sources = ids.toSet()..remove(targetId);
     final named = await _db.transaction(() async {
@@ -1151,7 +1267,11 @@ class PeopleRepository {
         throw StateError('The target person no longer exists.');
       }
       for (final id in sources) {
-        await _mergePeople(sourceId: id, targetId: targetId);
+        await _mergePeople(
+          sourceId: id,
+          targetId: targetId,
+          allowSharedFrames: allowSharedFrames,
+        );
       }
       final named = name != null && await _writePersonName(targetId, name);
       if (coverFaceId != null) await setAvatar(targetId, coverFaceId);

@@ -436,6 +436,11 @@ def job_fixtures():
         "params": {"frame_interval": 1.0, "min_quality": 0.4, "detect_bodies": True},
         "inputs": {"video": sha("holiday-video")},
     })
+    write("JobCreate.analyze_video_quick", {
+        "type": "analyze_video",
+        "params": {"sampling_mode": "quick", "min_quality": 0.4, "detect_bodies": True},
+        "inputs": {"video": sha("holiday-video")},
+    })
     write("JobCreate.undress_image", {
         "client_job_id": "fixture-restyle",
         "type": "undress_image",

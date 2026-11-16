@@ -64,12 +64,13 @@ void main() {
   );
 
   appTest(
-    'merge starts on the people grid and reviews keeper, name and cover',
+    'manual merge accepts repeated appearances in one photo and reviews name and cover',
     (tester, env) async {
       final a = await seedPerson(env.db, name: 'Sara');
       final b = await seedPerson(env.db, name: 'Person B');
-      await seedFace(env.db, personId: a, seed: 1);
-      await seedFace(env.db, personId: b, seed: 2);
+      final collage = await seedMedia(env.db);
+      await seedFace(env.db, personId: a, mediaId: collage, seed: 1);
+      await seedFace(env.db, personId: b, mediaId: collage, seed: 1);
       await env.pump(
         tester,
         extra: [initialLocationProvider.overrideWithValue('/people')],
@@ -81,6 +82,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('people-merge-confirm')), findsOneWidget);
       expect(find.text('Choose cover face…'), findsOneWidget);
+      expect(
+        find.textContaining('Collages, reflections and repeated boxes'),
+        findsOneWidget,
+      );
       await tester.enterText(
         find.byKey(const Key('merge-result-name')),
         'Sara together',
@@ -89,6 +94,7 @@ void main() {
       await tester.pumpAndSettle();
       final kept = (await env.db.select(env.db.persons).get()).single;
       expect((kept.id, kept.name), (b, 'Sara together'));
+      expect(await env.db.select(env.db.mediaDetections).get(), hasLength(2));
       expect(
         (await env.db.select(env.db.faces).get()).every((f) => f.personId == b),
         isTrue,

@@ -5,6 +5,8 @@ import '../db/app_database.dart';
 import '../media/media_library.dart';
 import 'kind_corrections.dart';
 import 'character_repair.dart';
+import 'identity_rescan.dart';
+import 'video_scan_coverage.dart';
 import '../../domain/organization/sidecar_ingestion_service.dart';
 import '../../domain/organization/sidecar_storage.dart';
 
@@ -91,6 +93,7 @@ class LibraryRepository {
 
   final AppDatabase _db;
   CharacterRepair get characterRepair => CharacterRepair(_db);
+  IdentityRescan get identityRescan => IdentityRescan(_db);
   final SidecarIngestionService? ingestionService;
   final SidecarStorage sidecarStorage;
 
@@ -146,9 +149,10 @@ class LibraryRepository {
 
   Future<void> skipPending() =>
       (_db.update(_db.media)..where(
-          (m) => m.scanStatus.equals('pending') &
-              const CustomExpression<bool>(CharacterRepair.pendingSql).not(),
-        ))
+            (m) =>
+                m.scanStatus.equals('pending') &
+                const CustomExpression<bool>(CharacterRepair.pendingSql).not(),
+          ))
           .write(const MediaCompanion(scanStatus: Value('skipped')));
 
   Stream<List<MediaRow>> watchFailedMedia({int limit = 200}) =>
@@ -368,18 +372,24 @@ class LibraryRepository {
   /// never holds up the rest of a large library.
   static final _queueOrder = <OrderClauseGenerator<$MediaTable>>[
     (m) => OrderingTerm.asc(m.kind.equals('video')),
+    (m) => OrderingTerm.desc(const CustomExpression<bool>(VideoScanCoverage.detailedPendingSql)),
     (m) => OrderingTerm.asc(m.durationMs),
     (m) => OrderingTerm.asc(m.id),
   ];
 
   /// Looks ahead by one item without claiming it; used for bounded JPEG preparation.
-  Future<MediaRow?> nextPending({bool characterRepairOnly = false}) =>
+  Future<MediaRow?> nextPending({
+    bool characterRepairOnly = false,
+    bool identityRescanOnly = false,
+  }) =>
       (_db.select(_db.media)
             ..where(
               (m) =>
                   m.scanStatus.equals('pending') &
                   m.kind.isIn(['photo', 'video']) &
-                  (characterRepairOnly
+                  (identityRescanOnly
+                      ? const CustomExpression<bool>(IdentityRescan.pendingSql)
+                      : characterRepairOnly
                       ? const CustomExpression<bool>(CharacterRepair.pendingSql)
                       : const Constant(true)),
             )
@@ -388,16 +398,25 @@ class LibraryRepository {
           .getSingleOrNull();
 
   /// Takes the next waiting item and marks it as being scanned.
-  Future<MediaRow?> claimNext({bool characterRepairOnly = false}) => _db.transaction(() async {
+  Future<MediaRow?> claimNext({
+    bool characterRepairOnly = false,
+    bool identityRescanOnly = false,
+  }) => _db.transaction(() async {
     final row =
         await (_db.select(_db.media)
               ..where(
                 (m) =>
                     m.scanStatus.equals('pending') &
                     m.kind.isIn(['photo', 'video']) &
-                  (characterRepairOnly
-                      ? const CustomExpression<bool>(CharacterRepair.pendingSql)
-                      : const Constant(true)),
+                    (identityRescanOnly
+                        ? const CustomExpression<bool>(
+                            IdentityRescan.pendingSql,
+                          )
+                        : characterRepairOnly
+                        ? const CustomExpression<bool>(
+                            CharacterRepair.pendingSql,
+                          )
+                        : const Constant(true)),
               )
               ..orderBy(_queueOrder)
               ..limit(1))
@@ -451,7 +470,10 @@ class LibraryRepository {
       (_db.update(_db.media)..where((m) => m.scanStatus.equals('scanning')))
           .write(const MediaCompanion(scanStatus: Value('pending')));
 
-  Future<ScanCounts> scanCounts({bool characterRepairOnly = false}) async {
+  Future<ScanCounts> scanCounts({
+    bool characterRepairOnly = false,
+    bool identityRescanOnly = false,
+  }) async {
     final row = await _db
         .customSelect(
           '''
@@ -462,7 +484,11 @@ class LibraryRepository {
         COALESCE(SUM(scan_status = 'failed'), 0) AS failed,
         COALESCE(SUM(scan_status = 'skipped'), 0) AS skipped
       FROM media WHERE kind IN ('photo', 'video')
-        ${characterRepairOnly ? 'AND ${CharacterRepair.pendingSql}' : ''}
+        ${identityRescanOnly
+              ? 'AND ${IdentityRescan.pendingSql}'
+              : characterRepairOnly
+              ? 'AND ${CharacterRepair.pendingSql}'
+              : ''}
       ''',
           readsFrom: {_db.media, _db.settings},
         )

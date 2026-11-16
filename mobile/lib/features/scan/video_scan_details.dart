@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../domain/scan/video_scan_progress.dart';
+import '../../data/repositories/app_settings.dart';
 import '../../l10n/app_localizations.dart';
 
 String videoStageTitle(AppLocalizations l10n, VideoScanProgress video) {
@@ -141,6 +142,7 @@ class _VideoScanDetailsState extends State<VideoScanDetails> {
       key: const Key('video-scan-details'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text(v.scanMode == VideoScanMode.quick ? l10n.videoScanQuick : l10n.videoScanDetailed),
         Wrap(
           spacing: 12,
           runSpacing: 8,

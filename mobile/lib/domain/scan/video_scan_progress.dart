@@ -1,5 +1,7 @@
 /// Measurements for the current video. Percentages belong to one stage only;
 /// waiting and verification deliberately have no invented percentage or ETA.
+import '../../data/repositories/app_settings.dart';
+
 enum VideoScanStage {
   prepare,
   upload,
@@ -41,6 +43,7 @@ class VideoScanProgress {
     this.warning,
     this.serverUpdatedAt,
     this.incrementalResults = false,
+    this.scanMode = VideoScanMode.detailed,
   });
 
   final VideoScanStage stage;
@@ -71,4 +74,5 @@ class VideoScanProgress {
   final String? warning;
   final DateTime? serverUpdatedAt;
   final bool incrementalResults;
+  final VideoScanMode scanMode;
 }

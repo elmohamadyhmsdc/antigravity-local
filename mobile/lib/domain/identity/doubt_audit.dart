@@ -45,10 +45,10 @@ class DoubtAudit {
   /// A better home must score at least this against the other person's core.
   double get _suggestFloor => _character ? 0.82 : 0.45;
 
-  Future<DoubtResult> run() async {
+  Future<DoubtResult> run({int? anchorPersonId}) async {
     final people = await _db
         .customSelect(
-          'SELECT id FROM persons WHERE kind = ? AND grouping_locked = 0 ORDER BY id',
+          'SELECT id, avatar_face_id FROM persons WHERE kind = ? AND grouping_locked = 0 ORDER BY id',
           variables: [Variable.withString(kind)],
           readsFrom: {_db.persons},
         )
@@ -84,7 +84,7 @@ class DoubtAudit {
             r.read<double>('quality_score') < 0.45 ||
             r.read<double>('face_px') < _minFacePx ||
             r.read<double>('det_score') < 0.5 ||
-            r.read<double>('sharpness') <= 0) {
+            (!_character && r.read<double>('sharpness') <= 0)) {
           continue;
         }
         final v = _vector(r.read<Uint8List>('embedding'));
@@ -102,7 +102,12 @@ class DoubtAudit {
           ),
         );
       }
-      if (faces.length >= 3) {
+      final anchored = pid == anchorPersonId;
+      if (anchored && trusted.isEmpty) {
+        final cover = p.readNullable<int>('avatar_face_id');
+        if (faces.any((f) => f.id == cover)) trusted.add(cover!);
+      }
+      if (faces.length >= (anchored ? 2 : 3)) {
         // Old imports can contain compatible-sized but unrelated model spaces.
         // Without a selected library model, do not invent comparisons across them.
         if (modelIds.length != 1) continue;
@@ -113,6 +118,8 @@ class DoubtAudit {
           dedupe: false,
           medoidSample: 60,
           trusted: trusted,
+          minToTrim: anchored ? 2 : 5,
+          minTrusted: anchored ? 1 : 3,
         );
         // Keep different confirmed views instead of reducing a person to one
         // average face. An unusual but supported profile is not a repair task.
@@ -161,7 +168,8 @@ class DoubtAudit {
         // against every person for every face in a large repair backlog.
         final candidates = [
           for (final c in cores.entries)
-            if (c.key != entry.key && coreModels[c.key] == coreModels[entry.key])
+            if (c.key != entry.key &&
+                coreModels[c.key] == coreModels[entry.key])
               (c.key, _cosine(v, c.value)),
         ]..sort((a, b) => b.$2.compareTo(a.$2));
         for (final candidate in candidates.take(8)) {

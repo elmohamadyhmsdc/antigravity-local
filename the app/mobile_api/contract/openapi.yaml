@@ -728,6 +728,7 @@ components:
             body_detection: { type: boolean }
             character_detection: { type: boolean, default: false }
             character_library_repair: { type: boolean, default: false }
+            quick_video_sampling: { type: boolean, default: false }
             sensitive_detection:
               type: boolean
               default: false
@@ -1797,9 +1798,9 @@ components:
         frame_interval: { type: number, default: 1.0, minimum: 0.25, maximum: 60 }
         sampling_mode:
           type: string
-          enum: [fixed, adaptive]
+          enum: [fixed, adaptive, quick]
           default: fixed
-          description: Adaptive uses duration/480 seconds, bounded to 0.5–10 seconds; the actual grid is retained on resume.
+          description: Adaptive uses duration/480 seconds, bounded to 0.5–10 seconds. Quick uses at most 60 uniformly spaced samples, no denser than once per second. The decoded frame count determines the budget and the grid is retained on resume.
         min_quality: { type: number, default: 0.40, minimum: 0, maximum: 1 }
         detect_bodies: { type: boolean, default: true }
         start_time: { type: number, default: 0, minimum: 0, maximum: 86400 }

@@ -84,6 +84,44 @@ void main() {
     db.faces,
   )..where((f) => f.id.equals(face))).getSingle()).personId;
 
+  test(
+    'identity repair separates a mixed person into a new identity through the PC plan',
+    () async {
+      final p = await seedPerson(db, name: 'Sara');
+      final cover = await seedFace(db, personId: p, seed: 1);
+      final wrong = [
+        await seedFace(db, personId: p, seed: 2),
+        await seedFace(db, personId: p, embedding: near(unitVec(2), 99, .2)),
+      ];
+      await (db.update(db.persons)..where((row) => row.id.equals(p))).write(
+        PersonsCompanion(avatarFaceId: Value(cover)),
+      );
+      api.groupingHandler = (request) {
+        if (request.mode == 'apply' && request.stages.contains('cluster')) {
+          expect(request.pending.map((f) => f.id).toSet(), wrong.toSet());
+          expect(
+            request.pending.every((f) => f.rejectedPersonIds.contains(p)),
+            isTrue,
+          );
+          return _plan('apply', groups: [_group(wrong)]);
+        }
+        return _plan(request.mode);
+      };
+      await runner.run(repairExisting: true, repairPersonId: p);
+      expect(await personOf(cover), p);
+      final split = await personOf(wrong.first);
+      expect(split, isNotNull);
+      expect(split, isNot(p));
+      expect(await personOf(wrong.last), split);
+      expect(
+        (await (db.select(
+          db.persons,
+        )..where((row) => row.id.equals(p))).getSingle()).name,
+        'Sara',
+      );
+    },
+  );
+
   test('manual sort repairs clear mistakes inside named people', () async {
     final sara = await seedPerson(db, name: 'Sara');
     final omar = await seedPerson(db, name: 'Omar');
@@ -104,26 +142,31 @@ void main() {
     final blocked = await seedFace(db, personId: sara, seed: 2);
     final sharedPhoto = await seedMedia(db);
     await seedFace(db, personId: omar, mediaId: sharedPhoto, seed: 2);
-    await db.into(db.mediaDetections).insert(
-      MediaDetectionsCompanion.insert(
-        mediaId: sharedPhoto,
-        kind: 'f',
-        refId: blocked,
-        x: 0.1,
-        y: 0.1,
-        w: 0.2,
-        h: 0.2,
-      ),
-    );
+    await db
+        .into(db.mediaDetections)
+        .insert(
+          MediaDetectionsCompanion.insert(
+            mediaId: sharedPhoto,
+            kind: 'f',
+            refId: blocked,
+            x: 0.1,
+            y: 0.1,
+            w: 0.2,
+            h: 0.2,
+          ),
+        );
     api.groupingHandler = (request) {
       if (request.stages.join(',') != 'match') return _plan(request.mode);
       expect(request.pending.map((f) => f.id), [clear, ambiguous, blocked]);
       expect(request.models.map((m) => m.pid), [sara, omar]);
-      return _plan('apply', assignments: [
-        _assign(clear, omar),
-        _assign(ambiguous, omar, decision: 'suggest'),
-        _assign(blocked, omar),
-      ]);
+      return _plan(
+        'apply',
+        assignments: [
+          _assign(clear, omar),
+          _assign(ambiguous, omar, decision: 'suggest'),
+          _assign(blocked, omar),
+        ],
+      );
     };
 
     expect((await runner.run()).facesRepaired, 0);
@@ -144,9 +187,9 @@ void main() {
       unorderedEquals([ambiguous, blocked]),
     );
     expect((await db.select(db.faceConfirmations).get()).single.faceId, manual);
-    final body = await (db.select(db.bodies)
-          ..where((b) => b.id.equals(linkedBody)))
-        .getSingle();
+    final body = await (db.select(
+      db.bodies,
+    )..where((b) => b.id.equals(linkedBody))).getSingle();
     expect(body.personId, isNull);
     expect(body.linkMethod, isNull);
   });
@@ -161,8 +204,10 @@ void main() {
     final face = await seedFace(db, personId: sara, seed: 2);
     api.groupingHandler = (request) async {
       if (request.stages.join(',') != 'match') return _plan(request.mode);
-      await PeopleRepository(db, FileStore(tmp))
-          .setPersonFlags([omar], groupingLocked: true);
+      await PeopleRepository(
+        db,
+        FileStore(tmp),
+      ).setPersonFlags([omar], groupingLocked: true);
       return _plan('apply', assignments: [_assign(face, omar)]);
     };
 
@@ -617,37 +662,40 @@ void main() {
     },
   );
 
-  test('a match that becomes automatic in review is applied before asking', () async {
-    final sara = await seedPerson(db, name: 'Sara');
-    final media = await seedMedia(db);
-    await seedFace(db, personId: sara, mediaId: media);
-    final automatic = await seedFace(db, seed: 2);
-    final uncertain = await seedFace(db, seed: 3);
-    final conflicted = await seedFace(db, seed: 4, mediaId: media);
+  test(
+    'a match that becomes automatic in review is applied before asking',
+    () async {
+      final sara = await seedPerson(db, name: 'Sara');
+      final media = await seedMedia(db);
+      await seedFace(db, personId: sara, mediaId: media);
+      final automatic = await seedFace(db, seed: 2);
+      final uncertain = await seedFace(db, seed: 3);
+      final conflicted = await seedFace(db, seed: 4, mediaId: media);
 
-    api.groupingHandler = (r) => r.mode == 'apply'
-        ? _plan('apply')
-        : _plan(
-            'review',
-            assignments: [
-              if (r.pending.any((f) => f.id == automatic))
-                _assign(automatic, sara),
-              _assign(uncertain, sara, decision: 'suggest', score: 0.36),
-              _assign(conflicted, sara),
-            ],
-          );
+      api.groupingHandler = (r) => r.mode == 'apply'
+          ? _plan('apply')
+          : _plan(
+              'review',
+              assignments: [
+                if (r.pending.any((f) => f.id == automatic))
+                  _assign(automatic, sara),
+                _assign(uncertain, sara, decision: 'suggest', score: 0.36),
+                _assign(conflicted, sara),
+              ],
+            );
 
-    final result = await runner.run();
-    expect(result.assigned, 1);
-    expect(await personOf(automatic), sara);
-    expect(await personOf(uncertain), isNull);
-    expect(await personOf(conflicted), isNull);
-    expect(
-      (await review.matches()).single.faces.map((f) => f.faceId),
-      unorderedEquals([uncertain, conflicted]),
-    );
-    expect(api.groupingCalls.where((r) => r.mode == 'review'), hasLength(2));
-  });
+      final result = await runner.run();
+      expect(result.assigned, 1);
+      expect(await personOf(automatic), sara);
+      expect(await personOf(uncertain), isNull);
+      expect(await personOf(conflicted), isNull);
+      expect(
+        (await review.matches()).single.faces.map((f) => f.faceId),
+        unorderedEquals([uncertain, conflicted]),
+      );
+      expect(api.groupingCalls.where((r) => r.mode == 'review'), hasLength(2));
+    },
+  );
 
   test(
     'a suggestion disappears from the Review screen when the user sorts the face',

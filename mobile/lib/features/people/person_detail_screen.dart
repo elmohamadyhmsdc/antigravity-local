@@ -154,11 +154,23 @@ class PersonDetailScreen extends ConsumerWidget {
               children: [
                 Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: TextButton.icon(
-                    key: const Key('person-identity-group'),
-                    icon: const Icon(Icons.folder_outlined),
-                    label: Text(p.groupName ?? l10n.identityGroupAssign),
-                    onPressed: () => assignIdentityGroup(context, ref, [p.id]),
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      TextButton.icon(
+                        key: const Key('person-identity-group'),
+                        icon: const Icon(Icons.folder_outlined),
+                        label: Text(p.groupName ?? l10n.identityGroupAssign),
+                        onPressed: () =>
+                            assignIdentityGroup(context, ref, [p.id]),
+                      ),
+                      TextButton.icon(
+                        key: const Key('person-rescan'),
+                        icon: const Icon(Icons.refresh),
+                        label: Text(l10n.identityRescanTitle),
+                        onPressed: () => rescanIdentity(context, ref, p),
+                      ),
+                    ],
                   ),
                 ),
                 if (pending > 0)
@@ -789,11 +801,11 @@ class _PersonMediaState extends ConsumerState<_PersonMedia> {
             onLongPress: p == null
                 ? null
                 : (item) => showPersonMediaActionSheet(
-                      context,
-                      person: p,
-                      item: item,
-                      mediaKind: _kind,
-                    ),
+                    context,
+                    person: p,
+                    item: item,
+                    mediaKind: _kind,
+                  ),
             empty: EmptyState(
               icon: Icons.photo_outlined,
               title: AppLocalizations.of(context).noPhotosOfPerson,

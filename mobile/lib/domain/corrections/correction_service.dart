@@ -919,9 +919,10 @@ class CorrectionService {
         await peopleRepo.mergePeople(
           sourceId: pp.personAId,
           targetId: pp.personBId,
+          allowSharedFrames: true,
         );
       } on MergeBlockedException {
-        return 0; // they share a frame (or a kind differs): not the same person
+        return 0; // people and characters use incompatible identity models
       }
       return 2;
     }

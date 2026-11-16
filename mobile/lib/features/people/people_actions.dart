@@ -13,6 +13,7 @@ import '../../data/repositories/kind_corrections.dart';
 import '../../data/repositories/people_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../library_providers.dart';
+import '../../providers.dart';
 import '../shared/crop_image.dart';
 import '../shared/person_picker.dart';
 import '../shared/empty_state.dart';
@@ -46,6 +47,7 @@ List<PeopleMenuAction> personMenuActions(List<PersonSummary> people) {
       Icons.star_outline,
     ),
     if (single) ...[
+      const PeopleMenuAction('rescan', Icons.refresh),
       const PeopleMenuAction('cover', Icons.account_circle_outlined),
       const PeopleMenuAction('media', Icons.perm_media_outlined),
       const PeopleMenuAction('add', Icons.person_add_alt_1),
@@ -120,6 +122,35 @@ List<PeopleMenuAction> faceMenuActions(List<FaceItem> faces) {
       destructive: true,
     ),
   ];
+}
+
+Future<void> rescanIdentity(
+  BuildContext context,
+  WidgetRef ref,
+  PersonSummary person,
+) async {
+  final l = AppLocalizations.of(context);
+  if (ref.read(scanEngineProvider).isRunning) {
+    context.push(Routes.runningScan);
+    return;
+  }
+  if (ref.read(mobileApiProvider) == null) {
+    context.push(Routes.connection);
+    return;
+  }
+  final start = await confirm(
+    context,
+    title: l.identityRescanTitle,
+    body:
+        '${l.identityRescanHint}${person.groupingLocked ? '\n\n${l.peopleAction('lockedNote')}' : ''}',
+    confirmLabel: l.identityRescanStart,
+    cancelLabel: l.cancel,
+  );
+  if (!start || !context.mounted) return;
+  await startScan(ref, enumerate: false, repairPersonId: person.id);
+  if (context.mounted && ref.read(scanEngineProvider).isRunning) {
+    context.push(Routes.runningScan);
+  }
 }
 
 Future<String?> askPeopleName(
@@ -321,6 +352,9 @@ Future<void> runPersonAction(
       case 'redetect':
         await redetectFlow(context, ref, personId: p.id);
         return;
+      case 'rescan':
+        await rescanIdentity(context, ref, p);
+        return;
       case 'cover':
         final option = await showPeopleActionSheet(
           context,
@@ -473,6 +507,7 @@ Future<void> _merge(
   for (final member in members) {
     impacts[member.id] = await repo.impactOf(member.id);
   }
+  final sharedFrames = await repo.sharedFramesAmong(members.map((p) => p.id));
   if (!context.mounted) return;
   var name = target.name ?? '';
   int? cover;
@@ -486,6 +521,7 @@ Future<void> _merge(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(l.peopleAction('mergeNote')),
+              if (sharedFrames > 0) Text(l.mergeRepeatedAppearancesHint),
               const Text(
                 'Original files stay in place. Linked items are kept with the surviving identity.',
               ),
@@ -561,6 +597,7 @@ Future<void> _merge(
       target.id,
       name: name.trim(),
       coverFaceId: cover,
+      allowSharedFrames: true,
     );
   } on MergeBlockedException catch (e) {
     if (context.mounted) {
