@@ -108,6 +108,7 @@ class ScanEngine {
   bool _canEmbedBodies = false;
   Completer<void>? _settled;
   bool _pauseRequested = false;
+  int _pauseVersion = 0;
   bool _allowReconnectResume = true;
   bool _keepAliveOn = false;
   DateTime _lastNotification = DateTime.fromMillisecondsSinceEpoch(0);
@@ -127,6 +128,7 @@ class ScanEngine {
 
   /// Asks the running scan to stop after the photo it is on.
   void pause() {
+    _pauseVersion++;
     _allowReconnectResume = false;
     _pauseRequested = true;
     if (!_pauseSignal.isCompleted) _pauseSignal.complete();
@@ -194,6 +196,51 @@ class ScanEngine {
     }
   }
 
+  Future<void> _queueIdentityRescan(int personId) async {
+    final api = _api();
+    if (api == null) throw StateError('Connect to your PC to queue a re-scan.');
+    final caps = await api.capabilities();
+    if (!caps.engines.characterLibraryRepair) {
+      throw StateError(
+        'Update the PC server and check its face and character models to rescan and repair identities.',
+      );
+    }
+    await _repo.identityRescan.queue(personId);
+  }
+
+  /// Returns once the request is durable, so browsing can continue immediately.
+  Future<void> queueIdentityRescan(int personId) async {
+    final pauseVersion = _pauseVersion;
+    await _queueIdentityRescan(personId);
+    if (_pauseVersion != pauseVersion) return;
+    if (!_active) {
+      if (!mediaOrganizationActive) await _settings.setScanActive(true);
+      if (_pauseVersion != pauseVersion) {
+        await _settings.setScanActive(false);
+        return;
+      }
+      unawaited(start(enumerate: false));
+    } else {
+      _continueQueuedRescansAfterRun();
+    }
+  }
+
+  void _continueQueuedRescansAfterRun() {
+    final settled = _settled;
+    if (settled == null) return;
+    // Includes requests arriving while the last pass is stopping its service.
+    unawaited(
+      settled.future.then((_) async {
+        if (!_pauseRequested &&
+            _progress.phase == ScanPhase.completed &&
+            await _repo.identityRescan.personId() == null &&
+            await _repo.identityRescan.hasQueued()) {
+          await start(enumerate: false);
+        }
+      }),
+    );
+  }
+
   /// Runs until the queue is empty or the scan is paused. `enumerate` = list the chosen albums first
   /// (a new scan); false = just work through what is already queued (resume).
   Future<void> start({
@@ -203,6 +250,28 @@ class ScanEngine {
     int? repairPersonId,
     bool resumeRepairs = true,
   }) async {
+    if (repairPersonId != null) {
+      final pauseVersion = _pauseVersion;
+      try {
+        await _queueIdentityRescan(repairPersonId);
+      } catch (e) {
+        if (!_active) {
+          await _pause(
+            _api() == null ? PauseReason.notPaired : PauseReason.error,
+            '$e',
+          );
+        }
+        return;
+      }
+      if (_pauseVersion != pauseVersion) return;
+      if (_active) {
+        _continueQueuedRescansAfterRun();
+        return;
+      }
+      enumerate = false;
+      repairCharacters = false;
+      resumeRepairs = true;
+    }
     if (_active || mediaOrganizationActive) return;
     _allowReconnectResume = true;
     _active = true;
@@ -210,16 +279,28 @@ class ScanEngine {
     _pauseRequested = false;
     _pauseSignal = Completer<void>();
     try {
-      await runZoned(
-        () => _run(
-          repairPersonId == null && enumerate,
-          albumIds: albumIds,
-          repairCharacters: repairCharacters,
-          repairPersonId: repairPersonId,
-          resumeRepairs: resumeRepairs,
-        ),
-        zoneValues: {_inScanKey: true},
-      );
+      var listAlbums = enumerate;
+      var repairLibrary = repairCharacters;
+      var resume = resumeRepairs;
+      do {
+        await runZoned(
+          () => _run(
+            listAlbums,
+            albumIds: albumIds,
+            repairCharacters: repairLibrary,
+            resumeRepairs: resume,
+          ),
+          zoneValues: {_inScanKey: true},
+        );
+        if (_pauseRequested ||
+            _progress.phase != ScanPhase.completed ||
+            await _repo.identityRescan.personId() != null) {
+          break;
+        }
+        listAlbums = false;
+        repairLibrary = false;
+        resume = true;
+      } while (await _repo.identityRescan.hasQueued());
     } catch (e) {
       await _pause(PauseReason.error, '$e');
     } finally {
@@ -262,7 +343,6 @@ class ScanEngine {
     bool enumerate, {
     Set<String>? albumIds,
     required bool repairCharacters,
-    int? repairPersonId,
     bool resumeRepairs = true,
   }) async {
     final api = _api();
@@ -287,9 +367,30 @@ class ScanEngine {
       await repair.setSessionActive(false);
       await rescan.endSession();
     }
-    final rescanPersonId =
-        repairPersonId ??
-        (!enumerate && !repairCharacters ? await rescan.personId() : null);
+    if (!enumerate &&
+        !repairCharacters &&
+        resumeRepairs &&
+        await rescan.personId() == null &&
+        await rescan.hasQueued()) {
+      if (!_canRepairCharacters) {
+        await _pause(
+          PauseReason.error,
+          'Update the PC server and check its face and character models to rescan and repair identities.',
+        );
+        return;
+      }
+      await rescan.activateNext();
+      if (await rescan.personId() == null) {
+        // All waiting identities were deleted. This was a scoped repair request,
+        // so it must not fall through into unrelated library work.
+        await _settings.setScanActive(false);
+        _emit(const ScanProgress(phase: ScanPhase.completed));
+        return;
+      }
+    }
+    final rescanPersonId = !enumerate && !repairCharacters
+        ? await rescan.personId()
+        : null;
     final rescanOnly = rescanPersonId != null;
     final repairOnly =
         !rescanOnly &&
@@ -322,8 +423,10 @@ class ScanEngine {
       await _pause(PauseReason.noAccess);
       return;
     }
-    await _keepAlive.start(title: _title, text: _describe(_progress));
-    _keepAliveOn = true;
+    if (!_keepAliveOn) {
+      await _keepAlive.start(title: _title, text: _describe(_progress));
+      _keepAliveOn = true;
+    }
     if (enumerate) {
       if (selectedAlbums.isEmpty) {
         await _pause(PauseReason.noAlbums);
@@ -365,8 +468,7 @@ class ScanEngine {
       await repair.enqueue();
       await repair.setSessionActive(true);
     }
-    if (repairPersonId != null) await rescan.enqueue(repairPersonId);
-    if (rescanOnly && repairPersonId == null) await rescan.retryIncomplete();
+    if (rescanOnly) await rescan.retryIncomplete();
     await _repo.resetScanning();
     final counts = await _repo.scanCounts(
       characterRepairOnly: repairOnly,
@@ -602,10 +704,18 @@ class ScanEngine {
       // housekeeping only (thumbnail trim): never fails a finished scan
     }
     if (repairOnly) await repair.setSessionActive(false);
-    if (rescanOnly && grouped && !await rescan.hasPending()) {
+    if (rescanOnly) {
+      if (!grouped || await rescan.hasPending()) {
+        await _pause(
+          PauseReason.error,
+          _progress.message ??
+              'Some re-scan work could not finish. Resume to retry and continue the saved queue.',
+        );
+        return;
+      }
       await rescan.endSession();
     }
-    await _settings.setScanActive(false);
+    await _settings.setScanActive(await rescan.hasQueued());
     _emit(
       snapshot(
         phase: ScanPhase.completed,

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:antigravity_mobile/data/api/api_exception.dart';
+import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/api/dtos/system.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
@@ -68,14 +69,19 @@ class Rig {
     );
   }
 
-  ScanEngine engine({ScanPolicy policy = const ScanPolicy()}) => ScanEngine(
+  ScanEngine engine({
+    ScanPolicy policy = const ScanPolicy(),
+    Future<void> Function()? afterRun,
+    ScanKeepAlive? service,
+  }) => ScanEngine(
     library: repo,
     media: library,
     api: () => pc,
     settings: settings,
     store: store,
     grouping: grouping,
-    keepAlive: keepAlive,
+    keepAlive: service ?? keepAlive,
+    afterRun: afterRun,
     policy: policy,
     delay: (d) async {
       delays.add(d);
@@ -93,6 +99,32 @@ class Rig {
   Future<void> dispose() async {
     await db.close();
     tmp.deleteSync(recursive: true);
+  }
+}
+
+class _HeldStopService extends RecordingKeepAlive {
+  final stopping = Completer<void>();
+  final release = Completer<void>();
+
+  @override
+  Future<void> stop() async {
+    if (!stopping.isCompleted) {
+      stopping.complete();
+      await release.future;
+    }
+    await super.stop();
+  }
+}
+
+class _HeldCapabilitiesApi extends FakeMobileApi {
+  final entered = Completer<void>();
+  final release = Completer<void>();
+
+  @override
+  Future<Capabilities> capabilities() async {
+    if (!entered.isCompleted) entered.complete();
+    await release.future;
+    return super.capabilities();
   }
 }
 
@@ -138,6 +170,282 @@ void main() {
       expect((await rig.repo.mediaById(unrelated))!.scanStatus, 'pending');
       expect((await rig.settings.load()).albumIds, ['cam']);
       expect(await rig.repo.identityRescan.personId(), isNull);
+      await engine.dispose();
+    },
+  );
+
+  test(
+    're-scans added during analysis drain in order without restarting the current identity',
+    () async {
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['character_library_repair'] = true;
+      rig.api.capabilities_ = Capabilities.fromJson(caps);
+      final ids = <int>[];
+      for (var i = 1; i <= 3; i++) {
+        final p = await seedPerson(rig.db, name: 'Identity $i');
+        final m = await seedMedia(rig.db, asset: 'asset-$i');
+        await seedFace(rig.db, mediaId: m, personId: p, seed: i);
+        ids.add(p);
+      }
+      final unrelated = await seedMedia(
+        rig.db,
+        asset: 'unrelated',
+        status: 'pending',
+      );
+      final entered = Completer<void>(), release = Completer<void>();
+      final scanned = <int?>[];
+      final grouped = <int?>[];
+      rig.api.analyzeHandler = (bytes, options) async {
+        scanned.add(await rig.repo.identityRescan.personId());
+        if (!entered.isCompleted) {
+          entered.complete();
+          await release.future;
+        }
+        return analysis(faces: []);
+      };
+      rig.api.groupingHandler = (request) async {
+        final id = await rig.repo.identityRescan.personId();
+        if (grouped.isEmpty || grouped.last != id) grouped.add(id);
+        return GroupingPlanResponse(mode: request.mode);
+      };
+      final engine = rig.engine();
+      final running = engine.start(repairPersonId: ids.first);
+      await entered.future;
+      try {
+        await engine.queueIdentityRescan(ids[1]);
+        await engine.start(repairPersonId: ids[2]);
+        await engine.queueIdentityRescan(ids.first);
+        expect(await rig.repo.identityRescan.watchQueuedCount().first, 2);
+        expect(rig.api.analyzeCalls, hasLength(1));
+        expect(engine.progress.phase, ScanPhase.running);
+      } finally {
+        release.complete();
+        await running;
+      }
+      expect(scanned, ids);
+      expect(grouped, ids);
+      expect(engine.progress.phase, ScanPhase.completed);
+      expect(await rig.repo.identityRescan.hasQueued(), isFalse);
+      expect((await rig.repo.mediaById(unrelated))!.scanStatus, 'pending');
+      expect(rig.keepAlive.events.where((e) => e == 'start'), hasLength(1));
+      expect(rig.keepAlive.events.where((e) => e == 'stop'), hasLength(1));
+      await engine.dispose();
+    },
+  );
+
+  test(
+    'a re-scan added during ordinary scanning runs after that scan',
+    () async {
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['character_library_repair'] = true;
+      rig.api.capabilities_ = Capabilities.fromJson(caps);
+      await rig.choose();
+      final p = await seedPerson(rig.db);
+      final m = await seedMedia(rig.db, asset: 'asset-1');
+      await seedFace(rig.db, mediaId: m, personId: p);
+      await seedMedia(rig.db, asset: 'asset-2', status: 'pending');
+      final entered = Completer<void>(), release = Completer<void>();
+      rig.api.analyzeHandler = (bytes, options) async {
+        if (!entered.isCompleted) {
+          entered.complete();
+          await release.future;
+        }
+        return analysis(faces: []);
+      };
+      final engine = rig.engine();
+      final running = engine.start(enumerate: false);
+      await entered.future;
+      try {
+        await engine.queueIdentityRescan(p);
+        expect(await rig.repo.identityRescan.personId(), isNull);
+        expect(await rig.repo.identityRescan.hasQueued(), isTrue);
+      } finally {
+        release.complete();
+        await running;
+      }
+      expect(
+        rig.api.analyzeCalls,
+        hasLength(2),
+      ); // ordinary file, then saved scope
+      expect(await rig.repo.identityRescan.hasQueued(), isFalse);
+      expect(await rig.repo.identityRescan.personId(), isNull);
+      await engine.dispose();
+    },
+  );
+
+  test('pause retains waiting identities and resume drains them', () async {
+    final caps = fixture('Capabilities.idle');
+    (caps['engines'] as Map)['character_library_repair'] = true;
+    rig.api.capabilities_ = Capabilities.fromJson(caps);
+    final first = await seedPerson(rig.db);
+    final second = await seedPerson(rig.db);
+    final m1 = await seedMedia(rig.db);
+    final m2 = await seedMedia(rig.db, asset: 'asset-2');
+    await seedFace(rig.db, mediaId: m1, personId: first);
+    await seedFace(rig.db, mediaId: m2, personId: second);
+    final entered = Completer<void>(), release = Completer<void>();
+    rig.api.analyzeHandler = (bytes, options) async {
+      entered.complete();
+      await release.future;
+      return analysis(faces: []);
+    };
+    final engine = rig.engine();
+    final running = engine.start(repairPersonId: first);
+    await entered.future;
+    await engine.queueIdentityRescan(second);
+    await engine.pauseAndWait();
+    release.complete();
+    await running;
+    expect(engine.progress.phase, ScanPhase.paused);
+    expect(await rig.repo.identityRescan.personId(), first);
+    expect(await rig.repo.identityRescan.hasQueued(), isTrue);
+    expect((await rig.settings.load()).scanActive, isFalse);
+    rig.api.analyzeHandler = null;
+    rig.api.analyzeResult = analysis(faces: []);
+    await engine.start(enumerate: false);
+    expect(engine.progress.phase, ScanPhase.completed);
+    expect(await rig.repo.identityRescan.hasQueued(), isFalse);
+    expect((await rig.repo.mediaById(m2))!.scanStatus, 'done');
+    await engine.dispose();
+  });
+
+  test(
+    'a request during service shutdown starts after the old run settles',
+    () async {
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['character_library_repair'] = true;
+      rig.api.capabilities_ = Capabilities.fromJson(caps);
+      final first = await seedPerson(rig.db);
+      final second = await seedPerson(rig.db);
+      final m1 = await seedMedia(rig.db);
+      final m2 = await seedMedia(rig.db, asset: 'asset-2');
+      await seedFace(rig.db, mediaId: m1, personId: first);
+      await seedFace(rig.db, mediaId: m2, personId: second);
+      rig.api.analyzeResult = analysis(faces: []);
+      final service = _HeldStopService();
+      final engine = rig.engine(service: service);
+      final running = engine.start(repairPersonId: first);
+      await service.stopping.future;
+      final finishedSecond = engine.stream.firstWhere(
+        (p) => p.currentAssetId == 'asset-2',
+      );
+      await engine.queueIdentityRescan(second);
+      expect(await rig.repo.identityRescan.hasQueued(), isTrue);
+      service.release.complete();
+      await running;
+      await finishedSecond;
+      await engine.stream.firstWhere((p) => p.phase == ScanPhase.completed);
+      // Completed is emitted before the service has fully stopped.
+      while (engine.isRunning) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      expect(rig.api.analyzeCalls, hasLength(2));
+      expect(await rig.repo.identityRescan.hasQueued(), isFalse);
+      await engine.dispose();
+    },
+  );
+
+  test('a request after final grouping is still drained', () async {
+    final caps = fixture('Capabilities.idle');
+    (caps['engines'] as Map)['character_library_repair'] = true;
+    rig.api.capabilities_ = Capabilities.fromJson(caps);
+    final first = await seedPerson(rig.db);
+    final second = await seedPerson(rig.db);
+    final m1 = await seedMedia(rig.db);
+    final m2 = await seedMedia(rig.db, asset: 'asset-2');
+    await seedFace(rig.db, mediaId: m1, personId: first);
+    await seedFace(rig.db, mediaId: m2, personId: second);
+    rig.api.analyzeResult = analysis(faces: []);
+    var added = false;
+    late ScanEngine engine;
+    engine = rig.engine(
+      afterRun: () async {
+        if (!added) {
+          added = true;
+          await engine.queueIdentityRescan(second);
+        }
+      },
+    );
+    await engine.start(repairPersonId: first);
+    expect(rig.api.analyzeCalls, hasLength(2));
+    expect(await rig.repo.identityRescan.hasQueued(), isFalse);
+    await engine.dispose();
+  });
+
+  test(
+    'failed repair grouping pauses visibly and retains the waiting queue',
+    () async {
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['character_library_repair'] = true;
+      rig.api.capabilities_ = Capabilities.fromJson(caps);
+      final first = await seedPerson(rig.db);
+      final second = await seedPerson(rig.db);
+      final m1 = await seedMedia(rig.db);
+      final m2 = await seedMedia(rig.db, asset: 'asset-2');
+      await seedFace(rig.db, mediaId: m1, personId: first);
+      await seedFace(rig.db, mediaId: m2, personId: second);
+      await rig.repo.identityRescan.queue(first);
+      await rig.repo.identityRescan.queue(second);
+      rig.api.analyzeResult = analysis(faces: []);
+      rig.api.groupingError = ApiException.network('offline');
+      final engine = rig.engine();
+      await engine.start(enumerate: false);
+      expect(engine.progress.phase, ScanPhase.paused);
+      expect(await rig.repo.identityRescan.personId(), first);
+      expect(await rig.repo.identityRescan.hasQueued(), isTrue);
+      expect((await rig.repo.mediaById(m2))!.scanStatus, 'done');
+      rig.api.groupingError = null;
+      await engine.start(enumerate: false);
+      expect(engine.progress.phase, ScanPhase.completed);
+      expect(rig.api.analyzeCalls, hasLength(2));
+      expect(await rig.repo.identityRescan.hasQueued(), isFalse);
+      await engine.dispose();
+    },
+  );
+
+  test(
+    'a deleted waiting identity cannot consume unrelated pending files',
+    () async {
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['character_library_repair'] = true;
+      rig.api.capabilities_ = Capabilities.fromJson(caps);
+      final person = await seedPerson(rig.db);
+      await rig.repo.identityRescan.queue(person);
+      await (rig.db.delete(
+        rig.db.persons,
+      )..where((p) => p.id.equals(person))).go();
+      final unrelated = await seedMedia(rig.db, status: 'pending');
+      final engine = rig.engine();
+      await engine.start(enumerate: false);
+      expect(engine.progress.phase, ScanPhase.completed);
+      expect(rig.api.analyzeCalls, isEmpty);
+      expect((await rig.repo.mediaById(unrelated))!.scanStatus, 'pending');
+      await engine.dispose();
+    },
+  );
+
+  test(
+    'pause during queue validation saves the request without restarting scanning',
+    () async {
+      final api = _HeldCapabilitiesApi();
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['character_library_repair'] = true;
+      api.capabilities_ = Capabilities.fromJson(caps);
+      rig.pc = api;
+      final p = await seedPerson(rig.db);
+      final m = await seedMedia(rig.db);
+      await seedFace(rig.db, mediaId: m, personId: p);
+      final engine = rig.engine();
+      final adding = engine.queueIdentityRescan(p);
+      await api.entered.future;
+      engine.pause();
+      api.release.complete();
+      await adding;
+      expect(engine.isRunning, isFalse);
+      expect(await rig.repo.identityRescan.hasQueued(), isTrue);
+      expect((await rig.settings.load()).scanActive, isFalse);
+      expect((await rig.repo.mediaById(m))!.scanStatus, 'done');
+      expect(api.analyzeCalls, isEmpty);
       await engine.dispose();
     },
   );

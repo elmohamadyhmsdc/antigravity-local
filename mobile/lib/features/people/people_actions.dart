@@ -130,10 +130,6 @@ Future<void> rescanIdentity(
   PersonSummary person,
 ) async {
   final l = AppLocalizations.of(context);
-  if (ref.read(scanEngineProvider).isRunning) {
-    context.push(Routes.runningScan);
-    return;
-  }
   if (ref.read(mobileApiProvider) == null) {
     context.push(Routes.connection);
     return;
@@ -147,9 +143,17 @@ Future<void> rescanIdentity(
     cancelLabel: l.cancel,
   );
   if (!start || !context.mounted) return;
-  await startScan(ref, enumerate: false, repairPersonId: person.id);
-  if (context.mounted && ref.read(scanEngineProvider).isRunning) {
-    context.push(Routes.runningScan);
+  try {
+    await startScan(ref, enumerate: false, repairPersonId: person.id);
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l.identityRescanQueued)));
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 }
 

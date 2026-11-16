@@ -94,6 +94,81 @@ void main() {
   );
 
   test(
+    'waiting identities survive restart, keep FIFO snapshots and leave the active video alone',
+    () async {
+      final first = await seedPerson(db);
+      final second = await seedPerson(db);
+      final third = await seedPerson(db);
+      final video = await seedMedia(db, kind: 'video');
+      final photo = await seedMedia(db, asset: 'second');
+      final last = await seedMedia(db, asset: 'third');
+      await seedFace(db, mediaId: video, personId: first);
+      final face = await seedFace(db, mediaId: photo, personId: second);
+      await seedFace(db, mediaId: last, personId: third);
+      await rescan.enqueue(first);
+      await (db.update(db.media)..where((m) => m.id.equals(video))).write(
+        const MediaCompanion(
+          scanStatus: Value('scanning'),
+          lastScannedFrame: Value(240),
+        ),
+      );
+      await db.putSetting('video.job.$video', 'running job');
+      await db.putSetting('video.local.$video', 'running cursor');
+      await rescan.queue(second);
+      await rescan.queue(first);
+      await rescan.queue(second);
+      await rescan.queue(third);
+      expect(await rescan.watchQueuedCount().first, 2);
+      final repo = LibraryRepository(db);
+      expect((await repo.mediaById(video))!.scanStatus, 'scanning');
+      expect((await repo.mediaById(video))!.lastScannedFrame, 240);
+      expect(await db.setting('video.job.$video'), 'running job');
+      expect(await db.setting('video.local.$video'), 'running cursor');
+      expect(await rescan.pending(video), isTrue);
+      expect((await repo.mediaById(photo))!.scanStatus, 'done');
+
+      // Later ownership changes must not replace the scope saved by the tap.
+      await (db.update(db.faces)..where((f) => f.id.equals(face))).write(
+        const FacesCompanion(personId: Value(null)),
+      );
+      final reopened = IdentityRescan(db);
+      await reopened.activateNext();
+      expect(await reopened.personId(), first);
+      await reopened.endSession();
+      await reopened.activateNext();
+      expect(await reopened.personId(), second);
+      expect(await reopened.pending(photo), isTrue);
+      expect((await repo.mediaById(photo))!.scanStatus, 'pending');
+      expect(await reopened.watchQueuedCount().first, 1);
+      await reopened.endSession();
+      await reopened.activateNext();
+      expect(await reopened.personId(), third);
+      expect(await reopened.pending(last), isTrue);
+      expect(await reopened.hasQueued(), isFalse);
+    },
+  );
+
+  test('merging waiting identities retains both saved media scopes', () async {
+    final source = await seedPerson(db), target = await seedPerson(db);
+    final first = await seedMedia(db);
+    final second = await seedMedia(db, asset: 'second');
+    await seedFace(db, mediaId: first, personId: source);
+    await seedFace(db, mediaId: second, personId: target);
+    await rescan.queue(source);
+    await rescan.queue(target);
+    await people.mergePeople(
+      sourceId: source,
+      targetId: target,
+      allowSharedFrames: true,
+    );
+    expect(await rescan.watchQueuedCount().first, 1);
+    await rescan.activateNext();
+    expect(await rescan.personId(), target);
+    expect(await rescan.pending(first), isTrue);
+    expect(await rescan.pending(second), isTrue);
+  });
+
+  test(
     'retry keeps failed video checkpoint; explicit new scan restarts it',
     () async {
       final p = await seedPerson(db);

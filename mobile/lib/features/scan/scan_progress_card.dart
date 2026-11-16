@@ -388,13 +388,17 @@ Future<void> startScan(
   bool resumeRepairs = true,
 }) async {
   final engine = ref.read(scanEngineProvider);
-  if (engine.isRunning) return;
+  if (engine.isRunning && repairPersonId == null) return;
   if (ref.read(mobileApiProvider) == null) {
     if (ref.context.mounted) ref.context.push(Routes.connection);
     return;
   }
-  await prepareBackgroundForWork(ref.context, ref);
+  if (!engine.isRunning) await prepareBackgroundForWork(ref.context, ref);
   if (!ref.context.mounted) return;
+  if (repairPersonId != null) {
+    await engine.queueIdentityRescan(repairPersonId);
+    return;
+  }
   unawaited(
     engine.start(
       enumerate: enumerate,
@@ -427,6 +431,23 @@ class RunningScanScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(20),
         children: [
           const ScanProgressCard(compact: true),
+          StreamBuilder<int>(
+            stream: repo.identityRescan.watchQueuedCount(),
+            builder: (context, snapshot) {
+              final count = snapshot.data ?? 0;
+              if (count == 0) return const SizedBox.shrink();
+              return ListTile(
+                key: const Key('identity-rescan-queue'),
+                leading: const Icon(Icons.playlist_add_check),
+                title: Text(
+                  AppLocalizations.of(context).identityRescanWaiting(count),
+                ),
+                subtitle: Text(
+                  AppLocalizations.of(context).identityRescanQueueHint,
+                ),
+              );
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.folder_outlined),
             title: const Text('Analysis scope'),

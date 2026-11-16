@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
 import 'package:antigravity_mobile/data/api/dtos/embedding.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
+import 'package:antigravity_mobile/data/api/dtos/system.dart';
+import 'package:antigravity_mobile/library_providers.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
@@ -12,6 +17,65 @@ import '../support/harness.dart';
 import '../support/seed.dart';
 
 void main() {
+  appTest(
+    'queueing another identity during a scan keeps its page open',
+    (tester, env) async {
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['character_library_repair'] = true;
+      env.api.capabilities_ = Capabilities.fromJson(caps);
+      final first = await seedPerson(env.db, name: 'First');
+      final second = await seedPerson(env.db, name: 'Second');
+      final m1 = await seedMedia(env.db);
+      final m2 = await seedMedia(env.db, asset: 'asset-2');
+      await seedFace(env.db, mediaId: m1, personId: first);
+      await seedFace(env.db, mediaId: m2, personId: second);
+      final entered = Completer<void>(), release = Completer<void>();
+      env.api.analyzeHandler = (bytes, options) async {
+        entered.complete();
+        await release.future;
+        return analysis(faces: []);
+      };
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/people/$second')],
+      );
+      final button = find.byKey(const Key('person-rescan'));
+      final container = ProviderScope.containerOf(tester.element(button));
+      final engine = container.read(scanEngineProvider);
+      final running = engine.start(repairPersonId: first);
+      try {
+        for (var i = 0; i < 100 && !entered.isCompleted; i++) {
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(entered.isCompleted, isTrue);
+        await tester.ensureVisible(button);
+        await tester.tap(button);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Add to re-scan queue'), findsOneWidget);
+        await tester.tap(find.text('Add to re-scan queue'));
+        for (var i = 0; i < 50; i++) {
+          await tester.pump(const Duration(milliseconds: 20));
+        }
+        expect(
+          await container
+              .read(libraryRepositoryProvider)
+              .identityRescan
+              .hasQueued(),
+          isTrue,
+        );
+        expect(button, findsOneWidget);
+        expect(find.text('Library analysis'), findsNothing);
+        expect(find.textContaining('You can keep browsing'), findsOneWidget);
+        expect(env.api.analyzeCalls, hasLength(1));
+      } finally {
+        await engine.pauseAndWait();
+        release.complete();
+        await running;
+      }
+    },
+    session: testSession,
+  );
+
   for (final kind in ['person', 'character']) {
     appTest(
       '$kind detail offers re-scan and explains the repair before starting',
@@ -27,7 +91,7 @@ void main() {
         expect(button, findsOneWidget);
         await tester.tap(button);
         await tester.pumpAndSettle();
-        expect(find.text('Start re-scan'), findsOneWidget);
+        expect(find.text('Add to re-scan queue'), findsOneWidget);
         expect(
           find.textContaining('photos and videos on the PC'),
           findsOneWidget,

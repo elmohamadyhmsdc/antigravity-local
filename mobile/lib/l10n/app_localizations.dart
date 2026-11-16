@@ -5335,8 +5335,26 @@ abstract class AppLocalizations {
   /// No description provided for @identityRescanStart.
   ///
   /// In en, this message translates to:
-  /// **'Start re-scan'**
+  /// **'Add to re-scan queue'**
   String get identityRescanStart;
+
+  /// No description provided for @identityRescanQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to the re-scan queue. You can keep browsing and add more identities.'**
+  String get identityRescanQueued;
+
+  /// No description provided for @identityRescanWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting re-scans: {count}'**
+  String identityRescanWaiting(int count);
+
+  /// No description provided for @identityRescanQueueHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Identities are repaired one at a time after the current scan. You can keep adding more.'**
+  String get identityRescanQueueHint;
 
   /// No description provided for @mergeRepeatedAppearancesHint.
   ///

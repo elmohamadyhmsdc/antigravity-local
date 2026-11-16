@@ -3296,7 +3296,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'Recheck this identity\'s photos and videos on the PC, correct People / Characters classification and separate clearly different faces. The current cover and confirmed faces guide the grouping. Manual corrections and original files are kept. Uncertain matches appear in Review.';
 
   @override
-  String get identityRescanStart => 'Start re-scan';
+  String get identityRescanStart => 'Add to re-scan queue';
+
+  @override
+  String get identityRescanQueued =>
+      'Added to the re-scan queue. You can keep browsing and add more identities.';
+
+  @override
+  String identityRescanWaiting(int count) {
+    return 'Waiting re-scans: $count';
+  }
+
+  @override
+  String get identityRescanQueueHint =>
+      'Identities are repaired one at a time after the current scan. You can keep adding more.';
 
   @override
   String get mergeRepeatedAppearancesHint =>
