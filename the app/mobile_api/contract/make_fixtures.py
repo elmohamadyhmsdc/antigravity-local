@@ -422,6 +422,12 @@ def job_fixtures():
         "params": {"operation": "replace", "instruction": "navy blue suit", "auto_body": True, "preserve_body_shape": True, "steps": 26, "seed": 123},
         "inputs": {"image": sha("edit-photo")},
     })
+    write("JobCreate.edit_image_lower_clothing", {
+        "client_job_id": "fixture-edit-lower-clothing",
+        "type": "edit_image",
+        "params": {"operation": "replace", "clothing_area": "lower", "auto_body": True, "instruction": "شورت كحلي"},
+        "inputs": {"image": sha("edit-photo")},
+    })
     write("JobCreate.reface_image", {**reface_request, "type": "reface_image",
           "client_job_id": "fixture-reface-unified-image",
           "params": {**reface_request["params"], "quality_profile": "balanced", "restorer": "auto"}})

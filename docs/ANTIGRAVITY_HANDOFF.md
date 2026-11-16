@@ -1,5 +1,11 @@
 # Antigravity handoff — 2026-10-19
 
+## Source clothing and replacement description in Photo Edit — 2026-11-16
+
+- Mobile Replace offers upper clothing, lower clothing, whole outfit, or inference from the description when automatic selection is on and the PC advertises `photo_edit_clothing_area`. Brush edits still take the painted selection. An explicit area selects the corresponding existing clothing-parser labels inside the person's outline.
+- Common English and Egyptian Arabic transformations separate the source used for mask selection from the appearance sent to Diffusers or ComfyUI. Unknown Arabic words survive partial dictionary translation. The local dictionary and the clothing parser have limited vocabulary and visual classes.
+- Verified all 30 model-free Python photo-edit tests, eight Flutter editor tests, focused Dart analysis and OpenAPI checks. The lower-clothing test exercised the normal edit and PNG composition with synthetic parser labels and a stub renderer. Visual quality on a real photo remains unmeasured. Install an updated mobile build and restart the PC API to use the new selector.
+
 ## Human LoRA training from selected observations — 2026-11-16
 
 - Mobile smart selection rechecks eligible observations, then crops upright original pixels at the selected video time or photo position. It preserves aspect ratio and passes the crop type and any aligned body outline to a PC advertising `lora_training_views`. Manual whole-file additions still use identity-anchored selection on the PC. Older servers retain the original upload workflow.

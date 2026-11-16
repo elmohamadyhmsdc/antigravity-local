@@ -47,6 +47,7 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
   var _selectedModel = PhotoEditModel.realisticVision;
   var _guided = false;
   var _autoBody = false;
+  var _clothingArea = 'infer';
   var _keepBodyShape = false;
   bool get _usesAutoBody =>
       _operation == PhotoEditOperation.replace && _autoBody;
@@ -273,6 +274,10 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
               'steps': 26,
               if (!automatic) 'mask_normalized': true,
               if (automatic) 'auto_body': true,
+              if (automatic &&
+                  caps.engines.photoEditClothingArea &&
+                  _clothingArea != 'infer')
+                'clothing_area': _clothingArea,
               if (keepShape) 'preserve_body_shape': true,
               'strength': _strength,
               if (operation == PhotoEditOperation.replace) 'model': model.id,
@@ -1086,6 +1091,37 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                         ),
                     ],
                   ),
+                if (_autoBody && caps?.engines.photoEditClothingArea == true)
+                  DropdownButton<String>(
+                    key: const Key('source-clothing-area'),
+                    isExpanded: true,
+                    value: _clothingArea,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'infer',
+                        child: Text('منطقة اللبس من الوصف'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'upper',
+                        child: Text('اللبس من فوق'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'lower',
+                        child: Text('اللبس من تحت'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'outfit',
+                        child: Text('الطقم كله'),
+                      ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _clothingArea = value);
+                            }
+                          },
+                  ),
                 if (canGuide || _guided)
                   Row(
                     spacing: 6,
@@ -1209,9 +1245,12 @@ class _PhotoEditScreenState extends ConsumerState<PhotoEditScreen> {
                     labelText: _guided && !_autoBody
                         ? 'Optional description / وصف اختياري'
                         : 'Prompt / الوصف (عربي أو إنجليزي)',
-                    hintText: _autoBody
-                        ? 'e.g. بدّل القميص والبنطلون لبدلة كحلي'
-                        : 'e.g. جاكيت جلد أسود / black leather jacket',
+                    hintText:
+                        _autoBody &&
+                            (_clothingArea == 'infer' ||
+                                caps?.engines.photoEditClothingArea != true)
+                        ? 'مثلاً حوّل اللبس اللي من تحت لشورت كحلي'
+                        : 'اكتب الشكل المطلوب، مثلاً شورت كحلي للركبة',
                     prefixIcon: Icon(
                       Icons.auto_awesome,
                       size: 18,

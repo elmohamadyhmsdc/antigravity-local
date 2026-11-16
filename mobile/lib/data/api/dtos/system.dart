@@ -63,6 +63,7 @@ class Engines {
     this.photoEditReference = false,
     this.photoEditBodyShape = false,
     this.photoEditAutoBody = false,
+    this.photoEditClothingArea = false,
     this.bodyEmbeddings = false,
     this.garmentTags = false,
     this.equipment = false,
@@ -90,6 +91,7 @@ class Engines {
   final bool photoEditReference;
   final bool photoEditBodyShape;
   final bool photoEditAutoBody;
+  final bool photoEditClothingArea;
 
   /// Roadmap Phase 7: the WD14 tagger is installed, so garment tags can be asked for.
   final bool garmentTags;
@@ -121,6 +123,7 @@ class Engines {
     photoEditReference: json['photo_edit_reference'] as bool? ?? false,
     photoEditBodyShape: json['photo_edit_body_shape'] as bool? ?? false,
     photoEditAutoBody: json['photo_edit_auto_body'] as bool? ?? false,
+    photoEditClothingArea: json['photo_edit_clothing_area'] as bool? ?? false,
     garmentTags: json['garment_tags'] as bool? ?? false,
     equipment: json['equipment'] as bool? ?? false,
     bodyEmbeddings: json['body_embeddings'] as bool? ?? false,

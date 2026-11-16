@@ -189,6 +189,21 @@ void main() {
       await tester.pump();
       expect(tester.widget<FilterChip>(auto).selected, isTrue);
       expect(tester.widget<FilterChip>(outline).selected, isTrue);
+      final area = find.byKey(const Key('source-clothing-area'));
+      expect(area, findsNothing);
+      (json['engines'] as Map<String, dynamic>)['photo_edit_clothing_area'] =
+          true;
+      statuses.add(ServerReady(Capabilities.fromJson(json)));
+      await tester.pump();
+      await tester.pump();
+      await tester.ensureVisible(area);
+      await tester.tap(area);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('اللبس من تحت').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<DropdownButton<String>>(area).value, 'lower');
       expect(
         tester.widget<FilterChip>(outline).onSelected,
         isNull,

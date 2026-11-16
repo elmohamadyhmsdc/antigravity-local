@@ -720,6 +720,7 @@ components:
               description: Local image-guided photo editing is available with one to three reference crops.
             photo_edit_body_shape: { type: boolean, default: false }
             photo_edit_auto_body: { type: boolean, default: false }
+            photo_edit_clothing_area: { type: boolean, default: false }
             restyle_refine:
               type: boolean
               description: Optional SDXL refinement readiness, independently of basic Restyle. Older servers omit this field.
@@ -1962,14 +1963,17 @@ components:
           type: boolean
           default: false
           description: >-
-            Replace only, no mask: the PC selects the garment the instruction names (shirt, trousers, dress,
-            suit...) inside the person's traced outline (implies preserve_body_shape). Needs
-            engines.photo_edit_auto_body. Clothing is changed, never removed: instructions asking to undress,
-            expose or make clothing revealing are refused (400), and a result that exposes body regions the
-            original did not show in the edited area is refused (job error).
+            Replace selects existing clothing inside the person's traced outline using clothing_area or the
+            source description. Requires engines.photo_edit_auto_body and implies preserve_body_shape.
+        clothing_area:
+          type: string
+          enum: [upper, lower, outfit]
+          description: Optional source region for automatic selection on servers advertising photo_edit_clothing_area.
         model: { type: string, enum: [realistic_vision, cyber_realistic, sdxl, sdxl_gguf], default: realistic_vision }
       description:  still-photo background/object edits. The PNG mask matches the EXIF-upright image; with mask_normalized, a preview-sized mask of the same aspect ratio is resized in normalized upright coordinates. Select at most 60 percent and avoid protected people. Pixels outside the selection are preserved.
       allOf:
+        - if: { required: [clothing_area] }
+          then: { required: [auto_body], properties: { auto_body: { const: true } } }
         - if: { properties: { operation: { const: remove } }, required: [operation] }
           then:
             properties:

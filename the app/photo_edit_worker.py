@@ -6,12 +6,8 @@ import os
 import re
 import sys
 
-ARABIC_EN_MAP = {
-    'مايوه': 'swimwear', 'مايوهات': 'swimwear', 'سباحه': 'swimming',
-    'البحر': 'the sea', 'بحر': 'sea', 'الشاطئ': 'the beach', 'شاطئ': 'beach',
-    'بدون': 'without', 'منغير': 'without', 'صدر': 'chest', 'بطن': 'abdomen',
-    'ذراع': 'arm', 'ذراعين': 'arms', 'ساق': 'leg', 'ساقين': 'legs', 'جسم': 'body',
-    'بشره': 'skin', 'مكشوف': 'bare', 'عاري': 'bare', 'شيل': 'remove', 'اشيل': 'remove',
+GARMENT_TRANSLATIONS = {
+    'مايوه': 'swimwear', 'مايوهات': 'swimwear',
     # Clothing / garments
     'بدله': 'formal business suit', 'طقم': 'outfit suit',
     'بليزر': 'blazer jacket', 'توكسيدو': 'tuxedo suit', 'فيست': 'vest', 'صديري': 'waistcoat vest',
@@ -32,6 +28,17 @@ ARABIC_EN_MAP = {
     'شنطه': 'leather handbag', 'حقيبه': 'handbag',
     'كرفته': 'necktie', 'كرافته': 'necktie', 'ربطه عنق': 'necktie', 'بيبيون': 'bowtie',
     'حزام': 'leather belt', 'سلسله': 'necklace', 'عقد': 'necklace', 'خاتم': 'ring', 'اسوره': 'bracelet',
+}
+
+ARABIC_EN_MAP = {
+    **GARMENT_TRANSLATIONS,
+    'سباحه': 'swimming', 'البحر': 'the sea', 'بحر': 'sea', 'الشاطئ': 'the beach', 'شاطئ': 'beach',
+    'بدون': 'without', 'منغير': 'without', 'صدر': 'chest', 'بطن': 'abdomen',
+    'ذراع': 'arm', 'ذراعين': 'arms', 'ساق': 'leg', 'ساقين': 'legs', 'جسم': 'body',
+    'بشره': 'skin', 'مكشوف': 'bare', 'عاري': 'bare', 'شيل': 'remove', 'اشيل': 'remove',
+    'صدري': 'chest', 'سدري': 'chest', 'باين': 'visible', 'يبقي': 'is',
+    'طويل': 'long', 'قصير': 'short', 'واسعه': 'loose', 'طويله': 'long',
+    'قصيره': 'short', 'للركبه': 'knee-length', 'كت': 'sleeveless',
     # Colors
     'احمر': 'red', 'حمراء': 'red', 'نبيتي': 'burgundy maroon',
     'ازرق': 'blue', 'زرقاء': 'blue',
@@ -59,12 +66,42 @@ ARABIC_EN_MAP = {
 
 
 def normalize_arabic(text: str) -> str:
+    text = re.sub(r'[\u064b-\u0652\u0670\u0640]', '', text)
     text = text.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
     text = text.replace('ة', 'ه').replace('ى', 'ي')
     return text
 
 
+def replacement_parts(text: str):
+    """Separate an explicitly named source from the desired appearance."""
+    patterns = (
+        r'^(?:replace|change|turn|convert|swap|make)\s+(.+?)\s+(?:with|into|to|for)\s+(.+)$',
+        r'^(.+?)\s+(?:عشان\s+)?(?:اخليه|اخليها|وخليه|وخليها)\s+(.+)$',
+        r'^(?:شيل|اشيل|ازيل|احذف)\s+(.+?)\s+و(?:خلي\s+)?(.+?\s+(?:يبقي\s+)?(?:باين|مكشوف))$',
+    )
+    normalized = re.sub(r'^(?:انا\s+)?(?:عايز|عاوزه|عايزه)\s+', '', normalize_arabic(text).strip())
+    for pattern in patterns:
+        match = re.fullmatch(pattern, normalized, flags=re.I)
+        if match:
+            return match[1], match[2]
+    # Egyptian Arabic often attaches the preposition directly to the target.
+    change = re.match(r'^(?:ا?(?:بدل|حول|غير|خلي)|استبدل)\s+', normalized)
+    if change:
+        words = normalized[change.end():].split()
+        for i, word in enumerate(words[1:-1], 1):
+            if word in ('الي', 'ل', 'ب', 'يبقي', 'تبقي'):
+                return ' '.join(words[:i]), ' '.join(words[i+1:])
+        for i, word in enumerate(words[1:], 1):
+            if word[:1] in ('ل', 'ب') and word[1:].removeprefix('ال') in GARMENT_TRANSLATIONS:
+                return ' '.join(words[:i]), ' '.join([word[1:], *words[i+1:]])
+        # A direct transformation e.g. "خلي البنطلون شورت" has no preposition.
+        if len(words) >= 2 and all(w.removeprefix('ال') in GARMENT_TRANSLATIONS for w in words[:2]):
+            return words[0], ' '.join(words[1:])
+    return None, text
+
+
 def translate_instruction(text: str) -> str:
+    _, text = replacement_parts(text)
     words = re.sub(r'\bمن\s+غير\b', 'منغير', text).split()
     translated = []
     has_arabic = False
@@ -82,6 +119,7 @@ def translate_instruction(text: str) -> str:
             has_arabic = True
         elif any('\u0600' <= c <= '\u06ff' for c in word):
             has_arabic = True
+            translated.append(word)
         else:
             translated.append(word)
     if has_arabic and translated:

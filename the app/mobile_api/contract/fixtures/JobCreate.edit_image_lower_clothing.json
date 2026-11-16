@@ -1,0 +1,13 @@
+{
+  "client_job_id": "fixture-edit-lower-clothing",
+  "type": "edit_image",
+  "params": {
+    "operation": "replace",
+    "clothing_area": "lower",
+    "auto_body": true,
+    "instruction": "شورت كحلي"
+  },
+  "inputs": {
+    "image": "7ab0eae7d3446e8aea299157303a263c426e321b36fc4a0ec1ab13b7a00703ea"
+  }
+}

@@ -459,6 +459,7 @@ class CapabilityProbe:
             "photo_edit_reference": not reference_inpaint_missing(self.app_dir),
             "photo_edit_body_shape": self._has('models', 'rmbg.onnx'),
             "photo_edit_auto_body": self._has('models', 'rmbg.onnx') and clothing_parser_path(self.app_dir) is not None,
+            "photo_edit_clothing_area": True,
             "garment_tags": self._has("models", "wd14_tagger_model.onnx") and self._has("models", "wd14_tagger_tags.csv"),
         }
 

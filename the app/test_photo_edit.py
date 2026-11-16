@@ -253,6 +253,44 @@ class PhotoEditTests(unittest.TestCase):
             result = np.asarray(image)
         np.testing.assert_array_equal(result[self.mask == 0], self.photo[self.mask == 0])
 
+    def test_existing_clothes_select_pixels_and_requested_result_guides_generation(self):
+        from photo_edit_worker import translate_instruction
+        for instruction, area, desired in [
+            ('حوّل اللبس اللي من تحت لشورت كحلي للركبة', 'lower', 'shorts navy blue knee-length'),
+            ('البنطلون عشان أخليه شورت', 'lower', 'shorts'),
+            ('خلي البنطلون شورت', 'lower', 'shorts'),
+            ('بدّل الهدوم من فوق إلى جاكيت', 'upper', 'jacket'),
+            ('replace my jacket with a navy suit', 'upper', 'a navy suit'),
+            ('أشيل القميص وسدري يبقى باين', 'upper', 'chest is visible'),
+        ]:
+            with self.subTest(instruction=instruction):
+                self.assertEqual(photo_edit.clothing_labels(instruction), photo_edit.CLOTHING_AREAS[area])
+                self.assertEqual(translate_instruction(instruction), desired)
+        self.assertEqual(translate_instruction('شورت بتطريزة مختلفة'), 'shorts بتطريزة مختلفة')
+
+    def test_explicit_area_selects_only_existing_parser_pixels(self):
+        params = dict(operation='replace', instruction='a custom design', auto_body=True, clothing_area='lower')
+        validate_photo_edit(dict(type='edit_image', params=params, inputs={'image': 'a'*64}),
+                            dict(engines=dict(photo_edit=True, photo_edit_auto_body=True, photo_edit_body_shape=True)))
+        for extra in [dict(auto_body=False), dict(clothing_area='shoes'), dict(clothing_area=[])]:
+            with self.assertRaises(photo_edit.PhotoEditError):
+                photo_edit.validate_options(dict(params, **extra))
+        with self.assertRaises(photo_edit.PhotoEditError):
+            photo_edit.validate_options(dict(params, operation='remove'))
+        labels = np.zeros((120, 180), np.uint8)
+        labels[25:45, 75:105] = 4
+        labels[65:90, 75:105] = 6
+        encoded = io.BytesIO()
+        Image.fromarray(labels).save(encoded, format='PNG')
+        with patch('photo_edit._invoke_worker', return_value=encoded.getvalue()), \
+             patch('photo_edit.body_outline_mask', return_value=np.ones_like(labels)):
+            photo_edit.edit_photo(dict(type='edit_image', params=params), self.directory,
+                                  lambda *args: None, lambda: False, finder=lambda _: [], renderer=self.render)
+        with Image.open(self.directory / 'result.png') as image:
+            edited = np.asarray(image)
+        np.testing.assert_array_equal(edited[35, 90], self.photo[35, 90])
+        np.testing.assert_array_equal(edited[75, 90, :3], (10, 80, 210))
+
     def test_builtin_renderer_receives_sdxl_work_size(self):
         job = dict(type='edit_image', params=dict(self.job['params'], model='sdxl'))
         with patch('photo_edit.render_crop', side_effect=lambda canvas, *args, **kwargs: self.render(canvas)) as render:

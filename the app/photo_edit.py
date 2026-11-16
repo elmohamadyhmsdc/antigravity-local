@@ -50,21 +50,29 @@ DEFAULT_MODEL = MODEL_REALISTIC_VISION
 class PhotoEditError(ValueError):
     """An actionable,message that may be shown on the phone."""
 
-def clothing_labels(instruction):
-    """Resolve supported garment edits before starting the parser."""
-    from photo_edit_worker import normalize_arabic
+CLOTHING_AREAS = {'upper': (4,), 'lower': (5, 6, 8), 'outfit': (4, 5, 6, 7, 8, 17)}
 
-    text = normalize_arabic(instruction.casefold())
-    upper = re.search(r'\b(?:shirts?|t-shirts?|tops?|jackets?|coats?|hoodies?|sweaters?|bare chest|shirtless|[وبل]?(?:ال)?(?:قميص|تيشيرت|بلوزه|جاكيت|معطف|صدر))\b', text)
-    lower = re.search(r'\b(?:pants|trousers|jeans|shorts|trunks|skirts?|[وبل]?(?:ال)?(?:بنطلون|بنطال|شورت|جينز|جيبه|تنوره))\b', text)
-    outfit = re.search(r'\b(?:swimwear|swimsuits?|outfits?|clothes|dresses? clothes|[وبل]?(?:ال)?(?:مايوه|ملابس|هدوم|فستان|بدله))\b', text)
+
+def clothing_labels(instruction, area=None):
+    """Resolve the *source* clothing inside the person's outline."""
+    from photo_edit_worker import normalize_arabic, replacement_parts
+
+    if area is not None:
+        if not isinstance(area, str) or area not in CLOTHING_AREAS:
+            raise PhotoEditError('Choose upper clothing, lower clothing or the whole outfit.')
+        return CLOTHING_AREAS[area]
+    source, _ = replacement_parts(instruction)
+    text = normalize_arabic((source or instruction).casefold())
+    upper = re.search(r'\b(?:upper body|upper clothing|shirts?|t-shirts?|tops?|jackets?|coats?|hoodies?|sweaters?|bare chest|shirtless|[وبل]?(?:ال)?(?:فوق|علوي|قميص|تيشيرت|تيشرت|بلوزه|جاكيت|جاكت|هودي|بلوفر|معطف|بالطو|صدر))\b', text)
+    lower = re.search(r'\b(?:lower body|lower clothing|bottoms?|pants|trousers|jeans|shorts|trunks|skirts?|[وبل]?(?:ال)?(?:تحت|سفلي|بنطلون|بنطال|شورت|جينز|جيبه|تنوره))\b', text)
+    outfit = re.search(r'\b(?:swimwear|swimsuits?|outfits?|suits?|clothes|dress(?:es)?|[وبل]?(?:ال)?(?:مايوه|ملابس|هدوم|لبس|طقم|فستان|بدله))\b', text)
+    if upper and not lower:
+        return CLOTHING_AREAS['upper']
+    if lower and not upper:
+        return CLOTHING_AREAS['lower']
     if outfit or (upper and lower):
-        return (4, 5, 6, 7, 8, 17)
-    if upper:
-        return (4,)
-    if lower:
-        return (5, 6, 8)
-    raise PhotoEditError('For automatic selection, name the garment, such as shirt, trousers or dress .')
+        return CLOTHING_AREAS['outfit']
+    raise PhotoEditError('Choose a clothing area, describe the existing clothing or use the brush.')
 
 
 
@@ -95,7 +103,7 @@ def available_replace_models(app_dir=APP):
 
 
 def validate_options(params, *, guided=False):
-    if not isinstance(params, dict) or set(params) - {'operation','instruction','steps','seed','mask_normalized','strength','model','preserve_body_shape','auto_body'}:
+    if not isinstance(params, dict) or set(params) - {'operation','instruction','steps','seed','mask_normalized','strength','model','preserve_body_shape','auto_body','clothing_area'}:
         raise PhotoEditError('Unsupported photo editing options.')
     operation = params.get('operation', 'replace')
     instruction = params.get('instruction', '')
@@ -133,10 +141,14 @@ def validate_options(params, *, guided=False):
         raise PhotoEditError('Body editing options must be true or false.')
     if (preserve_shape or auto_body) and operation != 'replace':
         raise PhotoEditError('Automatic selection and Keep body shape are available for Replace only.')
+    area = params.get('clothing_area')
+    if 'clothing_area' in params and (not auto_body or area is None):
+        raise PhotoEditError('A clothing area requires automatic clothing selection.')
     if auto_body:
-        clothing_labels(text)
+        clothing_labels(text, area)
     return dict(operation=operation,instruction=text,steps=steps,seed=seed,mask_normalized=normalized,strength=float(strength),model=model,
-                preserve_body_shape=preserve_shape or auto_body, auto_body=auto_body)
+                preserve_body_shape=preserve_shape or auto_body, auto_body=auto_body,
+                **({'clothing_area': area} if area is not None else {}))
 
 
 def read_photo(image_path):
@@ -386,8 +398,8 @@ def body_outline_mask(bgr, bodies, selection):
     return silhouette
 
 
-def automatic_clothing_mask(photo, silhouette, instruction, stopped):
-    labels = clothing_labels(instruction)
+def automatic_clothing_mask(photo, silhouette, instruction, stopped, *, area=None):
+    labels = clothing_labels(instruction, area)
     x, y, width, height = cv2.boundingRect(silhouette)
     if not width or not height:
         raise PhotoEditError('The PC could not trace this person’s outline.')
@@ -445,7 +457,8 @@ def edit_photo(job, directory, report, stopped, *, finder=None, renderer=None):
         silhouette = body_outline_mask(bgr, bodies, mask)
         if options['auto_body']:
             report(.2, 'Selecting clothing from the description')
-            mask = automatic_clothing_mask(photo, silhouette, options['instruction'], stopped)
+            mask = automatic_clothing_mask(photo, silhouette, options['instruction'], stopped,
+                                          area=options.get('clothing_area'))
             if mask is None:
                 return None
             if int(mask.sum()) < 16:
