@@ -8,6 +8,8 @@ import 'dart:typed_data';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/index/embedding_index.dart';
+import 'package:antigravity_mobile/domain/grouping/grouping_inputs.dart';
+import 'package:antigravity_mobile/domain/identity/doubt_audit.dart';
 import 'package:antigravity_mobile/domain/scan/drawn_face_sweep.dart';
 import 'package:antigravity_mobile/domain/scan/drawn_faces.dart';
 import 'package:drift/drift.dart' show Value;
@@ -65,6 +67,21 @@ void main() {
     expect(isDrawnFace(withScore(drawnFaceMinScore - .005, 3)), isFalse);
     expect(isDrawnFace(Float32List(512)), isFalse);
     expect(isDrawnFace(Float32List(128)), isFalse);
+  });
+
+  test('saved drawings are excluded from People evidence and flagged for review', () async {
+    final person = await seedPerson(db);
+    await seedFace(db, personId: person, embedding: withScore(.05, 1));
+    final drawn = await seedFace(db, personId: person, embedding: withScore(.35, 2));
+    await seedFace(db, embedding: withScore(.35, 3));
+    final inputs = GroupingInputs(db);
+    expect((await inputs.models()).single.count, 1);
+    expect(await inputs.pending(), isEmpty);
+    await DoubtAudit(db).run();
+    final doubt = await db.select(db.reviewDoubtful).getSingle();
+    expect(doubt.faceId, drawn);
+    expect(doubt.suggestedPersonId, isNull);
+    expect(await ids('faces'), hasLength(3));
   });
 
   test(

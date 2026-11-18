@@ -279,7 +279,12 @@ class PhotoResultStore {
           }
           target = null;
         }
-        final track = trackOf[k];
+        var track = trackOf[k];
+        if (track != null &&
+            track.views.length >= maxFacesPerTrack &&
+            !supportsFaceCompaction(track, face.embedding, faceSimilarity)) {
+          track = null;
+        }
         if (track != null) {
           switch (placeInTrack<Float32List>(
             track,

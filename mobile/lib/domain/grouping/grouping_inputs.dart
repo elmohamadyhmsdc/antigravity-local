@@ -9,6 +9,7 @@ import '../../data/db/app_database.dart';
 import '../../data/repositories/app_settings.dart' show SettingKeys;
 import '../../data/repositories/face_refresh.dart';
 import '../identity/identity_selection.dart';
+import '../scan/drawn_faces.dart';
 import 'grouping_config.dart';
 import 'identity_constraints.dart';
 
@@ -211,6 +212,8 @@ class GroupingInputs {
       for (final x in v) {
         if (!x.isFinite) return null;
       }
+      // Keep legacy artwork out of People models, matches and repair evidence.
+      if (kind == 'person' && isDrawnFace(v)) return null;
       return v;
     } on FormatException {
       return null;

@@ -16,6 +16,22 @@ from analysis import AnalyzeOptions
 
 
 class WorkerTests(unittest.TestCase):
+    def test_pose_worker_preserves_signed_angles_and_track_embeddings(self):
+        face = {'bbox': [5, 5, 60, 60], 'kps': [[1, 2]] * 5, 'det_score': .9,
+                'pose': [7, -48, -12], 'normed_embedding': [1.0] + [0.0] * 511}
+        script = ("import sys,json\nfor line in sys.stdin:\n"
+                  " assert json.loads(line)['type']=='pose_faces'\n"
+                  f" print({PREFIX!r}+json.dumps({{'faces': [{face!r}]}}),flush=True)")
+        worker = ScanWorker(command=[sys.executable, '-u', '-c', script], timeout=5)
+        self.addCleanup(worker.close)
+        result, = worker.pose_faces(np.zeros((64, 64, 3), dtype=np.uint8))
+        process = worker.process
+        self.assertEqual(result.pose, [7, -48, -12])
+        np.testing.assert_array_equal(result.embedding, result.normed_embedding)
+        np.testing.assert_array_equal(result.bbox, [5, 5, 60, 60])
+        worker.close()
+        self.assertIsNotNone(process.poll())
+
     def test_native_style_exit_keeps_api_and_pairing_alive_then_recreates_worker(self):
         with tempfile.TemporaryDirectory() as tmp:
             engines = InsightEngines()

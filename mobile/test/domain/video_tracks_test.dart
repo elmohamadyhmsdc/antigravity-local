@@ -2,6 +2,7 @@
 // a detection. Review asks once per track, and old per-frame libraries can be compacted.
 
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
@@ -14,7 +15,7 @@ import 'package:antigravity_mobile/domain/grouping/plan_applier.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
 import 'package:antigravity_mobile/domain/scan/video_compactor.dart';
 import 'package:antigravity_mobile/domain/scan/video_tracks.dart';
-import 'package:drift/drift.dart' show Value, Variable;
+import 'package:drift/drift.dart' show OrderingTerm, Value, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -79,6 +80,31 @@ void main() {
   }
 
   group('scanning a video', () {
+    test(
+      'a replacement subject at the same position starts its own track',
+      () async {
+        final media = await video();
+        await frames(media, maxFacesPerTrack + 1, (i) {
+          final score = i == 0 ? 1.0 : (i == maxFacesPerTrack ? .48 : .70);
+          final embedding = Float32List(512)
+            ..[i + 1] = math.sqrt(1 - score * score)
+            ..[0] = score;
+          return [faceJson(embedding)];
+        });
+        final detections = await (db.select(
+          db.mediaDetections,
+        )..orderBy([(d) => OrderingTerm.asc(d.frameNumber)])).get();
+        final faces = {
+          for (final f in await db.select(db.faces).get()) f.id: f,
+        };
+        expect(
+          faces[detections.last.refId]!.trackId,
+          isNot(faces[detections.first.refId]!.trackId),
+        );
+        expect(faces, hasLength(maxFacesPerTrack + 1));
+      },
+    );
+
     test(
       'a distant reappearance retains a separate occurrence track',
       () async {
@@ -195,10 +221,14 @@ void main() {
   });
 
   group('review', () {
-    Future<List<int>> trackOfSara() async {
+    Future<List<int>> trackOfSara({double noise = 0.7}) async {
       final media = await video();
       final sara = unitVec(1);
-      await frames(media, 12, (f) => [faceJson(near(sara, 500 + f, 0.7))]);
+      await frames(
+        media,
+        12,
+        (f) => [faceJson(near(sara, 500 + f, noise))],
+      );
       return [for (final f in await db.select(db.faces).get()) f.id];
     }
 
@@ -266,9 +296,10 @@ void main() {
     );
 
     test(
-      'auto-grouping one face of a track brings the rest, but not a refused one',
+      'auto-grouping a track brings independently matching views and preserves rejections',
       () async {
-        final ids = await trackOfSara();
+        final ids = await trackOfSara(noise: .55);
+        expect(ids.length, greaterThan(2));
         final sara = await seedPerson(db, name: 'Sara');
         await db
             .into(db.faceRejections)

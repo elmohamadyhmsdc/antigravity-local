@@ -7,6 +7,7 @@ import '../../data/api/dtos/embedding.dart';
 import '../../data/db/app_database.dart';
 import '../grouping/grouping_config.dart';
 import '../grouping/grouping_inputs.dart' show activeEmbeddingModel;
+import '../scan/drawn_faces.dart';
 import 'identity_selection.dart';
 
 class DoubtResult {
@@ -82,7 +83,16 @@ class DoubtAudit {
       final faces = <IdentityFace>[];
       final trusted = <int>{};
       final modelIds = <String>{};
+      final doubts = <_Doubt>[];
       for (final r in rows) {
+        final id = r.read<int>('id');
+        final v = _vector(r.read<Uint8List>('embedding'));
+        if (v == null) continue;
+        final confirmed = r.read<bool>('confirmed');
+        if (!_character && isDrawnFace(v)) {
+          if (!confirmed) doubts.add(_Doubt(id, v, 0));
+          continue;
+        }
         // Missing/poor evidence is not an accusation of wrong identity.
         if (!r.read<double>('quality_score').isFinite ||
             r.read<double>('quality_score') < 0.45 ||
@@ -91,11 +101,8 @@ class DoubtAudit {
             (!_character && r.read<double>('sharpness') <= 0)) {
           continue;
         }
-        final v = _vector(r.read<Uint8List>('embedding'));
-        if (v == null) continue;
-        final id = r.read<int>('id');
         modelIds.add(r.read<String>('model_id'));
-        if (r.read<bool>('confirmed')) trusted.add(id);
+        if (confirmed) trusted.add(id);
         faces.add(
           IdentityFace(
             id: id,
@@ -113,10 +120,9 @@ class DoubtAudit {
       final anchored =
           pid == anchorPersonId ||
           ((anchorAll || rebuilding) && trusted.isNotEmpty);
-      if (faces.length >= (anchored ? 2 : 3)) {
+      if (faces.length >= (anchored ? 2 : 3) && modelIds.length == 1) {
         // Old imports can contain compatible-sized but unrelated model spaces.
         // Without a selected library model, do not invent comparisons across them.
-        if (modelIds.length != 1) continue;
         final selection = selectIdentity(
           faces,
           floor: _floor,
@@ -142,7 +148,6 @@ class DoubtAudit {
           dedupe: true,
         ).kept;
         exemplars[pid] = refs;
-        final doubts = <_Doubt>[];
         final outliers = selection.outliers.toSet();
         for (final f in faces) {
           if (!outliers.contains(f.id)) continue;
@@ -155,10 +160,10 @@ class DoubtAudit {
           if (nearest >= (_character ? 0.82 : 0.45)) continue;
           doubts.add(_Doubt(f.id, f.embedding, math.max(score, nearest)));
         }
-        if (doubts.isNotEmpty) flagged[pid] = doubts;
         cores[pid] = _core(refs);
         coreModels[pid] = modelIds.single;
       }
+      if (doubts.isNotEmpty) flagged[pid] = doubts;
       // a big library is a lot of arithmetic: never hold the screen (or the Pause button) for long
       if (slice.elapsedMilliseconds > 12) {
         await Future<void>.delayed(Duration.zero);
@@ -172,6 +177,7 @@ class DoubtAudit {
     for (final entry in flagged.entries) {
       for (final d in entry.value) {
         final v = d.embedding;
+        if (!_character && isDrawnFace(v)) continue;
         int? best;
         var bestScore = -1.0, runnerUp = -1.0;
         // Coarse identity retrieval first. Do not run 24 exemplar comparisons

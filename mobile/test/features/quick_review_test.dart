@@ -105,50 +105,45 @@ void main() {
       );
     }, session: testSession);
 
-    appTest(
-      'a session stops after 20 decisions without changing the rest',
-      (tester, env) async {
-        for (var i = 0; i < 21; i++) {
-          final p = await seedPerson(env.db, name: 'Person $i');
-          final f = await seedFace(env.db, seed: 700 + i);
-          await _match(env.db, f, p, 0.45);
-        }
-        await _open(tester, env, '/review');
-        expect(_progress(tester), '1 of 20');
-        for (var i = 0; i < 20; i++) {
-          await _tap(tester, 'quick-unsure');
-        }
-        expect(find.byKey(const Key('quick-session-done')), findsOneWidget);
-        expect(
-          (await env.db.select(env.db.faces).get()).every(
-            (f) => f.personId == null,
-          ),
-          isTrue,
-        );
-        await tester.tap(find.text('Review next 20'));
-        await _settle(tester);
-        expect(_progress(tester), '1 of 1');
-      },
-      session: testSession,
-    );
+    appTest('a session stops after 20 decisions without changing the rest', (
+      tester,
+      env,
+    ) async {
+      for (var i = 0; i < 21; i++) {
+        final p = await seedPerson(env.db, name: 'Person $i');
+        final f = await seedFace(env.db, seed: 700 + i);
+        await _match(env.db, f, p, 0.45);
+      }
+      await _open(tester, env, '/review');
+      expect(_progress(tester), '1 of 20');
+      for (var i = 0; i < 20; i++) {
+        await _tap(tester, 'quick-unsure');
+      }
+      expect(find.byKey(const Key('quick-session-done')), findsOneWidget);
+      expect(
+        (await env.db.select(env.db.faces).get()).every(
+          (f) => f.personId == null,
+        ),
+        isTrue,
+      );
+      await tester.tap(find.text('Review next 20'));
+      await _settle(tester);
+      expect(_progress(tester), '1 of 1');
+    }, session: testSession);
 
-    appTest(
-      'weak suggestions remain in details without demanding a decision',
-      (tester, env) async {
-        final p = await seedPerson(env.db, name: 'Sara');
-        final f = await seedFace(env.db);
-        await _match(env.db, f, p, 0.28);
-        await _open(tester, env, '/review');
-        expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
-        expect(await env.db.select(env.db.reviewMatches).get(), hasLength(1));
-        expect(
-          (await env.db.select(env.db.faces).get()).single.personId,
-          isNull,
-        );
-        expect(find.byKey(const Key('quick-see-all')), findsOneWidget);
-      },
-      session: testSession,
-    );
+    appTest('weak suggestions remain in details without demanding a decision', (
+      tester,
+      env,
+    ) async {
+      final p = await seedPerson(env.db, name: 'Sara');
+      final f = await seedFace(env.db);
+      await _match(env.db, f, p, 0.28);
+      await _open(tester, env, '/review');
+      expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
+      expect(await env.db.select(env.db.reviewMatches).get(), hasLength(1));
+      expect((await env.db.select(env.db.faces).get()).single.personId, isNull);
+      expect(find.byKey(const Key('quick-see-all')), findsOneWidget);
+    }, session: testSession);
     appTest(
       'yes, no and not sure, most certain first, each stored as the usual correction',
       (tester, env) async {
@@ -199,29 +194,28 @@ void main() {
       session: testSession,
     );
 
-    appTest(
-      '"Not sure" stays parked until the score rises, then comes back',
-      (tester, env) async {
-        final m = await _seedMatches(env.db);
-        await env.db.delete(env.db.reviewMatches).go();
-        await _match(env.db, m.unsure, m.sara, 0.33);
-        await _open(tester, env, '/review');
-        await _tap(tester, 'quick-unsure');
-        expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
+    appTest('"Not sure" stays parked until the score rises, then comes back', (
+      tester,
+      env,
+    ) async {
+      final m = await _seedMatches(env.db);
+      await env.db.delete(env.db.reviewMatches).go();
+      await _match(env.db, m.unsure, m.sara, 0.33);
+      await _open(tester, env, '/review');
+      await _tap(tester, 'quick-unsure');
+      expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
 
-        // the next grouping run brings the same evidence: still parked
-        await _match(env.db, m.unsure, m.sara, 0.34);
-        await _settle(tester);
-        expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
+      // the next grouping run brings the same evidence: still parked
+      await _match(env.db, m.unsure, m.sara, 0.34);
+      await _settle(tester);
+      expect(find.byKey(const Key('quick-all-done')), findsOneWidget);
 
-        // new photos made the PC surer: asked again
-        await _match(env.db, m.unsure, m.sara, 0.42);
-        await _settle(tester);
-        expect(_question(tester), 'Is this Sara?');
-        expect(_likelihood(tester), 'Very likely');
-      },
-      session: testSession,
-    );
+      // new photos made the PC surer: asked again
+      await _match(env.db, m.unsure, m.sara, 0.42);
+      await _settle(tester);
+      expect(_question(tester), 'Is this Sara?');
+      expect(_likelihood(tester), 'Very likely');
+    }, session: testSession);
 
     appTest('a parked new group returns once it has more faces', (
       tester,
@@ -451,124 +445,127 @@ void main() {
       session: testSession,
     );
 
-    appTest(
-      'with Advanced details on, /review opens the four tabs',
-      (tester, env) async {
-        await _seedMatches(env.db);
-        await env.db.putSetting('review.advanced', '1');
-        await _open(tester, env, '/review');
-        expect(find.byKey(const Key('review-tab-matches')), findsOneWidget);
-        expect(find.byKey(const Key('quick-question')), findsNothing);
-        await tester.tap(find.byKey(const Key('review-open-quick')));
-        await _settle(tester);
-        expect(find.byKey(const Key('quick-question')), findsOneWidget);
-      },
-      session: testSession,
-    );
+    appTest('with Advanced details on, /review opens the four tabs', (
+      tester,
+      env,
+    ) async {
+      await _seedMatches(env.db);
+      await env.db.putSetting('review.advanced', '1');
+      await _open(tester, env, '/review');
+      expect(find.byKey(const Key('review-tab-matches')), findsOneWidget);
+      expect(find.byKey(const Key('quick-question')), findsNothing);
+      await tester.tap(find.byKey(const Key('review-open-quick')));
+      await _settle(tester);
+      expect(find.byKey(const Key('quick-question')), findsOneWidget);
+    }, session: testSession);
   });
 
   group('Entry points', () {
-    appTest(
-      'People shows how many questions wait and opens the quick review',
-      (tester, env) async {
-        await _seedMatches(env.db);
-        await _open(tester, env, '/people');
-        expect(
-          find.text('Help improve your groups · 3 questions'),
-          findsOneWidget,
-        );
-        await tester.tap(find.byKey(const Key('people-review-banner')));
-        await _settle(tester);
-        expect(find.text('Choose type to review'), findsOneWidget);
-        await tester.tap(find.widgetWithText(ListTile, 'People'));
-        await _settle(tester);
-        expect(find.byKey(const Key('quick-question')), findsOneWidget);
-      },
-      session: testSession,
-    );
+    appTest('People shows how many questions wait and opens the quick review', (
+      tester,
+      env,
+    ) async {
+      await _seedMatches(env.db);
+      await _open(tester, env, '/people');
+      expect(
+        find.text('Help improve your groups · 3 questions'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('people-review-banner')));
+      await _settle(tester);
+      expect(find.text('Choose type to review'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ListTile, 'People'));
+      await _settle(tester);
+      expect(find.byKey(const Key('quick-question')), findsOneWidget);
+    }, session: testSession);
 
-    appTest(
-      'album review: everything starts ticked, untick the strangers, Done decides all',
-      (tester, env) async {
-        final m = await _seedMatches(env.db);
-        final body = await seedBody(env.db, appearance: outfit(2));
-        await env.db
-            .into(env.db.reviewBodyLinks)
-            .insert(
-              ReviewBodyLinksCompanion.insert(
-                bodyId: Value(body),
-                personId: m.sara,
-                method: 'weak_face',
-                confidence: 0.8,
-              ),
-            );
-        await _open(tester, env, '/people/${m.sara}');
-        expect(find.text('Review 3 photos'), findsOneWidget);
-        await tester.tap(find.byKey(const Key('album-review-banner')));
-        await _settle(tester);
+    appTest('album review saves only the tiles selected for each decision', (
+      tester,
+      env,
+    ) async {
+      final m = await _seedMatches(env.db);
+      final body = await seedBody(env.db, appearance: outfit(2));
+      await env.db
+          .into(env.db.reviewBodyLinks)
+          .insert(
+            ReviewBodyLinksCompanion.insert(
+              bodyId: Value(body),
+              personId: m.sara,
+              method: 'weak_face',
+              confidence: 0.8,
+            ),
+          );
+      await _open(tester, env, '/people/${m.sara}');
+      expect(find.text('Review 3 photos'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('album-review-banner')));
+      await _settle(tester);
 
-        expect(find.byKey(const Key('album-review-grid')), findsOneWidget);
-        expect(find.text('3 to add · 0 someone else'), findsOneWidget);
-        await tester.tap(find.byKey(Key('album-review-f-${m.unsure}')));
-        await _settle(tester);
-        expect(find.text('2 to add · 1 someone else'), findsOneWidget);
+      expect(find.byKey(const Key('album-review-grid')), findsOneWidget);
+      final add = find.byKey(const Key('album-review-done'));
+      final reject = find.byKey(const Key('album-review-reject'));
+      expect(tester.widget<FilledButton>(add).onPressed, isNull);
+      expect(tester.widget<TextButton>(reject).onPressed, isNull);
+      await tester.tap(find.byKey(Key('album-review-f-${m.unsure}')));
+      await _settle(tester);
+      await tester.tap(reject);
+      await _settle(tester);
+      expect(tester.widget<FilledButton>(add).onPressed, isNull);
+      expect(await env.db.select(env.db.faceConfirmations).get(), isEmpty);
 
-        await tester.tap(find.byKey(const Key('album-review-done')));
-        await _settle(tester);
-        final faces = {
-          for (final f in await env.db.select(env.db.faces).get())
-            f.id: f.personId,
-        };
-        expect(faces[m.sure], m.sara);
-        expect(faces[m.unsure], isNull);
-        expect(
-          (await env.db.select(env.db.faceRejections).get()).map(
-            (r) => (r.faceId, r.personId),
-          ),
-          [(m.unsure, m.sara)],
-        );
-        final linked = await (env.db.select(
-          env.db.bodies,
-        )..where((b) => b.id.equals(body))).getSingle();
-        expect(linked.personId, m.sara);
-        expect(faces[m.other], isNull, reason: "Anna's suggestion untouched");
-        expect(find.byKey(const Key('album-review-banner')), findsNothing);
-      },
-      session: testSession,
-    );
+      await tester.tap(find.byKey(Key('album-review-f-${m.sure}')));
+      await tester.tap(find.byKey(Key('album-review-b-$body')));
+      await _settle(tester);
+      await tester.tap(add);
+      await _settle(tester);
+      final faces = {
+        for (final f in await env.db.select(env.db.faces).get())
+          f.id: f.personId,
+      };
+      expect(faces[m.sure], m.sara);
+      expect(faces[m.unsure], isNull);
+      expect(
+        (await env.db.select(env.db.faceRejections).get()).map(
+          (r) => (r.faceId, r.personId),
+        ),
+        [(m.unsure, m.sara)],
+      );
+      final linked = await (env.db.select(
+        env.db.bodies,
+      )..where((b) => b.id.equals(body))).getSingle();
+      expect(linked.personId, m.sara);
+      expect(faces[m.other], isNull, reason: "Anna's suggestion untouched");
+      expect(find.byKey(const Key('album-review-banner')), findsNothing);
+    }, session: testSession);
 
-    appTest(
-      'Remove from person: "This is someone else" records a rejection',
-      (tester, env) async {
-        final sara = await seedPerson(env.db, name: 'Sara');
-        final face = await seedFace(env.db, personId: sara, seed: 1);
-        await seedFace(env.db, personId: sara, seed: 2);
-        await _open(tester, env, '/people/$sara');
-        await tester.tap(find.text('Identity'));
-        await _settle(tester);
-        await tester.tap(find.byKey(Key('face-menu-$face')));
-        await _settle(tester);
-        await expandActionSections(tester);
-        await tester.ensureVisible(
-          find.byKey(const Key('people-action-remove')),
-        );
-        await tester.tap(find.byKey(const Key('people-action-remove')));
-        await _settle(tester);
-        expect(find.byKey(const Key('people-action-notAFace')), findsOneWidget);
-        expect(find.byKey(const Key('people-action-moveTo')), findsOneWidget);
-        await tester.tap(find.byKey(const Key('people-action-someoneElse')));
-        await _settle(tester);
-        final row = (await env.db.select(env.db.faceRejections).get()).single;
-        expect((row.faceId, row.personId), (face, sara));
-        expect(
-          (await (env.db.select(
-            env.db.faces,
-          )..where((f) => f.id.equals(face))).getSingle()).personId,
-          isNull,
-        );
-      },
-      session: testSession,
-    );
+    appTest('Remove from person: "This is someone else" records a rejection', (
+      tester,
+      env,
+    ) async {
+      final sara = await seedPerson(env.db, name: 'Sara');
+      final face = await seedFace(env.db, personId: sara, seed: 1);
+      await seedFace(env.db, personId: sara, seed: 2);
+      await _open(tester, env, '/people/$sara');
+      await tester.tap(find.text('Identity'));
+      await _settle(tester);
+      await tester.tap(find.byKey(Key('face-menu-$face')));
+      await _settle(tester);
+      await expandActionSections(tester);
+      await tester.ensureVisible(find.byKey(const Key('people-action-remove')));
+      await tester.tap(find.byKey(const Key('people-action-remove')));
+      await _settle(tester);
+      expect(find.byKey(const Key('people-action-notAFace')), findsOneWidget);
+      expect(find.byKey(const Key('people-action-moveTo')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('people-action-someoneElse')));
+      await _settle(tester);
+      final row = (await env.db.select(env.db.faceRejections).get()).single;
+      expect((row.faceId, row.personId), (face, sara));
+      expect(
+        (await (env.db.select(
+          env.db.faces,
+        )..where((f) => f.id.equals(face))).getSingle()).personId,
+        isNull,
+      );
+    }, session: testSession);
 
     appTest('Remove from person: "Not a face" hides it', (tester, env) async {
       final sara = await seedPerson(env.db, name: 'Sara');
@@ -591,44 +588,38 @@ void main() {
       expect(row.hidden, isTrue);
     }, session: testSession);
 
-    appTest(
-      'the photo viewer lists every face with a pencil to reassign it',
-      (tester, env) async {
-        final sara = await seedPerson(env.db, name: 'Sara');
-        final anna = await seedPerson(env.db, name: 'Anna');
-        final photo = await seedMedia(env.db, asset: 'a');
-        final face = await seedFace(
-          env.db,
-          mediaId: photo,
-          personId: sara,
-          seed: 1,
-        );
-        final stranger = await seedFace(
-          env.db,
-          mediaId: photo,
-          seed: 2,
-          x: 0.5,
-        );
-        await _open(tester, env, '/media/$photo');
-        await tester.tap(find.text('Details'));
-        await _settle(tester);
-        expect(find.byKey(Key('who-edit-$face')), findsOneWidget);
-        expect(find.byKey(Key('who-edit-$stranger')), findsOneWidget);
-        expect(find.text('Unknown'), findsOneWidget);
+    appTest('the photo viewer lists every face with a pencil to reassign it', (
+      tester,
+      env,
+    ) async {
+      final sara = await seedPerson(env.db, name: 'Sara');
+      final anna = await seedPerson(env.db, name: 'Anna');
+      final photo = await seedMedia(env.db, asset: 'a');
+      final face = await seedFace(
+        env.db,
+        mediaId: photo,
+        personId: sara,
+        seed: 1,
+      );
+      final stranger = await seedFace(env.db, mediaId: photo, seed: 2, x: 0.5);
+      await _open(tester, env, '/media/$photo');
+      await tester.tap(find.text('Details'));
+      await _settle(tester);
+      expect(find.byKey(Key('who-edit-$face')), findsOneWidget);
+      expect(find.byKey(Key('who-edit-$stranger')), findsOneWidget);
+      expect(find.text('Unknown'), findsOneWidget);
 
-        await tester.tap(find.byKey(Key('who-edit-$face')));
-        await _settle(tester);
-        await tester.tap(find.byKey(Key('person-picker-$anna')));
-        await _settle(tester);
-        expect(
-          (await (env.db.select(
-            env.db.faces,
-          )..where((f) => f.id.equals(face))).getSingle()).personId,
-          anna,
-        );
-      },
-      session: testSession,
-    );
+      await tester.tap(find.byKey(Key('who-edit-$face')));
+      await _settle(tester);
+      await tester.tap(find.byKey(Key('person-picker-$anna')));
+      await _settle(tester);
+      expect(
+        (await (env.db.select(
+          env.db.faces,
+        )..where((f) => f.id.equals(face))).getSingle()).personId,
+        anna,
+      );
+    }, session: testSession);
     appTest(
       '"Are you sure these are Sara?": tap the wrong ones, one answer settles the batch',
       (tester, env) async {

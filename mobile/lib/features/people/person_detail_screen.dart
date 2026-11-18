@@ -587,23 +587,15 @@ class _BodiesTab extends ConsumerWidget {
   }
 }
 
-class _SuggestionsTab extends ConsumerStatefulWidget {
+class _SuggestionsTab extends ConsumerWidget {
   const _SuggestionsTab({required this.person});
 
   final PersonSummary person;
 
   @override
-  ConsumerState<_SuggestionsTab> createState() => _SuggestionsTabState();
-}
-
-class _SuggestionsTabState extends ConsumerState<_SuggestionsTab> {
-  final _deselected =
-      <int>{}; // faces the user unticked (everything starts ticked)
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final p = widget.person;
+    final p = person;
     final matchState = ref.watch(personMatchesProvider(p.id));
     final duplicateState = ref.watch(reviewDuplicatesProvider(p.kind));
     final bodyState = ref.watch(personBodyLinksProvider(p.id));
@@ -637,100 +629,23 @@ class _SuggestionsTabState extends ConsumerState<_SuggestionsTab> {
         body: l10n.noSuggestionsBody,
       );
     }
-    final chosen = [
-      for (final m in matches)
-        if (!_deselected.contains(m.faceId)) m.faceId,
-    ];
-    final repo = reviewRepositoryFor(ref, p.kind);
-
     return ReviewActionScope(
       child: Builder(
         builder: (context) => ListView(
           key: const Key('suggestions-list'),
           padding: const EdgeInsets.all(12),
           children: [
-            if (matches.isNotEmpty) ...[
-              Text(
-                l10n.suggestedFacesTitle(personName(l10n, p), matches.length),
-                style: Theme.of(context).textTheme.titleSmall,
+            if (matches.isNotEmpty)
+              ListTile(
+                key: const Key('suggestions-open-album'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.face_retouching_natural_outlined),
+                title: Text(
+                  l10n.suggestedFacesTitle(personName(l10n, p), matches.length),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => openAlbumReview(context, p),
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final m in matches)
-                    GestureDetector(
-                      key: Key('suggested-${m.faceId}'),
-                      onTap: () => setState(() {
-                        if (!_deselected.remove(m.faceId)) {
-                          _deselected.add(m.faceId);
-                        }
-                      }),
-                      child: SizedBox(
-                        width: 72,
-                        height: 72,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              CropImage(path: m.cropPath),
-                              if (_deselected.contains(m.faceId))
-                                const ColoredBox(color: Colors.black54),
-                              Positioned(
-                                right: 3,
-                                top: 3,
-                                child: Icon(
-                                  _deselected.contains(m.faceId)
-                                      ? Icons.radio_button_unchecked
-                                      : Icons.check_circle,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton(
-                    key: const Key('accept-suggested'),
-                    onPressed: () => ReviewActionScope.run(
-                      context,
-                      () => repo.answerMatchBatch(
-                        [for (final m in matches) m.faceId],
-                        p.id,
-                        excluded: {..._deselected},
-                      ),
-                    ),
-                    child: Text(
-                      chosen.isEmpty
-                          ? l10n.notThem(matches.length)
-                          : l10n.addFacesTo(chosen.length),
-                    ),
-                  ),
-                  OutlinedButton(
-                    key: const Key('reject-suggested'),
-                    onPressed: chosen.isEmpty
-                        ? null
-                        : () => ReviewActionScope.run(
-                            context,
-                            () => repo.rejectMatches(chosen, p.id),
-                          ),
-                    child: Text(l10n.notThem(chosen.length)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-            ],
             if (duplicates.isNotEmpty) ...[
               Text(
                 l10n.possibleSamePerson,

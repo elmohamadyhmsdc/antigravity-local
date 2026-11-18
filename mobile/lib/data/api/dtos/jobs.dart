@@ -189,9 +189,11 @@ class StudioResultFile {
           'dataset.zip': 'application/zip',
           'portraits.zip': 'application/zip',
           'lora.safetensors': 'application/octet-stream',
+          'reface_poses.json': 'application/json',
         }.entries.any((entry) => entry.key == name && entry.value == mime) ||
         size <= 0 ||
         size > 2 * 1024 * 1024 * 1024 ||
+        (name == 'reface_poses.json' && size > 4 * 1024 * 1024) ||
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(sha256)) {
       throw const FormatException('Invalid Studio result manifest');
     }

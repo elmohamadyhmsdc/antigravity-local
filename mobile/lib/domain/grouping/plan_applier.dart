@@ -1,7 +1,10 @@
 import 'package:drift/drift.dart';
 
+import '../../data/api/dtos/embedding.dart';
 import '../../data/api/dtos/grouping.dart';
 import '../../data/db/app_database.dart';
+import '../scan/drawn_faces.dart';
+import '../scan/video_tracks.dart';
 import 'identity_evidence.dart';
 import 'identity_constraints.dart';
 
@@ -108,10 +111,13 @@ class PlanApplier {
       inNew += g.faceIds.length;
     }
 
-    // A video track is one appearance: once some of its faces have a person (and no other
-    // person), the rest follow - unless the user refused that very pair.
-    assigned += await _db.customUpdate(
-      '''
+    // A track can switch subjects between samples. Its owner is useful only
+    // when the individual view also matches an assigned view.
+    final trackMatches = await _matchingTrackViews();
+    for (var offset = 0; offset < trackMatches.length; offset += 400) {
+      final ids = trackMatches.skip(offset).take(400).toList();
+      assigned += await _db.customUpdate(
+        '''
       WITH owner AS (
         SELECT track_id, MIN(person_id) AS pid FROM faces
         WHERE track_id IS NOT NULL AND person_id IS NOT NULL AND hidden = 0
@@ -121,6 +127,7 @@ class PlanApplier {
       )
       UPDATE faces SET person_id = (SELECT pid FROM owner WHERE owner.track_id = faces.track_id)
       WHERE person_id IS NULL AND review_dismissed = 0 AND hidden = 0 AND kind = ?1
+        AND faces.id IN (${List.filled(ids.length, '?').join(',')})
         AND (ownership IS NULL OR ownership != 'none')
         AND NOT EXISTS (SELECT 1 FROM faces suspect JOIN review_doubtful d ON d.face_id = suspect.id AND d.person_id = suspect.person_id WHERE suspect.track_id = faces.track_id)
         AND track_id IN (SELECT track_id FROM owner)
@@ -135,15 +142,62 @@ class PlanApplier {
           SELECT 1 FROM persons p JOIN owner o ON o.pid = p.id
           WHERE o.track_id = faces.track_id AND p.grouping_locked = 0)
       ''',
-      variables: [Variable.withString(kind)],
-      updates: {_db.faces},
-    );
+        variables: [
+          Variable.withString(kind),
+          for (final id in ids) Variable.withInt(id),
+        ],
+        updates: {_db.faces},
+      );
+    }
     return FacePlanResult(
       assigned: assigned,
       newPeople: newPeople,
       facesInNewPeople: inNew,
     );
   });
+
+  Future<List<int>> _matchingTrackViews() async {
+    final matches = <int>{};
+    final dim = kind == 'character' ? characterEmbeddingDim : embeddingDim;
+    final floor = kind == 'character' ? .86 : trackIdentityCosine;
+    var after = 0;
+    while (true) {
+      final rows = await _db
+          .customSelect(
+            '''
+      WITH pending AS (
+        SELECT f.id, f.embedding, f.track_id, f.kind, f.model_id FROM faces f
+        WHERE f.id > ?1 AND f.kind = ?2 AND f.person_id IS NULL AND f.track_id IS NOT NULL
+          AND f.hidden = 0 AND f.review_dismissed = 0 AND f.ownership IS NOT 'none'
+          AND EXISTS (SELECT 1 FROM faces owner WHERE owner.track_id = f.track_id
+            AND owner.kind = f.kind AND owner.model_id = f.model_id AND owner.person_id IS NOT NULL
+            AND owner.hidden = 0 AND owner.ownership IS NOT 'none')
+        ORDER BY f.id LIMIT 500
+      )
+      SELECT f.id, f.embedding, anchor.embedding AS anchor_embedding
+      FROM pending f JOIN faces anchor ON anchor.track_id = f.track_id
+        AND anchor.kind = f.kind AND anchor.model_id = f.model_id
+      WHERE anchor.person_id IS NOT NULL AND anchor.hidden = 0 AND anchor.ownership IS NOT 'none'
+      ORDER BY f.id
+      ''',
+            variables: [Variable.withInt(after), Variable.withString(kind)],
+          )
+          .get();
+      if (rows.isEmpty) return matches.toList();
+      after = rows.last.read<int>('id');
+      for (final row in rows) {
+        final id = row.read<int>('id');
+        if (matches.contains(id)) continue;
+        final candidate = row.read<Uint8List>('embedding');
+        final anchor = row.read<Uint8List>('anchor_embedding');
+        if (candidate.length != dim * 4 || anchor.length != dim * 4) continue;
+        final a = vectorFromBlob(candidate), b = vectorFromBlob(anchor);
+        if (kind == 'person' && (isDrawnFace(a) || isDrawnFace(b))) continue;
+        final score = faceSimilarity(a, b);
+        if (score.isFinite && score >= floor) matches.add(id);
+      }
+    }
+  }
 
   /// Round 2 (`apply`, bodies): the outfit / weak-face links are re-derived (the old derived ones
   /// are cleared first, links made by hand stay), then the confident ones are applied.

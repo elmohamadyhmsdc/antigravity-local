@@ -13,6 +13,7 @@ import '../api/mobile_api.dart';
 import '../db/app_database.dart';
 import '../files/file_store.dart';
 import '../../domain/identity/identity_selection.dart';
+import '../../domain/reface/pose_review.dart';
 import 'studio_repository.dart';
 
 class LoraRepository {
@@ -218,6 +219,49 @@ class LoraRepository {
     MobileApi api, {
     List<DetectedFace> trainingFaces = const [],
   }) async {
+    final verified = await _verifyPortraits(lora, api, trainingFaces);
+    if (verified.portraits.isEmpty) {
+      throw const FormatException(
+        'No generated portrait matched the real person. Generate clearer portraits.',
+      );
+    }
+    await (db.update(db.loras)..where((l) => l.id.equals(lora.id))).write(
+      LorasCompanion(
+        identityJson: Value(
+          jsonEncode({
+            'model_id': verified.modelId,
+            'faces': [
+              for (final portrait in verified.portraits) portrait.source,
+            ],
+          }),
+        ),
+      ),
+    );
+    return verified.portraits.length;
+  }
+
+  Future<List<VerifiedRefacePortrait>> verifyRefacePortraits(
+    LoraRow lora,
+    MobileApi api, {
+    required List<DetectedFace> trainingFaces,
+    required List<String> generationJobs,
+  }) async => (await _verifyPortraits(
+    lora,
+    api,
+    trainingFaces,
+    resultIds: [
+      for (final job in generationJobs)
+        for (var i = 0; i < 16; i++) '$job-$i',
+    ],
+  )).portraits;
+
+  Future<({String modelId, List<VerifiedRefacePortrait> portraits})>
+  _verifyPortraits(
+    LoraRow lora,
+    MobileApi api,
+    List<DetectedFace> trainingFaces, {
+    List<String>? resultIds,
+  }) async {
     if (lora.personId == null) {
       throw const FormatException('Assign this LoRA to a person first.');
     }
@@ -263,15 +307,19 @@ class LoraRepository {
       character ? characterEmbeddingDim : embeddingDim,
     );
     final portraits = <ResultRow>[];
+    final limit = resultIds?.length ?? 32;
     var offset = 0;
-    while (portraits.length < 32) {
+    while (portraits.length < limit) {
       final page =
           await (db.select(db.results)
                 ..where(
                   (r) =>
                       r.type.equals('generate_lora_images') &
                       r.personId.equals(lora.personId!) &
-                      r.mime.equals('image/png'),
+                      r.mime.equals('image/png') &
+                      (resultIds == null
+                          ? const Constant(true)
+                          : r.id.isIn(resultIds)),
                 )
                 ..orderBy([(r) => OrderingTerm.desc(r.createdAt)])
                 ..limit(64, offset: offset))
@@ -282,17 +330,17 @@ class LoraRepository {
             context?.loraGenerationMode != 'full_body') {
           portraits.add(picture);
         }
-        if (portraits.length == 32) break;
+        if (portraits.length == limit) break;
       }
       if (page.length < 64) break;
       offset += page.length;
     }
-    if (portraits.isEmpty) {
+    if (portraits.isEmpty && resultIds == null) {
       throw const FormatException(
         'No generated portraits are linked to this model. Older results without a verified model link cannot be used.',
       );
     }
-    final accepted = <Map<String, dynamic>>[];
+    final accepted = <VerifiedRefacePortrait>[];
     for (final picture in portraits) {
       final result = await api.analyzeImage(
         await files.resolve(picture.path).readAsBytes(),
@@ -336,42 +384,47 @@ class LoraRepository {
                 candidates.first.score - candidates[1].score >= .05)) {
           final vector = candidates.first.face.embedding!;
           final norm = sqrt(vector.fold<double>(0, (sum, v) => sum + v * v));
-          accepted.add({
-            'embedding': encodeVector(
-              Float32List.fromList([for (final v in vector) v / norm]),
+          accepted.add(
+            VerifiedRefacePortrait(
+              path: picture.path,
+              source: {
+                'embedding': encodeVector(
+                  Float32List.fromList([for (final v in vector) v / norm]),
+                ),
+                'quality': candidates.first.face.score,
+              },
             ),
-            'quality': candidates.first.face.score,
-          });
+          );
         }
         continue;
       }
+      if (resultIds != null && result.faces.length != 1) continue;
       for (final face in result.faces) {
         var similarity = 0.0;
         for (var index = 0; index < 512; index++) {
           similarity += anchorVector[index] * face.embedding[index];
         }
         if (face.passesGate && similarity >= .4) {
-          accepted.add({
-            'embedding': encodeEmbedding(face.embedding),
-            'quality': face.quality.score,
-            if (face.quality.pose case final pose?)
-              'pose': {'yaw': pose.yaw, 'pitch': pose.pitch, 'roll': pose.roll},
-          });
+          accepted.add(
+            VerifiedRefacePortrait(
+              path: picture.path,
+              pose: face.quality.pose,
+              source: {
+                'embedding': encodeEmbedding(face.embedding),
+                'quality': face.quality.score,
+                if (face.quality.pose case final pose?)
+                  'pose': {
+                    'yaw': pose.yaw,
+                    'pitch': pose.pitch,
+                    'roll': pose.roll,
+                  },
+                if (resultIds != null) 'generated': true,
+              },
+            ),
+          );
         }
       }
     }
-    if (accepted.isEmpty) {
-      throw const FormatException(
-        'No generated portrait matched the real person. Generate clearer portraits.',
-      );
-    }
-    await (db.update(db.loras)..where((l) => l.id.equals(lora.id))).write(
-      LorasCompanion(
-        identityJson: Value(
-          jsonEncode({'model_id': modelId, 'faces': accepted}),
-        ),
-      ),
-    );
-    return accepted.length;
+    return (modelId: modelId, portraits: accepted);
   }
 }

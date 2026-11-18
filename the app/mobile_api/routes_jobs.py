@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from .errors import ApiError, bad_request, not_found
 from .transfers import ResultFileResponse
+from .reface_poses import RESULT as POSE_RESULT
 
 
 def build_jobs_router(ctx, require_device):
@@ -101,7 +102,7 @@ def build_jobs_router(ctx, require_device):
         directory = manager(job_id).result(job_id, device)
         manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
         entry = next((f for f in manifest["files"] if f["name"] == name), None)
-        if entry is None or name not in ("detections.ndjson", "result.png", "result.mp4", 'dataset.zip', 'portraits.zip', 'lora.safetensors', 'identity_bundle.json'):
+        if entry is None or name not in ("detections.ndjson", "result.png", "result.mp4", 'dataset.zip', 'portraits.zip', 'lora.safetensors', 'identity_bundle.json', POSE_RESULT):
             raise not_found()
         return ResultFileResponse(directory / name, media_type=entry["mime"], filename=name,
                                   headers={"Cache-Control": "no-store"})

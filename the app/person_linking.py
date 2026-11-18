@@ -384,6 +384,7 @@ class Cluster:
     indices: List[int]    # positions in the input
     cohesion: float       # mean pairwise similarity
     quality: float        # mean face quality
+    weakest_identity: float = 1.0
 
 
 def _key_sets(frame_keys: Sequence[Optional[Hashable]]) -> List[set]:
@@ -591,7 +592,11 @@ def cluster_faces(embeddings: np.ndarray, qualities: Sequence[float], params: Gr
         total = members.sum(axis=0)
         cohesion = float((total @ total - np.einsum("ij,ij->", members, members)) /
                          (k * (k - 1))) if k > 1 else 1.0
-        clusters.append(Cluster(idx.tolist(), cohesion, float(q[idx].mean())))
+        weakest = 1.0
+        if adaptive and k > 1:
+            rest = total - members
+            weakest = float(np.min(np.einsum("ij,ij->i", normalize_rows(rest), members)))
+        clusters.append(Cluster(idx.tolist(), cohesion, float(q[idx].mean()), weakest))
     clusters.sort(key=lambda c: (-len(c.indices), -c.cohesion))
     return clusters
 
@@ -631,8 +636,11 @@ def _merge_alike_groups(e: np.ndarray, q: np.ndarray, keys, labels: np.ndarray, 
     return out
 
 
-def should_auto_create(cluster: Cluster, params: GroupingParams) -> bool:
+def should_auto_create(cluster: Cluster, params: GroupingParams, *, adaptive: bool = False) -> bool:
     n = len(cluster.indices)
+    if adaptive and (cluster.quality < params.seed_quality or
+                     cluster.weakest_identity < max(params.match_auto, 1.0 - params.cluster_distance)):
+        return False
     if n >= params.auto_create_size and cluster.cohesion >= params.auto_create_cohesion:
         return True
     # someone seen in just two photos: only when the two faces are unmistakably one person
@@ -674,7 +682,8 @@ def suggest_merges(models: Dict[int, PersonModel], params: GroupingParams,
 
 
 def auto_merge_people(models: Dict[int, PersonModel], provisional: Iterable[int], threshold: float,
-                      distinct: Optional[Iterable[Tuple[int, int]]] = None) -> List[Tuple[int, int, float]]:
+                      distinct: Optional[Iterable[Tuple[int, int]]] = None, *,
+                      params: Optional[GroupingParams] = None) -> List[Tuple[int, int, float]]:
     """(absorb, into, score): people the grouping created on its own that clearly are another person.
 
     A person split in two (an early scan round saw only part of their photos, or two poses) used to stay
@@ -701,12 +710,26 @@ def auto_merge_people(models: Dict[int, PersonModel], provisional: Iterable[int]
             pairs.append((sc, a, b))
     # mutual best: each side's most alike person is the other one. A look-alike relative scoring just over
     # the bar still loses to the half of himself, so it is never pulled in through a third person.
-    best_of: Dict[int, float] = {}
+    choices: Dict[int, List[float]] = defaultdict(list)
     for sc, a, b in pairs:
-        best_of[a] = max(best_of.get(a, -1.0), sc)
-        best_of[b] = max(best_of.get(b, -1.0), sc)
+        choices[a].append(sc)
+        choices[b].append(sc)
+    for scores in choices.values():
+        scores.sort(reverse=True)
     pairs = [(sc, a, b) for sc, a, b in pairs
-             if sc >= threshold and sc >= best_of[a] and sc >= best_of[b]]
+             if sc >= threshold and sc >= choices[a][0] and sc >= choices[b][0]]
+    if params is not None:
+        def supported(sc, a, b):
+            for source, target in ((a, b), (b, a)):
+                rivals = choices[source]
+                if len(rivals) > 1 and sc - rivals[1] < params.match_margin / 2:
+                    return False
+                _, scores = identity_scores(models[source].members, {target: models[target]})
+                if np.min(scores) < params.match_auto:
+                    return False
+            return True
+
+        pairs = [(sc, a, b) for sc, a, b in pairs if supported(sc, a, b)]
     if not pairs:
         return []
     parent = {p: p for p in pids}

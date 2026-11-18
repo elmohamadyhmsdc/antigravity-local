@@ -1,4 +1,5 @@
-import 'package:antigravity_mobile/domain/reface/angle_generation.dart';
+import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
+import 'package:antigravity_mobile/domain/reface/pose_review.dart';
 import 'package:antigravity_mobile/domain/reface/reface_preflight.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -95,74 +96,50 @@ void main() {
     expect(none.warnings, ['No face is selected in the target.']);
   });
 
-  group('what to generate', () {
-    RefacePreflight check({List<PreflightSource> sources = const []}) =>
-        RefacePreflight(
-          targets: const [
-            PreflightTarget(yaw: 0, pitch: 0, weight: 60),
-            PreflightTarget(yaw: 30, pitch: 0, weight: 30),
-            PreflightTarget(yaw: 80, pitch: 0, weight: 10),
-          ],
-          sources: [
-            for (var i = 0; i < 8; i++) const PreflightSource(yaw: 2, pitch: 0),
-            ...sources,
-          ],
-        );
-
-    test(
-      'selected model covers every target angle, including photographed ones',
-      () {
-        final plan = AngleGenerationPlan.forModel(check())!;
-        expect(plan.buckets, [
-          PoseBucket.frontal,
-          PoseBucket.threeQuarter,
-          PoseBucket.profile,
-        ]);
-        expect(plan.angles, [
-          'frontal',
-          'frontal',
-          'frontal',
-          'three_quarter',
-          'three_quarter',
-          'three_quarter',
-          'profile',
-          'profile',
-          'profile',
-        ]);
-      },
-    );
-
-    test('only verified model portraits count toward model angle coverage', () {
-      final plan = AngleGenerationPlan.forModel(
-        check(
-          sources: const [
-            PreflightSource(yaw: 35, pitch: 0, generated: true),
-            PreflightSource(yaw: 0, pitch: 0, generated: true),
-          ],
-        ),
-      )!;
-      expect(plan.buckets, [PoseBucket.profile]);
-      expect(plan.count, 3);
-      expect(
-        AngleGenerationPlan.forModel(
-          check(
-            sources: const [
-              PreflightSource(yaw: 35, pitch: 0, generated: true),
-              PreflightSource(yaw: 0, pitch: 0, generated: true),
-              PreflightSource(yaw: 80, pitch: 0, generated: true),
-            ],
-          ),
-        ),
-        isNull,
+  test(
+    'reference coverage distinguishes signed turns and verifies each angle range',
+    () {
+      final report = RefacePoseReport.fromJson({
+        'total_frames': 4,
+        'decoded_frames': 3,
+        'unreadable_frames': 1,
+        'frames_without_pose': 0,
+        'faces_without_pose': 0,
+        'poses': [
+          {
+            'yaw': -44,
+            'pitch': 0,
+            'roll': 0,
+            'count': 2,
+            'timestamp_ms': 16,
+            'minimum': [-51, 0, 0],
+            'maximum': [-39, 0, 0],
+          },
+          {'yaw': 48, 'pitch': 0, 'roll': 0, 'count': 1, 'timestamp_ms': 28},
+        ],
+      });
+      const left = VerifiedRefacePortrait(
+        path: 'left',
+        source: {},
+        pose: Pose(yaw: -45, pitch: 0, roll: 0),
       );
-    });
-
-    test('unknown target poses use every supported head direction', () {
-      final plan = AngleGenerationPlan.forModel(
-        RefacePreflight(targets: const [PreflightTarget()], sources: const []),
-      )!;
-      expect(plan.buckets, PoseBucket.values);
-      expect(plan.count, 15);
-    });
-  });
+      const near = VerifiedRefacePortrait(
+        path: 'near',
+        source: {},
+        pose: Pose(yaw: -31, pitch: 0, roll: 0),
+      );
+      const right = VerifiedRefacePortrait(
+        path: 'right',
+        source: {},
+        pose: Pose(yaw: 48, pitch: 0, roll: 0),
+      );
+      expect(left.coversGroup(report.poses.first), isTrue);
+      expect(left.coversGroup(report.poses.last), isFalse);
+      expect(near.coversGroup(report.poses.first), isFalse);
+      expect(selectPoseReferences(report, [right, left, near], limit: 1), [
+        left,
+      ]);
+      expect(selectPoseReferences(report, [right, left, near]), [left, right]);
+    },
+  );
 }

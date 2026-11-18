@@ -1321,16 +1321,44 @@
   "refaceIdentity": "Source identity",
   "refaceModelSource": "Face references",
   "refaceModelSourceHint": "Choose a trained model to create face references for the angles in your target.",
-  "refaceModelStart": "Prepare references and start Reface",
+  "refaceModelStart": "Prepare and review references",
   "refaceModelCheckingTarget": "Checking the face angles in your target…",
-  "refaceModelGenerating": "Generating face references from the selected model…",
   "refaceModelVerifying": "Checking that the generated faces match the person…",
-  "refaceModelPaused": "Face reference generation is paused. Resume it in Activity, then start Reface again.",
+  "refaceModelPaused": "Reference preparation is paused. Resume it in Activity, then return here to review.",
   "refaceModelFailed": "Face references could not be prepared. Try again or choose gallery faces.",
   "refaceModelNeedsReference": "Add a clear face for this person or use a model with a readable training dataset to verify the generated faces.",
   "refaceModelUnavailable": "The connected PC cannot generate faces with this model.",
   "refaceModelBaseUnavailable": "The base checkpoint used to train this model is unavailable on this PC.",
   "refaceModelFileUnavailable": "This model file is unavailable. Choose another model.",
+  "refacePoseUpdatePc": "Update the PC server to measure all frames and review Reface references.",
+  "refacePoseReviewHint": "Reface checks each frame and prepares references for the measured head angles. You can review them before it swaps any faces.",
+  "refacePoseReviewTitle": "Review Reface references",
+  "refacePosePortraits": "Verified references to use",
+  "refacePoseMeasured": "Measured head angles",
+  "refacePoseGrouping": "Near-identical angles are grouped in 15° yaw and pitch steps and 25° roll steps. Coverage compares the measured reference to the angle shown.",
+  "refacePoseRetry": "Generate missing references",
+  "refacePoseStartPartial": "Start Reface with this coverage",
+  "refacePoseMatched": "Covered",
+  "refacePoseMissing": "Missing reference",
+  "refacePoseUnknown": "Angle unavailable",
+  "refacePoseNoPortraits": "None of the generated portraits matched the selected person.",
+  "refacePoseNoMeasurements": "No face angle was measurable in this selection.",
+  "refacePoseFrames": "{decoded} of {total} frames decoded and checked",
+  "@refacePoseFrames": {"placeholders": {"decoded": {"type": "int"}, "total": {"type": "int"}}},
+  "refacePoseCoverage": "{covered} of {total} measured angle groups covered",
+  "@refacePoseCoverage": {"placeholders": {"covered": {"type": "int"}, "total": {"type": "int"}}},
+  "refacePoseUnreadable": "Unreadable frames ({count})",
+  "@refacePoseUnreadable": {"placeholders": {"count": {"type": "int"}}},
+  "refacePoseNoFrame": "Frames with no measurable selected face ({count})",
+  "@refacePoseNoFrame": {"placeholders": {"count": {"type": "int"}}},
+  "refacePoseNoFace": "Detected faces without a reliable angle ({count})",
+  "@refacePoseNoFace": {"placeholders": {"count": {"type": "int"}}},
+  "refacePoseAngles": "Yaw {yaw}° · Pitch {pitch}° · Roll {roll}°",
+  "@refacePoseAngles": {"placeholders": {"yaw": {"type": "String"}, "pitch": {"type": "String"}, "roll": {"type": "String"}}},
+  "refacePoseObservations": "{count} observations · {time} · {status}",
+  "@refacePoseObservations": {"placeholders": {"count": {"type": "int"}, "time": {"type": "String"}, "status": {"type": "String"}}},
+  "refacePoseGeneratingBatch": "Generating face references ({batch} of {total})…",
+  "@refacePoseGeneratingBatch": {"placeholders": {"batch": {"type": "int"}, "total": {"type": "int"}}},
   "refaceQuality": "Engine & quality",
   "refaceReview": "Review & create",
   "chooseTargetPhoto": "Choose a photo",
@@ -2061,7 +2089,7 @@
       }
     }
   },
-  "albumReviewHelp": "Every photo starts ticked. Untick the ones that aren't {name}, then tap Done. Long-press a photo to see it full size.",
+  "albumReviewHelp": "Select photos to add to {name} or mark as someone else. Tap the magnifier to check the original.",
   "@albumReviewHelp": {
     "placeholders": {
       "name": {
@@ -2069,18 +2097,8 @@
       }
     }
   },
-  "albumReviewNone": "Untick all",
-  "albumReviewSummary": "{add} to add · {remove} someone else",
-  "@albumReviewSummary": {
-    "placeholders": {
-      "add": {
-        "type": "int"
-      },
-      "remove": {
-        "type": "int"
-      }
-    }
-  },
+  "albumReviewAdd": "Add selected",
+  "albumReviewReject": "Mark selected as someone else",
   "albumReviewSaved": "{add} added · {remove} marked as someone else",
   "@albumReviewSaved": {
     "placeholders": {

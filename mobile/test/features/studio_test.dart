@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
+import 'package:antigravity_mobile/data/api/dtos/system.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/repositories/artifact_context.dart';
 import 'package:antigravity_mobile/domain/jobs/job_tracker.dart';
@@ -20,6 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../domain/job_tracker_test.dart' show FakeStudioApi;
 import '../support/fakes.dart';
+import '../support/fixtures.dart';
 import '../support/harness.dart';
 import '../support/seed.dart';
 
@@ -340,8 +343,11 @@ void main() {
 
   for (final video in [false, true]) {
     appTest(
-      'Reface prepares the chosen model and renders a ${video ? 'video' : 'photo'}',
+      'Reface shows measured ${video ? 'video' : 'photo'} references and waits for approval',
       (tester, env) async {
+        final caps = fixture('Capabilities.idle');
+        (caps['engines'] as Map<String, dynamic>)['reface_pose_review'] = true;
+        env.api.capabilities_ = Capabilities.fromJson(caps);
         final messenger =
             TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
         const paths = MethodChannel('plugins.flutter.io/path_provider');
@@ -432,7 +438,7 @@ void main() {
                 facePx: 140,
                 sharpness: 100,
                 embeddingNorm: 1,
-                pose: Pose(yaw: video ? 60 : 0, pitch: 0),
+                pose: Pose(yaw: video ? -60 : 0, pitch: 0, roll: 0),
               ),
               passesGate: true,
             ),
@@ -473,27 +479,64 @@ void main() {
         await tester.pumpAndSettle();
         await next(tester);
         final start = find.byKey(const Key('reface-next'));
-        expect(
-          find.text('Prepare references and start Reface'),
-          findsOneWidget,
-        );
+        expect(find.text('Prepare and review references'), findsOneWidget);
         await tester.ensureVisible(start);
         await tester.tap(start);
         await settleAsync(tester);
 
         var jobs = await env.db.select(env.db.jobs).get();
-        expect(jobs, hasLength(1), reason: find.byType(Text).evaluate().map(
-          (element) => (element.widget as Text).data,
-        ).whereType<String>().join(' | '));
-        final generation = jobs.single;
+        expect(
+          jobs,
+          hasLength(1),
+          reason: find
+              .byType(Text)
+              .evaluate()
+              .map((element) => (element.widget as Text).data)
+              .whereType<String>()
+              .join(' | '),
+        );
+        final audit = jobs.single;
+        expect(audit.type, 'measure_reface_poses');
+        final auditParams =
+            (jsonDecode(audit.requestJson) as Map)['params'] as Map;
+        expect(auditParams['media_kind'], video ? 'video' : 'image');
+        expect(auditParams.containsKey('target_faces'), !video);
+        final left = {'yaw': video ? -60 : 0, 'pitch': 0, 'roll': 0};
+        final right = {'yaw': 60, 'pitch': 5, 'roll': -20};
+        const posePath = 'results/test/poses.json';
+        final report = jsonEncode({
+          'total_frames': video ? 48 : 1,
+          'decoded_frames': video ? 47 : 1,
+          'unreadable_frames': video ? 1 : 0,
+          'frames_without_pose': 0,
+          'faces_without_pose': 0,
+          'poses': [
+            {...left, 'count': video ? 46 : 1, 'timestamp_ms': 0},
+            if (video) {...right, 'count': 1, 'timestamp_ms': 700},
+          ],
+        });
+        await tester.runAsync(
+          () => env.files.write(
+            posePath,
+            Uint8List.fromList(utf8.encode(report)),
+          ),
+        );
+        await (env.db.update(
+          env.db.jobs,
+        )..where((j) => j.id.equals(audit.id))).write(
+          const JobsCompanion(
+            status: Value('completed'),
+            targetPath: Value(posePath),
+          ),
+        );
+        await settleAsync(tester);
+        jobs = await env.db.select(env.db.jobs).get();
+        final generation = jobs.singleWhere((job) => job.id != audit.id);
         expect(generation.type, 'generate_lora_images');
         final generateParams =
             (jsonDecode(generation.requestJson) as Map)['params'] as Map;
         expect(generateParams['trigger_word'], 'wanted_model');
-        expect(
-          generateParams['angles'],
-          List.filled(3, video ? 'profile' : 'frontal'),
-        );
+        expect(generateParams['head_poses'], [left, if (video) right]);
         expect(find.byKey(const Key('reface-angles-progress')), findsOneWidget);
         expect(tester.widget<FilledButton>(start).onPressed, isNull);
 
@@ -526,7 +569,29 @@ void main() {
             .write(const JobsCompanion(status: Value('completed')));
         await settleAsync(tester);
         jobs = await env.db.select(env.db.jobs).get();
-        final render = jobs.singleWhere((job) => job.id != generation.id);
+        expect(jobs, hasLength(2), reason: 'Reface waits for approval');
+        expect(find.text('Review Reface references'), findsOneWidget);
+        expect(
+          find.text(
+            video
+                ? '1 of 2 measured angle groups covered'
+                : '1 of 1 measured angle groups covered',
+          ),
+          findsOneWidget,
+        );
+        if (video) expect(find.text('Unreadable frames (1)'), findsOneWidget);
+        await tester.pageBack();
+        await settleAsync(tester);
+        expect(await env.db.select(env.db.jobs).get(), hasLength(2));
+        await tester.ensureVisible(start);
+        await tester.tap(start);
+        await settleAsync(tester);
+        await tester.tap(find.byKey(const Key('reface-approve-poses')));
+        await settleAsync(tester);
+        jobs = await env.db.select(env.db.jobs).get();
+        final render = jobs.singleWhere(
+          (job) => job.type == (video ? 'reface_video' : 'reface_image'),
+        );
         expect(render.type, video ? 'reface_video' : 'reface_image');
         final request = jsonDecode(render.requestJson) as Map;
         final params = request['params'] as Map;
@@ -537,7 +602,7 @@ void main() {
         );
         if (video) {
           expect(params['start_time'], 0);
-          expect(env.sampledVideoRanges.single.count, 12);
+          expect(env.sampledVideoRanges, isEmpty);
         }
       },
       session: testSession,

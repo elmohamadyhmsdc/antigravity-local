@@ -230,10 +230,15 @@ void main() {
         await _settle(tester);
 
         expect(find.text('2 faces may be Sara'), findsOneWidget);
-        await tester.tap(find.byKey(Key('suggested-$b'))); // untick one
-        await tester.pumpAndSettle();
-        expect(find.text('Add 1 face'), findsOneWidget);
-        await tester.tap(find.byKey(const Key('accept-suggested')));
+        await tester.tap(find.byKey(const Key('suggestions-open-album')));
+        await _settle(tester);
+        await tester.tap(find.byKey(Key('album-review-f-$a')));
+        await _settle(tester);
+        await tester.tap(find.byKey(const Key('album-review-done')));
+        await _settle(tester);
+        await tester.tap(find.byKey(Key('album-review-f-$b')));
+        await _settle(tester);
+        await tester.tap(find.byKey(const Key('album-review-reject')));
         await _settle(tester);
 
         final faces = {
@@ -248,65 +253,59 @@ void main() {
           ),
           [(b, sara)],
         );
-        expect(find.byKey(const Key('accept-suggested')), findsNothing);
+        expect(find.byKey(const Key('album-review-grid')), findsNothing);
       },
       session: testSession,
     );
   });
 
   group('S09 Face picker', () {
-    appTest(
-      'long-press selects faces, "Assign to" a new person moves them',
-      (tester, env) async {
-        final a = await seedFace(env.db, seed: 1);
-        final b = await seedFace(env.db, seed: 2);
-        await seedFace(env.db, seed: 3);
-        await env.pump(
-          tester,
-          extra: [
-            initialLocationProvider.overrideWithValue('/people/unsorted'),
-          ],
-        );
-        await _settle(tester);
+    appTest('long-press selects faces, "Assign to" a new person moves them', (
+      tester,
+      env,
+    ) async {
+      final a = await seedFace(env.db, seed: 1);
+      final b = await seedFace(env.db, seed: 2);
+      await seedFace(env.db, seed: 3);
+      await env.pump(
+        tester,
+        extra: [initialLocationProvider.overrideWithValue('/people/unsorted')],
+      );
+      await _settle(tester);
 
-        await _selectFace(tester, a);
-        await tester.pumpAndSettle();
-        expect(find.text('1 selected'), findsOneWidget);
-        await tester.tap(find.byKey(Key('face-$b')));
-        await tester.pumpAndSettle();
-        expect(find.text('2 selected'), findsOneWidget);
+      await _selectFace(tester, a);
+      await tester.pumpAndSettle();
+      expect(find.text('1 selected'), findsOneWidget);
+      await tester.tap(find.byKey(Key('face-$b')));
+      await tester.pumpAndSettle();
+      expect(find.text('2 selected'), findsOneWidget);
 
-        await tester.tap(find.byKey(const Key('selection-assign')));
-        await _settle(tester);
-        await tester.tap(find.byKey(const Key('person-picker-new')));
-        await _settle(tester);
-        await tester.enterText(
-          find.byKey(const Key('new-person-name')),
-          'Sara',
-        );
-        await tester.tap(find.text('Create'));
-        await _settle(tester);
+      await tester.tap(find.byKey(const Key('selection-assign')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('person-picker-new')));
+      await _settle(tester);
+      await tester.enterText(find.byKey(const Key('new-person-name')), 'Sara');
+      await tester.tap(find.text('Create'));
+      await _settle(tester);
 
-        final person = (await env.db.select(env.db.persons).get()).single;
-        expect(person.name, 'Sara');
-        final owners = {
-          for (final f in await env.db.select(env.db.faces).get())
-            f.id: f.personId,
-        };
-        expect((owners[a], owners[b]), (person.id, person.id));
-        expect(
-          owners.values.where((v) => v == null).length,
-          1,
-          reason: 'the third face was not selected',
-        );
-        expect(
-          find.text('2 selected'),
-          findsNothing,
-          reason: 'the selection is cleared',
-        );
-      },
-      session: testSession,
-    );
+      final person = (await env.db.select(env.db.persons).get()).single;
+      expect(person.name, 'Sara');
+      final owners = {
+        for (final f in await env.db.select(env.db.faces).get())
+          f.id: f.personId,
+      };
+      expect((owners[a], owners[b]), (person.id, person.id));
+      expect(
+        owners.values.where((v) => v == null).length,
+        1,
+        reason: 'the third face was not selected',
+      );
+      expect(
+        find.text('2 selected'),
+        findsNothing,
+        reason: 'the selection is cleared',
+      );
+    }, session: testSession);
 
     appTest(
       '"Not this person" removes the faces from the person and remembers it',

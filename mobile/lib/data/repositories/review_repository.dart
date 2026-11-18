@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:drift/drift.dart';
 
 import '../api/dtos/grouping.dart';
+import '../../domain/grouping/identity_constraints.dart';
 import '../../domain/grouping/identity_evidence.dart';
 import '../db/app_database.dart';
 import 'people_repository.dart';
@@ -18,6 +19,7 @@ class ReviewMatchFace {
     required this.decision,
     this.margin = 0.1,
     this.quality = 1,
+    this.facePx = 0,
   });
 
   final int faceId;
@@ -26,6 +28,7 @@ class ReviewMatchFace {
   final String decision; // auto | suggest
   final double margin;
   final double quality;
+  final double facePx;
 }
 
 /// "These faces look like Sara" - the Matches tab.
@@ -394,14 +397,14 @@ class ReviewRepository {
     final rows = await _db
         .customSelect(
           '''
-          SELECT m.face_id, m.person_id, m.score, m.margin, m.decision, f.quality_score, f.crop_path, f.track_id
+          SELECT m.face_id, m.person_id, m.score, m.margin, m.decision, f.quality_score, f.face_px, f.crop_path, f.track_id
           FROM review_matches m JOIN faces f ON f.id = m.face_id
           WHERE f.person_id IS NULL AND f.review_dismissed = 0 AND f.kind = ?
             ${personId == null ? '' : 'AND m.person_id = ?'}
             AND f.hidden = 0 AND (f.ownership IS NULL OR f.ownership != 'none')
             AND EXISTS (SELECT 1 FROM persons p WHERE p.id = m.person_id AND p.hidden = 0 AND p.grouping_locked = 0)
             AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = f.id AND r.person_id = m.person_id)
-          ORDER BY m.person_id, m.score DESC
+          ORDER BY m.person_id, m.score DESC, f.quality_score DESC, m.face_id
           ''',
           variables: [
             Variable.withString(kind),
@@ -428,6 +431,7 @@ class ReviewRepository {
               decision: r.read<String>('decision'),
               margin: r.read<double>('margin'),
               quality: r.read<double>('quality_score'),
+              facePx: r.read<double>('face_px'),
             ),
           );
     }
@@ -905,21 +909,68 @@ class ReviewRepository {
     return result;
   }
 
-  /// One commit for the checked and unchecked suggestions in an album.
-  Future<void> answerAlbum({
+  /// Save only the appearances the album showed and the user decided on.
+  Future<({int added, int rejected})> answerAlbum({
     required int personId,
     required List<int> faceIds,
     required Set<int> excludedFaces,
     required List<int> bodyIds,
     required Set<int> excludedBodies,
   }) => _db.transaction(() async {
-    await answerMatchBatch(faceIds, personId, excluded: excludedFaces);
-    for (final id in bodyIds.where(excludedBodies.contains)) {
-      await rejectBodyLink(id, personId);
+    final person = await _people.person(personId);
+    if (person == null ||
+        person.kind != kind ||
+        person.hidden ||
+        person.groupingLocked) {
+      return (added: 0, rejected: 0);
     }
-    for (final id in bodyIds.where((id) => !excludedBodies.contains(id))) {
-      await acceptBodyLink(id, personId);
+    var added = 0, rejected = 0;
+    final eligible = await _availableForReview(faceIds.toSet(), personId);
+    for (final id in eligible) {
+      final row = await _db
+          .customSelect(
+            '''
+        SELECT ${faceConflictWithPerson('m.face_id', 'm.person_id')} AS conflicts
+        FROM review_matches m WHERE m.face_id = ? AND m.person_id = ?
+      ''',
+            variables: [Variable.withInt(id), Variable.withInt(personId)],
+          )
+          .getSingleOrNull();
+      if (row == null) continue;
+      if (excludedFaces.contains(id)) {
+        await _people.rejectFaces([id], fromPersonId: personId);
+        rejected++;
+      } else if (!row.read<bool>('conflicts')) {
+        await _people.assignFaces([id], personId);
+        added++;
+      }
     }
+    if (bodyIds.isNotEmpty) {
+      final suggestions = await bodyLinks(
+        peopleById: {personId: person},
+        personId: personId,
+      );
+      for (final suggestion in suggestions.where(
+        (s) => bodyIds.contains(s.bodyId),
+      )) {
+        final id = suggestion.bodyId;
+        if (excludedBodies.contains(id)) {
+          await _people.rejectBody(id, personId: personId);
+          rejected++;
+        } else {
+          final conflict = await _db
+              .customSelect(
+                'SELECT ${bodyConflictWithPerson('?1', '?2')} AS conflicts',
+                variables: [Variable.withInt(id), Variable.withInt(personId)],
+              )
+              .getSingle();
+          if (conflict.read<bool>('conflicts')) continue;
+          await _people.linkBody(id, personId);
+          added++;
+        }
+      }
+    }
+    return (added: added, rejected: rejected);
   });
 
   /// Unticked faces are remembered as not this identity, including for new groups.

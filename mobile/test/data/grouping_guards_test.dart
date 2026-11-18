@@ -63,6 +63,16 @@ void main() {
   );
 
   group('one person is never twice in a frame', () {
+    test('a shared video track cannot assign an unrelated face', () async {
+      final person = await seedPerson(db);
+      final anchor = await seedFace(db, personId: person);
+      final other = await seedFace(db, seed: 2);
+      await (db.update(db.faces)..where((f) => f.id.isIn([anchor, other])))
+          .write(FacesCompanion(trackId: Value(anchor)));
+      await applier.applyFacePlan(const GroupingPlanResponse(mode: 'apply'));
+      expect(await personOf(other), isNull);
+    });
+
     test('a doubtful track cannot propagate its owner to more faces', () async {
       final person = await seedPerson(db);
       final anchor = await seedFace(db, personId: person);

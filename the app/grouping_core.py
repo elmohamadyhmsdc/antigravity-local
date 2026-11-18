@@ -167,21 +167,32 @@ class GroupingPlan:
 # ---------------------------------------------------------------------------
 
 def _known_person_for(emb: np.ndarray, qual: np.ndarray, rejected: List[Set[int]], models: Dict[int, pl.PersonModel],
-                      pids: List[int], protos: np.ndarray, params: pl.GroupingParams) -> Optional[Tuple[int, float]]:
+                      pids: List[int], protos: np.ndarray, params: pl.GroupingParams, *,
+                      adaptive: bool = False) -> Optional[Tuple[int, float]]:
     """The known person a freshly clustered group clearly is (person-pair score >= merge_auto, the bar at
     which new groups are folded together), else None. A person any face of the group was told it is NOT
     is never a candidate. Without this a person split in two keeps spawning a third."""
     group = pl.build_person_models(emb, [0] * len(emb), qual)[0]
     quick = protos @ group.proto
-    best: Optional[Tuple[int, float]] = None
+    candidates = []
     for k in np.nonzero(quick >= params.merge_auto - 0.15)[0].tolist():
         pid = pids[k]
         if any(pid in r for r in rejected):
             continue
         score = pl.person_pair_score(group, models[pid])
-        if score >= params.merge_auto and (best is None or score > best[1]):
-            best = (pid, score)
-    return best
+        if score >= params.merge_auto - (params.match_margin if adaptive else 0):
+            candidates.append((pid, score))
+    candidates.sort(key=lambda candidate: -candidate[1])
+    if not candidates or candidates[0][1] < params.merge_auto:
+        return None
+    pid, score = candidates[0]
+    if adaptive:
+        if len(candidates) > 1 and score - candidates[1][1] < params.match_margin:
+            return None
+        matches = pl.match_faces(emb, {pid: models[pid]}, params, adaptive_qualities=qual)
+        if any(match.decision != "auto" for match in matches):
+            return None
+    return pid, score
 
 
 MAX_NEGATIVE_PAIRS = 20_000
@@ -261,18 +272,21 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
 
     link_alike = snapshot.link_alike_people and bool(models)
     alike: Optional[Dict[int, Set[int]]] = None
-    if link_alike and len(models) > 1 and n and "match" in wanted:
+    if link_alike and not adaptive and len(models) > 1 and n and "match" in wanted:
         alike = {}
         for a, b, score in pl.suggest_merges(models, params, [tuple(p) for p in snapshot.distinct_pairs]):
             if score >= params.merge_auto:
                 alike.setdefault(a, set()).add(b)
                 alike.setdefault(b, set()).add(a)
 
+    ambiguous = set()
     if "match" in wanted and models and n:
         per_person: Dict[int, List[FaceAssignment]] = {}
         accepted = ("auto", "suggest") if review else ("auto",)
         for m in pl.match_faces(e, models, params, keys, rejected, alike,
                                 adaptive_qualities=q if adaptive else None):
+            if adaptive and m.decision == "suggest" and m.score >= params.match_auto:
+                ambiguous.add(m.index)
             if m.decision in accepted:
                 per_person.setdefault(m.person_id, []).append(
                     FaceAssignment(pending[m.index].id, m.person_id, round(m.score, 3), round(m.margin, 3),
@@ -294,9 +308,10 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
             fold_protos = np.stack([models[p].proto for p in fold_pids]) if fold_pids else None
             for c in pl.cluster_faces(e[sub], q[sub], params, [keys[i] for i in rest], adaptive=adaptive):
                 idx = [rest[i] for i in c.indices]
-                if fold_pids:
+                uncertain = not ambiguous.isdisjoint(idx)
+                if fold_pids and not uncertain:
                     target = _known_person_for(e[idx], q[idx], [rejected[i] for i in idx], models, fold_pids,
-                                               fold_protos, params)
+                                               fold_protos, params, adaptive=adaptive)
                     if target is not None:
                         pid, score = target
                         result.assignments.extend(
@@ -304,7 +319,8 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
                                            round(score - params.merge_auto, 3), "auto") for i in idx)
                         continue
                 result.groups.append(FaceGroup([pending[i].id for i in idx], round(c.cohesion, 3),
-                                               round(c.quality, 3), bool(pl.should_auto_create(c, params))))
+                                               round(c.quality, 3), not uncertain and
+                                               bool(pl.should_auto_create(c, params, adaptive=adaptive))))
                 if review:
                     claimed.update(idx)
 
@@ -338,7 +354,8 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
         if strictness == pl.AUTO and snapshot.provisional_person_ids and len(models) > 1:
             bar = pl.people_merge_threshold(models, bar, distinct)
         result.merges = [PersonMerge(a, b, s) for a, b, s in
-                         pl.auto_merge_people(models, snapshot.provisional_person_ids, bar, distinct)]
+                         pl.auto_merge_people(models, snapshot.provisional_person_ids, bar, distinct,
+                                              params=params if adaptive else None)]
 
     if review:
         result.unsorted_face_ids = [pending[i].id for i in range(n) if i not in claimed]

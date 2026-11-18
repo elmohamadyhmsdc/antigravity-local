@@ -32,6 +32,7 @@ String jobTypeLabel(AppLocalizations l10n, String type) => switch (type) {
   'build_lora_dataset' => l10n.loraDatasetBuild,
   'train_lora' => l10n.loraTrain,
   'generate_lora_images' => l10n.loraGenerate,
+  'measure_reface_poses' => l10n.refaceModelCheckingTarget,
   _ =>
     '${l10n.refaceTitle} · ${type.contains('video') ? l10n.resultVideo : l10n.resultPhoto}',
 };

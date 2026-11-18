@@ -969,6 +969,33 @@ def test_adaptive_faces_with_equal_scores_need_evidence_proportional_to_quality(
 
 
 @test
+def test_an_ambiguous_candidate_does_not_get_assigned_or_spawn_a_duplicate():
+    face, offset = np.eye(2, 512, dtype=np.float32)
+    a = pl.normalize_rows(face + 0.4 * offset)
+    b = pl.normalize_rows(face - 0.4 * offset)
+    snapshot = gc.Snapshot(
+        models={1: pl.PersonModel(1, a, a[None, :], 1),
+                2: pl.PersonModel(2, b, b[None, :], 1)},
+        pending=[gc.PendingFace(i, face, .9, f"photo-{i}") for i in range(3)],
+        link_alike_people=True,
+    )
+    plan = gc.plan(snapshot, "apply", ["match", "cluster"], "auto")
+    check(not plan.assignments and len(plan.groups) == 1 and not plan.groups[0].auto_create,
+          f"nearly tied identities cannot be bypassed by a fresh group: {plan}")
+
+
+@test
+def test_a_good_cluster_average_cannot_auto_create_with_a_weak_member():
+    face, offset = np.eye(2, 512, dtype=np.float32)
+    outsider = pl.normalize_rows(0.35 * face + np.sqrt(1 - .35 ** 2) * offset)
+    snapshot = gc.Snapshot(pending=[gc.PendingFace(i, v, .9, f"photo-{i}")
+                                    for i, v in enumerate([face, face, face, outsider])])
+    plan = gc.plan(snapshot, "apply", ["cluster"], "auto")
+    check(len(plan.groups) == 1 and len(plan.groups[0].face_ids) == 4 and not plan.groups[0].auto_create,
+          f"the weakest face needs its own support: {plan}")
+
+
+@test
 def test_adaptive_weak_face_body_links_use_the_body_detection_score():
     known, other = np.eye(2, 512, dtype=np.float32)
     score = pl.auto_params().match_auto + 0.04

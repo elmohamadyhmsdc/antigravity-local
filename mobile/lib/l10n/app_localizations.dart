@@ -3133,7 +3133,7 @@ abstract class AppLocalizations {
   /// No description provided for @refaceModelStart.
   ///
   /// In en, this message translates to:
-  /// **'Prepare references and start Reface'**
+  /// **'Prepare and review references'**
   String get refaceModelStart;
 
   /// No description provided for @refaceModelCheckingTarget.
@@ -3141,12 +3141,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Checking the face angles in your target…'**
   String get refaceModelCheckingTarget;
-
-  /// No description provided for @refaceModelGenerating.
-  ///
-  /// In en, this message translates to:
-  /// **'Generating face references from the selected model…'**
-  String get refaceModelGenerating;
 
   /// No description provided for @refaceModelVerifying.
   ///
@@ -3157,7 +3151,7 @@ abstract class AppLocalizations {
   /// No description provided for @refaceModelPaused.
   ///
   /// In en, this message translates to:
-  /// **'Face reference generation is paused. Resume it in Activity, then start Reface again.'**
+  /// **'Reference preparation is paused. Resume it in Activity, then return here to review.'**
   String get refaceModelPaused;
 
   /// No description provided for @refaceModelFailed.
@@ -3189,6 +3183,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This model file is unavailable. Choose another model.'**
   String get refaceModelFileUnavailable;
+
+  /// No description provided for @refacePoseUpdatePc.
+  ///
+  /// In en, this message translates to:
+  /// **'Update the PC server to measure all frames and review Reface references.'**
+  String get refacePoseUpdatePc;
+
+  /// No description provided for @refacePoseReviewHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Reface checks each frame and prepares references for the measured head angles. You can review them before it swaps any faces.'**
+  String get refacePoseReviewHint;
+
+  /// No description provided for @refacePoseReviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review Reface references'**
+  String get refacePoseReviewTitle;
+
+  /// No description provided for @refacePosePortraits.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified references to use'**
+  String get refacePosePortraits;
+
+  /// No description provided for @refacePoseMeasured.
+  ///
+  /// In en, this message translates to:
+  /// **'Measured head angles'**
+  String get refacePoseMeasured;
+
+  /// No description provided for @refacePoseGrouping.
+  ///
+  /// In en, this message translates to:
+  /// **'Near-identical angles are grouped in 15° yaw and pitch steps and 25° roll steps. Coverage compares the measured reference to the angle shown.'**
+  String get refacePoseGrouping;
+
+  /// No description provided for @refacePoseRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate missing references'**
+  String get refacePoseRetry;
+
+  /// No description provided for @refacePoseStartPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Reface with this coverage'**
+  String get refacePoseStartPartial;
+
+  /// No description provided for @refacePoseMatched.
+  ///
+  /// In en, this message translates to:
+  /// **'Covered'**
+  String get refacePoseMatched;
+
+  /// No description provided for @refacePoseMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing reference'**
+  String get refacePoseMissing;
+
+  /// No description provided for @refacePoseUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Angle unavailable'**
+  String get refacePoseUnknown;
+
+  /// No description provided for @refacePoseNoPortraits.
+  ///
+  /// In en, this message translates to:
+  /// **'None of the generated portraits matched the selected person.'**
+  String get refacePoseNoPortraits;
+
+  /// No description provided for @refacePoseNoMeasurements.
+  ///
+  /// In en, this message translates to:
+  /// **'No face angle was measurable in this selection.'**
+  String get refacePoseNoMeasurements;
+
+  /// No description provided for @refacePoseFrames.
+  ///
+  /// In en, this message translates to:
+  /// **'{decoded} of {total} frames decoded and checked'**
+  String refacePoseFrames(int decoded, int total);
+
+  /// No description provided for @refacePoseCoverage.
+  ///
+  /// In en, this message translates to:
+  /// **'{covered} of {total} measured angle groups covered'**
+  String refacePoseCoverage(int covered, int total);
+
+  /// No description provided for @refacePoseUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unreadable frames ({count})'**
+  String refacePoseUnreadable(int count);
+
+  /// No description provided for @refacePoseNoFrame.
+  ///
+  /// In en, this message translates to:
+  /// **'Frames with no measurable selected face ({count})'**
+  String refacePoseNoFrame(int count);
+
+  /// No description provided for @refacePoseNoFace.
+  ///
+  /// In en, this message translates to:
+  /// **'Detected faces without a reliable angle ({count})'**
+  String refacePoseNoFace(int count);
+
+  /// No description provided for @refacePoseAngles.
+  ///
+  /// In en, this message translates to:
+  /// **'Yaw {yaw}° · Pitch {pitch}° · Roll {roll}°'**
+  String refacePoseAngles(String yaw, String pitch, String roll);
+
+  /// No description provided for @refacePoseObservations.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} observations · {time} · {status}'**
+  String refacePoseObservations(int count, String time, String status);
+
+  /// No description provided for @refacePoseGeneratingBatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating face references ({batch} of {total})…'**
+  String refacePoseGeneratingBatch(int batch, int total);
 
   /// No description provided for @refaceQuality.
   ///
@@ -5941,20 +6061,20 @@ abstract class AppLocalizations {
   /// No description provided for @albumReviewHelp.
   ///
   /// In en, this message translates to:
-  /// **'Every photo starts ticked. Untick the ones that aren\'t {name}, then tap Done. Long-press a photo to see it full size.'**
+  /// **'Select photos to add to {name} or mark as someone else. Tap the magnifier to check the original.'**
   String albumReviewHelp(String name);
 
-  /// No description provided for @albumReviewNone.
+  /// No description provided for @albumReviewAdd.
   ///
   /// In en, this message translates to:
-  /// **'Untick all'**
-  String get albumReviewNone;
+  /// **'Add selected'**
+  String get albumReviewAdd;
 
-  /// No description provided for @albumReviewSummary.
+  /// No description provided for @albumReviewReject.
   ///
   /// In en, this message translates to:
-  /// **'{add} to add · {remove} someone else'**
-  String albumReviewSummary(int add, int remove);
+  /// **'Mark selected as someone else'**
+  String get albumReviewReject;
 
   /// No description provided for @albumReviewSaved.
   ///

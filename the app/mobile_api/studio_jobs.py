@@ -16,10 +16,11 @@ from .errors import ApiError, bad_request, not_found
 from .gpu_guard import Busy
 from .reface_runner import run_reface
 from .reference_reface import REFERENCE_TYPES, run_reference_reface, validate_reference_reface
-from .artifact_jobs import ARTIFACT_TYPES, run_artifact, validate_artifact
+from .artifact_jobs import ARTIFACT_TYPES, PortraitGenerationError, run_artifact, validate_artifact
 from .schemas import decode_embedding
 from .video_jobs import stamp
 from .photo_edit import TYPE as PHOTO_EDIT_TYPE, run_photo_edit, validate_photo_edit
+from .reface_poses import TYPE as POSE_TYPE, RESULT as POSE_RESULT, run_measurement, validate_measurement
 
 log = logging.getLogger("mobile_api")
 REFACE_TYPES = {f"reface_{kind}_{engine}" for kind in ("image", "video") for engine in ("v3", "v2", "dfm")}
@@ -152,6 +153,10 @@ def validate_reface(body, capabilities):
         raise bad_request("Legacy supports automatic/disabled enhancement and occlusion protection only.")
     if (legacy or dfm) and any(key in params for key in ("identity_boost", "swapper")):
         raise bad_request("Swapper and identity strength do not apply to legacy or trained-identity jobs.")
+    validate_reface_targets(kind, params)
+
+
+def validate_reface_targets(kind, params):
     refs, picks = params.get("target_embeddings"), params.get("target_indices")
     if refs is not None or picks is not None:
         if not kind.startswith("reface_video") or "target_faces" in params:
@@ -219,6 +224,8 @@ class StudioJobs:
     def create(self, body, device):
         if body.get('type') == PHOTO_EDIT_TYPE:
             validate_photo_edit(body, self.ctx.probe.snapshot())
+        elif body.get('type') == POSE_TYPE:
+            validate_measurement(body, self.ctx.probe.snapshot(), validate_reface_targets)
         elif body.get('type') in ARTIFACT_TYPES:
             validate_artifact(body, self.ctx.probe.snapshot())
         else:
@@ -319,7 +326,8 @@ class StudioJobs:
                 files = []
                 for name, mime in [("result.png", "image/png"), ("result.mp4", "video/mp4"),
                                    ('dataset.zip','application/zip'), ('portraits.zip','application/zip'),
-                                   ('lora.safetensors','application/octet-stream'), ('identity_bundle.json', 'application/json')]:
+                                   ('lora.safetensors','application/octet-stream'), ('identity_bundle.json', 'application/json'),
+                                   (POSE_RESULT, 'application/json')]:
                     path = directory / name
                     if path.exists():
                         with open(path, "rb") as source:
@@ -335,9 +343,10 @@ class StudioJobs:
             except Exception as exc:
                 log.exception("Studio job failed: %s", job["job_id"])
                 from photo_edit import PhotoEditError
-                actionable = job['type'] == PHOTO_EDIT_TYPE and isinstance(exc, PhotoEditError)
+                photo_edit_error = job['type'] == PHOTO_EDIT_TYPE and isinstance(exc, PhotoEditError)
+                actionable = photo_edit_error or isinstance(exc, PortraitGenerationError)
                 with self.lock:
-                    job.update(status="failed", message="Adjust the photo edit" if actionable else "Processing failed", touched=time.time(),
+                    job.update(status="failed", message="Adjust the photo edit" if photo_edit_error else "Processing failed", touched=time.time(),
                                error=str(exc) if actionable else "The PC could not process this target. Check the PC log, then retry.")
 
     def get(self, job_id, device):
@@ -399,6 +408,8 @@ class StudioJobs:
             log.exception("Could not release scan engines before a Studio job")
 
     def _run_engine(self, job, directory, report, stopped):
+        if job['type'] == POSE_TYPE:
+            return run_measurement(job, directory, report, stopped, max_side=self.ctx.max_image_px)
         if job['type'] == PHOTO_EDIT_TYPE:
             return run_photo_edit(job, directory, report, stopped)
         if job['type'] in REFERENCE_TYPES:

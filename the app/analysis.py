@@ -235,10 +235,10 @@ def det_sizes(img) -> List[Tuple[int, int]]:
     return sizes
 
 
-def detect_faces(face_app, img) -> list:
+def detect_faces(face_app, img, *, sizes=None) -> list:
     """insightface's FaceAnalysis.get, but with per-image detector scales."""
     from insightface.app.common import Face
-    sizes = det_sizes(img)
+    sizes = det_sizes(img) if sizes is None else sizes
     bboxes, kpss = face_app.det_model.detect(img, input_size=sizes, max_num=0)
     # Preview frames may be smaller than 1600 px. If the ordinary passes found
     # nothing, try the finer detector grid before declaring the frame faceless.
@@ -327,6 +327,29 @@ def analyze_frame(face_app, body, img, options,
     drawn = [k != "person" and _box_px(f.bbox) >= DRAWN_TEST_MIN_PX
              and drawn_faces.is_drawn(getattr(f, "embedding", None))
              for f, k in zip(faces, face_kinds)]
+    illustrated_source = force == "character" or bool(getattr(options, "faceless_characters", True))
+    raw_anime = []
+    if want_characters:
+        ad = get_anime_detector()
+        if ad is not None:
+            try:
+                detect_anime = (ad.detect_multiscale if illustrated_source and hasattr(ad, "detect_multiscale")
+                                else ad.detect)
+                raw_anime = detect_anime(img, score_thresh=ANIME_CANDIDATE_SCORE)
+            except Exception:
+                pass
+        # When both detectors agree on the region, the artwork evidence can
+        # resolve a face just below the embedding-only artwork threshold.
+        strong_anime = [np.asarray(a["bbox"], dtype=float) for a in raw_anime
+                        if np.isfinite(a["score"]) and a["score"] >= ANIME_ALONE_SCORE]
+        strong_anime = [box for box in strong_anime if box.shape == (4,) and np.isfinite(box).all()
+                        and _character_face_box(box)]
+        if strong_anime:
+            for i, (f, kind) in enumerate(zip(faces, face_kinds)):
+                if (kind is None and not drawn[i] and _box_px(f.bbox) >= DRAWN_TEST_MIN_PX
+                        and drawn_faces.drawn_score(getattr(f, "embedding", None)) >= 0.18
+                        and any(overlaps_real_face(f.bbox, box) for box in strong_anime)):
+                    drawn[i] = True
     for i, f in enumerate(faces):
         # A single face the user called a person is stored even below the gate.
         if face_kinds[i] == "person" and any(p == "face" and overlaps_real_face(f.bbox, b)
@@ -343,7 +366,6 @@ def analyze_frame(face_app, body, img, options,
             passes[i] = False
 
     anime_faces = []
-    illustrated_source = force == "character" or bool(getattr(options, "faceless_characters", True))
     real = []
     if want_characters:
         # An anime hit elsewhere in an image must never change how a real face is routed.
@@ -360,15 +382,6 @@ def analyze_frame(face_app, body, img, options,
             (i, f) for i, f in enumerate(faces)
             if face_kinds[i] is None and drawn[i] and _face_landmarks(f)
         ]
-        ad = get_anime_detector()
-        raw_anime = []
-        if ad is not None:
-            try:
-                detect_anime = (ad.detect_multiscale if illustrated_source and hasattr(ad, "detect_multiscale")
-                                else ad.detect)
-                raw_anime = detect_anime(img, score_thresh=ANIME_CANDIDATE_SCORE)
-            except Exception:
-                pass
         alone_score = ANIME_ILLUSTRATED_SCORE if illustrated_source else ANIME_ALONE_SCORE
         corroborated = set()
         for candidate in sorted(raw_anime, key=lambda a: -a["score"]):

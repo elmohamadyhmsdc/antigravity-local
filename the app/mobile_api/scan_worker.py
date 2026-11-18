@@ -147,6 +147,41 @@ class ScanWorker:
                     'The image analysis worker stopped. The server is online; retry this image.',
                     retryable=True, headers={'Retry-After': '2'}) from error
 
+    def pose_faces(self, img):
+        """Return raw pose detections without the library scan's filtering."""
+        with self._lock:
+            self._start()
+            message = json.dumps({'type': 'pose_faces', 'shape': list(img.shape),
+                'pixels': base64.b64encode(np.ascontiguousarray(img, dtype=np.uint8)).decode('ascii')},
+                separators=(',', ':')).encode('utf-8') + b'\n'
+            try:
+                self.process.stdin.write(message)
+                self.process.stdin.flush()
+                raw = self.responses.get(timeout=self.timeout)
+                if raw is None:
+                    self.process.wait(timeout=5)
+                    raise RuntimeError(f'pose worker exited with code {self.process.returncode} '
+                                       f'(0x{self.process.returncode & 0xffffffff:08X})')
+                response = json.loads(raw)
+                if response.get('error'):
+                    raise RuntimeError(response['error'])
+                faces = []
+                for face in response['faces']:
+                    vector = face['normed_embedding']
+                    vector = np.asarray(vector, dtype=np.float32) if vector is not None else None
+                    faces.append(SimpleNamespace(
+                        bbox=np.asarray(face['bbox'], dtype=np.float32),
+                        kps=np.asarray(face['kps'], dtype=np.float32) if face['kps'] is not None else None,
+                        normed_embedding=vector, embedding=vector,
+                        det_score=face['det_score'], pose=face['pose'],
+                    ))
+                return faces
+            except (OSError, ValueError, RuntimeError, queue.Empty, subprocess.TimeoutExpired) as error:
+                self.log(f'[scan worker] pose measurement failed: {error}')
+                self.close()
+                raise ApiError(503, 'engine_unavailable', 'The pose measurement worker stopped. Retry the target.',
+                               retryable=True) from error
+
     def outlines(self, img, targets):
         with self._lock:
             self._start()
@@ -249,9 +284,11 @@ def main():
     # Third party model loaders print diagnostics; keep the protocol separate.
     output = sys.stdout
     sys.stdout = sys.stderr
-    from analysis import AnalyzeOptions
-    from .engines import InsightEngines
+    from analysis import AnalyzeOptions, det_sizes, detect_faces
+    from .engines import InsightEngines, load_face_analyzer
+    from .schemas import py
     engines = InsightEngines(isolate_scans=False)
+    pose_analyzer = None
     for line in sys.stdin.buffer:
         try:
             if len(line) > MAX_MESSAGE: raise ValueError('Image IPC message is too large')
@@ -266,6 +303,16 @@ def main():
             elif request.get('type') == 'anime_face':
                 response = {'detections': engines.targeted_analyze(
                     image, 'anime_face', request.get('roi'), high_res=bool(request.get('high_res', True)))}
+            elif request.get('type') == 'pose_faces':
+                if pose_analyzer is None:
+                    pose_analyzer = load_face_analyzer()
+                sizes = list(dict.fromkeys([*det_sizes(image), (1280, 1280)]))
+                faces = detect_faces(pose_analyzer, image, sizes=sizes)
+                response = {'faces': py([
+                    dict(bbox=f.bbox, kps=f.kps, normed_embedding=f.normed_embedding,
+                         det_score=f.det_score, pose=getattr(f, 'pose', None))
+                    for f in faces
+                ])}
             elif request.get('type') == 'sensitive':
                 bodies = [{'bbox': b['bbox'], 'kpts': b.get('kpts'), 'kpt_scores': b.get('kpt_scores')}
                           for b in request.get('bodies', [])]

@@ -264,6 +264,7 @@ class StudioRepository {
     File? identityBundle,
     int? personId,
     ArtifactContext? context,
+    String? expectedTargetSha,
   }) async {
     return enqueueInputs(
       serverId: serverId,
@@ -275,6 +276,7 @@ class StudioRepository {
       },
       personId: personId,
       context: context,
+      expectedTargetSha: expectedTargetSha,
     );
   }
 
@@ -285,6 +287,7 @@ class StudioRepository {
     required Map<String, List<File>> inputs,
     int? personId,
     ArtifactContext? context,
+    String? expectedTargetSha,
   }) async {
     if (inputs.isEmpty || inputs.values.any((list) => list.isEmpty)) {
       throw const FormatException('Choose input files.');
@@ -307,6 +310,13 @@ class StudioRepository {
           if (size <= 0) throw const FormatException('An input file is empty.');
           final hash = await isolatedFileSha256(staged.path);
           stagedFiles[hash] = relative;
+          if (slot.key == 'target' &&
+              expectedTargetSha != null &&
+              hash != expectedTargetSha) {
+            throw const FormatException(
+              'The target file changed. Reopen it and prepare new references.',
+            );
+          }
           hashes.add(hash);
           firstPath ??= relative;
           firstSha ??= hash;

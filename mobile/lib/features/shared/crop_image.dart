@@ -19,13 +19,15 @@ class CropImage extends ConsumerWidget {
     this.cacheWidth = 240,
     this.placeholderIcon = Icons.face_outlined,
     this.expandable = true,
+    this.fallback,
   });
 
   final String? path;
   final BoxFit fit;
-  final int cacheWidth;
+  final int? cacheWidth;
   final IconData placeholderIcon;
   final bool expandable;
+  final Widget? fallback;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,7 +49,7 @@ class CropImage extends ConsumerWidget {
       fit: fit,
       cacheWidth: cacheWidth,
       gaplessPlayback: true,
-      errorBuilder: (_, _, _) => placeholder,
+      errorBuilder: (_, _, _) => fallback ?? placeholder,
     );
     Widget preview(Widget image) => expandable
         ? ImageExpand(source: ImagePreviewSource.crop(relative), child: image)
@@ -61,7 +63,11 @@ class CropImage extends ConsumerWidget {
       key: ValueKey(relative),
       future: cache.ensure(relative),
       builder: (context, snapshot) {
-        if (snapshot.data == null) return placeholder;
+        if (snapshot.data == null) {
+          return snapshot.connectionState == ConnectionState.done
+              ? fallback ?? placeholder
+              : placeholder;
+        }
         // a new crop at the same path must not show a stale decoded image
         return preview(
           Image.file(
@@ -70,7 +76,7 @@ class CropImage extends ConsumerWidget {
             fit: fit,
             cacheWidth: cacheWidth,
             gaplessPlayback: true,
-            errorBuilder: (_, _, _) => placeholder,
+            errorBuilder: (_, _, _) => fallback ?? placeholder,
           ),
         );
       },

@@ -329,6 +329,7 @@ class InsightEngines:
 
     def unload(self):
         import gc
+        import sys
         with self._lock:
             if self._scan_worker is not None:
                 self._scan_worker.close()
@@ -340,8 +341,10 @@ class InsightEngines:
             self._embedder = None
         gc.collect()
         try:
-            import torch
-            if torch.cuda.is_available():
+            # Clearing an idle engine must not import PyTorch or create a CUDA
+            # context in the API process just before a generation worker starts.
+            torch = sys.modules.get("torch")
+            if torch is not None and torch.cuda.is_initialized():
                 torch.cuda.empty_cache()
                 torch.cuda.ipc_collect()
         except Exception:
@@ -437,6 +440,8 @@ class CapabilityProbe:
             "face_detection": face_ready,
             "identity_bundle": face_ready,
             "reface_geometry": face_ready,
+            "reface_pose_review": face_ready and (_Path.home() / '.insightface' / 'models' /
+                                                  'buffalo_l' / '1k3d68.onnx').is_file(),
             "character_identity": character_ready and self._has('models', 'body', 'yolox_m_humanart.onnx'),
             "dataset_person": face_ready and self._has('models', 'wd14_tagger_model.onnx') and self._has('models', 'gpen_bfr_512.onnx'),
             "dataset_character": character_ready and self._has('models', 'body', 'yolox_m_humanart.onnx') and self._has('models', 'wd14_tagger_model.onnx'),

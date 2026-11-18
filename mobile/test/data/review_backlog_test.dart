@@ -223,6 +223,8 @@ void main() {
     test('an album failure rolls back both acceptance and rejection', () async {
       final person = await seedPerson(db);
       final yes = await seedFace(db, seed: 1), no = await seedFace(db, seed: 2);
+      await match(yes, person, .8);
+      await match(no, person, .7);
       await db.customStatement(
         "CREATE TRIGGER fail_review BEFORE UPDATE OF person_id ON faces WHEN NEW.person_id IS NOT NULL BEGIN SELECT RAISE(ABORT, 'save failed'); END",
       );

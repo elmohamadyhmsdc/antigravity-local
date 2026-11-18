@@ -2,6 +2,8 @@
 
 import hashlib
 import io
+import json
+import sys
 import tempfile
 import time
 import unittest
@@ -158,6 +160,70 @@ class ArtifactTests(unittest.TestCase):
             run_artifact({'type':'generate_lora_images','params':{'trigger_word':'sksx','base_checkpoint':'sd15_realistic_base','num_images':1}},
                          directory,lambda *args,**kwargs:None,lambda:False,self.ctx)
         self.assertTrue((directory/'portraits.zip').is_file())
+
+    def test_native_checkpoint_exit_retries_once_with_the_same_remaining_images(self):
+        from lora_generate import EVENT_PREFIX, STAGE_LOADING_CHECKPOINT
+        from mobile_api.artifact_jobs import run_artifact
+
+        directory = Path(self.tmp.name) / 'generation'
+        directory.mkdir()
+        (directory / 'input.lora').write_bytes(b'fixture')
+        (directory / 'generated').mkdir()
+        (directory / 'generated' / 'previous.png').write_bytes(b'previous')
+        params = {'trigger_word': 'sksx', 'base_checkpoint': 'sd15_realistic_base',
+                  'num_images': 2, 'seed': 12, 'angles': ['profile', 'frontal']}
+        calls = []
+
+        def process(command, work, stopped, on_line, *, stdin):
+            payload = json.loads(stdin)
+            calls.append(payload)
+            if len(calls) == 1:
+                on_line(EVENT_PREFIX + json.dumps({'event': 'stage', 'stage': STAGE_LOADING_CHECKPOINT}))
+                return -1073741819  # signed Windows 0xC0000005
+            checkpoint = Path(payload['safe_checkpoint_path'])
+            checkpoint.write_bytes(b'conversion fixture')
+            (Path(payload['output_dir']) / 'recovered.png').write_bytes(b'recovered')
+            return 0
+
+        with patch('mobile_api.artifact_jobs.run_process', process):
+            result = run_artifact(dict(type='generate_lora_images', params=params), directory,
+                                  lambda *_args, **_kwargs: None, lambda: False, self.ctx)
+        self.assertEqual(len(calls), 2)
+        recovery = dict(calls[1])
+        self.assertFalse(Path(recovery.pop('safe_checkpoint_path')).exists())
+        self.assertEqual(recovery, calls[0])
+        self.assertEqual(recovery['num_images'], 1)
+        self.assertEqual(recovery['angle_offset'], 1)
+        self.assertEqual(recovery['seed'], 13)
+        self.assertEqual(result['image_count'], 2)
+        with zipfile.ZipFile(directory / 'portraits.zip') as bundle:
+            self.assertEqual(bundle.read('previous.png'), b'previous')
+
+    def test_python_model_error_is_reported_without_retrying(self):
+        from lora_generate import EVENT_PREFIX, STAGE_LOADING_CHECKPOINT
+        from mobile_api.artifact_jobs import PortraitGenerationError, run_artifact
+
+        directory = Path(self.tmp.name)
+        (directory / 'input.lora').write_bytes(b'fixture')
+
+        def fail(command, work, stopped, on_line, *, stdin):
+            on_line(EVENT_PREFIX + json.dumps({'event': 'stage', 'stage': STAGE_LOADING_CHECKPOINT}))
+            return 1
+
+        with patch('mobile_api.artifact_jobs.run_process', side_effect=fail) as process:
+            with self.assertRaisesRegex(PortraitGenerationError, r'\(1\)'):
+                run_artifact(dict(type='generate_lora_images', params={
+                    'trigger_word': 'sksx', 'base_checkpoint': 'sd15_realistic_base'}), directory,
+                    lambda *_args, **_kwargs: None, lambda: False, self.ctx)
+        process.assert_called_once()
+
+    def test_worker_logs_exit_code_even_without_a_python_exception(self):
+        from mobile_api.artifact_jobs import run_process
+
+        directory = Path(self.tmp.name)
+        command = [sys.executable, '-c', 'import os; os._exit(23)']
+        self.assertEqual(run_process(command, directory, lambda: False, lambda _: None), 23)
+        self.assertIn('Worker exit: 23 (0x00000017)', (directory / 'engine.log').read_text())
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

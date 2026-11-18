@@ -23,11 +23,15 @@ final reviewVisualProvider = FutureProvider.autoDispose
 
 /// A photo, decoded once to learn its size. Null when the original is gone.
 final _photoProvider = FutureProvider.autoDispose
-    .family<(Uint8List, int, int)?, (String, int)>((ref, key) async {
+    .family<(Uint8List, int, int)?, (String, int, int?)>((ref, key) async {
       try {
-        final bytes = await ref
-            .watch(mediaLibraryProvider)
-            .viewerImage(key.$1, maxSide: key.$2);
+        final bytes = key.$3 == null
+            ? await ref
+                  .watch(mediaLibraryProvider)
+                  .viewerImage(key.$1, maxSide: key.$2)
+            : (await ref.watch(previewVideoFramesProvider).frames(key.$1, [
+                key.$3!,
+              ], maxSide: key.$2)).firstOrNull;
         if (bytes == null) return null;
         final codec = await ui.instantiateImageCodec(bytes);
         try {
@@ -54,6 +58,7 @@ class HighlightedPhoto extends ConsumerWidget {
     this.maxSide = 1600,
     this.inset = true,
     this.label = true,
+    this.inlinePreview = false,
   });
 
   final String kind;
@@ -61,6 +66,7 @@ class HighlightedPhoto extends ConsumerWidget {
   final int maxSide;
   final bool inset;
   final bool label;
+  final bool inlinePreview;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -73,9 +79,10 @@ class HighlightedPhoto extends ConsumerWidget {
       child: CropImage(
         key: Key('highlight-crop-$kind-$id'),
         path: path,
-        fit: BoxFit.contain,
-        cacheWidth: 800,
+        fit: inlinePreview ? BoxFit.scaleDown : BoxFit.contain,
+        cacheWidth: inlinePreview ? null : 800,
         placeholderIcon: placeholder,
+        expandable: !inlinePreview,
       ),
     );
     return visual.when(
@@ -83,90 +90,93 @@ class HighlightedPhoto extends ConsumerWidget {
       error: (_, _) => crop(null),
       data: (v) {
         if (v == null) return crop(null);
-        if (v.assetId == null || v.mediaKind == 'video') {
+        final video = v.mediaKind == 'video';
+        if (v.assetId == null ||
+            (video && (!inlinePreview || v.timestampMs == null))) {
           return crop(v.cropPath);
         }
-        if (v.outline == null && v.mediaId != null) {
+        if (!inlinePreview && v.outline == null && v.mediaId != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             ref
                 .read(outlineBackfillProvider)
                 .backfillPhoto(v.mediaId!, assetId: v.assetId);
           });
         }
-        final photo = ref.watch(_photoProvider((v.assetId!, maxSide)));
+        final photo = ref.watch(
+          _photoProvider((v.assetId!, maxSide, video ? v.timestampMs : null)),
+        );
         return photo.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => inlinePreview
+              ? crop(v.cropPath)
+              : const Center(child: CircularProgressIndicator()),
           error: (_, _) => crop(v.cropPath),
           data: (image) {
             if (image == null) return crop(v.cropPath);
-            return ImageExpand(
-              source: ImagePreviewSource.asset(v.assetId!),
-              onExpand: () =>
-                  openReviewMedia(context, [ReviewTarget(kind, id)]),
-              child: Center(
-                child: AspectRatio(
-                  aspectRatio: image.$2 / image.$3,
-                  child: Semantics(
-                    label: kind == 'f'
-                        ? l.reviewFaceHighlighted
-                        : l.reviewBodyHighlighted,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.memory(
-                          image.$1,
-                          fit: BoxFit.fill,
-                          gaplessPlayback: true,
-                        ),
-                        IgnorePointer(
-                          child: CustomPaint(
-                            key: Key('highlight-$kind-$id'),
-                            painter: ReviewHighlightPainter(
-                              Rect.fromLTWH(v.x, v.y, v.w, v.h),
-                              label: label
-                                  ? (kind == 'f' ? l.reviewFace : l.reviewBody)
-                                  : '',
-                              isFace: kind == 'f',
-                              outline: v.outline,
-                            ),
+            final preview = Center(
+              child: AspectRatio(
+                aspectRatio: image.$2 / image.$3,
+                child: Semantics(
+                  label: kind == 'f'
+                      ? l.reviewFaceHighlighted
+                      : l.reviewBodyHighlighted,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.memory(
+                        image.$1,
+                        fit: BoxFit.fill,
+                        gaplessPlayback: true,
+                      ),
+                      IgnorePointer(
+                        child: CustomPaint(
+                          key: Key('highlight-$kind-$id'),
+                          painter: ReviewHighlightPainter(
+                            Rect.fromLTWH(v.x, v.y, v.w, v.h),
+                            label: label
+                                ? (kind == 'f' ? l.reviewFace : l.reviewBody)
+                                : '',
+                            isFace: kind == 'f',
+                            outline: v.outline,
                           ),
                         ),
-                        if (inset && v.cropPath != null)
-                          Positioned(
-                            right: 8,
-                            bottom: 8,
-                            width: 76,
-                            height: kind == 'f' ? 76 : 104,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    blurRadius: 6,
-                                    color: Colors.black45,
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: CropImage(
-                                  path: v.cropPath,
-                                  cacheWidth: 240,
-                                  placeholderIcon: placeholder,
-                                ),
+                      ),
+                      if (inset && v.cropPath != null)
+                        Positioned(
+                          right: 8,
+                          bottom: 8,
+                          width: 76,
+                          height: kind == 'f' ? 76 : 104,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.white, width: 2),
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: const [
+                                BoxShadow(blurRadius: 6, color: Colors.black45),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: CropImage(
+                                path: v.cropPath,
+                                cacheWidth: 240,
+                                placeholderIcon: placeholder,
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
                 ),
               ),
             );
+            return inlinePreview
+                ? preview
+                : ImageExpand(
+                    source: ImagePreviewSource.asset(v.assetId!),
+                    onExpand: () =>
+                        openReviewMedia(context, [ReviewTarget(kind, id)]),
+                    child: preview,
+                  );
           },
         );
       },

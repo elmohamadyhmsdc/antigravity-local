@@ -184,5 +184,21 @@ TrackPlacement<V> placeInTrack<V>(
 
 double faceSimilarity(Float32List a, Float32List b) => cosine(a, b);
 
+/// A motion match can retain a distinct view. Linking it to a saved crop once
+/// the track is full needs either a strong match or support from two views.
+bool supportsFaceCompaction<V>(
+  Track<V> track,
+  V value,
+  double Function(V, V) similarity,
+) {
+  var supporting = 0;
+  for (final view in track.views) {
+    final score = similarity(view.value, value);
+    if (score >= trackIdentityCosine) return true;
+    if (score >= trackMotionCosine && ++supporting == 2) return true;
+  }
+  return false;
+}
+
 double outfitSimilarity(List<double>? a, List<double>? b) =>
     appearanceSimilarity(a, b);

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -116,6 +117,24 @@ class FakeStudioApi extends FakeMobileApi implements StudioApi {
       throw UnimplementedError();
 }
 
+class FakePoseAuditApi extends FakeStudioApi {
+  final report = utf8.encode('{"total_frames":8}');
+
+  @override
+  Future<StudioResultFile> studioResult(String id) async =>
+      StudioResultFile.fromJson({
+        'name': 'reface_poses.json',
+        'mime': 'application/json',
+        'size': report.length,
+        'sha256': sha256.convert(report).toString(),
+      });
+
+  @override
+  Future<void> downloadStudioResult(String id, String name, File target) async {
+    await target.writeAsBytes(report);
+  }
+}
+
 void main() {
   late Directory tmp;
   late AppDatabase db;
@@ -153,6 +172,47 @@ void main() {
       video: false,
     );
   }
+
+  test('pose audit stores its verified report before ACK without copying the input', () async {
+    final poseApi = FakePoseAuditApi();
+    api = poseApi;
+    final target = File('${tmp.path}/clip.mp4');
+    await target.writeAsBytes([1, 2, 3, 4]);
+    final id = await repository.enqueueInputs(
+      serverId: api.serverId,
+      type: 'measure_reface_poses',
+      params: {'media_kind': 'video'},
+      inputs: {'target': [target]},
+    );
+    final staged = (await repository.job(id))!.targetPath;
+    api.beforeDelete = () async {
+      final job = (await repository.job(id))!;
+      expect(job.status, 'completed');
+      expect(await files.resolve(job.targetPath).readAsBytes(), poseApi.report);
+    };
+    await tracker.synchronizeOnce();
+    expect((await repository.job(id))!.acknowledged, isTrue);
+    expect(await files.resolve(staged).exists(), isFalse);
+    expect(await files.resolve('results/$id/original.jpg').exists(), isFalse);
+    expect(await db.select(db.results).get(), isEmpty);
+  });
+
+  test('approved references cannot be used if the target file bytes changed', () async {
+    final target = File('${tmp.path}/changed.jpg');
+    await target.writeAsBytes([1, 2, 3, 4]);
+    await expectLater(
+      repository.enqueue(
+        serverId: api.serverId,
+        type: 'reface_image',
+        params: {},
+        target: target,
+        video: false,
+        expectedTargetSha: sha256.convert([4, 3, 2, 1]).toString(),
+      ),
+      throwsFormatException,
+    );
+    expect(await db.select(db.jobs).get(), isEmpty);
+  });
 
   test(
     'lost POST response and app restart reuse the same request; verified result precedes ACK',

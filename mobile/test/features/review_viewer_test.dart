@@ -4,6 +4,7 @@ import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/features/review/review_media_viewer.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../support/fakes.dart';
 import '../support/harness.dart';
@@ -30,47 +31,101 @@ Future<void> _viewerSettle(WidgetTester tester) async {
 }
 
 void main() {
-  appTest(
-    'full original photos can be swiped without changing selection',
-    (tester, env) async {
-      final person = await seedPerson(env.db, name: 'Sara');
-      final media = await seedMedia(env.db, asset: 'swipe-source');
-      env.library.bytes['swipe-source'] = _photo;
-      final ids = [
-        await seedFace(env.db, mediaId: media, seed: 1),
-        await seedFace(env.db, mediaId: media, seed: 2),
-      ];
-      for (final id in ids) {
-        await env.db
-            .into(env.db.reviewMatches)
-            .insert(
-              ReviewMatchesCompanion.insert(
-                faceId: Value(id),
-                personId: person,
-                score: .8,
-                margin: .1,
-                decision: 'suggest',
-              ),
-            );
-      }
-      await _open(tester, env);
-      await tester.tap(find.byKey(Key('match-face-${ids.first}')));
-      await _viewerSettle(tester);
-      await tester.drag(
-        find.byKey(const Key('review-photo-pages')),
-        const Offset(-350, 0),
-      );
-      await _viewerSettle(tester);
-      expect(find.text('2 / 2'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('review-photo-previous')));
-      await _viewerSettle(tester);
-      expect(find.text('1 / 2'), findsOneWidget);
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(find.text('Add 2 faces'), findsOneWidget);
-    },
-    session: testSession,
-  );
+  appTest('album review automatically shows context for a small video face', (
+    tester,
+    env,
+  ) async {
+    final person = await seedPerson(env.db, name: 'Sara');
+    final video = await seedMedia(env.db, asset: 'review-video', kind: 'video');
+    final face = await seedFace(
+      env.db,
+      mediaId: video,
+      quality: .43,
+      frameNumber: 8,
+    );
+    await (env.db.update(env.db.faces)..where((f) => f.id.equals(face))).write(
+      const FacesCompanion(facePx: Value(48), timestampMs: Value(800)),
+    );
+    await env.db
+        .into(env.db.reviewMatches)
+        .insert(
+          ReviewMatchesCompanion.insert(
+            faceId: Value(face),
+            personId: person,
+            score: .4,
+            margin: .1,
+            decision: 'suggest',
+          ),
+        );
+    const channel = MethodChannel('antigravity/video_scan');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final frameRequests = <Object?>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method != 'frames') return null;
+      frameRequests.add(call.arguments);
+      return [_photo];
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    await env.pump(
+      tester,
+      extra: [initialLocationProvider.overrideWithValue('/people/$person')],
+    );
+    await tester.tap(find.byKey(const Key('album-review-banner')));
+    await _viewerSettle(tester);
+    expect(
+      frameRequests,
+      [{
+        'assetId': 'review-video',
+        'timesMs': [800],
+        'maxSide': 512,
+      }],
+    );
+    expect(find.byKey(Key('highlight-f-$face')), findsOneWidget);
+    expect(find.byTooltip('Show full photo'), findsOneWidget);
+  }, session: testSession);
+
+  appTest('full original photos can be swiped without changing selection', (
+    tester,
+    env,
+  ) async {
+    final person = await seedPerson(env.db, name: 'Sara');
+    final media = await seedMedia(env.db, asset: 'swipe-source');
+    env.library.bytes['swipe-source'] = _photo;
+    final ids = [
+      await seedFace(env.db, mediaId: media, seed: 1),
+      await seedFace(env.db, mediaId: media, seed: 2),
+    ];
+    for (final id in ids) {
+      await env.db
+          .into(env.db.reviewMatches)
+          .insert(
+            ReviewMatchesCompanion.insert(
+              faceId: Value(id),
+              personId: person,
+              score: .8,
+              margin: .1,
+              decision: 'suggest',
+            ),
+          );
+    }
+    await _open(tester, env);
+    await tester.tap(find.byKey(Key('match-face-${ids.first}')));
+    await _viewerSettle(tester);
+    await tester.drag(
+      find.byKey(const Key('review-photo-pages')),
+      const Offset(-350, 0),
+    );
+    await _viewerSettle(tester);
+    expect(find.text('2 / 2'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('review-photo-previous')));
+    await _viewerSettle(tester);
+    expect(find.text('1 / 2'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Add 2 faces'), findsOneWidget);
+  }, session: testSession);
   appTest(
     'a photo opens full size with exactly the suggested face highlighted; selection is separate',
     (tester, env) async {

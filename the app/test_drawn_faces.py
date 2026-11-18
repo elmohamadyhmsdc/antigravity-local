@@ -75,6 +75,23 @@ class DrawnFaceTests(unittest.TestCase):
                              assess=lambda img, f: {"quality_score": .9})
         self.assertEqual((len(real.faces), real.characters), (1, []))
 
+    def test_anime_detection_can_confirm_borderline_artwork(self):
+        from unittest.mock import patch
+
+        class Anime:
+            def detect(self, img, score_thresh):
+                return [{"bbox": [40, 10, 88, 72], "score": .95}]
+
+        for cosine in (.19, .05):
+            vector = cosine * DRAWN + np.sqrt(1 - cosine ** 2) * real_embedding()
+            with patch("analysis.get_anime_detector", return_value=Anime()):
+                result = analyze_frame(None, Bodies((0, 0, 128, 256)), drawing(),
+                                       AnalyzeOptions(detect_bodies=False, detect_characters=True),
+                                       detect=lambda _: [face((40, 10, 88, 72), vector)],
+                                       assess=lambda img, f: {"quality_score": .9})
+            expected = (0, 1) if cosine == .19 else (1, 0)
+            self.assertEqual((len(result.faces), len(result.characters)), expected)
+
 
 def wide():
     return np.hstack([drawing(), np.full((256, 128, 3), 245, np.uint8), drawing()])

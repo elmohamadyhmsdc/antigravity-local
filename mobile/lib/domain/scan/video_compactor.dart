@@ -336,6 +336,12 @@ class VideoCompactor {
       for (var i = 0; i < items.length; i++) {
         final (row, value) = items[i];
         var t = found[i];
+        if (faceTrackOf == null &&
+            t != null &&
+            t.views.length >= maxViews &&
+            !supportsFaceCompaction(t, value, similarity)) {
+          t = null;
+        }
         if (t == null) {
           final faceTrack = faceTrackOf?[row.id];
           t = Track<V>(row.id, faceTrack: faceTrack);

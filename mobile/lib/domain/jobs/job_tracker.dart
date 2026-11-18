@@ -248,11 +248,15 @@ class JobTracker {
     _check(job.id);
     if (await target.exists()) await target.delete();
     await part.rename(target.path);
-    final original =
-        'results/${job.id}/original.${job.type.contains('video') ? 'mp4' : 'jpg'}';
-    await repository.files
-        .resolve(job.targetPath)
-        .copy(repository.files.resolve(original).path);
+    final poseReport = job.type == 'measure_reface_poses';
+    final original = poseReport
+        ? relative
+        : 'results/${job.id}/original.${job.type.contains('video') ? 'mp4' : 'jpg'}';
+    if (!poseReport) {
+      await repository.files
+          .resolve(job.targetPath)
+          .copy(repository.files.resolve(original).path);
+    }
     final commitArtifacts = await ArtifactStore(
       repository.db,
       repository.files,
@@ -260,21 +264,23 @@ class JobTracker {
     _check(job.id);
     await repository.db.transaction(() async {
       await commitArtifacts();
-      await repository.db
-          .into(repository.db.results)
-          .insertOnConflictUpdate(
-            ResultsCompanion.insert(
-              id: job.id,
-              type: job.type,
-              path: relative,
-              originalPath: original,
-              mime: manifest.mime,
-              sizeBytes: manifest.size,
-              sha256: manifest.sha256,
-              personId: Value(job.personId),
-              createdAt: DateTime.now().millisecondsSinceEpoch,
-            ),
-          );
+      if (!poseReport) {
+        await repository.db
+            .into(repository.db.results)
+            .insertOnConflictUpdate(
+              ResultsCompanion.insert(
+                id: job.id,
+                type: job.type,
+                path: relative,
+                originalPath: original,
+                mime: manifest.mime,
+                sizeBytes: manifest.size,
+                sha256: manifest.sha256,
+                personId: Value(job.personId),
+                createdAt: DateTime.now().millisecondsSinceEpoch,
+              ),
+            );
+      }
       await repository.update(
         job.id,
         JobsCompanion(

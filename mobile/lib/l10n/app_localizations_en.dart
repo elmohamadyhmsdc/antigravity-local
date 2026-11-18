@@ -2056,15 +2056,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose a trained model to create face references for the angles in your target.';
 
   @override
-  String get refaceModelStart => 'Prepare references and start Reface';
+  String get refaceModelStart => 'Prepare and review references';
 
   @override
   String get refaceModelCheckingTarget =>
       'Checking the face angles in your target…';
-
-  @override
-  String get refaceModelGenerating =>
-      'Generating face references from the selected model…';
 
   @override
   String get refaceModelVerifying =>
@@ -2072,7 +2068,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get refaceModelPaused =>
-      'Face reference generation is paused. Resume it in Activity, then start Reface again.';
+      'Reference preparation is paused. Resume it in Activity, then return here to review.';
 
   @override
   String get refaceModelFailed =>
@@ -2093,6 +2089,90 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get refaceModelFileUnavailable =>
       'This model file is unavailable. Choose another model.';
+
+  @override
+  String get refacePoseUpdatePc =>
+      'Update the PC server to measure all frames and review Reface references.';
+
+  @override
+  String get refacePoseReviewHint =>
+      'Reface checks each frame and prepares references for the measured head angles. You can review them before it swaps any faces.';
+
+  @override
+  String get refacePoseReviewTitle => 'Review Reface references';
+
+  @override
+  String get refacePosePortraits => 'Verified references to use';
+
+  @override
+  String get refacePoseMeasured => 'Measured head angles';
+
+  @override
+  String get refacePoseGrouping =>
+      'Near-identical angles are grouped in 15° yaw and pitch steps and 25° roll steps. Coverage compares the measured reference to the angle shown.';
+
+  @override
+  String get refacePoseRetry => 'Generate missing references';
+
+  @override
+  String get refacePoseStartPartial => 'Start Reface with this coverage';
+
+  @override
+  String get refacePoseMatched => 'Covered';
+
+  @override
+  String get refacePoseMissing => 'Missing reference';
+
+  @override
+  String get refacePoseUnknown => 'Angle unavailable';
+
+  @override
+  String get refacePoseNoPortraits =>
+      'None of the generated portraits matched the selected person.';
+
+  @override
+  String get refacePoseNoMeasurements =>
+      'No face angle was measurable in this selection.';
+
+  @override
+  String refacePoseFrames(int decoded, int total) {
+    return '$decoded of $total frames decoded and checked';
+  }
+
+  @override
+  String refacePoseCoverage(int covered, int total) {
+    return '$covered of $total measured angle groups covered';
+  }
+
+  @override
+  String refacePoseUnreadable(int count) {
+    return 'Unreadable frames ($count)';
+  }
+
+  @override
+  String refacePoseNoFrame(int count) {
+    return 'Frames with no measurable selected face ($count)';
+  }
+
+  @override
+  String refacePoseNoFace(int count) {
+    return 'Detected faces without a reliable angle ($count)';
+  }
+
+  @override
+  String refacePoseAngles(String yaw, String pitch, String roll) {
+    return 'Yaw $yaw° · Pitch $pitch° · Roll $roll°';
+  }
+
+  @override
+  String refacePoseObservations(int count, String time, String status) {
+    return '$count observations · $time · $status';
+  }
+
+  @override
+  String refacePoseGeneratingBatch(int batch, int total) {
+    return 'Generating face references ($batch of $total)…';
+  }
 
   @override
   String get refaceQuality => 'Engine & quality';
@@ -3716,16 +3796,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String albumReviewHelp(String name) {
-    return 'Every photo starts ticked. Untick the ones that aren\'t $name, then tap Done. Long-press a photo to see it full size.';
+    return 'Select photos to add to $name or mark as someone else. Tap the magnifier to check the original.';
   }
 
   @override
-  String get albumReviewNone => 'Untick all';
+  String get albumReviewAdd => 'Add selected';
 
   @override
-  String albumReviewSummary(int add, int remove) {
-    return '$add to add · $remove someone else';
-  }
+  String get albumReviewReject => 'Mark selected as someone else';
 
   @override
   String albumReviewSaved(int add, int remove) {

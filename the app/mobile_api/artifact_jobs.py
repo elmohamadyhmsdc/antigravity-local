@@ -7,6 +7,7 @@ import queue
 import re
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import zipfile
@@ -22,6 +23,11 @@ from .schemas import CHARACTER_FACE_MODEL_ID
 from . import EMBEDDING_MODEL_ID
 
 ARTIFACT_TYPES = {'undress_image', 'build_lora_dataset', 'train_lora', 'generate_lora_images', 'build_identity'}
+CHECKPOINT_NATIVE_FAILURES = {0xC0000005, 0xC0000006}
+
+
+class PortraitGenerationError(ValueError):
+    """A public generation failure message with no internal paths or model data."""
 
 
 def dataset_anchor(params):
@@ -150,7 +156,16 @@ def validate_artifact(body, caps):
     else:
         allowed_params = {'trigger_word','base_checkpoint','prompt','negative_prompt','seed','steps','guidance_scale',
                           'num_images','lora_scale','multi_angle','reference_mode','reference_strength','reference_scale','identity_model_id',
-                          'generation_mode','aspect_ratio','pose_media_id','enable_face_detailer','pose_strength','angles'}
+                          'generation_mode','aspect_ratio','pose_media_id','enable_face_detailer','pose_strength','angles','head_poses'}
+        if 'head_poses' in params:
+            poses = params['head_poses']
+            if ('angles' in params or 'reference' in inputs or params.get('generation_mode', 'portrait') != 'portrait'
+                    or not isinstance(poses, list) or not 1 <= len(poses) <= 16
+                    or len(poses) != params.get('num_images', 4)
+                    or any(not isinstance(pose, dict) or set(pose) != {'yaw', 'pitch', 'roll'}
+                           or any(type(v) not in (float, int) or not -180 <= v <= 180 for v in pose.values())
+                           for pose in poses)):
+                raise bad_request('Provide one valid yaw, pitch and roll per requested portrait.')
         if 'angles' in params:
             from lora_generate import ANGLE_PROMPTS
             names = params['angles']
@@ -381,7 +396,7 @@ def run_artifact(job, directory, report, stopped, ctx):
         if code != 0: raise ValueError('Training failed; inspect the PC job log.')
         shutil.copyfile(run_dir/f'{output_name}.safetensors',directory/'lora.safetensors')
         return {'trigger_word':params['trigger_word'], **({'identity_model_id':params['identity_model_id']} if 'identity_model_id' in params else {})}
-    from lora_generate import EVENT_PREFIX
+    from lora_generate import EVENT_PREFIX, STAGE_LOADING_CHECKPOINT
     subject = 'full-body images' if params.get('generation_mode') == 'full_body' else 'portraits'
     output = directory/'generated'
     output.mkdir(exist_ok=True)
@@ -396,14 +411,35 @@ def run_artifact(job, directory, report, stopped, ctx):
                        file_prefix=f'image_{current}', angle_offset=current)
         if params.get('seed',-1) >= 0: payload['seed']=params['seed']+current
         if (directory/'input.reference').exists(): payload['reference_image']=str(directory/'input.reference')
+        stage = None
         def line(raw):
+            nonlocal stage
             if raw.startswith(EVENT_PREFIX):
                 event=json.loads(raw[len(EVENT_PREFIX):])
+                if event.get('event') == 'stage':
+                    stage = event.get('stage')
                 report(min(.99,len(list(output.glob('*.png')))/params.get('num_images',4)),f'Generating {subject}',
                        details={k:v for k,v in event.items() if k in ('stage','step','steps','index','total')})
-        code=run_process([str(APP_DIR/'venv_ai'/'Scripts'/'python.exe'),str(APP_DIR/'lora_generate.py')],directory,stopped,line,stdin=json.dumps(payload))
+        command = [str(APP_DIR/'venv_ai'/'Scripts'/'python.exe'), str(APP_DIR/'lora_generate.py')]
+        code = run_process(command, directory, stopped, line, stdin=json.dumps(payload))
         if stopped(): return None
-        if code != 0: raise ValueError(f'Could not generate {subject}; inspect the PC job log.')
+        if (stage == STAGE_LOADING_CHECKPOINT and
+                (code & 0xffffffff) in CHECKPOINT_NATIVE_FAILURES):
+            report(current / params.get('num_images', 4),
+                   'Retrying generation with lower-memory checkpoint loading',
+                   details={'stage': 'Retrying base checkpoint'})
+            with tempfile.TemporaryDirectory(prefix='inference-base-', dir=directory) as temporary:
+                recovery = dict(payload, safe_checkpoint_path=str(Path(temporary) / 'base.safetensors'))
+                stage = STAGE_LOADING_CHECKPOINT
+                code = run_process(command, directory, stopped, line, stdin=json.dumps(recovery))
+            if stopped(): return None
+        if code != 0:
+            status = f'0x{code & 0xffffffff:08X}' if code < 0 or code > 255 else str(code)
+            if stage == STAGE_LOADING_CHECKPOINT or (code & 0xffffffff) in CHECKPOINT_NATIVE_FAILURES:
+                raise PortraitGenerationError(
+                    f'The PC generation worker stopped while loading or running the model ({status}). '
+                    'Check the PC job log and retry.')
+            raise PortraitGenerationError(f'Could not generate {subject} (worker exit {status}). Check the PC job log.')
     pictures=sorted(output.glob('*.png'))
     if len(pictures) != params.get('num_images',4): raise ValueError(f'Some generated {subject} are missing.')
     with zipfile.ZipFile(directory/'portraits.zip','w',compression=zipfile.ZIP_STORED) as bundle:
@@ -414,18 +450,25 @@ def run_artifact(job, directory, report, stopped, ctx):
 def run_process(command,directory,stopped,on_line,stdin=None,cwd=APP_DIR):
     """Drain output while polling pause even during silent model loading; no orphan child."""
     import os
-    env=dict(os.environ,PYTHONIOENCODING='utf-8',PYTHONUNBUFFERED='1',HF_HUB_OFFLINE='1')
+    env=dict(os.environ,PYTHONIOENCODING='utf-8',PYTHONUNBUFFERED='1',HF_HUB_OFFLINE='1',
+             PYTHONFAULTHANDLER='1')
     process=subprocess.Popen(command,cwd=str(cwd),stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
         stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace',bufsize=1,env=env,
         creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-    if stdin is not None: process.stdin.write(stdin);process.stdin.close()
     lines=queue.Queue()
     def read():
-        for raw in process.stdout: lines.put(raw.rstrip())
-        lines.put(None)
+        try:
+            with process.stdout as output:
+                for raw in output:
+                    lines.put(raw.rstrip())
+        finally:
+            lines.put(None)
     threading.Thread(target=read,daemon=True).start()
     try:
         with open(directory/'engine.log','a',encoding='utf-8') as log:
+            if stdin is not None:
+                process.stdin.write(stdin)
+                process.stdin.close()
             while True:
                 if stopped(): return -1
                 try: raw=lines.get(timeout=.5)
@@ -434,7 +477,11 @@ def run_process(command,directory,stopped,on_line,stdin=None,cwd=APP_DIR):
                 log.write(raw+'\n');log.flush()
                 try: on_line(raw)
                 except (ValueError,KeyError,TypeError): pass  # display-only parsing
-        return process.wait()
+            code = process.wait()
+            log.write(f'Worker exit: {code} (0x{code & 0xffffffff:08X})\n')
+            return code
     finally:
         if process.poll() is None: process.kill()
         process.wait()
+        if process.stdin is not None:
+            process.stdin.close()

@@ -75,6 +75,17 @@ def angle_description(request, default_angles, index, multi_angle):
     continues the list instead of starting it over. Without `angles` it is the old behaviour: a rotating list
     of generic angles when several images are made.
     """
+    poses = request.get('head_poses')
+    if poses:
+        pose = poses[(int(request.get('angle_offset', 0)) + index) % len(poses)]
+        yaw, pitch, roll = (round(pose[key]) for key in ('yaw', 'pitch', 'roll'))
+        yaw_text = ('front view, facing the camera' if abs(yaw) < 8 else
+                    f"head turned {abs(yaw)} degrees toward the {'right' if yaw > 0 else 'left'} side of the image")
+        pitch_text = ('level chin' if abs(pitch) < 8 else
+                      f"chin tilted {'up' if pitch > 0 else 'down'} by {abs(pitch)} degrees")
+        roll_text = ('head upright' if abs(roll) < 10 else
+                     f"head tilted {'clockwise' if roll > 0 else 'counterclockwise'} by {abs(roll)} degrees")
+        return f'{yaw_text}, {pitch_text}, {roll_text}, clearly visible face'
     names = request.get('angles')
     if names:
         return ANGLE_PROMPTS[names[(int(request.get('angle_offset', 0)) + index) % len(names)]]
@@ -327,6 +338,44 @@ def load_person_lora(pipe, lora_path, lora_scale: float = DEFAULT_LORA_SCALE):
         pass
 
 
+def stage_half_checkpoint(source, destination):
+    """Copy one tensor at a time, bypassing PyTorch's original mapped storage."""
+    import numpy as np
+    import torch
+    from safetensors import safe_open
+    from safetensors.torch import save_file
+
+    tensors = {}
+    with safe_open(source, framework="np") as checkpoint:
+        for key in checkpoint.keys():
+            array = checkpoint.get_tensor(key)
+            if array.dtype.kind == 'f':
+                array = array.astype(np.float16, copy=False)
+            if not array.flags.writeable:
+                array = array.copy()
+            tensors[key] = torch.from_numpy(array)
+        save_file(tensors, str(destination), metadata=checkpoint.metadata())
+
+
+def load_base_pipeline(pipeline_class, request, dtype, **components):
+    import torch
+
+    source = request["base_checkpoint"]
+    options = dict(torch_dtype=dtype, safety_checker=None, **components)
+    staged = request.get("safe_checkpoint_path")
+    if not staged:
+        return pipeline_class.from_single_file(source, **options)
+    torch.set_num_threads(1)
+    if dtype != torch.float16 or Path(source).suffix.lower() != ".safetensors":
+        return pipeline_class.from_single_file(source, **options)
+
+    # Use the same base weights and inference dtype. Unlike disable_mmap=True,
+    # the retry never reads a full FP32 checkpoint into a Python bytes buffer.
+    emit("stage", stage="Preparing a lower-memory copy of the base checkpoint")
+    stage_half_checkpoint(source, staged)
+    return pipeline_class.from_single_file(staged, **options)
+
+
 def main():
     request = json.loads(sys.stdin.read())
 
@@ -374,12 +423,10 @@ def main():
     if use_controlnet:
         from diffusers import StableDiffusionControlNetPipeline, ControlNetModel
         controlnet = ControlNetModel.from_pretrained(str(OPENPOSE_CONTROLNET_PATH), torch_dtype=dtype)
-        pipe = StableDiffusionControlNetPipeline.from_single_file(
-            request["base_checkpoint"], controlnet=controlnet, torch_dtype=dtype, safety_checker=None
-        )
+        pipe = load_base_pipeline(StableDiffusionControlNetPipeline, request, dtype, controlnet=controlnet)
     else:
         pipeline_class = StableDiffusionImg2ImgPipeline if use_img2img else StableDiffusionPipeline
-        pipe = pipeline_class.from_single_file(request["base_checkpoint"], torch_dtype=dtype, safety_checker=None)
+        pipe = load_base_pipeline(pipeline_class, request, dtype)
     pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, use_karras_sigmas=True)
     pipe.set_progress_bar_config(disable=True)  # per-step progress is reported as events instead
 
@@ -465,7 +512,9 @@ def main():
                 print(f"[FACE_DETAILER] skipped: {e}")
 
         path = output_dir / f"{file_prefix}_{index + 1:02d}_seed{image_seed}.png"
-        image.save(path)
+        temporary_image = path.with_suffix(".part")
+        image.save(temporary_image, format="PNG")
+        temporary_image.replace(path)
         emit("image", image=index + 1, path=str(path), seed=image_seed, seconds=round(time.monotonic() - started, 1),
              peak_vram_gb=round(torch.cuda.max_memory_allocated() / 2**30, 2) if device == "cuda" else None)
 

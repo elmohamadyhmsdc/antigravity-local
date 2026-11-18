@@ -29,8 +29,7 @@ Future<void> openAlbumReview(BuildContext context, PersonSummary person) =>
       MaterialPageRoute(builder: (_) => AlbumReviewScreen(person: person)),
     );
 
-/// "Review 8 photos" inside a person: every suggested photo, all ticked. Untick the ones that are
-/// someone else, then Done adds the ticked ones and records "not them" for the rest.
+/// Review suggested appearances against the person's cover.
 class AlbumReviewScreen extends ConsumerStatefulWidget {
   const AlbumReviewScreen({super.key, required this.person});
 
@@ -41,55 +40,47 @@ class AlbumReviewScreen extends ConsumerStatefulWidget {
 }
 
 class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
-  final _off = <String>{}; // 'f:12' / 'b:4' the user unticked
+  final _selected = <(String, int)>{};
   var _saving = false;
 
-  Future<void> _done(List<ReviewTarget> items) async {
-    if (_saving) return;
+  Future<void> _save({required bool reject}) async {
+    if (_saving || _selected.isEmpty) return;
     final l = AppLocalizations.of(context);
-    final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final review = reviewRepositoryFor(ref, widget.person.kind);
-    final id = widget.person.id;
-    final excluded = {..._off};
-    bool on(ReviewTarget t) => !excluded.contains('${t.kind}:${t.id}');
+    final faces = [
+      for (final (kind, id) in _selected)
+        if (kind == 'f') id,
+    ];
+    final bodies = [
+      for (final (kind, id) in _selected)
+        if (kind == 'b') id,
+    ];
     setState(() => _saving = true);
     try {
       await WidgetsBinding.instance.endOfFrame;
-      await review.answerAlbum(
-        personId: id,
-        faceIds: [
-          for (final t in items)
-            if (t.kind == 'f') t.id,
-        ],
-        excludedFaces: {
-          for (final t in items)
-            if (t.kind == 'f' && !on(t)) t.id,
-        },
-        bodyIds: [
-          for (final t in items)
-            if (t.kind == 'b') t.id,
-        ],
-        excludedBodies: {
-          for (final t in items)
-            if (t.kind == 'b' && !on(t)) t.id,
-        },
+      final result = await review.answerAlbum(
+        personId: widget.person.id,
+        faceIds: faces,
+        excludedFaces: reject ? faces.toSet() : const {},
+        bodyIds: bodies,
+        excludedBodies: reject ? bodies.toSet() : const {},
       );
       if (!mounted) return;
-      final added = items.where(on).length;
+      setState(_selected.clear);
       messenger.showSnackBar(
         SnackBar(
-          content: Text(l.albumReviewSaved(added, items.length - added)),
+          content: Text(l.albumReviewSaved(result.added, result.rejected)),
         ),
       );
-      navigator.pop();
     } catch (e) {
       if (mounted) {
-        setState(() => _saving = false);
         messenger.showSnackBar(
           SnackBar(content: Text(l.peopleActionError('$e'))),
         );
       }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -114,37 +105,22 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
         ),
       );
     }
+    final matches = {
+      for (final face in faces.value ?? const <ReviewMatchFace>[])
+        face.faceId: face,
+    };
     final items = [
-      for (final f in faces.value ?? const <ReviewMatchFace>[])
-        ReviewTarget('f', f.faceId),
+      for (final id in matches.keys) ReviewTarget('f', id),
       for (final b in links.value ?? const <ReviewBodyLinkItem>[])
         if (b.person.id == id) ReviewTarget('b', b.bodyId),
     ];
-    final keys = {for (final t in items) '${t.kind}:${t.id}'};
-    _off.removeWhere((k) => !keys.contains(k));
-    final kept = items.length - _off.length;
+    final keys = {for (final t in items) (t.kind, t.id)};
+    _selected.retainAll(keys);
+    final count = _selected.length;
     return PopScope(
       canPop: !_saving,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(l.albumReviewTitle(name)),
-          actions: [
-            if (items.isNotEmpty)
-              TextButton(
-                key: const Key('album-review-toggle-all'),
-                onPressed: _saving
-                    ? null
-                    : () => setState(() {
-                        if (_off.isEmpty) {
-                          _off.addAll(keys);
-                        } else {
-                          _off.clear();
-                        }
-                      }),
-                child: Text(_off.isEmpty ? l.albumReviewNone : l.selectAll),
-              ),
-          ],
-        ),
+        appBar: AppBar(title: Text(l.albumReviewTitle(name))),
         bottomNavigationBar: items.isEmpty
             ? null
             : StickyActionBar(
@@ -153,23 +129,24 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      l.albumReviewSummary(kept, _off.length),
+                      l.selectedCount(count),
                       key: const Key('album-review-summary'),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    FilledButton.icon(
+                    FilledButton(
                       key: const Key('album-review-done'),
-                      icon: _saving
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.done),
-                      onPressed: _saving ? null : () => _done(items),
-                      label: Text(
-                        _saving ? l.reviewSaving : l.peopleAction('done'),
-                      ),
+                      onPressed: _saving || count == 0
+                          ? null
+                          : () => _save(reject: false),
+                      child: Text(_saving ? l.reviewSaving : l.albumReviewAdd),
+                    ),
+                    TextButton(
+                      key: const Key('album-review-reject'),
+                      onPressed: _saving || count == 0
+                          ? null
+                          : () => _save(reject: true),
+                      child: Text(l.albumReviewReject),
                     ),
                   ],
                 ),
@@ -185,30 +162,51 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
               : CustomScrollView(
                   slivers: [
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                       sliver: SliverToBoxAdapter(
-                        child: Text(l.albumReviewHelp(name)),
+                        child: Row(
+                          children: [
+                            if (widget.person.avatarCropPath != null) ...[
+                              PersonAvatar(
+                                cropPath: widget.person.avatarCropPath,
+                                radius: 24,
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Expanded(child: Text(l.albumReviewHelp(name))),
+                          ],
+                        ),
                       ),
                     ),
                     SliverPadding(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       sliver: SliverGrid.builder(
                         key: const Key('album-review-grid'),
                         gridDelegate:
                             const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 170,
-                              mainAxisSpacing: 4,
-                              crossAxisSpacing: 4,
+                              maxCrossAxisExtent: 210,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
                             ),
                         itemCount: items.length,
                         itemBuilder: (context, i) {
                           final t = items[i];
-                          final key = '${t.kind}:${t.id}';
+                          final key = (t.kind, t.id);
+                          final face = t.kind == 'f' ? matches[t.id] : null;
                           return _Tile(
                             target: t,
-                            ticked: !_off.contains(key),
+                            portraitPath:
+                                face != null &&
+                                    face.facePx >= 96 &&
+                                    face.quality >= .55
+                                ? face.cropPath
+                                : null,
+                            ticked: _selected.contains(key),
                             onTap: () => setState(() {
-                              if (!_off.remove(key)) _off.add(key);
+                              if (!_selected.remove(key)) _selected.add(key);
                             }),
                             onOpen: () => openReviewMedia(
                               context,
@@ -216,21 +214,14 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
                               initialTarget: i,
                               title: name,
                               selectedFaceIds: {
-                                for (final t in items)
-                                  if (t.kind == 'f' &&
-                                      !_off.contains('f:${t.id}'))
-                                    t.id,
+                                for (final (kind, id) in _selected)
+                                  if (kind == 'f') id,
                               },
                               onSelectionChanged: (selected) => setState(() {
-                                for (final t in items.where(
-                                  (t) => t.kind == 'f',
-                                )) {
-                                  if (selected.contains(t.id)) {
-                                    _off.remove('f:${t.id}');
-                                  } else {
-                                    _off.add('f:${t.id}');
-                                  }
-                                }
+                                _selected.removeWhere((key) => key.$1 == 'f');
+                                _selected.addAll(
+                                  selected.map((id) => ('f', id)),
+                                );
                               }),
                             ),
                           );
@@ -248,12 +239,14 @@ class _AlbumReviewScreenState extends ConsumerState<AlbumReviewScreen> {
 class _Tile extends StatelessWidget {
   const _Tile({
     required this.target,
+    required this.portraitPath,
     required this.ticked,
     required this.onTap,
     required this.onOpen,
   });
 
   final ReviewTarget target;
+  final String? portraitPath;
   final bool ticked;
   final VoidCallback onTap, onOpen;
 
@@ -261,9 +254,17 @@ class _Tile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final original = HighlightedPhoto(
+      kind: target.kind,
+      id: target.id,
+      maxSide: 512,
+      inset: false,
+      label: false,
+      inlinePreview: true,
+    );
     return Semantics(
       checked: ticked,
-      child: GestureDetector(
+      child: InkWell(
         key: Key('album-review-${target.kind}-${target.id}'),
         onTap: onTap,
         onLongPress: onOpen,
@@ -273,28 +274,49 @@ class _Tile extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               ColoredBox(
-                color: Colors.black,
-                child: HighlightedPhoto(
-                  kind: target.kind,
-                  id: target.id,
-                  maxSide: 512,
-                  inset: false,
-                  label: false,
-                ),
+                color: scheme.surfaceContainerHighest,
+                child: portraitPath != null
+                    ? CropImage(
+                        path: portraitPath,
+                        fit: BoxFit.scaleDown,
+                        cacheWidth: null,
+                        expandable: false,
+                        fallback: original,
+                      )
+                    : original,
               ),
-              if (!ticked) const ColoredBox(color: Colors.black54),
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Icon(
-                  ticked ? Icons.check_circle : Icons.radio_button_unchecked,
-                  color: ticked ? scheme.primary : Colors.white,
-                  shadows: const [Shadow(blurRadius: 4)],
+              if (ticked)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: scheme.primary, width: 2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              PositionedDirectional(
+                top: 6,
+                end: 6,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: ticked ? scheme.primary : Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      ticked ? Icons.check : Icons.circle_outlined,
+                      size: 16,
+                      color: ticked ? scheme.onPrimary : Colors.white,
+                    ),
+                  ),
                 ),
               ),
               if (target.kind == 'b')
-                Positioned(
-                  left: 4,
+                PositionedDirectional(
+                  start: 4,
                   bottom: 4,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -316,8 +338,8 @@ class _Tile extends StatelessWidget {
                     ),
                   ),
                 ),
-              Positioned(
-                left: 0,
+              PositionedDirectional(
+                start: 0,
                 top: 0,
                 child: IconButton(
                   key: Key('album-review-open-${target.kind}-${target.id}'),
