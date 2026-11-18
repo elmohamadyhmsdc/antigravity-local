@@ -1784,6 +1784,65 @@ class AppLocalizationsEn extends AppLocalizations {
   String get regroupNeedsPc => 'Connect to your PC to regroup the library.';
 
   @override
+  String get libraryIdentityRepairTitle =>
+      'Re-scan and repair People & Characters';
+
+  @override
+  String get libraryIdentityRepairHint =>
+      'Recheck the original photos and videos linked to your identities and fix clear grouping errors.';
+
+  @override
+  String get libraryIdentityRepairConfirmation =>
+      'The PC re-analyzes each linked photo and video once for the whole library. Confirmed faces and profile covers guide grouping. Manual corrections, locked groups and original files are kept, and uncertain matches go to Review. Detailed video analysis can take time. You can pause and resume without redoing completed files.';
+
+  @override
+  String get libraryIdentityRepairStart => 'Start library repair';
+
+  @override
+  String get libraryIdentityRepairContinue => 'Resume library repair';
+
+  @override
+  String get libraryIdentityRepairQueued =>
+      'Library repair is queued or running.';
+
+  @override
+  String get libraryIdentityRepairDone => 'Library repair complete';
+
+  @override
+  String get faceRefreshTitle => 'Quick faces-only scan';
+
+  @override
+  String get faceRefreshHint =>
+      'Refresh face measurements across the library, including quick samples from videos.';
+
+  @override
+  String get faceRefreshConfirmation =>
+      'Recheck saved photos and videos and any new files in your selected albums. This updates People and Character face measurements and keeps current grouping and body analysis. Short appearances between video samples may be missed. You can regroup using the updated measurements after the scan.';
+
+  @override
+  String get faceRefreshStart => 'Start face scan';
+
+  @override
+  String get faceRefreshResume => 'Resume face scan';
+
+  @override
+  String get faceRefreshQueued => 'Face scan is queued or running.';
+
+  @override
+  String get faceRefreshDone => 'Face scan complete';
+
+  @override
+  String get faceRefreshChecking => 'Checking faces…';
+
+  @override
+  String get faceRefreshFullScanPending => 'Full scan pending';
+
+  @override
+  String faceRefreshCheckedAt(String date) {
+    return 'Faces checked $date';
+  }
+
+  @override
   String get regroupFailed =>
       'Could not regroup the library. Try again when the PC is connected.';
 
@@ -1988,6 +2047,52 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get refaceIdentity => 'Source identity';
+
+  @override
+  String get refaceModelSource => 'Face references';
+
+  @override
+  String get refaceModelSourceHint =>
+      'Choose a trained model to create face references for the angles in your target.';
+
+  @override
+  String get refaceModelStart => 'Prepare references and start Reface';
+
+  @override
+  String get refaceModelCheckingTarget =>
+      'Checking the face angles in your target…';
+
+  @override
+  String get refaceModelGenerating =>
+      'Generating face references from the selected model…';
+
+  @override
+  String get refaceModelVerifying =>
+      'Checking that the generated faces match the person…';
+
+  @override
+  String get refaceModelPaused =>
+      'Face reference generation is paused. Resume it in Activity, then start Reface again.';
+
+  @override
+  String get refaceModelFailed =>
+      'Face references could not be prepared. Try again or choose gallery faces.';
+
+  @override
+  String get refaceModelNeedsReference =>
+      'Add a clear face for this person or use a model with a readable training dataset to verify the generated faces.';
+
+  @override
+  String get refaceModelUnavailable =>
+      'The connected PC cannot generate faces with this model.';
+
+  @override
+  String get refaceModelBaseUnavailable =>
+      'The base checkpoint used to train this model is unavailable on this PC.';
+
+  @override
+  String get refaceModelFileUnavailable =>
+      'This model file is unavailable. Choose another model.';
 
   @override
   String get refaceQuality => 'Engine & quality';

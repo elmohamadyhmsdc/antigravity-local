@@ -549,7 +549,7 @@ void main() {
 
   group('bodies', () {
     test(
-      'a body belongs to its face\'s person, else to the person it was linked to',
+      'a face wins over a guess and an explicit body link wins over both',
       () async {
         final sara = await seedPerson(db), omar = await seedPerson(db);
         final faceId = await seedFace(db, personId: sara, seed: 1);
@@ -557,8 +557,14 @@ void main() {
           db,
           faceId: faceId,
           personId: omar,
+          linkMethod: 'weak_face',
+        );
+        final viaManual = await seedBody(
+          db,
+          faceId: faceId,
+          personId: omar,
           linkMethod: 'manual',
-        ); // the face wins
+        );
         final viaLink = await seedBody(
           db,
           personId: sara,
@@ -571,9 +577,8 @@ void main() {
         expect(bodies.firstWhere((b) => b.id == viaFace).personId, sara);
         expect(nobody, isNonZero);
         expect(
-          await repo.watchBodies(omar).first,
-          isEmpty,
-          reason: 'its face says it is Sara',
+          (await repo.watchBodies(omar).first).map((b) => b.id),
+          [viaManual],
         );
       },
     );

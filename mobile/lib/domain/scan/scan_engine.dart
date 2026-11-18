@@ -9,6 +9,7 @@ import '../../data/api/video_api.dart';
 import '../../data/db/app_database.dart';
 import '../../data/media/media_library.dart';
 import '../../data/repositories/app_settings.dart';
+import '../../data/repositories/face_refresh.dart';
 import '../../data/repositories/library_repository.dart';
 import '../grouping/grouping_config.dart';
 import '../grouping/grouping_runner.dart';
@@ -282,7 +283,7 @@ class ScanEngine {
     }
   }
 
-  Future<void> _queueIdentityRescan(int personId) async {
+  Future<void> _requireIdentityRepair() async {
     final api = _api();
     if (api == null) throw StateError('Connect to your PC to queue a re-scan.');
     final caps = await api.capabilities();
@@ -291,13 +292,37 @@ class ScanEngine {
         'Update the PC server and check its face and character models to rescan and repair identities.',
       );
     }
-    await _repo.identityRescan.queue(personId);
   }
 
   /// Returns once the request is durable, so browsing can continue immediately.
   Future<void> queueIdentityRescan(int personId) async {
     final pauseVersion = _pauseVersion;
-    await _queueIdentityRescan(personId);
+    await _requireIdentityRepair();
+    await _repo.identityRescan.queue(personId);
+    await _startQueuedRescans(pauseVersion);
+  }
+
+  Future<void> queueLibraryIdentityRescan() async {
+    final pauseVersion = _pauseVersion;
+    await _requireIdentityRepair();
+    await _repo.identityRescan.queueLibrary();
+    await _startQueuedRescans(pauseVersion);
+  }
+
+  static const _faceRefreshNeedsPc =
+      'Update the PC server and check the People and Characters face models to use the quick face scan.';
+
+  Future<void> queueFaceRefresh() async {
+    final pauseVersion = _pauseVersion;
+    final caps = await _api()?.capabilities();
+    if (caps == null || !caps.engines.faceOnlyScan) {
+      throw StateError(_faceRefreshNeedsPc);
+    }
+    await _repo.faceRefresh.request();
+    await _startQueuedRescans(pauseVersion);
+  }
+
+  Future<void> _startQueuedRescans(int pauseVersion) async {
     if (_pauseVersion != pauseVersion) return;
     if (!_active) {
       if (!mediaOrganizationActive) await _settings.setScanActive(true);
@@ -320,7 +345,8 @@ class ScanEngine {
         if (!_pauseRequested &&
             _progress.phase == ScanPhase.completed &&
             await _repo.identityRescan.personId() == null &&
-            await _repo.identityRescan.hasQueued()) {
+            (await _repo.faceRefresh.requested() ||
+                await _repo.identityRescan.hasQueued())) {
           await start(enumerate: false);
         }
       }),
@@ -339,7 +365,8 @@ class ScanEngine {
     if (repairPersonId != null) {
       final pauseVersion = _pauseVersion;
       try {
-        await _queueIdentityRescan(repairPersonId);
+        await _requireIdentityRepair();
+        await _repo.identityRescan.queue(repairPersonId);
       } catch (e) {
         if (!_active) {
           await _pause(
@@ -388,7 +415,9 @@ class ScanEngine {
         listAlbums = false;
         repairLibrary = false;
         resume = true;
-      } while (await _repo.identityRescan.hasQueued());
+      } while (await _repo.identityRescan.hasQueued() ||
+          await _repo.identityRescan.libraryActive() ||
+          await _repo.faceRefresh.requested());
     } catch (e) {
       await _pause(PauseReason.error, '$e');
     } finally {
@@ -459,10 +488,25 @@ class ScanEngine {
       await repair.setSessionActive(false);
       await rescan.endSession();
     }
-    if (!enumerate &&
-        !repairCharacters &&
-        resumeRepairs &&
-        await rescan.personId() == null &&
+    final resumeIdentityRepair =
+        !enumerate && !repairCharacters && resumeRepairs;
+    final existingRepair =
+        await rescan.personId() != null || await rescan.libraryActive();
+    final refresh =
+        resumeIdentityRepair &&
+            !existingRepair &&
+            !await repair.sessionActive() &&
+            await _repo.faceRefresh.requested()
+        ? _repo.faceRefresh
+        : null;
+    final facesOnly = refresh != null;
+    if (facesOnly && !caps.engines.faceOnlyScan) {
+      await _pause(PauseReason.error, _faceRefreshNeedsPc);
+      return;
+    }
+    if (resumeIdentityRepair &&
+        !facesOnly &&
+        !existingRepair &&
         await rescan.hasQueued()) {
       if (!_canRepairCharacters) {
         await _pause(
@@ -472,7 +516,7 @@ class ScanEngine {
         return;
       }
       await rescan.activateNext();
-      if (await rescan.personId() == null) {
+      if (await rescan.personId() == null && !await rescan.libraryActive()) {
         // All waiting identities were deleted. This was a scoped repair request,
         // so it must not fall through into unrelated library work.
         await _settings.setScanActive(false);
@@ -480,10 +524,11 @@ class ScanEngine {
         return;
       }
     }
-    final rescanPersonId = !enumerate && !repairCharacters
+    final rescanPersonId = resumeIdentityRepair
         ? await rescan.personId()
         : null;
-    final rescanOnly = rescanPersonId != null;
+    final libraryRescan = resumeIdentityRepair && await rescan.libraryActive();
+    final rescanOnly = rescanPersonId != null || libraryRescan;
     final repairOnly =
         !rescanOnly &&
         (repairCharacters || (!enumerate && await repair.sessionActive()));
@@ -503,7 +548,10 @@ class ScanEngine {
     final characterAlbums = prefs.characterAlbumIds.toSet().intersection(
       selectedAlbums,
     );
-    if (!rescanOnly && characterAlbums.isNotEmpty && !_canDetectCharacters) {
+    if (!facesOnly &&
+        !rescanOnly &&
+        characterAlbums.isNotEmpty &&
+        !_canDetectCharacters) {
       await _pause(
         PauseReason.error,
         'Character detection is unavailable. Update the PC server and check its body models.',
@@ -518,6 +566,31 @@ class ScanEngine {
     if (!_keepAliveOn) {
       await _keepAlive.start(title: _title, text: _describe(_progress));
       _keepAliveOn = true;
+    }
+    if (refresh != null && await refresh.needsScope()) {
+      // Include stored media even if it no longer belongs to the selected
+      // albums, and register unread new files from the current sources.
+      final illustrated = <String>{};
+      if (characterAlbums.isNotEmpty) {
+        await for (final page in _media.photos(characterAlbums)) {
+          illustrated.addAll(page.map((asset) => asset.id));
+          if (_pauseRequested) break;
+        }
+      }
+      if (selectedAlbums.isNotEmpty && !_pauseRequested) {
+        await for (final page in _media.photos(selectedAlbums)) {
+          await _repo.ensureBrowsableAssets([
+            for (final asset in page)
+              asset.withIllustrated(illustrated.contains(asset.id)),
+          ]);
+          if (_pauseRequested) break;
+        }
+      }
+      if (_pauseRequested) {
+        await _pause(PauseReason.user);
+        return;
+      }
+      await refresh.activate();
     }
     if (enumerate) {
       if (selectedAlbums.isEmpty) {
@@ -561,15 +634,26 @@ class ScanEngine {
       await repair.setSessionActive(true);
     }
     if (rescanOnly) await rescan.retryIncomplete();
-    await _repo.resetScanning();
-    final counts = await _repo.scanCounts(
-      characterRepairOnly: repairOnly,
-      identityRescanOnly: rescanOnly,
-    );
+    await refresh?.retryFailed();
+    final int initialTotal;
+    final int alreadyDone;
+    if (refresh == null) {
+      await _repo.resetScanning();
+      final counts = await _repo.scanCounts(
+        characterRepairOnly: repairOnly,
+        identityRescanOnly: rescanOnly,
+      );
+      alreadyDone = libraryRescan ? await rescan.libraryCompletedCount() : 0;
+      initialTotal = alreadyDone + counts.remaining;
+    } else {
+      final counts = await refresh.counts();
+      alreadyDone = counts.done;
+      initialTotal = counts.total;
+    }
 
     var modelId = prefs.modelId;
     final started = _clock();
-    var done = 0,
+    var done = alreadyDone,
         failed = 0,
         facesFound = 0,
         linked = 0,
@@ -581,7 +665,8 @@ class ScanEngine {
     Uint8List? previewBytes;
     int? previewTimestampMs;
     VideoScanProgress? videoProgress;
-    var total = counts.remaining;
+    var total = initialTotal;
+    int? refreshedThrough;
     var knownActions = _libraryActionVersion;
 
     Future<void> drainActions() async {
@@ -589,11 +674,15 @@ class ScanEngine {
       if (knownActions != _libraryActionVersion) {
         // Redetect can finish an item still pending in this scan. Keep the
         // progress denominator consistent with the queue after foreground work.
-        final remaining = await _repo.scanCounts(
-          characterRepairOnly: repairOnly,
-          identityRescanOnly: rescanOnly,
-        );
-        total = done + failed + remaining.remaining;
+        if (refresh != null) {
+          total = (await refresh.counts()).total;
+        } else {
+          final remaining = await _repo.scanCounts(
+            characterRepairOnly: repairOnly,
+            identityRescanOnly: rescanOnly,
+          );
+          total = done + failed + remaining.remaining;
+        }
         knownActions = _libraryActionVersion;
       }
     }
@@ -601,10 +690,12 @@ class ScanEngine {
     void prepareNextPhoto() {
       _preparedPhoto = () async {
         try {
-          final next = await _repo.nextPending(
-            characterRepairOnly: repairOnly,
-            identityRescanOnly: rescanOnly,
-          );
+          final next = refresh != null
+              ? await refresh.next(afterId: refreshedThrough)
+              : await _repo.nextPending(
+                  characterRepairOnly: repairOnly,
+                  identityRescanOnly: rescanOnly,
+                );
           if (next == null || next.kind != 'photo' || _pauseRequested) {
             return null;
           }
@@ -637,6 +728,8 @@ class ScanEngine {
       return ScanProgress(
         pausing: _pauseRequested,
         phase: phase,
+        repairingLibrary: libraryRescan,
+        refreshingFaces: facesOnly,
         message:
             message ??
             (videoProgress == null
@@ -684,11 +777,13 @@ class ScanEngine {
       var succeeded = false;
       try {
         final result = await _orPause(
-          _grouping.run(
-            incremental: incremental,
-            repairExisting: rescanOnly && !incremental,
-            repairPersonId: incremental ? null : rescanPersonId,
-          ),
+          libraryRescan
+              ? _grouping.repairLibrary()
+              : _grouping.run(
+                  incremental: incremental,
+                  repairExisting: rescanOnly && !incremental,
+                  repairPersonId: incremental ? null : rescanPersonId,
+                ),
         );
         succeeded = !_pauseRequested && result != null && !result.skipped;
       } on ApiException catch (e) {
@@ -721,11 +816,14 @@ class ScanEngine {
         await _pause(PauseReason.user);
         return;
       }
-      final row = await _repo.claimNext(
-        characterRepairOnly: repairOnly,
-        identityRescanOnly: rescanOnly,
-      );
+      final row = refresh != null
+          ? await refresh.next(afterId: refreshedThrough)
+          : await _repo.claimNext(
+              characterRepairOnly: repairOnly,
+              identityRescanOnly: rescanOnly,
+            );
       if (row == null) break;
+      refreshedThrough = row.id;
       current = row;
       previewBytes = null;
       previewTimestampMs = null;
@@ -736,6 +834,7 @@ class ScanEngine {
       final result = await _scanOne(
         row,
         api: api,
+        faceRefresh: refresh,
         prefs: prefs,
         modelId: modelId,
         snapshot: snapshot,
@@ -771,7 +870,14 @@ class ScanEngine {
           failed++;
         case _Scanned(:final outcome, :final model):
           modelId = model;
-          done++;
+          if (row.kind == 'video' &&
+              ((refresh != null && !await refresh.finished(row.id)) ||
+                  (libraryRescan && await rescan.pending(row.id)))) {
+            // A video can import some frames and still need a retry.
+            failed++;
+          } else {
+            done++;
+          }
           facesFound += outcome.newFaces;
           linked += outcome.linkedFaces;
           bodies += outcome.newBodies;
@@ -787,30 +893,32 @@ class ScanEngine {
       if (durations.length > 15) durations.removeFirst();
       _emit(snapshot());
       await notify();
-      if ((done + failed) % _policy.cacheClearEvery == 0) {
+      if ((done - alreadyDone + failed) % _policy.cacheClearEvery == 0) {
         await _preparedPhoto;
         await _media.clearCache();
       }
 
-      if (sinceGroupingFaces >= groupEveryNewFaces ||
-          sinceGroupingPhotos >= groupEveryPhotos) {
+      if (!facesOnly &&
+          !libraryRescan &&
+          (sinceGroupingFaces >= groupEveryNewFaces ||
+              sinceGroupingPhotos >= groupEveryPhotos)) {
         await groupNow(incremental: true);
         _emit(snapshot());
       }
     }
 
-    final grouped = await groupNow();
+    final grouped = !facesOnly && await groupNow();
     await drainActions();
     if (_pauseRequested) {
       await _pause(PauseReason.user);
       return;
     }
     await _media.clearCache();
-    if (!repairOnly && !rescanOnly) {
+    if (!facesOnly && !repairOnly && !rescanOnly) {
       await _store.flushOrganization(shouldStop: () => _pauseRequested);
     }
     try {
-      await _afterRun?.call();
+      if (!facesOnly) await _afterRun?.call();
     } catch (_) {
       // housekeeping only (thumbnail trim): never fails a finished scan
     }
@@ -824,9 +932,28 @@ class ScanEngine {
         );
         return;
       }
-      await rescan.endSession();
+      if (libraryRescan) {
+        await rescan.endLibrary();
+      } else {
+        await rescan.endSession();
+      }
     }
-    await _settings.setScanActive(await rescan.hasQueued());
+    if (refresh != null) {
+      final counts = await refresh.counts();
+      if (counts.done < counts.total) {
+        await _pause(
+          PauseReason.error,
+          'Some files could not be checked. Resume to retry those files.',
+        );
+        return;
+      }
+      await refresh.end();
+    }
+    await _settings.setScanActive(
+      await rescan.hasQueued() ||
+          await rescan.libraryActive() ||
+          await _repo.faceRefresh.requested(),
+    );
     _emit(
       snapshot(
         phase: ScanPhase.completed,
@@ -837,6 +964,7 @@ class ScanEngine {
   Future<_Result> _scanOne(
     MediaRow row, {
     required MobileApi api,
+    FaceRefresh? faceRefresh,
     required SettingsSnapshot prefs,
     required String? modelId,
     required ScanProgress Function({ScanPhase phase, String? message}) snapshot,
@@ -845,12 +973,28 @@ class ScanEngine {
     Uint8List? preparedPhoto,
     required void Function() prepareNextPhoto,
   }) async {
+    final facesOnly = faceRefresh != null;
+    Future<_Result> stop(PauseReason reason, [String? message]) async {
+      if (!facesOnly) await _repo.requeue(row.id);
+      await _pause(reason, message);
+      return const _Paused();
+    }
+
+    Future<_Result> fail(String message) async {
+      if (faceRefresh != null) {
+        await faceRefresh.fail(row.id);
+      } else {
+        await _repo.markFailed(row.id, message);
+      }
+      return const _Failed();
+    }
+
     final repairing =
-        await _repo.characterRepair.pending(row.id) ||
-        await _repo.identityRescan.pending(row.id);
+        !facesOnly &&
+        (await _repo.characterRepair.pending(row.id) ||
+            await _repo.identityRescan.pending(row.id));
     if (repairing && !_canRepairCharacters) {
-      return _stop(
-        row.id,
+      return stop(
         PauseReason.error,
         'Restart the updated PC server to continue character repair.',
       );
@@ -883,13 +1027,11 @@ class ScanEngine {
     } catch (_) {
       // A missing/corrupt/hanging file must not pause every remaining item in the queue.
     }
-    if (_pauseRequested) return _stop(row.id, PauseReason.user);
+    if (_pauseRequested) return stop(PauseReason.user);
     if (bytes == null && row.kind != 'video') {
-      await _repo.markFailed(
-        row.id,
+      return fail(
         'The photo could not be read (it was deleted or is not a supported format).',
       );
-      return const _Failed();
     }
 
     // Read before the next photo is prepared: nothing may wait between that and the upload.
@@ -904,11 +1046,9 @@ class ScanEngine {
           if (scanner == null ||
               api is! VideoApi ||
               media is! VideoMediaLibrary) {
-            await _repo.markFailed(
-              row.id,
+            return await fail(
               'Video scanning is unavailable. Update the phone app and PC server.',
             );
-            return const _Failed();
           }
           final outcome = await scanner.run(
             row,
@@ -921,40 +1061,40 @@ class ScanEngine {
             onPreview: preview,
             characterScan: repairing || row.illustrated || _canDetectCharacters,
             repairCharacters: repairing,
-            sensitiveScan: _canDetectSensitive,
+            sensitiveScan: !facesOnly && _canDetectSensitive,
+            facesOnly: facesOnly,
           );
           return _Scanned(
             outcome,
             (await _settings.load()).modelId ?? modelId ?? 'buffalo_l@1',
           );
         }
-        final isCharScan = repairing || row.illustrated || _canDetectCharacters;
+        final isCharScan =
+            facesOnly || repairing || row.illustrated || _canDetectCharacters;
         final response = await _orPause(
           api.analyzeImage(
             bytes!,
             options: AnalyzeOptions(
-              detectBodies: prefs.scanBodies || repairing,
+              detectBodies: !facesOnly && (prefs.scanBodies || repairing),
               detectCharacters: isCharScan,
+              facesOnly: facesOnly,
+              returnOutlines: !facesOnly,
               minQuality: prefs.qualityGate,
               modelId: modelId,
               facelessCharacters: row.illustrated,
               forceKind: corrections.forceKind,
               kindOverrides: corrections.dtos(),
               // drawn figures get the same regions and body vectors people get
-              returnSensitive: _canDetectSensitive,
-              returnBodyEmbeddings: _canEmbedBodies,
+              returnSensitive: !facesOnly && _canDetectSensitive,
+              returnBodyEmbeddings: !facesOnly && _canEmbedBodies,
             ),
           ),
         );
-        if (response == null) return await _stop(row.id, PauseReason.user);
+        if (response == null) return await stop(PauseReason.user);
         // Illustrated files only carry face vectors when a real face was found.
         final faceModel = !isCharScan || response.faces.isNotEmpty;
         if (faceModel && modelId != null && response.modelId != modelId) {
-          return await _stop(
-            row.id,
-            PauseReason.modelMismatch,
-            response.modelId,
-          );
+          return await stop(PauseReason.modelMismatch, response.modelId);
         }
         if (faceModel && modelId == null) {
           await _settings.setModelId(response.modelId);
@@ -967,26 +1107,31 @@ class ScanEngine {
           media,
           response,
           repairCharacters: repairing,
+          facesOnly: facesOnly,
         );
-        return _Scanned(outcome, response.modelId);
+        return _Scanned(
+          outcome,
+          facesOnly && !faceModel
+              ? modelId ?? response.modelId
+              : response.modelId,
+        );
       } on VideoScanPaused {
-        return _stop(row.id, PauseReason.user);
+        return stop(PauseReason.user);
       } on ApiException catch (e) {
         if (e.code == 'engine_unavailable' && !e.retryable) {
-          return _stop(row.id, PauseReason.error, e.message);
+          return stop(PauseReason.error, e.message);
         }
         if (e.isGpuBusy || e.isResourcePressure) {
           busy++;
           if (busy > _policy.busyRetries) {
-            return _stop(
-              row.id,
+            return stop(
               PauseReason.pcBusy,
               e.isResourcePressure ? e.message : null,
             );
           }
           _emit(snapshot(phase: ScanPhase.waiting, message: e.message));
           if (!await _sleep(e.retryAfter ?? _policy.defaultBusyWait)) {
-            return _stop(row.id, PauseReason.user);
+            return stop(PauseReason.user);
           }
           _emit(snapshot());
           continue;
@@ -994,44 +1139,32 @@ class ScanEngine {
         if (e.isOffline) {
           offline++;
           if (offline > _policy.offlineRetries) {
-            return _stop(row.id, PauseReason.offline, e.message);
+            return stop(PauseReason.offline, e.message);
           }
           _emit(snapshot(phase: ScanPhase.waiting, message: e.message));
           final backoffSeconds = (3 * (1 << (offline - 1))).clamp(3, 30);
           if (!await _sleep(Duration(seconds: backoffSeconds))) {
-            return _stop(row.id, PauseReason.user);
+            return stop(PauseReason.user);
           }
           _emit(snapshot());
           continue;
         }
         if (e.isUnauthorized || e.code == ApiException.certificateCode) {
-          return _stop(row.id, PauseReason.revoked, e.message);
+          return stop(PauseReason.revoked, e.message);
         }
         if (e.code == 'model_mismatch') {
-          return _stop(row.id, PauseReason.modelMismatch, e.message);
+          return stop(PauseReason.modelMismatch, e.message);
         }
         if (e.retryable && serverErrors < _policy.serverErrorRetries) {
           serverErrors++;
           if (!await _sleep(const Duration(seconds: 2))) {
-            return _stop(row.id, PauseReason.user);
+            return stop(PauseReason.user);
           }
           continue;
         }
-        await _repo.markFailed(row.id, e.message);
-        return const _Failed();
+        return fail(e.message);
       }
     }
-  }
-
-  /// Gives the photo back to the queue and pauses (the photo is not at fault).
-  Future<_Result> _stop(
-    int mediaId,
-    PauseReason reason, [
-    String? message,
-  ]) async {
-    await _repo.requeue(mediaId);
-    await _pause(reason, message);
-    return const _Paused();
   }
 
   /// Waits `total`, in short slices so a pause request is noticed. False = the user paused meanwhile.

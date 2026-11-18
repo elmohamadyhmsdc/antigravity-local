@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../db/app_database.dart';
+import '../../domain/grouping/identity_constraints.dart';
 
-/// A durable snapshot of one identity's files, including duplicate occurrences
-/// and videos. Queue ownership is separate from the library-wide repair.
+/// Durable re-scan scopes for individual identities and for all assigned media.
 class IdentityRescan {
   IdentityRescan(this.db);
 
@@ -13,6 +13,7 @@ class IdentityRescan {
   static const prefix = 'scan.identity_rescan.media.';
   static const _personKey = 'scan.identity_rescan.person';
   static const _queueKey = 'scan.identity_rescan.queue';
+  static const _libraryKey = 'scan.identity_rescan.library';
   static const pendingSql =
       "EXISTS (SELECT 1 FROM settings s "
       "WHERE s.key = '$prefix' || media.id AND s.value = 'pending')";
@@ -28,6 +29,35 @@ class IdentityRescan {
   }
 
   Future<void> endSession() => db.putSetting(_personKey, '');
+
+  Future<bool> libraryActive() async =>
+      await db.setting(_libraryKey) == 'active';
+
+  Stream<bool> watchLibraryRequested() =>
+      (db.select(db.settings)..where((s) => s.key.equals(_libraryKey)))
+          .watchSingleOrNull()
+          .map((row) => row != null && row.value.isNotEmpty)
+          .distinct();
+
+  Future<void> queueLibrary() => db.transaction(() async {
+    if ((await db.setting(_libraryKey) ?? '').isEmpty) {
+      await db.putSetting(_libraryKey, 'queued');
+    }
+  });
+
+  Future<void> endLibrary() => db.transaction(() async {
+    await _clearScope();
+    await db.putSetting(_libraryKey, '');
+  });
+
+  Future<int> libraryCompletedCount() async =>
+      (await db
+              .customSelect(
+                "SELECT COUNT(*) AS n FROM settings WHERE key LIKE '$prefix%' AND value = 'done'",
+                readsFrom: {db.settings},
+              )
+              .getSingle())
+          .read<int>('n');
 
   Future<List<({int personId, List<int> mediaIds})>> _queued() async {
     final saved = await db.setting(_queueKey);
@@ -50,7 +80,8 @@ class IdentityRescan {
         ]),
       );
 
-  Future<bool> hasQueued() async => (await _queued()).isNotEmpty;
+  Future<bool> hasQueued() async =>
+      await db.setting(_libraryKey) == 'queued' || (await _queued()).isNotEmpty;
 
   Future<Set<int>> reservedPersonIds() async => {
     if (await personId() case final int id) id,
@@ -76,9 +107,20 @@ class IdentityRescan {
     await _saveQueue(queued);
   });
 
-  /// Activate one waiting snapshot only after the previous identity settles.
+  /// Only one request owns the media markers at a time.
   Future<void> activateNext() => db.transaction(() async {
-    if (await personId() != null) return;
+    if (await personId() != null || await libraryActive()) return;
+    if (await db.setting(_libraryKey) == 'queued') {
+      await _clearScope();
+      await db.customInsert(
+        "INSERT INTO settings (key, value) "
+        "SELECT '$prefix' || id, 'pending' FROM (${_scopeSql('IS NOT NULL')})",
+        updates: {db.settings},
+      );
+      await _resetScope();
+      await db.putSetting(_libraryKey, 'active');
+      return;
+    }
     final queued = await _queued();
     while (queued.isNotEmpty) {
       final next = queued.removeAt(0);
@@ -135,6 +177,7 @@ class IdentityRescan {
   /// Explicitly starting again resets video cursors once. Resuming uses the
   /// saved scope and checkpoints without calling this method.
   Future<int> enqueue(int personId) => db.transaction(() async {
+    if (await libraryActive()) throw StateError('A library repair is active.');
     return _activate(personId, await _snapshot(personId));
   });
 
@@ -145,17 +188,7 @@ class IdentityRescan {
     if (person == null) throw StateError('This identity no longer exists.');
     final rows = await db
         .customSelect(
-          '''SELECT m.id FROM media m
-      WHERE m.kind IN ('photo', 'video') AND m.id IN (
-        SELECT media_id FROM faces WHERE person_id = ?1 AND hidden = 0
-        UNION SELECT b.media_id FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
-          WHERE COALESCE(f.person_id, b.person_id) = ?1 AND b.hidden = 0
-        UNION SELECT d.media_id FROM media_detections d JOIN faces f
-          ON d.kind = 'f' AND f.id = d.ref_id WHERE f.person_id = ?1 AND f.hidden = 0
-        UNION SELECT d.media_id FROM media_detections d JOIN bodies b
-          ON d.kind = 'b' AND b.id = d.ref_id LEFT JOIN faces f ON f.id = b.face_id
-          WHERE COALESCE(f.person_id, b.person_id) = ?1 AND b.hidden = 0
-      )''',
+          _scopeSql('= ?1'),
           variables: [Variable.withInt(personId)],
           readsFrom: {db.media, db.faces, db.bodies, db.mediaDetections},
         )
@@ -163,13 +196,36 @@ class IdentityRescan {
     return [for (final row in rows) row.read<int>('id')];
   }
 
+  static String _scopeSql(String ownerFilter) =>
+      '''
+      SELECT m.id FROM media m
+      WHERE m.kind IN ('photo', 'video') AND m.id IN (
+        SELECT media_id FROM faces WHERE person_id $ownerFilter AND hidden = 0
+        UNION SELECT b.media_id FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
+          WHERE ${bodyOwner('b', 'f')} $ownerFilter AND b.hidden = 0
+        UNION SELECT d.media_id FROM media_detections d JOIN faces f
+          ON d.kind = 'f' AND f.id = d.ref_id WHERE f.person_id $ownerFilter AND f.hidden = 0
+        UNION SELECT d.media_id FROM media_detections d JOIN bodies b
+          ON d.kind = 'b' AND b.id = d.ref_id LEFT JOIN faces f ON f.id = b.face_id
+          WHERE ${bodyOwner('b', 'f')} $ownerFilter AND b.hidden = 0
+      )''';
+
+  Future<int> _clearScope() =>
+      (db.delete(db.settings)..where((s) => s.key.like('$prefix%'))).go();
+
   Future<int> _activate(int personId, List<int> mediaIds) async {
-    await (db.delete(db.settings)..where((s) => s.key.like('$prefix%'))).go();
+    await _clearScope();
     // Chunk implicitly through individual settings writes: a large identity must
     // not exceed SQLite's bind-variable limit.
     for (final id in mediaIds) {
       await db.putSetting('$prefix$id', 'pending');
     }
+    final count = await _resetScope();
+    await db.putSetting(_personKey, '$personId');
+    return count;
+  }
+
+  Future<int> _resetScope() async {
     await db.customUpdate(
       '''DELETE FROM settings WHERE key IN (
         SELECT 'video.job.' || media.id FROM media WHERE $pendingSql
@@ -177,12 +233,10 @@ class IdentityRescan {
       )''',
       updates: {db.settings},
     );
-    final count = await db.customUpdate(
+    return db.customUpdate(
       '''UPDATE media SET scan_status = 'pending', scan_attempts = 0,
         scan_error = NULL, last_scanned_frame = 0 WHERE $pendingSql''',
       updates: {db.media},
     );
-    await db.putSetting(_personKey, '$personId');
-    return count;
   }
 }

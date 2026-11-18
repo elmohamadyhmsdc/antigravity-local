@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../db/app_database.dart';
 import 'artifact_context.dart';
 import 'action_frames.dart';
+import 'face_refresh.dart';
 
 abstract final class SettingKeys {
   static const strictness = 'grouping.strictness';
@@ -52,6 +53,8 @@ abstract final class SettingKeys {
       key.startsWith(actionCatalogPrefix) ||
       key.startsWith('video.coverage.') ||
       key.startsWith('video.detail.') ||
+      key.startsWith(FaceRefresh.evidencePrefix) ||
+      key.startsWith(FaceRefresh.checkedPrefix) ||
       key.startsWith(actionFramePrefix);
 }
 

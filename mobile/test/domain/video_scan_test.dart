@@ -234,6 +234,50 @@ void main() {
     onProgress: onProgress,
   );
 
+  test('quick face video scan keeps its own cursor and leaves coverage intact', () async {
+    final repo = LibraryRepository(db);
+    final refresh = repo.faceRefresh;
+    await refresh.request();
+    await refresh.activate();
+    final saved = db.update(db.media)..where((m) => m.id.equals(row.id));
+    await saved.write(const MediaCompanion(
+      scanStatus: Value('done'),
+      lastScannedFrame: Value(999),
+    ));
+    await db.putSetting('video.job.${row.id}', 'normal scan job');
+    var paused = false;
+    var resuming = false;
+    Future<StoreOutcome> scan() => scanner.run(
+      row,
+      api: pc,
+      library: library,
+      prefs: const SettingsSnapshot(videoScanMode: VideoScanMode.detailed),
+      paused: () => paused,
+      report: (stage, _) {
+        if (stage == 'import' && !resuming) paused = true;
+      },
+      facesOnly: true,
+    );
+
+    await expectLater(scan(), throwsA(isA<VideoScanPaused>()));
+    expect(await refresh.cursor(row), 1);
+    expect(await refresh.finished(row.id), isFalse);
+    paused = false;
+    resuming = true;
+    await scan();
+    expect(await refresh.finished(row.id), isTrue);
+    expect(await refresh.cursor(row), 0);
+    expect((await repo.mediaById(row.id))!.lastScannedFrame, 999);
+    expect((await repo.mediaById(row.id))!.scanStatus, 'done');
+    expect(await db.setting('video.job.${row.id}'), 'normal scan job');
+    expect(await db.setting('video.coverage.${row.id}'), isNull);
+    final params = pc.requests.single['params'] as Map;
+    expect(params['sampling_mode'], 'quick');
+    expect(params['faces_only'], isTrue);
+    expect(params['detect_bodies'], isFalse);
+    expect(params['start_frame'], 0);
+  });
+
   test(
     'identity repair imports video frames and finishes its durable marker',
     () async {
@@ -265,6 +309,37 @@ void main() {
       expect((pc.requests.single['params'] as Map)['detect_bodies'], isTrue);
       expect((await db.select(db.media).get()).single.scanStatus, 'done');
       expect(pc.deleted, 1);
+    },
+  );
+
+  test(
+    'library repair includes videos even with ordinary video scanning disabled',
+    () async {
+      final p = await seedPerson(db);
+      await seedFace(db, mediaId: row.id, personId: p, frameNumber: 0);
+      final repo = LibraryRepository(db);
+      final repair = repo.identityRescan;
+      await repair.queueLibrary();
+      await repair.activateNext();
+      await scanner.run(
+        (await repo.mediaById(row.id))!,
+        api: pc,
+        library: library,
+        prefs: const SettingsSnapshot(
+          scanVideos: false,
+          videoScanMode: VideoScanMode.quick,
+        ),
+        paused: () => false,
+        report: (_, _) {},
+        characterScan: true,
+        repairCharacters: true,
+      );
+      final params = pc.requests.single['params'] as Map;
+      expect(params['sampling_mode'], 'adaptive');
+      expect(params['detect_characters'], isTrue);
+      expect(await repair.libraryActive(), isTrue);
+      expect(await repair.libraryCompletedCount(), 1);
+      expect(await repair.hasPending(), isFalse);
     },
   );
 

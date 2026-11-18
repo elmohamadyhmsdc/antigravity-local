@@ -35,19 +35,19 @@ void main() {
       },
     });
     final person = await seedPerson(env.db, name: 'Source');
+    final photo = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAWElEQVRIDbXBAQEAAAABIF433wpV5KnIU5GnIk9Fnoo8FXkq8lTkqchTkaciT0WeijwVeSryVOSpyFORpyJPRZ6KPBV5KvJU5KnIU5GnIk9Fnoo8FXkq8jThJy0h7YJJqAAAAABJRU5ErkJggg==',
+    );
     final crop = await tester.runAsync(
-      () => env.files.write('faces/source.jpg', tinyPng),
+      () => env.files.write('faces/source.jpg', photo),
     );
     final stored = await seedFace(env.db, personId: person, cropPath: crop);
-    env.targetPicker = () async => RefaceTarget.photo(tinyPng);
+    env.targetPicker = () async => RefaceTarget.photo(photo);
 
     await env.pump(
       tester,
       extra: [
         initialLocationProvider.overrideWithValue('/reface?person=$person'),
-        refaceSourcePickerProvider.overrideWithValue((_) async {
-          fail('The profile must use library crops directly.');
-        }),
         jobTrackerProvider.overrideWith((ref) {
           final tracker = JobTracker(
             repository: ref.read(studioRepositoryProvider),

@@ -9,6 +9,7 @@ import '../../data/repositories/review_repository.dart';
 import 'grouping_config.dart';
 import '../identity/doubt_audit.dart';
 import '../pose/exposed_matching.dart';
+import '../scan/body_face_links.dart';
 import 'grouping_inputs.dart';
 import 'plan_applier.dart';
 
@@ -37,7 +38,7 @@ class GroupingRun {
   final ReviewCounts review;
 }
 
-enum _GroupingPass { incremental, full, repair, rebuild }
+enum _GroupingPass { incremental, full, repair, libraryRepair, rebuild }
 
 /// "Sort my gallery", phone edition. The PC decides (POST /v1/grouping/plan, stateless), the phone
 /// applies, in three rounds so that ids stay real:
@@ -100,10 +101,14 @@ class GroupingRunner {
   /// Rebuild the automatically created groups and audit saved identities.
   Future<GroupingRun> rebuild() => _schedule(_GroupingPass.rebuild);
 
+  /// Reconcile all identities after their source media has been scanned again.
+  Future<GroupingRun> repairLibrary() => _schedule(_GroupingPass.libraryRepair);
+
   Future<GroupingRun> _schedule(_GroupingPass pass, {int? repairPersonId}) {
     final running = _running;
     if (running != null) {
       if (pass.index <= _runningPass!.index &&
+          (pass != _GroupingPass.libraryRepair || pass == _runningPass) &&
           (repairPersonId == null || repairPersonId == _runningPersonId)) {
         return running;
       }
@@ -172,11 +177,7 @@ class GroupingRunner {
       trace = s;
     }
     try {
-      await _then?.run(
-        incremental: pass == _GroupingPass.incremental,
-        repairExisting: pass == _GroupingPass.repair,
-        repairPersonId: repairPersonId,
-      );
+      await _then?._schedule(pass, repairPersonId: repairPersonId);
     } catch (e, s) {
       if (error == null) {
         error = e;
@@ -197,7 +198,8 @@ class GroupingRunner {
   }) async {
     final incremental = pass == _GroupingPass.incremental;
     final rebuilding = pass == _GroupingPass.rebuild;
-    final mergePeople = !rebuilding && _people != null;
+    final libraryRepair = pass == _GroupingPass.libraryRepair;
+    final mergePeople = !rebuilding && !libraryRepair && _people != null;
     if (rebuilding && kind == 'person' && _people != null) {
       final reserved = await IdentityRescan(_db).reservedPersonIds();
       await _people.dissolvePeople(
@@ -210,7 +212,11 @@ class GroupingRunner {
     // Repair evidence must exist before a contaminated identity is used as a
     // model. It also remains available when the PC's grouping request fails.
     if (!incremental) {
-      await _audit.run(anchorPersonId: repairPersonId, rebuilding: rebuilding);
+      await _audit.run(
+        anchorPersonId: repairPersonId,
+        anchorAll: libraryRepair,
+        rebuilding: rebuilding,
+      );
     }
     final api = rebuildApi ?? _api();
     if (api == null) {
@@ -223,11 +229,14 @@ class GroupingRunner {
     final strictness = kind == 'character'
         ? characterStrictness
         : personStrictness;
-    var repaired = pass == _GroupingPass.repair || rebuilding
+    var repaired = pass == _GroupingPass.repair || rebuilding || libraryRepair
         ? await _repairFaces(api, strictness, sourceId: repairPersonId)
         : 0;
-    if (rebuilding && _people != null) {
-      repaired += await _people.regroupDoubtfulFaces(null);
+    if ((rebuilding || libraryRepair) && _people != null) {
+      repaired += await _people.regroupDoubtfulFaces(
+        null,
+        includeSuggested: libraryRepair,
+      );
     }
 
     var result = const FacePlanResult();
@@ -287,7 +296,7 @@ class GroupingRunner {
             "SELECT COUNT(*) AS n FROM persons WHERE kind = '$kind'",
           ) ==
           0) {
-        return rebuilding
+        return rebuilding || libraryRepair
             ? _applier.applyBodyPlan(const GroupingPlanResponse(mode: 'apply'))
             : 0;
       }
@@ -304,6 +313,12 @@ class GroupingRunner {
       );
     }
 
+    final repairedBodies =
+        (pass == _GroupingPass.repair && repairPersonId == null) ||
+            rebuilding ||
+            libraryRepair
+        ? await BodyFaceLinks(_db).repairIsolated(kind)
+        : 0;
     var bodiesLinked = await relinkBodies();
 
     Future<GroupingPlanResponse> buildReview() async => api.groupingPlan(
@@ -329,7 +344,7 @@ class GroupingRunner {
           newPeople: result.newPeople,
           facesInNewPeople: result.facesInNewPeople,
         );
-        if (rebuilding) bodiesLinked = await relinkBodies();
+        if (rebuilding || libraryRepair) bodiesLinked = await relinkBodies();
         review = await buildReview();
       }
     }
@@ -337,7 +352,7 @@ class GroupingRunner {
     // Then everything already sorted, the faces the user named included: which of them do not look like
     // the rest of their person? They come back as "Are you sure these are X?" questions.
     if (result.changedAnything || merged > 0 || repaired > 0) {
-      await _audit.run(rebuilding: rebuilding);
+      await _audit.run(rebuilding: rebuilding, anchorAll: libraryRepair);
     }
     if (kind == 'person') await ExposedClusters(_db).publishSuggestions();
 
@@ -345,7 +360,7 @@ class GroupingRunner {
       assigned: result.assigned,
       newPeople: result.newPeople,
       facesInNewPeople: result.facesInNewPeople,
-      bodiesLinked: bodiesLinked,
+      bodiesLinked: repairedBodies + bodiesLinked,
       peopleMerged: merged,
       facesRepaired: repaired,
       review: await _review.counts(),

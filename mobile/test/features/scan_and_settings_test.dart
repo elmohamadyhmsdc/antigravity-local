@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/api_exception.dart';
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
+import 'package:antigravity_mobile/data/api/dtos/system.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/repositories/app_settings.dart';
 import 'package:antigravity_mobile/data/media/media_library.dart';
@@ -13,9 +14,11 @@ import 'package:antigravity_mobile/domain/scan/scan_state.dart';
 import 'package:antigravity_mobile/library_providers.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
+import '../support/fixtures.dart';
 import '../support/harness.dart';
 import '../support/seed.dart';
 
@@ -507,6 +510,91 @@ void main() {
   });
 
   group('S24 Settings', () {
+    appTest(
+      'quick faces action confirms and starts the face refresh scan',
+      (tester, env) async {
+        final caps = fixture('Capabilities.idle');
+        (caps['engines'] as Map)['face_only_scan'] = true;
+        env.api.capabilities_ = Capabilities.fromJson(caps);
+        env.api.analyzeResult = analysis();
+        await seedMedia(env.db);
+        await _open(tester, env, '/settings/library');
+        await _openSection(tester, 'library-matching-section');
+        final tile = find.byKey(const Key('settings-quick-face-scan'));
+        await revealForTap(tester, tile);
+        final engine = ProviderScope.containerOf(tester.element(tile))
+            .read(scanEngineProvider);
+        await tester.tap(tile);
+        await _settle(tester);
+        expect(find.textContaining('Short appearances between video samples'), findsOneWidget);
+        expect(env.api.analyzeCalls, isEmpty);
+        await tester.tap(find.text('Start face scan'));
+        for (var i = 0; i < 60 && engine.progress.phase != ScanPhase.completed; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        expect(engine.progress.phase, ScanPhase.completed);
+        expect(engine.progress.refreshingFaces, isTrue);
+        expect(env.api.analyzeOptions.single.facesOnly, isTrue);
+      },
+      session: testSession,
+    );
+
+    appTest(
+      'library repair confirms before starting the photos and videos queue',
+      (tester, env) async {
+        final caps = fixture('Capabilities.idle');
+        (caps['engines'] as Map)['character_library_repair'] = true;
+        env.api.capabilities_ = Capabilities.fromJson(caps);
+        env.api.analyzeResult = analysis();
+        final person = await seedPerson(env.db, name: 'Sara');
+        final media = await seedMedia(env.db);
+        await seedFace(env.db, mediaId: media, personId: person);
+        await _open(tester, env, '/settings/library');
+        await _openSection(tester, 'library-matching-section');
+        final tile = find.byKey(
+          const Key('settings-repair-library-identities'),
+        );
+        await revealForTap(tester, tile);
+        await tester.tap(tile);
+        await _settle(tester);
+        expect(
+          find.textContaining('Detailed video analysis can take time'),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Cancel'));
+        await _settle(tester);
+        expect(env.api.analyzeCalls, isEmpty);
+
+        final engine = ProviderScope.containerOf(
+          tester.element(tile),
+        ).read(scanEngineProvider);
+        await tester.tap(tile);
+        await _settle(tester);
+        await tester.tap(find.text('Start library repair'));
+        for (
+          var i = 0;
+          i < 100 && engine.progress.phase != ScanPhase.completed;
+          i++
+        ) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+          );
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        expect(engine.progress.phase, ScanPhase.completed);
+        expect(env.api.analyzeCalls, hasLength(1));
+        await revealForTap(
+          tester,
+          find.byKey(const Key('scan-progress-card')),
+          delta: -180,
+        );
+        expect(find.text('Library repair complete'), findsOneWidget);
+        await tester.pump(const Duration(seconds: 11));
+        await _settle(tester);
+      },
+      session: testSession,
+    );
+
     appTest('regroup explains what is kept and only runs after confirmation', (
       tester,
       env,

@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:drift/drift.dart';
 
 import '../../domain/organization/dynamic_auto_organizer.dart';
+import '../../domain/grouping/identity_constraints.dart';
 import '../db/app_database.dart';
 import '../files/file_store.dart';
 import '../index/embedding_index.dart';
@@ -291,13 +292,13 @@ class PeopleRepository {
       .customSelect(
         '''
         SELECT b.id, b.media_id, b.face_id, b.crop_path, b.extent, b.link_method, b.link_confidence,
-               b.score, COALESCE(bf.person_id, b.person_id) AS person_id
+               b.score, ${bodyOwner('b', 'bf')} AS person_id
         FROM bodies b LEFT JOIN faces bf ON bf.id = b.face_id
-        WHERE bf.person_id = ?1 OR (bf.person_id IS NULL AND b.person_id = ?1)
+        WHERE (bf.person_id = ?1 OR b.person_id = ?1) AND ${bodyOwner('b', 'bf')} = ?1
         ORDER BY b.score DESC, b.id LIMIT 600
         ''',
         variables: [Variable.withInt(personId)],
-        readsFrom: {_db.bodies, _db.faces},
+        readsFrom: {_db.bodies, _db.faces, _db.bodyRejections},
       )
       .watch()
       .map((rows) => rows.map(_body).toList());
@@ -307,11 +308,11 @@ class PeopleRepository {
         .customSelect(
           '''
           SELECT b.id, b.media_id, b.face_id, b.crop_path, b.extent, b.link_method, b.link_confidence,
-                 b.score, COALESCE(bf.person_id, b.person_id) AS person_id
+                 b.score, ${bodyOwner('b', 'bf')} AS person_id
           FROM bodies b LEFT JOIN faces bf ON bf.id = b.face_id WHERE b.id = ?
           ''',
           variables: [Variable.withInt(id)],
-          readsFrom: {_db.bodies, _db.faces},
+          readsFrom: {_db.bodies, _db.faces, _db.bodyRejections},
         )
         .get();
     return rows.isEmpty ? null : _body(rows.first);
@@ -546,16 +547,18 @@ class PeopleRepository {
       _db.transaction(() => _assign(faceIds, personId));
 
   /// An explicit rescan may release clear identity outliers to be clustered
-  /// again, even when the second person has no existing identity yet. A library
-  /// rebuild leaves unconfirmed destination suggestions in Review.
-  Future<int> regroupDoubtfulFaces(int? personId) => _db.transaction(() async {
+  /// again, even when the second person has no existing identity yet.
+  Future<int> regroupDoubtfulFaces(
+    int? personId, {
+    bool includeSuggested = false,
+  }) => _db.transaction(() async {
     final rows = await _db
         .customSelect(
           '''SELECT f.id FROM faces f
       JOIN review_doubtful d ON d.face_id = f.id AND d.person_id = f.person_id
       JOIN persons p ON p.id = f.person_id
       WHERE (?1 IS NULL OR p.id = ?1) AND p.kind = ?2 AND p.grouping_locked = 0
-        AND (?1 IS NOT NULL OR d.suggested_person_id IS NULL)
+        AND (?1 IS NOT NULL OR ?3 OR d.suggested_person_id IS NULL)
         AND f.kind = p.kind AND p.avatar_face_id IS NOT f.id
         AND f.hidden = 0 AND f.review_dismissed = 0 AND f.ownership IS NULL
         AND d.score < ?
@@ -575,6 +578,7 @@ class PeopleRepository {
           variables: [
             Variable<int>(personId),
             Variable.withString(kind),
+            Variable.withBool(includeSuggested),
             Variable.withReal(kind == 'character' ? .70 : .35),
             Variable.withReal(kind == 'character' ? .70 : .35),
           ],

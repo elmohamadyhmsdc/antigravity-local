@@ -18,6 +18,7 @@ import '../../data/repositories/app_settings.dart';
 import '../../data/repositories/library_repository.dart';
 import '../../data/repositories/character_repair.dart';
 import '../../data/repositories/identity_rescan.dart';
+import '../../data/repositories/face_refresh.dart';
 import '../../data/repositories/video_scan_coverage.dart';
 import 'photo_result_store.dart';
 import 'video_hash.dart';
@@ -70,6 +71,7 @@ class VideoScan {
     void Function(Uint8List bytes, int? timestampMs)? onPreview,
     bool characterScan = false,
     bool repairCharacters = false,
+    bool facesOnly = false,
 
     /// The PC has the sensitive-region model: sampled frames also ask for regions (roadmap S4); any
     /// frame with a counting region flags the whole clip.
@@ -90,6 +92,7 @@ class VideoScan {
     var outcome = const StoreOutcome();
     var scanMode = prefs.videoScanMode;
     final coverage = VideoScanCoverage(db);
+    final refresh = facesOnly ? FaceRefresh(db) : null;
 
     void publish(VideoScanStage stage, [double? fraction]) {
       final now = DateTime.now();
@@ -199,7 +202,7 @@ class VideoScan {
       if (paused()) throw const VideoScanPaused();
     }
 
-    final key = 'video.job.${media.id}';
+    final key = refresh?.videoKey('job', media.id) ?? 'video.job.${media.id}';
     Map<String, dynamic>? saved;
     final raw = await db.setting(key);
     if (raw != null) {
@@ -235,17 +238,20 @@ class VideoScan {
 
     String? warning;
     var workerRetries = 0;
-    final isCharScan = media.illustrated || characterScan;
+    final isCharScan = facesOnly || media.illustrated || characterScan;
     final corrections = await LibraryRepository(
       db,
     ).kindCorrections(media.assetId);
-    var nextFrame =
-        (await LibraryRepository(db).mediaById(media.id))?.lastScannedFrame ??
-        0;
-    scanMode = await coverage.requestedMode(
-      media,
-      repairCharacters ? VideoScanMode.detailed : prefs.videoScanMode,
-    );
+    var nextFrame = refresh != null
+        ? await refresh.cursor(media)
+        : (await LibraryRepository(db).mediaById(media.id))?.lastScannedFrame ??
+              0;
+    scanMode = facesOnly
+        ? VideoScanMode.quick
+        : await coverage.requestedMode(
+            media,
+            repairCharacters ? VideoScanMode.detailed : prefs.videoScanMode,
+          );
     if (saved != null) {
       scanMode =
           (saved['request'] as Map?)?['params'] is Map &&
@@ -253,7 +259,7 @@ class VideoScan {
                   'quick'
           ? VideoScanMode.quick
           : VideoScanMode.detailed;
-    } else if (nextFrame > 0) {
+    } else if (!facesOnly && nextFrame > 0) {
       scanMode = await coverage.activeMode(media) ?? VideoScanMode.detailed;
     }
     Future<void> commitFrame(
@@ -281,6 +287,7 @@ class VideoScan {
         timestampMs: timestamp,
         complete: false,
         repairCharacters: repairCharacters,
+        facesOnly: facesOnly,
       );
       outcome = StoreOutcome(
         facesSeen: outcome.facesSeen + stored.facesSeen,
@@ -326,7 +333,8 @@ class VideoScan {
     // video file never crosses the Wi-Fi. False = the phone cannot read this video and
     // it is uploaded instead. An upload already in progress (saved) finishes as before.
     Future<bool> scanOnPhone(LocalVideoFrames local, MobileApi analyzer) async {
-      final gridKey = 'video.local.${media.id}';
+      final gridKey =
+          refresh?.videoKey('local', media.id) ?? 'video.local.${media.id}';
       publish(VideoScanStage.prepare);
       final probe = await local.probe(media.assetId);
       if (probe == null) return false;
@@ -366,7 +374,7 @@ class VideoScan {
       scanMode = grid!['mode'] == 'quick'
           ? VideoScanMode.quick
           : VideoScanMode.detailed;
-      await coverage.pinMode(media, scanMode);
+      if (!facesOnly) await coverage.pinMode(media, scanMode);
       final fps = (grid['fps'] as num).toDouble();
       final step = grid['step'] as int;
       final total = grid['total'] as int;
@@ -454,14 +462,17 @@ class VideoScan {
               bytes,
               filename: 'frame.jpg',
               options: AnalyzeOptions(
-                detectBodies: prefs.scanBodies || repairCharacters,
+                detectBodies:
+                    !facesOnly && (prefs.scanBodies || repairCharacters),
                 detectCharacters: isCharScan,
+                facesOnly: facesOnly,
                 minQuality: prefs.qualityGate,
                 modelId: prefs.modelId,
                 facelessCharacters: media.illustrated,
                 forceKind: corrections.forceKind,
                 kindOverrides: corrections.dtos(timestampMs: timeOf(frame)),
-                returnSensitive: sensitiveScan,
+                returnSensitive: !facesOnly && sensitiveScan,
+                returnOutlines: !facesOnly,
               ),
             );
             status(timeOf(frame));
@@ -483,6 +494,13 @@ class VideoScan {
         localWarning ??= '$skipped video samples could not be read.';
       }
       await db.transaction(() async {
+        await (db.delete(
+          db.settings,
+        )..where((s) => s.key.equals(gridKey))).go();
+        if (refresh != null) {
+          await refresh.finishVideo(media, clean: localWarning == null);
+          return;
+        }
         await (db.update(db.media)..where((m) => m.id.equals(media.id))).write(
           MediaCompanion(
             scanStatus: const Value('done'),
@@ -491,9 +509,6 @@ class VideoScan {
             scanError: Value(localWarning),
           ),
         );
-        await (db.delete(
-          db.settings,
-        )..where((s) => s.key.equals(gridKey))).go();
         if (repairCharacters && localWarning == null) {
           await CharacterRepair(db).finish(media.id);
           await IdentityRescan(db).finish(media.id);
@@ -524,7 +539,7 @@ class VideoScan {
             retryable: false,
           );
         }
-        await coverage.pinMode(media, scanMode);
+        if (!facesOnly) await coverage.pinMode(media, scanMode);
         currentJob = null;
         serverUpdatedAt = null;
         processedBytes = null;
@@ -590,11 +605,13 @@ class VideoScan {
                   ? 'adaptive'
                   : 'fixed',
               'min_quality': prefs.qualityGate,
-              'detect_bodies': prefs.scanBodies || repairCharacters,
+              'detect_bodies':
+                  !facesOnly && (prefs.scanBodies || repairCharacters),
               'detect_characters': isCharScan,
               'model_id': prefs.modelId,
-              'start_frame': current.lastScannedFrame,
-              'return_outlines': true,
+              'start_frame': facesOnly ? nextFrame : current.lastScannedFrame,
+              if (facesOnly) 'faces_only': true,
+              if (!facesOnly) 'return_outlines': true,
               if (!media.illustrated) 'faceless_characters': false,
               if (corrections.forceKind != null)
                 'force_kind': corrections.forceKind,
@@ -836,6 +853,12 @@ class VideoScan {
         }
         publish(VideoScanStage.finish);
         await db.transaction(() async {
+          final clean =
+              warning == null && (currentJob?.skippedSamples ?? 0) == 0;
+          if (refresh != null) {
+            await refresh.finishVideo(media, clean: clean);
+            return;
+          }
           await (db.update(
             db.media,
           )..where((m) => m.id.equals(media.id))).write(
@@ -846,17 +869,11 @@ class VideoScan {
               scanError: Value(warning),
             ),
           );
-          if (repairCharacters &&
-              warning == null &&
-              (currentJob?.skippedSamples ?? 0) == 0) {
+          if (repairCharacters && clean) {
             await CharacterRepair(db).finish(media.id);
             await IdentityRescan(db).finish(media.id);
           }
-          await coverage.complete(
-            media,
-            scanMode,
-            clean: warning == null && (currentJob?.skippedSamples ?? 0) == 0,
-          );
+          await coverage.complete(media, scanMode, clean: clean);
         });
         // ACK only after every frame committed locally. A failed ACK is safe to retry later.
         try {

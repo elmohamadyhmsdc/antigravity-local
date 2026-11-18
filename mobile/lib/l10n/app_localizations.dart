@@ -2692,6 +2692,108 @@ abstract class AppLocalizations {
   /// **'Connect to your PC to regroup the library.'**
   String get regroupNeedsPc;
 
+  /// No description provided for @libraryIdentityRepairTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-scan and repair People & Characters'**
+  String get libraryIdentityRepairTitle;
+
+  /// No description provided for @libraryIdentityRepairHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Recheck the original photos and videos linked to your identities and fix clear grouping errors.'**
+  String get libraryIdentityRepairHint;
+
+  /// No description provided for @libraryIdentityRepairConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'The PC re-analyzes each linked photo and video once for the whole library. Confirmed faces and profile covers guide grouping. Manual corrections, locked groups and original files are kept, and uncertain matches go to Review. Detailed video analysis can take time. You can pause and resume without redoing completed files.'**
+  String get libraryIdentityRepairConfirmation;
+
+  /// No description provided for @libraryIdentityRepairStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start library repair'**
+  String get libraryIdentityRepairStart;
+
+  /// No description provided for @libraryIdentityRepairContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume library repair'**
+  String get libraryIdentityRepairContinue;
+
+  /// No description provided for @libraryIdentityRepairQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Library repair is queued or running.'**
+  String get libraryIdentityRepairQueued;
+
+  /// No description provided for @libraryIdentityRepairDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Library repair complete'**
+  String get libraryIdentityRepairDone;
+
+  /// No description provided for @faceRefreshTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick faces-only scan'**
+  String get faceRefreshTitle;
+
+  /// No description provided for @faceRefreshHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh face measurements across the library, including quick samples from videos.'**
+  String get faceRefreshHint;
+
+  /// No description provided for @faceRefreshConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Recheck saved photos and videos and any new files in your selected albums. This updates People and Character face measurements and keeps current grouping and body analysis. Short appearances between video samples may be missed. You can regroup using the updated measurements after the scan.'**
+  String get faceRefreshConfirmation;
+
+  /// No description provided for @faceRefreshStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start face scan'**
+  String get faceRefreshStart;
+
+  /// No description provided for @faceRefreshResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume face scan'**
+  String get faceRefreshResume;
+
+  /// No description provided for @faceRefreshQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Face scan is queued or running.'**
+  String get faceRefreshQueued;
+
+  /// No description provided for @faceRefreshDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Face scan complete'**
+  String get faceRefreshDone;
+
+  /// No description provided for @faceRefreshChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking faces…'**
+  String get faceRefreshChecking;
+
+  /// No description provided for @faceRefreshFullScanPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Full scan pending'**
+  String get faceRefreshFullScanPending;
+
+  /// No description provided for @faceRefreshCheckedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Faces checked {date}'**
+  String faceRefreshCheckedAt(String date);
+
   /// No description provided for @regroupFailed.
   ///
   /// In en, this message translates to:
@@ -3015,6 +3117,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Source identity'**
   String get refaceIdentity;
+
+  /// No description provided for @refaceModelSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Face references'**
+  String get refaceModelSource;
+
+  /// No description provided for @refaceModelSourceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a trained model to create face references for the angles in your target.'**
+  String get refaceModelSourceHint;
+
+  /// No description provided for @refaceModelStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Prepare references and start Reface'**
+  String get refaceModelStart;
+
+  /// No description provided for @refaceModelCheckingTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the face angles in your target…'**
+  String get refaceModelCheckingTarget;
+
+  /// No description provided for @refaceModelGenerating.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating face references from the selected model…'**
+  String get refaceModelGenerating;
+
+  /// No description provided for @refaceModelVerifying.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking that the generated faces match the person…'**
+  String get refaceModelVerifying;
+
+  /// No description provided for @refaceModelPaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Face reference generation is paused. Resume it in Activity, then start Reface again.'**
+  String get refaceModelPaused;
+
+  /// No description provided for @refaceModelFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Face references could not be prepared. Try again or choose gallery faces.'**
+  String get refaceModelFailed;
+
+  /// No description provided for @refaceModelNeedsReference.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a clear face for this person or use a model with a readable training dataset to verify the generated faces.'**
+  String get refaceModelNeedsReference;
+
+  /// No description provided for @refaceModelUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The connected PC cannot generate faces with this model.'**
+  String get refaceModelUnavailable;
+
+  /// No description provided for @refaceModelBaseUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The base checkpoint used to train this model is unavailable on this PC.'**
+  String get refaceModelBaseUnavailable;
+
+  /// No description provided for @refaceModelFileUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This model file is unavailable. Choose another model.'**
+  String get refaceModelFileUnavailable;
 
   /// No description provided for @refaceQuality.
   ///

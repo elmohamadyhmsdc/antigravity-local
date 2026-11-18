@@ -91,6 +91,7 @@ class AnalyzeRequestOptions:
     kind_overrides: tuple = ()
     return_sensitive: bool = False   # roadmap section 8; off = the response is byte-identical to before
     return_body_embeddings: bool = False   # roadmap 7.5 (Phase 8); implies the regions are computed
+    faces_only: bool = False
 
     def engine_options(self, timestamp_ms: Optional[int] = None, tolerance_ms: int = 0) -> AnalyzeOptions:
         """What analysis.analyze_frame needs. In a video only the corrections made near
@@ -98,10 +99,13 @@ class AnalyzeRequestOptions:
         overrides = tuple((kind, part, box) for kind, part, box, ts in self.kind_overrides
                           if ts is None or timestamp_ms is None or abs(ts - timestamp_ms) <= tolerance_ms)
         return AnalyzeOptions(min_face_quality=self.min_face_quality, detect_characters=self.detect_characters,
-                              detect_bodies=self.detect_bodies, body_score=self.body_score,
-                              outlines=self.return_outlines, faceless_characters=self.faceless_characters,
+                              detect_bodies=self.detect_bodies and not self.faces_only, body_score=self.body_score,
+                              outlines=self.return_outlines and not self.faces_only,
+                              faceless_characters=self.faceless_characters,
                               force_kind=self.force_kind, kind_overrides=overrides,
-                              sensitive=self.return_sensitive, body_embeddings=self.return_body_embeddings)
+                              sensitive=self.return_sensitive and not self.faces_only,
+                              body_embeddings=self.return_body_embeddings and not self.faces_only,
+                              faces_only=self.faces_only)
 
 
 MAX_KIND_OVERRIDES = 4096
@@ -170,6 +174,7 @@ def parse_analyze_options(raw: Optional[str]) -> AnalyzeRequestOptions:
         kind_overrides=_kind_overrides(opts),
         return_sensitive=_flag(opts, "return_sensitive", False),
         return_body_embeddings=_flag(opts, "return_body_embeddings", False),
+        faces_only=_flag(opts, "faces_only", False),
     )
 
 

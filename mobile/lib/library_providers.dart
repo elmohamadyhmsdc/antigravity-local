@@ -414,6 +414,7 @@ final videosToCompactProvider = StreamProvider.autoDispose<int>(
 
 // ignore: omit_obvious_property_types - an explicit type breaks the inference cycle through afterRun
 final Provider<ScanEngine> scanEngineProvider = Provider<ScanEngine>((ref) {
+  final link = ref.read(scanEngineLinkProvider);
   final engine = ScanEngine(
     library: ref.watch(libraryRepositoryProvider),
     media: ref.watch(mediaLibraryProvider),
@@ -448,7 +449,8 @@ final Provider<ScanEngine> scanEngineProvider = Provider<ScanEngine>((ref) {
       // Roadmap section 8.3: photos scanned before the feature get their regions in the background,
       // only while no scan runs, the user did not pause, and the PC is ready.
       Future<void>.delayed(const Duration(seconds: 10), () async {
-        final scan = ref.read(scanEngineProvider);
+        final scan = link.engine;
+        if (!ref.mounted || scan == null) return;
         // pose descriptors of the bodies this pass added (cheap, local, no PC involved)
         await ref
             .read(poseIndexProvider)
@@ -473,7 +475,6 @@ final Provider<ScanEngine> scanEngineProvider = Provider<ScanEngine>((ref) {
       });
     },
   );
-  final link = ref.read(scanEngineLinkProvider);
   link.engine = engine;
   ref.onDispose(() {
     if (identical(link.engine, engine)) link.engine = null;

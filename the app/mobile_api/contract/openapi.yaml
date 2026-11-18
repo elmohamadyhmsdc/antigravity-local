@@ -730,6 +730,7 @@ components:
             character_detection: { type: boolean, default: false }
             character_library_repair: { type: boolean, default: false }
             quick_video_sampling: { type: boolean, default: false }
+            face_only_scan: { type: boolean, default: false }
             lora_training_views: { type: boolean, default: false }
             lora_full_body: { type: boolean, default: false }
             sensitive_detection:
@@ -866,6 +867,10 @@ components:
       type: object
       properties:
         detect_bodies: { type: boolean, default: true }
+        faces_only:
+          type: boolean
+          default: false
+          description: Runs face and optional character face detection without body, region or outline inference.
         detect_characters:
           type: boolean
           default: false
@@ -1826,6 +1831,7 @@ components:
           description: Adaptive uses duration/480 seconds, bounded to 0.5–10 seconds. Quick uses at most 60 uniformly spaced samples, no denser than once per second. The decoded frame count determines the budget and the grid is retained on resume.
         min_quality: { type: number, default: 0.40, minimum: 0, maximum: 1 }
         detect_bodies: { type: boolean, default: true }
+        faces_only: { type: boolean, default: false, description: Analyze sampled faces without body, region or outline inference. }
         start_time: { type: number, default: 0, minimum: 0, maximum: 86400 }
         start_frame:
           type: integer

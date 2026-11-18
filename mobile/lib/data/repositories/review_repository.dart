@@ -288,7 +288,7 @@ class ReviewRepository {
       for (final r
           in await _db
               .customSelect(
-                'SELECT id FROM bodies WHERE kind = ?',
+                "SELECT id FROM bodies WHERE kind = ? AND face_id IS NULL AND link_method IS NOT 'manual'",
                 variables: own,
                 readsFrom: {_db.bodies},
               )
@@ -933,9 +933,7 @@ class ReviewRepository {
     final skipped = excluded.intersection(faceIds.toSet());
     final selected = faceIds.toSet().difference(skipped);
     if (selected.isEmpty) throw StateError('Select at least one face');
-    final rejected = (await expandTracks(
-      skipped,
-    )).toSet().difference(selected);
+    final rejected = (await expandTracks(skipped)).toSet().difference(selected);
     final kept = (await expandTracks(
       selected,
       notRejectedBy: personId,

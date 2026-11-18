@@ -83,6 +83,7 @@ class AnalyzeOptions:
     sensitive: bool = False
     # Roadmap 7.5 (Phase 8): DINOv2 chest / lower-body embeddings + morphology per body. Implies the regions.
     body_embeddings: bool = False
+    faces_only: bool = False
 
 
 @dataclass
@@ -288,8 +289,10 @@ def analyze_frame(face_app, body, img, options,
     h, w = img.shape[:2]
     from face_routing import box_iou, overlaps_real_face
     force = getattr(options, "force_kind", None)
+    faces_only = getattr(options, "faces_only", False)
     overrides = [(kind, part, np.array([b[0] * w, b[1] * h, b[2] * w, b[3] * h], np.float32))
-                 for kind, part, b in (getattr(options, "kind_overrides", None) or ())]
+                 for kind, part, b in (getattr(options, "kind_overrides", None) or ())
+                 if not faces_only or part == "face"]
 
     def kind_of(box, part):
         """The user's kind for this detection: its own correction, else the frame's, else None."""
@@ -400,9 +403,9 @@ def analyze_frame(face_app, body, img, options,
                 anime_faces.append({"bbox": f.bbox, "score": float(f.det_score)})
 
     bodies: list = []
-    if want_characters and (body is None or not getattr(body, "available", False)):
+    if want_characters and not faces_only and (body is None or not getattr(body, "available", False)):
         raise RuntimeError("Character detection requires the installed HumanArt body models.")
-    if (options.detect_bodies or want_characters) and body is not None and body.available:
+    if not faces_only and (options.detect_bodies or want_characters) and body is not None and body.available:
         t = time.perf_counter()
         bodies = body.analyze(img, score_thr=options.body_score)
         if anime_faces:

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:drift/drift.dart';
 
 import '../../domain/geometry/outline.dart';
+import '../../domain/scan/body_face_links.dart';
 import '../../domain/scan/scan_math.dart';
 import '../../domain/scan/video_tracks.dart';
 import '../api/dtos/analyze.dart';
@@ -11,6 +12,7 @@ import '../api/dtos/embedding.dart';
 import '../db/app_database.dart';
 import '../files/file_store.dart';
 import 'kind_corrections.dart' show sameDetectionBox;
+import 'face_suppression_store.dart';
 
 typedef _Box = ({double x, double y, double w, double h});
 
@@ -34,6 +36,9 @@ class CharacterRepository {
     int? frameNumber,
     int? timestampMs,
     Map<int, DetectedBody>? bodyEvidence,
+    bool facesOnly = false,
+    Set<int>? measuredFaces,
+    List<FaceSuppressionRow> suppressions = const [],
 
     /// Filled with analysis character index -> bodies.id (what the sensitive regions point at).
     Map<int, int>? bodyIdOf,
@@ -42,11 +47,13 @@ class CharacterRepository {
     final w = analysis.imageW, h = analysis.imageH;
     final now = DateTime.now().millisecondsSinceEpoch;
     final facesHere = await _faces(media.id);
-    final bodiesHere = await _bodies(media.id, frameNumber);
+    final bodiesHere = facesOnly
+        ? <_Body>[]
+        : await _bodies(media.id, frameNumber);
     final usedFaces = <int>{}, usedBodies = <int>{};
     var inserted = 0;
     final video = media.kind == 'video' && frameNumber != null;
-    final tracks = video
+    final tracks = video && !facesOnly
         ? await _bodyTracks(media.id)
         : <int, Track<List<double>?>>{};
     final usedTracks = {
@@ -54,12 +61,19 @@ class CharacterRepository {
         if (b.track != null) b.track!,
     };
 
-    final explicitFaces = await (db.select(db.kindOverrides)
-          ..where((o) => o.assetId.equals(media.assetId) &
-              o.kind.equals('character') & o.part.equals('face'))).get();
-    final overrides = await (db.select(
-      db.bodyOverrides,
-    )..where((o) => o.assetId.equals(media.assetId))).get();
+    final explicitFaces =
+        await (db.select(db.kindOverrides)..where(
+              (o) =>
+                  o.assetId.equals(media.assetId) &
+                  o.kind.equals('character') &
+                  o.part.equals('face'),
+            ))
+            .get();
+    final overrides = facesOnly
+        ? <BodyOverrideRow>[]
+        : await (db.select(
+            db.bodyOverrides,
+          )..where((o) => o.assetId.equals(media.assetId))).get();
     for (
       var characterIndex = 0;
       characterIndex < analysis.characters.length;
@@ -71,18 +85,46 @@ class CharacterRepository {
       final vector = face?.embedding;
       if (face != null && vector != null) {
         final box = _box(face.bbox, w, h);
+        if (facesOnly &&
+            FaceSuppressionStore.matches(
+              suppressions,
+              asset: media.assetId,
+              model: characterEmbeddingModelId,
+              embedding: vector,
+              box: box,
+              video: video,
+              frame: frameNumber,
+            )) {
+          continue;
+        }
         _Face? same;
+        var bestOverlap = .65;
         for (final f in facesHere) {
+          final overlap = iou(box, f.box);
           if (!usedFaces.contains(f.id) &&
               f.frame == frameNumber &&
-              (iou(box, f.box) >= .65 ||
+              (!facesOnly || same == null || overlap > bestOverlap) &&
+              (overlap >= .65 ||
                   (sameDetectionBox(box, f.box, 'face') &&
-                      explicitFaces.any((o) => o.x != null && o.y != null && o.w != null && o.h != null &&
-                          sameDetectionBox(f.box, (x: o.x!, y: o.y!, w: o.w!, h: o.h!), 'face'))))) {
+                      explicitFaces.any(
+                        (o) =>
+                            o.x != null &&
+                            o.y != null &&
+                            o.w != null &&
+                            o.h != null &&
+                            sameDetectionBox(f.box, (
+                              x: o.x!,
+                              y: o.y!,
+                              w: o.w!,
+                              h: o.h!,
+                            ), 'face'),
+                      )))) {
             same = f;
-            break;
+            if (!facesOnly) break;
+            bestOverlap = overlap;
           }
         }
+        final sameObservation = same != null;
         if (same == null) {
           var best = -1.0;
           for (final f in facesHere) {
@@ -97,6 +139,26 @@ class CharacterRepository {
         }
         if (same != null) {
           faceId = same.id;
+          if (facesOnly && sameObservation) {
+            await (db.update(
+              db.faces,
+            )..where((f) => f.id.equals(same!.id))).write(
+              FacesCompanion(
+                modelId: const Value(characterEmbeddingModelId),
+                embedding: Value(embeddingToBlob(vector)),
+                detScore: Value(face.score),
+                qualityScore: Value(face.score),
+                qualityVersion: const Value(100),
+                facePx: Value(
+                  face.bbox.w > face.bbox.h ? face.bbox.w : face.bbox.h,
+                ),
+                cropPath: face.cropJpeg == null
+                    ? const Value.absent()
+                    : Value(await files.writeFaceCrop(faceId, face.cropJpeg!)),
+              ),
+            );
+            measuredFaces?.add(faceId);
+          }
         } else {
           faceId = await db
               .into(db.faces)
@@ -126,9 +188,10 @@ class CharacterRepository {
                 .write(FacesCompanion(cropPath: Value(path)));
           }
           facesHere.add(_Face(faceId, box, vector, frameNumber));
+          measuredFaces?.add(faceId);
           inserted++;
         }
-        if (video) {
+        if (video && (!facesOnly || same == null)) {
           await (db.update(db.faces)..where((f) => f.id.equals(faceId!))).write(
             FacesCompanion(trackId: Value(faceId)),
           );
@@ -144,6 +207,7 @@ class CharacterRepository {
         );
       }
 
+      if (facesOnly) continue;
       // The old PC sent one whole-figure box and no face or body: that box is the body.
       final body =
           c.body ??
@@ -205,9 +269,8 @@ class CharacterRepository {
           updates: {db.bodyPoseFeatures},
         );
         await db.customUpdate(
-          'UPDATE bodies SET face_id = COALESCE(face_id, ?), kpts = ?, extent = ?, appearance = COALESCE(?, appearance), chest_embedding = COALESCE(?, chest_embedding), buttocks_embedding = COALESCE(?, buttocks_embedding), morphology = COALESCE(?, morphology) WHERE id = ?',
+          'UPDATE bodies SET kpts = ?, extent = ?, appearance = COALESCE(?, appearance), chest_embedding = COALESCE(?, chest_embedding), buttocks_embedding = COALESCE(?, buttocks_embedding), morphology = COALESCE(?, morphology) WHERE id = ?',
           variables: [
-            Variable<int>(faceId),
             Variable<String>(_kpts(body, w, h)),
             Variable<String>(body.extent),
             Variable<Uint8List>(
@@ -222,6 +285,7 @@ class CharacterRepository {
           ],
           updates: {db.bodies},
         );
+        if (faceId != null) await BodyFaceLinks(db).attach(same.id, faceId);
         await _putDetection(
           media.id,
           'b',

@@ -30,6 +30,8 @@ class LoraRepository {
   )..where((i) => i.datasetId.equals(id))).watch();
   Future<DatasetRow?> dataset(String id) =>
       (db.select(db.datasets)..where((d) => d.id.equals(id))).getSingleOrNull();
+  Future<LoraRow?> model(String id) =>
+      (db.select(db.loras)..where((m) => m.id.equals(id))).getSingleOrNull();
   Future<void> updateItem(
     DatasetItemRow item, {
     String? caption,
@@ -91,8 +93,7 @@ class LoraRepository {
         'Scan and assign a clear face for this person first.',
       );
     }
-    final mean = Float32List(dimension);
-    final vectors = <int, Float32List>{};
+    final candidates = <IdentityFace>[];
     for (final face in faces) {
       if (face.modelId != modelId || !face.qualityScore.isFinite) {
         throw const FormatException(
@@ -103,27 +104,28 @@ class LoraRepository {
       if (vector.length != dimension || vector.any((v) => !v.isFinite)) {
         throw const FormatException('A source identity embedding is invalid.');
       }
-      vectors[face.id] = vector;
-    }
-    // The anchor decides which generated portraits count as this person, so it must be them: faces that do
-    // not look like the rest (a wrong grouping) are left out, near-identical ones counted once, and the
-    // sample covers poses instead of being the 40 sharpest.
-    final chosen = selectIdentity([
-      for (final face in faces)
+      candidates.add(
         IdentityFace(
           id: face.id,
-          embedding: vectors[face.id]!,
+          embedding: vector,
           quality: face.qualityScore,
           yaw: face.yaw,
           pitch: face.pitch,
         ),
-    ], top: 40).kept;
-    final byId = {for (final face in faces) face.id: face};
-    for (final picked in chosen) {
-      final face = byId[picked.id]!;
-      final vector = vectors[face.id]!;
+      );
+    }
+    return _identityAnchor(candidates, dimension);
+  }
+
+  static String _identityAnchor(List<IdentityFace> candidates, int dimension) {
+    final mean = Float32List(dimension);
+    // The anchor decides which generated portraits count as this person, so it must be them: faces that do
+    // not look like the rest (a wrong grouping) are left out, near-identical ones counted once, and the
+    // sample covers poses instead of being the 40 sharpest.
+    final chosen = selectIdentity(candidates, top: 40).kept;
+    for (final face in chosen) {
       for (var index = 0; index < dimension; index++) {
-        mean[index] += vector[index] * max(face.qualityScore, .001);
+        mean[index] += face.embedding[index] * max(face.quality, .001);
       }
     }
     final norm = sqrt(mean.fold<double>(0, (sum, v) => sum + v * v));
@@ -138,8 +140,84 @@ class LoraRepository {
     return encodeVector(mean);
   }
 
+  static List<IdentityFace> _detectedReferences(List<DetectedFace> faces) => [
+    for (final (index, face) in faces.indexed)
+      IdentityFace(
+        id: index,
+        embedding: face.embedding,
+        quality: face.quality.score,
+        yaw: face.quality.pose?.yaw,
+        pitch: face.quality.pose?.pitch,
+      ),
+  ];
+
+  /// A person's own training dataset can supply real identity anchors when the
+  /// gallery has no selected faces. Require a single clear face per image.
+  Future<List<DetectedFace>> trainingReferenceFaces(
+    LoraRow lora,
+    MobileApi api,
+    String modelId,
+  ) async {
+    final context = await StudioRepository(db, files).contextFor(lora.id);
+    final datasetId = context?.datasetId;
+    if (datasetId == null || lora.personId == null) return const [];
+    final data = await dataset(datasetId);
+    if (data == null || data.personId != lora.personId) return const [];
+    final items =
+        await (db.select(db.datasetItems)
+              ..where(
+                (i) => i.datasetId.equals(datasetId) & i.included.equals(true),
+              )
+              ..orderBy([(i) => OrderingTerm.asc(i.id)]))
+            .get();
+    final candidates = [
+      ...items.where((item) => p.basename(item.path).contains('_face.')),
+      ...items.where((item) => !p.basename(item.path).contains('_face.')),
+    ];
+    final faces = <DetectedFace>[];
+    for (final item in candidates.take(16)) {
+      Uint8List bytes;
+      try {
+        bytes = await files.resolve(item.path).readAsBytes();
+      } on FileSystemException {
+        continue;
+      }
+      final result = await api.analyzeImage(
+        bytes,
+        options: const AnalyzeOptions(detectBodies: false),
+      );
+      if (result.modelId != modelId) {
+        throw const FormatException(
+          'The PC face model changed. Reconnect and try again.',
+        );
+      }
+      if (result.faces.length == 1) {
+        final face = result.faces.single;
+        if (face.passesGate &&
+            face.embedding.length == embeddingDim &&
+            face.embedding.every((v) => v.isFinite) &&
+            face.quality.score.isFinite &&
+            face.quality.score > 0) {
+          faces.add(face);
+          if (faces.length == 8) break;
+        }
+      }
+    }
+    return [
+      for (final reference in selectIdentity(
+        _detectedReferences(faces),
+        top: 8,
+      ).kept)
+        faces[reference.id],
+    ];
+  }
+
   /// Only explicitly linked portraits can augment this model's real identity.
-  Future<int> buildIdentity(LoraRow lora, MobileApi api) async {
+  Future<int> buildIdentity(
+    LoraRow lora,
+    MobileApi api, {
+    List<DetectedFace> trainingFaces = const [],
+  }) async {
     if (lora.personId == null) {
       throw const FormatException('Assign this LoRA to a person first.');
     }
@@ -179,7 +257,9 @@ class LoraRepository {
       );
     }
     final anchorVector = decodeVector(
-      anchor(real, modelId: modelId),
+      real.isEmpty && !character && trainingFaces.isNotEmpty
+          ? _identityAnchor(_detectedReferences(trainingFaces), embeddingDim)
+          : anchor(real, modelId: modelId),
       character ? characterEmbeddingDim : embeddingDim,
     );
     final portraits = <ResultRow>[];
@@ -274,11 +354,8 @@ class LoraRepository {
           accepted.add({
             'embedding': encodeEmbedding(face.embedding),
             'quality': face.quality.score,
-            'pose': {
-              'yaw': face.quality.pose?.yaw ?? 0,
-              'pitch': face.quality.pose?.pitch ?? 0,
-              'roll': face.quality.pose?.roll ?? 0,
-            },
+            if (face.quality.pose case final pose?)
+              'pose': {'yaw': pose.yaw, 'pitch': pose.pitch, 'roll': pose.roll},
           });
         }
       }

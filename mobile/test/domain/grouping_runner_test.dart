@@ -10,6 +10,7 @@ import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/repositories/identity_rescan.dart';
+import 'package:antigravity_mobile/data/repositories/media_queries.dart';
 import 'package:antigravity_mobile/data/repositories/people_repository.dart';
 import 'package:antigravity_mobile/data/repositories/review_repository.dart';
 import 'package:antigravity_mobile/domain/grouping/grouping_runner.dart';
@@ -86,6 +87,171 @@ void main() {
   Future<int?> personOf(int face) async => (await (db.select(
     db.faces,
   )..where((f) => f.id.equals(face))).getSingle()).personId;
+
+  test('rebuild repairs an isolated saved body while keeping manual and crowded links', () async {
+    final actual = await seedPerson(db, name: 'Actual subject');
+    final other = await seedPerson(db, name: 'Unrelated person');
+    final stale = await seedFace(db, personId: other);
+    final media = await seedMedia(db);
+    final correct = await seedFace(
+      db, mediaId: media, personId: actual, x: .31, y: .12, w: .17, h: .16,
+    );
+    final body = await seedBody(db, mediaId: media, faceId: stale);
+    final crowded = await seedMedia(db, asset: 'crowded');
+    await seedFace(
+      db, mediaId: crowded, personId: actual, x: .31, y: .12, w: .17, h: .16,
+    );
+    await seedFace(
+      db, mediaId: crowded, personId: other, x: .71, y: .15, w: .17, h: .16,
+    );
+    final crowdedBody = await seedBody(db, mediaId: crowded, faceId: stale);
+    final manual = await seedMedia(db, asset: 'manual');
+    await seedFace(
+      db, mediaId: manual, personId: actual, x: .31, y: .12, w: .17, h: .16,
+    );
+    final manualBody = await seedBody(
+      db, mediaId: manual, faceId: stale, personId: other, linkMethod: 'manual',
+    );
+    api.groupingHandler = (request) => _plan(request.mode);
+
+    expect((await runner.rebuild()).bodiesLinked, 1);
+    final rows = {for (final body in await db.select(db.bodies).get()) body.id: body};
+    expect(rows[body]?.faceId, correct);
+    expect(rows[crowdedBody]?.faceId, stale);
+    expect(rows[manualBody]?.faceId, stale);
+    expect(rows[manualBody]?.personId, other);
+    final displayed = await MediaQueries(db).watchDetections(media).first;
+    expect(displayed.singleWhere((d) => d.kind == 'b').personId, actual);
+    expect((await runner.rebuild()).bodiesLinked, 0);
+  });
+
+  test('a pending physical face prevents a weak-face link to someone else', () async {
+    final other = await seedPerson(db, name: 'Unrelated person');
+    final actual = await seedPerson(db, name: 'Actual subject');
+    final media = await seedMedia(db);
+    final face = await seedFace(db, mediaId: media);
+    final body = await seedBody(
+      db, mediaId: media, faceId: face, personId: other, linkMethod: 'weak_face',
+    );
+    final queries = MediaQueries(db);
+    Future<int?> bodyOwnerInViewer() async =>
+        (await queries.watchDetections(media).first)
+            .singleWhere((d) => d.kind == 'b').personId;
+    expect(await bodyOwnerInViewer(), isNull);
+
+    expect(await PlanApplier(db).applyBodyPlan(_plan('apply', bodyLinks: [
+      BodyLinkPlan(bodyId: body, personId: other, method: 'weak_face',
+          confidence: .95, decision: 'auto'),
+    ])), 0);
+    await (db.update(db.faces)..where((f) => f.id.equals(face)))
+        .write(FacesCompanion(personId: Value(actual)));
+    expect(await bodyOwnerInViewer(), actual);
+    await PeopleRepository(db, FileStore(tmp)).linkBody(body, other);
+    expect(await bodyOwnerInViewer(), other);
+  });
+
+  test('saved video repair requires agreement across reused body frames', () async {
+    final actual = await seedPerson(db, name: 'Subject');
+    final other = await seedPerson(db, name: 'Other subject');
+    final face = await seedFace(db, personId: actual);
+    final stale = await seedFace(db, personId: other);
+    final media = await seedMedia(db, kind: 'video');
+    final body = await seedBody(db, faceId: stale);
+    await (db.update(db.bodies)..where((b) => b.id.equals(body))).write(
+      BodiesCompanion(mediaId: Value(media), frameNumber: const Value(0)),
+    );
+    Future<int> observation(String kind, int id, int frame) =>
+        db.into(db.mediaDetections).insert(MediaDetectionsCompanion.insert(
+          mediaId: media,
+          frameNumber: Value(frame),
+          kind: kind,
+          refId: id,
+          x: kind == 'f' ? .31 : .20,
+          y: kind == 'f' ? .12 : .10,
+          w: kind == 'f' ? .17 : .40,
+          h: kind == 'f' ? .16 : .80,
+        ));
+    await observation('b', body, 0);
+    await observation('f', face, 0);
+    await observation('b', body, 30);
+    final conflict = await observation('f', stale, 30);
+    api.groupingHandler = (request) => _plan(request.mode);
+
+    expect((await runner.rebuild()).bodiesLinked, 0);
+    expect((await db.select(db.bodies).getSingle()).faceId, stale);
+    await (db.update(db.mediaDetections)..where((d) => d.id.equals(conflict)))
+        .write(MediaDetectionsCompanion(refId: Value(face)));
+    expect((await runner.rebuild()).bodiesLinked, 1);
+    expect((await db.select(db.bodies).getSingle()).faceId, face);
+  });
+
+  test('library repair audits two-face profiles in both collections', () async {
+    final person = await seedPerson(db, name: 'Sara');
+    final cover = await seedFace(db, personId: person);
+    final wrongPerson = await seedFace(db, personId: person, seed: 2);
+    await (db.update(db.persons)..where((p) => p.id.equals(person))).write(
+      PersonsCompanion(avatarFaceId: Value(cover)),
+    );
+    final lookalike = await seedPerson(db, name: 'Nadia');
+    final nadia = await seedFace(db, personId: lookalike, seed: 2);
+    await seedFace(db, personId: lookalike, embedding: near(unitVec(2), 15, .2));
+    await PeopleRepository(db, FileStore(tmp)).confirmFaces([nadia], lookalike);
+    final character = await db
+        .into(db.persons)
+        .insert(
+          PersonsCompanion.insert(
+            name: const Value('Nova'),
+            kind: const Value('character'),
+            createdAt: 1,
+          ),
+        );
+    final confirmed = await seedFace(db, personId: character);
+    final wrongCharacter = await seedFace(db, personId: character);
+    for (final (id, axis) in [(confirmed, 0), (wrongCharacter, 1)]) {
+      await (db.update(db.faces)..where((f) => f.id.equals(id))).write(
+        FacesCompanion(
+          kind: const Value('character'),
+          modelId: const Value(characterEmbeddingModelId),
+          embedding: Value(
+            embeddingToBlob(Float32List(characterEmbeddingDim)..[axis] = 1),
+          ),
+        ),
+      );
+    }
+    final characters = PeopleRepository(db, FileStore(tmp), kind: 'character');
+    await characters.confirmFaces([confirmed], character);
+    final both = GroupingRunner(
+      db: db,
+      api: () => api,
+      review: review,
+      people: PeopleRepository(db, FileStore(tmp)),
+      then: GroupingRunner(
+        db: db,
+        api: () => api,
+        review: ReviewRepository(db, characters),
+        people: characters,
+        kind: 'character',
+      ),
+    );
+    api.groupingHandler = (request) {
+      if (request.mode == 'apply' && request.stages.contains('cluster')) {
+        expect(request.stages, isNot(contains('people')));
+        expect(
+          request.pending.single.id,
+          request.strictness == 'character' ? wrongCharacter : wrongPerson,
+        );
+        expect(request.pending.single.rejectedPersonIds, [
+          request.strictness == 'character' ? character : person,
+        ]);
+      }
+      return _plan(request.mode);
+    };
+    await both.repairLibrary();
+    expect(await personOf(cover), person);
+    expect(await personOf(confirmed), character);
+    expect(await personOf(wrongPerson), isNull);
+    expect(await personOf(wrongCharacter), isNull);
+  });
 
   test(
     'rebuild rolls back both collections if the character plan fails',

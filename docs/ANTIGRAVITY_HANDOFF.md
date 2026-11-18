@@ -1,5 +1,12 @@
 # Antigravity handoff — 2026-10-19
 
+## Choose a trained face model in mobile Reface — 2026-11-18
+
+- Reface → target photo or clip → source person now displays **Face references** with that person’s trained models. **Prepare references and start Reface** uses the selected model, checks target head angles, generates new portraits for any direction the model’s verified references do not cover, and submits Reface after verification. The all-faces mode measures the target when the model is selected for the job. The phone uses existing generation and Reface API requests.
+- The existing identity check verifies generated portraits against real faces. If the person has no selected gallery faces, Reface can use readable included examples from the selected model's linked training dataset. Portraits and the swap stay associated with the chosen model in local provenance.
+- All 47 focused Flutter tests passed, including the photo and trimmed-video paths through model selection, generation completion, reference verification and Reface submission. Analyzer checks reported Flutter Material import deprecations. The PC generation prompt tests and OpenAPI checks passed. Live generation with the user's model and on-device operation remain unverified.
+- The signed release APK was rebuilt at `mobile/build/app/outputs/flutter-apk/app-release.apk`. Its signature and Flutter checksum passed, and the new Reface labels are present in the ARM64 app binary. SHA-256 `0da2f9ebabcf035a27bc1f0c5c05761e68892216ac89b34e6e95c555c9507bf1`.
+
 ## Empty gallery folders on Android — 2026-11-18
 
 - Settings → Library & scanning → File organization includes **Clean up empty folders**. With Android All files access, it walks both `Your Gallery` and `DCIM/Your Gallery` on mounted writable volumes, removes empty subfolders deepest first, and reports how many were removed. Android removes the directories nonrecursively, which preserves folders containing files, including files added during cleanup.

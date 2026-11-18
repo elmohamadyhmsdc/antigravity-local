@@ -435,6 +435,7 @@ class AnalyzeOptions {
     this.kindOverrides = const [],
     this.returnSensitive = false,
     this.returnBodyEmbeddings = false,
+    this.facesOnly = false,
   });
 
   /// Also ask for exposed / covered body-part regions (roadmap section 8). Only set when the
@@ -444,6 +445,7 @@ class AnalyzeOptions {
   /// Roadmap 7.5 (Phase 8): also ask for chest / lower-body embeddings and morphology of exposed regions.
   /// Only when the server advertises `body_embeddings`.
   final bool returnBodyEmbeddings;
+  final bool facesOnly;
 
   final bool detectBodies;
   final double minQuality;
@@ -464,6 +466,7 @@ class AnalyzeOptions {
   Map<String, dynamic> toJson() => {
     'detect_bodies': detectBodies,
     'detect_characters': detectCharacters,
+    if (facesOnly) 'faces_only': true,
     'min_quality': minQuality,
     'return_crops': returnCrops,
     'body_score': bodyScore,

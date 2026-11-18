@@ -40,6 +40,8 @@ class ScanProgress {
     this.eta,
     this.startedAt,
     this.grouping = false,
+    this.repairingLibrary = false,
+    this.refreshingFaces = false,
     this.currentAssetId,
     this.currentKind,
     this.previewBytes,
@@ -64,6 +66,8 @@ class ScanProgress {
   final Duration? eta;
   final DateTime? startedAt;
   final bool grouping; // the PC is sorting faces into people right now
+  final bool repairingLibrary;
+  final bool refreshingFaces;
   final String? currentAssetId;
   final String? currentKind;
   final Uint8List? previewBytes;
@@ -120,6 +124,8 @@ class ScanProgress {
     eta: clearEta ? null : (eta ?? this.eta),
     startedAt: startedAt ?? this.startedAt,
     grouping: grouping ?? this.grouping,
+    repairingLibrary: repairingLibrary,
+    refreshingFaces: refreshingFaces,
     currentAssetId: clearPreview
         ? null
         : (currentAssetId ?? this.currentAssetId),

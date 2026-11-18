@@ -9,33 +9,27 @@ String serverAngle(PoseBucket bucket) => switch (bucket) {
   PoseBucket.down => 'down',
 };
 
-/// What to ask the person's LoRA for, so the source covers what the target shows: [perAngle] portraits for
-/// each open gap (biggest share first), at most [maxImages] in all - a generation costs tens of seconds each
-/// on a 6 GB card, and the PC's identity weighs generated faces below photographed ones anyway.
+/// What to ask the person's LoRA for, so its references cover the target.
 class AngleGenerationPlan {
   AngleGenerationPlan._(this.buckets, this.angles);
 
-  /// Null when nothing is missing.
-  static AngleGenerationPlan? of(
-    RefacePreflight preflight, {
-    int perAngle = 3,
-    int maxImages = 10,
-  }) {
-    final buckets = <PoseBucket>[];
-    final angles = <String>[];
-    for (final bucket in preflight.needsGeneration) {
-      if (angles.length >= maxImages) break;
-      final have =
-          (preflight.realCoverage[bucket] ?? 0) +
-          (preflight.generatedCoverage[bucket] ?? 0);
-      // enough to reach the bar, but at least a couple of tries: not every portrait lands in its pose
-      final want = (perAngle - have).clamp(2, perAngle);
-      final room = maxImages - angles.length;
-      final count = want < room ? want : room;
-      buckets.add(bucket);
-      angles.addAll(List.filled(count, serverAngle(bucket)));
-    }
-    return angles.isEmpty ? null : AngleGenerationPlan._(buckets, angles);
+  /// An explicitly selected model supplies each observed angle. Reuse verified
+  /// portraits of that model and cover the full pose range when pose is unknown.
+  static AngleGenerationPlan? forModel(RefacePreflight preflight) {
+    final needed = preflight.targetShare.isEmpty
+        ? PoseBucket.values
+        : (preflight.targetShare.keys.toList()..sort(
+            (a, b) =>
+                preflight.targetShare[b]!.compareTo(preflight.targetShare[a]!),
+          ));
+    final buckets = [
+      for (final bucket in needed)
+        if ((preflight.generatedCoverage[bucket] ?? 0) == 0) bucket,
+    ];
+    if (buckets.isEmpty) return null;
+    return AngleGenerationPlan._(buckets, [
+      for (final bucket in buckets) ...List.filled(3, serverAngle(bucket)),
+    ]);
   }
 
   final List<PoseBucket> buckets;
@@ -44,6 +38,4 @@ class AngleGenerationPlan {
   final List<String> angles;
 
   int get count => angles.length;
-
-  String get summary => buckets.map((b) => b.label).join(', ');
 }

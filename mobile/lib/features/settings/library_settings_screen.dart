@@ -23,6 +23,17 @@ final insightsProvider = StreamProvider.autoDispose<LibraryInsights>(
   (ref) => InsightsRepository(ref.watch(databaseProvider)).watch(),
 );
 
+final _libraryRepairRequestedProvider = StreamProvider.autoDispose<bool>(
+  (ref) => ref
+      .watch(libraryRepositoryProvider)
+      .identityRescan
+      .watchLibraryRequested(),
+);
+
+final _faceRefreshRequestedProvider = StreamProvider.autoDispose<bool>(
+  (ref) => ref.watch(libraryRepositoryProvider).faceRefresh.watchRequested(),
+);
+
 /// S3 — Library & Scanning settings screen.
 /// Unifies album sources, scan defaults, grouping, insights, and analysis.
 class LibrarySettingsScreen extends ConsumerStatefulWidget {
@@ -38,6 +49,7 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
   bool _retryingOutlines = false;
   bool _stopOutlineRetry = false;
   bool _cleaningFolders = false;
+  bool _requestingLibraryScan = false;
 
   Future<void> _pruneEmptyFolders() async {
     final l10n = AppLocalizations.of(context);
@@ -87,6 +99,46 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
     }
   }
 
+  Future<void> _requestLibraryScan({
+    required bool resume,
+    bool facesOnly = false,
+  }) async {
+    final l10n = AppLocalizations.of(context);
+    if (!resume) {
+      final confirmed = await confirm(
+        context,
+        title: facesOnly
+            ? l10n.faceRefreshTitle
+            : l10n.libraryIdentityRepairTitle,
+        body: facesOnly
+            ? l10n.faceRefreshConfirmation
+            : l10n.libraryIdentityRepairConfirmation,
+        confirmLabel: facesOnly
+            ? l10n.faceRefreshStart
+            : l10n.libraryIdentityRepairStart,
+        cancelLabel: l10n.cancel,
+      );
+      if (!confirmed || !mounted) return;
+    }
+    setState(() => _requestingLibraryScan = true);
+    try {
+      await startScan(
+        ref,
+        enumerate: false,
+        repairLibraryIdentities: !facesOnly,
+        refreshFaces: facesOnly,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.scanError('$error'))));
+      }
+    } finally {
+      if (mounted) setState(() => _requestingLibraryScan = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -103,6 +155,10 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
     final gate = _gateDraft ?? settings.qualityGate;
     final insightsAsync = ref.watch(insightsProvider);
     final sorting = ref.watch(manualSortRunningProvider);
+    final repairRequested =
+        ref.watch(_libraryRepairRequestedProvider).value ?? false;
+    final faceRefreshRequested =
+        ref.watch(_faceRefreshRequestedProvider).value ?? false;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsLibrarySection)),
@@ -425,6 +481,49 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                 title: Text(l10n.regroupTitle),
                 subtitle: Text(sorting ? l10n.sorting : l10n.regroupHint),
                 onTap: sorting ? null : _confirmRegroup,
+              ),
+              ListTile(
+                key: const Key('settings-repair-library-identities'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.auto_fix_high_outlined),
+                title: Text(
+                  repairRequested && !progress.isActive
+                      ? l10n.libraryIdentityRepairContinue
+                      : l10n.libraryIdentityRepairTitle,
+                ),
+                subtitle: Text(
+                  repairRequested && progress.isActive
+                      ? l10n.libraryIdentityRepairQueued
+                      : l10n.libraryIdentityRepairHint,
+                ),
+                onTap:
+                    _requestingLibraryScan ||
+                        (repairRequested && progress.isActive)
+                    ? null
+                    : () => _requestLibraryScan(resume: repairRequested),
+              ),
+              ListTile(
+                key: const Key('settings-quick-face-scan'),
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.face_retouching_natural),
+                title: Text(
+                  faceRefreshRequested && !progress.isActive
+                      ? l10n.faceRefreshResume
+                      : l10n.faceRefreshTitle,
+                ),
+                subtitle: Text(
+                  faceRefreshRequested && progress.isActive
+                      ? l10n.faceRefreshQueued
+                      : l10n.faceRefreshHint,
+                ),
+                onTap:
+                    _requestingLibraryScan ||
+                        (faceRefreshRequested && progress.isActive)
+                    ? null
+                    : () => _requestLibraryScan(
+                        resume: faceRefreshRequested,
+                        facesOnly: true,
+                      ),
               ),
               const SizedBox(height: 12),
               ListTile(

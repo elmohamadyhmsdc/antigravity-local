@@ -87,7 +87,7 @@ class VideoJobs:
         if isinstance(start_time, bool) or not isinstance(start_time, (int, float)) or not 0 <= start_time <= 86400:
             raise bad_request("start_time must be between 0 and 86400 seconds.")
         opts = parse_analyze_options(json.dumps(params))
-        if not opts.detect_characters and opts.model_id is not None and opts.model_id != self.ctx.engines.model_id:
+        if (opts.faces_only or not opts.detect_characters) and opts.model_id is not None and opts.model_id != self.ctx.engines.model_id:
             raise ApiError(409, "model_mismatch", "The video's embedding model differs from this PC.")
         client_id = body.get("client_job_id")
         if client_id is not None and (not isinstance(client_id, str) or not 1 <= len(client_id) <= 128):

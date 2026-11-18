@@ -64,7 +64,8 @@ class ScanProgressCard extends ConsumerWidget {
                 progress.pauseReason == PauseReason.offline));
     final video = progress.video;
     final faces = progress.facesFound + (video?.facesFound ?? 0);
-    final itemsText = video == null
+    final itemsText =
+        video == null && !progress.repairingLibrary && !progress.refreshingFaces
         ? l10n.scanPhotosOf(processed, progress.total)
         : l10n.scanItemsOf(processed, progress.total);
     final lines = <String>[];
@@ -90,6 +91,8 @@ class ScanProgressCard extends ConsumerWidget {
             ? l10n.scanSorting
             : video != null
             ? videoStageTitle(l10n, video)
+            : progress.refreshingFaces
+            ? l10n.faceRefreshChecking
             : l10n.scanRunning;
         if (progress.message != null && video == null) {
           lines.add(progress.message!);
@@ -125,6 +128,9 @@ class ScanProgressCard extends ConsumerWidget {
         if (progress.total > 0) {
           lines.add(itemsText);
         }
+        if (progress.refreshingFaces && progress.failed > 0) {
+          lines.add(l10n.scanFailedCount(progress.failed));
+        }
         final reason = progress.pauseReason;
         if (reason == PauseReason.noAlbums) {
           action = TextButton(
@@ -145,8 +151,16 @@ class ScanProgressCard extends ConsumerWidget {
           );
         }
       case ScanPhase.completed:
-        headline = l10n.scanDone;
-        lines.add(l10n.scanSummary(progress.done, progress.facesFound));
+        headline = progress.refreshingFaces
+            ? l10n.faceRefreshDone
+            : progress.repairingLibrary
+            ? l10n.libraryIdentityRepairDone
+            : l10n.scanDone;
+        lines.add(
+          progress.repairingLibrary || progress.refreshingFaces
+              ? itemsText
+              : l10n.scanSummary(progress.done, progress.facesFound),
+        );
         if (progress.failed > 0) {
           lines.add(l10n.scanFailedCount(progress.failed));
         }
@@ -384,17 +398,32 @@ Future<void> startScan(
   bool enumerate = true,
   Set<String>? albumIds,
   bool repairCharacters = false,
+  bool repairLibraryIdentities = false,
+  bool refreshFaces = false,
   int? repairPersonId,
   bool resumeRepairs = true,
 }) async {
   final engine = ref.read(scanEngineProvider);
-  if (engine.isRunning && repairPersonId == null) return;
+  if (engine.isRunning &&
+      repairPersonId == null &&
+      !repairLibraryIdentities &&
+      !refreshFaces) {
+    return;
+  }
   if (ref.read(mobileApiProvider) == null) {
     if (ref.context.mounted) ref.context.push(Routes.connection);
     return;
   }
   if (!engine.isRunning) await prepareBackgroundForWork(ref.context, ref);
   if (!ref.context.mounted) return;
+  if (refreshFaces) {
+    await engine.queueFaceRefresh();
+    return;
+  }
+  if (repairLibraryIdentities) {
+    await engine.queueLibraryIdentityRescan();
+    return;
+  }
   if (repairPersonId != null) {
     await engine.queueIdentityRescan(repairPersonId);
     return;

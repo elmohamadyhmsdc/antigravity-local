@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/router.dart';
 import '../../data/api/dtos/analyze.dart';
+import '../../data/api/dtos/embedding.dart';
 import '../../data/api/dtos/system.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repositories/studio_repository.dart';
@@ -76,7 +77,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   var _restorer = 'auto';
   var _preset = 'natural';
   bool _parser = true, _occluder = true, _busy = false;
-  bool _loraIdentity = false;
+  String? _referenceModelId;
   bool _useIdentityBundle = true;
   bool _use3dGeometry = false;
   double _identityBoost = .5;
@@ -98,15 +99,57 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   String? _importedModelId;
   int _importedMediaCount = 0;
 
-  /// Generating the head angles the target needs from the person's LoRA (see [_generateAngles]).
-  String? _angleJob;
-  String? _angleStatus;
-  bool _angleRunning = false;
-  StreamSubscription<JobRow?>? _angleSub;
+  ({String jobId, String modelId, String serverId})? _referenceJob;
+  StreamIterator<JobRow?>? _referenceWait;
+  String? _referenceStatus;
+  double? _referenceProgress;
+
+  List<LoraRow> _personModels(List<LoraRow> models) {
+    if (_person == null ||
+        _directSource ||
+        _useImportedSource ||
+        _identityMode == 'dfm') {
+      return const [];
+    }
+    return models.where((model) => model.personId == _person).toList();
+  }
+
+  LoraRow? _selectedReferenceModel(List<LoraRow> models) => _personModels(
+    models,
+  ).where((model) => model.id == _referenceModelId).firstOrNull;
+
+  String _referenceModelName(BuildContext context, LoraRow model) {
+    final created = DateTime.fromMillisecondsSinceEpoch(model.createdAt);
+    final locale = MaterialLocalizations.of(context);
+    return '${model.triggerWord} · ${locale.formatCompactDate(created)} '
+        '${locale.formatTimeOfDay(TimeOfDay.fromDateTime(created))}';
+  }
+
+  List<Map<String, dynamic>> _generatedFaces(LoraRow model, String modelId) {
+    try {
+      final stored = model.identityJson;
+      if (stored == null) return const [];
+      final identity = jsonDecode(stored) as Map<String, dynamic>;
+      if (identity['model_id'] != modelId) return const [];
+      return [
+        for (final face in (identity['faces'] as List).take(40))
+          if (face is Map &&
+              face['embedding'] is String &&
+              face['quality'] is num)
+            {...Map<String, dynamic>.from(face), 'generated': true},
+      ];
+    } on FormatException {
+      return const [];
+    } on TypeError {
+      return const [];
+    }
+  }
 
   /// "Before we start": the target's face sizes and poses against the source's, from what the phone already
   /// measured (no PC). Null when there is nothing to compare (a trained identity, or sources read from media).
-  RefacePreflight? _preflight() {
+  RefacePreflight? _preflight({
+    List<Map<String, dynamic>> generated = const [],
+  }) {
     if (_identityMode == 'dfm' || _useImportedSource) return null;
     final targets = <PreflightTarget>[];
     if (_video == null) {
@@ -149,97 +192,132 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         if (_sources.contains(f.id))
           PreflightSource(yaw: f.yaw, pitch: f.pitch, facePx: f.facePx),
     ];
-    if (_loraIdentity) {
-      final model = _personLora();
-      if (model?.identityJson case final identityJson?) {
-        try {
-          final faces =
-              (jsonDecode(identityJson) as Map<String, dynamic>)['faces']
-                  as List;
-          for (final e in faces.take(40)) {
-            final pose = (e as Map)['pose'] as Map?;
-            sources.add(
-              PreflightSource(
-                yaw: (pose?['yaw'] as num?)?.toDouble(),
-                pitch: (pose?['pitch'] as num?)?.toDouble(),
-                generated: true,
-              ),
-            );
-          }
-        } catch (_) {
-          // an unreadable identity is reported when the job is built, not here
-        }
-      }
+    for (final face in generated) {
+      final pose = face['pose'];
+      sources.add(
+        PreflightSource(
+          yaw: pose is Map ? (pose['yaw'] as num?)?.toDouble() : null,
+          pitch: pose is Map ? (pose['pitch'] as num?)?.toDouble() : null,
+          generated: true,
+        ),
+      );
     }
     return RefacePreflight(targets: targets, sources: sources);
   }
 
-  /// The LoRA the missing angles are generated with: the chosen person's newest one, preferring one whose
-  /// portraits are already built. Null for a trained identity, media sources or a person without a LoRA.
-  LoraRow? _personLora() {
-    if (_person == null || _useImportedSource || _identityMode == 'dfm') {
-      return null;
+  Future<void> _measureReferenceTarget() async {
+    if (!_replaceAllFaces) return;
+    final video = _video;
+    if (video != null && _videoFaces.isEmpty) {
+      final generation = ++_targetScanGeneration;
+      await _detectVideoFaces(generation, _videoTrim!);
+      if (!mounted) return;
+      if (_targetScanError case final error?) throw FormatException(error);
+    } else if (video == null && _analysis == null) {
+      final result = await ref
+          .read(mobileApiProvider)!
+          .analyzeImage(
+            _photo!,
+            options: const AnalyzeOptions(minQuality: 0, detectBodies: false),
+          );
+      if (mounted) setState(() => _analysis = result);
     }
-    final models = [
-      for (final m in ref.read(lorasProvider).value ?? const <LoraRow>[])
-        if (m.personId == _person) m,
-    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return models.where((m) => m.identityJson != null).firstOrNull ??
-        models.firstOrNull;
   }
 
-  /// Queue portraits of exactly the head directions the target shows and the source lacks, wait for them,
-  /// fold the ones that really are this person into the model's Reface identity and switch it on.
-  Future<void> _generateAngles(LoraRow model, AngleGenerationPlan plan) async {
-    final prompt = AppLocalizations.of(
-      context,
-    ).loraDefaultPrompt(model.triggerWord);
-    final caps = _caps(ref.read(serverStatusProvider).value);
-    if (caps == null || caps.loraBaseCheckpoints.isEmpty) {
-      setState(
-        () => _angleStatus =
-            'The PC reports no base model for generating portraits.',
-      );
-      return;
-    }
-    if (!await ref.read(fileStoreProvider).resolve(model.path).exists()) {
-      if (mounted) setState(() => _angleStatus = 'Model file unavailable');
-      return;
-    }
-    if (!mounted) return;
-    setState(() {
-      _angleRunning = true;
-      _angleStatus = 'Queuing ${plan.count} portraits...';
-    });
+  Future<void> _waitForPortraits(String id) async {
+    final l = AppLocalizations.of(context);
+    final jobs = StreamIterator(
+      ref.read(studioRepositoryProvider).watchJob(id),
+    );
+    _referenceWait = jobs;
     try {
-      await prepareBackgroundForWork(context, ref);
-      if (!mounted) return;
-      final studio = ref.read(studioRepositoryProvider);
+      while (await jobs.moveNext() && mounted) {
+        final job = jobs.current;
+        switch (job?.status) {
+          case 'completed':
+            return;
+          case 'paused':
+            throw FormatException(l.refaceModelPaused);
+          case null || 'failed' || 'lost' || 'cancelled':
+            _referenceJob = null;
+            throw FormatException(job?.error ?? l.refaceModelFailed);
+          default:
+            setState(() => _referenceProgress = job!.progress.clamp(0.0, 1.0));
+        }
+      }
+    } finally {
+      await jobs.cancel();
+      _referenceWait = null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _prepareModelReferences(
+    Capabilities caps,
+    LoraRow model,
+  ) async {
+    final l = AppLocalizations.of(context);
+    final api = ref.read(mobileApiProvider);
+    if (api == null) throw FormatException(l.studioNeedsPc);
+    final studio = ref.read(studioRepositoryProvider);
+    final loras = ref.read(loraRepositoryProvider);
+    final files = ref.read(fileStoreProvider);
+    final tracker = ref.read(jobTrackerProvider);
+    setState(() => _referenceStatus = l.refaceModelCheckingTarget);
+    await _measureReferenceTarget();
+    if (!mounted) return const [];
+    final existing = _generatedFaces(model, caps.embeddingModelId);
+    final preflight = _preflight(generated: existing)!;
+    if (preflight.targetFaces == 0) throw FormatException(l.selectFaceRequired);
+    final plan = AngleGenerationPlan.forModel(preflight);
+    final trainingFaces = _sources.isEmpty
+        ? await loras.trainingReferenceFaces(model, api, caps.embeddingModelId)
+        : const <DetectedFace>[];
+    if (!mounted) return const [];
+    if (_sources.isEmpty && trainingFaces.isEmpty) {
+      throw FormatException(l.refaceModelNeedsReference);
+    }
+    final trainingReferences = [
+      for (final face in trainingFaces)
+        {
+          'embedding': encodeEmbedding(face.embedding),
+          'quality': face.quality.score,
+          if (face.quality.pose case final pose?)
+            'pose': {'yaw': pose.yaw, 'pitch': pose.pitch, 'roll': pose.roll},
+        },
+    ];
+    final pending = _referenceJob;
+    String? id =
+        pending?.modelId == model.id && pending?.serverId == caps.serverId
+        ? pending?.jobId
+        : null;
+    if (id == null && plan == null) return [...trainingReferences, ...existing];
+    if (id == null) {
+      if (!caps.engines.loraGenerate || caps.loraBaseCheckpoints.isEmpty) {
+        throw FormatException(l.refaceModelUnavailable);
+      }
       final modelContext = await studio.contextFor(model.id);
       final identityModel = modelContext?.identityModelId;
       final trainedBase = modelContext?.loraBaseCheckpoint;
-      if (trainedBase != null && !caps.loraBaseCheckpoints.contains(trainedBase)) {
-        throw const FormatException(
-          'The base checkpoint used to train this LoRA is unavailable on this PC.',
-        );
+      if (trainedBase != null &&
+          !caps.loraBaseCheckpoints.contains(trainedBase)) {
+        throw FormatException(l.refaceModelBaseUnavailable);
       }
-      if (identityModel != null && identityModel != 'buffalo_l@1') {
-        throw const FormatException(
-          'Only a model of a real person can fill in head angles.',
-        );
+      if ((identityModel != null && identityModel != caps.embeddingModelId) ||
+          (caps.hasOperationSupport &&
+              !caps.supportsOperation(
+                'lora_generate',
+                'person',
+                identityModelId: caps.embeddingModelId,
+              ))) {
+        throw FormatException(l.refaceModelUnavailable);
       }
-      if (identityModel != null &&
-          caps.hasOperationSupport &&
-          !caps.supportsOperation(
-            'lora_generate',
-            'person',
-            identityModelId: identityModel,
-          )) {
-        throw const FormatException(
-          'This PC cannot generate with this identity model.',
-        );
+      final file = files.resolve(model.path);
+      if (!await file.exists()) {
+        throw FormatException(l.refaceModelFileUnavailable);
       }
-      final id = await studio.enqueueInputs(
+      if (!mounted) return const [];
+      setState(() => _referenceStatus = l.refaceModelGenerating);
+      id = await studio.enqueueInputs(
         serverId: caps.serverId,
         type: 'generate_lora_images',
         context: ArtifactContext(
@@ -250,8 +328,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         params: {
           'trigger_word': model.triggerWord,
           'base_checkpoint': trainedBase ?? caps.loraBaseCheckpoints.first,
-          'prompt': prompt,
-          'num_images': plan.count,
+          'prompt': l.loraDefaultPrompt(model.triggerWord),
+          'num_images': plan!.count,
           'angles': plan.angles,
           'seed': -1,
           'steps': 30,
@@ -259,80 +337,36 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
             'identity_model_id': identityModel,
         },
         inputs: {
-          'lora': [ref.read(fileStoreProvider).resolve(model.path)],
+          'lora': [file],
         },
         personId: model.personId,
       );
-      ref.read(jobTrackerProvider).start();
-      _watchAngles(id, model);
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _angleRunning = false;
-          _angleStatus = '$e';
-        });
-      }
+      _referenceJob = (jobId: id, modelId: model.id, serverId: caps.serverId);
     }
-  }
-
-  void _watchAngles(String id, LoraRow model) {
-    _angleSub?.cancel();
-    _angleJob = id;
-    _angleSub = ref.read(studioRepositoryProvider).watchJob(id).listen((job) {
-      if (!mounted || job == null || _angleJob != id) return;
-      switch (job.status) {
-        case 'completed':
-          _angleSub?.cancel();
-          _angleSub = null;
-          _finishAngles(model);
-        case 'failed' || 'lost':
-          _angleSub?.cancel();
-          _angleSub = null;
-          setState(() {
-            _angleRunning = false;
-            _angleStatus =
-                'Generating the angles failed: ${job.error ?? job.status}. Reface can still start with what the source has.';
-          });
-        case 'paused':
-          setState(
-            () => _angleStatus =
-                'Paused. Resume it from Jobs; Reface can still start without it.',
-          );
-        default:
-          setState(
-            () => _angleStatus =
-                '${job.message ?? job.status} (${(job.progress * 100).round()}%)',
-          );
-      }
+    tracker.start();
+    if (!mounted) return const [];
+    setState(() => _referenceStatus = l.refaceModelGenerating);
+    await _waitForPortraits(id);
+    if (!mounted) return const [];
+    setState(() {
+      _referenceStatus = l.refaceModelVerifying;
+      _referenceProgress = null;
     });
-  }
-
-  Future<void> _finishAngles(LoraRow model) async {
-    if (mounted) setState(() => _angleStatus = 'Checking the new portraits...');
     try {
-      final api = ref.read(mobileApiProvider);
-      if (api == null) {
-        throw const FormatException(
-          'Connect to the PC to check the portraits.',
-        );
-      }
-      final kept = await ref
-          .read(loraRepositoryProvider)
-          .buildIdentity(model, api);
-      if (!mounted) return;
-      setState(() {
-        _angleRunning = false;
-        _loraIdentity = true;
-        _angleStatus = '$kept model portraits are part of the identity now.';
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _angleRunning = false;
-          _angleStatus = '$e';
-        });
-      }
+      await loras.buildIdentity(model, api, trainingFaces: trainingFaces);
+    } on FormatException {
+      // A new attempt is useful when the generated portraits failed verification.
+      _referenceJob = null;
+      rethrow;
     }
+    final updated = await loras.model(model.id);
+    if (!mounted) return const [];
+    final generated = updated == null
+        ? const <Map<String, dynamic>>[]
+        : _generatedFaces(updated, caps.embeddingModelId);
+    _referenceJob = null;
+    if (generated.isEmpty) throw FormatException(l.refaceModelFailed);
+    return [...trainingReferences, ...generated];
   }
 
   /// How long each quality choice would take for this photo or clip ("about 40 s"), from what the PC reports
@@ -360,23 +394,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     };
   }
 
-  AngleGenerationOffer? _angleGeneration(RefacePreflight preflight) {
-    final model = _personLora();
-    final plan = AngleGenerationPlan.of(preflight);
-    if (model == null || (plan == null && !_angleRunning)) return null;
-    return AngleGenerationOffer(
-      plan: plan,
-      running: _angleRunning,
-      status: _angleStatus,
-      onGenerate: _busy || _angleRunning || plan == null
-          ? null
-          : () => _generateAngles(model, plan),
-    );
-  }
-
   @override
   void dispose() {
-    _angleSub?.cancel();
+    unawaited(_referenceWait?.cancel());
     _targetScanGeneration++;
     _targetScanTimer?.cancel();
     super.dispose();
@@ -588,7 +608,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         _identitySet = null;
         _sources.clear();
         _faces = [];
-        _loraIdentity = false;
+        _referenceModelId = null;
+        _referenceJob = null;
       });
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -661,7 +682,11 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   void _chooseIdentityMode(String value) {
     setState(() {
       _identityMode = value;
-      if (value == 'dfm') _qualityProfile = 'balanced';
+      if (value == 'dfm') {
+        _qualityProfile = 'balanced';
+        _referenceModelId = null;
+        _referenceJob = null;
+      }
       _restorer = 'auto';
       _preset = 'natural';
       _parser = _qualityProfile != 'fast';
@@ -698,7 +723,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
 
         _directSource = false;
         _useImportedSource = false;
-        _loraIdentity = false;
+        _referenceModelId = null;
+        _referenceJob = null;
         _useIdentityBundle = true;
         _identitySet = null;
         _personName = name;
@@ -925,7 +951,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         _identityMode == 'dfm' ||
         _directSource ||
         _useImportedSource ||
-        _loraIdentity ||
+        _referenceModelId != null ||
         !caps.engines.identityBundle) {
       return null;
     }
@@ -983,8 +1009,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
             staging ??= await (await getTemporaryDirectory()).createTemp(
               'identity-',
             );
-            final frames = await ref
-                .read(refaceVideoFramesProvider)(File(source.path));
+            final frames = await ref.read(refaceVideoFramesProvider)(
+              File(source.path),
+            );
             for (final frame in frames) {
               if (inputs.length == 64) break;
               final file = File('${staging.path}/${inputs.length}.jpg');
@@ -1024,7 +1051,11 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       ref.read(jobTrackerProvider).start();
       setState(() => _useIdentityBundle = true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Identity build queued. Follow its progress in Studio.')),
+        const SnackBar(
+          content: Text(
+            'Identity build queued. Follow its progress in Studio.',
+          ),
+        ),
       );
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -1067,7 +1098,10 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         _identityMode != 'dfm' &&
         (_useImportedSource
             ? _importedSource == null
-            : ((!_directSource && _person == null) || (_sources.isEmpty && !hasBundle)))) {
+            : ((!_directSource && _person == null) ||
+                  (_sources.isEmpty &&
+                      !hasBundle &&
+                      _referenceModelId == null)))) {
       error = l10n.selectIdentityRequired;
     }
     setState(() => _error = error);
@@ -1075,8 +1109,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   }
 
   Future<void> _submit(Capabilities caps, {bool preview = false}) async {
-    await prepareBackgroundForWork(context, ref);
-    if (!mounted) return;
+    if (_busy) return;
     final l10n = AppLocalizations.of(context);
     setState(() {
       _busy = true;
@@ -1085,6 +1118,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
     File? temporary;
     File? bundleFile;
     try {
+      await prepareBackgroundForWork(context, ref);
+      if (!mounted) return;
       if (ref.read(studioApiProvider) == null) {
         throw FormatException(l10n.studioNeedsPc);
       }
@@ -1113,6 +1148,19 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       if (await file.length() > caps.limits.maxUploadMb * 1024 * 1024) {
         throw FormatException(l10n.fileTooLarge);
       }
+      if (!mounted) return;
+      final modelId = _referenceModelId;
+      final model = modelId == null
+          ? null
+          : await ref.read(loraRepositoryProvider).model(modelId);
+      if (!mounted) return;
+      if (modelId != null && (model == null || model.personId != _person)) {
+        throw FormatException(l10n.refaceModelFileUnavailable);
+      }
+      final modelSources = model == null
+          ? const <Map<String, dynamic>>[]
+          : await _prepareModelReferences(caps, model);
+      if (!mounted) return;
       final identityBundle = await _savedIdentityBundle(caps);
       final source = <Map<String, dynamic>>[];
       if (_identityMode != 'dfm' && identityBundle == null) {
@@ -1121,44 +1169,35 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         } else {
           final db = ref.read(databaseProvider);
           final faces = _directSource
-              ? await (db.select(db.faces)..where((f) => f.id.isIn(_sources))).get()
-              : await ref.read(studioRepositoryProvider).refaceSources(
-                  _person!,
-                  faceIds: _sources,
-                  modelId: caps.embeddingModelId,
-                );
+              ? await (db.select(
+                  db.faces,
+                )..where((f) => f.id.isIn(_sources))).get()
+              : await ref
+                    .read(studioRepositoryProvider)
+                    .refaceSources(
+                      _person!,
+                      faceIds: _sources,
+                      modelId: caps.embeddingModelId,
+                    );
           if (faces.length != _sources.length) {
             throw FormatException(l10n.refaceProfileSourcesChanged);
           }
-          source.addAll(StudioRepository.encodeFaces(
-            faces.take(_loraIdentity ? 60 : 100),
-            caps.embeddingModelId,
-          ));
-        }
-      }
-      if (_loraIdentity && _identityMode != 'dfm') {
-        if (_personLora()?.identityJson case final identityJson?) {
-          final identity = jsonDecode(identityJson) as Map<String, dynamic>;
-          if (identity['model_id'] != caps.embeddingModelId) {
-            throw const FormatException(
-              'Rebuild this LoRA identity with the current PC model.',
+          if (faces.isNotEmpty || model == null) {
+            source.addAll(
+              StudioRepository.encodeFaces(
+                faces.take(100 - modelSources.length),
+                caps.embeddingModelId,
+              ),
             );
           }
-          source.addAll(
-            (identity['faces'] as List)
-                .take(40)
-                .map(
-                  (e) => <String, dynamic>{
-                    ...Map<String, dynamic>.from(e as Map),
-                    'generated': true,
-                  },
-                ),
-          );
         }
       }
+      source.addAll(modelSources);
       if (identityBundle != null) {
         final tmp = await getTemporaryDirectory();
-        bundleFile = File('${tmp.path}/reface-identity-${DateTime.now().microsecondsSinceEpoch}.json');
+        bundleFile = File(
+          '${tmp.path}/reface-identity-${DateTime.now().microsecondsSinceEpoch}.json',
+        );
         await bundleFile.writeAsString(identityBundle);
       }
       final params = <String, dynamic>{
@@ -1213,6 +1252,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
               personId: _identityMode == 'dfm' || _useImportedSource
                   ? null
                   : _person,
+              modelId: model?.id,
             ),
           );
       ref.read(jobTrackerProvider).start();
@@ -1232,7 +1272,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       if (bundleFile != null && await bundleFile.exists()) {
         await bundleFile.delete();
       }
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _referenceStatus = null;
+          _referenceProgress = null;
+        });
+      }
     }
   }
 
@@ -1240,12 +1286,21 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final caps = _caps(ref.watch(serverStatusProvider).value);
-    final buildingProfile = _person != null &&
+    final models = ref.watch(lorasProvider).value ?? const <LoraRow>[];
+    final personModels = _personModels(models);
+    final referenceModel = _selectedReferenceModel(models);
+    final buildingProfile =
+        _person != null &&
         (ref.watch(jobsProvider).value ?? const <JobRow>[]).any(
           (job) => job.type == 'build_identity' &&
               job.personId == _person &&
-              !const ['completed', 'failed', 'paused', 'lost', 'cancelled']
-                  .contains(job.status),
+              !const [
+                'completed',
+                'failed',
+                'paused',
+                'lost',
+                'cancelled',
+              ].contains(job.status),
         );
     final identitySets =
         (ref.watch(identitySetsProvider).value ?? const <IdentitySetRow>[])
@@ -1283,7 +1338,24 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
-          if (_busy) const LinearProgressIndicator(),
+          if (_referenceStatus case final status?)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(status, key: const Key('reface-model-status')),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    key: const Key('reface-angles-progress'),
+                    value: _referenceProgress,
+                    semanticsLabel: status,
+                  ),
+                ],
+              ),
+            )
+          else if (_busy)
+            const LinearProgressIndicator(),
           Expanded(
             child: GuidedWorkflow(
               progressLabel: l10n.workflowProgress(_step + 1, 3),
@@ -1318,7 +1390,13 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                     child: FilledButton(
                       key: const Key('reface-next'),
                       onPressed: details.onStepContinue,
-                      child: Text(_step == 2 ? l10n.submitReface : l10n.next),
+                      child: Text(
+                        _step != 2
+                            ? l10n.next
+                            : referenceModel == null
+                            ? l10n.submitReface
+                            : l10n.refaceModelStart,
+                      ),
                     ),
                   ),
                 ],
@@ -1620,7 +1698,48 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                                 },
                           child: Text(_personName ?? l10n.selectSourcePerson),
                         ),
+                      if (personModels.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey('reface-reference-model-$_person'),
+                          initialValue: referenceModel?.id ?? '',
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            labelText: l10n.refaceModelSource,
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                              value: '',
+                              child: Text(l10n.refacePhotosIdentity),
+                            ),
+                            for (final model in personModels)
+                              DropdownMenuItem(
+                                value: model.id,
+                                child: Text(
+                                  _referenceModelName(context, model),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged: _busy
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    _referenceModelId = value == ''
+                                        ? null
+                                        : value;
+                                    if (_referenceJob?.modelId !=
+                                        _referenceModelId) {
+                                      _referenceJob = null;
+                                    }
+                                    _error = null;
+                                  });
+                                },
+                        ),
+                        Text(l10n.refaceModelSourceHint),
+                      ],
                       if (_identityMode != 'dfm' &&
+                          referenceModel == null &&
                           _person != null &&
                           !_directSource &&
                           !_useImportedSource &&
@@ -1654,6 +1773,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                         ),
                       ],
                       if (_identityMode != 'dfm' &&
+                          referenceModel == null &&
                           _faces.isNotEmpty &&
                           caps != null &&
                           _faces.any(
@@ -1662,7 +1782,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                         const Text(
                           'These source faces use a different embedding model from the connected PC. Select compatible source faces or a matching model.',
                         ),
-                      if (_identityMode != 'dfm') ...[
+                      if (_identityMode != 'dfm' && referenceModel == null) ...[
                         OutlinedButton.icon(
                           key: const Key('reface-source-media'),
                           onPressed: _busy || caps == null
@@ -1698,7 +1818,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                               _person = null;
                               _personName = null;
                               _identitySet = null;
-                              _loraIdentity = false;
+                              _referenceModelId = null;
+                              _referenceJob = null;
                               _sources.clear();
                               _faces = [];
                             }),
@@ -1718,8 +1839,11 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                           ),
                         ],
                       ],
-                      Text(l10n.sourceFacesHint),
-                      if (_person != null && _identityMode != 'dfm') ...[
+                      if (referenceModel == null && _identityMode != 'dfm')
+                        Text(l10n.sourceFacesHint),
+                      if (_person != null &&
+                          referenceModel == null &&
+                          _identityMode != 'dfm') ...[
                         if (identitySets.isNotEmpty)
                           DropdownButtonFormField<int>(
                             isExpanded: true,
@@ -1761,51 +1885,42 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                           ],
                         ),
                       ],
-                      if (!_useImportedSource &&
-                          _person != null &&
-                          (ref.watch(lorasProvider).value ?? const <LoraRow>[])
-                              .any(
-                                (m) =>
-                                    m.personId == _person &&
-                                    m.identityJson != null,
-                              ))
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(l10n.loraIdentity),
-                          value: _loraIdentity,
-                          onChanged: (v) => setState(() => _loraIdentity = v),
-                        ),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final face in _faces)
-                            SizedBox(
-                              width: 76,
-                              child: Column(
-                                children: [
-                                  SizedBox(
-                                    width: 64,
-                                    height: 64,
-                                    child: CropImage(path: face.cropPath),
-                                  ),
-                                  Checkbox(
-                                    key: Key('source-face-${face.id}'),
-                                    value: _sources.contains(face.id),
-                                    onChanged: (_) => setState(() {
-                                      _identitySet = null;
-                                      _useIdentityBundle = false;
-                                      if (!_sources.remove(face.id)) {
-                                        _sources.add(face.id);
-                                      }
-                                    }),
-                                  ),
-                                  Text('${(face.qualityScore * 100).round()}%'),
-                                ],
+                      if (referenceModel == null && _identityMode != 'dfm')
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final face in _faces)
+                              SizedBox(
+                                width: 76,
+                                child: Column(
+                                  children: [
+                                    SizedBox(
+                                      width: 64,
+                                      height: 64,
+                                      child: CropImage(path: face.cropPath),
+                                    ),
+                                    Checkbox(
+                                      key: Key('source-face-${face.id}'),
+                                      value: _sources.contains(face.id),
+                                      onChanged: _busy
+                                          ? null
+                                          : (_) => setState(() {
+                                              _identitySet = null;
+                                              _useIdentityBundle = false;
+                                              if (!_sources.remove(face.id)) {
+                                                _sources.add(face.id);
+                                              }
+                                            }),
+                                    ),
+                                    Text(
+                                      '${(face.qualityScore * 100).round()}%',
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                        ],
-                      ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -1816,6 +1931,10 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                     children: [
                       if (available.isEmpty)
                         Text(l10n.refaceUnifiedUnavailable),
+                      if (referenceModel != null)
+                        Text(
+                          '${l10n.refaceModelSource} · ${_referenceModelName(context, referenceModel)}',
+                        ),
                       if (_identityMode != 'dfm')
                         RefaceOptionPicker(
                           fieldKey: const Key('reface-quality-profile'),
@@ -1899,7 +2018,9 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                             if (caps?.engines.refaceGeometry ?? false)
                               SwitchListTile(
                                 contentPadding: EdgeInsets.zero,
-                                title: const Text('Experimental 3D visibility mask'),
+                                title: const Text(
+                                  'Experimental 3D visibility mask',
+                                ),
                                 value: _use3dGeometry,
                                 onChanged: (value) => setState(() => _use3dGeometry = value),
                               ),
@@ -1939,12 +2060,19 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
                         ),
                       const SizedBox(height: 12),
                       Text(l10n.refaceReviewHint),
-                      if (_preflight() case final preflight?) ...[
+                      if (_preflight(
+                            generated: referenceModel == null || caps == null
+                                ? const []
+                                : _generatedFaces(
+                                    referenceModel,
+                                    caps.embeddingModelId,
+                                  ),
+                          )
+                          case final preflight?
+                          when preflight.targetFaces > 0 ||
+                              referenceModel == null) ...[
                         const SizedBox(height: 12),
-                        RefacePreflightCard(
-                          preflight: preflight,
-                          generate: _angleGeneration(preflight),
-                        ),
+                        RefacePreflightCard(preflight: preflight),
                       ],
                       if (_videoTrim case final trim?)
                         Text(

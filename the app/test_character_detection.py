@@ -319,6 +319,25 @@ class KindCorrectionTests(unittest.TestCase):
         self.assertEqual(len(result.faces), 1)
         self.assertEqual(result.characters, [])
 
+    def test_faces_only_returns_people_and_character_faces_without_a_body_engine(self):
+        from mobile_api.schemas import parse_analyze_options
+        opts = parse_analyze_options(json.dumps({
+            "faces_only": True, "detect_characters": True, "faceless_characters": False,
+            "return_outlines": True, "return_sensitive": True, "return_body_embeddings": True,
+        })).engine_options()
+        self.assertTrue(opts.faces_only)
+        self.assertFalse(opts.detect_bodies or opts.outlines or opts.sensitive or opts.body_embeddings)
+        self.anime.append({"bbox": np.array([73, 105, 118, 166], np.float32), "score": .99})
+        res = analyze_frame(None, None, drawing(), opts,
+                            detect=lambda _: [self.face((10, 10, 50, 65))],
+                            assess=lambda img, f: {"quality_score": .7})
+        self.assertEqual(len(res.faces), 1)
+        self.assertEqual(len(res.characters), 1)
+        self.assertEqual(res.characters[0].face_embedding.shape, (768,))
+        self.assertIsNone(res.characters[0].body_bbox)
+        self.assertEqual(res.bodies, [])
+        self.assertEqual(res.pairs, [])
+
     def test_a_real_face_called_a_character_becomes_the_characters_face(self):
         box = (40 / 128, 10 / 256, 88 / 128, 72 / 256)
         res = self.run_frame([self.face()], self.bodies((0, 0, 128, 256)),

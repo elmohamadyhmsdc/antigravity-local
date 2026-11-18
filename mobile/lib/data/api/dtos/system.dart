@@ -57,6 +57,7 @@ class Engines {
     this.characterDetection = false,
     this.characterLibraryRepair = false,
     this.quickVideoSampling = false,
+    this.faceOnlyScan = false,
     this.loraTrainingViews = false,
     this.loraFullBody = false,
     this.sensitiveDetection = false,
@@ -84,6 +85,7 @@ class Engines {
   final bool characterDetection;
   final bool characterLibraryRepair;
   final bool quickVideoSampling;
+  final bool faceOnlyScan;
   final bool loraTrainingViews;
   final bool loraFullBody;
 
@@ -119,6 +121,7 @@ class Engines {
     characterDetection: json['character_detection'] as bool? ?? false,
     characterLibraryRepair: json['character_library_repair'] as bool? ?? false,
     quickVideoSampling: json['quick_video_sampling'] as bool? ?? false,
+    faceOnlyScan: json['face_only_scan'] as bool? ?? false,
     loraTrainingViews: json['lora_training_views'] as bool? ?? false,
     loraFullBody: json['lora_full_body'] as bool? ?? false,
     sensitiveDetection: json['sensitive_detection'] as bool? ?? false,

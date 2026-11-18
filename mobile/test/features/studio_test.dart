@@ -4,13 +4,17 @@ import 'dart:ui' as ui;
 
 import 'package:antigravity_mobile/app.dart';
 import 'package:antigravity_mobile/data/api/api_exception.dart';
+import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/repositories/artifact_context.dart';
+import 'package:antigravity_mobile/domain/jobs/job_tracker.dart';
+import 'package:antigravity_mobile/domain/scan/scan_state.dart';
 import 'package:antigravity_mobile/studio_providers.dart';
 import 'package:antigravity_mobile/features/reface/reface_media.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -334,80 +338,213 @@ void main() {
     session: testSession,
   );
 
-  appTest(
-    'review offers to draw the missing head angles with the person\'s LoRA and queues exactly those',
-    (tester, env) async {
-      final person = await seedPerson(env.db, name: 'Sara');
-      await seedFace(env.db, personId: person, seed: 1);
-      await env.db
-          .into(env.db.loras)
-          .insert(
-            LorasCompanion.insert(
-              id: 'sara-lora',
-              personId: Value(person),
-              path: 'loras/sara.safetensors',
-              triggerWord: 'sksara',
-              createdAt: 1,
+  for (final video in [false, true]) {
+    appTest(
+      'Reface prepares the chosen model and renders a ${video ? 'video' : 'photo'}',
+      (tester, env) async {
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        const paths = MethodChannel('plugins.flutter.io/path_provider');
+        messenger.setMockMethodCallHandler(paths, (_) async => env.tmp.path);
+        addTearDown(() => messenger.setMockMethodCallHandler(paths, null));
+        final person = await seedPerson(env.db, name: 'Sara');
+        final other = await seedPerson(env.db, name: 'Other person');
+        if (!video) await seedFace(env.db, personId: person, seed: 1);
+        for (final (index, (id, owner)) in [
+          ('wanted_model', person),
+          ('newer_model', person),
+          ('other_model', other),
+        ].indexed) {
+          await env.db
+              .into(env.db.loras)
+              .insert(
+                LorasCompanion.insert(
+                  id: id,
+                  personId: Value(owner),
+                  path: 'loras/$id.safetensors',
+                  triggerWord: id,
+                  createdAt: index + 1,
+                ),
+              );
+        }
+        if (video) {
+          await env.db
+              .into(env.db.datasets)
+              .insert(
+                DatasetsCompanion.insert(
+                  id: 'training',
+                  personId: Value(person),
+                  triggerWord: 'wanted_model',
+                  createdAt: 1,
+                ),
+              );
+          await env.db
+              .into(env.db.datasetItems)
+              .insert(
+                DatasetItemsCompanion.insert(
+                  datasetId: 'training',
+                  path: 'datasets/training/sample_face.jpg',
+                  caption: 'wanted_model',
+                ),
+              );
+          await env.db.putSetting(
+            'artifact.context.wanted_model',
+            jsonEncode(
+              ArtifactContext(personId: person, datasetId: 'training').toJson(),
             ),
           );
-      await tester.runAsync(
-        () => env.files.write('loras/sara.safetensors', tinyPng),
-      );
-      env.picker.photo = tinyPng;
-      await open(tester, env, '/reface?person=$person');
-      await pickRefaceTarget(tester);
-      await tester.tap(find.byKey(const Key('target-face-0')));
-      await tester.pumpAndSettle();
-      await next(tester);
-      await next(tester);
-
-      // the placeholder photo is not a decodable image once real time passes; that is not under test here
-      final previous = FlutterError.onError;
-      FlutterError.onError = (details) {
-        if (!'${details.exception}'.contains('Codec failed')) {
-          previous?.call(details);
         }
-      };
-      addTearDown(() => FlutterError.onError = previous);
-      final button = find.byKey(const Key('reface-generate-angles'));
-      await tester.ensureVisible(button);
-      expect(find.textContaining('Generate 3 missing angles'), findsOneWidget);
-      await tester.tap(button);
-      await settleAsync(tester);
+        final playable = File('${env.tmp.path}/reference.mp4');
+        final png = (await tester.runAsync(() async {
+          await env.files.write('loras/wanted_model.safetensors', tinyPng);
+          if (video) {
+            await playable.writeAsBytes([1, 2, 3, 4]);
+            await env.files.write('datasets/training/sample_face.jpg', tinyPng);
+          }
+          final recorder = ui.PictureRecorder();
+          ui.Canvas(
+            recorder,
+          ).drawColor(const Color(0xff448866), ui.BlendMode.src);
+          final picture = recorder.endRecording();
+          final image = await picture.toImage(64, 64);
+          final data = await image.toByteData(format: ui.ImageByteFormat.png);
+          image.dispose();
+          picture.dispose();
+          return data!.buffer.asUint8List();
+        }))!;
+        env.targetPicker = () async =>
+            video ? RefaceTarget.video(playable) : RefaceTarget.photo(png);
+        env.api.analyzeResult = AnalyzeImageResponse(
+          modelId: 'buffalo_l@1',
+          imageW: 300,
+          imageH: 300,
+          faces: [
+            DetectedFace(
+              bbox: const BBox(x: 10, y: 15, w: 140, h: 150),
+              kps: const [],
+              detScore: .9,
+              embedding: unitVec(1),
+              quality: FaceQuality(
+                score: .9,
+                version: 1,
+                parts: const {},
+                detScore: .9,
+                facePx: 140,
+                sharpness: 100,
+                embeddingNorm: 1,
+                pose: Pose(yaw: video ? 60 : 0, pitch: 0),
+              ),
+              passesGate: true,
+            ),
+          ],
+          bodies: const [],
+          pairs: const [],
+        );
+        await env.pump(
+          tester,
+          extra: [
+            initialLocationProvider.overrideWithValue('/reface?person=$person'),
+            studioApiProvider.overrideWithValue(FakeStudioApi()),
+            jobTrackerProvider.overrideWith((ref) {
+              final tracker = JobTracker(
+                repository: ref.read(studioRepositoryProvider),
+                api: () => null,
+                keepAlive: const NoKeepAlive(),
+              );
+              ref.onDispose(tracker.dispose);
+              return tracker;
+            }),
+          ],
+        );
+        if (video) {
+          await tester.tap(find.byKey(const Key('reface-all-faces')));
+          await tester.pumpAndSettle();
+        }
+        await pickRefaceTarget(tester);
+        await tester.pumpAndSettle();
+        await next(tester);
+        final picker = find.byKey(Key('reface-reference-model-$person'));
+        await tester.ensureVisible(picker);
+        await tester.tap(picker);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('newer_model'), findsOneWidget);
+        expect(find.textContaining('other_model'), findsNothing);
+        await tester.tap(find.textContaining('wanted_model').last);
+        await tester.pumpAndSettle();
+        await next(tester);
+        final start = find.byKey(const Key('reface-next'));
+        expect(
+          find.text('Prepare references and start Reface'),
+          findsOneWidget,
+        );
+        await tester.ensureVisible(start);
+        await tester.tap(start);
+        await settleAsync(tester);
 
-      final jobs = await tester.runAsync(
-        () => env.db.select(env.db.jobs).get(),
-      );
-      jobs!;
-      expect(jobs.single.type, 'generate_lora_images');
-      final params =
-          (jsonDecode(jobs.single.requestJson) as Map)['params'] as Map;
-      expect(params['angles'], ['frontal', 'frontal', 'frontal']);
-      expect(params['num_images'], 3);
-      expect(params['trigger_word'], 'sksara');
-      expect(params['prompt'], contains('sksara'));
-      expect(params.containsKey('multi_angle'), isFalse);
-      expect(find.byKey(const Key('reface-angles-progress')), findsOneWidget);
-      expect(find.byKey(const Key('reface-generate-angles')), findsNothing);
+        var jobs = await env.db.select(env.db.jobs).get();
+        expect(jobs, hasLength(1), reason: find.byType(Text).evaluate().map(
+          (element) => (element.widget as Text).data,
+        ).whereType<String>().join(' | '));
+        final generation = jobs.single;
+        expect(generation.type, 'generate_lora_images');
+        final generateParams =
+            (jsonDecode(generation.requestJson) as Map)['params'] as Map;
+        expect(generateParams['trigger_word'], 'wanted_model');
+        expect(
+          generateParams['angles'],
+          List.filled(3, video ? 'profile' : 'frontal'),
+        );
+        expect(find.byKey(const Key('reface-angles-progress')), findsOneWidget);
+        expect(tester.widget<FilledButton>(start).onPressed, isNull);
 
-      // a failed generation is reported, and Reface is still allowed to start with what the source has
-      await (env.db.update(
-        env.db.jobs,
-      )..where((j) => j.id.equals(jobs.single.id))).write(
-        const JobsCompanion(
-          status: Value('failed'),
-          error: Value('GPU out of memory'),
-        ),
-      );
-      await settleAsync(tester);
-      expect(find.textContaining('GPU out of memory'), findsOneWidget);
-      expect(find.byKey(const Key('reface-generate-angles')), findsOneWidget);
-      expect(find.byKey(const Key('reface-next')), findsOneWidget);
-    },
-    session: testSession,
-  );
+        const portrait = 'portraits/verified.png';
+        await tester.runAsync(() => env.files.write(portrait, png));
+        final portraitId = '${generation.id}-0';
+        await env.db
+            .into(env.db.results)
+            .insert(
+              ResultsCompanion.insert(
+                id: portraitId,
+                type: generation.type,
+                path: portrait,
+                originalPath: portrait,
+                mime: 'image/png',
+                sizeBytes: png.length,
+                sha256: 'fixture',
+                personId: Value(person),
+                createdAt: 1,
+              ),
+            );
+        await env.db.putSetting(
+          'artifact.context.$portraitId',
+          jsonEncode(
+            ArtifactContext(personId: person, modelId: 'wanted_model').toJson(),
+          ),
+        );
+        await (env.db.update(env.db.jobs)
+              ..where((j) => j.id.equals(generation.id)))
+            .write(const JobsCompanion(status: Value('completed')));
+        await settleAsync(tester);
+        jobs = await env.db.select(env.db.jobs).get();
+        final render = jobs.singleWhere((job) => job.id != generation.id);
+        expect(render.type, video ? 'reface_video' : 'reface_image');
+        final request = jsonDecode(render.requestJson) as Map;
+        final params = request['params'] as Map;
+        expect(params['source_faces'], hasLength(2));
+        expect(
+          (params['source_faces'] as List).last,
+          containsPair('generated', true),
+        );
+        if (video) {
+          expect(params['start_time'], 0);
+          expect(env.sampledVideoRanges.single.count, 12);
+        }
+      },
+      session: testSession,
+    );
+  }
 
-  appTest('no LoRA, no offer: the card only names the gap', (
+  appTest('no LoRA leaves the gallery reference workflow in place', (
     tester,
     env,
   ) async {
@@ -422,7 +559,7 @@ void main() {
     await next(tester);
 
     expect(find.byKey(const Key('reface-preflight')), findsOneWidget);
-    expect(find.byKey(const Key('reface-generate-angles')), findsNothing);
+    expect(find.text('Face references'), findsNothing);
   }, session: testSession);
 
   appTest('Studio preview renders at phone size', (tester, env) async {

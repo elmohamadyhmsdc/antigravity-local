@@ -6,6 +6,7 @@ import '../media/media_library.dart';
 import 'kind_corrections.dart';
 import 'character_repair.dart';
 import 'identity_rescan.dart';
+import 'face_refresh.dart';
 import 'video_scan_coverage.dart';
 import '../../domain/organization/sidecar_ingestion_service.dart';
 import '../../domain/organization/sidecar_storage.dart';
@@ -94,6 +95,7 @@ class LibraryRepository {
   final AppDatabase _db;
   CharacterRepair get characterRepair => CharacterRepair(_db);
   IdentityRescan get identityRescan => IdentityRescan(_db);
+  FaceRefresh get faceRefresh => FaceRefresh(_db);
   final SidecarIngestionService? ingestionService;
   final SidecarStorage sidecarStorage;
 

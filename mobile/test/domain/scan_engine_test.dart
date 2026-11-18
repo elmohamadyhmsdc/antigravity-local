@@ -3,8 +3,11 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:antigravity_mobile/data/api/api_exception.dart';
+import 'package:antigravity_mobile/data/api/dtos/analyze.dart';
+import 'package:antigravity_mobile/data/api/dtos/embedding.dart';
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/api/dtos/system.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
@@ -137,6 +140,51 @@ void main() {
   tearDown(() => rig.dispose());
 
   test(
+    'quick faces scope includes old and newly discovered media and retries only failures',
+    () async {
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['face_only_scan'] = true;
+      (caps['engines'] as Map)['sensitive_detection'] = true;
+      (caps['engines'] as Map)['body_embeddings'] = true;
+      rig.api.capabilities_ = Capabilities.fromJson(caps);
+      await rig.choose(['cam']);
+      final old = await seedMedia(rig.db, asset: 'legacy');
+      final existing = await seedMedia(rig.db);
+      rig.library.unreadable.add('legacy');
+      rig.api.analyzeResult = analysis();
+      final refresh = rig.repo.faceRefresh;
+      await refresh.request();
+      final engine = rig.engine();
+      await engine.start(enumerate: false);
+      expect(engine.progress.phase, ScanPhase.paused);
+      expect(engine.progress.refreshingFaces, isTrue);
+      expect(engine.progress.total, 4);
+      expect(engine.progress.done, 3);
+      expect(engine.progress.failed, 1);
+      expect(rig.api.analyzeCalls, hasLength(3));
+      expect(await refresh.checkedAt(existing), isNotNull);
+      expect(await refresh.checkedAt(old), isNull);
+      expect(await refresh.requested(), isTrue);
+      expect((await rig.repo.mediaById(old))!.scanStatus, 'done');
+      expect((await rig.repo.mediaByAssetId('asset-2'))!.scanStatus, 'skipped');
+
+      rig.library.unreadable.clear();
+      await engine.start(enumerate: false);
+      expect(engine.progress.phase, ScanPhase.completed);
+      expect(engine.progress.done, 4);
+      expect(rig.api.analyzeCalls, hasLength(4));
+      expect(rig.api.analyzeOptions.every((o) => o.facesOnly && o.detectCharacters &&
+          !o.detectBodies && !o.returnSensitive && !o.returnBodyEmbeddings &&
+          !o.returnOutlines), isTrue);
+      expect(rig.api.groupingCalls, isEmpty);
+      expect(await refresh.checkedAt(old), isNotNull);
+      expect(await refresh.requested(), isFalse);
+      expect((await rig.settings.load()).albumIds, ['cam']);
+      await engine.dispose();
+    },
+  );
+
+  test(
     'identity rescan scans only its saved files, preserves sources and resumes after offline',
     () async {
       final caps = fixture('Capabilities.idle');
@@ -171,6 +219,122 @@ void main() {
       expect((await rig.settings.load()).albumIds, ['cam']);
       expect(await rig.repo.identityRescan.personId(), isNull);
       await engine.dispose();
+    },
+  );
+
+  test(
+    'library repair corrects kinds in both directions and retries grouping without re-scanning',
+    () async {
+      final caps = fixture('Capabilities.idle');
+      (caps['engines'] as Map)['character_library_repair'] = true;
+      rig.api.capabilities_ = Capabilities.fromJson(caps);
+      await rig.choose(['cam']);
+      await rig.settings.setScanBodies(false);
+      final human = await seedPerson(rig.db, name: 'Human');
+      final character = await rig.db
+          .into(rig.db.persons)
+          .insert(
+            PersonsCompanion.insert(
+              name: const Value('Character'),
+              kind: const Value('character'),
+              createdAt: 1,
+            ),
+          );
+      final humanPhoto = await seedMedia(rig.db, asset: 'asset-1');
+      final drawnPhoto = await seedMedia(rig.db, asset: 'asset-2');
+      final unrelated = await seedMedia(
+        rig.db,
+        asset: 'asset-3',
+        status: 'pending',
+      );
+      final wrongCharacter = await seedFace(
+        rig.db,
+        personId: character,
+        mediaId: humanPhoto,
+        x: .1,
+        y: .125,
+        w: .2,
+        h: .3,
+      );
+      await (rig.db.update(
+        rig.db.faces,
+      )..where((f) => f.id.equals(wrongCharacter))).write(
+        FacesCompanion(
+          kind: const Value('character'),
+          modelId: const Value(characterEmbeddingModelId),
+          embedding: Value(
+            embeddingToBlob(Float32List(characterEmbeddingDim)..[0] = 1),
+          ),
+        ),
+      );
+      // This file belongs to both profiles and must be analyzed only once.
+      final bystander = await seedFace(
+        rig.db,
+        personId: human,
+        mediaId: humanPhoto,
+      );
+      await PeopleRepository(
+        rig.db,
+        rig.files,
+      ).confirmFaces([bystander], human);
+      final drawnJson = fixture('AnalyzeImageResponse.character_face_body');
+      final drawn = (drawnJson['characters'] as List).single as Map;
+      drawn['score'] = .95;
+      final drawnFace = drawn['face'] as Map;
+      drawnFace['score'] = .95;
+      final box = drawnFace['bbox'] as Map;
+      final width = drawnJson['image_w'] as num,
+          height = drawnJson['image_h'] as num;
+      final wrongHuman = await seedFace(
+        rig.db,
+        personId: human,
+        mediaId: drawnPhoto,
+        x: (box['x'] as num) / width,
+        y: (box['y'] as num) / height,
+        w: (box['w'] as num) / width,
+        h: (box['h'] as num) / height,
+      );
+      rig.library.bytes['asset-1'] = Uint8List.fromList([1]);
+      rig.library.bytes['asset-2'] = Uint8List.fromList([2]);
+      rig.api.analyzeHandler = (bytes, options) async => bytes.first == 1
+          ? analysis(faces: [faceJson(unitVec(50))])
+          : AnalyzeImageResponse.fromJson(drawnJson);
+      rig.api.groupingError = ApiException.network('offline');
+      await rig.repo.identityRescan.queueLibrary();
+      final engine = rig.engine();
+      await engine.start(enumerate: false);
+      expect(engine.progress.phase, ScanPhase.paused);
+      expect(await rig.repo.identityRescan.libraryActive(), isTrue);
+      expect(engine.progress.done, 2);
+      expect(rig.api.analyzeOptions, hasLength(2));
+      expect(
+        rig.api.analyzeOptions.every(
+          (o) => o.detectBodies && o.detectCharacters,
+        ),
+        isTrue,
+      );
+      final faces = await rig.db.select(rig.db.faces).get();
+      expect(faces.map((f) => f.id), isNot(contains(wrongHuman)));
+      expect(faces.map((f) => f.id), isNot(contains(wrongCharacter)));
+      expect(faces.singleWhere((f) => f.id == bystander).personId, human);
+      expect(
+        faces.singleWhere((f) => f.mediaId == drawnPhoto).kind,
+        'character',
+      );
+      expect((await rig.repo.mediaById(unrelated))!.scanStatus, 'pending');
+      expect((await rig.settings.load()).albumIds, ['cam']);
+      await engine.dispose();
+
+      rig.api.groupingError = null;
+      final restarted = rig.engine();
+      await restarted.start(enumerate: false);
+      expect(restarted.progress.phase, ScanPhase.completed);
+      expect(restarted.progress.done, 2);
+      expect(restarted.progress.total, 2);
+      expect(rig.api.analyzeCalls, hasLength(2));
+      expect(await rig.repo.identityRescan.libraryActive(), isFalse);
+      expect((await rig.repo.mediaById(unrelated))!.scanStatus, 'pending');
+      await restarted.dispose();
     },
   );
 

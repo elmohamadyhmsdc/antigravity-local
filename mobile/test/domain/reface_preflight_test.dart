@@ -109,79 +109,60 @@ void main() {
           ],
         );
 
-    test('a plan asks for the open gaps, biggest first, a few tries each', () {
-      final plan = AngleGenerationPlan.of(check())!;
-
-      expect(plan.buckets, [PoseBucket.threeQuarter, PoseBucket.profile]);
-      expect(plan.angles, [
-        'three_quarter',
-        'three_quarter',
-        'three_quarter',
-        'profile',
-        'profile',
-        'profile',
-      ]);
-      expect(plan.count, 6);
-      expect(plan.summary, '3/4 view, Profile');
-    });
-
     test(
-      'model portraits already made count: only what is still missing is asked for',
+      'selected model covers every target angle, including photographed ones',
       () {
-        final plan = AngleGenerationPlan.of(
-          check(
-            sources: const [
-              PreflightSource(yaw: 30, pitch: 0, generated: true),
-              PreflightSource(yaw: 35, pitch: 0, generated: true),
-            ],
-          ),
-        )!;
-
+        final plan = AngleGenerationPlan.forModel(check())!;
         expect(plan.buckets, [
+          PoseBucket.frontal,
+          PoseBucket.threeQuarter,
           PoseBucket.profile,
-        ], reason: '3/4 view is covered by two portraits');
-        expect(
-          check(
-            sources: const [
-              PreflightSource(yaw: 30, pitch: 0, generated: true),
-              PreflightSource(yaw: 35, pitch: 0, generated: true),
-              PreflightSource(yaw: 80, pitch: 0, generated: true),
-              PreflightSource(yaw: 85, pitch: 0, generated: true),
-            ],
-          ).needsGeneration,
-          isEmpty,
-        );
+        ]);
+        expect(plan.angles, [
+          'frontal',
+          'frontal',
+          'frontal',
+          'three_quarter',
+          'three_quarter',
+          'three_quarter',
+          'profile',
+          'profile',
+          'profile',
+        ]);
       },
     );
 
-    test('nothing missing means no plan, and the total is capped', () {
+    test('only verified model portraits count toward model angle coverage', () {
+      final plan = AngleGenerationPlan.forModel(
+        check(
+          sources: const [
+            PreflightSource(yaw: 35, pitch: 0, generated: true),
+            PreflightSource(yaw: 0, pitch: 0, generated: true),
+          ],
+        ),
+      )!;
+      expect(plan.buckets, [PoseBucket.profile]);
+      expect(plan.count, 3);
       expect(
-        AngleGenerationPlan.of(
-          RefacePreflight(
-            targets: const [PreflightTarget(yaw: 0, pitch: 0)],
-            sources: [
-              for (var i = 0; i < 6; i++)
-                const PreflightSource(yaw: 0, pitch: 0),
+        AngleGenerationPlan.forModel(
+          check(
+            sources: const [
+              PreflightSource(yaw: 35, pitch: 0, generated: true),
+              PreflightSource(yaw: 0, pitch: 0, generated: true),
+              PreflightSource(yaw: 80, pitch: 0, generated: true),
             ],
           ),
         ),
         isNull,
       );
+    });
 
-      final many = RefacePreflight(
-        targets: const [
-          PreflightTarget(yaw: 30, pitch: 0, weight: 20),
-          PreflightTarget(yaw: 80, pitch: 0, weight: 20),
-          PreflightTarget(yaw: 0, pitch: 40, weight: 20),
-          PreflightTarget(yaw: 0, pitch: -40, weight: 20),
-          PreflightTarget(yaw: 0, pitch: 0, weight: 20),
-        ],
-        sources: const [],
-      );
-      expect(
-        AngleGenerationPlan.of(many, maxImages: 10)!.count,
-        lessThanOrEqualTo(10),
-      );
+    test('unknown target poses use every supported head direction', () {
+      final plan = AngleGenerationPlan.forModel(
+        RefacePreflight(targets: const [PreflightTarget()], sources: const []),
+      )!;
+      expect(plan.buckets, PoseBucket.values);
+      expect(plan.count, 15);
     });
   });
 }

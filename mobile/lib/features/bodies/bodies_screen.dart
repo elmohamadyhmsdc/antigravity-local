@@ -14,6 +14,7 @@ import '../../domain/pose/exposed_matching.dart';
 import '../../domain/pose/outfit_palette.dart';
 import '../../domain/pose/pose_rules.dart';
 import '../../domain/pose/group_poses.dart';
+import '../../domain/grouping/identity_constraints.dart';
 import '../marks/mark_tattoo.dart';
 import '../shared/crop_image.dart';
 import 'body_areas.dart';
@@ -204,10 +205,10 @@ class _BodiesScreenState extends ConsumerState<BodiesScreen> {
     final rows = await db
         .customSelect(
           '''SELECT b.id FROM bodies b LEFT JOIN faces f ON f.id = b.face_id
-             WHERE b.kind = 'person' AND b.hidden = 0 ${person == null ? '' : 'AND COALESCE(f.person_id, b.person_id) = ?'}
+             WHERE b.kind = 'person' AND b.hidden = 0 ${person == null ? '' : "AND ${bodyOwner('b', 'f')} = ?"}
              ORDER BY b.id DESC LIMIT 400''',
           variables: [if (person != null) Variable.withInt(person)],
-          readsFrom: {db.bodies, db.faces},
+          readsFrom: {db.bodies, db.faces, db.bodyRejections},
         )
         .get();
     return [for (final r in rows) r.read<int>('id')];

@@ -10,6 +10,7 @@ import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/index/embedding_index.dart';
 import 'package:antigravity_mobile/data/repositories/library_repository.dart';
+import 'package:antigravity_mobile/data/repositories/media_queries.dart';
 import 'package:antigravity_mobile/data/repositories/action_frames.dart';
 import 'package:antigravity_mobile/domain/scan/drawn_faces.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
@@ -47,6 +48,43 @@ void main() {
   Future<int> count(String table) async =>
       (await db.customSelect('SELECT COUNT(*) AS n FROM $table').getSingle())
           .read<int>('n');
+
+  for (final manual in [false, true]) {
+    test('a clear fresh pair replaces the old link unless it is manual ($manual)', () async {
+      final media = await photo('body-pair');
+      final owner = await seedPerson(db, name: 'Actual subject');
+      final other = await seedPerson(db, name: 'Unrelated person');
+      final staleFace = await seedFace(db, personId: other, seed: 444);
+      final answer = analysis(
+        faces: [faceJson(unitVec(7))],
+        bodies: [bodyJson()],
+        pairs: [(0, 0)],
+      );
+      await store.store(media, answer);
+      final newFace = await (db.select(db.faces)..where((f) => f.mediaId.equals(media.id))).getSingle();
+      await (db.update(db.faces)..where((f) => f.id.equals(newFace.id)))
+          .write(FacesCompanion(personId: Value(owner)));
+      final initialBody = await db.select(db.bodies).getSingle();
+      await db.update(db.bodies).write(BodiesCompanion(
+        faceId: Value(staleFace),
+        personId: Value(other),
+        linkMethod: Value(manual ? 'manual' : 'weak_face'),
+        weakFaceEmbedding: Value(embeddingToBlob(unitVec(444))),
+      ));
+
+      await store.store(media, answer);
+      final repaired = await db.select(db.bodies).getSingle();
+      expect(repaired.id, initialBody.id);
+      expect(repaired.faceId, manual ? staleFace : newFace.id);
+      expect(repaired.personId, manual ? other : isNull);
+      if (!manual) {
+        expect(repaired.weakFaceEmbedding, isNull);
+        expect(repaired.linkMethod, isNull);
+      }
+      final displayed = await MediaQueries(db).watchDetections(media.id).first;
+      expect(displayed.singleWhere((d) => d.kind == 'b').personId, manual ? other : owner);
+    });
+  }
 
   test(
     'video keeps actual frame poses when identity views are compacted',

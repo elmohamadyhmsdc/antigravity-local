@@ -167,7 +167,7 @@ class PlanApplier {
         continue;
       }
       linked += await _db.customUpdate(
-        "UPDATE bodies SET person_id = ?1, link_method = ?2, link_confidence = ?3 WHERE id = ?4 AND person_id IS NULL AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = bodies.id AND r.person_id = ?5) AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.id = bodies.face_id AND f.person_id IS NOT NULL) AND NOT ${bodyConflictWithPerson('bodies.id', '?6')} AND bodies.kind = ?7",
+        "UPDATE bodies SET person_id = ?1, link_method = ?2, link_confidence = ?3 WHERE id = ?4 AND person_id IS NULL AND face_id IS NULL AND link_method IS NOT 'manual' AND (ownership IS NULL OR ownership != 'none') AND hidden = 0 AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.body_id = bodies.id AND r.person_id = ?5) AND NOT ${bodyConflictWithPerson('bodies.id', '?6')} AND bodies.kind = ?7",
         variables: [
           Variable.withInt(l.personId),
           Variable.withString(l.method),

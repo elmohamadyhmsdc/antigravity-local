@@ -33,12 +33,12 @@ def build_analyze_router(ctx, require_device: Callable) -> APIRouter:
     async def analyze_image(image: UploadFile = File(...), options: str = Form(default=""),
                             _: dict = Depends(require_device)):
         opts = parse_analyze_options(options)
-        if not opts.detect_characters and opts.model_id is not None and opts.model_id != ctx.engines.model_id:
+        if (opts.faces_only or not opts.detect_characters) and opts.model_id is not None and opts.model_id != ctx.engines.model_id:
             raise ApiError(409, "model_mismatch",
                            f"This server embeds with {ctx.engines.model_id}, not {opts.model_id}.")
-        if opts.return_sensitive or opts.return_body_embeddings:
+        if not opts.faces_only and (opts.return_sensitive or opts.return_body_embeddings):
             _require_sensitive_model(ctx)
-        if opts.return_body_embeddings:
+        if not opts.faces_only and opts.return_body_embeddings:
             _require_embedding_model(ctx)
         ctx.gpu.require_free()
 

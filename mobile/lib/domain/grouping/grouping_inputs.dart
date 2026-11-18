@@ -7,8 +7,10 @@ import '../../data/api/dtos/embedding.dart';
 import '../../data/api/dtos/grouping.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repositories/app_settings.dart' show SettingKeys;
+import '../../data/repositories/face_refresh.dart';
 import '../identity/identity_selection.dart';
 import 'grouping_config.dart';
+import 'identity_constraints.dart';
 
 /// One face as the grouping maths sees it.
 class FaceVector {
@@ -239,24 +241,28 @@ class GroupingInputs {
     for (final pid in people) {
       final rows = await _db
           .customSelect(
-            "SELECT id, quality_score, embedding FROM faces WHERE person_id = ? AND face_px >= ? AND hidden = 0 AND (ownership IS NULL OR ownership != 'none') AND (?3 IS NULL OR model_id = ?3) AND NOT EXISTS (SELECT 1 FROM review_doubtful d WHERE d.face_id = faces.id AND d.person_id = faces.person_id)",
+            "SELECT id, quality_score, embedding, "
+            "(SELECT value FROM settings WHERE key = '${FaceRefresh.evidencePrefix}' || faces.id) AS face_refresh "
+            "FROM faces WHERE person_id = ? AND face_px >= ? AND hidden = 0 AND (ownership IS NULL OR ownership != 'none') AND (?3 IS NULL OR model_id = ?3) AND NOT EXISTS (SELECT 1 FROM review_doubtful d WHERE d.face_id = faces.id AND d.person_id = faces.person_id)",
             variables: [
               Variable.withInt(pid),
               Variable.withReal(_minPx),
               Variable<String>(libraryModel),
             ],
-            readsFrom: {_db.faces},
+            readsFrom: {_db.faces, _db.settings},
           )
           .get();
       // A person whose faces did not change keeps the model of the last round: grouping runs every
       // 100 new faces, and only a few people change between two runs.
-      var idSum = 0, maxId = 0;
+      var idSum = 0, maxId = 0, revisions = 0;
       for (final r in rows) {
         final id = r.read<int>('id');
         idSum += id;
         if (id > maxId) maxId = id;
+        revisions +=
+            int.tryParse(r.readNullable<String>('face_refresh') ?? '') ?? 0;
       }
-      final signature = '$cap:${rows.length}:$idSum:$maxId';
+      final signature = '$cap:${rows.length}:$idSum:$maxId:$revisions';
       final cached = _modelCache[pid];
       if (cached != null && cached.$1 == signature) {
         out.add(cached.$2);
@@ -464,14 +470,14 @@ class GroupingInputs {
     final rows = await _db
         .customSelect(
           '''
-          SELECT b.id, b.media_id, b.frame_number, b.appearance, b.weak_face_embedding, b.person_id, b.score,
-                 b.link_method, bf.person_id AS face_person_id, m.taken_at AS taken_at
+          SELECT b.id, b.media_id, b.frame_number, b.appearance, b.weak_face_embedding, b.score,
+                 b.face_id, b.link_method, ${bodyOwner('b', 'bf')} AS owner_id, m.taken_at AS taken_at
           FROM bodies b LEFT JOIN faces bf ON bf.id = b.face_id LEFT JOIN media m ON m.id = b.media_id
           WHERE b.kind = ? AND (b.ownership IS NULL OR b.ownership != 'none') AND b.hidden = 0
           ORDER BY b.id
           ''',
           variables: [Variable.withString(kind)],
-          readsFrom: {_db.bodies, _db.faces, _db.media},
+          readsFrom: {_db.bodies, _db.faces, _db.media, _db.bodyRejections},
         )
         .get();
 
@@ -480,13 +486,11 @@ class GroupingInputs {
     final looseTimes =
         <int>[]; // taken_at of faceless bodies with an outfit (event context)
     for (final r in rows) {
-      final facePerson = r.readNullable<int>('face_person_id');
+      final hasFace = r.readNullable<int>('face_id') != null;
       final method = r.readNullable<String>('link_method');
-      final directPerson = r.readNullable<int>('person_id');
-      var anchor = method == 'manual'
-          ? directPerson
-          : facePerson ?? directPerson;
-      if (facePerson == null && dropDerived && _derivedLinks.contains(method)) {
+      var anchor = r.readNullable<int>('owner_id');
+      if (anchor == null && hasFace) continue;
+      if (!hasFace && dropDerived && _derivedLinks.contains(method)) {
         anchor = null;
       }
       final appearance = r.readNullable<Uint8List>('appearance');

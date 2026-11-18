@@ -29,6 +29,11 @@ import 'correction_sheet.dart';
 import 'video_track_strip.dart';
 import '../media/detection_actions.dart';
 
+final _facesCheckedProvider = FutureProvider.autoDispose.family<int?, int>(
+  (ref, mediaId) =>
+      ref.watch(libraryRepositoryProvider).faceRefresh.checkedAt(mediaId),
+);
+
 /// L3a / P5c — MediaInspector: All-in-one panel for a photo or video
 /// containing Peek bar, Detections, Links, Activities/Marks, Studio actions, and File info.
 class MediaInspector extends ConsumerStatefulWidget {
@@ -1211,16 +1216,36 @@ class _MediaInspectorContentState extends ConsumerState<MediaInspectorContent> {
             isVideo ? Icons.videocam_outlined : Icons.image_outlined,
           ),
           title: Text(isVideo ? 'Video file' : 'Photo file'),
-          subtitle: Text(
-            [
-              if (widget.media.takenAt != null && widget.media.takenAt! > 0)
-                DateFormat.yMMMd().add_Hm().format(
-                  DateTime.fromMillisecondsSinceEpoch(widget.media.takenAt!),
-                ),
-              if (widget.media.width != null && widget.media.height != null)
-                '${widget.media.width} × ${widget.media.height}',
-              widget.media.scanStatus == 'done' ? 'Analyzed' : 'Not analyzed',
-            ].join(' · '),
+          subtitle: Consumer(
+            builder: (context, ref, _) {
+              final l10n = AppLocalizations.of(context);
+              final checked = ref
+                  .watch(_facesCheckedProvider(widget.media.id))
+                  .value;
+              final date = checked != null && checked >= widget.media.modifiedAt
+                  ? DateFormat.yMMMd().format(
+                      DateTime.fromMillisecondsSinceEpoch(checked),
+                    )
+                  : null;
+              return Text(
+                [
+                  if (widget.media.takenAt != null && widget.media.takenAt! > 0)
+                    DateFormat.yMMMd().add_Hm().format(
+                      DateTime.fromMillisecondsSinceEpoch(
+                        widget.media.takenAt!,
+                      ),
+                    ),
+                  if (widget.media.width != null && widget.media.height != null)
+                    '${widget.media.width} × ${widget.media.height}',
+                  widget.media.scanStatus == 'done'
+                      ? 'Analyzed'
+                      : date == null
+                      ? 'Not analyzed'
+                      : l10n.faceRefreshFullScanPending,
+                  if (date != null) l10n.faceRefreshCheckedAt(date),
+                ].join(' · '),
+              );
+            },
           ),
         ),
         Padding(

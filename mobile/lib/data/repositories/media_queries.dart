@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:drift/drift.dart';
 import '../../domain/geometry/outline.dart';
+import '../../domain/grouping/identity_constraints.dart';
 
 import '../db/app_database.dart';
 import 'app_settings.dart';
@@ -173,13 +174,13 @@ class MediaQueries {
           FROM faces f
           CROSS JOIN bodies b ON b.face_id = f.id
           CROSS JOIN media_detections d ON d.kind = 'b' AND d.ref_id = b.id
-          WHERE f.person_id = ?
+          WHERE f.person_id = ? AND ${bodyOwner('b', 'f')} = f.person_id
           UNION ALL
           SELECT d.media_id
           FROM bodies b
           CROSS JOIN media_detections d ON d.kind = 'b' AND d.ref_id = b.id
           LEFT JOIN faces f ON f.id = b.face_id
-          WHERE b.person_id = ? AND f.person_id IS NULL
+          WHERE b.person_id = ? AND ${bodyOwner('b', 'f')} = b.person_id
         )
       ''');
       vars.addAll([
@@ -192,7 +193,7 @@ class MediaQueries {
       clauses.add(
         "EXISTS (SELECT 1 FROM media_detections d LEFT JOIN faces fa ON d.kind = 'f' AND fa.id = d.ref_id "
         "LEFT JOIN bodies b ON d.kind = 'b' AND b.id = d.ref_id LEFT JOIN faces bf ON bf.id = b.face_id "
-        'JOIN persons p ON p.id = COALESCE(fa.person_id, bf.person_id, b.person_id) '
+        "JOIN persons p ON p.id = COALESCE(fa.person_id, ${bodyOwner('b', 'bf')}) "
         'WHERE d.media_id = m.id AND p.group_id = ?)',
       );
       vars.add(Variable.withInt(f.groupId!));
@@ -209,6 +210,7 @@ class MediaQueries {
           _db.bodies,
           _db.mediaDetections,
           _db.persons,
+          _db.bodyRejections,
           _db.settings,
         ]),
       )
@@ -318,7 +320,7 @@ class MediaQueries {
         '''
         SELECT d.id, d.kind, d.ref_id, d.x, d.y, d.w, d.h, d.frame_number, d.timestamp_ms, d.outline,
           CASE WHEN d.kind = 'f' THEN f.person_id
-               WHEN d.kind = 'b' THEN COALESCE((SELECT person_id FROM faces WHERE id = b.face_id), b.person_id)
+               WHEN d.kind = 'b' THEN ${bodyOwner('b', 'bf')}
                WHEN d.kind = 'a' THEN (SELECT person_id FROM bodies WHERE id = s.body_id)
                ELSE NULL END AS person_id,
           CASE WHEN d.kind = 'f' THEN f.crop_path
@@ -334,6 +336,7 @@ class MediaQueries {
         FROM media_detections d
         LEFT JOIN faces f ON d.kind = 'f' AND f.id = d.ref_id
         LEFT JOIN bodies b ON d.kind = 'b' AND b.id = d.ref_id
+        LEFT JOIN faces bf ON bf.id = b.face_id
         LEFT JOIN sensitive_regions s ON d.kind = 'a' AND s.id = d.ref_id
         LEFT JOIN equipment_objects eq ON d.kind = 'e' AND eq.id = d.ref_id
         WHERE d.media_id = ?
@@ -391,6 +394,7 @@ class MediaQueries {
           _db.mediaDetections,
           _db.faces,
           _db.bodies,
+          _db.bodyRejections,
           _db.sensitiveRegions,
           _db.equipmentObjects,
         },

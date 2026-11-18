@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
+import 'package:antigravity_mobile/data/repositories/face_refresh.dart';
 import 'package:antigravity_mobile/data/repositories/media_queries.dart';
 import 'package:antigravity_mobile/data/repositories/people_repository.dart';
 import 'package:antigravity_mobile/domain/corrections/body_link_guard.dart';
@@ -132,6 +133,10 @@ void main() {
     };
 
     MediaDetection? tappedDetection;
+    await db.putSetting(
+      '${FaceRefresh.checkedPrefix}${media.id}',
+      '${DateTime(2026, 10, 1).millisecondsSinceEpoch}',
+    );
 
     await tester.pumpWidget(
       buildTestWidget(
@@ -167,6 +172,7 @@ void main() {
     expect(find.byKey(const Key('inspect-create-restyle')), findsOneWidget);
 
     expect(find.text('File info'), findsOneWidget);
+    expect(find.textContaining('Faces checked'), findsOneWidget);
     expect(find.byKey(const Key('inspect-redetect')), findsOneWidget);
     expect(find.byKey(const Key('inspect-analyze-now')), findsOneWidget);
   });

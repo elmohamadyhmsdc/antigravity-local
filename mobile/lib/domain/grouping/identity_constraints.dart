@@ -26,6 +26,20 @@ String faceConflictWithPerson(String faceId, String personId) =>
   )
 ''';
 
+/// A manual owner wins. An observed face that is still ungrouped cannot lend
+/// its body to a guessed identity while the face waits for a decision.
+String bodyOwner(String body, String face) =>
+    '''
+  CASE
+    WHEN $body.hidden = 1 OR $body.ownership = 'none' THEN NULL
+    WHEN $body.link_method = 'manual' OR $body.face_id IS NULL THEN $body.person_id
+    WHEN $face.hidden = 0 AND $face.ownership IS NOT 'none'
+      AND NOT EXISTS (SELECT 1 FROM body_rejections r
+        WHERE r.body_id = $body.id AND r.person_id = $face.person_id)
+    THEN $face.person_id
+  END
+''';
+
 /// A distinct body's face owner matters even when bodies.person_id is null.
 String bodyConflictWithPerson(String bodyId, String personId) =>
     '''
@@ -34,6 +48,6 @@ String bodyConflictWithPerson(String bodyId, String personId) =>
     JOIN bodies other ON other.id = CASE WHEN d.body_a = $bodyId THEN d.body_b ELSE d.body_a END
     LEFT JOIN faces owner ON owner.id = other.face_id
     WHERE (d.body_a = $bodyId OR d.body_b = $bodyId)
-      AND COALESCE(owner.person_id, other.person_id) = $personId
+      AND ${bodyOwner('other', 'owner')} = $personId
   )
 ''';

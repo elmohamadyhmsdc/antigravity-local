@@ -6,12 +6,14 @@ import 'package:antigravity_mobile/data/api/dtos/embedding.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
 import 'package:antigravity_mobile/data/index/embedding_index.dart';
+import 'package:antigravity_mobile/data/repositories/face_refresh.dart';
 import 'package:antigravity_mobile/data/repositories/identity_rescan.dart';
 import 'package:antigravity_mobile/data/repositories/library_repository.dart';
 import 'package:antigravity_mobile/data/repositories/people_repository.dart';
+import 'package:antigravity_mobile/domain/grouping/grouping_inputs.dart';
 import 'package:antigravity_mobile/domain/identity/doubt_audit.dart';
 import 'package:antigravity_mobile/domain/scan/photo_result_store.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show BooleanExpressionOperators, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -39,6 +41,67 @@ void main() {
     await index.dispose();
     await db.close();
     tmp.deleteSync(recursive: true);
+  });
+
+  test('face refresh updates the existing measurement and keeps manual face and body data', () async {
+    final mediaId = await seedMedia(db);
+    final personId = await seedPerson(db, name: 'Sara');
+    final faceId = await seedFace(
+      db, personId: personId, mediaId: mediaId, x: .1, y: .125, w: .2, h: .3,
+    );
+    await people.confirmFaces([faceId], personId);
+    final bodyId = await seedBody(
+      db, mediaId: mediaId, personId: personId, faceId: faceId, linkMethod: 'manual',
+    );
+    await (db.update(db.mediaDetections)..where(
+      (d) => d.kind.equals('f') & d.refId.equals(faceId),
+    )).write(const MediaDetectionsCompanion(outline: Value('existing outline')));
+    await index.addAll([(faceId, unitVec(1))]);
+    final media = (await LibraryRepository(db).mediaById(mediaId))!;
+    final bodyQuery = db.select(db.bodies)..where((b) => b.id.equals(bodyId));
+    final body = await bodyQuery.getSingle();
+    final refresh = FaceRefresh(db);
+    await refresh.request();
+    await refresh.activate();
+    final grouping = GroupingInputs(db);
+    expect(dot((await grouping.models()).single.proto, unitVec(1)), closeTo(1, .001));
+    await store.store(
+      media,
+      analysis(faces: [faceJson(unitVec(57), quality: .65)], bodies: [bodyJson()]),
+      facesOnly: true,
+    );
+    final row = await db.select(db.faces).getSingle();
+    expect(row.id, faceId);
+    expect(row.personId, personId);
+    expect(row.embedding, embeddingToBlob(unitVec(57)));
+    expect(dot((await grouping.models()).single.proto, unitVec(57)), closeTo(1, .001));
+    expect(await index.size(), 1);
+    expect((await db.select(db.faceConfirmations).getSingle()).faceId, faceId);
+    expect(await bodyQuery.getSingle(), body);
+    expect(await db.select(db.bodies).get(), hasLength(1));
+    expect(await LibraryRepository(db).mediaById(mediaId), media);
+    final detection = await (db.select(db.mediaDetections)..where(
+      (d) => d.kind.equals('f') & d.refId.equals(faceId),
+    )).getSingle();
+    expect(detection.outline, 'existing outline');
+    expect(await refresh.finished(mediaId), isTrue);
+    expect(await db.setting('${FaceRefresh.evidencePrefix}$faceId'), isNotNull);
+  });
+
+  test('face refresh stores character faces and honors deletion decisions', () async {
+    final mediaId = await seedMedia(db);
+    final media = (await LibraryRepository(db).mediaById(mediaId))!;
+    final result = AnalyzeImageResponse.fromJson(
+      fixture('AnalyzeImageResponse.character_face_body'),
+    );
+    await store.store(media, result, facesOnly: true);
+    final row = await db.select(db.faces).getSingle();
+    expect(row.kind, 'character');
+    expect(await db.select(db.bodies).get(), isEmpty);
+    final chars = PeopleRepository(db, FileStore(tmp), kind: 'character');
+    await chars.deleteFaces([row.id]);
+    await store.store(media, result, facesOnly: true);
+    expect(await db.select(db.faces).get(), isEmpty);
   });
 
   test(
@@ -90,6 +153,75 @@ void main() {
       }
       expect(await repo.claimNext(identityRescanOnly: true), isNull);
       expect((await repo.mediaById(unrelated))!.scanStatus, 'pending');
+    },
+  );
+
+  test(
+    'library scope is the union of identity media and retains video checkpoints on resume',
+    () async {
+      final human = await seedPerson(db);
+      final character = await seedPerson(db);
+      await (db.update(db.persons)..where((p) => p.id.equals(character))).write(
+        const PersonsCompanion(kind: Value('character')),
+      );
+      final shared = await seedMedia(db);
+      final alias = await seedMedia(db, asset: 'alias');
+      final video = await seedMedia(db, asset: 'video', kind: 'video');
+      final unrelated = await seedMedia(
+        db,
+        asset: 'unrelated',
+        status: 'pending',
+      );
+      final face = await seedFace(db, personId: human, mediaId: shared);
+      await seedFace(db, personId: character, mediaId: shared, seed: 2);
+      await seedBody(db, faceId: face, mediaId: video);
+      await db
+          .into(db.mediaDetections)
+          .insert(
+            MediaDetectionsCompanion.insert(
+              mediaId: alias,
+              kind: 'f',
+              refId: face,
+              x: .1,
+              y: .1,
+              w: .2,
+              h: .2,
+            ),
+          );
+      final videoRow = db.update(db.media)..where((m) => m.id.equals(video));
+      await videoRow.write(const MediaCompanion(lastScannedFrame: Value(900)));
+      await db.putSetting('video.job.$video', 'old');
+      await rescan.queueLibrary();
+      await rescan.queueLibrary();
+      expect(await rescan.hasQueued(), isTrue);
+      expect(await db.setting('video.job.$video'), 'old');
+      await rescan.activateNext();
+      final repo = LibraryRepository(db);
+      expect(await rescan.libraryActive(), isTrue);
+      expect((await repo.scanCounts(identityRescanOnly: true)).pending, 3);
+      expect(await rescan.pending(alias), isTrue);
+      expect(await rescan.pending(unrelated), isFalse);
+      expect((await repo.mediaById(video))!.lastScannedFrame, 0);
+      expect(await db.setting('video.job.$video'), isNull);
+
+      await rescan.finish(shared);
+      await videoRow.write(
+        const MediaCompanion(
+          scanStatus: Value('failed'),
+          lastScannedFrame: Value(240),
+        ),
+      );
+      await db.putSetting('video.job.$video', 'repair checkpoint');
+      final resumed = IdentityRescan(db);
+      await resumed.queueLibrary();
+      await resumed.activateNext();
+      await resumed.retryIncomplete();
+      expect(await resumed.hasQueued(), isFalse);
+      expect(await resumed.libraryCompletedCount(), 1);
+      expect(await resumed.pending(shared), isFalse);
+      expect(await resumed.pending(video), isTrue);
+      expect((await repo.mediaById(video))!.lastScannedFrame, 240);
+      expect(await db.setting('video.job.$video'), 'repair checkpoint');
     },
   );
 

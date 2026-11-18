@@ -47,6 +47,7 @@ class DoubtAudit {
 
   Future<DoubtResult> run({
     int? anchorPersonId,
+    bool anchorAll = false,
     bool rebuilding = false,
   }) async {
     final people = await _db
@@ -105,12 +106,13 @@ class DoubtAudit {
           ),
         );
       }
-      final anchored =
-          pid == anchorPersonId || (rebuilding && trusted.isNotEmpty);
-      if (pid == anchorPersonId && trusted.isEmpty) {
+      if ((pid == anchorPersonId || anchorAll) && trusted.isEmpty) {
         final cover = p.readNullable<int>('avatar_face_id');
         if (faces.any((f) => f.id == cover)) trusted.add(cover!);
       }
+      final anchored =
+          pid == anchorPersonId ||
+          ((anchorAll || rebuilding) && trusted.isNotEmpty);
       if (faces.length >= (anchored ? 2 : 3)) {
         // Old imports can contain compatible-sized but unrelated model spaces.
         // Without a selected library model, do not invent comparisons across them.
@@ -124,7 +126,7 @@ class DoubtAudit {
           trusted: trusted,
           minToTrim: anchored
               ? 2
-              : rebuilding
+              : rebuilding || anchorAll
               ? 3
               : 5,
           minTrusted: anchored ? 1 : 3,

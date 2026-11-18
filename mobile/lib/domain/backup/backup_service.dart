@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../../data/db/app_database.dart';
 import '../../data/files/file_store.dart';
 import '../../data/repositories/app_settings.dart';
+import '../../data/repositories/face_refresh.dart';
 import '../scan/drawn_face_sweep.dart';
 
 /// The phone holds the ONLY copy of the user's library, so a backup must be able to rebuild it
@@ -398,6 +399,9 @@ class BackupService {
             );
           }
         }
+        await (_db.delete(
+          _db.settings,
+        )..where((s) => s.key.like('${FaceRefresh.settingsPrefix}%'))).go();
         final settings = manifest['settings'];
         if (settings is Map<String, dynamic>) {
           await _settings.putRaw({

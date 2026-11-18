@@ -14,12 +14,14 @@ import '../../data/repositories/action_frames.dart';
 import '../../data/repositories/character_repository.dart';
 import '../../data/repositories/character_repair.dart';
 import '../../data/repositories/identity_rescan.dart';
+import '../../data/repositories/face_refresh.dart';
 import '../../data/repositories/kind_corrections.dart';
 import '../../data/repositories/face_suppression_store.dart';
 import '../../data/repositories/sensitive_store.dart';
 import '../sensitive/sensitive_policy.dart';
 import '../sensitive/embedding_backfill.dart' show bodyEmbeddingModelVersion;
 import 'drawn_faces.dart';
+import 'body_face_links.dart';
 import 'scan_math.dart';
 import 'video_tracks.dart';
 import '../geometry/outline.dart';
@@ -119,6 +121,7 @@ class PhotoResultStore {
     MediaRow media,
     AnalyzeImageResponse analysis, {
     bool repairCharacters = false,
+    bool facesOnly = false,
     int? frameNumber,
     int? timestampMs,
     bool complete = true,
@@ -161,6 +164,7 @@ class PhotoResultStore {
       final used = <int>{};
       final targets =
           <int, int>{}; // gated position -> existing face of this frame
+      final sameObservation = <int>{};
 
       // A rescan of the same frame finds its own faces again first.
       for (var k = 0; k < gated.length; k++) {
@@ -182,12 +186,16 @@ class PhotoResultStore {
         // belonging to another face in this same frame.
         final box = _box(face.bbox, w, h);
         int? target;
+        var overlap = sameBoxIou;
         for (final c in inFile) {
-          if (!used.contains(c.id) && iou(box, c.box) >= sameBoxIou) {
+          final score = iou(box, c.box);
+          if (!used.contains(c.id) && score >= overlap) {
             target = c.id;
-            break;
+            if (!facesOnly) break;
+            overlap = score;
           }
         }
+        if (facesOnly && target != null) sameObservation.add(target);
         if (target == null) {
           _Existing? closest;
           var best = -1.0;
@@ -245,6 +253,25 @@ class PhotoResultStore {
         var target = targets[k];
         final rescanned = target != null;
         if (target != null) {
+          // Only replace the vector measured at this face's own location.
+          // An alias or another frame of a track can link to it, but is not
+          // a replacement for its representative crop and embedding.
+          if (sameObservation.contains(target)) {
+            await _replaceView(
+              target,
+              face,
+              box,
+              w,
+              h,
+              frameNumber,
+              timestampMs,
+              modelId: analysis.modelId,
+            );
+            replaced.add((target, face.embedding));
+            faceDbId[i] = target;
+            linked++;
+            continue;
+          }
           if (await _refreshLinkedFace(target, face)) {
             faceDbId[i] = target;
             linked++;
@@ -380,13 +407,48 @@ class PhotoResultStore {
           frameNumber,
           timestampMs,
           encodeOutline(face.outline, face.bbox),
+          facesOnly,
         );
+      }
+
+      if (facesOnly) {
+        final measured = {...newIds, for (final (id, _) in replaced) id};
+        newCharacters = await CharacterRepository(_db, _files).store(
+          media,
+          analysis,
+          frameNumber: frameNumber,
+          timestampMs: timestampMs,
+          facesOnly: true,
+          measuredFaces: measured,
+          suppressions: suppressed,
+        );
+        await KindOverrideStore(_db).applyTargets(
+          media,
+          frameNumber: frameNumber,
+          timestampMs: timestampMs,
+          facesOnly: true,
+        );
+        final refresh = FaceRefresh(_db);
+        await refresh.recordFaces(measured, now);
+        if (frameNumber != null) {
+          await refresh.advance(media, frameNumber);
+        } else if (complete) {
+          await refresh.finish(media.id);
+        }
+        return;
       }
 
       // ---- bodies --------------------------------------------------------------------
       final faceOfBody = {
-        for (final p in analysis.pairs) p.bodyIndex: p.faceIndex,
+        for (final p in analysis.pairs)
+          if (p.faceIndex >= 0 &&
+              p.faceIndex < analysis.faces.length &&
+              p.bodyIndex >= 0 &&
+              p.bodyIndex < analysis.bodies.length &&
+              p.score.isFinite)
+            p.bodyIndex: p.faceIndex,
       };
+      final bodyLinks = BodyFaceLinks(_db);
       final existingBodies = await _bodiesOfMedia(media.id, frameNumber);
       final usedBodies = <int>{};
       var keptFaceless = existingBodies.where((b) => b.faceId == null).length;
@@ -446,10 +508,13 @@ class PhotoResultStore {
         final box = _box(body.bbox, w, h);
 
         _ExistingBody? same;
+        var bestOverlap = sameBoxIou;
         for (final e in existingBodies) {
-          if (!usedBodies.contains(e.id) && iou(box, e.box) >= sameBoxIou) {
+          if (usedBodies.contains(e.id)) continue;
+          final overlap = iou(box, e.box);
+          if (overlap >= bestOverlap) {
             same = e;
-            break;
+            bestOverlap = overlap;
           }
         }
         if (same != null) {
@@ -464,10 +529,6 @@ class PhotoResultStore {
           await _db.customUpdate(
             '''
             UPDATE bodies SET score = ?, extent = ?, kpts = ?, appearance = ?,
-              face_id = COALESCE(face_id, CASE WHEN link_method = 'manual' OR EXISTS (
-                SELECT 1 FROM body_rejections r JOIN faces f ON f.person_id = r.person_id
-                WHERE r.body_id = bodies.id AND f.id = ?5
-              ) THEN NULL ELSE ?5 END),
               chest_embedding = COALESCE(?, chest_embedding),
               buttocks_embedding = COALESCE(?, buttocks_embedding),
               morphology = COALESCE(?, morphology) WHERE id = ?
@@ -481,7 +542,6 @@ class PhotoResultStore {
                     ? null
                     : appearanceToBlob(body.appearance!),
               ),
-              Variable<int>(faceId),
               Variable<Uint8List>(_blobOf(body.chestEmbedding)),
               Variable<Uint8List>(_blobOf(body.buttocksEmbedding)),
               Variable<String>(_morphologyJson(body.morphology)),
@@ -489,6 +549,7 @@ class PhotoResultStore {
             ],
             updates: {_db.bodies},
           );
+          if (faceId != null) await bodyLinks.attach(same.id, faceId);
           await _putDetection(
             media.id,
             'b',
@@ -747,7 +808,7 @@ class PhotoResultStore {
     await _index.addAll([...newVectors, ...replaced]);
     // Not moved now: a photo moved right after its scan has usually no person yet (grouping runs later), and a
     // move per photo means a system sheet per photo. The scan moves them all, in chunks, once it has grouped.
-    if (!repairCharacters && autoOrganizer != null) {
+    if (!facesOnly && !repairCharacters && autoOrganizer != null) {
       pendingOrganize.add(media.id);
     }
     return StoreOutcome(
@@ -949,10 +1010,12 @@ class PhotoResultStore {
     int w,
     int h,
     int? frameNumber,
-    int? timestampMs,
-  ) async {
+    int? timestampMs, {
+    String? modelId,
+  }) async {
     await (_db.update(_db.faces)..where((f) => f.id.equals(faceId))).write(
       FacesCompanion(
+        modelId: modelId == null ? const Value.absent() : Value(modelId),
         embedding: Value(embeddingToBlob(face.embedding)),
         qualityScore: Value(face.quality.score),
         qualityVersion: Value(face.quality.version),
@@ -972,7 +1035,7 @@ class PhotoResultStore {
         timestampMs: Value(timestampMs),
       ),
     );
-    _vectors[faceId] = face.embedding;
+    if (frameNumber != null) _vectors[faceId] = face.embedding;
     if (face.cropJpeg != null) {
       final path = await _files.writeFaceCrop(faceId, face.cropJpeg!);
       await (_db.update(_db.faces)..where((f) => f.id.equals(faceId))).write(
@@ -1077,7 +1140,24 @@ class PhotoResultStore {
     int? frameNumber,
     int? timestampMs, [
     String? outline,
+    bool keepOutline = false,
   ]) async {
+    if (keepOutline && outline == null) {
+      final previous =
+          await (_db.select(_db.mediaDetections)
+                ..where(
+                  (d) =>
+                      d.mediaId.equals(mediaId) &
+                      d.kind.equals(kind) &
+                      d.refId.equals(refId) &
+                      (frameNumber == null
+                          ? d.frameNumber.isNull()
+                          : d.frameNumber.equals(frameNumber)),
+                )
+                ..limit(1))
+              .getSingleOrNull();
+      outline = previous?.outline;
+    }
     await _db.customUpdate(
       'DELETE FROM media_detections WHERE media_id = ? AND kind = ? AND ref_id = ? AND frame_number IS ?',
       variables: [

@@ -95,13 +95,14 @@ class KindOverrideStore {
     MediaRow media, {
     int? frameNumber,
     int? timestampMs,
+    bool facesOnly = false,
   }) async {
     final pending =
         await (_db.select(_db.kindOverrides)..where(
               (o) =>
                   o.assetId.equals(media.assetId) &
                   o.targetPersonId.isNotNull() &
-                  o.part.isNotNull(),
+                  (facesOnly ? o.part.equals('face') : o.part.isNotNull()),
             ))
             .get();
     if (pending.isEmpty) return;
