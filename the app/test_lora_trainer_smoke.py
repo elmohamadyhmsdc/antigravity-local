@@ -40,7 +40,12 @@ try:
         base_checkpoint="models/sd15_realistic_base.safetensors",
         resume_state="models/loras/runs/abc12345/example-000002-state",
         resumed_epochs=2,
+        preserve_body_framing=True,
     )
+    assert args[args.index("--max_bucket_reso") + 1] == "512"
+    assert resume_args[resume_args.index("--max_bucket_reso") + 1] == "1024"
+    assert resume_args[resume_args.index("--resolution") + 1] == "512"
+
     expected_tail = ["--resume", "models/loras/runs/abc12345/example-000002-state", "--initial_epoch", "3"]
     if resume_args[-4:] != expected_tail:
         print(f"Resuming after epoch 2 should end with {expected_tail}, got {resume_args[-4:]}")

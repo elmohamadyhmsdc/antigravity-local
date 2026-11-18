@@ -74,6 +74,7 @@ class BodyInput:
     weak_face_embedding: Optional[Sequence[float]] = None
     rejected_person_ids: Set[int] = field(default_factory=set)
     taken_at: Optional[int] = None                # epoch ms of the photo (event-context linking); None = unknown
+    detection_score: Optional[float] = None
 
 
 @dataclass
@@ -246,10 +247,13 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
         q = np.zeros(0, dtype=np.float32)
         keys, rejected = [], []
 
+    adaptive = strictness in (pl.AUTO, "character")
     if isinstance(strictness, pl.GroupingParams):
         params = strictness
     elif strictness == pl.AUTO:
         params = pl.auto_params(negative_similarities(snapshot, e, keys))
+    elif strictness == "character":
+        params = pl.character_auto_params(negative_similarities(snapshot, e, keys))
     else:
         params = pl.params_for(strictness)
 
@@ -267,7 +271,8 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
     if "match" in wanted and models and n:
         per_person: Dict[int, List[FaceAssignment]] = {}
         accepted = ("auto", "suggest") if review else ("auto",)
-        for m in pl.match_faces(e, models, params, keys, rejected, alike):
+        for m in pl.match_faces(e, models, params, keys, rejected, alike,
+                                adaptive_qualities=q if adaptive else None):
             if m.decision in accepted:
                 per_person.setdefault(m.person_id, []).append(
                     FaceAssignment(pending[m.index].id, m.person_id, round(m.score, 3), round(m.margin, 3),
@@ -287,7 +292,7 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
             sub = np.asarray(rest)
             fold_pids = sorted(models) if link_alike and not review else []
             fold_protos = np.stack([models[p].proto for p in fold_pids]) if fold_pids else None
-            for c in pl.cluster_faces(e[sub], q[sub], params, [keys[i] for i in rest]):
+            for c in pl.cluster_faces(e[sub], q[sub], params, [keys[i] for i in rest], adaptive=adaptive):
                 idx = [rest[i] for i in c.indices]
                 if fold_pids:
                     target = _known_person_for(e[idx], q[idx], [rejected[i] for i in idx], models, fold_pids,
@@ -311,9 +316,17 @@ def plan(snapshot: Snapshot, mode: str = "apply", stages: Iterable[str] = APPLY_
         records = [{"id": b.id, "media_id": b.media_id, "frame_number": b.frame_number,
                     "appearance": b.appearance, "weak_face_embedding": b.weak_face_embedding,
                     "rejected_person_ids": b.rejected_person_ids, "anchor_person_id": b.anchor_person_id,
-                    "taken_at": b.taken_at}
+                    "taken_at": b.taken_at, "detection_score": b.detection_score}
                    for b in snapshot.bodies]
-        for link in pl.link_faceless_bodies(records, lambda b: b["anchor_person_id"], models, params):
+        body_params = params
+        if adaptive:
+            weak = [b for b in snapshot.bodies if b.weak_face_embedding is not None]
+            vectors = pl.normalize_rows(np.stack([b.weak_face_embedding for b in weak])) if weak else e[:0]
+            body_keys = [(b.media_id, b.frame_number) if b.media_id is not None else None for b in weak]
+            negatives = negative_similarities(snapshot, vectors, body_keys)
+            body_params = pl.auto_params(negatives) if strictness == pl.AUTO else pl.character_auto_params(negatives)
+        for link in pl.link_faceless_bodies(records, lambda b: b["anchor_person_id"], models, body_params,
+                                            adaptive=adaptive):
             # apply mode returns the suggestions too (the caller applies only "auto"); review shows only those
             if review and link.decision != "suggest":
                 continue
@@ -445,6 +458,9 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
     for i, b in enumerate(bodies_json):
         _expect(isinstance(b, dict), f"bodies[{i}] must be an object")
         weak = b.get("weak_face_embedding")
+        score = b.get("detection_score")
+        _expect(score is None or type(score) in (int, float) and 0 <= score <= 1,
+                f"bodies[{i}].detection_score must be between 0 and 1")
         bodies.append(BodyInput(
             id=_int(b.get("id"), f"bodies[{i}].id"),
             media_id=_opt_int(b.get("media_id"), f"bodies[{i}].media_id"),
@@ -453,7 +469,7 @@ def snapshot_from_request(req: Dict) -> Tuple[Snapshot, str, List[str], str, int
             appearance=_appearance(b.get("appearance"), f"bodies[{i}].appearance"),
             weak_face_embedding=None if weak is None else decode_embedding(weak, f"bodies[{i}].weak_face_embedding", dim),
             rejected_person_ids=set(_int_list(b.get("rejected_person_ids", []), f"bodies[{i}].rejected_person_ids")),
-            taken_at=_opt_int(b.get("taken_at"), f"bodies[{i}].taken_at")))
+            taken_at=_opt_int(b.get("taken_at"), f"bodies[{i}].taken_at"), detection_score=score))
 
     distinct = []
     for i, p in enumerate(_list(req, "distinct_pairs")):

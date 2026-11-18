@@ -953,6 +953,37 @@ def test_auto_uses_same_frame_faces_of_the_request():
 
 
 @test
+def test_adaptive_faces_with_equal_scores_need_evidence_proportional_to_quality():
+    for profile, dim, params in (("auto", 512, pl.auto_params()),
+                                 ("character", 768, pl.character_auto_params([]))):
+        known, other = np.eye(2, dim, dtype=np.float32)
+        score = params.match_auto + 0.025
+        face = score * known + np.sqrt(1.0 - score * score) * other
+        snapshot = gc.Snapshot(
+            models={1: pl.PersonModel(1, known, known[None, :], 1)},
+            pending=[gc.PendingFace(1, face, 0.95), gc.PendingFace(2, face, 0.25)],
+        )
+        plan = gc.plan(snapshot, "review", ["match"], profile)
+        check({a.face_id: a.decision for a in plan.assignments} == {1: "auto", 2: "suggest"},
+              f"{profile}: reduce confidence when only the detection quality drops")
+
+
+@test
+def test_adaptive_weak_face_body_links_use_the_body_detection_score():
+    known, other = np.eye(2, 512, dtype=np.float32)
+    score = pl.auto_params().match_auto + 0.04
+    weak = score * known + np.sqrt(1.0 - score * score) * other
+    snapshot = gc.Snapshot(
+        models={1: pl.PersonModel(1, known, known[None, :], 1)},
+        bodies=[gc.BodyInput(1, media_id=1, weak_face_embedding=weak, detection_score=0.95),
+                gc.BodyInput(2, media_id=2, weak_face_embedding=weak, detection_score=0.20)],
+    )
+    plan = gc.plan(snapshot, "apply", ["bodies"], pl.AUTO)
+    check({b.body_id: b.decision for b in plan.body_links} == {1: "auto", 2: "suggest"},
+          "equal weak-face similarities can warrant different decisions")
+
+
+@test
 def test_grouping_core_imports_no_database():
     import ast
     tree = ast.parse((HERE / "grouping_core.py").read_text(encoding="utf-8"))

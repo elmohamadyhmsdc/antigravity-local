@@ -1,13 +1,10 @@
 """
 Antigravity Local - Source identity builder
 
-inswapper consumes ONLY the source face's identity embedding (see
-insightface INSwapper.get -> source_face.normed_embedding). So the best
-likeness comes from ONE robust identity vector built by averaging many good
-source faces, not from picking a single source face per target.
-
-This also removes the per-frame source switching that caused identity flicker
-in video, and skips re-loading/re-detecting every source image at swap time.
+Build a shared identity embedding from accepted source faces. When references
+cover several angles, flat source lists can bias that embedding toward the
+target pose. Saved bundles can also supply angle-specific embeddings. All
+three paths reuse the source embeddings across frames.
 """
 
 from typing import List, Optional
@@ -21,6 +18,45 @@ class AveragedSource:
 
     def __init__(self, normed_embedding: np.ndarray):
         self.normed_embedding = np.asarray(normed_embedding, dtype=np.float32)
+
+    def for_face(self, face, track_id):
+        return self
+
+
+class PoseWeightedSource(AveragedSource):
+    """Favor verified references near the current head angle while retaining consensus identity."""
+
+    def __init__(self, primary, rows):
+        super().__init__(primary)
+        self.vectors = np.stack([v for _, v, _ in rows])
+        self.poses = np.asarray([f.pose[:2] for f, _, _ in rows], np.float32)
+        self.weights = np.asarray([w for _, _, w in rows], np.float32)
+        self.generated = np.asarray([bool(getattr(f, "generated", False)) for f, _, _ in rows])
+
+    def for_face(self, face, track_id):
+        from face_quality import pose_from_kps
+
+        pose = getattr(face, "pose", None)
+        if pose is not None and len(pose) >= 2 and np.isfinite(pose[:2]).all():
+            yaw, pitch = pose[1], pose[0]  # InsightFace returns pitch first.
+        else:
+            kps = getattr(face, "kps", None)
+            if np.shape(kps) != (5, 2) or not np.isfinite(kps).all():
+                return self
+            yaw, pitch = pose_from_kps(kps)
+        # Continuous weighting avoids a jump when the head crosses from front to profile.
+        distance = (self.poses - [yaw, pitch]) / [25., 20.]
+        affinity = np.exp(-.5 * np.sum(distance ** 2, axis=1))
+        weights = self.weights * affinity
+        real_weight = weights[~self.generated].sum()
+        generated_weight = weights[self.generated].sum()
+        if generated_weight > 0:
+            weights[self.generated] *= min(1., .25 * real_weight / generated_weight)
+        local = _unit(weights @ self.vectors)
+        if local is None:
+            return self
+        blend = .35 * float(affinity.max())
+        return AveragedSource(_unit((1 - blend) * self.normed_embedding + blend * local))
 
 
 class BundleSource(AveragedSource):
@@ -79,7 +115,14 @@ def select_identity_faces(faceset, top_k=None):
     anchor_index = max(pool, key=lambda i: float(np.median(similarities[i, pool])))
     anchor = matrix[anchor_index]
     sims = matrix @ anchor
-    real_sims = sims[pool]
+    # A burst of almost identical frontal photos should not push the outlier
+    # cutoff so high that a genuine side view disappears. Keep the consensus
+    # anchor, but estimate its normal spread from independent views.
+    views = []
+    for i in sorted(pool, key=lambda index: rows[index][2], reverse=True):
+        if not views or np.max(similarities[i, views]) < .95:
+            views.append(i)
+    real_sims = sims[views]
     median = float(np.median(real_sims))
     mad = float(np.median(np.abs(real_sims - median)))
     threshold = max(.4, median - max(3 * mad, .1))
@@ -102,7 +145,8 @@ def select_identity_faces(faceset, top_k=None):
     mean = _unit(sum(vector * q for _, vector, q in kept))
     coverage = {}
     for face, _, _ in kept:
-        yaw, pitch = (getattr(face, "pose", None) or (0, 0, 0))[:2]
+        pose = getattr(face, "pose", None)
+        yaw, pitch = pose[:2] if pose is not None and len(pose) >= 2 and np.isfinite(pose[:2]).all() else (0, 0)
         key = f"{int(round(yaw / 20))},{int(round(pitch / 20))}"
         coverage[key] = coverage.get(key, 0) + 1
     return kept, dict(input=total, kept=len(kept), rejected=total-len(kept),
@@ -126,7 +170,15 @@ def build_source_from_faceset(
     bundle = getattr(faceset, "identity_bundle", None)
     if bundle is not None:
         return BundleSource(bundle)
-    emb = build_identity_embedding(faceset, top_k=top_k, quality_weighted=quality_weighted)
+    rows, _ = select_identity_faces(faceset, top_k)
+    if not rows:
+        return None
+    emb = _unit(sum(v * (q if quality_weighted else 1) for _, v, q in rows))
     if emb is None:
         return None
+    posed = [(f, v, q) for f, v, q in rows if getattr(f, "pose", None) is not None
+             and len(f.pose) >= 2 and np.isfinite(f.pose[:2]).all()]
+    if (quality_weighted and len(posed) > 1 and any(not getattr(f, "generated", False) for f, _, _ in posed)
+            and np.ptp([f.pose[:2] for f, _, _ in posed], axis=0).max() >= 15):
+        return PoseWeightedSource(emb, posed)
     return AveragedSource(emb)

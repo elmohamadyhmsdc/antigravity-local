@@ -10,6 +10,8 @@ class ArtifactContext {
     this.targetPersonId,
     this.modelId,
     this.identityModelId,
+    this.loraBaseCheckpoint,
+    this.loraGenerationMode,
     this.executionEngine,
     this.qualityWarnings = const [],
     this.datasetId,
@@ -24,6 +26,8 @@ class ArtifactContext {
   final int? targetPersonId;
   final String? modelId;
   final String? identityModelId;
+  final String? loraBaseCheckpoint;
+  final String? loraGenerationMode;
   final String? executionEngine;
   final List<String> qualityWarnings;
   final String? datasetId;
@@ -38,6 +42,8 @@ class ArtifactContext {
     if (targetPersonId != null) 'targetPersonId': targetPersonId,
     if (modelId != null) 'modelId': modelId,
     if (identityModelId != null) 'identityModelId': identityModelId,
+    if (loraBaseCheckpoint != null) 'loraBaseCheckpoint': loraBaseCheckpoint,
+    if (loraGenerationMode != null) 'loraGenerationMode': loraGenerationMode,
     if (executionEngine != null) 'executionEngine': executionEngine,
     if (qualityWarnings.isNotEmpty) 'qualityWarnings': qualityWarnings,
     if (datasetId != null) 'datasetId': datasetId,
@@ -63,6 +69,12 @@ class ArtifactContext {
         modelId: json['modelId'] is String ? json['modelId'] as String : null,
         identityModelId: json['identityModelId'] is String
             ? json['identityModelId'] as String
+            : null,
+        loraBaseCheckpoint: json['loraBaseCheckpoint'] is String
+            ? json['loraBaseCheckpoint'] as String
+            : null,
+        loraGenerationMode: json['loraGenerationMode'] is String
+            ? json['loraGenerationMode'] as String
             : null,
         executionEngine: json['executionEngine'] is String
             ? json['executionEngine'] as String
@@ -97,6 +109,8 @@ class ArtifactContext {
     targetPersonId: targetPersonId == sourceId ? targetId : targetPersonId,
     modelId: modelId,
     identityModelId: identityModelId,
+    loraBaseCheckpoint: loraBaseCheckpoint,
+    loraGenerationMode: loraGenerationMode,
     executionEngine: executionEngine,
     qualityWarnings: qualityWarnings,
     datasetId: datasetId,

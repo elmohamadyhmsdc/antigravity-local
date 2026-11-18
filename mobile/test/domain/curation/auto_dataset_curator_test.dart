@@ -192,6 +192,33 @@ void main() {
       },
     );
 
+    test('preserves head-to-toe coverage ahead of partial body views', () {
+      const partial = CurationCandidate(
+        detectionId: 1,
+        mediaId: 1,
+        assetId: 'partial',
+        isVideo: false,
+        category: CurationCategory.body,
+        extent: 'knee',
+        quality: 1,
+        hasExposedRegion: true,
+      );
+      const full = CurationCandidate(
+        detectionId: 2,
+        mediaId: 2,
+        assetId: 'full',
+        isVideo: false,
+        category: CurationCategory.body,
+        extent: 'full',
+        quality: 0.5,
+      );
+      const curator = AutoDatasetCurator(
+        targetBodyCount: 2,
+        preferExposed: true,
+      );
+      expect(curator.curate([partial, full]).body, [full, partial]);
+    });
+
     test('a low-quality face is not padded in just to reach the target', () {
       final faces = const AutoDatasetCurator().curate([
         const CurationCandidate(
@@ -331,7 +358,7 @@ void main() {
       },
     );
 
-    test('deduplicates video keyframes closer than minimum time gap', () {
+    test('deduplicates video keyframes within each type of crop', () {
       final candidates = <CurationCandidate>[
         const CurationCandidate(
           detectionId: 1,
@@ -360,14 +387,31 @@ void main() {
           quality: 0.7,
           category: CurationCategory.face,
         ),
+        const CurationCandidate(
+          detectionId: 4,
+          mediaId: 50,
+          assetId: 'vid_1',
+          isVideo: true,
+          timestampMs: 1400,
+          extent: 'full',
+          category: CurationCategory.body,
+        ),
+        const CurationCandidate(
+          detectionId: 5,
+          mediaId: 50,
+          assetId: 'vid_1',
+          isVideo: true,
+          timestampMs: 1500,
+          quality: 0.95,
+          extent: 'knee',
+          category: CurationCategory.body,
+        ),
       ];
 
       const curator = AutoDatasetCurator(minVideoGapMs: 1500);
       final deduplicated = curator.deduplicateVideoFrames(candidates);
 
-      expect(deduplicated.length, 2);
-      expect(deduplicated.any((c) => c.detectionId == 2), isTrue);
-      expect(deduplicated.any((c) => c.detectionId == 3), isTrue);
+      expect(deduplicated.map((c) => c.detectionId), unorderedEquals([2, 3, 4]));
     });
   });
 }

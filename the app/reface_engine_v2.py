@@ -900,10 +900,30 @@ class RefaceEngineV2(RefaceEngine):
             stopped = False
             resized_frames_count = 0
             selector = FaceSelector(target_face_embeddings, target_face_indices) if target_face_embeddings is not None else None
-            recovery = VideoFaceRecovery()
+            models = getattr(self.app, "models", {})
+            recovery = VideoFaceRecovery(models.get("recognition"))
             tracker = FaceTracker()
             detector = self._detect_video_faces
             accepts = (lambda face: selector.wants(0, current_frame, lambda: face.normed_embedding)) if selector else (lambda face: True)
+            fine_detector = None
+            if selector and self.app is not None:
+                fine_detector = lambda image: detect_video_faces(self.app, image, landmarks=True, fine=True)
+
+            def track_frame(image):
+                faces = recovery.detect(image, detector, accepts, selector.profile_candidate if selector else None,
+                                        fine_detector=fine_detector)
+                if recovery.scene_changed:
+                    tracker.clear()
+                    if selector is not None:
+                        selector.reset()
+                    if self.temporal_stabilizer:
+                        self.temporal_stabilizer.reset()
+                ids = tracker.update(faces)
+                if selector is None:
+                    return faces, faces
+                picked = [f for f, tid in zip(faces, ids)
+                          if selector.wants(tid, current_frame, lambda: f.normed_embedding)]
+                return faces, picked
             
             # Restore search context on resume without writing or swapping old frames.
             warmup = min(3, max(0, int(resume_from_frame)), start_frame)
@@ -913,8 +933,9 @@ class RefaceEngineV2(RefaceEngine):
                 ok, context = cap.read()
                 if not ok:
                     raise ValueError("Could not restore video context before the checkpoint")
-                recovery.detect(context, detector, accepts)
+                track_frame(context)
             recovery.recovered = 0
+            recovered_frames = 0
             
             while end_frame == -1 or current_frame < end_frame:
                 ret, frame = cap.read()
@@ -922,12 +943,9 @@ class RefaceEngineV2(RefaceEngine):
                     break
                 
                 original_frame = frame.copy()
-                target_faces = recovery.detect(frame, detector, accepts)
-                if recovery.scene_changed:
-                    tracker.clear()
-                    if self.temporal_stabilizer:
-                        self.temporal_stabilizer.reset()
-                tracker.update(target_faces)
+                before = recovery.recovered
+                target_faces, selected_faces = track_frame(original_frame)
+                recovered_frames += int(recovery.recovered > before)
                 
                 swapped_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
                 # Reset per frame: the enhancement pass below reads this outside
@@ -936,7 +954,7 @@ class RefaceEngineV2(RefaceEngine):
                 faces_to_swap = []
                 if target_faces:
                     if selector is not None:
-                        faces_to_swap = [face for face in target_faces if accepts(face)]
+                        faces_to_swap = selected_faces
                     elif target_face_indices is not None:
                         for idx in target_face_indices:
                             if 0 <= idx < len(target_faces):
@@ -1095,7 +1113,7 @@ class RefaceEngineV2(RefaceEngine):
                     output_path=str(result_path),
                     message=f"V2 video part rendered ({frames_processed} frames){part_status}",
                     faces_swapped=total_swaps,
-                    details={"frames_done": frames_processed, "frames_recovered": recovery.recovered}
+                    details={"frames_done": frames_processed, "frames_recovered": recovered_frames}
                 )
             
             # Convert to MP4
@@ -1139,7 +1157,7 @@ class RefaceEngineV2(RefaceEngine):
                 output_path=str(result_path),
                 message=f"V2 Video {status_text} ({total_swaps} swaps in {frames_processed} frames){trim_info}",
                 faces_swapped=total_swaps,
-                details={"frames_done": frames_processed, "frames_recovered": recovery.recovered}
+                details={"frames_done": frames_processed, "frames_recovered": recovered_frames}
             )
             
         except Exception as e:

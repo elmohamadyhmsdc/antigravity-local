@@ -140,6 +140,8 @@ class RefaceDiagnostics:
                 for r in frame_records:
                     if r.reason:
                         reasons[r.reason] = reasons.get(r.reason, 0) + 1
+                if not frame_records:
+                    reasons["target_unverified"] = reasons.get("target_unverified", 0) + 1
             else:
                 if in_gap:
                     length = frame_idx - gap_start
@@ -222,6 +224,7 @@ class RefaceDiagnostics:
             "degraded_count": degraded_count,
             "gaps": [asdict(g) for g in gaps],
             "gap_count": len(gaps),
+            "unverified_frames": sum(g.reason_breakdown.get("target_unverified", 0) for g in gaps),
             "longest_gap_frames": longest_gap_frames,
             "longest_gap_ms": longest_gap_ms,
             "latency": {

@@ -12,11 +12,14 @@ import android.os.Build
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.os.storage.StorageManager
 import android.provider.MediaStore
 import android.provider.Settings
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -57,6 +60,7 @@ class MediaOrganizerBridge(context: Context) {
             // Either access means "moves need no sheet".
             "canManageMedia" -> { result.success(allFiles() || canManage()); return }
             "hasAllFilesAccess" -> { result.success(allFiles()); return }
+            "pruneEmptyFolders" -> { pruneEmptyFolders(result); return }
             "requestManageMedia" -> {
                 // The system page where the user switches "Media management" on for this app, once.
                 result.success(openSettings(Settings.ACTION_REQUEST_MANAGE_MEDIA, 31)); return
@@ -128,6 +132,34 @@ class MediaOrganizerBridge(context: Context) {
 
     private fun allFiles(): Boolean = Build.VERSION.SDK_INT >= 30 &&
         try { Environment.isExternalStorageManager() } catch (_: Exception) { false }
+
+    private fun pruneEmptyFolders(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < 30 || !allFiles()) {
+            result.success(null)
+            return
+        }
+        if (!moving.compareAndSet(false, true)) {
+            result.error("organizer_busy", "A media move is already in progress.", null)
+            return
+        }
+        worker.execute {
+            val removed = try {
+                val storage = appContext.getSystemService(StorageManager::class.java)
+                storage?.storageVolumes.orEmpty()
+                    .filter { it.state == Environment.MEDIA_MOUNTED }
+                    .mapNotNull { it.directory }
+                    .sumOf { GalleryFolders(it).pruneEmpty() }
+            } catch (_: Exception) {
+                null
+            } finally {
+                moving.set(false)
+            }
+            main.post {
+                if (removed == null) result.error("cleanup_failed", "Could not clean up gallery folders.", null)
+                else result.success(removed)
+            }
+        }
+    }
 
     private fun openSettings(action: String, minSdk: Int): Boolean {
         if (Build.VERSION.SDK_INT < minSdk) return false
@@ -241,8 +273,17 @@ class MediaOrganizerBridge(context: Context) {
                 val count = resolver.update(uri(item), values, null, null)
                 val actual = read(uri(item))
                 if (count != 1 || actual == null) request.results.add(outcome(item, "failed"))
-                else request.results.add(outcome(item, "moved", actual,
-                    if (actual["name"] != item["targetName"] || actual["path"] != item["targetPath"]) "system_adjusted_name" else null))
+                else {
+                    @Suppress("UNCHECKED_CAST")
+                    val previous = checked["actual"] as Map<String, Any?>
+                    if (actual["path"] != previous["path"]) {
+                        sourceLocation(previous)?.let { (root, source) ->
+                            GalleryFolders(root).pruneVacated(source.parentFile)
+                        }
+                    }
+                    request.results.add(outcome(item, "moved", actual,
+                        if (actual["name"] != item["targetName"] || actual["path"] != item["targetPath"]) "system_adjusted_name" else null))
+                }
                 request.index++
             } catch (error: SecurityException) {
                 if (Build.VERSION.SDK_INT == 29 && error is RecoverableSecurityException && request.retriedIndex != request.index) {
@@ -263,18 +304,33 @@ class MediaOrganizerBridge(context: Context) {
     /** A file-system rename (All files access). Android's media provider sees the rename and keeps the row,
      *  so the asset id and every detection stay valid. If the row is ever re-created instead, the result
      *  carries the new id (detail "new_asset_id") and the app rewrites its record. */
-    private fun renameFile(item: Map<*, *>, actual: Map<String, Any?>): Map<String, Any?> {
-        val sourcePath = actual["file"] as? String ?: return outcome(item, "failed", detail = "no_file_path")
+    private fun sourceLocation(actual: Map<String, Any?>): Pair<File, File>? {
+        val sourcePath = actual["file"] as? String ?: return null
         val relative = (actual["path"] as String) + (actual["name"] as String)
-        if (!sourcePath.endsWith("/$relative")) return outcome(item, "failed", detail = "unexpected_file_path")
-        val root = sourcePath.removeSuffix(relative)
-        val source = File(sourcePath)
-        val folder = File(root + (item["targetPath"] as String))
+        if (!sourcePath.endsWith("/$relative")) return null
+        return File(sourcePath.removeSuffix(relative)) to File(sourcePath)
+    }
+
+    private fun renameFile(item: Map<*, *>, actual: Map<String, Any?>): Map<String, Any?> {
+        if (actual["file"] !is String) return outcome(item, "failed", detail = "no_file_path")
+        val (root, source) = sourceLocation(actual)
+            ?: return outcome(item, "failed", detail = "unexpected_file_path")
+        val folder = File(root, item["targetPath"] as String)
         val target = File(folder, item["targetName"] as String)
         if (!source.isFile) return outcome(item, "missing")
         if (target.exists()) return outcome(item, "conflict", actual)
         if (!folder.isDirectory && !folder.mkdirs()) return outcome(item, "failed", detail = "cannot_create_folder")
         if (!source.renameTo(target)) return outcome(item, "failed", detail = "rename_refused")
+        val folders = GalleryFolders(root)
+        if (folders.contains(source.parentFile) && folders.contains(folder)) {
+            // Preserve a Gallery sidecar alongside its original before removing the old folder.
+            val oldSidecar = File(source.path + ".json").toPath()
+            val newSidecar = File(target.path + ".json").toPath()
+            try {
+                if (Files.isRegularFile(oldSidecar, NOFOLLOW_LINKS)) Files.move(oldSidecar, newSidecar)
+            } catch (_: Exception) { /* Keep the existing sidecar if it cannot be moved. */ }
+        }
+        folders.pruneVacated(source.parentFile)
         read(uri(item))?.let { now -> if (now["file"] == target.path) return outcome(item, "moved", now) }
         // The provider has not caught up (or dropped the row): index both paths, then look again.
         val scanned = CountDownLatch(1)

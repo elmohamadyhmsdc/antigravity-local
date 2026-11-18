@@ -70,6 +70,7 @@ class HyperSwapper:
         so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         self.session = ort.InferenceSession(str(model_path), sess_options=so, providers=providers)
         self.size = 256
+        self.pixel_boost = False
         self._img_in, self._emb_in = None, None
         inputs = {i.name: i for i in self.session.get_inputs()}
         for inp in inputs.values():
@@ -103,18 +104,39 @@ class HyperSwapper:
         m = template_matrix(target_face.kps, ARCFACE_128, self.size)
         if m is None:
             raise ValueError("degenerate target landmarks")
-        crop = cv2.warpAffine(img, m, (self.size, self.size), borderMode=cv2.BORDER_REPLICATE,
+        box = getattr(target_face, "bbox", None)
+        detail = 0.
+        if self.pixel_boost and box is not None:
+            detail = float(np.clip((box[3] - box[1] - self.size) / (.25 * self.size), 0, 1))
+        size = self.size * 2 if detail > 0 else self.size
+        if detail > 0:
+            m = m * 2
+        crop = cv2.warpAffine(img, m, (size, size), borderMode=cv2.BORDER_REPLICATE,
                               flags=cv2.INTER_AREA)
-        swapped = self.swap_crop(crop, source_face.normed_embedding)
+        if detail > 0:
+            # Each interleaved view contains the entire face at model resolution.
+            # Sequential inference uses the ordinary batch-one ONNX session.
+            swapped = np.empty_like(crop)
+            for y in range(2):
+                for x in range(2):
+                    swapped[y::2, x::2] = self.swap_crop(crop[y::2, x::2], source_face.normed_embedding)
+            if detail < 1:
+                # The (0,0) sub-grid samples exactly the ordinary crop. Fade
+                # from it as a tracked face grows, avoiding a sharpness jump.
+                ordinary = cv2.warpAffine(swapped[::2, ::2], np.float32([[2, 0, 0], [0, 2, 0]]),
+                                          (size, size), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+                swapped = cv2.addWeighted(ordinary, 1 - detail, swapped, detail, 0)
+        else:
+            swapped = self.swap_crop(crop, source_face.normed_embedding)
         if not paste_back:
             return swapped, m
         # Plain feathered-box paste, the same last resort insightface offers.
         h, w = img.shape[:2]
         im = cv2.invertAffineTransform(m)
-        mask = np.zeros((self.size, self.size), np.float32)
-        b = self.size // 10
+        mask = np.zeros((size, size), np.float32)
+        b = size // 10
         mask[b:-b, b:-b] = 1.0
-        mask = cv2.GaussianBlur(mask, (0, 0), self.size / 20)
+        mask = cv2.GaussianBlur(mask, (0, 0), size / 20)
         back = cv2.warpAffine(swapped, im, (w, h), borderMode=cv2.BORDER_REPLICATE)
         mb = cv2.warpAffine(mask, im, (w, h))[..., None]
         return (img.astype(np.float32) * (1 - mb) + back.astype(np.float32) * mb).astype(np.uint8)

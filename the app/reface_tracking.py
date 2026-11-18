@@ -58,6 +58,7 @@ def iou(a, b):
 @dataclass
 class Track:
     kps: np.ndarray
+    observed: np.ndarray
     box: np.ndarray
     embedding: object
     seen: int
@@ -95,12 +96,18 @@ class FaceTracker:
             if kps is None:
                 continue
             centre = kps.mean(0)
-            scale = max(float(np.linalg.norm(kps[0] - kps[1])) * 2, 1)
+            # Eye spacing collapses in profile, even for a large visible face.
+            scale = max(float(np.linalg.norm(kps[0] - kps[1])) * 2,
+                        float(np.max(box[2:] - box[:2])) * .65, 1.)
             for col, (_, track) in enumerate(old):
                 age = self.clock - track.seen
-                predicted = track.kps.mean(0) + track.velocity * age
+                last = track.observed.mean(0)
+                predicted = last + track.velocity * age
                 distance = float(np.linalg.norm(centre - predicted)) / scale
                 sim = float(emb @ track.embedding) if emb is not None and track.embedding is not None else None
+                if sim is not None and sim >= .5:
+                    # An abrupt stop or reversal can invalidate the velocity estimate.
+                    distance = min(distance, float(np.linalg.norm(centre - last)) / scale)
                 overlap = iou(box, track.box)
                 if sim is not None and sim < 0.28:
                     continue
@@ -123,19 +130,23 @@ class FaceTracker:
             ids.append(tid)
             if kps is None:
                 continue
-            face_scale = max(float(np.linalg.norm(kps[0] - kps[1])) * 2, 1.0)
-            velocity = np.zeros(2) if prev is None else (kps.mean(0) - prev.kps.mean(0)) / (self.clock - prev.seen)
+            observed = kps.copy()
+            face_scale = max(float(np.max(box[2:] - box[:2])), 1.)
+            velocity = np.zeros(2) if prev is None else (kps.mean(0) - prev.observed.mean(0)) / (self.clock - prev.seen)
             # Avoid blending coordinates over a reacquisition or large jump.
             if prev is not None and self.clock - prev.seen == 1 and costs[row, col] < .8 and smooth:
-                displacement = float(np.linalg.norm(kps.mean(0) - prev.kps.mean(0))) / face_scale
-                if displacement > 0.25:
-                    eff_alpha = min(0.95, alpha + (displacement - 0.25) * 2.0)
-                elif displacement < 0.08:
+                shift = kps - prev.observed
+                translation = float(np.linalg.norm(shift.mean(0))) / face_scale
+                deformation = float(np.max(np.linalg.norm(shift - shift.mean(0), axis=1))) / face_scale
+                if translation >= .25 or deformation >= .12:
+                    eff_alpha = 1.
+                elif translation < .08 and deformation < .04:
                     eff_alpha = max(0.40, alpha - 0.15)
                 else:
-                    eff_alpha = alpha
+                    motion = max(translation / .25, deformation / .12)
+                    eff_alpha = alpha + (1. - alpha) * motion
                 kps = eff_alpha * kps + (1 - eff_alpha) * prev.kps
                 face.kps = kps
-            self.tracks[tid] = Track(kps.copy(), box.copy(), emb if emb is not None else
+            self.tracks[tid] = Track(kps.copy(), observed, box.copy(), emb if emb is not None else
                                      (prev.embedding if prev else None), self.clock, velocity)
         return ids

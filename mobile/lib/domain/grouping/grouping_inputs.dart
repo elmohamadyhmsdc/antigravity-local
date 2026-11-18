@@ -293,6 +293,8 @@ class GroupingInputs {
   /// person id -> (signature of the faces it was built from, the model).
   final _modelCache = <int, (String, GroupingModel)>{};
 
+  void clearModelCache() => _modelCache.clear();
+
   /// Only the audit's clear alternatives are checked on the PC. Page the
   /// embeddings so an existing library can be repaired without a huge upload.
   Stream<List<FaceRepairCandidate>> repairCandidates() async* {
@@ -300,8 +302,9 @@ class GroupingInputs {
     final model = await activeEmbeddingModel(_db, kind);
     var after = 0;
     while (true) {
-      final rows = await _db.customSelect(
-        '''
+      final rows = await _db
+          .customSelect(
+            '''
         SELECT f.id, f.model_id, f.embedding, f.quality_score, f.media_id, f.frame_number,
                d.person_id, d.suggested_person_id
         FROM review_doubtful d JOIN faces f ON f.id = d.face_id AND f.person_id = d.person_id
@@ -309,12 +312,13 @@ class GroupingInputs {
           AND d.suggested_person_id IS NOT NULL AND f.review_dismissed = 0
         ORDER BY f.id LIMIT $pageSize
         ''',
-        variables: [
-          Variable.withInt(after),
-          Variable.withString(kind),
-          Variable<String>(model),
-        ],
-      ).get();
+            variables: [
+              Variable.withInt(after),
+              Variable.withString(kind),
+              Variable<String>(model),
+            ],
+          )
+          .get();
       if (rows.isEmpty) return;
       after = rows.last.read<int>('id');
       final candidates = <FaceRepairCandidate>[];
@@ -460,7 +464,7 @@ class GroupingInputs {
     final rows = await _db
         .customSelect(
           '''
-          SELECT b.id, b.media_id, b.frame_number, b.appearance, b.weak_face_embedding, b.person_id,
+          SELECT b.id, b.media_id, b.frame_number, b.appearance, b.weak_face_embedding, b.person_id, b.score,
                  b.link_method, bf.person_id AS face_person_id, m.taken_at AS taken_at
           FROM bodies b LEFT JOIN faces bf ON bf.id = b.face_id LEFT JOIN media m ON m.id = b.media_id
           WHERE b.kind = ? AND (b.ownership IS NULL OR b.ownership != 'none') AND b.hidden = 0
@@ -477,14 +481,17 @@ class GroupingInputs {
         <int>[]; // taken_at of faceless bodies with an outfit (event context)
     for (final r in rows) {
       final facePerson = r.readNullable<int>('face_person_id');
-      var anchor = facePerson ?? r.readNullable<int>('person_id');
-      if (facePerson == null &&
-          dropDerived &&
-          _derivedLinks.contains(r.readNullable<String>('link_method'))) {
+      final method = r.readNullable<String>('link_method');
+      final directPerson = r.readNullable<int>('person_id');
+      var anchor = method == 'manual'
+          ? directPerson
+          : facePerson ?? directPerson;
+      if (facePerson == null && dropDerived && _derivedLinks.contains(method)) {
         anchor = null;
       }
       final appearance = r.readNullable<Uint8List>('appearance');
       final weak = r.readNullable<Uint8List>('weak_face_embedding');
+      final score = r.read<double>('score');
       final body = GroupingBody(
         id: r.read<int>('id'),
         mediaId: r.readNullable<int>('media_id'),
@@ -492,6 +499,9 @@ class GroupingInputs {
         anchorPersonId: anchor,
         appearance: appearance == null ? null : _appearance(appearance),
         weakFaceEmbedding: weak == null ? null : _vector(weak),
+        detectionScore: score.isFinite
+            ? score.clamp(0.0, 1.0).toDouble()
+            : null,
         rejectedPersonIds: rejected[r.read<int>('id')] ?? const [],
         takenAt: r.readNullable<int>('taken_at'),
       );
@@ -550,7 +560,7 @@ class GroupingInputs {
   /// People the grouping made on its own and the user never took over: no name, not locked, pinned,
   /// favourite or hidden, no face confirmed by hand, nothing built from them (identity sets, datasets,
   /// LoRAs). Only these may be merged into another person automatically.
-  Future<List<int>> provisionalPersonIds() async => [
+  Future<List<int>> provisionalPersonIds({bool forRebuild = false}) async => [
     for (final r
         in await _db
             .customSelect(
@@ -563,6 +573,21 @@ class GroupingInputs {
                 AND NOT EXISTS (SELECT 1 FROM identity_sets s WHERE s.person_id = p.id)
                 AND NOT EXISTS (SELECT 1 FROM datasets d WHERE d.person_id = p.id)
                 AND NOT EXISTS (SELECT 1 FROM loras l WHERE l.person_id = p.id)
+                ${forRebuild ? '''
+                AND p.group_id IS NULL
+                AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.person_id = p.id AND f.ownership IS NOT NULL)
+                AND NOT EXISTS (SELECT 1 FROM bodies b WHERE b.person_id = p.id AND b.link_method = 'manual')
+                AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM body_rejections r WHERE r.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM person_distinct d WHERE d.person_a = p.id OR d.person_b = p.id)
+                AND NOT EXISTS (SELECT 1 FROM kind_overrides k WHERE k.target_person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM body_marks b WHERE b.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM outfit_categories o WHERE o.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM person_media_moves m WHERE m.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.person_id = p.id)
+                AND NOT EXISTS (SELECT 1 FROM results r WHERE r.person_id = p.id)
+                ''' : ''}
               ORDER BY p.id
               """,
               variables: [Variable.withString(kind)],
@@ -597,9 +622,7 @@ class GroupingInputs {
           ? await pending()
           : const [],
       dismissedFaceIds: await dismissedFaceIds(),
-      distinctPairs: stages.any((s) => s != 'bodies')
-          ? await distinctPairs()
-          : const [],
+      distinctPairs: await distinctPairs(),
       bodies: stages.contains('bodies')
           ? await bodies(dropDerived: dropDerived)
           : const [],

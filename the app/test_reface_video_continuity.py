@@ -13,6 +13,7 @@ from reface_engine import FaceData, Faceset
 from reface_engine_v2 import RefaceEngineV2, VideoConfig
 from reface_engine_v3 import RefaceEngineV3, _FrameJob
 from reface_selection import FaceSelector
+from reface_tracking import FaceTracker
 from reface_video_detection import VideoFaceRecovery, detect_faces
 from reface_video_io import validate_video
 
@@ -33,6 +34,229 @@ def face(index=0, box=(80, 60, 120, 110)):
 
 
 class ContinuityTests(unittest.TestCase):
+    def test_detailed_scan_reacquires_selected_person_beside_a_bystander(self):
+        recovery = VideoFaceRecovery()
+        frame = np.zeros((180, 300, 3), np.uint8)
+        accept = lambda f: f.normed_embedding[0] > .8
+        old = face(0, (10, 50, 50, 100))
+        other = face(1, (115, 50, 155, 100))
+        moved = face(0, (220, 54, 260, 104))
+        fine = Mock(return_value=[other, moved])
+        recovery.detect(frame, lambda _: [old, other], accept, fine_detector=fine)
+        faces = recovery.detect(frame, lambda img: [other] if img.shape == frame.shape else [],
+                                accept, fine_detector=fine)
+        fine.assert_called_once()
+        self.assertEqual([int(np.argmax(f.embedding)) for f in faces], [1, 0])
+        self.assertFalse(recovery.missing)
+        self.assertEqual(recovery.recovered, 1)
+
+    def test_clip_reverse_search_uses_future_anchor_and_stops_at_cut(self):
+        accept = lambda f: f.normed_embedding[0] > .8
+        frames = [np.full((180, 240, 3), v, np.uint8) for v in (8, 9, 100, 101, 102)]
+        def detector(image):
+            if image.shape == frames[0].shape:
+                other = face(1, (160, 40, 200, 90))
+                return [other, face()] if image[0,0,0] == 102 else [other]
+            return [face(1 if image[0,0,0] == 100 else 0, (24,30,64,80))]
+        recovery = VideoFaceRecovery()
+        items = list(recovery.locate_clip(frames, detector, accept, None))
+        self.assertEqual([int(f[0,0,0]) for f, *_ in items], [8, 9, 100, 101, 102])
+        self.assertEqual([sum(accept(f) for f in fs) for _, fs, _, _ in items], [0, 0, 0, 1, 1])
+        self.assertEqual([n for _, _, n, _ in items], [0, 0, 0, 1, 0])
+        np.testing.assert_allclose(items[3][1][-1].bbox, [80,60,120,110])
+
+    def test_gap_buffer_is_bounded_and_flushes_end_of_clip(self):
+        seen = []
+        def frames():
+            for i in range(12):
+                seen.append(i)
+                yield np.full((64,64,3), i, np.uint8)
+        stream = VideoFaceRecovery().locate_clip(frames(), lambda _: [], lambda f: True, None)
+        self.assertEqual(int(next(stream)[0][0,0,0]), 0)
+        self.assertEqual(seen, list(range(5)))
+        self.assertEqual([int(item[0][0,0,0]) for item in stream], list(range(1,12)))
+
+    def test_one_selected_face_remains_while_another_reappears_far_away(self):
+        recovery = VideoFaceRecovery()
+        frame = np.full((180,320,3), 65, np.uint8)
+        accept = lambda f: int(np.argmax(f.embedding)) in (0, 1)
+        recovery.detect(frame, lambda _: [face(0), face(1, (30,60,70,110))], accept)
+        moved = face(1, (240,60,280,110))
+        fine = Mock(return_value=[])
+        detector = lambda img: [face(0)] if img.shape == frame.shape else []
+        for _ in range(4):
+            recovery.detect(frame, detector, accept, fine_detector=fine)
+        fine.return_value = [face(0), moved]
+        found = recovery.detect(frame, detector, accept, fine_detector=fine)
+        self.assertEqual([int(np.argmax(f.embedding)) for f in found], [0,1])
+
+    def test_resumed_diagnostics_join_adjacent_gaps_and_expose_unverified_frames(self):
+        from reface import merge_video_diagnostics
+        from reface_diagnostics import RefaceDiagnostics, FrameTiming
+        summary = None
+        for indices in ([2,3], [4,5,6]):
+            diagnostics = RefaceDiagnostics(fps=25)
+            for index in indices:
+                diagnostics.record_timing(FrameTiming(index, index/25))
+            summary = merge_video_diagnostics(summary, diagnostics.summarize())
+        self.assertEqual(summary["unverified_frames"], 5)
+        self.assertEqual(summary["gap_count"], 1)
+        self.assertEqual(summary["longest_gap_ms"], 200.)
+        self.assertEqual(summary["gaps"][0]["reason_breakdown"], {"target_unverified": 5})
+
+    def test_head_turns_in_place_snap_to_current_landmarks(self):
+        tracker = FaceTracker()
+        start = face()
+        track = tracker.update([start])
+        centre = tuple(map(float, start.kps.mean(0)))
+        for roll in [36, -32, 27]:
+            turned = face()
+            turned.kps = cv2.transform(turned.kps[None], cv2.getRotationMatrix2D(centre, roll, 1.))[0]
+            observed = turned.kps.copy()
+            self.assertEqual(tracker.update([turned]), track)
+            np.testing.assert_allclose(turned.kps, observed, atol=.01)
+
+    def test_render_bridges_two_detector_misses_from_moving_pixels(self):
+        engine = RefaceEngineV3.__new__(RefaceEngineV3)
+        saw = []
+        def recognize(image, found):
+            self.assertIsNone(found.embedding)
+            saw.append(image)
+            found.embedding = unit(0)
+        engine.app = SimpleNamespace(models={"recognition": SimpleNamespace(get=recognize)})
+        engine.compositor = Mock()
+        engine.smooth_alpha, engine.smooth_landmarks = .6, True
+        engine._prepare_face = Mock(return_value=(None, None))
+        engine._finish_face_into = Mock()
+        engine.begin_video()
+        selector = engine._make_selector([0], [unit(0), unit(1)])
+        source = np.full((180, 240, 3), 70, np.uint8)
+        rng = np.random.default_rng(42)
+        source[54:117,74:126] = rng.integers(30, 135, (63,52,3), dtype=np.uint8)
+        first = face()
+        with patch("reface_engine_v3.detect_video_faces", return_value=[first]):
+            engine.render_frame(source, object(), 0, [0], selector)
+        with patch("reface_engine_v3.detect_video_faces", return_value=[]):
+            for index, (dx, roll) in enumerate([(7, 4), (13, -3), (20, 2)], 1):
+                matrix = cv2.getRotationMatrix2D((100,85), roll, 1.)
+                matrix[0,2] += dx
+                image = cv2.warpAffine(source, matrix, (240,180), borderMode=cv2.BORDER_REPLICATE)
+                _, _, faces = engine.render_frame(image, object(), index, [0], selector)
+                if index <= 2:
+                    self.assertEqual(len(faces), 1)
+                    self.assertIs(saw[-1], image)
+                    expected = cv2.transform(first.kps[None], matrix)[0]
+                    # Compare raw observed geometry, before the render track smooths it.
+                    observed = engine._video_recovery.previous[0][0].kps
+                    np.testing.assert_allclose(observed, expected, atol=1.5)
+                else:
+                    self.assertEqual(faces, [])
+        with patch("reface_engine_v3.detect_video_faces", return_value=[face(0, (100,60,140,110))]):
+            engine.render_frame(image, object(), 4, [0], selector)
+        ids = [call.args[3] for call in engine._prepare_face.call_args_list]
+        self.assertEqual(len(ids), 4)
+        self.assertEqual(len(set(ids)), 1)
+        self.assertEqual(len(saw), 2)
+
+    def test_flow_rejects_changed_identity_and_untrackable_pixels(self):
+        rng = np.random.default_rng(11)
+        image = rng.integers(30, 135, (180,240,3), dtype=np.uint8)
+        def recognize(frame, found):
+            found.embedding = unit(1)
+        recognizer = Mock()
+        recognizer.get.side_effect = recognize
+        for following in [image.copy(), np.full_like(image, 80)]:
+            recognizer.get.reset_mock()
+            recovery = VideoFaceRecovery(recognizer)
+            recovery.detect(image, lambda _: [face()])
+            self.assertEqual(recovery.detect(following, lambda _: []), [])
+            self.assertEqual(recognizer.get.call_count, int(np.array_equal(image, following)))
+
+    def test_roi_profile_can_reach_confirmed_selector_after_a_fast_turn(self):
+        engine = RefaceEngineV3.__new__(RefaceEngineV3)
+        engine.app = SimpleNamespace(models={"recognition": object()})
+        engine.compositor = Mock()
+        engine.smooth_alpha, engine.smooth_landmarks = .6, True
+        engine._prepare_face = Mock(return_value=(None, None))
+        engine._finish_face_into = Mock()
+        engine.begin_video()
+        selector = engine._make_selector([0], [unit(0), unit(1)])
+        image = np.zeros((180,240,3), np.uint8)
+        front = face()
+        front.embedding = .8 * unit(0) + .6 * unit(3)
+        with patch("reface_engine_v3.detect_video_faces", return_value=[front]):
+            for index in range(3):
+                engine.render_frame(image, object(), index, [0], selector)
+        for index, best in enumerate((0, 1), 3):
+            def detect(app, crop):
+                if crop.shape == image.shape:
+                    return []
+                profile = face(0, (24,30,64,80))
+                profile.embedding = .31 * unit(best) + np.sqrt(1 - .31**2) * unit(3)
+                return [profile]
+            with patch("reface_engine_v3.detect_video_faces", side_effect=detect):
+                engine.render_frame(image, object(), index, [0], selector)
+        ids = [call.args[3] for call in engine._prepare_face.call_args_list]
+        self.assertEqual(len(ids), 4)
+        self.assertEqual(len(set(ids)), 1)
+
+    def test_tilted_roi_recovers_upright_detection_in_video_coordinates(self):
+        image = np.zeros((200,240,3), np.uint8)
+        first = face(0, (70,55,137,125))
+        first.kps[:2] = [[90,70],[118,94]]
+        for channel, point in enumerate(first.kps[:2]):
+            cv2.circle(image, tuple(point.astype(int)), 3,
+                       (255,0,0) if channel == 0 else (0,255,0), -1)
+        recovery = VideoFaceRecovery()
+        recovery.detect(image, lambda _: [first])
+        def detector(crop):
+            eyes = []
+            for channel in (0, 1):
+                ys, xs = np.nonzero(crop[:, :, channel] > 200)
+                if not len(xs):
+                    return []
+                eyes.append([xs.mean(), ys.mean()])
+            left, right = np.float32(eyes)
+            if abs(left[1] - right[1]) > 2:
+                return []
+            detected = face(0, (left[0]-12,left[1]-12,right[0]+12,right[1]+38))
+            detected.kps[:2] = eyes
+            return [detected]
+        current = recovery.detect(image, detector)
+        self.assertEqual(len(current), 1)
+        np.testing.assert_allclose(current[0].kps[:2], first.kps[:2], atol=.6)
+
+        # From a frontal observation, the direction of the next tilt is unknown.
+        for eyes in ([[90,70],[118,98]], [[90,98],[118,70]]):
+            scene = np.zeros_like(image)
+            for point, color in zip(eyes, [(255,0,0), (0,255,0)]):
+                cv2.circle(scene, tuple(point), 4, color, -1)
+            recovery = VideoFaceRecovery(SimpleNamespace(get=lambda img, f: setattr(f, "embedding", unit(1))))
+            recovery.detect(np.full_like(scene, 35), lambda _: [face(0, (70,55,137,125))])
+            current = recovery.detect(scene, detector)
+            self.assertEqual(len(current), 1)
+            np.testing.assert_allclose(current[0].kps[:2], eyes, atol=.7)
+
+    def test_fast_reversal_recovers_outside_the_velocity_search_window(self):
+        image = np.zeros((200,340,3), np.uint8)
+        recovery = VideoFaceRecovery()
+        full = Mock(side_effect=[[face(0, (100,70,140,120))], [face(0, (130,70,170,120))]])
+        recovery.detect(image, full)
+        found = recovery.detect(image, full)
+        np.testing.assert_allclose(found[0]._vel, [30, 0])
+        self.assertEqual(full.call_count, 2)
+        image[70:120,91:131] = 180
+        def detect(crop):
+            if crop.shape == image.shape:
+                return []
+            mask = (crop[:, :, 0] > 100).astype(np.uint8)
+            x, y, w, h = cv2.boundingRect(mask)
+            return [face(0, (x,y,x+w,y+h))] if (w,h) == (40,50) else []
+        current = recovery.detect(image, detect)
+        self.assertEqual(len(current), 1)
+        np.testing.assert_allclose(current[0].bbox, [91,70,131,120])
+        np.testing.assert_allclose(current[0]._vel, [-39, 0])
+
     def test_selected_video_frame_uses_live_tracker_and_excludes_bystander(self):
         engine = RefaceEngineV3.__new__(RefaceEngineV3)
         engine.app = SimpleNamespace(models={"recognition": object()})
@@ -311,6 +535,25 @@ class ContinuityTests(unittest.TestCase):
         recovery.detect(frame, detector, accepts)
         self.assertEqual(len(search_rois), 2)
         self.assertEqual(recovery.recovered, 1)
+
+    def test_recovers_at_predicted_position_after_gap_with_same_identity_only(self):
+        frame = np.zeros((300, 400, 3), np.uint8)
+        for candidate_id in (0, 1):
+            recovery = VideoFaceRecovery()
+            recovery.detect(frame, lambda _: [face(0, (50, 60, 90, 110))])
+            recovery.detect(frame, lambda _: [face(0, (74, 60, 114, 110))])
+            recovery.detect(frame, lambda _: [])
+            # Two frame intervals later the old and current boxes do not overlap.
+            # x0=90, y0=20 for the predicted search window.
+            def detector(image):
+                return [] if image.shape == frame.shape else [face(candidate_id, (32, 40, 72, 90))]
+            current = recovery.detect(frame, detector)
+            if candidate_id == 0:
+                self.assertEqual(len(current), 1)
+                np.testing.assert_array_equal(current[0].bbox, [122, 60, 162, 110])
+                np.testing.assert_array_equal(current[0]._vel, [24, 0])
+            else:
+                self.assertEqual(current, [])
 
 
 if __name__ == '__main__':

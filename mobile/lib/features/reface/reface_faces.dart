@@ -84,8 +84,43 @@ class RefaceFaceGroup {
       samples.add(face);
     }
     samples.sort((a, b) => b.quality.score.compareTo(a.quality.score));
-    if (samples.length > 20) samples.removeRange(20, samples.length);
+    if (samples.length > 20) {
+      final kept = references(20);
+      samples.removeWhere((face) => !kept.contains(face));
+    }
     _center = null;
+  }
+
+  /// Start with the clearest view, then cover distinct head directions.
+  List<DetectedFace> references(int limit) {
+    if (samples.length <= limit) return List.of(samples);
+    final chosen = <DetectedFace>[representative];
+    final remaining = samples.skip(1).toList();
+    while (chosen.length < limit) {
+      final known = chosen.map((f) => f.quality.pose).whereType<Pose>();
+      var best = remaining.first;
+      var bestScore = -1.0;
+      for (final face in remaining) {
+        final pose = face.quality.pose;
+        var novelty = 0.0;
+        if (pose != null) {
+          novelty = known.isEmpty ? 1.0 : known.map((other) {
+            final yaw = pose.yaw - other.yaw;
+            final pitch = pose.pitch - other.pitch;
+            return (math.sqrt(yaw * yaw + pitch * pitch) / 45).clamp(0.0, 1.0).toDouble();
+          }).reduce(math.min);
+        }
+        final quality = face.quality.score.clamp(0.0, 1.0).toDouble();
+        final score = quality * (.35 + .65 * novelty);
+        if (score > bestScore) {
+          best = face;
+          bestScore = score;
+        }
+      }
+      chosen.add(best);
+      remaining.remove(best);
+    }
+    return chosen;
   }
 
   List<Map<String, dynamic>> encode() => [
@@ -227,9 +262,22 @@ Map<String, dynamic> encodeVideoTargetSelection(
 ) {
   final embeddings = <String>[];
   final picks = <int>[];
-  final perPerson = groups.isEmpty ? 1 : (32 ~/ groups.length).clamp(1, 3);
+  // Reserve a negative reference for every other person. Give spare slots to
+  // selected people first so a crowded clip can still cover a profile turn.
+  final budgets = List.filled(groups.length, 1);
+  var spare = 32 - groups.length;
+  for (var round = 2; round <= 3; round++) {
+    for (final wantSelected in [true, false]) {
+      for (var i = 0; i < groups.length && spare > 0; i++) {
+        if (selected.contains(i) == wantSelected && groups[i].samples.length >= round) {
+          budgets[i]++;
+          spare--;
+        }
+      }
+    }
+  }
   for (var i = 0; i < groups.length; i++) {
-    for (final face in groups[i].samples.take(perPerson)) {
+    for (final face in groups[i].references(budgets[i])) {
       if (selected.contains(i)) picks.add(embeddings.length);
       embeddings.add(encodeEmbedding(face.embedding));
     }

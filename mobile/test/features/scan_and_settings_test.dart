@@ -507,6 +507,34 @@ void main() {
   });
 
   group('S24 Settings', () {
+    appTest('regroup explains what is kept and only runs after confirmation', (
+      tester,
+      env,
+    ) async {
+      await _open(tester, env, '/settings/library');
+      await _openSection(tester, 'library-matching-section');
+      final tile = find.byKey(const Key('settings-regroup-library'));
+      await revealForTap(tester, tile);
+      await tester.tap(tile);
+      await _settle(tester);
+      expect(find.textContaining('Named people, Characters'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await _settle(tester);
+      expect(env.api.groupingCalls, isEmpty);
+
+      env.api.groupingHandler = (request) =>
+          GroupingPlanResponse(mode: request.mode);
+      await tester.tap(tile);
+      await _settle(tester);
+      await tester.tap(find.text('Regroup library'));
+      await _settle(tester);
+      expect(env.api.groupingCalls.map((r) => r.strictness), [
+        'auto',
+        'character',
+      ]);
+      expect(find.textContaining('Grouping rebuilt.'), findsOneWidget);
+    }, session: testSession);
+
     appTest(
       'Sort now stays visible while the PC works and can retry after a failed request',
       (tester, env) async {
@@ -612,12 +640,15 @@ void main() {
         await _open(tester, env, '/settings/library');
         await _openSection(tester, 'library-matching-section');
         expect(
-          find.textContaining('Thresholds follow your library'),
+          find.textContaining('Matching adapts to each detection'),
           findsOneWidget,
         );
         expect(find.byKey(const Key('strictness')), findsNothing);
         expect(find.text('Strict'), findsNothing);
 
+        await tester.drag(find.byType(ListView).first, const Offset(0, 600));
+        await _settle(tester);
+        await _openSection(tester, 'library-scan-section');
         final slider = find.byKey(const Key('quality-gate'));
         await tester.scrollUntilVisible(
           slider,

@@ -197,7 +197,9 @@ class LoraRepository {
                 ..limit(64, offset: offset))
               .get();
       for (final picture in page) {
-        if ((await studio.contextFor(picture.id))?.modelId == lora.id) {
+        final context = await studio.contextFor(picture.id);
+        if (context?.modelId == lora.id &&
+            context?.loraGenerationMode != 'full_body') {
           portraits.add(picture);
         }
         if (portraits.length == 32) break;

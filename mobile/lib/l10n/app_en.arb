@@ -1106,8 +1106,8 @@
   "setAsCover": "Use as cover photo",
   "settingsGrouping": "Grouping",
   "settingsPc": "Your PC",
-  "settingsQualityGate": "Face quality",
-  "settingsQualityGateHint": "Faces below this quality are ignored. Raise it for cleaner groups, lower it to catch more faces. Applies to new scans.",
+  "settingsQualityGate": "Scan face quality",
+  "settingsQualityGateHint": "Minimum detection quality for saving faces in new scans.",
   "settingsScanDefaults": "Scanning",
   "showBodies": "Show bodies",
   "showFaces": "Show faces",
@@ -1148,7 +1148,21 @@
   "sortFailed": "Could not sort the library. Try Sort now again.",
   "sorting": "Sorting faces…",
   "sourcesTitle": "Sources & scan",
-  "groupingAutomaticHint": "Automatic. Thresholds follow your library: stricter when different people look alike, and duplicate people the app made are merged on their own.",
+  "groupingAutomaticHint": "Matching adapts to each detection, the identity’s saved examples and how closely other identities match.",
+  "regroupTitle": "Regroup faces and bodies from scratch",
+  "regroupHint": "Rebuild automatic groups and check saved People and Characters for mistakes.",
+  "regroupConfirmation": "Rebuild grouping using the detections already saved. Named people, Characters, manual corrections and original files are kept. Clear mistakes are corrected automatically and uncertain matches go to Review. Keep the PC connected while grouping runs.",
+  "regroupAction": "Regroup library",
+  "regroupNeedsPc": "Connect to your PC to regroup the library.",
+  "regroupFailed": "Could not regroup the library. Try again when the PC is connected.",
+  "regroupDone": "Grouping rebuilt. {repaired} face assignments corrected, {bodies} bodies linked, {review} decisions in Review.",
+  "@regroupDone": {
+    "placeholders": {
+      "repaired": {"type": "int"},
+      "bodies": {"type": "int"},
+      "review": {"type": "int"}
+    }
+  },
   "suggestedFacesTitle": "{count, plural, =1{1 face may be {name}} other{{count} faces may be {name}}}",
   "@suggestedFacesTitle": {
     "placeholders": {
@@ -1404,6 +1418,9 @@
   "loraExport": "Export training zip",
   "loraTrainHint": "Training uses the included images and edited captions. The finished LoRA is saved on this phone.",
   "loraEpochs": "Epochs",
+  "loraTrainingSteps": "About {steps} training steps",
+  "@loraTrainingSteps": {"placeholders": {"steps": {"type": "int"}}},
+  "loraUseRecommendedEpochs": "Use recommended epochs",
   "loraDim": "Network dimension",
   "loraLearningRate": "Learning rate",
   "loraResolution": "Resolution",
@@ -1411,8 +1428,13 @@
   "loraBaseRealistic": "Realistic photos",
   "loraBaseAnime": "Anime and drawings",
   "loraModel": "Trained LoRA",
-  "loraCount": "Number of portraits",
-  "loraPrompt": "Portrait prompt",
+  "loraCount": "Number of images",
+  "loraPrompt": "Prompt",
+  "loraFraming": "Framing",
+  "loraPortrait": "Portrait",
+  "loraFullBody": "Full body (head to toe)",
+  "loraFullBodyPrompt": "Full-length photograph of {trigger} person, head and both feet visible, realistic proportions, natural pose and lighting",
+  "@loraFullBodyPrompt": {"placeholders": {"trigger": {"type": "Object"}}},
   "loraDefaultPrompt": "A natural studio portrait of {trigger} person, neutral expression, realistic skin texture, soft daylight, fully clothed, photorealistic",
   "loraReferenceMode": "Follow the reference",
   "referenceComposition": "Pose & composition",
@@ -2392,6 +2414,16 @@
   "setAsMasterOwnerSubtitle": "Physical media file will be stored in this person's folder",
   "autoSyncOrganizedFolders": "Auto-sync organized folders",
   "autoSyncOrganizedFoldersHint": "Move originals into named people’s folders when their names, groups or assignments change.",
+  "folderCleanupTitle": "Clean up empty folders",
+  "folderCleanupHint": "Remove empty folders inside Your Gallery, including old numbered person folders.",
+  "folderCleanupNeedsAccess": "Allow All files access above to clean up folders in Your Gallery.",
+  "folderCleanupFailed": "Could not clean up folders. Try again when file organization is idle.",
+  "folderCleanupResult": "{count, plural, =0{No empty folders found} =1{Removed 1 empty folder} other{Removed {count} empty folders}}",
+  "@folderCleanupResult": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "moveWithoutAskingTitle": "Move photos without asking",
   "moveWithoutAskingOn": "Allowed. People's folders are in “Your Gallery” on the phone's storage (outside DCIM), each photo keeps its .json file beside it, and photos move after a scan with no prompts, also in the background.",
   "moveWithoutAskingOff": "Not allowed yet. Without it Android asks before every batch of moves, the .json files cannot be saved and photos are not moved automatically. Tap, then switch on “Allow access to manage all files” for this app, once.",

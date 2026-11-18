@@ -68,10 +68,11 @@ void main() {
         candidate(manual: true, outline: '[0,0,1,0,0.5,1]'),
       );
       expect(source.time, 3750);
-      expect(source.rect, const PxRect(100, 400, 400, 1400));
-      expect(source.output, (400, 1400));
+      expect(source.rect, const PxRect(76, 316, 448, 1568));
+      expect(source.output, (439, 1536));
       expect(result!.view, 'confirmed_body');
-      for (final (i, expected) in [0, 0, 1, 0, 0.5, 1].indexed) {
+      const near = 3 / 56, far = 1 - near;
+      for (final (i, expected) in [near, near, far, near, 0.5, far].indexed) {
         expect(result.outline![i], closeTo(expected, 1e-6));
       }
     },

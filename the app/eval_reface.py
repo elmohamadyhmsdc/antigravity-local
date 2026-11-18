@@ -23,6 +23,14 @@ photos are held out as the reference it is scored against.
 Targets: the DeepFaceLab sample videos (workspace/data_dst.mp4 and
 data_src.mp4), a few seconds each.
 
+For multi-person cases, set target_boxes on a clip in the --cases manifest.
+Keys are zero-based frame numbers within the trim, values are normalized
+[left, top, right, bottom] boxes, or null for a known absence. A labelled
+visible box seeds target selection. Without labels, an unambiguous single-face
+frame seeds it and identity on the input estimates visibility. Unverified
+frames remain in the coverage denominator. Wrong-face swaps and the longest
+visible gap are reported separately from identity similarity.
+
     venv\\Scripts\\python.exe eval_reface.py                       # swappers, then restorers, then occluders
     venv\\Scripts\\python.exe eval_reface.py --stage swappers
     venv\\Scripts\\python.exe eval_reface.py --people hanoo,pass --seconds 2
@@ -45,6 +53,8 @@ from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
+from reface_selection import match_reference
+from reface_tracking import iou
 
 APP = Path(__file__).parent
 DFL_WORKSPACE = APP.parent / "DeepFaceLab_NVIDIA_RTX3000_series" / "workspace"
@@ -132,7 +142,18 @@ def load_cases(path):
         start, seconds = float(data.get("start", 0)), float(data.get("seconds", 3))
         if not np.isfinite(start) or not np.isfinite(seconds) or start < 0 or not 0 < seconds <= 30:
             raise ValueError("Benchmark clips must be between zero and 30 seconds")
-        clips[label] = (local(data["path"]), start, seconds)
+        boxes = {}
+        for key, value in data.get("target_boxes", {}).items():
+            index = int(key)
+            if index < 0 or str(index) != key:
+                raise ValueError("target_boxes uses zero-based indices relative to the trimmed clip")
+            if value is not None:
+                box = np.asarray(value, np.float64)
+                if (box.shape != (4,) or not np.isfinite(box).all() or np.min(box) < 0 or np.max(box) > 1
+                        or np.any(box[:2] >= box[2:])):
+                    raise ValueError("Each target box must be normalized [left, top, right, bottom] or null")
+            boxes[index] = value
+        clips[label] = (local(data["path"]), start, seconds, boxes)
     return people, clips
 
 
@@ -211,34 +232,98 @@ def lap_var(img):
     return float(cv2.Laplacian(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var())
 
 
-def run_clip(engine, source, frames, judge: Judge, reference: np.ndarray) -> Dict:
-    """Swap every frame of a clip and score it."""
+def overlapping_face(faces, box):
+    scores = sorted(((iou(face.bbox, box), i) for i, face in enumerate(faces)), reverse=True)
+    if not scores or scores[0][0] < .25 or (len(scores) > 1 and scores[0][0] - scores[1][0] < .05):
+        return None
+    return faces[scores[0][1]]
+
+
+def benchmark_target(engine, frames, judge, labels):
+    """Use an annotated target or an unambiguous single-face seed. Keep negatives in both recognizers."""
+    seeds = [i for i in sorted(labels) if labels[i] is not None] if labels else range(len(frames))
+    for i in seeds:
+        frame = frames[i]
+        faces = engine._detect(frame, embeddings=True)
+        if i in labels:
+            target = overlapping_face(faces, labels[i])
+        else:
+            target = faces[0] if len(faces) == 1 else None
+        if target is None:
+            continue
+        pick = next(j for j, face in enumerate(faces) if face is target)
+        selector = engine._make_selector([pick], [f.normed_embedding.copy() for f in faces])
+        return selector, np.stack([judge.embed(frame, f) for f in faces]), {pick}
+    raise ValueError("No unambiguous benchmark target. Supply a visible target_boxes entry for this clip.")
+
+
+def run_clip(engine, source, frames, judge: Judge, reference: np.ndarray, *, target_boxes=None,
+             fps=None, offline=True) -> Dict:
+    """Evaluate the selected target even when the production detector misses it."""
+    labels = {}
+    for i, box in (target_boxes or {}).items():
+        if i >= len(frames):
+            raise ValueError("A labelled target frame is outside the decoded clip")
+        h, w = frames[i].shape[:2]
+        labels[i] = None if box is None else np.asarray(box) * [w, h, w, h]
+    selector, judge_refs, picks = benchmark_target(engine, frames, judge, labels)
     engine.begin_video()
     ids, leaks, sharp, d_out, d_src, times = [], [], [], [], [], []
     prev_out = prev_src = None
     keep = None
-    eligible, attempted, failed, skipped, degraded = 0, 0, 0, 0, 0
-    for i, frame in enumerate(frames):
+    visible = unknown = absent = correct = wrong = wrong_frames = gap = longest = 0
+    attempted = failed = skipped = degraded = 0
+    located_frames = engine.locate_clip(frames, selector) if offline else ((f, None, 0, 0.) for f in frames)
+    for i, (frame, located, _, detect_ms) in enumerate(located_frames):
         t0 = time.perf_counter()
         with quiet():
-            out, _, faces = engine.render_frame(frame.copy(), source, i)
-        times.append((time.perf_counter() - t0) * 1000)
+            out, _, faces = engine.render_frame(frame, source, i, selector=selector, located=located)
+        times.append((time.perf_counter() - t0) * 1000 + detect_ms)
+        swaps = set()
         for outcome in getattr(engine, "_frame_outcomes", []):
             attempted += 1
+            if outcome["status"] == "swapped":
+                swaps.add(outcome["track_id"])
             failed += outcome["status"] == "failed"
             skipped += outcome["status"] == "skipped"
             degraded += bool(outcome.get("degraded"))
-        if not faces:
-            prev_out = prev_src = None
-            continue
-        eligible += 1
-        target = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-        swapped = nearest(judge.faces(out), target.bbox)
+        original_faces = judge.faces(frame)
+        original_vectors = [judge.embed(frame, f) for f in original_faces]
+        negatives = [f for f, v in zip(original_faces, original_vectors)
+                     if match_reference(v, judge_refs, set(range(len(judge_refs))) - picks)]
+        if i in labels:
+            box = labels[i]
+            target = overlapping_face(original_faces, box) if box is not None else None
+        else:
+            matches = [f for f, v in zip(original_faces, original_vectors) if match_reference(v, judge_refs, picks)]
+            target = matches[0] if len(matches) == 1 else None
+            box = target.bbox if target is not None else None
+        # Match the annotated face against ALL render detections. A larger
+        # bystander cannot take its place merely because it was swapped.
+        rendered = overlapping_face(faces, box) if box is not None else None
+        swapped_faces = [f for f, tid in zip(faces, engine._track_ids) if tid in swaps]
+        landed = any(f is rendered for f in swapped_faces)
+        bystanders = sum(1 for f in swapped_faces if f is not rendered and (
+            (i in labels and (box is None or iou(f.bbox, box) < .1))
+            or (box is not None and iou(f.bbox, box) < .1 and overlapping_face(original_faces, f.bbox) is not None)
+            or overlapping_face(negatives, f.bbox) is not None))
+        wrong += bystanders
+        wrong_frames += int(bystanders > 0)
+        if box is not None:
+            visible += 1
+            correct += int(landed)
+            gap = 0 if landed else gap + 1
+            longest = max(longest, gap)
+        else:
+            gap = 0
+            absent += int(i in labels)
+            unknown += int(i not in labels)
+        swapped = overlapping_face(judge.faces(out), box) if landed and target is not None else None
         if swapped is None:
             prev_out = prev_src = None
             continue
         e_out = judge.embed(out, swapped)
-        e_src = judge.embed(frame, target)
+        e_src = next(v for f, v in zip(original_faces, original_vectors) if f is target)
         ids.append(float(e_out @ reference))
         leaks.append(float(e_out @ e_src))
         a_out, a_src = aligned(out, target.kps), aligned(frame, target.kps)
@@ -251,7 +336,12 @@ def run_clip(engine, source, frames, judge: Judge, reference: np.ndarray) -> Dic
             keep = (frame, out, target.bbox)
     return {
         "frames": len(frames), "scored": len(ids),
-        "score_coverage": len(ids) / max(eligible, 1),
+        "score_coverage": len(ids) / max(len(frames) - absent, 1),
+        "visible_target_frames": visible, "unverified_frames": unknown, "labelled_absent_frames": absent,
+        "target_swap_rate": correct / visible if visible else None,
+        "longest_visible_gap_frames": longest,
+        "longest_visible_gap_seconds": longest / fps if fps and fps > 0 else None,
+        "wrong_face_swaps": wrong, "wrong_face_frames": wrong_frames,
         "failure_rate": failed / max(attempted, 1), "skip_rate": skipped / max(attempted, 1),
         "fallback_rate": degraded / max(attempted, 1),
         "identity": float(np.mean(ids)) if ids else None,
@@ -280,7 +370,7 @@ def model_missing(kwargs) -> Optional[str]:
     return next((n for n in need if not (MODELS_DIR / n).exists()), None)
 
 
-def evaluate(label, kwargs, people, clips, judge, out_dir) -> Dict:
+def evaluate(label, kwargs, people, clips, judge, out_dir, clip_options=None) -> Dict:
     from identity import build_source_from_faceset
     from reface_engine_v3 import RefaceEngineV3
 
@@ -290,7 +380,8 @@ def evaluate(label, kwargs, people, clips, judge, out_dir) -> Dict:
     for person, info in people.items():
         source = build_source_from_faceset(info["faceset"])
         for clip_name, frames in clips.items():
-            r = run_clip(engine, source, frames, judge, info["reference"])
+            options = (clip_options or {}).get(clip_name, {})
+            r = run_clip(engine, source, frames, judge, info["reference"], **options)
             r.update(person=person, clip=clip_name, config=label)
             rows.append(r)
             print(f"   {label:28s} {person:12s} {clip_name:9s} id={_f(r['identity'])} leak={_f(r['leak'])} "
@@ -308,7 +399,11 @@ def summarise(rows) -> Dict:
     def mean(k):
         v = [r[k] for r in rows if r.get(k) is not None]
         return float(np.mean(v)) if v else None
-    return {k: mean(k) for k in ("identity", "id_wobble", "leak", "flicker", "sharpness", "ms_per_frame", "score_coverage", "failure_rate", "skip_rate", "fallback_rate")}
+    stats = {k: mean(k) for k in ("identity", "id_wobble", "leak", "flicker", "sharpness", "ms_per_frame",
+                                   "score_coverage", "failure_rate", "skip_rate", "fallback_rate", "target_swap_rate")}
+    stats["longest_visible_gap_frames"] = max((r["longest_visible_gap_frames"] for r in rows), default=0)
+    stats["wrong_face_swaps"] = sum(r["wrong_face_swaps"] for r in rows)
+    return stats
 
 
 def rank(results) -> List[Dict]:
@@ -323,6 +418,8 @@ def rank(results) -> List[Dict]:
     ok = [r for r in results if r["summary"]["identity"] is not None]
     if not ok:
         return results
+    fewest_wrong = min(r["summary"].get("wrong_face_swaps", 0) for r in ok)
+    ok = [r for r in ok if r["summary"].get("wrong_face_swaps", 0) == fewest_wrong]
     reliable = [r for r in ok if r["summary"].get("score_coverage", 0) >= .9 and
                 r["summary"].get("failure_rate", 1) <= .05]
     if reliable:
@@ -332,7 +429,8 @@ def rank(results) -> List[Dict]:
     # Sharpness and leak rounded to 2 places: third-decimal differences are
     # run-to-run noise and must not decide (they once picked identity boost 0
     # over 0.5 on a 0.0002 sharpness gap while 0.5 cut leak by 0.06).
-    close.sort(key=lambda r: ((r["summary"]["flicker"] or 9) > 1.03,
+    close.sort(key=lambda r: (r["summary"].get("longest_visible_gap_frames", 0),
+                              (r["summary"]["flicker"] or 9) > 1.03,
                               -round(r["summary"]["sharpness"] or 0, 2),
                               round(r["summary"]["leak"] or 9, 2),
                               r["summary"]["id_wobble"] or 9))
@@ -387,11 +485,18 @@ def main(argv=None):
     judge = Judge(providers)
 
     case_people, case_clips = load_cases(args.cases) if args.cases else ({}, {})
-    clips = {label: clip_frames(Path(path), start, seconds) for label, (path, start, seconds) in case_clips.items()}
     for name in (() if case_clips else ("data_dst", "data_src")):
         p = DFL_WORKSPACE / f"{name}.mp4"
         if p.exists():
-            clips[name] = clip_frames(p, 5.0, args.seconds)
+            case_clips[name] = (str(p), 5.0, args.seconds, {})
+    clips, clip_options = {}, {}
+    for label, (path, start, seconds, boxes) in case_clips.items():
+        clips[label] = clip_frames(Path(path), start, seconds)
+        cap = cv2.VideoCapture(str(path))
+        try:
+            clip_options[label] = dict(target_boxes=boxes, fps=cap.get(cv2.CAP_PROP_FPS))
+        finally:
+            cap.release()
     if not clips:
         print(f"No test videos in {DFL_WORKSPACE}")
         return 1
@@ -444,7 +549,7 @@ def main(argv=None):
             if missing:
                 print(f"   {label}: skipped, models/{missing} not downloaded")
                 continue
-            res.append(evaluate(label, kw, people, clips, judge, out_dir))
+            res.append(evaluate(label, kw, people, clips, judge, out_dir, clip_options))
         ranked = rank(res)
         contact_sheet(res, out_dir / f"sheet_{name}.png")
         stages[name] = ranked
@@ -476,12 +581,13 @@ def main(argv=None):
              "Ceiling (a real photo of the person vs their held-out photos): "
              + ", ".join(f"{k} {v['real_vs_real']:.3f}" for k, v in report["people"].items()), ""]
     for n, rs in stages.items():
-        lines += [f"## {n}", "", "| config | identity | leak | flicker | id wobble | sharpness | ms/frame | coverage | failures | skipped | fallbacks |",
-                  "|---|---|---|---|---|---|---|---|---|---|---|"]
+        lines += [f"## {n}", "", "| config | identity | leak | flicker | id wobble | sharpness | ms/frame | coverage | failures | skipped | fallbacks | longest visible gap (frames) | wrong-face swaps |",
+                  "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in rs:
             s = r["summary"]
             lines.append(f"| {r['label']} | {_f(s['identity'])} | {_f(s['leak'])} | {_f(s['flicker'])} | "
-                         f"{_f(s['id_wobble'])} | {_f(s['sharpness'])} | {s['ms_per_frame']:.0f} | {_f(s['score_coverage'])} | {_f(s['failure_rate'])} | {_f(s['skip_rate'])} | {_f(s['fallback_rate'])} |")
+                         f"{_f(s['id_wobble'])} | {_f(s['sharpness'])} | {s['ms_per_frame']:.0f} | {_f(s['score_coverage'])} | {_f(s['failure_rate'])} | {_f(s['skip_rate'])} | {_f(s['fallback_rate'])} | "
+                         f"{s['longest_visible_gap_frames']} | {s['wrong_face_swaps']} |")
         lines.append("")
     lines.append(f"Winner: `{best}`")
     (out_dir / "report.md").write_text("\n".join(lines), encoding="utf-8")

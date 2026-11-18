@@ -254,19 +254,31 @@ final manualSortRunningProvider = NotifierProvider<ManualSortRunning, bool>(
 );
 
 /// Runs grouping now (also behind "Sort now" in Settings).
-Future<void> sortNow(BuildContext context, WidgetRef ref) async {
+Future<void> sortNow(
+  BuildContext context,
+  WidgetRef ref, {
+  bool rebuild = false,
+}) async {
   final l10n = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
   final status = ref.read(manualSortRunningProvider.notifier);
   if (!status.begin()) return;
-  var message = l10n.sortFailed;
+  var message = rebuild ? l10n.regroupFailed : l10n.sortFailed;
   try {
     final grouping = ref.read(groupingRunnerProvider);
     final run = await ref
         .read(scanEngineProvider)
-        .runLibraryAction(() => grouping.run(repairExisting: true));
+        .runLibraryAction(
+          rebuild ? grouping.rebuild : () => grouping.run(repairExisting: true),
+        );
     message = run.skipped
-        ? l10n.sortNeedsPc
+        ? (rebuild ? l10n.regroupNeedsPc : l10n.sortNeedsPc)
+        : rebuild
+        ? l10n.regroupDone(
+            run.facesRepaired,
+            run.bodiesLinked,
+            run.review.total,
+          )
         : l10n.sortDone(
             run.assigned,
             run.newPeople,

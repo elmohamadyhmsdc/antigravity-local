@@ -150,14 +150,11 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
           PreflightSource(yaw: f.yaw, pitch: f.pitch, facePx: f.facePx),
     ];
     if (_loraIdentity) {
-      final models = ref.read(lorasProvider).value ?? const <LoraRow>[];
-      final model = models
-          .where((m) => m.personId == _person && m.identityJson != null)
-          .firstOrNull;
-      if (model != null) {
+      final model = _personLora();
+      if (model?.identityJson case final identityJson?) {
         try {
           final faces =
-              (jsonDecode(model.identityJson!) as Map<String, dynamic>)['faces']
+              (jsonDecode(identityJson) as Map<String, dynamic>)['faces']
                   as List;
           for (final e in faces.take(40)) {
             final pose = (e as Map)['pose'] as Map?;
@@ -218,7 +215,14 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
       await prepareBackgroundForWork(context, ref);
       if (!mounted) return;
       final studio = ref.read(studioRepositoryProvider);
-      final identityModel = await studio.identityModelForLora(model.id);
+      final modelContext = await studio.contextFor(model.id);
+      final identityModel = modelContext?.identityModelId;
+      final trainedBase = modelContext?.loraBaseCheckpoint;
+      if (trainedBase != null && !caps.loraBaseCheckpoints.contains(trainedBase)) {
+        throw const FormatException(
+          'The base checkpoint used to train this LoRA is unavailable on this PC.',
+        );
+      }
       if (identityModel != null && identityModel != 'buffalo_l@1') {
         throw const FormatException(
           'Only a model of a real person can fill in head angles.',
@@ -245,7 +249,7 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         ),
         params: {
           'trigger_word': model.triggerWord,
-          'base_checkpoint': caps.loraBaseCheckpoints.first,
+          'base_checkpoint': trainedBase ?? caps.loraBaseCheckpoints.first,
           'prompt': prompt,
           'num_images': plan.count,
           'angles': plan.angles,
@@ -1133,13 +1137,8 @@ class _RefaceScreenState extends ConsumerState<RefaceScreen> {
         }
       }
       if (_loraIdentity && _identityMode != 'dfm') {
-        final models = ref.read(lorasProvider).value ?? const <LoraRow>[];
-        final model = models
-            .where((m) => m.personId == _person && m.identityJson != null)
-            .firstOrNull;
-        if (model != null) {
-          final identity =
-              jsonDecode(model.identityJson!) as Map<String, dynamic>;
+        if (_personLora()?.identityJson case final identityJson?) {
+          final identity = jsonDecode(identityJson) as Map<String, dynamic>;
           if (identity['model_id'] != caps.embeddingModelId) {
             throw const FormatException(
               'Rebuild this LoRA identity with the current PC model.',

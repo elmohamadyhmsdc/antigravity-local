@@ -75,6 +75,7 @@ Future<void> portrait(
   String id,
   int person, {
   String? model,
+  String? generationMode,
 }) async {
   final path = 'results/$id/image.png';
   await env.files.write(path, Uint8List.fromList([1, 2, 3]));
@@ -96,7 +97,12 @@ Future<void> portrait(
   if (model != null) {
     await env.db.putSetting(
       '$artifactContextPrefix$id',
-      jsonEncode(ArtifactContext(modelId: model).toJson()),
+      jsonEncode(
+        ArtifactContext(
+          modelId: model,
+          loraGenerationMode: generationMode,
+        ).toJson(),
+      ),
     );
   }
 }
@@ -124,7 +130,7 @@ Future<Object?> failure(WidgetTester tester, TestEnv env, LoraRow model) =>
 
 void main() {
   appTest(
-    'human identity keeps the 512-dimensional path and verified model link',
+    'human identity uses verified portraits and skips full-body generations',
     (tester, env) async {
       final person = await seedPerson(env.db, name: 'Alice');
       await seedFace(
@@ -144,9 +150,16 @@ void main() {
             ),
           );
       final model = (await env.db.select(env.db.loras).get()).single;
-      await tester.runAsync(
-        () => portrait(env, 'human', person, model: 'human-model'),
-      );
+      await tester.runAsync(() async {
+        await portrait(env, 'human', person, model: 'human-model');
+        await portrait(
+          env,
+          'full-body',
+          person,
+          model: 'human-model',
+          generationMode: 'full_body',
+        );
+      });
       env.api.analyzeResult = AnalyzeImageResponse(
         modelId: 'buffalo_l@1',
         imageW: 100,

@@ -37,6 +37,55 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
   double? _gateDraft;
   bool _retryingOutlines = false;
   bool _stopOutlineRetry = false;
+  bool _cleaningFolders = false;
+
+  Future<void> _pruneEmptyFolders() async {
+    final l10n = AppLocalizations.of(context);
+    setState(() => _cleaningFolders = true);
+    var message = l10n.folderCleanupFailed;
+    try {
+      final removed = await ref
+          .read(personMediaOrganizerProvider)
+          .pruneEmptyFolders();
+      message = removed == null
+          ? l10n.folderCleanupNeedsAccess
+          : l10n.folderCleanupResult(removed);
+    } catch (_) {
+      // Surface the failure and let the user retry from this section.
+    } finally {
+      if (mounted) {
+        setState(() => _cleaningFolders = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
+  }
+
+  Future<void> _confirmRegroup() async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        scrollable: true,
+        title: Text(l10n.regroupTitle),
+        content: Text(l10n.regroupConfirmation),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.regroupAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await sortNow(context, ref, rebuild: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -334,15 +383,6 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-            ],
-          ),
-          ActionSection(
-            key: const Key('library-matching-section'),
-            title: l10n.settingsGrouping,
-            icon: Icons.person_search_outlined,
-            subtitle: l10n.groupingAutomaticHint,
-            children: [
-              const SizedBox(height: 16),
               Text(l10n.settingsQualityGate, style: text.titleMedium),
               Text(l10n.settingsQualityGateHint, style: text.bodySmall),
               Slider(
@@ -364,6 +404,27 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                   l10n.qualityGateValue(gate.toStringAsFixed(2)),
                   style: text.bodySmall,
                 ),
+              ),
+            ],
+          ),
+          ActionSection(
+            key: const Key('library-matching-section'),
+            title: l10n.settingsGrouping,
+            icon: Icons.person_search_outlined,
+            subtitle: l10n.groupingAutomaticHint,
+            children: [
+              ListTile(
+                key: const Key('settings-regroup-library'),
+                contentPadding: EdgeInsets.zero,
+                leading: sorting
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.restart_alt),
+                title: Text(l10n.regroupTitle),
+                subtitle: Text(sorting ? l10n.sorting : l10n.regroupHint),
+                onTap: sorting ? null : _confirmRegroup,
               ),
               const SizedBox(height: 12),
               ListTile(
@@ -410,6 +471,19 @@ class _LibrarySettingsScreenState extends ConsumerState<LibrarySettingsScreen> {
                 onChanged: settingsStore.setAutoOrganizeEnabled,
               ),
               const MoveWithoutAskingTile(),
+              ListTile(
+                key: const Key('settings-prune-empty-folders'),
+                contentPadding: EdgeInsets.zero,
+                leading: _cleaningFolders
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.folder_off_outlined),
+                title: Text(l10n.folderCleanupTitle),
+                subtitle: Text(l10n.folderCleanupHint),
+                onTap: _cleaningFolders ? null : _pruneEmptyFolders,
+              ),
               SwitchListTile(
                 key: const Key('settings-save-sidecar'),
                 contentPadding: EdgeInsets.zero,

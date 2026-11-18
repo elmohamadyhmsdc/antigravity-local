@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
+import 'package:antigravity_mobile/data/platform/media_organizer.dart';
 import 'package:antigravity_mobile/data/repositories/app_settings.dart';
 import 'package:antigravity_mobile/features/settings/library_settings_screen.dart';
 import 'package:antigravity_mobile/l10n/app_localizations.dart';
@@ -24,8 +25,27 @@ void main() {
   tearDown(() async => db.close());
 
   testWidgets(
-    'LibrarySettingsScreen toggles auto-organize and save-sidecar settings',
+    'file organization settings save changes and report empty-folder cleanup',
     (tester) async {
+      int? cleanupResult;
+      var cleanupCalls = 0;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(AndroidMediaOrganizer.channel, (
+        call,
+      ) async {
+        if (call.method == 'pruneEmptyFolders') {
+          cleanupCalls++;
+          return cleanupResult;
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(
+          AndroidMediaOrganizer.channel,
+          null,
+        ),
+      );
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -81,6 +101,24 @@ void main() {
 
       final snapshot2 = await appSettings.load();
       expect(snapshot2.saveSidecarEnabled, isFalse);
+
+      final cleanup = find.byKey(const Key('settings-prune-empty-folders'));
+      await tester.ensureVisible(cleanup);
+      await tester.tap(cleanup);
+      await tester.pumpAndSettle();
+      expect(cleanupCalls, 1);
+      expect(
+        find.textContaining('Allow All files access above'),
+        findsOneWidget,
+      );
+      tester
+          .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
+          .removeCurrentSnackBar();
+      cleanupResult = 3;
+      await tester.tap(cleanup);
+      await tester.pumpAndSettle();
+      expect(cleanupCalls, 2);
+      expect(find.text('Removed 3 empty folders'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
       await tester.pump(Duration.zero);

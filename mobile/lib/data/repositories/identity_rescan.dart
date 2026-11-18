@@ -52,6 +52,11 @@ class IdentityRescan {
 
   Future<bool> hasQueued() async => (await _queued()).isNotEmpty;
 
+  Future<Set<int>> reservedPersonIds() async => {
+    if (await personId() case final int id) id,
+    for (final item in await _queued()) item.personId,
+  };
+
   Stream<int> watchQueuedCount() =>
       (db.select(
         db.settings,

@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--target',type=Path,required=True)
     parser.add_argument('--output',type=Path,default=Path('../mobile/build/reface-acceptance'))
     parser.add_argument('--quality-profile', choices=QUALITY_PROFILES, default='balanced')
+    parser.add_argument('--motion-video', type=Path, help='Compare forward and saved-video tracking on one second of a local clip')
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True,exist_ok=True)
@@ -58,6 +59,36 @@ def main():
                       first_part_frames=part1.details['frames_done'],second_part_frames=part2.details['frames_done'],
                       video=info,settings=result.details['settings'],video_settings=part2.details['settings'],
                       image=result.output_path,output=str(joined))
+        if args.motion_video:
+            from unittest.mock import patch
+            from eval_reface import Judge, clip_frames, run_clip
+            from identity import build_source_from_faceset
+            from reface_video_detection import detect_faces
+            judge = Judge(['CPUExecutionProvider'])
+            reference = judge.embed(source_img, source_face)
+            video_frames = clip_frames(args.motion_video, 0, 1)
+            cap = cv2.VideoCapture(str(args.motion_video))
+            try:
+                fps = cap.get(cv2.CAP_PROP_FPS)
+            finally:
+                cap.release()
+            report['motion'] = {}
+            # Keep real video pixels, identity recognition and ROI detection.
+            # The controlled condition models a target the full-frame detector
+            # only starts seeing after three frames. Limit this trial to 8 frames.
+            for controlled in (False, True):
+                clip = video_frames[:8] if controlled else video_frames
+                suppressed = {id(f) for f in clip[:3]} if controlled else set()
+                def detect(app, image, **kwargs):
+                    return [] if id(image) in suppressed else detect_faces(app, image, **kwargs)
+                with patch('reface_engine_v3.detect_video_faces', detect):
+                    for mode, offline in [('forward', False), ('saved_video', True)]:
+                        name = ('controlled_miss_' if controlled else '') + mode
+                        measured = run_clip(engine, build_source_from_faceset(source), clip, judge,
+                                            reference, fps=fps, offline=offline)
+                        measured.pop('_sample')
+                        report['motion'][name] = measured
+                        print(name, json.dumps(measured), flush=True)
         (out/'gpu-report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
         print('PASS: selected-face GPU photo preserves the bystander exactly; 3+6 frame pause/resume video joins to 9 frames at 29.97 fps',flush=True)
     finally:

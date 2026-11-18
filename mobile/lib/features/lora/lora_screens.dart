@@ -1053,7 +1053,9 @@ class LoraTrainScreen extends ConsumerStatefulWidget {
 
 class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
   String? _dataset, _base;
-  int _epochs = 10, _dim = 32, _resolution = 512;
+  static const _recommendedSteps = 1200;
+  int? _customEpochs;
+  int _dim = 32, _resolution = 512;
   final _lr = TextEditingController(text: '0.0001');
   bool _busy = false;
   String? _error;
@@ -1069,13 +1071,19 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
     super.dispose();
   }
 
+  int _recommendedEpochs(int samples) =>
+      math.max(1, math.min(10, _recommendedSteps ~/ math.max(1, samples)));
+
   Future<void> _submit() async {
+    if (_busy) return;
     final l = AppLocalizations.of(context);
     final caps = studioCapabilities(ref.read(serverStatusProvider).value);
     final lr = double.tryParse(_lr.text.trim());
+    final datasetId = _dataset, base = _base;
+    final customEpochs = _customEpochs, dim = _dim, resolution = _resolution;
     if (caps == null ||
-        _dataset == null ||
-        _base == null ||
+        datasetId == null ||
+        base == null ||
         lr == null ||
         !lr.isFinite ||
         lr < .000001 ||
@@ -1093,12 +1101,13 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
       if (!mounted) return;
       final items = await ref
           .read(loraRepositoryProvider)
-          .watchItems(_dataset!)
+          .watchItems(datasetId)
           .first;
-      if (items.where((i) => i.included).length < 5) {
+      final includedCount = items.where((i) => i.included).length;
+      if (includedCount < 5) {
         throw FormatException(l.loraMinImages);
       }
-      final dataset = await ref.read(loraRepositoryProvider).dataset(_dataset!);
+      final dataset = await ref.read(loraRepositoryProvider).dataset(datasetId);
       if (dataset == null) return;
       final identityModel = await ref
           .read(studioRepositoryProvider)
@@ -1121,7 +1130,7 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
           'This PC cannot train a dataset with this identity model.',
         );
       }
-      zip = await ref.read(loraRepositoryProvider).exportDataset(_dataset!);
+      zip = await ref.read(loraRepositoryProvider).exportDataset(datasetId);
       final id = await ref
           .read(studioRepositoryProvider)
           .enqueueInputs(
@@ -1131,17 +1140,22 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
               personId: dataset.personId,
               datasetId: dataset.id,
               identityModelId: identityModel,
+              loraBaseCheckpoint: base,
             ),
             params: {
               'trigger_word': dataset.triggerWord,
               'output_name': 'character',
-              'base_checkpoint': _base,
-              'epochs': _epochs,
-              'network_dim': _dim,
-              'network_alpha': _dim ~/ 2,
+              'base_checkpoint': base,
+              'epochs': customEpochs ??
+                  _recommendedEpochs(includedCount * dataset.repeats),
+              'network_dim': dim,
+              'network_alpha': dim ~/ 2,
               'learning_rate': lr,
-              'max_resolution': _resolution,
+              'max_resolution': resolution,
               'batch_size': 1,
+              if (caps.engines.loraFullBody &&
+                  identityModel != characterEmbeddingModelId)
+                'preserve_body_framing': true,
               if (identityModel != null && caps.hasOperationSupport)
                 'identity_model_id': identityModel,
             },
@@ -1168,6 +1182,13 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
     if (!datasets.any((d) => d.id == _dataset)) {
       _dataset = datasets.firstOrNull?.id;
     }
+    final dataset = datasets.where((d) => d.id == _dataset).firstOrNull;
+    final items = dataset == null
+        ? null
+        : ref.watch(datasetItemsProvider(dataset.id)).value;
+    final samples =
+        (items?.where((i) => i.included).length ?? 0) * (dataset?.repeats ?? 0);
+    final epochs = _customEpochs ?? _recommendedEpochs(samples);
     final bases = caps?.loraBaseCheckpoints ?? const <String>[];
     if (!bases.contains(_base)) _base = bases.firstOrNull;
     return Scaffold(
@@ -1224,20 +1245,30 @@ class _LoraTrainScreenState extends ConsumerState<LoraTrainScreen> {
               ],
               onChanged: (v) => setState(() => _base = v),
             ),
-          Text('${l.loraEpochs}: $_epochs'),
-          Slider(
-            value: _epochs.toDouble(),
-            min: 1,
-            max: 50,
-            divisions: 49,
-            onChanged: (v) => setState(() => _epochs = v.round()),
-          ),
+          if (samples > 0) Text(l.loraTrainingSteps(samples * epochs)),
           ExpansionTile(
             key: const Key('train-advanced'),
             tilePadding: EdgeInsets.zero,
             childrenPadding: const EdgeInsets.only(bottom: 16),
             title: Text(l.advancedOptions),
             children: [
+              Text('${l.loraEpochs}: $epochs'),
+              Slider(
+                value: epochs.toDouble(),
+                min: 1,
+                max: 50,
+                divisions: 49,
+                onChanged: _busy
+                    ? null
+                    : (v) => setState(() => _customEpochs = v.round()),
+              ),
+              if (_customEpochs != null)
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() => _customEpochs = null),
+                  child: Text(l.loraUseRecommendedEpochs),
+                ),
               DropdownButtonFormField<int>(
                 isExpanded: true,
                 initialValue: _dim,
@@ -1288,6 +1319,8 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
       _seed = TextEditingController(text: '-1');
   int _count = 4;
   String _referenceMode = 'composition';
+  bool _fullBody = false, _character = false;
+  String? _trainedBase;
   File? _reference;
   int? _referenceMediaId;
   bool _busy = false, _initialized = false, _promptEdited = false;
@@ -1351,16 +1384,19 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
       });
     }
     try {
-      final identity = await ref
-          .read(studioRepositoryProvider)
-          .identityModelForLora(modelId);
+      final studio = ref.read(studioRepositoryProvider);
+      final modelContext = await studio.contextFor(modelId);
       if (!mounted || _model != modelId) return;
-      if (!_promptEdited) {
-        _prompt.text = identity == characterEmbeddingModelId
-            ? 'Illustrated portrait of {trigger}, fully clothed, neutral expression, soft lighting'
-            : AppLocalizations.of(context).loraDefaultPrompt('{trigger}');
-      }
-      setState(() => _loadingModelPrompt = false);
+      final bases = studioCapabilities(ref.read(serverStatusProvider).value)
+          ?.loraBaseCheckpoints;
+      setState(() {
+        _character = modelContext?.identityModelId == characterEmbeddingModelId;
+        if (_character) _fullBody = false;
+        _trainedBase = modelContext?.loraBaseCheckpoint;
+        if (bases?.contains(_trainedBase) == true) _base = _trainedBase;
+        _setFramingPrompt();
+        _loadingModelPrompt = false;
+      });
     } on Object {
       if (mounted && _model == modelId) {
         setState(() {
@@ -1382,21 +1418,31 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
     super.dispose();
   }
 
+  void _setFramingPrompt() {
+    if (_promptEdited) return;
+    final l = AppLocalizations.of(context);
+    _prompt.text = _fullBody
+        ? l.loraFullBodyPrompt('{trigger}')
+        : _character
+        ? 'Illustrated portrait of {trigger}, fully clothed, neutral expression, soft lighting'
+        : l.loraDefaultPrompt('{trigger}');
+  }
+
   Future<void> _submit(LoraRow model) async {
+    if (_busy) return;
     final l = AppLocalizations.of(context);
     final caps = studioCapabilities(ref.read(serverStatusProvider).value);
-    if (!await ref.read(fileStoreProvider).resolve(model.path).exists()) {
-      if (mounted) setState(() => _error = 'Model file unavailable');
-      return;
-    }
-    if (!mounted) return;
     final seed = int.tryParse(_seed.text.trim());
+    final base = _base;
+    final fullBody = _fullBody;
+    final prompt = _prompt.text.trim();
     if (caps == null ||
-        _base == null ||
+        base == null ||
         seed == null ||
         seed < -1 ||
         seed > 2147483647 ||
-        _prompt.text.trim().isEmpty) {
+        (fullBody && !caps.engines.loraFullBody) ||
+        prompt.isEmpty) {
       setState(() => _error = l.invalidForm);
       return;
     }
@@ -1405,6 +1451,11 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
       _error = null;
     });
     try {
+      final modelFile = ref.read(fileStoreProvider).resolve(model.path);
+      if (!await modelFile.exists()) {
+        throw const FormatException('Model file unavailable');
+      }
+      if (!mounted) return;
       await prepareBackgroundForWork(context, ref);
       if (!mounted) return;
       final identityModel = await ref
@@ -1444,24 +1495,26 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
               modelId: model.id,
               referenceMediaId: _referenceMediaId,
               identityModelId: identityModel,
+              loraGenerationMode: fullBody ? 'full_body' : 'portrait',
             ),
             params: {
               'trigger_word': model.triggerWord,
-              'base_checkpoint': _base,
-              'prompt': _prompt.text.trim().replaceAll(
-                '{trigger}',
-                model.triggerWord,
-              ),
+              'base_checkpoint': base,
+              'prompt': prompt.replaceAll('{trigger}', model.triggerWord),
               'num_images': _count,
               'seed': seed,
               'steps': 30,
               'reference_mode': _referenceMode,
               'multi_angle': true,
+              if (fullBody) ...{
+                'generation_mode': 'full_body',
+                'aspect_ratio': 'vertical_768',
+              },
               if (identityModel != null && caps.hasOperationSupport)
                 'identity_model_id': identityModel,
             },
             inputs: {
-              'lora': [ref.read(fileStoreProvider).resolve(model.path)],
+              'lora': [modelFile],
               if (_reference != null) 'reference': [_reference!],
             },
             personId: model.personId,
@@ -1488,7 +1541,10 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
     }
     final selected = models.where((m) => m.id == _model).firstOrNull;
     final bases = caps?.loraBaseCheckpoints ?? const <String>[];
-    if (!bases.contains(_base)) _base = bases.firstOrNull;
+    if (!bases.contains(_base)) {
+      _base = bases.contains(_trainedBase) ? _trainedBase : bases.firstOrNull;
+    }
+    final canUseFullBody = caps?.engines.loraFullBody == true && !_character;
     return Scaffold(
       appBar: AppBar(title: Text(l.loraGenerate)),
       bottomNavigationBar: StickyActionBar(
@@ -1513,6 +1569,7 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
                         selected == null ||
                         _base == null ||
                         caps?.engines.loraGenerate != true ||
+                        (_fullBody && !canUseFullBody) ||
                         snapshot.data != true
                     ? null
                     : () => _submit(selected),
@@ -1548,10 +1605,15 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
                 for (final m in models)
                   DropdownMenuItem(value: m.id, child: Text(m.triggerWord)),
               ],
-              onChanged: (v) {
-                setState(() => _model = v);
-                if (v != null) _setDefaultPrompt(v);
-              },
+              onChanged: _busy
+                  ? null
+                  : (v) {
+                      setState(() {
+                        _model = v;
+                        _trainedBase = null;
+                      });
+                      if (v != null) _setDefaultPrompt(v);
+                    },
             ),
           if (bases.isEmpty)
             Text(l.loraNoBase)
@@ -1566,6 +1628,27 @@ class _LoraGenerateScreenState extends ConsumerState<LoraGenerateScreen> {
                   DropdownMenuItem(value: b, child: Text(loraBaseLabel(b, l))),
               ],
               onChanged: (v) => setState(() => _base = v),
+            ),
+          if (canUseFullBody || _fullBody)
+            DropdownButtonFormField<bool>(
+              key: ValueKey('generate-full-body-$_fullBody'),
+              isExpanded: true,
+              initialValue: _fullBody,
+              decoration: InputDecoration(labelText: l.loraFraming),
+              items: [
+                DropdownMenuItem(value: false, child: Text(l.loraPortrait)),
+                DropdownMenuItem(
+                  value: true,
+                  enabled: canUseFullBody,
+                  child: Text(l.loraFullBody),
+                ),
+              ],
+              onChanged: _busy || _loadingModelPrompt
+                  ? null
+                  : (v) => setState(() {
+                      _fullBody = v ?? false;
+                      _setFramingPrompt();
+                    }),
             ),
           TextField(
             controller: _prompt,

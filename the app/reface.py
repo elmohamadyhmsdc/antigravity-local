@@ -55,8 +55,29 @@ def merge_video_diagnostics(summary, segment):
     if not segment:
         return summary
     summary = summary or dict(gaps=[], gap_count=0, truncated_log=False)
+    gaps = list(segment["gaps"])
+    previous = summary.get("last_gap")
+    longest = max(summary.get("longest_gap_frames", 0), segment.get("longest_gap_frames", 0))
     summary["gap_count"] += segment["gap_count"]
-    summary["gaps"].extend(segment["gaps"][: max(0, 30 - len(summary["gaps"]))])
+    if previous and "end_frame" in previous and gaps and gaps[0].get("start_frame") == previous["end_frame"] + 1:
+        first = gaps.pop(0)
+        reasons = dict(previous.get("reason_breakdown", {}))
+        for reason, count in first.get("reason_breakdown", {}).items():
+            reasons[reason] = reasons.get(reason, 0) + count
+        merged = {**previous, "end_frame": first["end_frame"], "end_sec": first["end_sec"],
+                  "length_frames": first["end_frame"] - previous["start_frame"] + 1, "reason_breakdown": reasons}
+        if summary["gaps"] and summary["gaps"][-1] == previous:
+            summary["gaps"][-1] = merged
+        summary["last_gap"] = merged
+        summary["gap_count"] -= 1
+        longest = max(longest, merged["length_frames"])
+    if gaps:
+        summary["last_gap"] = gaps[-1]
+    summary["gaps"].extend(gaps[:max(0, 30 - len(summary["gaps"]))])
+    summary["longest_gap_frames"] = longest
+    if segment.get("fps"):
+        summary["longest_gap_ms"] = round(1000 * longest / segment["fps"], 1)
+    summary["unverified_frames"] = summary.get("unverified_frames", 0) + segment.get("unverified_frames", 0)
     summary["truncated_log"] |= segment["truncated_log"] or summary["gap_count"] > len(summary["gaps"])
     summary["gap_basis"] = segment["gap_basis"]
     return summary
@@ -82,6 +103,9 @@ class RefaceEngine(RefaceEngineV3):
         # "detail" was re-measured on 2026-10-31: lower identity than 1b, slower, no sharper.
         super().__init__(restorer=selected,
                          use_parser=settings["use_parser"] if use_parser is None else use_parser, **kwargs)
+        from face_swappers import HyperSwapper
+        if isinstance(getattr(self, "swapper", None), HyperSwapper):
+            self.swapper.pixel_boost = quality_profile == "detail" and self.dfm is None
 
     def reface_image(self, target_image_path, faceset, target_face_indices=None,
                      target_face_embeddings=None, **kwargs):
@@ -102,4 +126,5 @@ class RefaceEngine(RefaceEngineV3):
         return result
 
     def effective_settings(self):
-        return {**super().effective_settings(), "engine": "reface", "quality_profile": self.quality_profile}
+        return {**super().effective_settings(), "engine": "reface", "quality_profile": self.quality_profile,
+                "large_face_pixel_boost": bool(getattr(self.swapper, "pixel_boost", False))}

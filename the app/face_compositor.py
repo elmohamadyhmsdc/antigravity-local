@@ -17,7 +17,7 @@ from typing import List, Optional
 import cv2
 import numpy as np
 
-from face_masking import (DEFAULT_REGIONS, box_mask, feather_mask,
+from face_masking import (DEFAULT_REGIONS, REGIONS, box_mask, feather_mask,
                           harden_occlusion, region_from_seg)
 from face_harmonize import (add_grain, apply_gain, choose_focus_sigma,
                             compute_gain, estimate_noise_sigma,
@@ -181,6 +181,37 @@ def alignment_matrix(kps, size: int) -> Optional[np.ndarray]:
 _UNSET = object()
 
 
+def limit_mouth_restoration(swapped, restored, target, target_seg, restored_seg):
+    """Attenuate restoration edits that contradict the current open-mouth appearance.
+
+    Compare low-frequency structure. Color comes exclusively from the swap and
+    its restoration; target pixels only decide where the restorer lost evidence.
+    """
+    mouth = REGIONS["mouth"]
+    opening = (target_seg == mouth) | (restored_seg == mouth)
+    x, y, w, h = cv2.boundingRect(opening.astype(np.uint8))
+    if w < 8 or h < 4:
+        return restored
+    pad = max(3, w // 16)
+    roi = np.s_[max(0, y-pad):y+h+pad, max(0, x-pad):x+w+pad]
+    sigma = max(1., w / 45)
+    def structure(image):
+        gray = cv2.cvtColor(image[roi], cv2.COLOR_BGR2GRAY).astype(np.float32)
+        gray = cv2.GaussianBlur(gray, (0, 0), sigma)
+        # Relative brightness distinguishes the dark opening from bright teeth
+        # even when the restorer changes overall exposure.
+        return gray - np.median(gray)
+    raw, enhanced, observed = (structure(image) for image in (swapped, restored, target))
+    excess = np.abs(enhanced - observed) - np.abs(raw - observed)
+    weight = np.clip((excess - 12) / 45, 0, .85) * opening[roi]
+    if not weight.any():
+        return restored
+    weight = cv2.GaussianBlur(weight, (0, 0), sigma)[..., None]
+    out = restored.copy()
+    out[roi] = np.rint(restored[roi] * (1 - weight) + swapped[roi] * weight).astype(np.uint8)
+    return out
+
+
 class _Last(threading.local):
     """last_status / last_reason / last_degraded of the thread that composited: with the GPU half and the CPU
     half of a face on different threads, a shared attribute would mix up two frames."""
@@ -339,17 +370,6 @@ class FaceCompositor:
 
     # ------------------------------------------------------------------ mask
 
-    def _regions(self) -> List[str]:
-        regions = list(self.config.mask_regions or DEFAULT_REGIONS)
-        if self.config.preserve_mouth_interior and not self.config.temporal:
-            # Class 11 is the inner mouth. A 128px swap carries about 30 real
-            # pixels of teeth, which the restorer then turns into a smear -
-            # keeping the target's own teeth is both cheaper and more honest
-            # in photos. In video the two mouth shapes move independently;
-            # holes around both shapes expose the old lips beside the swap.
-            regions = [r for r in regions if r != "mouth"]
-        return regions
-
     @staticmethod
     def _mask_area(mask) -> float:
         return float((np.asarray(mask) > 0.01).mean())
@@ -370,7 +390,7 @@ class FaceCompositor:
         already has them (prepare() computes both, so this CPU half never touches a model).
         """
         h, w = restored.shape[:2]
-        regions = self._regions()
+        regions = self.config.mask_regions or DEFAULT_REGIONS
         floor = self.config.mask_area_floor
 
         seg_orig, occ = orig_masks if orig_masks is not None else self._orig_masks(orig_aligned)
@@ -406,6 +426,22 @@ class FaceCompositor:
                 skin = region
 
         mask = feather_mask(region, self.config.mask_erode, self.config.mask_feather)
+
+        # Keep photographic teeth only inside the common *interior*. Cutting
+        # a hole around each mouth before feathering exposes the old lip line
+        # twice when the expression or the restored lip position differs.
+        if (self.config.preserve_mouth_interior and not self.config.temporal
+                and "mouth" in regions and seg_orig is not None and seg_res is not None):
+            mouth = REGIONS["mouth"]
+            original_open, swapped_open = seg_orig == mouth, seg_res == mouth
+            shared = original_open & swapped_open
+            area = np.count_nonzero(original_open | swapped_open)
+            if area and shared.any():
+                overlap = np.count_nonzero(shared) / area
+                strength = np.clip((overlap - 0.4) / 0.4, 0.0, 1.0)
+                if strength > 0:
+                    interior = cv2.distanceTransform(shared.astype(np.uint8), cv2.DIST_L2, 5)
+                    mask *= 1 - strength * np.clip((interior - 1) / max(2, w / 128), 0, 1)
 
         # A valid zero matte means a covered face, not a model failure.
         if occ is not None:
@@ -537,6 +573,7 @@ class FaceCompositor:
             return pre
 
         orig_masks = None
+        swapped = base
         if restorer is not None:
             # The original-crop masks don't depend on the restored face, so
             # they're built on this thread while the restorer runs on the pool.
@@ -552,6 +589,10 @@ class FaceCompositor:
             seg_res = self.masker.segment(base) if self.config.use_parser else None
         except Exception as exc:
             pre.mask_error, seg_res = exc, _UNSET
+        if (restorer is not None and base is not swapped and self.config.preserve_mouth_interior
+                and pre.mask_error is None and orig_masks[0] is not None and seg_res is not None):
+            base = self._guard("mouth restoration", lambda: limit_mouth_restoration(
+                swapped, base, orig_aligned, orig_masks[0], seg_res), base)
         pre.mask_3d = None
         if getattr(self.config, "use_3d_geometry", False) and kps is not None and len(kps) >= 5:
             try:

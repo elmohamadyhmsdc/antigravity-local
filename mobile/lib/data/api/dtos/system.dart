@@ -58,6 +58,7 @@ class Engines {
     this.characterLibraryRepair = false,
     this.quickVideoSampling = false,
     this.loraTrainingViews = false,
+    this.loraFullBody = false,
     this.sensitiveDetection = false,
     this.photoEdit = false,
     this.photoEditReference = false,
@@ -84,6 +85,7 @@ class Engines {
   final bool characterLibraryRepair;
   final bool quickVideoSampling;
   final bool loraTrainingViews;
+  final bool loraFullBody;
 
   /// Roadmap section 8: the PC can return exposed / covered body-part regions.
   final bool sensitiveDetection;
@@ -118,6 +120,7 @@ class Engines {
     characterLibraryRepair: json['character_library_repair'] as bool? ?? false,
     quickVideoSampling: json['quick_video_sampling'] as bool? ?? false,
     loraTrainingViews: json['lora_training_views'] as bool? ?? false,
+    loraFullBody: json['lora_full_body'] as bool? ?? false,
     sensitiveDetection: json['sensitive_detection'] as bool? ?? false,
     photoEdit: json['photo_edit'] as bool? ?? false,
     photoEditReference: json['photo_edit_reference'] as bool? ?? false,

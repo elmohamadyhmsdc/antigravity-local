@@ -2,11 +2,14 @@
 // real ids, one transaction per round, and anything the user did meanwhile wins.
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:antigravity_mobile/data/api/api_exception.dart';
+import 'package:antigravity_mobile/data/api/dtos/embedding.dart';
 import 'package:antigravity_mobile/data/api/dtos/grouping.dart';
 import 'package:antigravity_mobile/data/db/app_database.dart';
 import 'package:antigravity_mobile/data/files/file_store.dart';
+import 'package:antigravity_mobile/data/repositories/identity_rescan.dart';
 import 'package:antigravity_mobile/data/repositories/people_repository.dart';
 import 'package:antigravity_mobile/data/repositories/review_repository.dart';
 import 'package:antigravity_mobile/domain/grouping/grouping_runner.dart';
@@ -83,6 +86,118 @@ void main() {
   Future<int?> personOf(int face) async => (await (db.select(
     db.faces,
   )..where((f) => f.id.equals(face))).getSingle()).personId;
+
+  test(
+    'rebuild rolls back both collections if the character plan fails',
+    () async {
+      final people = PeopleRepository(db, FileStore(tmp));
+      final characters = PeopleRepository(
+        db,
+        FileStore(tmp),
+        kind: 'character',
+      );
+      final both = GroupingRunner(
+        db: db,
+        api: () => holder!.api,
+        review: review,
+        people: people,
+        then: GroupingRunner(
+          db: db,
+          api: () => holder!.api,
+          review: ReviewRepository(db, characters),
+          people: characters,
+          kind: 'character',
+        ),
+      );
+      final named = await seedPerson(db, name: 'Sara');
+      final anchor = await seedFace(db, personId: named);
+      final automatic = await seedPerson(db);
+      final released = await seedFace(db, personId: automatic);
+      final dismissed = await seedFace(
+        db,
+        personId: automatic,
+        dismissed: true,
+      );
+      final body = await seedBody(
+        db,
+        personId: automatic,
+        linkMethod: 'weak_face',
+      );
+      final manual = await seedPerson(db);
+      final manualBody = await seedBody(
+        db,
+        personId: manual,
+        linkMethod: 'manual',
+      );
+      final queued = await seedPerson(db);
+      await IdentityRescan(db).queue(queued);
+      final character = await db
+          .into(db.persons)
+          .insert(
+            PersonsCompanion.insert(
+              name: const Value('Nova'),
+              kind: const Value('character'),
+              createdAt: 1,
+            ),
+          );
+      Future<int> characterFace(int axis) async {
+        final face = await seedFace(db, personId: character);
+        final vector = Float32List(characterEmbeddingDim)..[axis] = 1;
+        await (db.update(db.faces)..where((f) => f.id.equals(face))).write(
+          FacesCompanion(
+            kind: const Value('character'),
+            modelId: const Value(characterEmbeddingModelId),
+            embedding: Value(embeddingToBlob(vector)),
+          ),
+        );
+        return face;
+      }
+
+      final nova = await characterFace(0);
+      await characters.confirmFaces([nova], character);
+      final wrongCharacter = await characterFace(1);
+      var failCharacter = true;
+      api.groupingHandler = (request) {
+        if (request.strictness == 'character') {
+          if (failCharacter) throw StateError('PC disconnected');
+          if (request.stages.contains('cluster')) {
+            expect(request.pending.map((f) => f.id), [wrongCharacter]);
+            expect(request.pending.single.rejectedPersonIds, [character]);
+          }
+          return _plan(request.mode);
+        }
+        if (request.mode == 'apply' && request.stages.contains('cluster')) {
+          expect(request.pending.map((f) => f.id), contains(released));
+          expect(request.dismissedFaceIds, contains(dismissed));
+          expect(request.models.map((m) => m.pid), [named]);
+          return _plan('apply', assignments: [_assign(released, named)]);
+        }
+        return _plan(request.mode);
+      };
+      await expectLater(both.rebuild(), throwsStateError);
+      expect(await personOf(released), automatic);
+      expect(await personOf(dismissed), automatic);
+      expect(await personOf(wrongCharacter), character);
+      expect((await people.body(body))?.personId, automatic);
+      failCharacter = false;
+      final result = await both.rebuild();
+      expect(result.assigned, 1);
+      expect(result.facesRepaired, 1);
+      expect(await personOf(anchor), named);
+      expect(await personOf(released), named);
+      expect(await personOf(dismissed), isNull);
+      expect(await personOf(nova), character);
+      expect(await personOf(wrongCharacter), isNull);
+      expect((await people.body(body))?.personId, isNull);
+      expect((await people.body(manualBody))?.personId, manual);
+      expect((await db.select(db.persons).get()).map((p) => p.id), [
+        named,
+        manual,
+        queued,
+        character,
+      ]);
+    },
+  );
 
   test(
     'identity repair separates a mixed person into a new identity through the PC plan',

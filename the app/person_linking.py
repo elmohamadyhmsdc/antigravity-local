@@ -146,6 +146,19 @@ def auto_params(negative_similarities: Sequence[float] = ()) -> GroupingParams:
                    people_merge_auto=round(mlo + (mhi - mlo) * t, 4))
 
 
+def character_auto_params(negative_similarities: Sequence[float]) -> GroupingParams:
+    """Calibrate in CCIP's own score range, using faces known to be different."""
+    params = STRICTNESS["character"]
+    if not negative_similarities:
+        return params
+    highest = float(np.percentile(negative_similarities, 98))
+    extra = float(np.clip(highest - (1.0 - params.cluster_distance) + 0.04, 0.0, 0.06))
+    return replace(params, match_auto=params.match_auto + extra,
+                   cluster_distance=params.cluster_distance - extra,
+                   auto_create_cohesion=params.auto_create_cohesion + extra,
+                   merge_auto=params.merge_auto + extra, people_merge_auto=params.people_merge_auto + extra)
+
+
 PEOPLE_MERGE_SAMPLE = 3000      # person pairs scored to learn how alike different people are here
 PEOPLE_MERGE_MARGIN = 0.08      # a merge must clear the library's high different-people score by this
 
@@ -286,10 +299,28 @@ def _assign_within_frames(s: np.ndarray, frame_keys) -> np.ndarray:
     return choice
 
 
+def _observation_penalties(e: np.ndarray, qualities: Sequence[float], frame_keys,
+                           params: GroupingParams) -> np.ndarray:
+    """Require stronger evidence for low-quality detections and similar faces in the same frame."""
+    penalties = 0.10 * np.clip(0.80 - np.asarray(qualities, dtype=np.float32), 0, 0.80)
+    for idx in _group_by_frame(frame_keys):
+        if len(idx) < 2:
+            continue
+        faces = e[idx]
+        for offset in range(0, len(idx), 256):
+            end = min(offset + 256, len(idx))
+            similarities = faces[offset:end] @ faces.T
+            similarities[np.arange(end - offset), np.arange(offset, end)] = -1.0
+            penalties[idx[offset:end]] += np.clip(
+                similarities.max(axis=1) - params.match_auto + params.match_margin, 0, 0.08)
+    return penalties
+
+
 def match_faces(embeddings: np.ndarray, models: Dict[int, PersonModel], params: GroupingParams,
                 frame_keys: Optional[Sequence[Optional[Hashable]]] = None,
                 rejected: Optional[Sequence[Iterable[int]]] = None,
-                alike: Optional[Dict[int, set]] = None) -> List[Match]:
+                alike: Optional[Dict[int, set]] = None, *,
+                adaptive_qualities: Optional[Sequence[float]] = None) -> List[Match]:
     """Best known person for each face, honouring "not this person" feedback and
     the one-person-per-frame rule.
 
@@ -306,7 +337,15 @@ def match_faces(embeddings: np.ndarray, models: Dict[int, PersonModel], params: 
             for pid in rej or ():
                 if pid in col:
                     s[i, col[pid]] = -2.0
-    choice = _assign_within_frames(s, frame_keys if frame_keys is not None else [None] * n)
+    keys = frame_keys if frame_keys is not None else [None] * n
+    choice = _assign_within_frames(s, keys)
+    observation_penalties = (np.zeros(n) if adaptive_qualities is None else
+                             _observation_penalties(normalize_rows(embeddings), adaptive_qualities, keys, params))
+    # Broad models need more evidence because one similar exemplar can otherwise
+    # outweigh a poor fit with the identity's other saved views.
+    identity_penalties = [0.04 * max(0.0, 1.0 - float(np.median(models[pid].members @ models[pid].proto)))
+                          if adaptive_qualities is not None and len(models[pid].members) >= 3 else 0.0
+                          for pid in pids]
     out = []
     for i in range(n):
         j = choice[i]
@@ -325,7 +364,8 @@ def match_faces(embeddings: np.ndarray, models: Dict[int, PersonModel], params: 
             others = np.delete(s[i], j)
         runner_up = float(others.max()) if len(others) else 0.0
         margin = score - max(runner_up, 0.0)
-        if score >= params.match_auto and margin >= params.match_margin:
+        extra = float(observation_penalties[i]) + identity_penalties[j]
+        if score >= params.match_auto + extra and margin >= params.match_margin + extra / 2:
             decision = "auto"
         elif score >= params.suggest:
             decision = "suggest"
@@ -415,7 +455,8 @@ def _constrained_cut(z: np.ndarray, key_sets: Sequence[set], distance: float) ->
 
 
 def _average_linkage(e: np.ndarray, frame_keys, distance: float,
-                     key_sets: Optional[Sequence[set]] = None) -> np.ndarray:
+                     key_sets: Optional[Sequence[set]] = None,
+                     penalties: Optional[np.ndarray] = None) -> np.ndarray:
     """Average-linkage labels at `distance`, with the one-person-per-frame rule as a HARD constraint.
 
     Same-frame pairs still get the maximum distance (it delays such merges), but on its own that is only
@@ -429,6 +470,9 @@ def _average_linkage(e: np.ndarray, frame_keys, distance: float,
         return np.zeros(1, dtype=int)
     sets = list(key_sets) if key_sets is not None else _key_sets(frame_keys)
     d = np.clip(1.0 - e @ e.T, 0.0, 2.0).astype(np.float64)
+    if penalties is not None:
+        # Use the weaker observation's evidence for each pair.
+        d += np.maximum(penalties[:, None], penalties[None, :])
     d[_cannot_link_mask(sets)] = 2.0
     d = (d + d.T) / 2.0
     np.fill_diagonal(d, 0.0)
@@ -437,7 +481,7 @@ def _average_linkage(e: np.ndarray, frame_keys, distance: float,
 
 
 def _leader_then_link(e: np.ndarray, q: np.ndarray, frame_keys, distance: float,
-                      micro: float = 0.25) -> np.ndarray:
+                      micro: float = 0.25, penalties: Optional[np.ndarray] = None) -> np.ndarray:
     """For big inboxes: fold near-identical faces into micro-clusters first, then
     average-link the micro-cluster centroids. Keeps memory O(N * leaders).
     A micro-cluster never takes two faces of one frame, and two micro-clusters that share a frame
@@ -447,10 +491,14 @@ def _leader_then_link(e: np.ndarray, q: np.ndarray, frame_keys, distance: float,
     lead_keys: List[set] = []
     lead_vecs = np.zeros_like(e)
     owner = np.full(len(e), -1, dtype=int)
+    if penalties is not None:
+        micro = min(micro, 0.8 * distance)
     for i in order:
         key = frame_keys[i]
         if leaders:
             sims = lead_vecs[:len(leaders)] @ e[i]
+            if penalties is not None:
+                sims -= np.maximum(penalties[i], penalties[leaders])
             j = int(sims.argmax())
             if 1.0 - sims[j] <= micro and (key is None or key not in lead_keys[j]):
                 owner[i] = j
@@ -462,13 +510,17 @@ def _leader_then_link(e: np.ndarray, q: np.ndarray, frame_keys, distance: float,
         leaders.append(int(i))
         lead_keys.append(set() if key is None else {key})
     cents = normalize_rows(np.stack([e[owner == j].mean(0) for j in range(len(leaders))]))
-    lead_labels = _average_linkage(cents, None, distance, key_sets=lead_keys)
+    lead_penalties = None
+    if penalties is not None:
+        lead_penalties = np.zeros(len(leaders), dtype=np.float32)
+        np.maximum.at(lead_penalties, owner, penalties)
+    lead_labels = _average_linkage(cents, None, distance, key_sets=lead_keys, penalties=lead_penalties)
     return lead_labels[owner]
 
 
 def cluster_faces(embeddings: np.ndarray, qualities: Sequence[float], params: GroupingParams,
                   frame_keys: Optional[Sequence[Optional[Hashable]]] = None,
-                  direct_limit: int = 2500) -> List[Cluster]:
+                  direct_limit: int = 2500, *, adaptive: bool = False) -> List[Cluster]:
     """Groups of faces that look like one person, biggest first. Faces that fit
     no group are simply left out."""
     e = normalize_rows(embeddings)
@@ -482,10 +534,12 @@ def cluster_faces(embeddings: np.ndarray, qualities: Sequence[float], params: Gr
     labels = np.full(n, -1, dtype=int)
     if len(seeds) >= 2:
         seed_keys = [keys[i] for i in seeds]
+        penalties = _observation_penalties(e, q, keys, params)[seeds] if adaptive else None
         if len(seeds) <= direct_limit:
-            seed_labels = _average_linkage(e[seeds], seed_keys, params.cluster_distance)
+            seed_labels = _average_linkage(e[seeds], seed_keys, params.cluster_distance, penalties=penalties)
         else:
-            seed_labels = _leader_then_link(e[seeds], q[seeds], seed_keys, params.cluster_distance)
+            seed_labels = _leader_then_link(e[seeds], q[seeds], seed_keys, params.cluster_distance,
+                                            penalties=penalties)
         labels[seeds] = seed_labels
     elif len(seeds) == 1:
         labels[seeds] = 0
@@ -514,7 +568,8 @@ def cluster_faces(embeddings: np.ndarray, qualities: Sequence[float], params: Gr
     loose = np.where(labels < 0)[0]
     if group_labels and len(loose):
         models = build_person_models(e[labels >= 0], labels[labels >= 0].tolist(), q[labels >= 0])
-        matches = match_faces(e[loose], models, params)
+        matches = match_faces(e[loose], models, params,
+                             adaptive_qualities=q[loose] if adaptive else None)
         for m in matches:
             if m.decision != "auto":
                 continue
@@ -1004,7 +1059,8 @@ class _EventTimeline:
 
 
 def link_faceless_bodies(bodies: Sequence[Dict], anchor_person: Callable[[Dict], Optional[int]],
-                         models: Dict[int, PersonModel], params: GroupingParams) -> List[BodyLink]:
+                         models: Dict[int, PersonModel], params: GroupingParams, *,
+                         adaptive: bool = False) -> List[BodyLink]:
     """Suggest/auto-link bodies whose own face wasn't usable.
 
     `bodies` are body records (dicts with id, media_id, frame_number, appearance,
@@ -1038,8 +1094,13 @@ def link_faceless_bodies(bodies: Sequence[Dict], anchor_person: Callable[[Dict],
         weak_indices = [i for i, b in enumerate(loose) if b.get("weak_face_embedding") is not None]
         for offset in range(0, len(weak_indices), 256):
             indices = weak_indices[offset:offset + 256]
+            qualities = [0.50 if loose[i].get("detection_score") is None else 0.65 * loose[i]["detection_score"]
+                         for i in indices] if adaptive else None
+            keys = [(loose[i]["media_id"], loose[i].get("frame_number")) if loose[i].get("media_id") is not None
+                    else None for i in indices] if adaptive else None
             matches = match_faces(np.asarray([loose[i]["weak_face_embedding"] for i in indices], dtype=np.float32),
-                                  models, params, rejected=[loose[i].get("rejected_person_ids") for i in indices])
+                                  models, params, keys, rejected=[loose[i].get("rejected_person_ids") for i in indices],
+                                  adaptive_qualities=qualities)
             weak_matches.update(zip(indices, matches))
 
     outfit_by_media = {}
@@ -1075,7 +1136,8 @@ def link_faceless_bodies(bodies: Sequence[Dict], anchor_person: Callable[[Dict],
                 ranked = sorted(per_person.items(), key=lambda t: -t[1])
                 pid, sim = ranked[0]
                 runner = ranked[1][1] if len(ranked) > 1 else 0.0
-                if sim >= params.body_auto and sim - runner >= params.body_margin:
+                distinctive = not adaptive or not skin_dominated(app, params.event_skin_share)
+                if distinctive and sim >= params.body_auto and sim - runner >= params.body_margin:
                     best = BodyLink(b["id"], pid, "appearance", round(sim, 4), "auto")
                 elif sim >= params.body_suggest and best is None:
                     best = BodyLink(b["id"], pid, "appearance", round(sim, 4), "suggest")

@@ -79,7 +79,7 @@ def angle_description(request, default_angles, index, multi_angle):
     if names:
         return ANGLE_PROMPTS[names[(int(request.get('angle_offset', 0)) + index) % len(names)]]
     if multi_angle:
-        return default_angles[index % len(default_angles)]
+        return default_angles[(int(request.get('angle_offset', 0)) + index) % len(default_angles)]
     return None
 
 
@@ -206,9 +206,9 @@ def apply_face_detailer(full_image, face_restorer=None, padding: float = 0.3):
 def resolve_generation_dimensions(preset: str) -> tuple:
     """Returns (width, height) for a given aspect ratio preset, guaranteed multiples of 8."""
     preset = (preset or "").strip().lower()
-    if preset in ("portrait_vertical", "full_body"):
+    if preset in ("portrait_vertical", "full_body", "vertical_768"):
         return (512, 768)
-    elif preset == "full_body_tall":
+    elif preset in ("full_body_tall", "tall_896"):
         return (512, 896)
     else:  # "portrait_square" or default
         return (512, 512)
@@ -366,6 +366,7 @@ def main():
     pose_image_path = request.get("pose_image_path")
     use_controlnet = bool(pose_image_path and is_controlnet_available())
 
+    full_body = request.get("generation_mode") == "full_body"
     target_w, target_h = resolve_generation_dimensions(
         request.get("aspect_ratio") or request.get("generation_mode", "portrait_square")
     )
@@ -414,10 +415,12 @@ def main():
         reference_kwargs["width"] = target_w
         reference_kwargs["height"] = target_h
     elif use_img2img:
-        reference_kwargs.update(image=reference.resize(size, Image.LANCZOS),
+        init_image = (ImageOps.pad(reference, (target_w, target_h), method=Image.Resampling.LANCZOS)
+                      if full_body else reference.resize(size, Image.Resampling.LANCZOS))
+        reference_kwargs.update(image=init_image,
                                 strength=float(request.get("reference_strength", DEFAULT_REFERENCE_STRENGTH)))
-    elif reference is not None:
-        reference_kwargs.update(width=size[0], height=size[1])  # img2img takes its size from the image
+    elif reference is not None and not full_body:
+        reference_kwargs.update(width=size[0], height=size[1])
     else:
         reference_kwargs.update(width=target_w, height=target_h)
     if use_ip_adapter:
@@ -427,7 +430,10 @@ def main():
     base_seed = seed if seed != -1 else random.randint(0, 2**31 - 1 - num_images)
     emit("stage", stage=STAGE_GENERATING, total_images=num_images, steps=run_steps, base_seed=base_seed)
 
-    multi_angle = bool(request.get("multi_angle", True)) if not reference_mode(request) and num_images > 1 else False
+    angle_offset = int(request.get("angle_offset", 0))
+    multi_angle = (bool(request.get("multi_angle", True))
+                   and not reference_mode(request) and not use_controlnet
+                   and num_images + angle_offset > 1)
 
     for index in range(num_images):
         image_seed = base_seed + index
@@ -450,7 +456,7 @@ def main():
             **reference_kwargs,
         ).images[0]
 
-        if request.get("enable_face_detailer", True) and (request.get("generation_mode") == "full_body" or use_controlnet):
+        if request.get("enable_face_detailer", True) and (full_body or use_controlnet):
             try:
                 from face_restore import FaceRestorer
                 restorer = FaceRestorer(model_name="codeformer", weight=0.6)

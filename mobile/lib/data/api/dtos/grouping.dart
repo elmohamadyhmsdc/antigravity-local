@@ -89,6 +89,7 @@ class GroupingBody {
     this.anchorPersonId,
     this.appearance,
     this.weakFaceEmbedding,
+    this.detectionScore,
     this.rejectedPersonIds = const [],
     this.takenAt,
   });
@@ -103,6 +104,7 @@ class GroupingBody {
   anchorPersonId; // person it already belongs to (face or manual link)
   final List<double>? appearance; // 80-float outfit descriptor
   final Float32List? weakFaceEmbedding;
+  final double? detectionScore;
   final List<int> rejectedPersonIds;
 
   Map<String, dynamic> toJson() => {
@@ -113,6 +115,7 @@ class GroupingBody {
     'appearance': appearance,
     if (weakFaceEmbedding != null)
       'weak_face_embedding': encodeVector(weakFaceEmbedding!),
+    if (detectionScore != null) 'detection_score': detectionScore,
     'rejected_person_ids': rejectedPersonIds,
     if (takenAt != null) 'taken_at': takenAt,
   };
@@ -129,6 +132,7 @@ class GroupingBody {
           ? null
           : numbers(appearance, 'bodies[].appearance'),
       weakFaceEmbedding: weak is String ? decodeVectorAuto(weak) : null,
+      detectionScore: (json['detection_score'] as num?)?.toDouble(),
       takenAt: json['taken_at'] as int?,
       rejectedPersonIds: [
         for (final p in list(

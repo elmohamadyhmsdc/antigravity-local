@@ -25,6 +25,8 @@ def test_resolve_dimensions():
     assert resolve_generation_dimensions("full_body") == (512, 768)
     # Full body tall
     assert resolve_generation_dimensions("full_body_tall") == (512, 896)
+    assert resolve_generation_dimensions("vertical_768") == (512, 768)
+    assert resolve_generation_dimensions("tall_896") == (512, 896)
 
 def test_named_head_angles_win_and_resume_where_an_interrupted_run_stopped():
     names = ["profile", "profile", "three_quarter", "up"]
@@ -42,6 +44,7 @@ def test_without_angles_the_old_rotation_is_unchanged():
     assert angle_description({}, PORTRAIT_ANGLES, 1, True) == PORTRAIT_ANGLES[1]
     assert angle_description({}, PORTRAIT_ANGLES, len(PORTRAIT_ANGLES), True) == PORTRAIT_ANGLES[0]
     assert angle_description({}, PORTRAIT_ANGLES, 0, False) is None
+    assert angle_description({"angle_offset": 2}, FULL_BODY_ANGLES, 0, True) == FULL_BODY_ANGLES[2]
 
 
 if __name__ == "__main__":

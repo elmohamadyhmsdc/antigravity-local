@@ -413,9 +413,12 @@ class PeopleRepository {
 
   /// "Dissolve": the person goes, every face and body goes back to be sorted - unlike [deletePerson], which
   /// also hides the faces from review and grouping. Rejections about the person go with it.
-  Future<void> dissolvePerson(int id) => _db.transaction(() async {
+  Future<void> dissolvePerson(
+    int id, {
+    bool keepReviewDismissals = false,
+  }) => _db.transaction(() async {
     await _db.customUpdate(
-      'UPDATE faces SET person_id = NULL, review_dismissed = 0 WHERE person_id = ?',
+      'UPDATE faces SET person_id = NULL${keepReviewDismissals ? '' : ', review_dismissed = 0'} WHERE person_id = ?',
       variables: [Variable.withInt(id)],
       updates: {_db.faces},
     );
@@ -424,12 +427,19 @@ class PeopleRepository {
       variables: [Variable.withInt(id)],
       updates: {_db.bodies},
     );
+    if (keepReviewDismissals) {
+      await (_db.update(_db.bodyClusters)..where((c) => c.personId.equals(id)))
+          .write(const BodyClustersCompanion(personId: Value(null)));
+    }
     await (_db.delete(_db.persons)..where((p) => p.id.equals(id))).go();
   });
 
-  Future<void> dissolvePeople(Iterable<int> ids) => _db.transaction(() async {
+  Future<void> dissolvePeople(
+    Iterable<int> ids, {
+    bool keepReviewDismissals = false,
+  }) => _db.transaction(() async {
     for (final id in ids.toSet()) {
-      await dissolvePerson(id);
+      await dissolvePerson(id, keepReviewDismissals: keepReviewDismissals);
     }
   });
 
@@ -536,14 +546,16 @@ class PeopleRepository {
       _db.transaction(() => _assign(faceIds, personId));
 
   /// An explicit rescan may release clear identity outliers to be clustered
-  /// again, even when the second person has no existing identity yet.
-  Future<int> regroupDoubtfulFaces(int personId) => _db.transaction(() async {
+  /// again, even when the second person has no existing identity yet. A library
+  /// rebuild leaves unconfirmed destination suggestions in Review.
+  Future<int> regroupDoubtfulFaces(int? personId) => _db.transaction(() async {
     final rows = await _db
         .customSelect(
           '''SELECT f.id FROM faces f
       JOIN review_doubtful d ON d.face_id = f.id AND d.person_id = f.person_id
       JOIN persons p ON p.id = f.person_id
-      WHERE p.id = ? AND p.kind = ? AND p.grouping_locked = 0
+      WHERE (?1 IS NULL OR p.id = ?1) AND p.kind = ?2 AND p.grouping_locked = 0
+        AND (?1 IS NOT NULL OR d.suggested_person_id IS NULL)
         AND f.kind = p.kind AND p.avatar_face_id IS NOT f.id
         AND f.hidden = 0 AND f.review_dismissed = 0 AND f.ownership IS NULL
         AND d.score < ?
@@ -561,7 +573,7 @@ class PeopleRepository {
               WHERE sd.face_id = sibling.id AND sd.person_id = p.id AND sd.score < ?)))
       ORDER BY f.id''',
           variables: [
-            Variable.withInt(personId),
+            Variable<int>(personId),
             Variable.withString(kind),
             Variable.withReal(kind == 'character' ? .70 : .35),
             Variable.withReal(kind == 'character' ? .70 : .35),
@@ -625,14 +637,16 @@ class PeopleRepository {
       )
       UPDATE faces SET person_id = ?3
       WHERE id = ?1 AND person_id = ?2 AND model_id = ?4 AND embedding = ?5
-        AND hidden = 0 AND review_dismissed = 0 AND ownership IS NOT 'none'
+        AND hidden = 0 AND review_dismissed = 0 AND ownership IS NULL
         AND EXISTS (SELECT 1 FROM review_doubtful d
                     WHERE d.face_id = ?1 AND d.person_id = ?2 AND d.suggested_person_id = ?3)
         AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ?2 AND p.kind = faces.kind
-                    AND p.grouping_locked = 0 AND p.avatar_face_id IS NOT ?1)
+                    AND p.grouping_locked = 0 AND p.hidden = 0 AND p.avatar_face_id IS NOT ?1)
         AND EXISTS (SELECT 1 FROM persons p WHERE p.id = ?3 AND p.kind = faces.kind
-                    AND p.grouping_locked = 0)
+                    AND p.grouping_locked = 0 AND p.hidden = 0)
         AND NOT EXISTS (SELECT 1 FROM face_confirmations c WHERE c.face_id = ?1)
+        AND NOT EXISTS (SELECT 1 FROM identity_set_faces i WHERE i.face_id = ?1)
+        AND NOT EXISTS (SELECT 1 FROM kind_overrides k WHERE k.target_person_id = ?2)
         AND NOT EXISTS (SELECT 1 FROM face_rejections r WHERE r.face_id = ?1 AND r.person_id = ?3)
         AND NOT EXISTS (SELECT 1 FROM bodies b WHERE b.face_id = ?1 AND b.link_method = 'manual')
         AND NOT EXISTS (SELECT 1 FROM faces f WHERE f.track_id = faces.track_id AND f.id != ?1)

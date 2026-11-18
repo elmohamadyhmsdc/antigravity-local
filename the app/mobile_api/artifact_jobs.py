@@ -134,7 +134,7 @@ def validate_artifact(body, caps):
         except (ValueError, TypeError, KeyError):
             raise bad_request('A valid identity anchor for the selected model is required.')
     elif kind == 'train_lora':
-        allowed_params = {'trigger_word','output_name','base_checkpoint','epochs','network_dim','network_alpha','learning_rate','batch_size','max_resolution','identity_model_id'}
+        allowed_params = {'trigger_word','output_name','base_checkpoint','epochs','network_dim','network_alpha','learning_rate','batch_size','max_resolution','identity_model_id','preserve_body_framing'}
         output_name=params.get('output_name','character')
         if not isinstance(output_name,str) or re.fullmatch(r'[A-Za-z0-9_-]{1,64}',output_name) is None:
             raise bad_request('Use a simple model output name.')
@@ -145,6 +145,8 @@ def validate_artifact(body, caps):
         bounded(params, 'batch_size', 1, 1, 2, True)
         if params.get('max_resolution',512) not in (512,768):
             raise bad_request('Choose 512 or 768 resolution.')
+        if 'preserve_body_framing' in params and not isinstance(params['preserve_body_framing'], bool):
+            raise bad_request('preserve_body_framing must be true or false.')
     else:
         allowed_params = {'trigger_word','base_checkpoint','prompt','negative_prompt','seed','steps','guidance_scale',
                           'num_images','lora_scale','multi_angle','reference_mode','reference_strength','reference_scale','identity_model_id',
@@ -362,7 +364,8 @@ def run_artifact(job, directory, report, stopped, ctx):
             str(APP_DIR/'models'/f"{params['base_checkpoint']}.safetensors"),
             epochs=params.get('epochs',10),network_dim=params.get('network_dim',32),network_alpha=params.get('network_alpha',16),
             learning_rate=params.get('learning_rate',.0001),batch_size=params.get('batch_size',1),max_resolution=params.get('max_resolution',512),
-            resume_state=str(resume[1]) if resume else None,resumed_epochs=resume[0] if resume else 0)
+            resume_state=str(resume[1]) if resume else None,resumed_epochs=resume[0] if resume else 0,
+            preserve_body_framing=params.get('preserve_body_framing', False))
         state = {}
         def line(raw):
             update_training_state(state,raw,resume[0] if resume else 0)
@@ -379,6 +382,7 @@ def run_artifact(job, directory, report, stopped, ctx):
         shutil.copyfile(run_dir/f'{output_name}.safetensors',directory/'lora.safetensors')
         return {'trigger_word':params['trigger_word'], **({'identity_model_id':params['identity_model_id']} if 'identity_model_id' in params else {})}
     from lora_generate import EVENT_PREFIX
+    subject = 'full-body images' if params.get('generation_mode') == 'full_body' else 'portraits'
     output = directory/'generated'
     output.mkdir(exist_ok=True)
     current = len(list(output.glob('*.png')))
@@ -395,13 +399,13 @@ def run_artifact(job, directory, report, stopped, ctx):
         def line(raw):
             if raw.startswith(EVENT_PREFIX):
                 event=json.loads(raw[len(EVENT_PREFIX):])
-                report(min(.99,len(list(output.glob('*.png')))/params.get('num_images',4)),'Generating portraits',
+                report(min(.99,len(list(output.glob('*.png')))/params.get('num_images',4)),f'Generating {subject}',
                        details={k:v for k,v in event.items() if k in ('stage','step','steps','index','total')})
         code=run_process([str(APP_DIR/'venv_ai'/'Scripts'/'python.exe'),str(APP_DIR/'lora_generate.py')],directory,stopped,line,stdin=json.dumps(payload))
         if stopped(): return None
-        if code != 0: raise ValueError('Portrait generation failed; inspect the PC job log.')
+        if code != 0: raise ValueError(f'Could not generate {subject}; inspect the PC job log.')
     pictures=sorted(output.glob('*.png'))
-    if len(pictures) != params.get('num_images',4): raise ValueError('Some generated portraits are missing.')
+    if len(pictures) != params.get('num_images',4): raise ValueError(f'Some generated {subject} are missing.')
     with zipfile.ZipFile(directory/'portraits.zip','w',compression=zipfile.ZIP_STORED) as bundle:
         for path in pictures: bundle.write(path,path.name)
     return {'trigger_word':params['trigger_word'],'image_count':len(pictures), **({'identity_model_id':params['identity_model_id']} if 'identity_model_id' in params else {})}

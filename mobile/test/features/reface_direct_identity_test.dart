@@ -22,7 +22,7 @@ import '../support/fakes.dart';
 import '../support/harness.dart';
 import 'studio_test.dart' show next;
 
-DetectedFace face(int person, {int? variation, double quality = .8}) {
+DetectedFace face(int person, {int? variation, double quality = .8, double yaw = 0}) {
   final vector = Float32List(512)..[person] = variation == null ? 1 : .8;
   if (variation != null) vector[variation] = .6;
   return DetectedFace(
@@ -38,7 +38,7 @@ DetectedFace face(int person, {int? variation, double quality = .8}) {
       facePx: 128,
       sharpness: 150,
       embeddingNorm: 22,
-      pose: const Pose(yaw: 0, pitch: 0, roll: 0),
+      pose: Pose(yaw: yaw, pitch: 0, roll: 0),
     ),
     passesGate: true,
     cropJpeg: tinyPng,
@@ -64,6 +64,22 @@ Future<void> tapVisible(WidgetTester tester, Key key) async {
 }
 
 void main() {
+  test('retains and sends both profiles after many clearer frontal views', () {
+    final front = face(0, variation: 1, quality: .99);
+    final left = face(0, variation: 2, quality: .73, yaw: -50);
+    final right = face(0, variation: 3, quality: .70, yaw: 50);
+    final group = RefaceFaceGroup(front)..add(left)..add(right);
+    for (var i = 4; i < 28; i++) {
+      group.add(face(0, variation: i, quality: .85));
+    }
+    final payload = encodeVideoTargetSelection([group, RefaceFaceGroup(face(33))], {0});
+    expect(group.samples.length, 20);
+    expect(payload['target_indices'], [0, 1, 2]);
+    expect((payload['target_embeddings'] as List).take(3), [
+      for (final view in [front, left, right]) encodeEmbedding(view.embedding),
+    ]);
+  });
+
   test(
     'different poses across frames use one identity instead of one identity per frame',
     () {

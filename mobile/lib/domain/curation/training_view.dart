@@ -40,7 +40,7 @@ readTrainingView(CropSource source, CurationCandidate c) async {
     imgW: frame.width,
     imgH: frame.height,
     longSide: face ? 1024 : 1536,
-    margin: face ? 1.6 : 1.0,
+    margin: face ? 1.6 : 1.12,
   );
   if (plan == null) return null;
   final jpeg = await source.crop(

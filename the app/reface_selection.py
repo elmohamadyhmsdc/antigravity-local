@@ -46,6 +46,10 @@ class FaceSelector:
         self.track_history.clear()
         self.track_confirmed_counts.clear()
 
+    def profile_candidate(self, face):
+        """Pre-filter for recovery linked to a known face. wants() makes the final decision."""
+        return match_reference(face.normed_embedding, self.references, self.selected, min_similarity=.28)
+
     def can_skip_recognition(self, track_id, frame_no, det_score: float = 1.0, motion_jump: bool = False) -> bool:
         if not getattr(self, "adaptive_recognition", True) or track_id is None or track_id <= 0:
             return False

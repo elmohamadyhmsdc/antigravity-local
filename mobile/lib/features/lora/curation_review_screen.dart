@@ -270,7 +270,7 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('فشل بدء التدريب: $e')));
+        ).showSnackBar(SnackBar(content: Text('تعذّر تجهيز صور التدريب: $e')));
       }
     } finally {
       for (final file in temporary) {
@@ -340,9 +340,9 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                   const SizedBox(height: 12),
                   SwitchListTile(
                     key: const Key('curation-detailer-switch'),
-                    title: const Text('تمريرة الوجه الفائق (Face Detailer)'),
+                    title: const Text('تحسين قصّات الوجه للتدريب'),
                     subtitle: const Text(
-                      'استعادة ملامح الوجه بدقة في اللقطات البعيدة',
+                      'معالجة قصّات الوجه منخفضة الجودة أثناء تجهيز الصور',
                     ),
                     value: currentState.faceDetailerEnabled,
                     onChanged: (_) {
@@ -367,23 +367,6 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                           .setPreferExposed(v);
                       setModalState(() {});
                     },
-                  ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    key: const Key('curation-resolution-dropdown'),
-                    title: const Text('وضع الدقة (Resolution)'),
-                    subtitle: Text(
-                      currentState.resolutionMode == '512x768'
-                          ? '512×768 (سريع ومناسب للـ 6GB VRAM)'
-                          : '512×512 (مربع)',
-                    ),
-                    trailing: const Text(
-                      '~8 دقائق',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 16),
                   FilledButton(
@@ -468,8 +451,8 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                       : const Icon(Icons.bolt_rounded),
                   label: Text(
                     _isSubmitting
-                        ? 'جاري إعداد التدريب...'
-                        : 'بدء تدريب الموديل الآن ⚡',
+                        ? 'جاري تجهيز الصور…'
+                        : 'تجهيز صور التدريب',
                   ),
                   onPressed: (state.canSubmit && !_isSubmitting)
                       ? _onSubmit
@@ -521,8 +504,8 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                         Expanded(
                           child: Text(
                             state.isReady
-                                ? 'جاهز: ${state.totalCount} صورة مختارة تلقائياً (جودة ممتازة)'
-                                : 'تم اختيار ${state.totalCount} صور (ينصح بـ 15+ لجودة ممتازة)',
+                                ? 'تم اختيار ${state.totalCount} صورة للتدريب'
+                                : 'تم اختيار ${state.totalCount} صور. يفضّل اختيار 15 صورة متنوعة.',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
@@ -537,6 +520,15 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                   ),
                 ),
 
+                if (state.totalCount > 0 && state.fullBodyCount < 4)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'رصد التطبيق ${state.fullBodyCount} من لقطات الجسم الكامل. '
+                      'أضف صورًا واضحة من الرأس للقدمين من زوايا مختلفة.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
                 // 2. Category Filter Tabs
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -575,7 +567,7 @@ class _CurationReviewScreenState extends ConsumerState<CurationReviewScreen> {
                       const SizedBox(width: 8),
                       FilterChip(
                         key: const Key('curation-tab-body'),
-                        label: Text('🔥 كامل وأقل لبس (${state.body.length})'),
+                        label: Text('لقطات الجسم (${state.body.length})'),
                         selected: _activeCategory == 'body',
                         onSelected: (s) {
                           if (s) setState(() => _activeCategory = 'body');

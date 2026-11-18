@@ -111,6 +111,11 @@ class AndroidMediaOrganizer implements MediaOrganizerBridge {
   Future<List<OriginalMoveResult>> move(List<OriginalMediaMove> moves) =>
       _call('move', moves);
 
+  /// Removes empty subfolders in the application's shared-storage folders.
+  /// Null means Android has not granted the required storage access.
+  Future<int?> pruneEmptyFolders() =>
+      channel.invokeMethod<int>('pruneEmptyFolders');
+
   /// Whether Android lets this app move photos without a confirmation sheet ("All files access" or
   /// "Media management").
   Future<bool> canMoveWithoutPrompt() async {

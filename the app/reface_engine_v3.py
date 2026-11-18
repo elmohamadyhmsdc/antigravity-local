@@ -34,7 +34,7 @@ import cv2
 import numpy as np
 
 from reface_engine import RefaceEngine, RefaceResult, Faceset, FaceData  # noqa: F401
-from identity import AveragedSource, BundleSource, build_source_from_faceset, select_identity_faces
+from identity import AveragedSource, build_source_from_faceset, select_identity_faces
 from face_restore import FaceRestorer, resolve_restorer_name
 from face_masking import FaceMasker, DEFAULT_REGIONS
 from face_compositor import CompositeConfig, FaceCompositor, config_from_preset, alignment_matrix
@@ -161,7 +161,7 @@ def rate_arg(fps: float) -> str:
 class _FrameJob:
     """One staged frame: the picture being painted, what was found in it and how each face went."""
     __slots__ = ("result", "faces", "outcomes", "futures", "t0", "frame_no", "total_ms",
-                 "decode_ms", "detect_ms", "match_ms", "prepare_ms", "composite_ms", "rejected_targets")
+                 "decode_ms", "detect_ms", "match_ms", "prepare_ms", "composite_ms", "rejected_targets", "recovered")
 
     def __init__(self, frame):
         self.result, self.faces, self.outcomes, self.futures = frame, [], [], []
@@ -169,7 +169,7 @@ class _FrameJob:
         self.frame_no = 0
         self.total_ms = 0.0
         self.decode_ms = self.detect_ms = self.match_ms = self.prepare_ms = self.composite_ms = 0.0
-        self.rejected_targets = 0
+        self.rejected_targets = self.recovered = 0
 
 
 class RefaceEngineV3(RefaceEngine):
@@ -365,7 +365,7 @@ class RefaceEngineV3(RefaceEngine):
                     raise ValueError("DFM did not produce a face")
                 crop = cv2.resize(swapped.swapped_face, (aligned.shape[1], aligned.shape[0]))
             else:
-                if isinstance(source, BundleSource):
+                if isinstance(source, AveragedSource):
                     source = source.for_face(target_face, track_id)
                 boosted = self.boosted_source(source, original, target_face)
                 crop, matrix = unpack_swap_result(self.swapper.get(original, target_face, boosted, paste_back=False))
@@ -508,7 +508,8 @@ class RefaceEngineV3(RefaceEngine):
         """Reset per-video state: landmark tracks and the compositor's temporal smoothing."""
         self._video_encoding = None
         self._reset_tracks()
-        self._video_recovery = VideoFaceRecovery()
+        models = getattr(getattr(self, "app", None), "models", {})
+        self._video_recovery = VideoFaceRecovery(models.get("recognition"))
         self.compositor.reset()
         self.compositor.config.temporal = True
 
@@ -524,13 +525,25 @@ class RefaceEngineV3(RefaceEngine):
             done.set_exception(exc)
         return done
 
-    def render_frame(self, frame, source, frame_no: int = 0, target_face_indices=None, selector=None):
+    def render_frame(self, frame, source, frame_no: int = 0, target_face_indices=None, selector=None, located=None):
         """One video frame through the whole pipeline: detect, track, pick,
         swap and composite. Returns (frame, swaps, faces). Call begin_video()
         before the first frame. eval_reface.py drives this same method."""
-        return self._complete_frame(self._stage_frame(frame, source, frame_no, target_face_indices, selector))
+        job = self._stage_frame(frame, source, frame_no, target_face_indices, selector, None, located)
+        return self._complete_frame(job)
 
-    def _stage_frame(self, frame, source, frame_no, target_face_indices=None, selector=None, composer=None):
+    def locate_clip(self, frames, selector):
+        if selector is None:
+            for frame in frames:
+                yield frame, None, 0, 0.
+            return
+        detector = lambda image: detect_video_faces(self.app, image)
+        fine = lambda image: detect_video_faces(self.app, image, fine=True)
+        accepts = lambda face: match_reference(face.normed_embedding, selector.references, selector.selected)
+        yield from self._video_recovery.locate_clip(frames, detector, accepts, selector.profile_candidate, fine)
+
+    def _stage_frame(self, frame, source, frame_no, target_face_indices=None, selector=None, composer=None,
+                     located=None):
         """Everything of a frame that needs the models: detection, tracking, and each picked face's GPU half.
 
         With a `composer` (one worker thread) the CPU half of every face is queued on it and this returns
@@ -542,9 +555,14 @@ class RefaceEngineV3(RefaceEngine):
         job.frame_no = frame_no
         self._check_scene(frame, selector, composer)
         stage_start = time.perf_counter()
-        detector = lambda image: detect_video_faces(self.app, image)
-        accepts = (lambda face: selector.wants(0, frame_no, lambda: face.normed_embedding)) if selector else (lambda face: True)
-        faces = self._video_recovery.detect(frame, detector, accepts)
+        if located is None:
+            detector = lambda image: detect_video_faces(self.app, image)
+            accepts = (lambda face: selector.wants(0, frame_no, lambda: face.normed_embedding)) if selector else (lambda face: True)
+            before = self._video_recovery.recovered
+            faces = self._video_recovery.detect(frame, detector, accepts, selector.profile_candidate if selector else None)
+            job.recovered = self._video_recovery.recovered - before
+        else:
+            faces = located
         job.detect_ms = (time.perf_counter() - stage_start) * 1000
         stage_start = time.perf_counter()
         faces, track_ids = self._smooth(faces)
@@ -695,16 +713,31 @@ class RefaceEngineV3(RefaceEngine):
 
             self.begin_video()
             selector = self._make_selector(target_face_indices, target_face_embeddings)
-            warmup = min(12, first) if resume_from_frame else 0
+            warmup = min(12, first - start_frame) if resume_from_frame else 0
             if first > 0:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, first - warmup)
+            decode_times = deque()
+
+            def decoded_frames():
+                for _ in range(first - warmup, end_frame):
+                    started = time.perf_counter()
+                    ok, frame = cap.read()
+                    if not ok:
+                        return
+                    decode_times.append((time.perf_counter() - started) * 1000)
+                    yield frame
+
+            located_frames = self.locate_clip(decoded_frames(), selector)
             for offset in range(warmup):
-                ok, context = cap.read()
-                if not ok:
+                context = next(located_frames, None)
+                if context is None:
                     raise ValueError("Could not restore video context before the checkpoint")
-                self.render_frame(context, source, first - warmup + offset, target_face_indices, selector)
+                self._complete_frame(self._stage_frame(context[0], source, first - warmup + offset,
+                                                       target_face_indices, selector, None, context[1]))
+                decode_times.popleft()
 
             processed, swaps, cur = 0, 0, first
+            recovered = 0
             outcomes = dict(faces_swapped=0, faces_skipped=0, faces_failed=0, faces_degraded=0, warnings=set())
             stopped = False
             enable_diagnostics = bool(_ignore.get("enable_diagnostics", False))
@@ -722,15 +755,17 @@ class RefaceEngineV3(RefaceEngine):
             try:
                 while reading or pending:
                     if reading and not stopped and cur < end_frame:
-                        decode_start = time.perf_counter()
-                        ret, frame = cap.read()
-                        decode_ms = (time.perf_counter() - decode_start) * 1000
-                        if ret:
+                        located = next(located_frames, None)
+                        if located is not None:
+                            frame, faces, restored_detections, detect_ms = located
                             if writer is None and proc is None:
                                 # Prefer piping raw frames to x264 (no intermediate MJPG re-compression)
                                 writer, proc = self._open_writer(out_path, fps, frame.shape[1], frame.shape[0])
-                            staged = self._stage_frame(frame, source, cur, target_face_indices, selector, composer)
-                            staged.decode_ms = decode_ms
+                            staged = self._stage_frame(frame, source, cur, target_face_indices, selector, composer, faces)
+                            staged.decode_ms = decode_times.popleft()
+                            staged.detect_ms += detect_ms
+                            staged.t0 -= detect_ms / 1000
+                            staged.recovered += restored_detections
                             pending.append(staged)
                             cur += 1
                         else:
@@ -742,6 +777,7 @@ class RefaceEngineV3(RefaceEngine):
                         job = pending.popleft()
                         frame, n, _ = self._complete_frame(job)
                         swaps += n
+                        recovered += int(job.recovered > 0)
                         for outcome in job.outcomes:
                             outcomes["faces_" + outcome["status"]] += 1
                             outcomes["faces_degraded"] += bool(outcome.get("degraded"))
@@ -821,7 +857,7 @@ class RefaceEngineV3(RefaceEngine):
                         pass
             msg = f"V3 video {'stopped' if stopped else 'complete'} ({swaps} swaps in {processed} frames)"
             return RefaceResult(True, str(out_path), msg, swaps, self._result_details(
-                outcomes, frames_done=processed, frames_recovered=self._video_recovery.recovered, **diag_extra))
+                outcomes, frames_done=processed, frames_recovered=recovered, **diag_extra))
         except Exception as e:
             import traceback
             traceback.print_exc()

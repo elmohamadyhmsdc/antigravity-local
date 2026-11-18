@@ -11,7 +11,6 @@ class CurationState {
     this.body = const [],
     this.triggerWord = '',
     this.faceDetailerEnabled = true,
-    this.resolutionMode = '512x768',
     this.preferExposed = false,
     this.isLoading = false,
     this.error,
@@ -26,7 +25,6 @@ class CurationState {
   final List<CurationCandidate> body;
   final String triggerWord;
   final bool faceDetailerEnabled;
-  final String resolutionMode;
 
   /// "Prefer exposed bodies" in the auto-pick: a switch, off by default (see [AutoDatasetCurator]).
   final bool preferExposed;
@@ -36,6 +34,7 @@ class CurationState {
   final CurationCategory? lastRemovedCategory;
 
   int get totalCount => faces.length + upper.length + body.length;
+  int get fullBodyCount => body.where((c) => c.extent == 'full').length;
   bool get canUndo => lastRemoved != null && lastRemovedCategory != null;
   bool get isReady => totalCount >= 15 && totalCount <= 35;
   bool get canSubmit => totalCount >= 5;
@@ -50,7 +49,6 @@ class CurationState {
     List<CurationCandidate>? body,
     String? triggerWord,
     bool? faceDetailerEnabled,
-    String? resolutionMode,
     bool? preferExposed,
     bool? isLoading,
     String? error,
@@ -66,7 +64,6 @@ class CurationState {
       body: body ?? this.body,
       triggerWord: triggerWord ?? this.triggerWord,
       faceDetailerEnabled: faceDetailerEnabled ?? this.faceDetailerEnabled,
-      resolutionMode: resolutionMode ?? this.resolutionMode,
       preferExposed: preferExposed ?? this.preferExposed,
       isLoading: isLoading ?? this.isLoading,
       error: error,
@@ -249,10 +246,6 @@ class CurationNotifier extends Notifier<CurationState> {
 
   void toggleFaceDetailer() {
     state = state.copyWith(faceDetailerEnabled: !state.faceDetailerEnabled);
-  }
-
-  void setResolutionMode(String mode) {
-    state = state.copyWith(resolutionMode: mode);
   }
 
   /// The "prefer exposed bodies" switch. The body and upper-body picks are made again from the same

@@ -42,6 +42,82 @@ class Masker:
 
 
 class QualityTests(unittest.TestCase):
+    def test_restorer_cannot_whiten_the_whole_opening_during_speech(self):
+        from face_compositor import limit_mouth_restoration
+        target = np.full((256, 256, 3), 140, np.uint8)
+        target[150:174, 80:170] = 20
+        target[150:156, 85:165] = 220
+        seg = np.ones(target.shape[:2], np.uint8)
+        seg[150:174, 80:170] = 11
+        swapped = target.copy()
+        swapped[156:174, 80:170] = [35, 25, 60]
+        enhanced = swapped.copy()
+        enhanced[156:174, 80:170] = 205
+        fixed = limit_mouth_restoration(swapped, enhanced, target, seg, seg)
+        self.assertLess(float(fixed[166, 125].mean()), 85)
+        self.assertGreater(int(fixed[166, 125, 2]), int(fixed[166, 125, 1]))
+        np.testing.assert_array_equal(fixed[:140], enhanced[:140])
+        unchanged = limit_mouth_restoration(enhanced, swapped, target, seg, seg)
+        np.testing.assert_array_equal(unchanged, swapped)
+
+    def test_mobile_source_references_follow_angle_without_switching_identity(self):
+        from identity import build_source_from_faceset
+        front, side = np.eye(512, dtype=np.float32)[:2]
+        side = .89 * front + np.sqrt(1 - .89 ** 2) * side
+        sources = Faceset("person")
+        sources.add_face(FaceData("", front, (0, 0, 0), [], 1))
+        sources.add_face(FaceData("", side, (55, 0, 0), [], 1))
+        source = build_source_from_faceset(sources)
+        def render_vector(yaw):
+            return source.for_face(SimpleNamespace(pose=(0, yaw, 0)), 1).normed_embedding
+        self.assertGreater(float(render_vector(55) @ side), float(render_vector(0) @ side))
+        self.assertGreater(float(render_vector(55) @ source.normed_embedding), .97)
+        np.testing.assert_array_equal(source.for_face(SimpleNamespace(kps=None), 1).normed_embedding,
+                                      source.normed_embedding)
+
+    def test_photo_mouth_preserves_teeth_only_when_both_openings_agree(self):
+        comp = FaceCompositor(None, Masker(), CompositeConfig())
+        seg = np.ones((512, 512), np.uint8)
+        seg[300:340, 180:300] = 11
+        frame = np.zeros((512, 512, 3), np.uint8)
+        moved = np.ones_like(seg)
+        moved[300:340, 290:410] = 11
+        mask, _, _ = comp._build_mask(frame, frame, (seg, None), moved)
+        self.assertTrue(np.all(mask[318, 200:400] > .99))
+        mask, _, _ = comp._build_mask(frame, frame, (seg, None), seg)
+        self.assertEqual(mask[320, 240], 0)
+        self.assertGreater(mask[299, 240], .99)
+        closed = np.ones_like(seg)
+        mask, _, _ = comp._build_mask(frame, frame, (seg, None), closed)
+        self.assertGreater(mask[320, 240], .99)
+
+    def test_hyperswap_pixel_boost_uses_four_aligned_views_for_large_faces(self):
+        from face_swappers import HyperSwapper, ARCFACE_128
+        from unittest.mock import Mock
+        swapper = HyperSwapper.__new__(HyperSwapper)
+        swapper.size = 256
+        swapper.pixel_boost = True
+        swapper.swap_crop = Mock(side_effect=lambda crop, _: 255 - crop)
+        frame = np.random.default_rng(12).integers(0, 256, (512, 512, 3), dtype=np.uint8)
+        target = SimpleNamespace(kps=ARCFACE_128 * 512, bbox=[0, 0, 512, 512])
+        source = SimpleNamespace(normed_embedding=unit(3))
+        crop, matrix = swapper.get(frame, target, source)
+        self.assertEqual(swapper.swap_crop.call_count, 4)
+        self.assertTrue(all(call.args[0].shape == (256, 256, 3) for call in swapper.swap_crop.call_args_list))
+        np.testing.assert_array_equal(crop, 255 - frame)
+        np.testing.assert_allclose(matrix, np.eye(2, 3), atol=1e-5)
+        target.bbox[3] = 288
+        partial, _ = swapper.get(frame, target, source)
+        ordinary = cv2.warpAffine(crop[::2, ::2], np.float32([[2, 0, 0], [0, 2, 0]]),
+                                  (512, 512), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+        np.testing.assert_array_equal(partial, cv2.addWeighted(ordinary, .5, crop, .5, 0))
+        for boost, height in ((False, 512), (True, 120)):
+            swapper.pixel_boost, target.bbox[3] = boost, height
+            swapper.swap_crop.reset_mock()
+            crop, _ = swapper.get(frame, target, source)
+            self.assertEqual(crop.shape[:2], (256, 256))
+            self.assertEqual(swapper.swap_crop.call_count, 1)
+
     def test_global_assignment_matches_exhaustive_minimum(self):
         rng = np.random.default_rng(18)
         for n, m in [(1,3),(2,4),(3,5)]:
@@ -297,6 +373,45 @@ class QualityTests(unittest.TestCase):
         generated = sum(q for f,_,q in rows if getattr(f,'generated',False))
         self.assertLessEqual(generated,real_weight*.25+1e-6)
         self.assertGreater(float(build_identity_embedding(fs) @ real),.98)
+
+    def test_frontal_burst_does_not_filter_a_real_side_reference(self):
+        fs = Faceset('angles')
+        for _ in range(8):
+            fs.add_face(FaceData('',unit(1),(0,0,0),[],.9))
+        fs.add_face(FaceData('',unit(1)*.65+unit(2)*np.sqrt(1-.65**2),(45,0,0),[],.8))
+        fs.add_face(FaceData('',unit(3),(0,0,0),[],.75))
+        rows, _ = select_identity_faces(fs)
+        self.assertEqual([row[0].pose[0] for row in rows], [0,45])
+
+    def test_benchmark_scores_visible_target_misses_and_bystander_swaps(self):
+        from eval_reface import run_clip
+        from test_reface_video_continuity import face as detected
+        target = detected(0, (10,15,50,65))
+        other = detected(1, (70,5,150,95))
+        frames = [np.full((100,160,3), i+20, np.uint8) for i in range(5)]
+        class Engine:
+            def _detect(self, frame, embeddings=True):
+                return [target, other]
+            def _make_selector(self, indices, refs):
+                return FaceSelector(refs, indices)
+            def begin_video(self):
+                pass
+            def locate_clip(self, frames, selector):
+                return ((f, [], 0, 0) for f in frames)
+            def render_frame(self, frame, source, i, **kwargs):
+                faces = [[target,other],[other],[],[other],[target,other]][i]
+                self._track_ids = [int(np.argmax(f.embedding)) for f in faces]
+                self._frame_outcomes = [dict(status='swapped',track_id=self._track_ids[0])] if faces else []
+                return frame.copy(), len(self._frame_outcomes), faces
+        judge = SimpleNamespace(faces=lambda f: [target,other], embed=lambda img,f: f.normed_embedding)
+        labels = {i: [10/160,.15,50/160,.65] for i in range(5)}
+        labels[3] = None
+        result = run_clip(Engine(), object(), frames, judge, unit(0), target_boxes=labels, fps=25)
+        self.assertEqual(result['score_coverage'], .5)
+        self.assertEqual(result['longest_visible_gap_frames'], 2)
+        self.assertEqual(result['longest_visible_gap_seconds'], .08)
+        self.assertEqual(result['wrong_face_swaps'], 2)
+        self.assertEqual(result['visible_target_frames'], 4)
 
     def test_benchmark_ranking_penalizes_poor_coverage(self):
         from eval_reface import rank

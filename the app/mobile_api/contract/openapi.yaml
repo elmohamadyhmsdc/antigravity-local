@@ -731,6 +731,7 @@ components:
             character_library_repair: { type: boolean, default: false }
             quick_video_sampling: { type: boolean, default: false }
             lora_training_views: { type: boolean, default: false }
+            lora_full_body: { type: boolean, default: false }
             sensitive_detection:
               type: boolean
               default: false
@@ -1438,6 +1439,11 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/IdentityEmbedding" }
             - { type: "null" }
+        detection_score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Optional detector confidence used to weigh weak face evidence.
         rejected_person_ids:
           type: array
           items: { type: integer }
@@ -1467,10 +1473,9 @@ components:
           type: string
           enum: [auto, strict, balanced, loose, character]
           description: >-
-            auto = thresholds derived from the request itself: the similarities of known-different pairs
-            (pending faces that share a frame_key, and distinct_pairs) place every threshold between loose
-            (different people look unalike here) and strict (look-alikes, e.g. relatives). character = drawn
-            characters: embeddings are CCIP (768 floats), not ArcFace (512)
+            auto = adaptive ArcFace matching (512 floats); character = adaptive CCIP matching (768 floats).
+            Both use known-different pairs to calibrate for look-alikes, and adjust match decisions using
+            detection quality, people in the same frame, and each identity's saved examples.
         models:
           type: array
           items: { $ref: "#/components/schemas/GroupingModel" }
@@ -1932,6 +1937,7 @@ components:
         learning_rate: { type: number, default: 0.0001 }
         batch_size: { type: integer, default: 1 }
         max_resolution: { type: integer, enum: [512, 768], default: 512 }
+        preserve_body_framing: { type: boolean, default: false, description: Allows taller training buckets within the same pixel budget. }
 
     GenerateLoraParams:
       type: object

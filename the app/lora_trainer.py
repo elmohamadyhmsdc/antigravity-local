@@ -288,10 +288,13 @@ def build_training_args(dataset_dir: str, output_dir: str, output_name: str, bas
                          epochs: int = DEFAULT_EPOCHS, network_dim: int = DEFAULT_NETWORK_DIM,
                          network_alpha: int = DEFAULT_NETWORK_ALPHA, learning_rate: float = DEFAULT_LEARNING_RATE,
                          batch_size: int = DEFAULT_BATCH_SIZE, max_resolution: int = DEFAULT_MAX_RESOLUTION,
-                         resume_state: Optional[str] = None, resumed_epochs: int = 0) -> list:
+                         resume_state: Optional[str] = None, resumed_epochs: int = 0,
+                         preserve_body_framing: bool = False) -> list:
     """Returns the CLI argument list (no interpreter/script) for sd-scripts' train_network.py."""
     # train_data_dir must be the PARENT of the "{repeats}_{trigger} person" folder.
     train_data_dir = str(Path(dataset_dir).parent)
+    # Keep the same pixel budget while allowing tall buckets for narrow standing crops.
+    max_bucket_side = max_resolution * 2 if preserve_body_framing else max_resolution
     args = [
         "--pretrained_model_name_or_path", base_checkpoint,
         "--train_data_dir", train_data_dir,
@@ -318,7 +321,7 @@ def build_training_args(dataset_dir: str, output_dir: str, output_name: str, bas
         "--keep_tokens", "1",
         "--enable_bucket",
         "--min_bucket_reso", "256",
-        "--max_bucket_reso", str(max_resolution),
+        "--max_bucket_reso", str(max_bucket_side),
         "--resolution", str(max_resolution),
         "--cache_latents",
         # Latents are cached, so one persistent loader worker is plenty; the default of 8

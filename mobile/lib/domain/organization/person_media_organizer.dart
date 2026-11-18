@@ -76,6 +76,13 @@ class PersonMediaOrganizer {
   bool _busy = false;
   bool get isRunning => _busy;
 
+  Future<int?> pruneEmptyFolders() async {
+    final storage = bridge;
+    if (storage is! AndroidMediaOrganizer) return null;
+    return runExclusive?.call(storage.pruneEmptyFolders) ??
+        storage.pruneEmptyFolders();
+  }
+
   /// Detection occurrences cover deduplicated faces in other photos/videos.
   /// Direct rows also support older/imported records without occurrence rows.
   static const _links = '''

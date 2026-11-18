@@ -1,5 +1,49 @@
 # Antigravity handoff — 2026-10-19
 
+## Empty gallery folders on Android — 2026-11-18
+
+- Settings → Library & scanning → File organization includes **Clean up empty folders**. With Android All files access, it walks both `Your Gallery` and `DCIM/Your Gallery` on mounted writable volumes, removes empty subfolders deepest first, and reports how many were removed. Android removes the directories nonrecursively, which preserves folders containing files, including files added during cleanup.
+- Original moves also prune empty source folders and their empty ancestors inside those roots. Direct file moves carry existing companion JSON to the destination when possible before pruning. Numbered legacy person folders follow the same rule. Files in folders outside the app's roots are outside the cleanup scope.
+- The 23 focused Flutter tests and eight filesystem assertions passed. Android Kotlin and Java compilation succeeded, and focused Dart analysis reported three existing informational lints. Real-device verification is pending. The user is building the APK. The release and debug APK checksums match their pre-task values.
+
+## Mobile regrouping of faces and bodies — 2026-11-18
+
+- Settings → Library & scanning → Grouping now offers **Regroup faces and bodies from scratch**. It uses saved detections, rebuilds provisional human groups, audits saved People and Characters, and recalculates automatic body links. Confirmed faces, manual links and corrections, named people, Character records and identities reserved for a re-scan keep their references. Clear face assignment errors can move or return to grouping. The Review screen keeps uncertain cases.
+- The mobile action runs at the next safe scan boundary and uses one SQLite transaction across the two collections. A PC request failure rolls the rebuild back. The face-quality slider now sits under Scan preferences, where it controls the detections saved by new scans.
+- The PC planner calibrates ArcFace and CCIP separately. Matching considers the individual detection's quality, similar faces in the same frame, competing identities and the spread of each identity's saved examples. Body matching uses the saved detector confidence and weak face evidence. The OpenAPI body field is optional for older clients.
+- Verification passed 196 focused Flutter tests, 47 PC grouping and body-linking tests, and OpenAPI contract checks. Dart analysis reported only the three existing Flutter Material import deprecation infos. The rollback regression also checks that an incorrect Character assignment is released while its confirmed face is kept. Accuracy and runtime on the real phone library remain unmeasured. The phone and running PC service were left alone.
+- The release APK was rebuilt at `mobile/build/app/outputs/flutter-apk/app-release.apk`. Its generated checksum matched, and the regroup strings were verified in the ARM64 app binary. SHA-256 `ecb8ab009ac5036333b4bc9cbac08c1d071af6686ad62cd52c7e5e0b57f82e0f`. Flutter reported KGP migration and Cupertino font warnings. The new matching requires the updated PC Mobile API.
+
+## Reface mobile references, video recovery and evaluation — 2026-11-18
+
+- Flutter keeps the clearest face and chooses quality-weighted, distinct head angles when retaining and transmitting video references. Each displayed person retains at least one slot within the existing 32-reference contract. Repeated frontal source photos no longer dominate the server's estimate of the normal variation among independent source views.
+- The selected-person video path searches the entire frame at additional scales when ordinary detection and local recovery only find another person. A short-lived identity memory allows a second selected person to reappear outside a stale search region. Saved video rendering buffers unresolved frames, up to four and limited by frame size, then tries reverse recovery from a later confirmed observation within the shot. It verifies identity against current pixels and retains chronological compositing and encoding. Resume warms up within the requested trim and counts only written frames.
+- The benchmark supports per-frame target boxes and explicit absences. It follows a selected identity, measures visible gap length and wrong-face swaps, and includes unverified frames in its coverage denominator. Runtime gap estimates remain distinct from annotated evaluation. The job summary merges contiguous gaps across a pause.
+- Four Python suites passed 84 tests. The Flutter direct identity suite passed 12 tests. The release APK built at `mobile/build/app/outputs/flutter-apk/app-release.apk` and matched Flutter's generated checksum.
+- The Balanced GPU comparison used a local 29-frame video segment. Forward and saved-video tracking both scored all 29 frames, with no wrong-face swaps detected. On eight frames of the same clip, suppressing full-frame detection on the first three produced 5/8 with forward tracking and 8/8 with reverse recovery enabled. The longest visible gap dropped from three frames to zero. The controls kept the video pixels, ROI detector and recognizers intact. Selected-face photo protection and a nine-frame pause/resume export also passed. Results are in `the app/build/reface-motion-review-20261118/gpu-report.json`. The user's failing clip, phone installation and running server were outside this verification.
+
+## Reface video tracking through fast turns — 2026-11-18
+
+- Mobile Reface video and its legacy V2 path use raw landmark observations to estimate velocity. A fast change in landmark shape releases smoothing even when the head turns in place. Strong identity evidence lets a reversing face match near its last position.
+- A missed track triggers a crop search. Rapid movement can expand that search across both the observed and predicted positions. Tilted crops are rotated for detection and all coordinates are mapped back to the video. An unexpected tilt can trigger a bounded retry in either direction on changed, textured pixels.
+- Pyramidal optical flow can bridge up to two consecutive detector misses. At least four landmarks must pass forward/backward and geometric checks. Fresh recognition on each current frame must agree with the last detector-confirmed identity and the target selection. A scene cut clears recovery state. Profile candidates still pass through the tracked selector before swapping.
+- All 77 tests in the four Reface quality, continuity, unified and desktop suites passed. Tests used synthetic frames for turns, reversals, dropout, occlusion and bystander cases. GPU speed and visual results on the reported clip remain unmeasured. The server was not restarted.
+
+## Reface identity, mouths and moving faces — 2026-11-18
+
+- Flat source lists use a pose-weighted blend when accepted references span multiple angles. The shared identity anchors the blend. Generated references have limited influence.
+- Natural and Most detail photo compositing preserve the interior of the target mouth where both face segmentations agree. Restoration can recover raw swapped mouth detail when enhancement introduces a larger error against the target expression. Video uses the swapped mouth throughout.
+- Most detail uses four interleaved HyperSwapper passes on large faces. The extra detail fades in as target face height grows from 256 to 320 pixels. Other quality settings keep their existing inference cost.
+- Video recovery checks predicted positions and identity together, associates each detection once, and accounts for gaps when updating velocity.
+- All 71 tests in `test_reface_quality`, `test_reface_video_continuity`, `test_reface_unified` and `test_reface_desktop` passed. Visual likeness and GPU throughput on real footage still need measurement. The running service was not restarted.
+
+## Full-body LoRA from Flutter — 2026-11-18
+
+- Smart selection keeps a face crop and a body crop from the same video time and gives head-to-toe views priority. Selected body crops include a small margin. The review warns when fewer than four verified full-body candidates are selected.
+- Flutter recommends whole epochs around a 1,200-update budget from the included crop count and dataset repeats. Twenty crops with 20 repeats give three epochs. Advanced settings allow manual epochs. The new PC capability enables taller aspect buckets with the same maximum training pixel area and exposes Full body framing at 512×768 in Generate.
+- Training saves the base checkpoint in local model provenance. Generate selects it when available, and Reface uses it for missing head angles. Reface keeps real source photos as the default and checks the identity of generated portraits before mixing them in. Full-body outputs are skipped as Reface references.
+- Regression cases cover video curation, crop coordinates and masks, bucket sizes, vertical API presets, and portrait selection. The Flutter and Python suites and end-to-end GPU quality and timing remain to be run. The Native Android project, installed clients and running Mobile API were outside this update.
+
 ## Photo actions no longer stop a running scan — 2026-11-16
 
 - Source tracing found that photo/identity actions could enter `PersonMediaOrganizer.beforeMove`, which unconditionally called `ScanEngine.pauseAndWait()` with no corresponding resume. Redetect also issued analysis and detached follow-up grouping concurrently with the scan. The shared organizer hook no longer requests a permanent Pause.

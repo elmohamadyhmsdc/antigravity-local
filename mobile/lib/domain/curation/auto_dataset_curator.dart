@@ -144,26 +144,27 @@ class AutoDatasetCurator {
             score += 30.0 + (c.skinRatio * 20.0);
           }
         }
-        if (c.extent == 'full') {
-          score += 20.0;
-        } else if (c.extent == 'knee') {
+        if (c.extent == 'knee') {
           score += 10.0;
         }
         return score;
     }
   }
 
+  bool _isFullBody(CurationCandidate? c) =>
+      c?.category == CurationCategory.body && c?.extent == 'full';
+
   List<CurationCandidate> deduplicateVideoFrames(
     List<CurationCandidate> candidates,
   ) {
     final nonVideo = candidates.where((c) => !c.isVideo).toList();
-    final videoByMedia = <int, List<CurationCandidate>>{};
+    final videoByView = <(int, CurationCategory), List<CurationCandidate>>{};
     for (final c in candidates.where((c) => c.isVideo)) {
-      videoByMedia.putIfAbsent(c.mediaId, () => []).add(c);
+      videoByView.putIfAbsent((c.mediaId, c.category), () => []).add(c);
     }
 
     final keptVideo = <CurationCandidate>[];
-    for (final list in videoByMedia.values) {
+    for (final list in videoByView.values) {
       list.sort((a, b) => (a.timestampMs ?? 0).compareTo(b.timestampMs ?? 0));
       CurationCandidate? lastKept;
       for (final item in list) {
@@ -175,8 +176,9 @@ class AutoDatasetCurator {
           if (diff >= minVideoGapMs) {
             lastKept = item;
             keptVideo.add(item);
-          } else if (item.quality > lastKept.quality) {
-            // Replace with higher quality frame in same window
+          } else if (_isFullBody(item) == _isFullBody(lastKept)
+              ? item.quality > lastKept.quality
+              : _isFullBody(item)) {
             keptVideo.removeLast();
             lastKept = item;
             keptVideo.add(item);
@@ -267,7 +269,9 @@ class AutoDatasetCurator {
           if (s > nearest) nearest = s;
         }
         final value = scoreCandidate(c) - diversityWeight * nearest;
-        if (value > bestScore) {
+        final full = _isFullBody(c);
+        final bestIsFull = _isFullBody(best);
+        if (full == bestIsFull ? value > bestScore : full) {
           bestScore = value;
           best = c;
         }

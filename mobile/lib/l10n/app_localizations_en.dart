@@ -1699,11 +1699,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPc => 'Your PC';
 
   @override
-  String get settingsQualityGate => 'Face quality';
+  String get settingsQualityGate => 'Scan face quality';
 
   @override
   String get settingsQualityGateHint =>
-      'Faces below this quality are ignored. Raise it for cleaner groups, lower it to catch more faces. Applies to new scans.';
+      'Minimum detection quality for saving faces in new scans.';
 
   @override
   String get settingsScanDefaults => 'Scanning';
@@ -1764,7 +1764,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get groupingAutomaticHint =>
-      'Automatic. Thresholds follow your library: stricter when different people look alike, and duplicate people the app made are merged on their own.';
+      'Matching adapts to each detection, the identity’s saved examples and how closely other identities match.';
+
+  @override
+  String get regroupTitle => 'Regroup faces and bodies from scratch';
+
+  @override
+  String get regroupHint =>
+      'Rebuild automatic groups and check saved People and Characters for mistakes.';
+
+  @override
+  String get regroupConfirmation =>
+      'Rebuild grouping using the detections already saved. Named people, Characters, manual corrections and original files are kept. Clear mistakes are corrected automatically and uncertain matches go to Review. Keep the PC connected while grouping runs.';
+
+  @override
+  String get regroupAction => 'Regroup library';
+
+  @override
+  String get regroupNeedsPc => 'Connect to your PC to regroup the library.';
+
+  @override
+  String get regroupFailed =>
+      'Could not regroup the library. Try again when the PC is connected.';
+
+  @override
+  String regroupDone(int repaired, int bodies, int review) {
+    return 'Grouping rebuilt. $repaired face assignments corrected, $bodies bodies linked, $review decisions in Review.';
+  }
 
   @override
   String suggestedFacesTitle(String name, int count) {
@@ -2337,6 +2363,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loraEpochs => 'Epochs';
 
   @override
+  String loraTrainingSteps(int steps) {
+    return 'About $steps training steps';
+  }
+
+  @override
+  String get loraUseRecommendedEpochs => 'Use recommended epochs';
+
+  @override
   String get loraDim => 'Network dimension';
 
   @override
@@ -2358,10 +2392,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loraModel => 'Trained LoRA';
 
   @override
-  String get loraCount => 'Number of portraits';
+  String get loraCount => 'Number of images';
 
   @override
-  String get loraPrompt => 'Portrait prompt';
+  String get loraPrompt => 'Prompt';
+
+  @override
+  String get loraFraming => 'Framing';
+
+  @override
+  String get loraPortrait => 'Portrait';
+
+  @override
+  String get loraFullBody => 'Full body (head to toe)';
+
+  @override
+  String loraFullBodyPrompt(Object trigger) {
+    return 'Full-length photograph of $trigger person, head and both feet visible, realistic proportions, natural pose and lighting';
+  }
 
   @override
   String loraDefaultPrompt(Object trigger) {
@@ -4321,6 +4369,33 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get autoSyncOrganizedFoldersHint =>
       'Move originals into named people’s folders when their names, groups or assignments change.';
+
+  @override
+  String get folderCleanupTitle => 'Clean up empty folders';
+
+  @override
+  String get folderCleanupHint =>
+      'Remove empty folders inside Your Gallery, including old numbered person folders.';
+
+  @override
+  String get folderCleanupNeedsAccess =>
+      'Allow All files access above to clean up folders in Your Gallery.';
+
+  @override
+  String get folderCleanupFailed =>
+      'Could not clean up folders. Try again when file organization is idle.';
+
+  @override
+  String folderCleanupResult(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Removed $count empty folders',
+      one: 'Removed 1 empty folder',
+      zero: 'No empty folders found',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get moveWithoutAskingTitle => 'Move photos without asking';

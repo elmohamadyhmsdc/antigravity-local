@@ -2545,13 +2545,13 @@ abstract class AppLocalizations {
   /// No description provided for @settingsQualityGate.
   ///
   /// In en, this message translates to:
-  /// **'Face quality'**
+  /// **'Scan face quality'**
   String get settingsQualityGate;
 
   /// No description provided for @settingsQualityGateHint.
   ///
   /// In en, this message translates to:
-  /// **'Faces below this quality are ignored. Raise it for cleaner groups, lower it to catch more faces. Applies to new scans.'**
+  /// **'Minimum detection quality for saving faces in new scans.'**
   String get settingsQualityGateHint;
 
   /// No description provided for @settingsScanDefaults.
@@ -2659,8 +2659,50 @@ abstract class AppLocalizations {
   /// No description provided for @groupingAutomaticHint.
   ///
   /// In en, this message translates to:
-  /// **'Automatic. Thresholds follow your library: stricter when different people look alike, and duplicate people the app made are merged on their own.'**
+  /// **'Matching adapts to each detection, the identity’s saved examples and how closely other identities match.'**
   String get groupingAutomaticHint;
+
+  /// No description provided for @regroupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Regroup faces and bodies from scratch'**
+  String get regroupTitle;
+
+  /// No description provided for @regroupHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild automatic groups and check saved People and Characters for mistakes.'**
+  String get regroupHint;
+
+  /// No description provided for @regroupConfirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebuild grouping using the detections already saved. Named people, Characters, manual corrections and original files are kept. Clear mistakes are corrected automatically and uncertain matches go to Review. Keep the PC connected while grouping runs.'**
+  String get regroupConfirmation;
+
+  /// No description provided for @regroupAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Regroup library'**
+  String get regroupAction;
+
+  /// No description provided for @regroupNeedsPc.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to your PC to regroup the library.'**
+  String get regroupNeedsPc;
+
+  /// No description provided for @regroupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not regroup the library. Try again when the PC is connected.'**
+  String get regroupFailed;
+
+  /// No description provided for @regroupDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Grouping rebuilt. {repaired} face assignments corrected, {bodies} bodies linked, {review} decisions in Review.'**
+  String regroupDone(int repaired, int bodies, int review);
 
   /// No description provided for @suggestedFacesTitle.
   ///
@@ -3676,6 +3718,18 @@ abstract class AppLocalizations {
   /// **'Epochs'**
   String get loraEpochs;
 
+  /// No description provided for @loraTrainingSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'About {steps} training steps'**
+  String loraTrainingSteps(int steps);
+
+  /// No description provided for @loraUseRecommendedEpochs.
+  ///
+  /// In en, this message translates to:
+  /// **'Use recommended epochs'**
+  String get loraUseRecommendedEpochs;
+
   /// No description provided for @loraDim.
   ///
   /// In en, this message translates to:
@@ -3721,14 +3775,38 @@ abstract class AppLocalizations {
   /// No description provided for @loraCount.
   ///
   /// In en, this message translates to:
-  /// **'Number of portraits'**
+  /// **'Number of images'**
   String get loraCount;
 
   /// No description provided for @loraPrompt.
   ///
   /// In en, this message translates to:
-  /// **'Portrait prompt'**
+  /// **'Prompt'**
   String get loraPrompt;
+
+  /// No description provided for @loraFraming.
+  ///
+  /// In en, this message translates to:
+  /// **'Framing'**
+  String get loraFraming;
+
+  /// No description provided for @loraPortrait.
+  ///
+  /// In en, this message translates to:
+  /// **'Portrait'**
+  String get loraPortrait;
+
+  /// No description provided for @loraFullBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Full body (head to toe)'**
+  String get loraFullBody;
+
+  /// No description provided for @loraFullBodyPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Full-length photograph of {trigger} person, head and both feet visible, realistic proportions, natural pose and lighting'**
+  String loraFullBodyPrompt(Object trigger);
 
   /// No description provided for @loraDefaultPrompt.
   ///
@@ -6915,6 +6993,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Move originals into named people’s folders when their names, groups or assignments change.'**
   String get autoSyncOrganizedFoldersHint;
+
+  /// No description provided for @folderCleanupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clean up empty folders'**
+  String get folderCleanupTitle;
+
+  /// No description provided for @folderCleanupHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove empty folders inside Your Gallery, including old numbered person folders.'**
+  String get folderCleanupHint;
+
+  /// No description provided for @folderCleanupNeedsAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow All files access above to clean up folders in Your Gallery.'**
+  String get folderCleanupNeedsAccess;
+
+  /// No description provided for @folderCleanupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not clean up folders. Try again when file organization is idle.'**
+  String get folderCleanupFailed;
+
+  /// No description provided for @folderCleanupResult.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No empty folders found} =1{Removed 1 empty folder} other{Removed {count} empty folders}}'**
+  String folderCleanupResult(int count);
 
   /// No description provided for @moveWithoutAskingTitle.
   ///

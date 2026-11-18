@@ -45,10 +45,13 @@ class DoubtAudit {
   /// A better home must score at least this against the other person's core.
   double get _suggestFloor => _character ? 0.82 : 0.45;
 
-  Future<DoubtResult> run({int? anchorPersonId}) async {
+  Future<DoubtResult> run({
+    int? anchorPersonId,
+    bool rebuilding = false,
+  }) async {
     final people = await _db
         .customSelect(
-          'SELECT id, avatar_face_id FROM persons WHERE kind = ? AND grouping_locked = 0 ORDER BY id',
+          'SELECT id, avatar_face_id FROM persons WHERE kind = ? AND grouping_locked = 0 AND hidden = 0 ORDER BY id',
           variables: [Variable.withString(kind)],
           readsFrom: {_db.persons},
         )
@@ -102,8 +105,9 @@ class DoubtAudit {
           ),
         );
       }
-      final anchored = pid == anchorPersonId;
-      if (anchored && trusted.isEmpty) {
+      final anchored =
+          pid == anchorPersonId || (rebuilding && trusted.isNotEmpty);
+      if (pid == anchorPersonId && trusted.isEmpty) {
         final cover = p.readNullable<int>('avatar_face_id');
         if (faces.any((f) => f.id == cover)) trusted.add(cover!);
       }
@@ -118,7 +122,11 @@ class DoubtAudit {
           dedupe: false,
           medoidSample: 60,
           trusted: trusted,
-          minToTrim: anchored ? 2 : 5,
+          minToTrim: anchored
+              ? 2
+              : rebuilding
+              ? 3
+              : 5,
           minTrusted: anchored ? 1 : 3,
         );
         // Keep different confirmed views instead of reducing a person to one
